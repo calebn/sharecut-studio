@@ -828,7 +828,7 @@ reveals a field below pinned chrome rather than under it. The compact header kee
 wrapped actions leave room for enlarged fade fields on a short screen. Native
 focus also reveals the complete field label when it fits below that header.
 The sheet still has one scroll owner. `e2e-compat/touch-peek.spec.ts` taps Expand and Collapse
-with a finger at 360×800 and 844×390 and checks that the finger lands on the
+with a finger at 360×800 and 636×390 (the 844×390 it used moved to the column, #1696) and checks that the finger lands on the
 button; the sideways case failed on the round 3 build.
 
 ### The strip over shell rows (#1051 round 4)
@@ -847,7 +847,7 @@ status and nav rows (`--z-shell-chrome`) drew over the sheet
 
 `e2e-compat/touch-strip-stacking.spec.ts` moves the shell as a bounce does
 and freezes the stow slide halfway, in Chromium and WebKit at 360×800 and
-844×390. On the round 3 build the row covered the strip's bottom edge.
+636×390 (844×390 before #1696). On the round 3 build the row covered the strip's bottom edge.
 
 ### Strip nudges and hold-to-repeat (#1051 round 4)
 
@@ -898,7 +898,7 @@ consistent visual language", and for press-and-hold to repeat them.
 WebKit: the value moves during the hold, the run sends one `SetEnvelope`, and
 one Undo restores it; a held point stops at the clip edge at 50 s and a held
 pending start at the previous cut's end, and a fresh press crosses each; at
-360×800 and 844×390 in both themes the pending and envelope rows have 44 px
+360×800 and 636×390 (844×390 before the column, #1696) in both themes the pending and envelope rows have 44 px
 targets in view and no axe violations.
 
 ### Touch grammar round 4b (#1051)

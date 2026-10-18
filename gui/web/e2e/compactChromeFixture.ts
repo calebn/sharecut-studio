@@ -19,7 +19,7 @@ import { buildFixture, json, setZoom, TRACK } from "./touchTimeline";
 const CLIENT_ID = "e2e-touch-chrome-reach";
 export const SIZES = {
   portrait: { width: 390, height: 844 },
-  landscape: { width: 844, height: 390 },
+  landscape: { width: 636, height: 390 },
 } as const;
 
 export const original = [

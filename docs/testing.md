@@ -1742,6 +1742,7 @@ test; other rows are whole tests.
 | a soloed track keeps Clear solo tappable at the top of the timeline at 914x331 while the envelope sheet is open | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a clip's Inspector is a column beside a whole timeline, and Close returns the shell | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an envelope point's lane stays whole and uncovered beside the column | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a pending edit's Approve and Reject float beside the column, not under it | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | with the keyboard up the column shortens to the visible viewport and keeps its header | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Inspector stays a bottom sheet | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | rotating a phone from portrait to landscape moves the open Inspector into a column and back | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -1753,9 +1754,9 @@ test; other rows are whole tests.
 | the phone sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the tablet sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | agent range controls stay reachable from a tablet clip sheet | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a zero-start agent range arriving at short-tablet peek stays reachable | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a zero-start agent range arriving at the short-tablet column stays reachable | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a tablet track sheet owns the agent range controls | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| agent range arrival and removal keep short-tablet peek state reachable | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| agent range arrival and removal keep the short-tablet column reachable | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Reject all asks with the count, then one Undo brings the pending edits back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a long press then a drag selects a word range, and the sheet clears it | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a finger that moves before the hold scrolls and selects nothing | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -1765,8 +1766,10 @@ test; other rows are whole tests.
 | Track actions opens inside a 390 and a 393 wide phone viewport in both detents and its first item works | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an app toast stays topmost and tappable over a transport menu opened after it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an app toast stays topmost and tappable over a transport menu that was open before it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| focused feedback Undo survives phone to tablet host remount | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| focused feedback Dismiss survives phone to tablet host remount | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| focused feedback Undo survives a phone turning sideways | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| focused feedback Dismiss survives a phone turning sideways | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| focused feedback Undo stays in the column or its toast when a phone turns to 844x390 | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| focused feedback Dismiss stays in the column or its toast when a phone turns to 844x390 | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an agent's selection and a peer's edit that remove the focused Undo hand focus to the sheet Close | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | feedback preserves selected half and full geometry and permitted ruler and lane room | `gui/web/e2e-compat/compact-feedback-detents.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped removal feedback keeps remaining lifetime after closing the compact host | `gui/web/e2e-compat/compact-feedback-host-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -1804,7 +1807,7 @@ test; other rows are whole tests.
 | pending and envelope strips: nudge rows, targets and axe (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | iPhone envelope Time field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | iPhone comment field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending and envelope strips: nudge rows, targets and axe (landscape-844) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
+| pending and envelope strips: nudge rows, targets and axe (landscape-636) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: slid on, settled, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: lifted at the origin, chip pressed again, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: slid on and lifted without moving | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -1812,15 +1815,15 @@ test; other rows are whole tests.
 | no grab while passing over chips or moving off the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | the strip and the expanded inspector leave the selection in view | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | a drag stows the strip, which returns with the new value: portrait-360 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| a drag stows the strip, which returns with the new value: landscape-600 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| a drag stows the strip, which returns with the new value: landscape-636 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Expand is remembered for the next selection, and so is Collapse: portrait-360 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| Expand is remembered for the next selection, and so is Collapse: landscape-600 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand is remembered for the next selection, and so is Collapse: landscape-636 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | axe, both themes and reduced motion with the strip open | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels the drag and pinches (portrait-360) | `gui/web/e2e-compat/touch-pinch.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels the drag and pinches (landscape-844) | `gui/web/e2e-compat/touch-pinch.spec.ts` | Core flow | Pass | Pass | Not run |
 | timeline text takes no selection or callout | `gui/web/e2e-compat/touch-selection.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: portrait-360 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| no shell row draws over the strip, nor the strip over it: landscape-600 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| no shell row draws over the strip, nor the strip over it: landscape-636 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | live waiver draft survives compact to regular tablet transition | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
 | docks in the inspector sheet | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -1830,8 +1833,8 @@ test; other rows are whole tests.
 | pending card: a marker lane that grows while it floats moves the card clear of the lane | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending card: a bottom panel that grows while it floats moves the card clear of the panel | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 360 | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Expand keeps the header, Collapse and Close usable at 600x360 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| Expand keeps the header, Collapse and Close usable at 600x360 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand keeps the header, Collapse and Close usable at 636x390 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand keeps the header, Collapse and Close usable at 636x390 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | the half drawer keeps a readable title at 390x844 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the half drawer keeps a readable title at 390x844 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a timeline tap while a track's sheet is open goes to the strip: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |

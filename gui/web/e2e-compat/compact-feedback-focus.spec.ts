@@ -16,16 +16,28 @@ import {
 import { lane } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
-test("focused feedback Undo survives phone to tablet host remount", async ({
+test("focused feedback Undo survives a phone turning sideways", async ({
   page,
 }, info) => {
   await checkRemount(page, info, "Undo");
 });
 
-test("focused feedback Dismiss survives phone to tablet host remount", async ({
+test("focused feedback Dismiss survives a phone turning sideways", async ({
   page,
 }, info) => {
   await checkRemount(page, info, "Dismiss");
+});
+
+test("focused feedback Undo stays in the column or its toast when a phone turns to 844x390", async ({
+  page,
+}, info) => {
+  await checkColumnHandoff(page, info, "Undo");
+});
+
+test("focused feedback Dismiss stays in the column or its toast when a phone turns to 844x390", async ({
+  page,
+}, info) => {
+  await checkColumnHandoff(page, info, "Dismiss");
 });
 
 test("an agent's selection and a peer's edit that remove the focused Undo hand focus to the sheet Close", async ({
@@ -116,7 +128,7 @@ async function checkRemount(
 ) {
   const { panel, action } = await focusCompactToastAction(page, name);
   await page.setViewportSize(SIZES.landscape);
-  await expect(page.locator('.daw-shell[data-shell="tablet"]')).toBeVisible();
+  await expect(page.locator('.daw-shell[data-shell="phone"]')).toBeVisible();
   await expect(panel).toBeVisible();
   await page.waitForTimeout(350);
   await receipt(info, `remount-${name}`, {
@@ -128,4 +140,36 @@ async function checkRemount(
     "original-action",
   );
   await expect(action).toBeFocused();
+}
+
+/**
+ * A phone that turns to 844x390 swaps its compact strip for the Inspector
+ * column (#1696), which has no feedback host: the toast floats, and the
+ * focused action it held hands focus to the column's Close, never to the page.
+ */
+async function checkColumnHandoff(
+  page: Page,
+  info: TestInfo,
+  name: "Undo" | "Dismiss",
+) {
+  const { action } = await focusCompactToastAction(page, name);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.locator('.daw-shell[data-shell="tablet"]')).toBeVisible();
+  const column = page.locator(".bottom-sheet--column");
+  await expect(column).toBeVisible();
+  await receipt(info, `column-${name}`, {
+    focusedName: await page.locator(":focus").getAttribute("aria-label"),
+    focusedTag: await page.evaluate(() => document.activeElement?.tagName),
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          !!document.activeElement?.closest(
+            ".bottom-sheet--column, .ui-toast-region--app",
+          ),
+      ),
+    )
+    .toBe(true);
+  expect(await action.count()).toBeLessThanOrEqual(1);
 }

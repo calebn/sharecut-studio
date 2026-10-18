@@ -68,6 +68,7 @@ async function open(page: Page, view: Layout, envelope: boolean) {
   await expect(page.locator(`.daw-shell--${view.shell}`)).toBeVisible();
   if (view.shell === "phone") await openPhoneTimeline(page);
   await expect(page.locator(".lane-row").first()).toBeVisible();
+  await expect(page.locator(".editing-tool-rail")).toBeVisible();
   if (envelope) {
     await layer(page, "Volume envelope", true);
     await expect(
@@ -89,7 +90,6 @@ async function selectEnvelopePoint({
       `${lane} [data-hit-kind="envelope-point"][data-hit-id="env-c"]`,
     ),
   );
-  await page.waitForTimeout(60);
   await finger.up();
 }
 
@@ -136,6 +136,7 @@ function geometry(page: Page) {
       column: box(column),
       position: column ? getComputedStyle(column).position : null,
       timeline: box(document.querySelector(".timeline-scroll")),
+      rail: box(document.querySelector(".editing-tool-rail")),
       transport: box(document.querySelector(".daw-shell-transport")),
       status: box(document.querySelector(".status-bar")),
       sheetRoot: document.querySelector(".bottom-sheet-root") !== null,
@@ -235,13 +236,35 @@ for (const [name, view] of Object.entries(COLUMN)) {
       const before = await geometry(page);
       await page.locator(".clip-hit").first().tap();
       await expectColumn(page, view, name);
-      const after = await geometry(page);
-      // The timeline keeps its height; only the column took width.
+      // A toast centres over the timeline beside the column, not over it.
+      const toastRight = await page.evaluate(() => {
+        const region = document.createElement("div");
+        region.className = "ui-toast-region--app";
+        document.body.append(region);
+        const right = region.getBoundingClientRect().right;
+        region.remove();
+        return right;
+      });
       expect(
-        after.timeline!.height,
-        `${name}: timeline height`,
-      ).toBeGreaterThanOrEqual(before.timeline!.height - 1);
+        toastRight,
+        `${name}: the toast region stops at the column`,
+      ).toBeLessThanOrEqual((await geometry(page)).column!.left);
+      const after = await geometry(page);
+      // The timeline and its rail take the column's whole rows: only width
+      // went to the column, and the tabs row or mode bar is not in the way.
       expect(after.timeline!.width).toBeLessThan(before.timeline!.width);
+      expect(
+        Math.abs(after.timeline!.top - after.column!.top),
+        `${name}: the timeline starts with the column`,
+      ).toBeLessThanOrEqual(2);
+      expect(
+        Math.abs(after.rail!.bottom - after.column!.bottom),
+        `${name}: the rail ends with the column`,
+      ).toBeLessThanOrEqual(2);
+      expect(
+        after.rail!.height,
+        `${name}: the rail keeps one row`,
+      ).toBeLessThan(70);
       // Its form is reachable by scrolling inside the column, not the page.
       const heading = page
         .locator(".bottom-sheet--column")
@@ -289,7 +312,6 @@ for (const [name, view] of Object.entries(COLUMN)) {
       await finger.down(
         await centerOf(page, `${lane} [data-pending-id] >> nth=0`),
       );
-      await page.waitForTimeout(60);
       await finger.up();
       await expectColumn(page, view, name);
       const bar = page.locator(".pending-actionbar");

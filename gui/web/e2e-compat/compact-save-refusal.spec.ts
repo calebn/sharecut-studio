@@ -21,7 +21,7 @@ test.describe("pending save", () => {
     context,
     browserName,
   }, info) => {
-    await openAt(page, SIZES.landscape);
+    await openAt(page, SIZES.portrait);
     const finger = await newFinger(context, page, browserName);
     const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
     await finger.down(at);

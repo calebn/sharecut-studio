@@ -35,7 +35,7 @@ for (const {
 } of withAppearance(
   [
     { width: 390, height: 844 },
-    { width: 600, height: 360 },
+    { width: 636, height: 390 },
   ].flatMap((viewport) =>
     [16, 32].flatMap((rootPx) =>
       (["Envelope", "Pending"] as const).map((inspector) => ({
@@ -58,7 +58,7 @@ for (const {
         theme,
       );
       const fallbackMenu =
-        viewport.width === 600 &&
+        viewport.width === 636 &&
         rootPx === 32 &&
         inspector === "Envelope" &&
         theme === "dark";
@@ -79,7 +79,7 @@ for (const {
         rootPx === 32 &&
         theme === "dark" &&
         ((viewport.width === 390 && inspector === "Pending") ||
-          (viewport.width === 600 && inspector === "Envelope"));
+          (viewport.width === 636 && inspector === "Envelope"));
       const safeAreaSession = safeAreaProbe
         ? await context.newCDPSession(page)
         : null;
@@ -417,11 +417,19 @@ for (const {
             expect(ruler.measured[0].visibleArea.state).toBe("positive");
             expect(ruler.rect.bottom).toBeLessThanOrEqual(box!.y);
           }
+          // The ruler and one lane: 104 for a coarse lane, 96 for the 72px
+          // lane a phone held sideways draws (24 + 72).
           if (rootPx === 16)
-            expect(box!.y - timeline.rect.top).toBeGreaterThanOrEqual(104);
+            expect(box!.y - timeline.rect.top).toBeGreaterThanOrEqual(
+              viewport.width > viewport.height ? 96 : 104,
+            );
         }
       }
-      expect(withFeedback.half).toBeLessThan(withFeedback.full);
+      // At large text on a phone held sideways half and full share a height
+      // (docs/gui-mobile.md): the header never leaves less than 9rem.
+      if (rootPx === 32 && viewport.width > viewport.height)
+        expect(withFeedback.half).toBeLessThanOrEqual(withFeedback.full);
+      else expect(withFeedback.half).toBeLessThan(withFeedback.full);
       await page
         .getByRole("button", { name: "Collapse to strip", exact: true })
         .click();

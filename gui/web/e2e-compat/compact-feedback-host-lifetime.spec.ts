@@ -70,7 +70,7 @@ test.describe("feedback host Close", () => {
         exact: true,
       });
       await dismiss.focus();
-      await page.setViewportSize({ width: 600, height: 360 });
+      await page.setViewportSize({ width: 636, height: 360 });
       await openPhoneTimeline(page);
       await setZoom(page, 3);
       const point = page.locator(`${lane} [data-hit-id="env-c"]`);
