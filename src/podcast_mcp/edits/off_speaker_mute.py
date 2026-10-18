@@ -87,6 +87,7 @@ class OffSpeakerPlan:
     own_word_overlap_sec: float = 0.0
     kept_uncorrelated_sec: float = 0.0
     kept_gaps: list[dict[str, Any]] = field(default_factory=list)
+    still_audible_sec: float = 0.0
 
     @property
     def audible_muted_sec(self) -> float:
@@ -110,6 +111,7 @@ class OffSpeakerPlan:
             "kept_own_energy_sec": round(self.kept_own_energy_sec, 3),
             "already_quiet_sec": round(self.already_quiet_sec, 3),
             "refusal": self.refusal,
+            "still_audible_sec": round(self.still_audible_sec, 3),
             "kept_gaps": self.kept_gaps,
             "regions": self.regions,
         }
@@ -288,6 +290,7 @@ def plan_from_evidence(
         if next_lo - prev_hi <= _frames(HOLD_CLOSED_SEC) and closable[prev_hi:next_lo].all():
             mute[prev_hi:next_lo] = True
     runs = _runs(mute)
+    plan.still_audible_sec = float((candidate & audible & ~mute).sum()) * LEVEL_FRAME_SEC
     plan.kept_gaps = _kept_gaps(
         runs, candidate, confirmed, keep, own_word_mask, peer_mask, audible, n
     )
