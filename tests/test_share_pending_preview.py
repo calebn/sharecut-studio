@@ -146,13 +146,16 @@ def test_share_pending_preview_http_caps_and_skip(
         params={"edit_id": "split1", "mode": mode},
     )
     assert split_resp.status_code == 400
-    assert "split" in split_resp.json()["detail"].lower()
+    assert split_resp.json()["detail"] == (
+        "This preview isn't available right now. Ask the host to check the project."
+    )
+    assert "split" not in split_resp.json()["detail"].lower()
     assert split_resp.headers["x-sharecut-error-code"] == "pending_preview_unavailable"
     for preview in (share_pending_preview_wav_cached, share_pending_preview_wav):
         with pytest.raises(CodedValueError) as refusal:
             preview(both["token"], edit_id="split1", mode=mode)
         assert refusal.value.code == "pending_preview_unavailable"
-        assert str(refusal.value) == split_resp.json()["detail"]
+        assert str(refusal.value) == "A split does not change the mix until you delete a side."
 
 
 def test_share_pending_preview_suggested_shorter_and_mcp_urls(
