@@ -6,6 +6,10 @@ import {
   rippleDeleteClips,
   splitAtTime,
 } from "../api";
+import {
+  documentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { patchClipsMove } from "../document/projectPatch";
@@ -363,7 +367,10 @@ export function registerClipMoveCommands(): void {
   });
 
   registerCommand("edit.moveClips", async (args) => {
+    const scope = documentScope();
     return enqueueTrackMutate(async () => {
+      if (!isCurrentDocumentScope(scope))
+        return { status: "disabled", reason: "The episode changed" };
       const s = useDawStore.getState();
       if (
         args.placementToken !== undefined &&
@@ -444,10 +451,14 @@ export function registerClipMoveCommands(): void {
         }
       }
       try {
-        await moveClips(s.projectPath, clips);
-        useDawStore.getState().announceStatus("Moved clips");
+        const undo = await moveClips(s.projectPath, clips);
+        if (!isCurrentDocumentScope(scope))
+          return { status: "disabled", reason: "The episode changed" };
+        useDawStore.getState().announceStatus("Moved clips", { undo });
         return { status: "ok" };
       } catch (e) {
+        if (!isCurrentDocumentScope(scope))
+          return { status: "disabled", reason: "The episode changed" };
         revertOptimisticIfUnchanged(
           previous,
           seqAtStart,

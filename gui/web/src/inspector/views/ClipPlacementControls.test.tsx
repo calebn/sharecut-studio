@@ -15,7 +15,7 @@ import { minimalProject, sampleTrack } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
 import { ClipPlacementControls } from "./ClipPlacementControls";
 
-vi.mock("../../api", () => ({ moveClips: vi.fn(async () => undefined) }));
+vi.mock("../../api", () => ({ moveClips: vi.fn(async () => null) }));
 const clip: ClipRow = {
   id: "a",
   track_id: "host",
@@ -90,7 +90,7 @@ it("offers native pointer buttons, track and exact start with a rendered preview
 it("disables duplicate Apply while saving and restores retry controls after refusal", async () => {
   let refuse = (_error: Error) => {};
   vi.mocked(moveClips).mockReturnValueOnce(
-    new Promise<void>((_resolve, reject) => {
+    new Promise<null>((_resolve, reject) => {
       refuse = reject;
     }),
   );

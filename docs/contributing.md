@@ -440,6 +440,11 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    removing redo entries.
 5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist. Individual Restore only supports ordinary source MUTE archives. Clip removals and exact ranges use the coded `local_restore_requires_history` refusal before history starts. Whole-action History Undo also undoes other edits in the action and may require undoing later actions first. The domain parser validates the complete MUTE Restore plan, including unused per-track entries, before history or subtraction. Malformed data uses the same coded refusal. Do not recreate recordings from archive clocks or perform a hidden Undo.
 
+GUI clip moves return the entry from their own command reply as
+`HistoryEntryId | null`. Pass that value to `announceStatus` for nearby Undo.
+Capture the document scope before enqueueing, then check it before mutation and
+after settlement before feedback or rollback. See [Toast Undo](history.md#guarded-undo-and-redo-expected-head).
+
 Applying a pending decision consumes its stored bounds, whether or not
 `boundary_mode` is set. Prepare and assess the interval before offering it.
 Application reassesses its completed effects without snapping again, then uses
