@@ -12,7 +12,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.review_versions import REVIEW_AUDIO_UNAVAILABLE_GUEST_MESSAGE
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
@@ -27,6 +26,7 @@ from podcast_mcp.services.collaboration.share import (
     share_project_view,
 )
 from podcast_mcp.services.document import HistoryService
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -900,7 +900,9 @@ def test_guest_render_preview_disabled_by_default(
     )["token"]
     denied = client.post(f"/api/review/{edit_tok}/daw/render-preview")
     assert denied.status_code == 403
-    assert denied.json() == {"detail": "That didn't work; ask the host to check this episode."}
+    assert denied.json() == {
+        "detail": "This action isn't available on this link. Ask the host to update its access."
+    }
     assert denied.headers["x-sharecut-error-code"] == "share_capability_required"
 
 
@@ -2528,7 +2530,7 @@ def test_guest_document_key_error_is_fixed_conflict_without_laundering_secret(
         },
     )
     assert response.status_code == 409
-    assert response.json() == {"detail": {"detail": "target not found", "conflict": True}}
+    assert response.json() == {"detail": {"detail": GENERIC_GUEST_MESSAGE, "conflict": True}}
     assert response.headers["x-sharecut-error-code"] == "document_conflict"
 
 
@@ -2547,7 +2549,7 @@ def test_deleted_review_version_revokes_share_with_coded_404(
     save_project(project, minimal_project)
     response = TestClient(create_app()).get(f"/api/review/{token}/daw/project")
     assert response.status_code == 404
-    assert response.json() == {"detail": "invalid or revoked share token"}
+    assert response.json() == {"detail": GENERIC_GUEST_MESSAGE}
     assert response.headers["x-sharecut-error-code"] == "share_not_found"
     with pytest.raises(KeyError, match="invalid or revoked share token"):
         lookup_share(token)
@@ -2587,14 +2589,7 @@ def test_guest_proxy_missing_guards_are_coded_404(
     response = TestClient(create_app()).get(f"/api/review/{token}/daw/proxy/host/{hash_}/{index}")
     assert response.status_code == 404
     assert response.headers["x-sharecut-error-code"] == "proxy_not_found"
-    assert response.json() == {
-        "detail": {
-            "proxy": "proxy not available",
-            "hash": "proxy hash mismatch",
-            "index": "chunk not found",
-            "file": "chunk not found",
-        }[missing]
-    }
+    assert response.json() == {"detail": GENERIC_GUEST_MESSAGE}
 
 
 def test_guest_review_mix_missing_is_coded_404(
@@ -2616,7 +2611,9 @@ def test_guest_review_mix_missing_is_coded_404(
     response = TestClient(create_app()).get(f"/api/review/{token}/audio")
     assert response.status_code == 404
     assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
-    assert response.json() == {"detail": REVIEW_AUDIO_UNAVAILABLE_GUEST_MESSAGE}
+    assert response.json() == {
+        "detail": "This review's audio isn't available right now; ask the host to republish."
+    }
 
 
 def test_guest_audio_pin_missing_is_coded_404(
@@ -2630,5 +2627,7 @@ def test_guest_audio_pin_missing_is_coded_404(
     )
     response = client.get(f"/api/review/{token}/audio")
     assert response.status_code == 404
-    assert response.json() == {"detail": "not found"}
+    assert response.json() == {
+        "detail": "This review's audio isn't available right now; ask the host to republish."
+    }
     assert response.headers["x-sharecut-error-code"] == "review_media_not_found"

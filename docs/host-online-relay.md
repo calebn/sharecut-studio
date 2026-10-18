@@ -759,24 +759,13 @@ with private paths and path-free diagnostic secrets.
   explicit `mcp` capability on the share token. Tools are **capability-filtered** (guest
   parity), not the full host stdio MCP registry.
 - **Guest refusals are typed** (#1444): `scripts/check_coded_errors.py` keeps bare `PermissionError` / `ValueError` out of `services/`, so every refusal a guest can reach is a `CodedError`. Guest HTTP routes project it through `guest_boundary` and WebSockets through `guest_ws_error` (`gui/routes/guest_errors.py`); share-capability denials are `CodedPermissionError(code="share_capability_required")`. Path redaction is defense in depth behind that.
-- **Remote MCP errors** (#1182, #1327): a guest sees an exception's text only for a refusal (a
-  `CodedError` or a busy lock), and only through `CodedError.guest_message()`: the fixed,
-  path-free text the raise site gave (`guest_message=`), else the message itself when it names
-  no host path (`util.redact.mentions_host_path`), else the generic
-  `GENERIC_GUEST_MESSAGE`. A path in prose is never partly redacted: where it ends is
-  ambiguous (`Talkin' Shop` stops at the apostrophe), and what is left over spells part of a
-  folder name, so a message that names a path is replaced whole. Detection conservatively
-  recognizes path prefixes, including escaped Windows separators, percent-encoded slashes,
-  relative paths, and single-folder slash roots, wherever they appear. A slash also triggers
-  withholding when the following folder or filename starts with a space. Slash-separated modes,
-  fractions, and URLs can also trigger withholding. Bare filenames such as `A.wav` remain
-  allowed. Refusals that name a path for the host therefore give the guest a fixed line:
-  `review_media_not_found` reads "This
-  review's audio isn't available right now; ask the host to republish.", `project_not_found`
-  reads "This link isn't available right now; ask the host to check it." Guest-reachable
-  refusals otherwise name the artifact by its track or file name (`raw media for track host
-  not found`, `A wav not found: A.wav`), never by an absolute path. The same rule covers
-  progress: a failed task's progress message (the MCP `progressToken` stream and the share
+- **Remote MCP errors** (#1182, #1327): a guest sees fixed copy for a refusal (a
+  `CodedError` or a busy lock), selected by code through `CodedError.guest_message()`.
+  Unknown codes use `GENERIC_GUEST_MESSAGE`. Host diagnostics never become guest copy.
+  The path detector checks approved messages as defense in depth. Specific approved copies
+  include `review_media_not_found` (review audio unavailable) and `project_not_found` (ask the
+  host to check the link). All other codes without approved copy use the generic line. The same
+  policy covers progress: a failed task's progress message (the MCP `progressToken` stream and the share
   page WebSocket) is `<name> failed` for a crash, and carries a refusal's guest message only
   for a refusal (`util.tool_refusal.guest_failure_detail`, applied in
   `util.progress.install_guest_tool_progress`); any other progress text that names a host
@@ -785,7 +774,7 @@ with private paths and path-free diagnostic secrets.
   project moved returns fixed text (`Error executing tool <name>`, `share not found`,
   `internal error`) and is logged on the host. A registry that is not private
   (`RegistryPrivacyError`) is one such refusal: its host message names the path and a `chmod`,
-  so the guest reads its fixed `GUEST_MESSAGE` and the `registry_not_private` code instead.
+  so the guest reads the fixed code-selected message and the `registry_not_private` code instead.
   Registry backup name and identity guards use the same server-side refusal and fixed
   guest message with `registry_backup_invalid_path` or `registry_backup_integrity_changed`.
   A review folder that is not private (`ReviewPrivacyError`) works the same with

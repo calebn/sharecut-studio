@@ -24,15 +24,13 @@ type Story = StoryObj<typeof TransportPlayControls>;
 
 function TransportPreview({
   initiallyPlaying = false,
-  disabled = false,
-  disabledTitle,
+  disabledReason,
   phone = false,
   onTogglePlay,
   onStop,
 }: {
   initiallyPlaying?: boolean;
-  disabled?: boolean;
-  disabledTitle?: string;
+  disabledReason?: string;
   phone?: boolean;
   onTogglePlay: () => void;
   onStop: () => void;
@@ -42,8 +40,7 @@ function TransportPreview({
   const controls = (
     <TransportPlayControls
       playing={playing}
-      disabled={disabled}
-      disabledTitle={disabledTitle}
+      disabledReason={disabledReason}
       onTogglePlay={() => {
         onTogglePlay();
         setPlaying((value) => !value);
@@ -85,9 +82,7 @@ function TransportPreview({
           <TransportZone position="start">
             <h1>Episode 12: Field notes</h1>
           </TransportZone>
-          <TransportZone position="center">
-            <div className="transport-play">{controls}</div>
-          </TransportZone>
+          <TransportZone position="center">{controls}</TransportZone>
           <TransportZone position="end">
             <Pill tone="ok">Mix up to date</Pill>
           </TransportZone>
@@ -116,12 +111,19 @@ export const Playing: Story = {
 };
 
 export const EmptyProject: Story = {
-  args: { disabled: true, disabledTitle: "Import audio to play" },
+  args: { disabledReason: "Import audio to play." },
   render: (args) => <TransportPreview {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Play" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
+    await expect(canvas.getByText("Import audio to play.")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Play" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(canvas.getByRole("button", { name: "Stop" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 

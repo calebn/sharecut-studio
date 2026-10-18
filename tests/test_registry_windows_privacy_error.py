@@ -17,7 +17,6 @@ import pytest
 from podcast_mcp.util import registry_backup_windows as windows
 from podcast_mcp.util.coded_error import HostSetupError
 from podcast_mcp.util.registry_privacy_error import (
-    GUEST_MESSAGE,
     REGISTRY_NOT_PRIVATE_CODE,
     RegistryPrivacyError,
     RegistryPrivacyReason,
@@ -231,7 +230,10 @@ def test_windows_check_refuses_with_path_reason_and_fix(
     assert refusal.reason is reason
     assert str(refusal) == message
     assert refusal.code == REGISTRY_NOT_PRIVATE_CODE
-    assert refusal.guest_message() == GUEST_MESSAGE
+    assert (
+        refusal.guest_message()
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
     assert isinstance(refusal, HostSetupError)
 
 
@@ -294,4 +296,7 @@ def test_a_windows_refusal_survives_a_process_pool():
     refusal = RegistryPrivacyError(PATH, RegistryPrivacyReason.WINDOWS_ACL)
     restored = pickle.loads(pickle.dumps(refusal))
     assert str(restored) == str(refusal)
-    assert restored.guest_message() == GUEST_MESSAGE
+    assert (
+        restored.guest_message()
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
