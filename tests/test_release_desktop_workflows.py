@@ -34,6 +34,8 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
     assert inputs["version"]["type"] == "string"
     assert inputs["sign"]["type"] == "boolean"
     assert inputs["sign"]["default"] is False
+    assert inputs["sign_updater"]["type"] == "boolean"
+    assert inputs["sign_updater"]["default"] is False
     assert inputs["distribution_profile_json"]["type"] == "string"
     assert inputs["distribution_profile_json"]["default"] == ""
     assert inputs["extension_artifact_name"] == {
@@ -79,7 +81,9 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
     assert "TAURI_SIGNING_PRIVATE_KEY" in secrets
     assert "TAURI_SIGNING_PRIVATE_KEY_PASSWORD" in secrets
     assert job["environment"] == (
-        "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && "
+        "${{ needs.verify-source.outputs.trusted == 'true' && (inputs.sign || "
+        "(inputs.sign_updater && matrix.bundle != 'app' && "
+        "needs.verify-source.outputs.updater == 'true')) && "
         "(matrix.bundle != 'appimage' || needs.verify-source.outputs.updater == 'true') && "
         "'desktop-signing' || '' }}"
     )
@@ -476,7 +480,7 @@ def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
     signing_guard = bundle["steps"][0]
     assert signing_guard["name"] == "Require trusted source for signing"
     assert signing_guard["if"] == (
-        "${{ inputs.sign && needs.verify-source.outputs.trusted != 'true' }}"
+        "${{ (inputs.sign || inputs.sign_updater) && needs.verify-source.outputs.trusted != 'true' }}"
     )
     assert "source commit reachable from protected main" in signing_guard["run"]
     bundle_checkout = bundle["steps"][1]
@@ -591,11 +595,13 @@ def test_updater_signing_key_reaches_only_the_dedicated_sign_step() -> None:
         for step in job["steps"]
         if "TAURI_SIGNING" in str(step.get("env", {})) or "TAURI_SIGNING" in str(step.get("run"))
     ]
-    assert holders == ["Resolve signing flags", "Sign updater bundle"]
-    resolve = next(s for s in job["steps"] if s.get("name") == "Resolve signing flags")
-    assert "secrets.TAURI_SIGNING_PRIVATE_KEY !=" in resolve["env"]["HAS_UPDATER_KEY"]
-    assert "TAURI_SIGNING_PRIVATE_KEY" not in resolve["env"]
-    assert resolve["if"] == "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
+    assert holders == ["Require the updater key before building", "Sign updater bundle"]
+    require = next(
+        s for s in job["steps"] if s.get("name") == "Require the updater key before building"
+    )
+    assert "secrets.TAURI_SIGNING_PRIVATE_KEY !=" in require["env"]["HAS_UPDATER_KEY"]
+    assert "TAURI_SIGNING_PRIVATE_KEY" not in require["env"]
+    assert require["if"] == "${{ env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}"
     sign = next(s for s in job["steps"] if s.get("name") == "Sign updater bundle")
     assert sign["if"] == "${{ env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}"
     assert "set +x" in sign["run"]
@@ -610,9 +616,9 @@ def test_updater_signing_key_reaches_only_the_dedicated_sign_step() -> None:
 def test_unsigned_builds_skip_updater_artifacts_and_say_so() -> None:
     text = BUILD.read_text(encoding="utf-8")
     assert (
-        "SIGNED_RELEASE: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
-        in text
-    )
+        "UPDATER_SIGNING: ${{ needs.verify-source.outputs.trusted == 'true' "
+        "&& (inputs.sign || (inputs.sign_updater && matrix.bundle != 'app')) }}"
+    ) in text
     assert "this build is not updatable from the feed" in text
     job = load_github_yaml(BUILD)["jobs"]["bundle"]
     upload = next(s for s in job["steps"] if s.get("name") == "Upload updater artifacts")
@@ -684,3 +690,18 @@ def test_scripts_parse_under_the_system_bash() -> None:
             check=False,
         )
         assert done.returncode == 0, f"{name}: {done.stderr}"
+
+
+def test_sign_updater_signs_only_windows_and_linux_and_needs_no_platform_secrets() -> None:
+    job = load_github_yaml(BUILD)["jobs"]["bundle"]
+    environment = job["environment"]
+    assert "inputs.sign_updater && matrix.bundle != 'app'" in environment
+    assert "needs.verify-source.outputs.trusted == 'true'" in environment
+    untrusted = next(
+        s for s in job["steps"] if s.get("name") == "Require trusted source for signing"
+    )
+    assert "inputs.sign_updater" in untrusted["if"]
+    resolve = next(s for s in job["steps"] if s.get("name") == "Resolve signing flags")
+    assert resolve["if"] == "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
+    require = next(s for s in job["steps"] if s.get("name") == "Require signing when requested")
+    assert 'if [[ "${{ inputs.sign }}" != "true" ]]; then' in require["run"]

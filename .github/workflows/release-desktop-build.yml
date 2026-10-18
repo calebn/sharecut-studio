@@ -35,6 +35,11 @@ on:
         type: boolean
         required: false
         default: false
+      sign_updater:
+        description: Sign only the Windows NSIS and Linux AppImage updater bundles with the updater key (needs TAURI_SIGNING_PRIVATE_KEY and an updater profile). Needs no Apple or Windows signing secrets, and macOS legs produce no updater bundle (a Mac-signed one is added by the operator). `sign` already implies this.
+        type: boolean
+        required: false
+        default: false
       source_repository:
         description: owner/name to checkout (empty = caller repository)
         type: string
@@ -360,7 +365,7 @@ jobs:
     permissions:
       contents: read
       actions: write
-    environment: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && (matrix.bundle != 'appimage' || needs.verify-source.outputs.updater == 'true') && 'desktop-signing' || '' }}
+    environment: ${{ needs.verify-source.outputs.trusted == 'true' && (inputs.sign || (inputs.sign_updater && matrix.bundle != 'app' && needs.verify-source.outputs.updater == 'true')) && (matrix.bundle != 'appimage' || needs.verify-source.outputs.updater == 'true') && 'desktop-signing' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -409,7 +414,7 @@ jobs:
     steps:
       # This runs before checkout and therefore cannot execute candidate source.
       - name: Require trusted source for signing
-        if: ${{ inputs.sign && needs.verify-source.outputs.trusted != 'true' }}
+        if: ${{ (inputs.sign || inputs.sign_updater) && needs.verify-source.outputs.trusted != 'true' }}
         run: |
           set -euo pipefail
           echo "::error::sign=true requires a source commit reachable from protected main" >&2
@@ -449,7 +454,7 @@ jobs:
       - name: Configure distribution profile
         env:
           DISTRIBUTION_PROFILE_JSON: ${{ inputs.distribution_profile_json }}
-          SIGNED_RELEASE: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}
+          UPDATER_SIGNING: ${{ needs.verify-source.outputs.trusted == 'true' && (inputs.sign || (inputs.sign_updater && matrix.bundle != 'app')) }}
         run: |
           set +x
           set -euo pipefail
@@ -465,10 +470,11 @@ jobs:
           if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("updater_public_key") else 1)' "$profile_path"; then
             updater_profile=yes
           fi
-          # Builds never see the updater key. Only the trusted sign=true path
-          # signs updater bundles, in a separate step after the build.
+          # Builds never see the updater key. Only a trusted run with sign=true,
+          # or sign_updater=true on a non-macOS leg, signs updater bundles, in a
+          # separate step after the build.
           updater_artifacts=no
-          if [[ "$updater_profile" == "yes" && "$SIGNED_RELEASE" == "true" ]]; then
+          if [[ "$updater_profile" == "yes" && "$UPDATER_SIGNING" == "true" ]]; then
             updater_artifacts=yes
           fi
           python3 scripts/generate_distribution_config.py \
@@ -511,13 +517,11 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           WINDOWS_SIGN_CERT_PFX_B64: ${{ secrets.WINDOWS_SIGN_CERT_PFX_B64 }}
           WINDOWS_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
-          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
           set +x
           set -euo pipefail
           apple=no
           windows=no
-          updater=no
           if [[ "${{ inputs.sign }}" == "true" ]]; then
             if [[ -n "${APPLE_SIGNING_IDENTITY}" && -n "${APPLE_CERTIFICATE}" && -n "${APPLE_CERTIFICATE_PASSWORD}" && -n "${APPLE_TEAM_ID}" && -n "${APPLE_API_KEY}" && -n "${APPLE_API_ISSUER}" && -n "${APPLE_API_KEY_P8}" ]]; then
               apple=yes
@@ -526,18 +530,21 @@ jobs:
               windows=yes
             fi
           fi
-          if [[ "${PODCAST_UPDATER_PROFILE}" == "yes" ]]; then
-            if [[ "${HAS_UPDATER_KEY}" != "true" ]]; then
-              echo "::error::sign=true with an updater profile requires the TAURI_SIGNING_PRIVATE_KEY secret" >&2
-              exit 1
-            fi
-            updater=yes
-          fi
           {
             printf 'apple=%s\n' "$apple"
             printf 'windows=%s\n' "$windows"
-            printf 'updater=%s\n' "$updater"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Require the updater key before building
+        if: ${{ env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}
+        env:
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          set +x
+          if [[ "${HAS_UPDATER_KEY}" != "true" ]]; then
+            echo "::error::signing updater bundles requires the TAURI_SIGNING_PRIVATE_KEY secret" >&2
+            exit 1
+          fi
 
       - name: Require signing when requested
         run: |
@@ -935,7 +942,7 @@ jobs:
             if [[ "${PODCAST_UPDATER_ARTIFACTS:-no}" == "yes" ]]; then
               echo "updater artifacts: ${{ matrix.updater_artifact }}" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "updater artifacts: skipped (needs sign=true on trusted main); this build is not updatable from the feed" >> "$GITHUB_STEP_SUMMARY"
+              echo "updater artifacts: skipped (needs sign=true, or sign_updater=true on a Windows or Linux leg, on trusted main); this build is not updatable from the feed" >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
           if [[ -n "$VERSION" ]]; then
