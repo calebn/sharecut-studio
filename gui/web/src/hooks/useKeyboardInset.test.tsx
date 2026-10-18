@@ -86,6 +86,19 @@ describe("useKeyboardInset", () => {
       );
     });
 
+    it("publishes the visible band itself, which fixed content sits in whether or not iOS shrank innerHeight", () => {
+      layout(249, 347);
+      render(<Probe on />);
+      act(() => viewport.move({ height: 122, offsetTop: 98 }));
+      expect(root.dataset.keyboard).toBe("open");
+      expect(root.style.getPropertyValue("--visual-viewport-top")).toBe("98px");
+      expect(root.style.getPropertyValue("--visual-viewport-height")).toBe(
+        "122px",
+      );
+      act(() => viewport.move({ height: 800, offsetTop: 0 }));
+      expect(root.style.getPropertyValue("--visual-viewport-height")).toBe("");
+    });
+
     it("insets by what the keyboard covers below the visible area when Safari has not panned", () => {
       layout(659, 659);
       render(<Probe on />);

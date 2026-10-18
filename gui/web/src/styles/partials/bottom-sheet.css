@@ -509,13 +509,22 @@ html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
   overflow: visible;
 }
 
-/* With the keyboard up the column takes the visible part of the viewport, so
+/* With the keyboard up the column takes the visible band of the viewport, so
    the header and Close stay on screen and the body scrolls above the keyboard.
-   It leaves the grid flow but its cell stays, so the timeline does not move.
-   The root rule above assumes a fixed slot, so the column has its own. */
+   Two things on a real iPhone shaped the rule (#1696). The shell is a size
+   container, so it, not the viewport, is the column's containing block, and a
+   grid item with a grid-area resolves its offsets against that area: `grid-area:
+   auto` gives the shell's own box, which Safari scrolls with the page, so the
+   top is `--visual-viewport-top` (the visual viewport's page offset) and the
+   height is `--visual-viewport-height`, with no subtraction of the keyboard
+   from a layout height iOS already shrank. The column leaves the grid flow but
+   its track stays, so the timeline does not move. The root rule above assumes
+   a fixed slot, so the column has its own. */
 html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
   position: fixed;
-  inset-block: var(--visual-viewport-top, 0) var(--keyboard-inset, 0);
+  grid-area: auto;
+  inset-block: var(--visual-viewport-top, 0) auto;
+  block-size: var(--visual-viewport-height, 100dvh);
   inset-inline-end: env(safe-area-inset-right);
   inline-size: var(--inspector-column-width);
   z-index: var(--z-sheet);
