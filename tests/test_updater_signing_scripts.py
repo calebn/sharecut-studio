@@ -179,7 +179,7 @@ def test_stage_restaples_with_retries_before_archiving(sandbox: Path) -> None:
         "xcrun": (
             'if [[ "$2" == "staple" ]]; then\n'
             f'  n=$(cat "{counter}" 2>/dev/null || echo 0); echo $((n + 1)) > "{counter}"\n'
-            '  [[ $n -ge 1 ]] || exit 65\n'
+            "  [[ $n -ge 1 ]] || exit 65\n"
             "fi\n"
             "exit 0\n"
         ),
