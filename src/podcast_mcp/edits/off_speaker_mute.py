@@ -37,6 +37,7 @@ from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.transcript_gated_play import word_intervals
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 OFF_SPEAKER_REASON = "bleed_mute:off_speaker"
@@ -169,7 +170,7 @@ def _envelope_copy(mine: np.ndarray, theirs: np.ndarray, idx: np.ndarray) -> tup
             continue
         x = x_all[idx[ok]]
         y = theirs[j[ok]]
-        if x.std() < 1e-6 or y.std() < 1e-6:
+        if np.ptp(x) <= 0 or np.ptp(y) <= 0:
             continue
         r = float(np.corrcoef(x, y)[0, 1])
         if r > best[0]:
@@ -290,7 +291,9 @@ def _timeline_levels(
     return levels, track_profile(samples, _SAMPLE_RATE)
 
 
-def plan_off_speaker_mutes(project: EpisodeProject, track_id: str) -> OffSpeakerPlan:
+def plan_off_speaker_mutes(
+    project: EpisodeProject, track_id: str, *, progress: ProgressReporter | None = None
+) -> OffSpeakerPlan:
     """The stretches of ``track_id`` where only another speaker is talking."""
     if project.track_by_id(track_id) is None:
         raise ValueError(f"unknown track {track_id!r}")
@@ -299,9 +302,19 @@ def plan_off_speaker_mutes(project: EpisodeProject, track_id: str) -> OffSpeaker
     if not others:
         plan.refusal = "no_other_dialogue_track"
         return plan
-    with tempfile.TemporaryDirectory(prefix="offspk-") as tmp:
+    with (
+        resolve_progress_task(
+            "mute-off-speaker",
+            "Find off-speaker copies",
+            total=len(others) + 1,
+            prefer_parent=True,
+            progress=progress,
+        ) as task,
+        tempfile.TemporaryDirectory(prefix="offspk-") as tmp,
+    ):
         scratch = Path(tmp)
         mine = _timeline_levels(project, track_id, scratch)
+        task.advance(1, total=len(others) + 1)
         if mine is None:
             plan.refusal = "track_has_no_audio"
             return plan
@@ -313,6 +326,7 @@ def plan_off_speaker_mutes(project: EpisodeProject, track_id: str) -> OffSpeaker
             theirs = _timeline_levels(project, pid, scratch) if words else None
             if theirs is not None:
                 peers.append(PeerEvidence(pid, theirs[0], theirs[1], words))
+            task.advance(1, total=len(others) + 1)
     own_words = word_intervals(project, track_id, 0.0, duration, merge_gap_sec=0.0)
     if not peers:
         plan.refusal = "no_peer_speech"
