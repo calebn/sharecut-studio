@@ -78,6 +78,59 @@ describe("useSelectionSheet placement", () => {
     expect(result.current.open).toBe(true);
   });
 
+  /** A short screen throughout; only the column query follows the rotation. */
+  function stubRotation(column: boolean) {
+    let wide = column;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      get matches() {
+        return query.includes("pointer: coarse") ? wide : true;
+      },
+      addEventListener: (_t: string, cb: () => void) => listeners.add(cb),
+      removeEventListener: (_t: string, cb: () => void) => listeners.delete(cb),
+    }));
+    return (next: boolean) => {
+      wide = next;
+      for (const cb of listeners) cb();
+    };
+  }
+
+  it("keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection", () => {
+    const rotate = stubRotation(true);
+    const { result } = renderHook(() => useSelectionSheet("tablet"));
+    expect(result.current.placement).toBe("column");
+    act(() => rotate(false));
+    expect(result.current.placement).toBe("sheet");
+    expect(result.current.compact).toBeUndefined();
+    expect(result.current.className).toContain("bottom-sheet--inspector");
+    act(() => rotate(true));
+    act(() => rotate(false));
+    expect(result.current.compact).toBeUndefined();
+  });
+
+  it("opens the peek strip for a selection made after the Inspector went upright", () => {
+    const rotate = stubRotation(true);
+    const { result } = renderHook(() => useSelectionSheet("tablet"));
+    act(() => rotate(false));
+    act(() => useDawStore.setState({ selection: null }));
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "clip", id: "c2", trackId: "host" },
+      }),
+    );
+    expect(result.current.compact?.className).toContain(
+      "bottom-sheet--compact",
+    );
+  });
+
+  it("starts as the peek strip when the phone is upright", () => {
+    stubRotation(false);
+    const { result } = renderHook(() => useSelectionSheet("tablet"));
+    expect(result.current.compact?.className).toContain(
+      "bottom-sheet--compact",
+    );
+  });
+
   it("closes through the same handler in a column", () => {
     stubMatchMedia(true);
     const { result } = renderHook(() => useSelectionSheet("phone"));
