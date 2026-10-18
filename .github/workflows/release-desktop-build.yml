@@ -13,6 +13,8 @@
 # and `sign` is true on a trusted source, the Tauri updater signing key
 # (TAURI_SIGNING_PRIVATE_KEY) signs each leg's final bundle in one dedicated
 # step after the build, uploaded under separate `*-updater` artifact names.
+# `sign_updater` does the same for the Windows and Linux legs alone, without
+# any Apple or Windows signing secret.
 # Build steps never see the key. Unsigned builds skip updater artifacts.
 #
 # Runner labels: `macos-15` is arm64 (native Apple Silicon build).
@@ -31,7 +33,7 @@ on:
         required: false
         default: ""
       sign:
-        description: Sign macOS/Windows when the matching secrets are present; with an updater profile also sign updater bundles (needs TAURI_SIGNING_PRIVATE_KEY on every leg, Linux included)
+        description: Sign macOS/Windows when the matching secrets are present; with an updater profile also sign updater bundles (needs TAURI_SIGNING_PRIVATE_KEY on every leg)
         type: boolean
         required: false
         default: false
@@ -417,7 +419,7 @@ jobs:
         if: ${{ (inputs.sign || inputs.sign_updater) && needs.verify-source.outputs.trusted != 'true' }}
         run: |
           set -euo pipefail
-          echo "::error::sign=true requires a source commit reachable from protected main" >&2
+          echo "::error::sign=true or sign_updater=true requires a source commit reachable from protected main" >&2
           exit 1
 
       - uses: actions/checkout@v7
