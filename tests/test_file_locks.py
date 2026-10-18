@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import inspect
+import io
+import os
 import threading
 from pathlib import Path
 
+import pytest
 from filelock import Timeout
 
+from podcast_mcp.util import file_locks
 from podcast_mcp.util.file_locks import hold_shared_file_lock, shared_file_lock
 
 
@@ -114,3 +118,94 @@ def test_shared_file_lock_blocks_other_threads(tmp_path: Path) -> None:
     thread.join()
     assert outcome == ["timeout", "acquired"]
     assert not lock.is_locked
+
+
+@pytest.mark.skipif(not hasattr(os, "makedev"), reason="Linux kernel device identity")
+@pytest.mark.parametrize(
+    ("snapshot", "owner"),
+    [
+        ("1: FLOCK ADVISORY WRITE 42 08:01:123 0 EOF", 42),
+        (
+            "1: FLOCK ADVISORY READ 43 08:01:124 0 EOF\n"
+            "2: FLOCK ADVISORY WRITE 44 08:01:125 1 10\n"
+            "3: POSIX ADVISORY WRITE 45 08:01:126 0 EOF\n"
+            "4: FLOCK ADVISORY WRITE 42 08:01:123 0 EOF",
+            42,
+        ),
+        ("1: FLOCK ADVISORY WRITE 42 08:01:124 0 EOF", None),
+        ("1: FLOCK ADVISORY WRITE 42 08:02:123 0 EOF", None),
+        ("1: -> FLOCK ADVISORY WRITE 42 08:01:123 0 EOF", None),
+        ("1: FLOCK ADVISORY READ 42 08:01:123 0 EOF", None),
+        ("1: FLOCK ADVISORY WRITE 42 08:01:123 1 EOF", None),
+        ("1: FLOCK ADVISORY WRITE -1 08:01:123 0 EOF", None),
+        ("1: FLOCK ADVISORY WRITE broken", None),
+        (
+            "1: FLOCK ADVISORY WRITE 42 08:01:123 0 EOF\n"
+            "2: FLOCK ADVISORY WRITE 43 08:01:123 0 EOF",
+            None,
+        ),
+        (
+            "1: FLOCK ADVISORY WRITE 42 08:01:123 0 EOF\n"
+            "1: -> FLOCK ADVISORY WRITE 43 08:01:123 0 EOF",
+            42,
+        ),
+    ],
+)
+def test_kernel_snapshot_only_identifies_one_granted_whole_file_owner(snapshot, owner):
+    assert file_locks._flock_owner_pid(snapshot, (os.makedev(8, 1), 123)) == owner
+
+
+@pytest.mark.skipif(not hasattr(os, "major"), reason="Linux kernel device identity")
+@pytest.mark.parametrize("failure", ["inaccessible", "oversized", "malformed", "replaced"])
+def test_holder_observation_fails_to_unknown(tmp_path, monkeypatch, failure):
+    lock_path = tmp_path / "x.lock"
+    lock_path.touch()
+    stat = lock_path.stat()
+    row = (
+        f"1: FLOCK ADVISORY WRITE 42 "
+        f"{os.major(stat.st_dev):x}:{os.minor(stat.st_dev):x}:{stat.st_ino} 0 EOF\n"
+    ).encode()
+    monkeypatch.setattr(file_locks.sys, "platform", "linux")
+
+    def open_snapshot(self, mode):
+        assert self == Path("/proc/locks")
+        assert mode == "rb"
+        if failure == "inaccessible":
+            raise PermissionError("unavailable")
+        if failure == "replaced":
+            lock_path.rename(tmp_path / "previous.lock")
+            lock_path.touch()
+        if failure == "oversized":
+            return io.BytesIO(b"x" * (file_locks._PROC_LOCKS_MAX_BYTES + 1))
+        return io.BytesIO(b"\xff" if failure == "malformed" else row)
+
+    monkeypatch.setattr(Path, "open", open_snapshot)
+    assert file_locks.file_lock_holder_pid(lock_path) is None
+
+
+@pytest.mark.parametrize("platform", ["darwin", "win32"])
+def test_holder_observation_is_unavailable_off_linux(tmp_path, monkeypatch, platform):
+    monkeypatch.setattr(file_locks.sys, "platform", platform)
+    assert file_locks.file_lock_holder_pid(tmp_path / "absent.lock") is None
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        pytest.param(
+            "symlink",
+            marks=pytest.mark.skipif(os.name == "nt", reason="Windows symlink privileges"),
+        ),
+        "directory",
+    ],
+)
+def test_holder_observation_requires_a_regular_lock_file(tmp_path, monkeypatch, kind):
+    monkeypatch.setattr(file_locks.sys, "platform", "linux")
+    lock_path = tmp_path / "x.lock"
+    if kind == "symlink":
+        target = tmp_path / "target.lock"
+        target.touch()
+        lock_path.symlink_to(target)
+    else:
+        lock_path.mkdir()
+    assert file_locks.file_lock_holder_pid(lock_path) is None

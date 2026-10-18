@@ -111,6 +111,13 @@ required history-index read errors still propagate.
 
 Removed transcript words live in `transcripts.per_track[].archived_words` in the existing episode project. Each recording transcript owns its archive. History snapshots preserve it with active words and clip geometry, so save/reload and undo/redo do not depend on a new cache or sidecar.
 
+Project commit and render contention diagnostics are ephemeral exception data.
+They add no durable store or lock-file contents. The host CLI can show the measured
+file-lock wait and, on Linux, a best-effort `/proc/locks` holder PID snapshot.
+Activity, lock hold duration, and remaining time are unavailable. Shared and guest
+error projections keep their fixed path-free messages. See
+[Debugging the CLI](setup.md#debugging-the-cli) for retry guidance and platform limits.
+
 ## When to extend which store
 
 | Need | Prefer |

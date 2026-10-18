@@ -230,3 +230,29 @@ def test_busy_project_without_holder_details_explains_how_to_retry():
     assert "Wait for the other command or Studio job to finish, then retry" in result.stderr
     assert "/private/workspace" not in result.stderr
     assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("kind", ["project", "render"])
+@pytest.mark.parametrize("holder_pid", [None, 4242])
+def test_busy_cli_reports_observed_wait_and_honest_holder_limits(kind, holder_pid):
+    from podcast_mcp.util.project_state import LockContention, ProjectBusyError, RenderBusyError
+
+    demo = _build_app()
+    error = RenderBusyError if kind == "render" else ProjectBusyError
+
+    @demo.command("boom-busy")
+    def _boom_busy() -> None:
+        raise error("/private/lock", contention=LockContention(30.25, holder_pid))
+
+    result = runner.invoke(demo, ["boom-busy"])
+    assert result.exit_code == 1
+    assert f"Waited 30.2s for the {'render' if kind == 'render' else 'project commit'} lock" in (
+        result.stderr
+    )
+    assert "Activity, lock hold duration, and remaining time are unknown" in result.stderr
+    assert "retry the same command" in result.stderr
+    if holder_pid is None:
+        assert "Holder unknown" in result.stderr
+    else:
+        assert "Kernel-observed holder PID 4242 at timeout; the holder may change" in result.stderr
+    assert "/private" not in result.stderr
