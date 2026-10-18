@@ -400,8 +400,6 @@ def test_edit_share_gets_guarded_context(
     assert across_gap.status_code == 400
     assert across_gap.headers["x-sharecut-error-code"] == "roll_needs_abutting_clips"
     assert across_gap.json() == {
-        "detail": (
-            "These clips have a gap between them, so there is no join to roll. "
-            "Move one clip to touch the other, or trim an edge instead."
-        )
+        "detail": "These clips need to touch before their join can be rolled. "
+        "Move one clip to the other or trim an edge."
     }
