@@ -471,6 +471,69 @@ test("with iOS's shrunk layout height the column is exactly the visible band, no
   await setKeyboard(page, null);
 });
 
+test("with Safari's chrome collapsed the column stops above the status strip, not over the focused field", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  // An iPhone 15 Plus on its real keypad, chrome collapsed, reported innerHeight
+  // 205 and a visual viewport 205 tall at offsetTop 142 with no inset, while
+  // the shell stayed 347 tall: the band reaches the shell's bottom edge, where
+  // the status strip (above the home indicator) paints over a taller column.
+  const view = COLUMN["932x430 tablet shell"];
+  const insets = { top: 0, bottom: 21, left: 47, right: 47 };
+  if (browserName === "chromium") {
+    const session = await context.newCDPSession(page);
+    await session.send("Emulation.setDeviceMetricsOverride", {
+      ...view,
+      deviceScaleFactor: 1,
+      mobile: true,
+      screenWidth: view.width,
+      screenHeight: view.height,
+    });
+    await session.send("Emulation.setSafeAreaInsetsOverride", { insets });
+  }
+  await open(page, view, false);
+  await page.locator(".clip-hit").first().tap();
+  await expectColumn(
+    page,
+    view,
+    "932x430",
+    browserName === "chromium" ? insets : undefined,
+  );
+  await page.setViewportSize({ width: view.width, height: 347 });
+  await page.waitForFunction(() => innerHeight === 347);
+  await setKeyboard(page, { top: 142, height: 205, inset: 0 });
+  const field = page
+    .locator(".bottom-sheet--column")
+    .getByRole("spinbutton")
+    .first();
+  await field.focus();
+  await field.scrollIntoViewIfNeeded();
+  const g = await geometry(page);
+  const strip = g.status!;
+  const box = (await field.boundingBox())!;
+  const close = (await page
+    .locator(".bottom-sheet--column")
+    .getByRole("button", { name: "Close" })
+    .boundingBox())!;
+  expect(g.position).toBe("fixed");
+  expect(g.column!.top, "starts at the visible band").toBeCloseTo(142, 0);
+  expect(
+    g.column!.bottom,
+    "the column ends where the strip begins",
+  ).toBeLessThanOrEqual(strip.top + 1);
+  expect(
+    box.y + box.height,
+    "the focused field is clear of the strip",
+  ).toBeLessThanOrEqual(strip.top + 1);
+  expect(
+    close.y + close.height,
+    "Close is clear of the strip",
+  ).toBeLessThanOrEqual(strip.top + 1);
+  await setKeyboard(page, null);
+});
+
 for (const [name, view] of Object.entries(COLUMN).filter(
   ([, v]) => v.width !== 932,
 )) {
