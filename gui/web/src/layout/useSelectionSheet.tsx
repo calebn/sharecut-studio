@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 import { isRangeSelection } from "../edit/rangeSelection";
+import {
+  mediaQuerySubscription,
+  useMediaQueryStore,
+} from "../hooks/useMediaQueryStore";
 import { SelectionSheetBody } from "../inspector/SelectionSheetBody";
 import { opensPhoneSheet, sheetScreen } from "../inspector/selectionSurface";
 import type {
@@ -77,6 +81,12 @@ export interface SelectionSheet {
   content: ReactNode;
 }
 
+const LANDSCAPE_MQ = "(orientation: landscape)";
+const subscribeLandscape = mediaQuerySubscription([LANDSCAPE_MQ]);
+const readLandscape = () =>
+  typeof globalThis.matchMedia === "function" &&
+  globalThis.matchMedia(LANDSCAPE_MQ).matches;
+
 /** The selection sheet for `shell`; closed for a shell without one. */
 export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
   const compact = useCompactInspector(shell);
@@ -113,8 +123,17 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       mobileMode,
       moreDestination,
     });
+  const landscape = useMediaQueryStore(
+    subscribeLandscape,
+    readLandscape,
+    () => false,
+  );
+  // A phone in portrait has the rows to show the lane and the form; held
+  // sideways it does not (#1714). The tablet shell keeps the lane band on any
+  // short screen.
+  const laneBand = shell === "tablet" || (shell === "phone" && landscape);
   const laneTrack =
-    open && shell != null && !compact ? editedLaneTrack(selection) : null;
+    open && laneBand && !compact ? editedLaneTrack(selection) : null;
   useKeepEditedLaneClear(laneTrack);
   const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
   const rangeActionsInSheet =
