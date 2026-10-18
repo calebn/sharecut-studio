@@ -986,6 +986,12 @@
             "description": "Narrow the batch to these pending sounds (the Tighten list's filtered ids); omit for every pending tighten proposal.",
             "title": "Ids"
           },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
+          },
           "overrides": {
             "additionalProperties": {
               "enum": [
@@ -1114,6 +1120,12 @@
             },
             "title": "Ids",
             "type": "array"
+          },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1751,6 +1763,12 @@
             "$ref": "#/components/schemas/EditMode",
             "description": "ripple: close or open the time on every dialogue track, so speakers stay in sync. gap: leave silence (or paste over) and move nothing else."
           },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
+          },
           "start": {
             "minimum": 0.0,
             "title": "Start",
@@ -2001,6 +2019,12 @@
           "mode": {
             "$ref": "#/components/schemas/EditMode",
             "description": "ripple: close or open the time on every dialogue track, so speakers stay in sync. gap: leave silence (or paste over) and move nothing else."
+          },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
           },
           "reason": {
             "anyOf": [
@@ -2457,6 +2481,12 @@
             ],
             "title": "Action",
             "type": "string"
+          },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
           },
           "target": {
             "$ref": "#/components/schemas/ExactRangeTarget"
@@ -6240,6 +6270,12 @@
             "$ref": "#/components/schemas/EditMode",
             "description": "ripple: close or open the time on every dialogue track, so speakers stay in sync. gap: leave silence (or paste over) and move nothing else."
           },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
+          },
           "source_sec": {
             "title": "Source Sec",
             "type": "number"
@@ -6746,6 +6782,12 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
           },
           "snap": {
             "default": true,
