@@ -323,6 +323,8 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 The phone and tablet selection sheets render one body from `SELECTION_SURFACES` (`inspector/selectionSurface.tsx`) through `useSelectionSheet`; on tablet, an agent session range stays in the open selection sheet, including compact peek. See [gui-mobile.md](gui-mobile.md#one-selection-surface-table). `ShellBreakpoint` is defined once, in `state/types.ts`.
 
+`useSelectionSheet` also decides where that body sits (`SelectionSheet.placement`): a bottom sheet, or, on a coarse pointer at most 40rem tall and at least 40rem wide (a phone held sideways), a column on the inline end of the shell in place of the sheet (#1696, `useInspectorColumn`; `BottomSheet` `placement="column"`, class `daw-shell--inspector-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
+
 Every button inside `.modifier-footer-actions`, including nested menu triggers
 and preview modes, has a minimum height of `--touch-min` on coarse pointers and
 in the phone shell. This keeps the 44 CSS px floor even when the phone uses a

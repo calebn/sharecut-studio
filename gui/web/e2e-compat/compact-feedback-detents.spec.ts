@@ -35,7 +35,7 @@ for (const {
 } of withAppearance(
   [
     { width: 390, height: 844 },
-    { width: 844, height: 390 },
+    { width: 600, height: 360 },
   ].flatMap((viewport) =>
     [16, 32].flatMap((rootPx) =>
       (["Envelope", "Pending"] as const).map((inspector) => ({
@@ -58,7 +58,7 @@ for (const {
         theme,
       );
       const fallbackMenu =
-        viewport.width === 844 &&
+        viewport.width === 600 &&
         rootPx === 32 &&
         inspector === "Envelope" &&
         theme === "dark";
@@ -79,7 +79,7 @@ for (const {
         rootPx === 32 &&
         theme === "dark" &&
         ((viewport.width === 390 && inspector === "Pending") ||
-          (viewport.width === 844 && inspector === "Envelope"));
+          (viewport.width === 600 && inspector === "Envelope"));
       const safeAreaSession = safeAreaProbe
         ? await context.newCDPSession(page)
         : null;

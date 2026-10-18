@@ -49,8 +49,8 @@ const SETTLE_MS = 160;
 const SIZES = {
   "portrait-360": { width: 360, height: 800 },
   "portrait-390": { width: 390, height: 844 },
-  "landscape-800": { width: 800, height: 360 },
-  "landscape-844": { width: 844, height: 390 },
+  "landscape-568": { width: 568, height: 320 },
+  "landscape-600": { width: 600, height: 360 },
 } as const;
 type SizeName = keyof typeof SIZES;
 
@@ -552,7 +552,7 @@ test("the strip and the expanded inspector leave the selection in view", async (
           ...(await coverage(page, locate)),
           sheet: await sheetState(page),
         });
-        if (size === "portrait-360" || size === "landscape-844") {
+        if (size === "portrait-360" || size === "landscape-600") {
           const slug = target.replaceAll(" ", "-");
           const when = state.split(" ")[0];
           await frame(
@@ -579,7 +579,7 @@ test("the strip and the expanded inspector leave the selection in view", async (
 });
 
 async function dragStowsStrip(
-  size: "portrait-360" | "landscape-844",
+  size: "portrait-360" | "landscape-600",
   { page, context, browserName }: CaseFixtures,
   info: TestInfo,
 ): Promise<void> {
@@ -699,15 +699,15 @@ test("a drag stows the strip, which returns with the new value: portrait-360", (
 }, info) =>
   dragStowsStrip("portrait-360", { page, context, browserName }, info));
 
-test("a drag stows the strip, which returns with the new value: landscape-844", ({
+test("a drag stows the strip, which returns with the new value: landscape-600", ({
   page,
   context,
   browserName,
 }, info) =>
-  dragStowsStrip("landscape-844", { page, context, browserName }, info));
+  dragStowsStrip("landscape-600", { page, context, browserName }, info));
 
 async function expandRemembered(
-  size: "portrait-360" | "landscape-844",
+  size: "portrait-360" | "landscape-600",
   { page, context, browserName }: CaseFixtures,
   info: TestInfo,
 ): Promise<void> {
@@ -785,12 +785,12 @@ test("Expand is remembered for the next selection, and so is Collapse: portrait-
 }, info) =>
   expandRemembered("portrait-360", { page, context, browserName }, info));
 
-test("Expand is remembered for the next selection, and so is Collapse: landscape-844", ({
+test("Expand is remembered for the next selection, and so is Collapse: landscape-600", ({
   page,
   context,
   browserName,
 }, info) =>
-  expandRemembered("landscape-844", { page, context, browserName }, info));
+  expandRemembered("landscape-600", { page, context, browserName }, info));
 
 test("a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes", async ({
   page,
@@ -803,7 +803,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
   const finger = await newFinger(context, page, browserName);
   const rows: Record<string, unknown>[] = [];
   for (const rootFont of [16, 32]) {
-    for (const size of ["portrait-390", "landscape-844"] as const) {
+    for (const size of ["portrait-390", "landscape-600"] as const) {
       await open(page, size);
       const at = await clearOfScrollbars(
         page,
@@ -1059,7 +1059,7 @@ async function expandAtRootFont(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
-  await open(page, "landscape-844");
+  await open(page, "landscape-600");
   await tapTarget(page, finger, envC);
   await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
   await page.evaluate((px) => {
@@ -1095,13 +1095,13 @@ async function expandAtRootFont(
   await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
 }
 
-test("Expand keeps the header, Collapse and Close usable at 844x390 with a 16 px root font", ({
+test("Expand keeps the header, Collapse and Close usable at 600x360 with a 16 px root font", ({
   page,
   context,
   browserName,
 }, info) => expandAtRootFont(16, { page, context, browserName }, info));
 
-test("Expand keeps the header, Collapse and Close usable at 844x390 with a 32 px root font", ({
+test("Expand keeps the header, Collapse and Close usable at 600x360 with a 32 px root font", ({
   page,
   context,
   browserName,

@@ -108,13 +108,50 @@ held sideways) compact the editor:
 - The tablet timeline row takes all spare height and the tool rail keeps its
   own (`grid-template-rows: minmax(0, 1fr) auto`), with 2px of block padding
   (`@container app (max-height: 40rem)`).
-- **A volume-envelope sheet leaves its lane in view (#1694, #1714).** On the
-  tablet shell and the phone shell, at most 40rem tall, the regular inspector sheet for an `envelope` or
+- **The Inspector is a column (#1696).** On a coarse primary pointer at most
+  40rem tall and at least 40rem wide (a phone held sideways at 667×375, 844×390
+  or 932×430; one rule, `useInspectorColumn`, whichever shell the width puts it
+  on) the selection Inspector is a column on the inline end of the shell
+  instead of a bottom sheet. The decision lives in `SelectionSheet.placement`
+  (`useSelectionSheet`), flows through `SheetPresentation` and `MobileSheet`
+  into `BottomSheet`'s `placement="column"`, and the shell views put
+  `daw-shell--inspector-column` on `.daw-shell`, so no CSS repeats the media
+  query. The column renders in place, as a grid child of `.daw-shell` (no
+  portal), in a second grid column of `--inspector-column-width`
+  (`clamp(16rem, 32vw, 22rem)`). Transport, banners and the status line keep
+  the whole width; the timeline keeps the whole main row; the tablet's bottom
+  tabs row and the phone's mode nav give way while the column is open and
+  return when it closes. It has the title, **Close**, Escape and focus
+  restore of any sheet, and none of the sheet's other parts: no scrim, no
+  drawer or detents, no Expand or Collapse, no slide-up, and no compact strip
+  (the strip and its Undo and Redo header belong to the sheet; the tool rail
+  stays usable beside the column, so `coversTools` is false). The panel carries
+  none of `bottom-sheet--inspector`, `--compact` or `--lane-band`, so
+  `inspectorSheetPanel`, `keepTargetClear`, `useKeepSelectionClear`,
+  `useKeepEditedLaneClear` and the pending edit card's docking all find no
+  sheet and do nothing: nothing caps the form or scrolls the timeline for it.
+  The form is the regular one (stacked fields, help copy visible), in a header
+  that stays pinned over a body that scrolls inside the column. For an
+  envelope selection `useRevealEditedLane` only scrolls the edited lane whole
+  into its scroller, again after a rotation. The shell pads for the notch,
+  Dynamic Island and home indicator, so the column inherits them. With the
+  software keyboard up (`html[data-keyboard="open"]`) the column leaves the
+  grid flow (its cell stays, so the timeline does not move) and takes the
+  visible viewport: it sits between `--visual-viewport-top` and
+  `--keyboard-inset`, so its header and Close stay on screen and the body
+  scrolls above the keypad. Under 40rem wide (an iPhone SE first generation or
+  a 568×320 window) and in portrait the bottom sheet or compact strip stays,
+  and so does a mouse window of that size. Pins:
+  `e2e-compat/inspector-column.spec.ts`; the bullets below describe the sheet
+  that remains.
+- **A volume-envelope sheet leaves its lane in view (#1694, #1714).** On a
+  tablet shell with a fine pointer, or a phone shell under 40rem wide (a
+  568×320 window), at most 40rem tall, the regular inspector sheet for an `envelope` or
   `envelopePoint` selection (`editedLaneTrack`, class `bottom-sheet--lane-band`)
   takes the bottom tabs' row on the tablet shell (`responsive.css`, the same
   `max-height: 40rem` exception as the compact strip) and rests on the status
   row. On the phone shell held sideways (up to 767 px wide, so an iPhone SE or mini held
-  sideways at 667×375) the sheet takes the Primary nav row instead
+  sideways at 568×320) the sheet takes the Primary nav row instead
   (`--mobile-nav-height: 0rem` while the sheet is open, since the sheet rests on it)
   and the status chip overlays the timeline as ever; **Done** brings the nav back. The marker rows
   (chapters, comments, social clips) stop pinning under the ruler while it is
@@ -142,8 +179,9 @@ held sideways) compact the editor:
   scrolls the edited lane into that band. It runs again whenever the scroller,
   the slot or the lane changes size, so a rotation that remounts the shell, which
   resets the lane scroller, lands the lane back under the ruler. With the demo
-  project's three marker rows the whole 72px lane shows at 914×331, 932×430 and
-  844×390, over a sheet of 174px, 245px and 205px. A software keyboard lifts the
+  project's three marker rows the whole 72px lane shows over the sheet at
+  568×320 (before the column took the wider sizes it showed at 914×331,
+  932×430 and 844×390, over sheets of 174px, 245px and 205px). A software keyboard lifts the
   cap (the sheet takes the visible slot) because the form outranks the lane then.
   On a window at most 40rem tall, in a slot at least 30rem wide
   (`@media (max-height: 40rem)` around `@container sheet-slot`), the sheet is a
@@ -231,7 +269,7 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 
 Mobile Safari shrinks only the *visual* viewport when the keyboard opens and scrolls it under fixed elements, so a sheet sized from the layout viewport lost its pinned header, including **Close**, off the top in portrait and after rotation. While any `BottomSheet` is open, `useKeyboardInset` (`gui/web/src/hooks/useKeyboardInset.ts`) reads `visualViewport` and publishes `--keyboard-inset` and `--visual-viewport-top` with `data-keyboard="open"` on `<html>`. `bottom-sheet.css` then fits the sheet slot to the visible area, so the header and **Close** stay on screen and the body scrolls above the keyboard. A pinch zoom (scale above 1) is not a keyboard. When the viewport changes with a field focused inside a sheet, the field is scrolled into view with `focusAndReveal`. On touch input, opening an envelope form focuses its heading rather than a numeric field, so adding a point never raises the keyboard by itself.
 
-**What iOS actually does (#1362, proven with a real software keypad on an iPhone 15, iOS 17.5).** With a field focused, Safari shrinks `innerHeight` along with the visual viewport (659 to 441 px) and then pans the visual viewport by `offsetTop` (218 px) to bring the field above the keypad; the root's `clientHeight` stays 659. A hook that reads `innerHeight - viewport.height - offsetTop` therefore computes a negative inset and never opens. The hook takes the layout height as `max(innerHeight, documentElement.clientHeight)`, calls the keyboard open when the visual viewport leaves at least 80 px of that uncovered (and scale is about 1), and publishes `inset = max(0, covered - offsetTop)`, which covers iOS (pan already hides the top part), Android (`innerHeight` constant, `offsetTop` 0) and the iPad. The non-compact half sheet scrolls as a whole, so with the keyboard open `bottom-sheet.css` pins `.bottom-sheet-chrome` to the sheet's top (`position: sticky`) and `focusAndReveal` reveals fields below it: the scroller's visible bottom is `top + clientTop + clientHeight` of its own box, not the sticky-adjusted top plus its height, and a field keeps a `--space-3` scroll margin above the keyboard. The simulator hides the software keypad when a hardware keyboard is connected; to see it, set `AutomaticMinimizationEnabled` to false for `com.apple.keyboard.preferences` in the device's defaults and relaunch Safari (restore it afterwards). Proof on the PR head: iPhone 15 portrait, light and dark, with Time focused and the keypad up, shows the sheet header and **Close** on screen and the field above the keypad, and tapping **Close** closes the sheet; on iPad Pro 11 (iOS 17.5) the keyboard does not move `innerHeight` or `offsetTop` (`--keyboard-inset` 340 px, `vvTop` 0) and the same fit holds. Landscape on the iPhone simulator was not driven (the Simulator rotate shortcut needs accessibility access that automation lacks); the fit uses the same measurements in any orientation. The landscape envelope sheet (#1694) is proven in Playwright with `--keyboard-inset` and `data-keyboard` set by hand, not with a real keypad: with the keyboard up the sheet drops its lane cap and fills the visible slot (see the lane-band bullet under Short touch screens above), which a real iPhone in landscape still has to confirm.
+**What iOS actually does (#1362, proven with a real software keypad on an iPhone 15, iOS 17.5).** With a field focused, Safari shrinks `innerHeight` along with the visual viewport (659 to 441 px) and then pans the visual viewport by `offsetTop` (218 px) to bring the field above the keypad; the root's `clientHeight` stays 659. A hook that reads `innerHeight - viewport.height - offsetTop` therefore computes a negative inset and never opens. The hook takes the layout height as `max(innerHeight, documentElement.clientHeight)`, calls the keyboard open when the visual viewport leaves at least 80 px of that uncovered (and scale is about 1), and publishes `inset = max(0, covered - offsetTop)`, which covers iOS (pan already hides the top part), Android (`innerHeight` constant, `offsetTop` 0) and the iPad. The non-compact half sheet scrolls as a whole, so with the keyboard open `bottom-sheet.css` pins `.bottom-sheet-chrome` to the sheet's top (`position: sticky`) and `focusAndReveal` reveals fields below it: the scroller's visible bottom is `top + clientTop + clientHeight` of its own box, not the sticky-adjusted top plus its height, and a field keeps a `--space-3` scroll margin above the keyboard. The simulator hides the software keypad when a hardware keyboard is connected; to see it, set `AutomaticMinimizationEnabled` to false for `com.apple.keyboard.preferences` in the device's defaults and relaunch Safari (restore it afterwards). Proof on the PR head: iPhone 15 portrait, light and dark, with Time focused and the keypad up, shows the sheet header and **Close** on screen and the field above the keypad, and tapping **Close** closes the sheet; on iPad Pro 11 (iOS 17.5) the keyboard does not move `innerHeight` or `offsetTop` (`--keyboard-inset` 340 px, `vvTop` 0) and the same fit holds. Landscape on the iPhone simulator was not driven (the Simulator rotate shortcut needs accessibility access that automation lacks); the fit uses the same measurements in any orientation. The landscape envelope sheet (#1694) is proven in Playwright with `--keyboard-inset` and `data-keyboard` set by hand, not with a real keypad: with the keyboard up the sheet drops its lane cap and fills the visible slot (see the lane-band bullet under Short touch screens above), which a real iPhone in landscape still has to confirm. The Inspector column (#1696) answers the keypad differently: with `data-keyboard="open"` it takes `position: fixed` between `--visual-viewport-top` and `--keyboard-inset` on the inline end (`bottom-sheet.css`), since the root rule above assumes the slot is fixed; Playwright pins that with the same hand-set values, and a real iPhone in landscape still has to confirm it.
 
 iOS Safari also zooms the page when a focused field's computed `font-size` is under 16px, and `useKeyboardInset` reads that zoom as a pinch and stands down (#1354). So under `@media (pointer: coarse)` every `input`, `textarea` and `select` is at least `1rem`. `--font-size-field-min` is `0rem` by default and `1rem` on coarse pointers (`theme/tokens.css`). Field rules size text through `--font-size-field`, `--font-size-field-small` or `--font-size-field-current` (a field that keeps its surrounding size), which are `max(<size>, var(--font-size-field-min))`. A new field rule that sets `font` or `font-size` must use one of them (or `--font-size-review` / `--font-size-heading`, both at least 1rem); `tests/test_css_policy.py` fails otherwise, and `e2e-compat/touch-field-size.spec.ts` checks the computed size in WebKit. Never block zoom with `maximum-scale=1` or `user-scalable=no` in the viewport meta; that removes accessibility zoom.
 
@@ -335,8 +373,10 @@ instead of being squeezed to nothing. The strip leaves the timeline undimmed;
 half and full dim it. The drawer's scroll keeps a focused control clear of its
 pinned header in Chromium and WebKit. The
 timeline scrolls the selection above the strip or sheet, and any timeline drag
-stows it until release. A phone held sideways (tablet shell, at most 40rem
-tall) gets the same compact inspector in place of the bottom tabs. Its name,
+stows it until release. A touch screen held sideways under 40rem wide (568×320)
+gets the same compact inspector in place of the bottom tabs; at 40rem wide and
+up the Inspector is a [column](#browser-chrome-safe-areas-and-home-screen-1077)
+instead, and a mouse window of that size keeps the strip. Its name,
 **Expand** or **Collapse** and **Close** stay pinned at the top while the
 expanded inspector scrolls, and the strip docks above the nav or status row
 beside it (`--z-sheet-docked`). The open inspector covers the tool rail, which

@@ -55,6 +55,11 @@ stays inside its source clip. Audition manually adjusted cuts before approval.
 ## Selecting things
 
 In Timeline, tap a clip or track header to open its inspector in a bottom sheet.
+Held sideways on a phone wide enough for it (at least 40rem, such as 667, 844 or
+932 points wide), the inspector is a column on the right instead: the timeline
+keeps its full height beside it, the bottom tabs or mode bar step aside while it
+is open, and the on-screen keyboard only shortens the column, so its title and
+**Close** stay in view. Narrower screens and portrait keep the bottom sheet.
 Selecting a word in Text can open a word sheet. The Listen comment list seeks to
 the comment; use **More → Comments** for comment actions.
 
