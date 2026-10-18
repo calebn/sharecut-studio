@@ -4,7 +4,9 @@ from typing import Any
 
 from mcp.server import MCPServer
 
-from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
+from podcast_mcp.edits.audio_check_override import audio_check_override
+from podcast_mcp.edits.cut_speech import APPLY_ANYWAY, CutSpeechConfirmation
+from podcast_mcp.edits.decisions import AskedEdits, HeldEdit
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.args import JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
@@ -12,6 +14,7 @@ from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def propose_range_mute_tool(project_path: str, target: dict[str, Any], command_id: str) -> str:
@@ -343,22 +346,55 @@ def list_edit_decisions_tool(
 
 def approve_edits_tool(
     project_path: str,
-    ids: list[str],
+    ids: list[str] | None = None,
+    all_pending: bool = False,
+    override_audio_checks: bool = False,
 ) -> str:
-    """Approve pending edits by id, applying them to the timeline.
+    """Approve pending edits by id (or every pending proposal), applying them to the timeline.
 
     To give every pending sound its own suggested action at once, use
     ``apply_suggested_actions_tool``.
 
-    Acoustic or peer-speech hazards stay pending for review. Only a trusted human
-    Approve in Sharecut Studio can override acoustic holds; MCP calls cannot.
+    ``all_pending=true`` approves every pending proposal and returns ``held`` for the ones the
+    automatic audio-quality and cut-position checks stopped (each with its finding); the rest
+    apply. Without ``all_pending`` one held cut refuses the whole batch and the error names
+    the finding. When the user says to approve a held cut anyway, repeat with
+    ``override_audio_checks=true``: it skips those checks for this call and records the
+    override (actor and surface) in History and the edit log.
     """
     ws = ProjectWorkspace.open(project_path)
-    outcome = EditService(ws).approve(ids)
+    service = EditService(ws)
+    if all_pending == bool(ids):
+        raise CodedValueError("pass ids or all_pending=true", code="approve_needs_target")
+    edit_ids = (
+        [e.id for e in service.list_decisions(applied=False, review_required=True)]
+        if all_pending
+        else list(ids or [])
+    )
+    held: list[HeldEdit] = []
+    asked: list[AskedEdits] = []
+    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        outcome = service.approve(
+            edit_ids,
+            held_out=held if all_pending else None,
+            asked_out=asked if all_pending else None,
+        )
     if isinstance(outcome, CutSpeechConfirmation):
         return to_json(outcome.result("approve_edits"))
     agent_mutated(ws)
-    return to_json({"operation": "approve_edits", "approved_count": outcome, "ids": ids})
+    result: dict[str, Any] = {
+        "operation": "approve_edits",
+        "approved_count": outcome,
+        "ids": edit_ids,
+    }
+    if all_pending:
+        result["held"] = [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held]
+        if asked:
+            result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
+            result["confirm_ids"] = list(asked[0].edit_ids)
+        if held or asked:
+            result["apply_anyway"] = APPLY_ANYWAY
+    return to_json(result)
 
 
 def apply_suggested_actions_tool(
@@ -366,17 +402,19 @@ def apply_suggested_actions_tool(
     ids: list[str] | None = None,
     overrides: dict[str, str] | None = None,
     revise: bool = False,
+    override_audio_checks: bool = False,
 ) -> str:
     """Apply every pending sound's own suggested action in one undo step.
 
     Each tighten proposal carries a ``label`` and a ``suggested_action`` (``propose_edits``
     shows them). This applies all of them, or only ``ids``: ``cut`` and ``shorten`` cut
-    (a cut held because another speaker is talking stays pending and is named in ``held``;
-    only a person's own Approve in the editor cuts over another speaker),
+    (a cut held by the automatic audio checks stays pending and is named in ``held``),
     ``lower`` turns a laugh down while another speaker talks over it (otherwise it is left),
     ``leave`` dismisses the proposal and keeps the audio. ``overrides`` maps a decision id to
     another action for that sound. Returns ``applied`` by action, ``cut_over_speaker``,
     ``held`` (ids still pending) and a ``summary`` sentence.
+    When the user says to apply the held ones anyway, repeat with
+    ``override_audio_checks=true`` (recorded in History and the edit log).
 
     To change one sound after the batch (say a cut to leave) without undoing the rest, call
     again with ``revise=true`` and ``overrides={id: action}`` and no ``ids``: it steps back
@@ -385,7 +423,8 @@ def apply_suggested_actions_tool(
     ``no_suggested_batch_to_revise``.
     """
     ws = ProjectWorkspace.open(project_path)
-    result = EditService(ws).apply_suggested_actions(ids, overrides=overrides, revise=revise)
+    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        result = EditService(ws).apply_suggested_actions(ids, overrides=overrides, revise=revise)
     agent_mutated(ws)
     return to_json(result)
 
@@ -404,10 +443,16 @@ def update_pending_edit_tool(
     start: float,
     end: float,
     snap: bool = True,
+    override_audio_checks: bool = False,
 ) -> str:
-    """Adjust the start/end bounds of a pending edit before approval."""
+    """Adjust the start/end bounds of a pending edit before approval.
+
+    ``override_audio_checks=true`` keeps the exact bounds given (no snapping or holds from the
+    automatic cut-position checks) and records the override.
+    """
     ws = ProjectWorkspace.open(project_path)
-    edit = EditService(ws).update_pending(edit_id, start=start, end=end, snap=snap)
+    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        edit = EditService(ws).update_pending(edit_id, start=start, end=end, snap=snap)
     agent_mutated(ws)
     return to_json({"operation": "update_pending_edit", "edit": edit.model_dump()})
 

@@ -36,17 +36,17 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
-| `ApplySuggestedActions` | — | `ids` (array \| null), `overrides` (object), `revise` (boolean) |
-| `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean) |
+| `ApplySuggestedActions` | — | `ids` (array \| null), `override_audio_checks` (boolean), `overrides` (object), `revise` (boolean) |
+| `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
-| `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `track_ids` (array[string]) |
+| `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `override_audio_checks` (boolean), `track_ids` (array[string]) |
 | `DeleteChapter` | `time` (number), `title` (string) | — |
-| `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `reason` (string \| null) |
+| `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `override_audio_checks` (boolean), `reason` (string \| null) |
 | `DeleteComment` | `comment_id` (string) | — |
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
-| `EditSelectedRange` | `action` (cut \| mute), `target` (object) | — |
+| `EditSelectedRange` | `action` (cut \| mute), `target` (object) | `override_audio_checks` (boolean) |
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `PasteSegment` | `duration` (number), `insert_at` (number), `mode` (ripple \| gap) | `extracts` (array[object]) |
@@ -74,11 +74,11 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
-| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | — |
+| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | `override_audio_checks` (boolean) |
 | `UndoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
 | `UpdateChapter` | `old_time` (number), `old_title` (string), `time` (number), `title` (string) | — |
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |
-| `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `snap` (boolean), `track_ids` (array \| null) |
+| `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
 _Generated 51 command types._
