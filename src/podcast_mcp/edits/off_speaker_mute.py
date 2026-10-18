@@ -63,6 +63,7 @@ LOUD_UNDER_SPEECH_DB = 12.0
 LEAK_PERCENTILE = 40.0
 MIN_LEAK_SEC = 1.0
 MIN_REGION_SEC = 0.15
+MIN_HEARD_SEC = 0.08
 # A turn's copy is told from this track's own sounds by its envelope following the peer's.
 COPY_CORRELATION_MIN = 0.6
 COPY_LAG_EARLY_SEC = 0.05
@@ -88,6 +89,7 @@ class OffSpeakerPlan:
     kept_uncorrelated_sec: float = 0.0
     kept_gaps: list[dict[str, Any]] = field(default_factory=list)
     still_audible_sec: float = 0.0
+    still_audible_copy_sec: float = 0.0
 
     @property
     def audible_muted_sec(self) -> float:
@@ -112,6 +114,7 @@ class OffSpeakerPlan:
             "already_quiet_sec": round(self.already_quiet_sec, 3),
             "refusal": self.refusal,
             "still_audible_sec": round(self.still_audible_sec, 3),
+            "still_audible_copy_sec": round(self.still_audible_copy_sec, 3),
             "kept_gaps": self.kept_gaps,
             "regions": self.regions,
         }
@@ -215,8 +218,13 @@ def plan_from_evidence(
     profile: LevelProfile,
     own_words: list[tuple[float, float]],
     peers: list[PeerEvidence],
+    rendered: np.ndarray | None = None,
 ) -> OffSpeakerPlan:
-    """The off-speaker mute plan from one track's levels, words and its peers' (all 10 ms frames)."""
+    """The off-speaker mute plan from one track's levels, words and its peers' (all 10 ms frames).
+
+    ``levels`` are the track before any mute (the evidence); ``rendered`` is what plays now,
+    so a stretch an earlier run silenced is neither written again nor counted as still audible.
+    """
     plan = OffSpeakerPlan(track_id)
     n = levels.size
     peer_spans = _peer_turns(peers)
@@ -228,6 +236,11 @@ def plan_from_evidence(
         return plan
 
     audible = levels > profile.room_db + AUDIBLE_OVER_ROOM_DB
+    heard_now = audible
+    if rendered is not None:
+        heard_now = np.zeros(n, dtype=bool)
+        m = min(n, rendered.size)
+        heard_now[:m] = rendered[:m] > profile.room_db + AUDIBLE_OVER_ROOM_DB
     mine = np.maximum(levels - profile.room_db, 0.0)
     theirs = np.zeros(n)
     peer_level = np.full(n, -np.inf)
@@ -284,19 +297,21 @@ def plan_from_evidence(
 
     # Only where the track sounds: a silent gap between two copies needs no region.
     closable = confirmed & ~keep
-    mute = closable & _dilate(audible, _frames(AUDIBLE_FOOTPRINT_PAD_SEC))
+    mute = closable & _dilate(heard_now, _frames(AUDIBLE_FOOTPRINT_PAD_SEC))
     runs = _runs(mute)
     for (_, prev_hi), (next_lo, _) in itertools.pairwise(runs):
         if next_lo - prev_hi <= _frames(HOLD_CLOSED_SEC) and closable[prev_hi:next_lo].all():
             mute[prev_hi:next_lo] = True
     runs = _runs(mute)
-    plan.still_audible_sec = float((candidate & audible & ~mute).sum()) * LEVEL_FRAME_SEC
+    plan.still_audible_sec = float((candidate & heard_now & ~mute).sum()) * LEVEL_FRAME_SEC
+    plan.still_audible_copy_sec = float((confirmed & heard_now & ~mute).sum()) * LEVEL_FRAME_SEC
     plan.kept_gaps = _kept_gaps(
-        runs, candidate, confirmed, keep, own_word_mask, peer_mask, audible, n
+        runs, candidate, confirmed, keep, own_word_mask, peer_mask, heard_now, n
     )
     for lo, hi in runs:
         duration = (hi - lo) * LEVEL_FRAME_SEC
-        if duration < MIN_REGION_SEC:
+        # The fades an earlier mute leaves at its edges are not sound worth another region.
+        if duration < MIN_REGION_SEC or heard_now[lo:hi].sum() < _frames(MIN_HEARD_SEC):
             continue
         start, end = lo * LEVEL_FRAME_SEC, hi * LEVEL_FRAME_SEC
         plan.regions.append(
@@ -307,7 +322,7 @@ def plan_from_evidence(
                 "peer_tracks": sorted(
                     p.track_id for p in peers if any(a < end and b > start for a, b in p.words)
                 ),
-                "audible_sec": round(float(audible[lo:hi].sum()) * LEVEL_FRAME_SEC, 3),
+                "audible_sec": round(float(heard_now[lo:hi].sum()) * LEVEL_FRAME_SEC, 3),
                 "peak_db": round(float(levels[lo:hi].max()), 1),
             }
         )
@@ -351,17 +366,25 @@ def _kept_gaps(
 
 
 def _timeline_levels(
-    project: EpisodeProject, track_id: str, scratch: Path
+    project: EpisodeProject, track_id: str, scratch: Path, *, unmuted: bool = True
 ) -> tuple[np.ndarray, LevelProfile] | None:
-    """10 ms levels of ``track_id`` on the timeline clock, before any bleed gate."""
+    """10 ms levels of ``track_id`` on the timeline clock, before any bleed gate.
+
+    ``unmuted`` also drops the clips' mute regions: the evidence for a copy is the copy,
+    which an earlier run of this command has already silenced in the rendered track.
+    """
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
         return None
     ungated = project.model_copy(deep=True)
     ungated_track = ungated.track_by_id(track_id)
     assert ungated_track is not None
-    ungated_track.transcript_gate = False
-    out = scratch / f"{track_id}.wav"
+    if unmuted:
+        ungated_track.transcript_gate = False
+        for clip in ungated.clips:
+            if clip.track_id == track_id:
+                clip.mute_regions = []
+    out = scratch / f"{track_id}-{'unmuted' if unmuted else 'played'}.wav"
     render_track_from_timeline(ungated, ungated_track, out, load_defaults())
     samples = load_mono_full(out, sample_rate=_SAMPLE_RATE)
     levels = frame_levels_db(samples, _SAMPLE_RATE)
@@ -396,6 +419,8 @@ def plan_off_speaker_mutes(
             plan.refusal = "track_has_no_audio"
             return plan
         levels, profile = mine
+        shown = _timeline_levels(project, track_id, scratch, unmuted=False)
+        rendered = shown[0] if shown is not None else None
         duration = levels.size * LEVEL_FRAME_SEC
         peers: list[PeerEvidence] = []
         for pid in others:
@@ -408,7 +433,7 @@ def plan_off_speaker_mutes(
     if not peers:
         plan.refusal = "no_peer_speech"
         return plan
-    plan = plan_from_evidence(track_id, levels, profile, own_words, peers)
+    plan = plan_from_evidence(track_id, levels, profile, own_words, peers, rendered)
     plan.own_word_overlap_sec = _overlap_sec(own_words, plan.regions)
     return plan
 

@@ -242,3 +242,57 @@ def test_a_gap_with_the_guests_own_word_stays_open_and_is_reported():
     plan = _call(own_words=[(4.9, 5.1)], peer_words=[(2.0, 8.0)], track=track, peer=peer)
     assert not _covered(plan.regions, 5.0)
     assert [g["reason"] for g in plan.kept_gaps] == ["own_word"]
+
+
+def test_rerun_after_apply_finds_nothing_more_and_counts_nothing_audible():
+    from podcast_mcp.edits.off_speaker_mute import plan_from_evidence as plan_it
+
+    rng = np.random.default_rng(17)
+    peer = _levels(10.0)
+    _set(peer, 2.0, 8.0, SPEECH)
+    peer[200:800] += rng.uniform(-8.0, 0.0, size=600)
+    track = _levels(10.0)
+    track[200:800] = peer[200:800] - 40.0
+    first = plan_it(
+        "dani", track, _profile(), [], [PeerEvidence("vicky", peer, _profile(), [(2.0, 8.0)])]
+    )
+    played = track.copy()
+    for r in first.regions:
+        played[round(r["start"] * 100) : round(r["end"] * 100)] = -120.0
+    again = plan_it(
+        "dani",
+        track,
+        _profile(),
+        [],
+        [PeerEvidence("vicky", peer, _profile(), [(2.0, 8.0)])],
+        played,
+    )
+    assert first.regions and again.regions == []
+    assert again.still_audible_sec == 0.0
+    assert again.leak_ratio_db == first.leak_ratio_db
+
+
+def test_rerun_closes_a_sliver_left_between_earlier_regions():
+    rng = np.random.default_rng(19)
+    peer = _levels(10.0)
+    _set(peer, 2.0, 8.0, SPEECH)
+    peer[200:800] += rng.uniform(-8.0, 0.0, size=600)
+    track = _levels(10.0)
+    track[200:800] = peer[200:800] - 40.0
+    played = track.copy()
+    played[200:483] = -120.0
+    played[517:800] = -120.0
+    plan = _call_played(track, peer, played)
+    assert _covered(plan.regions, 5.0)
+    assert plan.still_audible_sec < 0.1
+
+
+def _call_played(track, peer, played):
+    return plan_from_evidence(
+        "dani",
+        track,
+        _profile(),
+        [],
+        [PeerEvidence("vicky", peer, _profile(), [(2.0, 8.0)])],
+        played,
+    )
