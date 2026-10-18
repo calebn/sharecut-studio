@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { deferred } from "../src/test/deferred";
 import { expectPageAxeClean } from "./axe";
 import { type Command, read, snapshot } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
@@ -92,6 +93,219 @@ const clipBlock = (page: Page, id: string, track = "reference") =>
   page.locator(
     `.lane-row[data-track-id="${track}"] .clip-block[data-clip-id="${id}"]`,
   );
+
+test("queued Apply retains the exact placement preview until the prior track save settles", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await withShareableProject(
+    async (projectPath) => {
+      const acknowledgement = deferred();
+      const routeFinished = deferred();
+      const commands: Command[] = [];
+      let reorderId: string | undefined;
+      let reorderStatus: number | undefined;
+      let reorderApplied = false;
+      let held = false;
+      let released = false;
+      let stage = "setup";
+      page.on("websocket", (socket) => {
+        socket.on("framereceived", ({ payload }) => {
+          const frame: unknown = JSON.parse(payload.toString());
+          if (
+            frame &&
+            typeof frame === "object" &&
+            "plane" in frame &&
+            frame.plane === "document" &&
+            "type" in frame &&
+            frame.type === "Applied" &&
+            "command" in frame &&
+            frame.command &&
+            typeof frame.command === "object" &&
+            "command_id" in frame.command &&
+            reorderId !== undefined &&
+            frame.command.command_id === reorderId
+          )
+            reorderApplied = true;
+        });
+      });
+      const commandRoute = (url: URL) =>
+        url.pathname === "/api/document/command" &&
+        url.searchParams.get("path") === projectPath;
+      await page.route(commandRoute, async (route) => {
+        const command: Command = route.request().postDataJSON();
+        commands.push(command);
+        if (command.type !== "ReorderTrack" || held) {
+          await route.continue();
+          return;
+        }
+        held = true;
+        reorderId = command.command_id;
+        try {
+          const response = await route.fetch();
+          reorderStatus = response.status();
+          await acknowledgement.promise;
+          await route.fulfill({ response });
+        } finally {
+          routeFinished.resolve();
+        }
+      });
+      const clip = clipBlock(page, "placement-first");
+      const geometry = () =>
+        clip.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const lane = element.closest(".lane-row")!.getBoundingClientRect();
+          return {
+            x: box.x - lane.x,
+            width: box.width,
+            height: box.height,
+          };
+        });
+      const capture = async (name: string) => {
+        const file = info.outputPath(`${name}.json`);
+        const present = (await clip.count()) > 0;
+        fs.writeFileSync(
+          file,
+          `${JSON.stringify(
+            {
+              stage,
+              saved: snapshot(projectPath),
+              geometry: present ? await geometry() : null,
+              label: present
+                ? await clip.locator(".clip-hit").getAttribute("aria-label")
+                : null,
+              controls: await page
+                .locator(".clip-placement-controls")
+                .allTextContents(),
+              commands,
+              reorderStatus,
+              reorderApplied,
+              held,
+              released,
+            },
+            null,
+            2,
+          )}\n`,
+        );
+        await info.attach(name, {
+          path: file,
+          contentType: "application/json",
+        });
+        const screenshot = info.outputPath(`${name}.png`);
+        await page.screenshot({ path: screenshot });
+        await info.attach(name, { path: screenshot, contentType: "image/png" });
+      };
+      try {
+        await openHostShare(page, projectPath);
+        const before = snapshot(projectPath).clips;
+        await capture("before");
+        stage = "prior track save";
+        await page
+          .getByRole("button", {
+            name: "Reorder track reference",
+            exact: true,
+          })
+          .click();
+        await page.getByRole("button", { name: "Menu", exact: true }).click();
+        await page
+          .getByRole("menuitem", { name: "Move track down", exact: true })
+          .click();
+        await expect.poll(() => reorderStatus).toBe(200);
+        await expect.poll(() => reorderApplied).toBe(true);
+        await expect
+          .poll(() =>
+            page
+              .locator(".lane-row[data-track-id]")
+              .evaluateAll((rows) =>
+                rows.map((row) => row.getAttribute("data-track-id")),
+              ),
+          )
+          .toEqual(["guest", "reference"]);
+        expect(
+          read(projectPath).timeline.tracks.map((track) => track.id),
+        ).toEqual(["guest", "reference"]);
+        await clip.locator(".clip-hit").click();
+        stage = "Move clip admission";
+        const entry = page.getByRole("button", {
+          name: "Move clip",
+          exact: true,
+        });
+        await expect(entry).toBeEnabled();
+        await entry.click();
+        stage = "preview";
+        const original = await geometry();
+        await page.getByLabel("Timeline start (seconds)").fill("7");
+        await expect(clip.locator(".clip-hit")).toHaveAccessibleName(
+          "Select reference clip at 00:07.000, 2s",
+        );
+        const preview = await geometry();
+        await capture("preview");
+        expect(preview.x).toBeLessThan(original.x);
+        expect(preview.width).toBe(original.width);
+        expect(preview.height).toBe(original.height);
+        expect(snapshot(projectPath).clips).toEqual(before);
+        stage = "queued Apply";
+        await page
+          .getByRole("button", { name: "Apply move", exact: true })
+          .click();
+        await capture("queued");
+        await expect(
+          page.getByRole("button", { name: "Applying move…", exact: true }),
+        ).toBeDisabled();
+        await expect(
+          page.getByLabel("Timeline start (seconds)"),
+        ).toBeDisabled();
+        await expect(
+          page.getByRole("button", { name: "Cancel", exact: true }),
+        ).toBeDisabled();
+        expect(released).toBe(false);
+        expect(
+          commands.filter((command) => command.type === "MoveClips"),
+        ).toHaveLength(0);
+        expect(snapshot(projectPath).clips).toEqual(before);
+        await expect
+          .soft(clip.locator(".clip-hit"))
+          .toHaveAccessibleName("Select reference clip at 00:07.000, 2s");
+        expect.soft(await geometry()).toEqual(preview);
+        stage = "released acknowledgement";
+        released = true;
+        acknowledgement.resolve();
+        await routeFinished.promise;
+        await expect
+          .poll(
+            () =>
+              read(projectPath).timeline.clips.find(
+                (row) => row.id === "placement-first",
+              )?.timeline_start,
+          )
+          .toBe(7);
+        await expect(entry).toBeVisible();
+        expect(
+          commands.filter((command) => command.type === "MoveClips"),
+        ).toHaveLength(1);
+        expect(
+          read(projectPath).timeline.clips.find(
+            (row) => row.id === "placement-second",
+          )?.timeline_start,
+        ).toBe(27.02);
+        await expect(clip.locator(".clip-hit")).toHaveAccessibleName(
+          "Select reference clip at 00:07.000, 2s",
+        );
+      } finally {
+        try {
+          await capture("final");
+        } finally {
+          released = true;
+          acknowledgement.resolve();
+          if (held) await routeFinished.promise;
+          await page.unroute(commandRoute);
+        }
+      }
+    },
+    undefined,
+    placementFixture,
+  );
+});
 
 for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
   test.describe(cell.name, () => {
