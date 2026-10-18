@@ -26,6 +26,13 @@ export function GesturesSheet({
           Commands and shortcuts
         </Button>
       </p>
+      <p>
+        To move a clip without dragging, select it and choose Move clip in its
+        inspector. Choose a target track, then use Earlier 10 ms, Later 10 ms,
+        or Use playhead. Apply move saves the preview. Cancel discards it. On
+        desktop and tablet, Shorter, Taller, and Reset panel size change the
+        editor panels. On phone, use Expand and Collapse in the sheet.
+      </p>
       <dl className="gesture-list">
         {MOBILE_GESTURES.map((g) => (
           <div key={g.gesture} className="gesture-item">

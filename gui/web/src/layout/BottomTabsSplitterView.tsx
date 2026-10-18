@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { pxToRem, remToPx } from "../hooks/useTabsHeight";
+import { Button } from "../ui/Button";
 import { useResizeObserver } from "../ui/useResizeObserver";
 
 export interface BottomTabsSplitterViewProps {
@@ -194,31 +195,93 @@ export function BottomTabsSplitterView({
   };
 
   const valueNow = Math.round((measuredRem ?? heightRem) * 10) / 10;
+  const currentRem = userSet ? heightRem : (measuredRem ?? heightRem);
 
+  const suppressClickRef = useRef(false);
+  const stepPanel = (delta: number) => {
+    if (dragRef.current) return;
+    const base = userSet
+      ? heightRem
+      : separatorRef.current
+        ? panelHeightRem(separatorRef.current)
+        : heightRem;
+    const next = Math.min(maxRem, Math.max(minRem, base + delta));
+    if (next !== base) onResize(next);
+  };
   return (
-    <div
-      ref={separatorRef}
-      className="bottom-tabs-splitter"
-      role="separator"
-      aria-orientation="horizontal"
-      aria-label="Resize editor panels"
-      aria-valuemin={minRem}
-      aria-valuemax={Math.round(maxRem * 10) / 10}
-      aria-valuenow={valueNow}
-      aria-valuetext={collapseArmed ? "Release to collapse" : `${valueNow} rem`}
-      data-collapse-armed={collapseArmed ? "" : undefined}
-      tabIndex={0}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
-      onLostPointerCapture={onPointerCancel}
-      onBlur={() => finish(true)}
-      onDoubleClick={() => onReset()}
-      onKeyDown={onKeyDown}
-      title="Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets"
-    >
-      <span className="bottom-tabs-splitter-grip" aria-hidden />
-    </div>
+    <>
+      <div
+        ref={separatorRef}
+        className="bottom-tabs-splitter"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize editor panels"
+        aria-valuemin={minRem}
+        aria-valuemax={Math.round(maxRem * 10) / 10}
+        aria-valuenow={valueNow}
+        aria-valuetext={
+          collapseArmed ? "Release to collapse" : `${valueNow} rem`
+        }
+        data-collapse-armed={collapseArmed ? "" : undefined}
+        tabIndex={0}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onLostPointerCapture={onPointerCancel}
+        onBlur={() => finish(true)}
+        onDoubleClick={() => {
+          if (!dragRef.current) onReset();
+        }}
+        onKeyDown={onKeyDown}
+        title="Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets"
+      >
+        <span className="bottom-tabs-splitter-grip" aria-hidden />
+      </div>
+      <div
+        className="panel-size-controls"
+        role="group"
+        aria-label="Panel size"
+        onClickCapture={(event) => {
+          if (suppressClickRef.current || dragRef.current) {
+            suppressClickRef.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+        onPointerDownCapture={(event) => {
+          suppressClickRef.current = Boolean(dragRef.current);
+          if (dragRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            finish(true);
+          }
+        }}
+      >
+        <Button
+          disabledReason={
+            currentRem <= minRem ? "Panel is at its shortest size." : undefined
+          }
+          onClick={() => stepPanel(-1)}
+        >
+          Shorter
+        </Button>
+        <Button
+          disabledReason={
+            currentRem >= maxRem ? "Panel is at its tallest size." : undefined
+          }
+          onClick={() => stepPanel(1)}
+        >
+          Taller
+        </Button>
+        <Button
+          onClick={() => {
+            if (!dragRef.current) onReset();
+          }}
+        >
+          Reset panel size
+        </Button>
+      </div>
+    </>
   );
 }

@@ -307,3 +307,11 @@ The Applied edit inspector offers Restore for an ordinary source mute with valid
 History Undo also undoes the other edits in the same action. You may need to undo later actions first. The existing History control checks that the selected history head is still current before restoring its editable snapshot.
 
 An explicit interactive approval or manual cut gesture can intentionally cut audible speech. Agent and pipeline application reassess acoustics and may hold; all paths validate current placement and source integrity.
+
+## Clip placement and panel size
+
+**Move clip** opens a local preview in the Clip inspector. **Target track** is the
+anchor's destination lane. **Timeline start (seconds)** is its destination on the
+episode clock, distinct from source trim bounds. **Apply move** saves the time
+and lane changes together. **Cancel** discards them. **Shorter**, **Taller**, and
+**Reset panel size** change only this browser's editor-panel preference.

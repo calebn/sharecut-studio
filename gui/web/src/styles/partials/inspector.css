@@ -729,3 +729,29 @@ html[data-shell="phone"]
     translate: -0.125rem 0;
   }
 }
+
+.clip-placement-controls {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-3);
+  margin-block-start: var(--space-3);
+}
+
+.clip-placement-controls p {
+  margin: 0;
+}
+
+.clip-placement-controls label {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-1);
+}
+
+@media (pointer: coarse) {
+  .clip-placement-controls button,
+  .clip-placement-controls select,
+  .clip-placement-controls input {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}

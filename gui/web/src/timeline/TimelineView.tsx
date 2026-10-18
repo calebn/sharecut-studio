@@ -26,6 +26,7 @@ import {
   snapMoveDeltaSec,
   trackIdFromPoint,
 } from "../edit/clipMove";
+import { cancelClipPlacement, useClipPlacement } from "../edit/clipPlacement";
 import { useShortTouchScreen } from "../hooks/useShortTouchScreen";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { presenceColorVar } from "../presence/colors";
@@ -335,9 +336,13 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     canvas: { widthPx: width, durationSec: canvasSec },
     writeScroll,
   } = scroll;
-  const [movePlacements, setMovePlacements] = useState<ClipMoveItem[] | null>(
-    null,
-  );
+  const placement = useClipPlacement();
+  const [dragMovePlacements, setMovePlacements] = useState<
+    ClipMoveItem[] | null
+  >(null);
+  const movePlacements =
+    dragMovePlacements ??
+    (placement.kind === "preview" ? placement.placements : null);
   const canMoveClips =
     toolMode === "select" &&
     !commentMode &&
@@ -693,6 +698,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const onClipBodyStart = useStableCallback((clipId: string) => {
     if (bodyOwnerRef.current !== null || rangeGesture.hasActiveGesture())
       return false;
+    cancelClipPlacement();
     bodyOwnerRef.current = clipId;
     return true;
   });
