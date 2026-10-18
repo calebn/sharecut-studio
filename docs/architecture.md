@@ -322,6 +322,14 @@ and pointer zoom gating. Its immutable render binding connects the canonical
 scroller and geometry to separate `TimelineScrollSync` and `FixedPlayheadRecenter`
 children. Hot scroll and transport subscriptions belong to those children,
 outside the parent hook, so frame updates stay outside arrangement rendering.
+The children mount after the scroller ref attaches and reconcile when measured
+columns change. Scroll events with live columns that differ from the committed
+mapping wait for that reconciliation, preserving transport and Follow intent.
+Store scroll describes the applied viewport. When a responsive layout cannot
+represent the requested pan, the ephemeral viewport registry retains a scoped
+requested/applied projection until it can restore the request or navigation
+invalidates it. Recording preview classification keeps its original line
+geometry across phone and ordinary timeline mounts.
 `TimelineView` retains shared column measurement, gesture attachment, and desktop
 region reveal. Vertical geometry remains in `timelineMetrics.ts`. See
 [GUI render isolation](gui-integration.md#read-only-daw-viewer).

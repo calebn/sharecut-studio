@@ -260,6 +260,7 @@ export const createProjectSlice: StateCreator<
     const samePath = get().projectPath === projectPath;
     if (!samePath) {
       timelineViewportRegistry.setVisualPan(null);
+      timelineViewportRegistry.setLayoutProjection(null);
       resetDocumentAuthority(projectPath);
       resetServerClock();
     }

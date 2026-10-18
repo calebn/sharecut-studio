@@ -306,6 +306,7 @@ describe("TimelineView fixed playhead (#385)", () => {
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
     Reflect.deleteProperty(HTMLElement.prototype, "scrollWidth");
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollLeft");
   });
 
   /** Mount with a scroller whose scrollLeft is plain storage (jsdom's isn't). */
@@ -508,6 +509,76 @@ describe("TimelineView fixed playhead (#385)", () => {
     expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
     act(() => useRecordHostStore.getState().setSnapshot(null));
   });
+
+  it.each([550, 1200])(
+    "restores a %s px phone request after a tablet remount and resize",
+    (requested) => {
+      let clientWidth = 400;
+      let extent = 3000;
+      const positions = new WeakMap<HTMLElement, number>();
+      Object.defineProperties(HTMLElement.prototype, {
+        clientWidth: { configurable: true, get: () => clientWidth },
+        scrollWidth: { configurable: true, get: () => extent },
+        scrollLeft: {
+          configurable: true,
+          get(this: HTMLElement) {
+            return positions.get(this) ?? 0;
+          },
+          set(this: HTMLElement, value: number) {
+            positions.set(
+              this,
+              Math.max(0, Math.min(value, extent - clientWidth)),
+            );
+          },
+        },
+      });
+      useRecordHostStore
+        .getState()
+        .setSnapshot(
+          recordSnapshot({ state: "paused", recording_ms: 200_000 }),
+        );
+      useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+      const revision = useDawStore.getState().playheadSeekRevision;
+      const phone = render(<TimelineView fixedPlayhead />);
+      const phoneScroller = phone.container.querySelector(
+        ".timeline-scroll",
+      ) as HTMLElement;
+      act(() => raf.fire(0));
+      phoneScroller.scrollLeft = requested + 200;
+      fireEvent.scroll(phoneScroller);
+      expect(useDawStore.getState().scrollLeft).toBe(requested);
+      phone.unmount();
+      clientWidth = 800;
+      extent = requested === 550 ? 2141 : 1341;
+      const tablet = render(<TimelineView />);
+      const tabletScroller = tablet.container.querySelector(
+        ".timeline-scroll",
+      ) as HTMLElement;
+      expect(tabletScroller).not.toBe(phoneScroller);
+      expect(tabletScroller.scrollLeft).toBe(
+        Math.min(requested, extent - clientWidth),
+      );
+      expect(useDawStore.getState().scrollLeft).toBe(tabletScroller.scrollLeft);
+      clientWidth = 852;
+      act(() => FakeResizeObserver.of(tabletScroller).fire());
+      expect(tabletScroller.scrollLeft).toBe(
+        Math.min(requested, extent - clientWidth),
+      );
+      expect(useDawStore.getState().scrollLeft).toBe(tabletScroller.scrollLeft);
+      tablet.unmount();
+      clientWidth = 400;
+      extent = 3000;
+      const returned = render(<TimelineView fixedPlayhead />);
+      const returnedScroller = returned.container.querySelector(
+        ".timeline-scroll",
+      ) as HTMLElement;
+      expect(returnedScroller.scrollLeft).toBe(requested + 200);
+      expect(useDawStore.getState().scrollLeft).toBe(requested);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+      act(() => useRecordHostStore.getState().setSnapshot(null));
+    },
+  );
 
   it("syncs loading scroll and keeps a visible playhead when the project arrives", () => {
     useDawStore.setState({ project: null, scrollLeft: 120, playheadSec: 15 });

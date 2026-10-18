@@ -25,6 +25,9 @@ starts at 0 beside the track headers and holds the center once playback passes i
 desktop keeps its scrollbar present so adding tracks does not shift the time view.
 Pinch keeps the time under your fingers still and updates the playhead before
 the new zoom appears.
+Resizing or turning the screen preserves playback position and Follow. If a
+tablet view has less room to pan, returning to the phone restores the prior
+view until you navigate, seek, use Fit, switch projects, or end the preview.
 
 While a take is recording or paused, an aggregate band and needle shows its
 provisional timeline span even when the Record room sheet is closed. On phones,
