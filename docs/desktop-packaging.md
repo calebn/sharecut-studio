@@ -633,6 +633,32 @@ scripts/build_update_feed.py --version 0.2.0 --base-url "$BASE" \
 A Linux AppImage from `make desktop-linux-appimage-docker` is signed afterward
 with `scripts/sign_updater_bundle.sh <file>`.
 
+## Freeze the project format before tester delivery
+
+Before sharing each beta tester build, including later builds with the same
+persisted project version:
+
+1. Build from the recorded producer commit with a committed, current
+   `schemas/episode.project.shape.lock.json`.
+2. Use that actual build to save a miniature project with populated editable
+   sections and complete undo/redo history. Leave the cursor below the tip so
+   the capture includes a redo state. Stop editing the workspace.
+3. From the same unchanged producer checkout, run
+   `scripts/freeze_project_fixture.py` with that workspace, build receipt,
+   producer commit, and capture time. Follow the
+   [capture command](project-format.md#capture-a-tester-build).
+4. Review and commit the unchanged saved bytes, frozen shape lock, and appended
+   `tests/fixtures/project_compat/releases.json` entry. Run the compatibility
+   check against the delivery branch's trusted base.
+5. Confirm the capture is committed before delivering the installer to testers.
+   If delivery is uncertain, retain the capture until the delivery is resolved.
+
+Private delivery activates the compatibility rule even without a GitHub Release.
+CI cannot discover that delivery itself. Do not mark development-generated JSON
+as released evidence. After the first delivery, a persisted-shape change ships
+with a version bump, real CLI upgrade, and old-fixture tests in the same change.
+The [format policy](project-format.md#compatibility-boundary) defines the check.
+
 ## Identity / testers
 
 Bundle identifiers, deep-link schemes, and trust URLs come from the selected

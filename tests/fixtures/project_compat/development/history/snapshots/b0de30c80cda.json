@@ -1,0 +1,194 @@
+{
+  "sources": [
+    {
+      "id": "recording",
+      "path": "raw/stub.wav",
+      "speaker": "Host",
+      "label": null,
+      "offset_sec": 0.0,
+      "duration_sec": 0.01,
+      "sample_rate": 8000,
+      "channels": 1,
+      "clipping_regions": [],
+      "clipping_truncated": false
+    }
+  ],
+  "timeline": {
+    "duration_sec": null,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Host",
+        "role": "dialogue",
+        "speaker": null,
+        "media": {
+          "path": "raw/stub.wav",
+          "duration_sec": 0.01,
+          "sample_rate": 8000,
+          "channels": 1
+        },
+        "room_tone": null,
+        "gate_fill": null,
+        "gain_db": -1.0,
+        "balance_basis": null,
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "transcript_gate_scope": null,
+        "proxy": null,
+        "timeline_empty": false
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip",
+        "track_id": "host",
+        "source_start": 0.0,
+        "source_end": 0.01,
+        "timeline_start": 0.0,
+        "source_id": "recording",
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
+      }
+    ]
+  },
+  "editorial": {
+    "edit_decisions": [],
+    "edit_log": [],
+    "chapters": [
+      {
+        "time": 0.0,
+        "title": "Development opening",
+        "image_url": null
+      }
+    ],
+    "retained_bleed_alignments": [],
+    "speaker_splits": []
+  },
+  "transcripts": {
+    "per_track": [
+      {
+        "track_id": "host",
+        "language": "en",
+        "words": [
+          {
+            "text": "Edited",
+            "start": 0.0,
+            "end": 0.01,
+            "confidence": 0.98,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "trimmed_from": null,
+            "snapped_from": null,
+            "timing_edited": true,
+            "overlong": false,
+            "ignored": false,
+            "audibility_locked": false
+          }
+        ],
+        "archived_words": [],
+        "source_id": "recording",
+        "vocabulary_revision": null,
+        "audio_sha256": null,
+        "audio_size": null,
+        "audio_mtime_ns": null,
+        "silence_filter_fingerprint": null,
+        "word_aligner": null,
+        "alignment_score_method": null,
+        "user_edited": true
+      }
+    ],
+    "combined": null
+  },
+  "mix": {
+    "processing_chains": [
+      {
+        "track_id": "host",
+        "effects": [
+          {
+            "effect": "volume",
+            "params": {
+              "gain_db": -2.0
+            },
+            "bypass": false
+          }
+        ]
+      }
+    ],
+    "automation_envelopes": [
+      {
+        "track_id": "host",
+        "parameter": "volume",
+        "points": [
+          {
+            "id": "point",
+            "time": 0.0,
+            "value": -1.0
+          }
+        ]
+      }
+    ]
+  },
+  "social": {
+    "clip_candidates": [
+      {
+        "id": "social",
+        "track_id": "host",
+        "start": 0.0,
+        "end": 0.01,
+        "score": 0.0,
+        "reasons": [],
+        "title_suggestion": "Development clip",
+        "caption_suggestion": null,
+        "transcript_excerpt": null,
+        "speaker": null,
+        "review_required": true,
+        "approved": false,
+        "exported_path": null
+      }
+    ]
+  },
+  "review": {
+    "comments": [
+      {
+        "id": "comment",
+        "body": "Development history coverage",
+        "author": "Fixture",
+        "created_at": "2026-10-18T00:00:00+00:00",
+        "updated_at": null,
+        "timeline_start": 0.0,
+        "timeline_end": null,
+        "timeline_spans": [],
+        "track_ids": [
+          "host"
+        ],
+        "action_items": [],
+        "replies": [],
+        "resolved": false,
+        "resolved_at": null,
+        "resolved_by": null,
+        "review_version_id": null,
+        "edit_decision_id": null
+      }
+    ],
+    "versions": [],
+    "active_version_id": null
+  },
+  "render_last_completed_step": "transcribe",
+  "meta": {
+    "ingest_alignment": {
+      "host": {
+        "session_start_in_file_sec": 0.0,
+        "content_align_sec": 0.125,
+        "align_method": "development"
+      }
+    }
+  }
+}
