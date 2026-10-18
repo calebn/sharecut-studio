@@ -130,6 +130,9 @@ function timelineChromeBottom(): number {
 
 /** Viewport y where the bottom panel begins; the window's bottom when absent. */
 function bottomChromeTop(): number {
+  // The Inspector column hides the tabs row (#1696): the viewport bounds the card.
+  if (document.querySelector(".bottom-sheet--column"))
+    return window.innerHeight;
   const panel = document.querySelector(".bottom-tabs");
   return panel ? panel.getBoundingClientRect().top : window.innerHeight;
 }
@@ -185,6 +188,14 @@ function labelFor(edit: PendingEditView): string {
   return `${pendingTypeLabel(edit.type)} ${durationLabel} · ${status}`;
 }
 
+/** Where the card may reach on the inline end: the viewport, or the Inspector column's edge (#1696). */
+function floatRight(): number {
+  return (
+    document.querySelector(".bottom-sheet--column")?.getBoundingClientRect()
+      .left ?? window.innerWidth
+  );
+}
+
 function viewportPosition(anchor: HTMLElement): { left: number; top: number } {
   const bounds = anchor.getBoundingClientRect();
   const rem = rootRem();
@@ -192,7 +203,7 @@ function viewportPosition(anchor: HTMLElement): { left: number; top: number } {
   const width = ACTION_BAR_WIDTH_REM * rem;
   const left = Math.min(
     Math.max(gutter, bounds.left),
-    Math.max(gutter, window.innerWidth - width - gutter),
+    Math.max(gutter, floatRight() - width - gutter),
   );
   const top = Math.min(
     Math.max(gutter, bounds.top),
@@ -571,7 +582,7 @@ function PendingEditRegion({
               reach: actionsReach(panelElement, naturalHeight),
             },
             {
-              width: window.innerWidth,
+              width: floatRight(),
               height: sheetTop ?? bottomChromeTop(),
               top: timelineChromeBottom(),
             },

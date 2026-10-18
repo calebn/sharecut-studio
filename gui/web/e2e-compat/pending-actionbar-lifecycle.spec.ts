@@ -22,7 +22,7 @@ test.afterEach(async () => {
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
 async function open(page: Page) {
-  await page.setViewportSize({ width: 844, height: 390 });
+  await page.setViewportSize({ width: 600, height: 360 });
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await page.evaluate(() =>
     localStorage.setItem("sharecut.compactInspector", "peek"),

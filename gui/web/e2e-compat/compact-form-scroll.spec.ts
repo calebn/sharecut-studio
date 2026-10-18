@@ -14,8 +14,8 @@ import { openHostShare } from "../e2e/shareNavigation";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 for (const { cell: viewport, theme } of withAppearance([
-  { width: 568, height: 320 },
   { width: 600, height: 360 },
+  { width: 624, height: 390 },
 ])) {
   test.describe(`compact form ${viewport.width}x${viewport.height} root32 ${theme}`, () => {
     test.use({ viewport, reducedMotion: "reduce" });
