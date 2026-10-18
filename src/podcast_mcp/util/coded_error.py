@@ -33,7 +33,13 @@ GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
 
 _GUEST_MESSAGES = {
     "clip_not_found": "That clip is unavailable. Ask the host to refresh the project.",
+    "cut_scope_changed": "This edit needs another review. Ask the host to review it in the editor before applying it.",
+    "invalid_audio": "This upload is not a playable audio file. Choose a supported audio file and try again.",
+    "invalid_lease": "Your recording access is no longer valid. Ask the host to reconnect you.",
+    "mix_out_of_date": "The mix is out of date. Ask the host to refresh it before playing this range.",
     "no_mix": "No mix is available yet. Ask the host to refresh it.",
+    "pending_edit_changed": "This edit changed since you reviewed it. Review the updated edit before trying again.",
+    "pending_preview_unavailable": "This preview isn't available right now. Ask the host to check the project.",
     "project_busy": "This project is busy; try again.",
     "project_not_found": "This link isn't available right now; ask the host to check it.",
     "registry_not_private": "The host's sharing setup needs attention; ask the host to check it.",
@@ -41,6 +47,8 @@ _GUEST_MESSAGES = {
     "registry_backup_integrity_changed": "The host's sharing setup needs attention; ask the host to check it.",
     "review_artifacts_not_private": "The host's review files need attention; ask the host to check them.",
     "review_media_not_found": "This review's audio isn't available right now; ask the host to republish.",
+    "record_consent_required": "Confirm your consent for this take before uploading.",
+    "roll_needs_abutting_clips": "These clips need to touch before their join can be rolled. Move one clip to the other or trim an edge.",
     "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",
     "track_not_found": "That track is unavailable. Ask the host to refresh the project.",
 }

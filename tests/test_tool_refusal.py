@@ -257,9 +257,10 @@ def test_conflict_wrapping_uses_effective_code_for_guest_message() -> None:
 
 @pytest.mark.parametrize(
     "host_message",
-    ["Private customer notes", "Different private details", "/Users/private/episode.wav"],
+    ["Private customer notes", "Different private details", "{private_path}"],
 )
-def test_guest_unknown_code_never_projects_host_text(host_message: str) -> None:
+def test_guest_unknown_code_never_projects_host_text(host_message: str, tmp_path) -> None:
+    host_message = host_message.replace("{private_path}", str(tmp_path / "episode.wav"))
     exc = CodedValueError(host_message, code="unregistered_guest_failure")
     assert tool_refusal(exc, for_guest=True) == ToolRefusal(
         GENERIC_GUEST_MESSAGE, "unregistered_guest_failure"
