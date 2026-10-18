@@ -7,6 +7,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.audio_check_override import active_override
 from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
@@ -235,7 +236,14 @@ def update_pending_edit(
     track_ids: list[str] | None = None,
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
 ) -> EditDecision:
-    """Update a pending edit decision's range; optionally inaudible-snap."""
+    """Update a pending edit decision's range; optionally inaudible-snap.
+
+    Under the owner's audio-check override the bounds stay exactly as given: no snapping,
+    and the edit records them as chosen boundaries so approval does not re-hold them.
+    """
+    if active_override() is not None:
+        snap = False
+        boundary_intent = CutIntent.HUMAN_BOUNDARIES
     edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
     if edit is None:
         raise CodedKeyError(f"edit decision not found: {edit_id}", code="edit_not_found")

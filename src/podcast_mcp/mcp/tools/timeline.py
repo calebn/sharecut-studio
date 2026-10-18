@@ -393,7 +393,9 @@ def delete_clips_tool(
         "override_audio_checks": override_audio_checks,
     }
     return to_json(
-        host_command_result(submit_host_document_command(project_path, "DeleteClip", payload))
+        host_command_result(
+            submit_host_document_command(project_path, "DeleteClip", payload, client_id="mcp:host")
+        )
     )
 
 
