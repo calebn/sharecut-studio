@@ -296,3 +296,42 @@ def _call_played(track, peer, played):
         [PeerEvidence("vicky", peer, _profile(), [(2.0, 8.0)])],
         played,
     )
+
+
+def test_own_words_are_read_on_the_timeline_clock_across_clips():
+    from podcast_mcp.engines.transcript_gated_play import word_intervals
+    from podcast_mcp.models import (
+        Clip,
+        EpisodeProject,
+        MediaAsset,
+        Track,
+        TrackRole,
+        Transcript,
+        TranscriptWord,
+    )
+
+    project = EpisodeProject.create("ep", "/tmp/offspk-clock")
+    project.timeline.tracks.append(
+        Track(
+            id="dani",
+            label="Dani",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/dani.wav", duration_sec=20.0),
+        )
+    )
+    project.timeline.clips += [
+        Clip(id="a", track_id="dani", source_start=0.0, source_end=2.0, timeline_start=0.0),
+        Clip(id="b", track_id="dani", source_start=10.0, source_end=12.0, timeline_start=2.0),
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="dani",
+            words=[
+                TranscriptWord(text="one", start=0.5, end=0.9),
+                TranscriptWord(text="two", start=10.5, end=10.9),
+                TranscriptWord(text="cut", start=5.0, end=5.4),
+            ],
+        )
+    ]
+    spans = word_intervals(project, "dani", 0.0, 4.0, merge_gap_sec=0.0)
+    assert [(round(a, 2), round(b, 2)) for a, b in spans] == [(0.5, 0.9), (2.5, 2.9)]

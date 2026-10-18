@@ -434,8 +434,38 @@ def plan_off_speaker_mutes(
         plan.refusal = "no_peer_speech"
         return plan
     plan = plan_from_evidence(track_id, levels, profile, own_words, peers, rendered)
+    _name_holding_words(project, track_id, plan)
     plan.own_word_overlap_sec = _overlap_sec(own_words, plan.regions)
     return plan
+
+
+def _name_holding_words(project: EpisodeProject, track_id: str, plan: OffSpeakerPlan) -> None:
+    """Name, in each kept gap held by an own word, the words whose padding reaches it."""
+    if not any(g["reason"] == "own_word" for g in plan.kept_gaps):
+        return
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.util.timebase import SourceSec
+
+    transcript = project.transcript_for_track(track_id)
+    if transcript is None:
+        return
+    words = [w for w in transcript.words if not w.suppressed]
+    mapped = SessionTimeline(project).map_source_spans(
+        track_id, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
+    )
+    for gap in plan.kept_gaps:
+        if gap["reason"] != "own_word":
+            continue
+        gap["words"] = [
+            {
+                "text": w.text,
+                "source": [w.start, w.end],
+                "timeline": [round(float(a), 3), round(float(b), 3)],
+            }
+            for w, spans in zip(words, mapped, strict=True)
+            for a, b in spans
+            if a - OWN_WORD_PAD_SEC < gap["end"] and b + OWN_WORD_PAD_SEC > gap["start"]
+        ][:6]
 
 
 def _overlap_sec(words: list[tuple[float, float]], regions: list[dict[str, Any]]) -> float:
