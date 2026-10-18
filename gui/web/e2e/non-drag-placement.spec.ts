@@ -755,9 +755,17 @@ test("group pointer steps save exact 7/27 placements, refusal recovers and one U
         (before.history?.entries.filter((entry) => entry.operation !== null)
           .length ?? 0) + 1,
       );
-      await page
+      const movedToast = page
         .getByRole("region", { name: "Status messages" })
-        .filter({ hasText: "Moved clips" })
+        .filter({ hasText: "Moved clips" });
+      await expect(
+        movedToast.getByRole("button", { name: "Undo", exact: true }),
+      ).toBeVisible();
+      await info.attach("moved-clips-undo", {
+        body: await movedToast.screenshot(),
+        contentType: "image/png",
+      });
+      await movedToast
         .getByRole("button", { name: "Undo", exact: true })
         .click();
       await expect
