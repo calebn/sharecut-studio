@@ -23,12 +23,15 @@ In Timeline, the time ruler and marker rows stay visible when you scroll through
 tracks. They move with the waveforms when you pan horizontally; the playhead
 starts at 0 beside the track headers and holds the center once playback passes it. The phone shows a vertical scrollbar when tracks need more room;
 desktop keeps its scrollbar present so adding tracks does not shift the time view.
+Pinch keeps the time under your fingers still and updates the playhead before
+the new zoom appears.
 
 While a take is recording or paused, an aggregate band and needle shows its
 provisional timeline span even when the Record room sheet is closed. On phones,
 the pan range grows with the take so you can scroll to the live needle beyond
 saved media; that visual-only pan leaves playback position and saved-media seek
-bounds unchanged. Stop clears the preview, and landing shows the finalized clips.
+bounds unchanged, including while you pinch to zoom. An explicit seek returns to
+normal playback follow. Stop clears the preview, and landing shows the finalized clips.
 
 A playback meter beneath each track's initials shows its output peak. The clip
 light stays lit after playback stops. This indicator leaves the initials free
