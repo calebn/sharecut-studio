@@ -88,6 +88,16 @@ test("clipped saved feedback pauses its remaining visible lifetime", async ({
   await page.mouse.move(0, 0);
   const restored = await controlGeometry(card);
   expect(restored.fullyVisible).toBe(true);
+  // The lifetime resumes only while the card is neither hovered nor focused,
+  // so the timed wait below starts from that state, not from a lagging event.
+  await expect
+    .poll(() =>
+      card.evaluate((element) => ({
+        hover: element.matches(":hover"),
+        focus: element.contains(document.activeElement),
+      })),
+    )
+    .toEqual({ hover: false, focus: false });
   const dismiss = card.getByRole("button", { name: "Dismiss" });
   const action = await controlGeometry(dismiss);
   expect(action.fullyVisible).toBe(true);

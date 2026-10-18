@@ -5,9 +5,10 @@ import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
 import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
 import { Icon } from "./Icon";
-import { SheetHostPlacement, useSheetHost } from "./sheetHost";
+import { SheetHostPlacement } from "./sheetHost";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
+import { useSheetHost } from "./useSheetHost";
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
 export type DrawerDetent = "peek" | "half" | "full";
