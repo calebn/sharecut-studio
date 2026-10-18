@@ -80,11 +80,7 @@ export function ShellStoryTransport({
       <TransportZone position="center">
         <TransportPlayControls
           playing={playing}
-          disabledReason={
-            loading
-              ? "Loading the project. Playback will be available when loading finishes."
-              : undefined
-          }
+          disabledReason={loading ? "Loading project…" : undefined}
           onTogglePlay={() => onPlayingChange(!playing)}
           onStop={() => onPlayingChange(false)}
         />

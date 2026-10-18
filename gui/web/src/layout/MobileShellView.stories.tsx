@@ -66,9 +66,7 @@ function PhonePreview(args: PreviewProps) {
                   <TransportPlayControls
                     playing={playing}
                     disabledReason={
-                      args.loading
-                        ? "Loading the project. Playback will be available when loading finishes."
-                        : undefined
+                      args.loading ? "Loading project…" : undefined
                     }
                     onTogglePlay={() => onPlayingChange(!playing)}
                     onStop={() => onPlayingChange(false)}
@@ -346,8 +344,14 @@ export const Loading: Story = {
     await expect(
       canvas.getByRole("heading", { name: "Loading episode…" }),
     ).toBeInTheDocument();
-    await expect(canvas.getByRole("button", { name: "Play" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Play" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(canvas.getByRole("button", { name: "Stop" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 

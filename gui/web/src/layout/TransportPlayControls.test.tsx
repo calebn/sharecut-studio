@@ -76,10 +76,7 @@ describe("TransportPlayControls", () => {
     const onStop = vi.fn();
     const props = { playing: false, onTogglePlay, onStop };
     const { rerender } = render(
-      <TransportPlayControls
-        {...props}
-        disabledReason="Loading the project. Playback will be available when loading finishes."
-      />,
+      <TransportPlayControls {...props} disabledReason="Loading project…" />,
     );
     const play = screen.getByRole("button", { name: "Play" });
     play.focus();

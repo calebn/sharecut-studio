@@ -229,7 +229,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           controls={
             <TransportPlayControls
               playing={false}
-              disabledReason="Loading the project. Playback will be available when loading finishes."
+              disabledReason="Loading project…"
               {...transportPlayHandlers}
             />
           }

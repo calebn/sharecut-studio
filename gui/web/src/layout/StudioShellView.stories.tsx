@@ -331,7 +331,10 @@ export const Loading: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Drop audio files or import" }),
     ).toBeNull();
-    await expect(canvas.getByRole("button", { name: "Play" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Play" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 export const EmptyIngest: Story = {
