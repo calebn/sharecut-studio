@@ -11,6 +11,7 @@ describe("TransportPlayControls", () => {
     const { rerender } = render(
       <TransportPlayControls
         playing={false}
+        availability={{ togglePlay: undefined, stop: undefined }}
         onTogglePlay={onTogglePlay}
         onStop={onStop}
       />,
@@ -23,6 +24,7 @@ describe("TransportPlayControls", () => {
     rerender(
       <TransportPlayControls
         playing
+        availability={{ togglePlay: undefined, stop: undefined }}
         onTogglePlay={onTogglePlay}
         onStop={onStop}
       />,
@@ -43,7 +45,10 @@ describe("TransportPlayControls", () => {
     const { container } = render(
       <TransportPlayControls
         playing={false}
-        disabledReason="Import audio to play."
+        availability={{
+          togglePlay: "Import audio to play.",
+          stop: "Import audio to play.",
+        }}
         onTogglePlay={onTogglePlay}
         onStop={onStop}
       />,
@@ -76,7 +81,13 @@ describe("TransportPlayControls", () => {
     const onStop = vi.fn();
     const props = { playing: false, onTogglePlay, onStop };
     const { rerender } = render(
-      <TransportPlayControls {...props} disabledReason="Loading project…" />,
+      <TransportPlayControls
+        {...props}
+        availability={{
+          togglePlay: "Loading project…",
+          stop: "Loading project…",
+        }}
+      />,
     );
     const play = screen.getByRole("button", { name: "Play" });
     play.focus();
@@ -87,7 +98,12 @@ describe("TransportPlayControls", () => {
     expect(onTogglePlay).not.toHaveBeenCalled();
     expect(onStop).not.toHaveBeenCalled();
 
-    rerender(<TransportPlayControls {...props} />);
+    rerender(
+      <TransportPlayControls
+        {...props}
+        availability={{ togglePlay: undefined, stop: undefined }}
+      />,
+    );
     expect(screen.getByRole("button", { name: "Play" })).toBe(play);
     expect(document.activeElement).toBe(play);
     expect(play).not.toHaveAttribute("aria-disabled");
@@ -95,5 +111,28 @@ describe("TransportPlayControls", () => {
 
     await user.keyboard(" ");
     expect(onTogglePlay).toHaveBeenCalledOnce();
+  });
+  it("describes each unavailable action independently and normalizes blank reasons", async () => {
+    const { container } = render(
+      <TransportPlayControls
+        playing={false}
+        availability={{ togglePlay: "Import audio to play.", stop: " " }}
+        onTogglePlay={vi.fn()}
+        onStop={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Play" }),
+    ).toHaveAccessibleDescription("Import audio to play.");
+    const stop = screen.getByRole("button", { name: "Stop" });
+    expect(stop).toHaveAccessibleDescription(
+      "This action is unavailable right now.",
+    );
+    expect(stop).toHaveAttribute(
+      "title",
+      "This action is unavailable right now.",
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(2);
+    await expectNoA11yViolations(container);
   });
 });

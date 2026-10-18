@@ -315,6 +315,13 @@ drags detent at soft boundaries ([round 4b](touch-editor-decisions.md#touch-gram
 
 ### Layout (Reaper-style)
 
+Play/Pause and Stop share availability across buttons, commands and shortcuts. A
+loading project refuses both. An empty project refuses a new Play; an active
+Pause remains available after the last track disappears. Stop remains available
+while playing or with a retained playback start, including after Pause, so it
+can finish the existing run. At least one track enables both controls,
+independent of duration or mute.
+
 | Region | Content |
 |--------|---------|
 | Transport | Wide layout is three zones: project name; Play/Pause, Stop (Stop returns the playhead to where playback last started, clamped to the timeline; Pause keeps it; any playhead move while stopped or paused (seek, seek link, follow, agent seek) becomes the new start, a seek during playback does not), timecode, and audition mode (Full mix / Edited stems / Original) centered; render health, tools, Fit, a **View** menu (a text button, not an icon — Layers, **Zoom**, layout, theme), and the project **Menu** (Project, Media, host-only **Markers** → Add chapter at playhead, Help, with shortcuts) on the right. The center stays centered while the right zone fits in half the spare room; when status pills widen it, the center shifts left and the project name truncates rather than overlapping (below 97.75rem the zones simply flow left to right: only the project name gives way, the right zone keeps its content width and caps a session-region pill at 8rem, and the timecode visually hides its `/ total` suffix, which screen readers still announce and its tooltip still shows). Collapsed widths keep one combined menu. The overflow uses menuitem, menuitemradio, and menuitemcheckbox semantics for keyboard and assistive-technology navigation. At compact widths every row, including audition radios and layer checkboxes, has `min-block-size: var(--touch-min)` (44px); browser coverage verifies their roles, selected state, arrow-key navigation, touch targets, and axe. |

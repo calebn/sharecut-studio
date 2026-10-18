@@ -7,6 +7,7 @@ import {
   isShareProjectKey,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { transportAvailability } from "../state/transportAvailability";
 import type { AuditionMode, LayoutMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
 import { GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
@@ -16,8 +17,9 @@ import { registerCommand } from "./execute";
 export function registerNavigationCommands(): void {
   registerCommand("transport.togglePlay", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "Project not loaded" };
+    const reason = transportAvailability(s).togglePlay;
+    if (reason !== undefined) {
+      return { status: "disabled", reason };
     }
     s.togglePlaying();
     return { status: "ok" };
@@ -25,8 +27,9 @@ export function registerNavigationCommands(): void {
 
   registerCommand("transport.stop", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "Project not loaded" };
+    const reason = transportAvailability(s).stop;
+    if (reason !== undefined) {
+      return { status: "disabled", reason };
     }
     s.stopPlayback();
     return { status: "ok" };

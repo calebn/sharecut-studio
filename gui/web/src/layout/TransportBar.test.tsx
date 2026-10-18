@@ -253,7 +253,10 @@ describe("TransportBar collapsed", () => {
 
   it("Stop's tooltip says it returns to the play start (#533)", () => {
     render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
         <TransportBar />
       </DawProvider>,
     );

@@ -53,7 +53,7 @@ for (const id of ["transport.togglePlay", "transport.stop"]) {
       ["empty", minimalProject(), "Import audio to play."],
     ] as const) {
       it(`rejects a ${state} project through command and pointer dispatch, then recovers`, async () => {
-        useDawStore.setState({ project });
+        useDawStore.setState({ project, followingClientId: "leader" });
         expect(await execute(id)).toEqual({ status: "disabled", reason });
         useDawStore.setState({ timelineFocused: false });
         expect(await execute(id, {}, { skipWhen: true })).toEqual({
@@ -66,6 +66,7 @@ for (const id of ["transport.togglePlay", "transport.stop"]) {
         });
         expect(useDawStore.getState().isPlaying).toBe(false);
         expect(useDawStore.getState().playStartSec).toBeNull();
+        expect(useDawStore.getState().followingClientId).toBe("leader");
         useDawStore.getState().setProject(readyProject());
         expect(await executePointerCommand(id)).toEqual({ status: "ok" });
         expect(useDawStore.getState().isPlaying).toBe(
@@ -228,4 +229,22 @@ it("preserves active Stop after same-project hydration removes the final track",
     status: "disabled",
     reason: "Import audio to play.",
   });
+});
+
+it("preserves the existing no-project refusal even with retained transport state", async () => {
+  useDawStore.setState({
+    project: null,
+    isPlaying: true,
+    playStartSec: 0,
+    playheadSec: 12,
+  });
+  for (const id of ["transport.togglePlay", "transport.stop"]) {
+    expect(await executePointerCommand(id)).toEqual({
+      status: "disabled",
+      reason: "Loading project…",
+    });
+  }
+  expect(useDawStore.getState().isPlaying).toBe(true);
+  expect(useDawStore.getState().playStartSec).toBe(0);
+  expect(useDawStore.getState().playheadSec).toBe(12);
 });
