@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { TakeClipping } from "./keeper/clipRegions";
 import type { ByteSink } from "./keeper/store";
 import {
@@ -58,6 +59,17 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
             snapshot.server_time_ns === state.snapshot.server_time_ns))
       )
         return state;
+      if (
+        (state.snapshot?.state === "recording" ||
+          state.snapshot?.state === "paused") &&
+        (!snapshot ||
+          (snapshot.state !== "recording" && snapshot.state !== "paused") ||
+          snapshot.session_id !== state.snapshot.session_id ||
+          snapshot.take_index !== state.snapshot.take_index)
+      ) {
+        timelineViewportRegistry.setVisualPan(null);
+        timelineViewportRegistry.setLayoutProjection(null);
+      }
       return { snapshot, receivedAtMs: snapshot ? performance.now() : null };
     }),
   setConnected: (connected) =>
