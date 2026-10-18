@@ -966,6 +966,32 @@ def apply_bleed_suppression_tool(
     )
 
 
+def mute_off_speaker_tool(
+    project_path: str,
+    track_id: str | None = None,
+    speaker: str | None = None,
+    apply: bool = True,
+    dry_run: bool = False,
+) -> str:
+    """Mute a track wherever another speaker is talking and its own speaker is not.
+
+    Use after transcript reconcile on a call recording whose track still carries another
+    person's voice. A stretch is muted when another dialogue track has words there, this
+    track has none, and this track holds nothing louder than a copy of that speaker.
+    Each stretch is a visible muted region in Studio (Restore brings it back); History
+    undoes the whole command. Preview with ``dry_run=true``.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        EditService(ws).mute_off_speaker(
+            track_id=track_id,
+            speaker=speaker,
+            apply=apply and not dry_run,
+            lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC,
+        )
+    )
+
+
 def overlap_duplicates_tool(
     project_path: str,
     start_sec: float | None = None,
@@ -1096,6 +1122,7 @@ def register(mcp: MCPServer) -> None:
         reconcile_transcript_tool,
         apply_bleed_suppression_tool,
         apply_transcript_gate_tool,
+        mute_off_speaker_tool,
         align_retained_bleed_tool,
         set_retained_bleed_alignment_mode_tool,
     }
@@ -1159,6 +1186,7 @@ def register(mcp: MCPServer) -> None:
         apply_bleed_suppression_tool,
         overlap_duplicates_tool,
         apply_transcript_gate_tool,
+        mute_off_speaker_tool,
         align_retained_bleed_tool,
         set_retained_bleed_alignment_mode_tool,
     ):

@@ -2309,6 +2309,37 @@ class EditService:
                 lambda p: run(p, dry_run=False),
             )
 
+    def mute_off_speaker(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        apply: bool = True,
+        lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
+    ) -> dict:
+        """Mute a track wherever another speaker talks and its own speaker does not (#1740).
+
+        Preview with ``apply=False``. Applied stretches are exact-range mute edits, one
+        undo step in History and one Restore each; stretches the cut safety checks hold stay open.
+        """
+        from podcast_mcp.edits.off_speaker_mute import (
+            apply_off_speaker_mutes,
+            plan_off_speaker_mutes,
+        )
+
+        tid = self._resolve(track_id, speaker)
+        plan = plan_off_speaker_mutes(self.ws.project, tid)
+        result = {"dry_run": not apply, **plan.summary()}
+        if not apply or not plan.regions:
+            return result
+
+        def mutate(p: EpisodeProject) -> dict:
+            return apply_off_speaker_mutes(p, plan)
+
+        with render_lock(self.ws.project, timeout=lock_timeout):
+            applied = self.ws.mutate("before mute off speaker", "after mute off speaker", mutate)
+        return {**result, **applied}
+
     def gate_overreach(
         self,
         *,
