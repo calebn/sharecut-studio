@@ -61,11 +61,16 @@ the comment; use **More → Comments** for comment actions.
 Inspector action buttons, including **Replace audio…**, **Remove track**,
 **Go to start**, and preview controls, keep at least 44 CSS px of height on
 touch devices and in the phone layout, including when you use a mouse.
+Pipeline's toolbar scrolls with the content at every height in one panel
+scroller. The original pinned-on-tall behavior is removed to avoid an overlay
+and scroll-owner switches during resize. Controls keep their DOM, form and
+disclosure state.
+
 Transcript **Find and replace** and Pipeline **Add term** rows wrap their
 controls on a coarse pointer so landscape panels stay inside the panel. Pipeline's
 selects and the From / Only shortcuts row are 44 CSS px tall on touch. At large text
-or in a short window, the Pipeline toolbar scrolls with the panel and the Transcript
-panel scrolls as a whole, so neither covers the rows under it.
+or in a short window, the Transcript panel scrolls as a whole so its chrome does
+not cover the rows under it.
 The envelope-point select, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
 
 The overlay toggles in **More** (Pending edits, Markers, Comments and the rest) are whole rows at least 44 CSS px tall on touch.
@@ -220,9 +225,10 @@ Apply uses one existing move History action. Cancel and unchanged Apply save
 nothing. A refused save keeps a current draft and an error so you can retry.
 
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
-by 1 rem, or to the available bound. Steps start at the visible height, including
-when a saved size exceeds the space available. Banners and root-text changes
-refresh the bounds without rewriting that preference. **Reset panel size** clears
+by a 1 rem request, subject to the current available bounds. Steps start at the
+visible height, including when a saved size exceeds the space available, so the
+first step can clamp by more than 1 rem. Banners and root-text changes refresh
+the bounds without rewriting that preference. **Reset panel size** clears
 the browser preference. These controls do
 not change the episode or History. Phone uses the sheet's **Expand** and
 **Collapse** controls and has no desktop splitter.
