@@ -20,6 +20,7 @@ from typing import Any
 
 from mcp.types import CallToolResult
 
+from podcast_mcp import __version__
 from podcast_mcp.services.remote_mcp.context import (
     RemoteMcpContext,
     clear_remote_mcp_context,
@@ -53,7 +54,7 @@ SUPPORTED_PROTOCOL_VERSIONS = frozenset(
     }
 )
 SERVER_NAME = "podcast-guest-mcp"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = __version__
 
 _CAPABILITY_REQUIRED_CODE = "share_capability_required"
 SHARE_NOT_FOUND = "share not found"

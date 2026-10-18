@@ -161,6 +161,7 @@ required checks, and rebase merges. Read the
 before work on a GitHub issue.
 
 Create commits and PRs when the user asks to ship or clearly authorizes that work.
+Commit subjects are Conventional Commits (`feat(scope): …`, `fix: …`, `!` for breaking). CI checks them because release-please builds the next version and changelog from them ([Version bumps](desktop-packaging.md#version-bumps)).
 Merge requires the user's current grant. Opening a PR does not grant merge authority.
 
 ### Bound the outcome before coding

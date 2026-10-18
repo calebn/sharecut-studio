@@ -1,0 +1,38 @@
+# Keeps one "release" PR open that bumps the Sharecut Studio version everywhere and writes
+# the changelog from Conventional Commits. Merging it is the decision to cut a tester build;
+# sharecut-ops then builds and publishes the update feed at that tag. This workflow builds
+# and publishes nothing itself. See docs/desktop-packaging.md § Version bumps.
+#
+# Versions stay 0.x: release-please-config.json maps breaking changes to minor and features
+# to patch below 1.0, and scripts/version_policy.py (tests/test_version_policy.py) fails any
+# PR whose version reaches 1.0.0.
+#
+# RELEASE_PLEASE_TOKEN is a PAT or app token with contents and pull-requests write. PRs opened
+# with the default GITHUB_TOKEN do not start the required CI checks, so the release PR could
+# not merge. The fallback keeps the workflow running until the secret exists.
+
+name: release-please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

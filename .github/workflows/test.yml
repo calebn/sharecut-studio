@@ -149,6 +149,14 @@ jobs:
           python3 scripts/docs_sync.py check --range
           "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
 
+      - name: Conventional Commit subjects (PR commits)
+        # Stdlib-only. release-please reads these to pick the next version, and an
+        # unparseable subject is silently skipped, so a malformed one fails here instead.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: >-
+          python3 scripts/check_conventional_commits.py
+          "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
       - name: Summarize Python tests
         if: always()
         continue-on-error: true

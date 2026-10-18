@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from podcast_mcp import __version__
 from podcast_mcp.gui.host_mcp import (
     HOST_MCP_PATH,
     NO_OPEN_PROJECT,
@@ -127,7 +128,7 @@ def test_host_mcp_handshake_lists_cut_words() -> None:
         }
         info = result["serverInfo"]
         assert info["name"] == "podcast-mcp"
-        assert info["version"] == "0.1.0"
+        assert info["version"] == __version__
 
         listed = _post_mcp(
             client,
