@@ -38,6 +38,38 @@ type Inputs = Readonly<{
   followingClientId: string | null;
 }>;
 
+type PanGeometry = Readonly<{
+  scrollLeft: number;
+  lineOffsetPx: number;
+  zoomPxPerSec: number;
+}>;
+
+type VisualPan = Readonly<{
+  geometry: PanGeometry;
+  scrollLeft: number;
+  zoomPxPerSec: number;
+  playheadSec: number;
+  seekRevision: number;
+  projectPath: string;
+  timeViewportPx: number;
+}>;
+
+type RecordState = NonNullable<
+  ReturnType<typeof useRecordHostStore.getState>["snapshot"]
+>["state"];
+
+function isRecordingVisualPan(
+  recordState: RecordState | undefined,
+  geometry: PanGeometry,
+  savedSessionSec: number,
+): boolean {
+  return (
+    (recordState === "recording" || recordState === "paused") &&
+    geometry.scrollLeft + geometry.lineOffsetPx >
+      savedSessionSec * geometry.zoomPxPerSec
+  );
+}
+
 type WriteScroll = (el: HTMLElement, logical: number, lead: number) => void;
 
 type ScrollBinding = Readonly<{
@@ -50,6 +82,7 @@ type ScrollBinding = Readonly<{
   scrubRevisionRef: RefObject<number>;
   /** The playhead time a person's own scroll set; the follow leaves it be. */
   scrubSecRef: RefObject<number | null>;
+  visualPanRef: RefObject<VisualPan | null>;
 }>;
 
 type ScrollResult = Readonly<{
@@ -78,6 +111,7 @@ export function useFixedPlayheadScroll({
   // person put it, so the recenter skips this revision.
   const scrubRevisionRef = useRef(-1);
   const scrubSecRef = useRef<number | null>(null);
+  const visualPanRef = useRef<VisualPan | null>(null);
   // Set while a pinch or wheel zoom applies its anchored scroll, so the
   // scroll events it causes neither seek nor unfollow.
   const anchoringZoom = useRef(false);
@@ -155,7 +189,13 @@ export function useFixedPlayheadScroll({
       if (fixedPlayhead) {
         // A scroll moves the time by exactly what it moved the content: the
         // playhead stays where it sits in the view.
-        const { playheadSec, scrollLeft: storedLeft } = useDawStore.getState();
+        const {
+          playheadSec,
+          scrollLeft: storedLeft,
+          playheadSeekRevision,
+          projectPath,
+          project,
+        } = useDawStore.getState();
         const lineX = fixedLineOffsetPx(
           playheadSec,
           zoomPxPerSec,
@@ -163,9 +203,27 @@ export function useFixedPlayheadScroll({
           timeViewportPx,
         );
         const recordState = useRecordHostStore.getState().snapshot?.state;
-        const visualOnlyScroll =
-          (recordState === "recording" || recordState === "paused") &&
-          logicalLeft + lineX > canvasSec * zoomPxPerSec;
+        const geometry = {
+          scrollLeft: logicalLeft,
+          lineOffsetPx: lineX,
+          zoomPxPerSec,
+        };
+        const visualOnlyScroll = isRecordingVisualPan(
+          recordState,
+          geometry,
+          project?.timeline_duration_sec ?? sessionSec,
+        );
+        visualPanRef.current = visualOnlyScroll
+          ? {
+              geometry,
+              scrollLeft: logicalLeft,
+              zoomPxPerSec,
+              playheadSec,
+              seekRevision: playheadSeekRevision,
+              projectPath,
+              timeViewportPx,
+            }
+          : null;
         const sec = scrollLeftToLineSec(
           logicalLeft,
           lineX,
@@ -200,6 +258,7 @@ export function useFixedPlayheadScroll({
       writeScroll,
       scrubRevisionRef,
       scrubSecRef,
+      visualPanRef,
     }),
     [scrollRef, fixedPlayhead, timeViewportPx, leadPx, writeScroll],
   );
@@ -251,6 +310,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     timeViewportPx,
     scrubRevisionRef,
     scrubSecRef,
+    visualPanRef,
   } = binding;
   const playheadSec = useDawStore((s) => s.playheadSec);
   const playheadSeekRevision = useDawStore((s) => s.playheadSeekRevision);
@@ -258,6 +318,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
   const scrollLeft = useDawStore((s) => s.scrollLeft);
   const userZoomed = useDawStore((s) => s.userZoomed);
   const project = useDawStore((s) => s.project);
+  const projectPath = useDawStore((s) => s.projectPath);
   const recordState = useRecordHostStore((s) => s.snapshot?.state);
   const setScrollLeft = useDawStore((s) => s.setScrollLeft);
   const setPlayheadSec = useDawStore((s) => s.setPlayheadSec);
@@ -269,7 +330,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     seekRevision: playheadSeekRevision,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     // Track every change, even while unpadded, so a later switch to a fixed
     // playhead does not read an old zoom as a pinch.
@@ -286,6 +347,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       prev.seekRevision !== playheadSeekRevision &&
       playheadSeekRevision !== scrubRevisionRef.current;
     if (!el || !fixedPlayhead || !project || timeViewportPx <= 0) {
+      visualPanRef.current = null;
       return;
     }
     const sessionSec = project.timeline_duration_sec;
@@ -294,11 +356,48 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     const firstLook = !readyRef.current;
     readyRef.current = true;
 
-    // A pan past the saved end (recording preview) leaves the view alone.
-    const visualOnlyScroll =
-      (recordState === "recording" || recordState === "paused") &&
-      scrollLeft > playheadSec * zoomPxPerSec;
+    const pan = visualPanRef.current;
+    const retainsOriginalPanGeometry =
+      pan !== null &&
+      pan.playheadSec === playheadSec &&
+      pan.seekRevision === playheadSeekRevision &&
+      pan.projectPath === projectPath &&
+      pan.timeViewportPx === timeViewportPx &&
+      ((pan.scrollLeft === scrollLeft && pan.zoomPxPerSec === zoomPxPerSec) ||
+        (zoomChanged &&
+          userZoomed &&
+          pan.scrollLeft === prev.scroll &&
+          pan.zoomPxPerSec === prev.zoom));
+    const geometry = retainsOriginalPanGeometry
+      ? pan.geometry
+      : {
+          scrollLeft,
+          lineOffsetPx: fixedLineOffsetPx(
+            playheadSec,
+            zoomPxPerSec,
+            scrollLeft,
+            timeViewportPx,
+          ),
+          zoomPxPerSec,
+        };
+    const visualOnlyScroll = isRecordingVisualPan(
+      recordState,
+      geometry,
+      sessionSec,
+    );
+    visualPanRef.current = visualOnlyScroll
+      ? {
+          geometry,
+          scrollLeft,
+          zoomPxPerSec,
+          playheadSec,
+          seekRevision: playheadSeekRevision,
+          projectPath,
+          timeViewportPx,
+        }
+      : null;
     if (visualOnlyScroll && !playheadChanged && !seekRevisionChanged) return;
+    const panEnded = pan !== null && !visualOnlyScroll;
 
     if (zoomChanged && userZoomed) {
       const lineX = fixedLineOffsetPx(
@@ -324,11 +423,13 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       return;
     }
 
-    if (!seekRevisionChanged && !playheadChanged && !firstLook) return;
+    if (!seekRevisionChanged && !playheadChanged && !firstLook && !panEnded)
+      return;
     // A scrub put the playhead here with the view where the person left it.
     if (
       !seekRevisionChanged &&
       !firstLook &&
+      !panEnded &&
       playheadSec === scrubSecRef.current
     )
       return;
@@ -359,6 +460,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     scrollLeft,
     fixedPlayhead,
     project,
+    projectPath,
     recordState,
     setScrollLeft,
     setPlayheadSec,
@@ -369,6 +471,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     scrollRef,
     scrubRevisionRef,
     scrubSecRef,
+    visualPanRef,
   ]);
   return null;
 }
