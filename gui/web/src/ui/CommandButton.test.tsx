@@ -5,7 +5,7 @@ import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { CommandButton } from "./CommandButton";
 
 describe("CommandButton", () => {
@@ -16,9 +16,11 @@ describe("CommandButton", () => {
 
   it("runs execute on click and is axe-clean", async () => {
     const user = userEvent.setup();
+    const project = minimalProject({ tracks: [sampleTrack()] });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
     useDawStore.getState().setIsPlaying(false);
     const { container } = render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
         <CommandButton commandId="transport.togglePlay">Play</CommandButton>
       </DawProvider>,
     );
