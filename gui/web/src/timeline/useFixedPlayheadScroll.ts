@@ -209,7 +209,6 @@ export function useFixedPlayheadScroll({
                 playheadSec,
                 seekRevision: playheadSeekRevision,
                 projectPath,
-                timeViewportPx,
               }
             : null,
         );
@@ -350,7 +349,6 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       pan.playheadSec === playheadSec &&
       pan.seekRevision === playheadSeekRevision &&
       pan.projectPath === projectPath &&
-      pan.timeViewportPx === timeViewportPx &&
       ((pan.scrollLeft === scrollLeft && pan.zoomPxPerSec === zoomPxPerSec) ||
         (zoomChanged &&
           userZoomed &&
@@ -382,7 +380,6 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
             playheadSec,
             seekRevision: playheadSeekRevision,
             projectPath,
-            timeViewportPx,
           }
         : null,
     );
