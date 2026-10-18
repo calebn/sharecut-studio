@@ -31,6 +31,29 @@ app_name="$(basename "${apps[0]}")"
 stem="${app_name%.app}"
 name="${stem//[[:space:]]/}_${version}_${arch}.app.tar.gz"
 
+# Apple's ticket service can lag a minute or two behind an Accepted notarization,
+# so the stapling Tauri does at bundle time sometimes leaves the app without a
+# ticket. Staple again (with retries) before archiving so the tarball always
+# carries a ticket.
+ensure_stapled() {
+  local app="$1" attempts="${STAPLE_ATTEMPTS:-8}" delay="${STAPLE_RETRY_DELAY:-20}" n=1
+  while :; do
+    if xcrun stapler staple "$app" >&2 && xcrun stapler validate "$app" >&2; then
+      return 0
+    fi
+    if ((n >= attempts)); then
+      echo "error: could not staple a notarization ticket to $app after $n attempts" >&2
+      return 1
+    fi
+    echo "stapling attempt $n/$attempts failed; retrying in ${delay}s" >&2
+    sleep "$delay"
+    n=$((n + 1))
+  done
+}
+if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
+  ensure_stapled "${apps[0]}"
+fi
+
 mkdir -p "$OUT"
 rm -f "$OUT/$name" "$OUT/$name.sig"
 COPYFILE_DISABLE=1 tar -C "$macos_dir" -czf "$OUT/$name" "$app_name"

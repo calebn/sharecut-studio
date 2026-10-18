@@ -165,3 +165,64 @@ def test_stage_prints_only_the_tarball_path_when_stapler_is_chatty(sandbox: Path
     lines = done.stdout.strip().splitlines()
     assert len(lines) == 1 and lines[0].endswith(".app.tar.gz")
     assert "validate action worked" in done.stderr
+
+
+def test_stage_restaples_with_retries_before_archiving(sandbox: Path) -> None:
+    macos = sandbox / "gui/desktop/src-tauri/target/release/bundle/macos"
+    contents = macos / "Sharecut Studio.app" / "Contents" / "MacOS"
+    contents.mkdir(parents=True)
+    (contents / "sharecut").write_text("bin")
+    counter = sandbox / "staple-count"
+    stubs = {
+        "codesign": "exit 0\n",
+        # The first staple attempt fails (ticket not yet published); the next works.
+        "xcrun": (
+            'if [[ "$2" == "staple" ]]; then\n'
+            f'  n=$(cat "{counter}" 2>/dev/null || echo 0); echo $((n + 1)) > "{counter}"\n'
+            '  [[ $n -ge 1 ]] || exit 65\n'
+            "fi\n"
+            "exit 0\n"
+        ),
+    }
+    for name, body in stubs.items():
+        stub = sandbox / "bin" / name
+        stub.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
+        stub.chmod(0o755)
+
+    done = _run(
+        sandbox,
+        "stage_updater_bundle.sh",
+        str(sandbox / "out"),
+        env={
+            "APPLE_SIGNING_IDENTITY": "Developer ID Application: Test (TEAM)",
+            "STAPLE_RETRY_DELAY": "0",
+        },
+    )
+    assert done.returncode == 0, done.stderr
+    assert "stapling attempt 1/8 failed" in done.stderr
+    assert counter.read_text().strip() == "2"
+    assert len(done.stdout.strip().splitlines()) == 1
+
+
+def test_stage_fails_when_no_ticket_can_be_stapled(sandbox: Path) -> None:
+    macos = sandbox / "gui/desktop/src-tauri/target/release/bundle/macos"
+    contents = macos / "Sharecut Studio.app" / "Contents" / "MacOS"
+    contents.mkdir(parents=True)
+    (contents / "sharecut").write_text("bin")
+    for name, body in (("codesign", "exit 0\n"), ("xcrun", "exit 65\n")):
+        stub = sandbox / "bin" / name
+        stub.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
+        stub.chmod(0o755)
+
+    done = _run(
+        sandbox,
+        "stage_updater_bundle.sh",
+        str(sandbox / "out"),
+        env={
+            "APPLE_SIGNING_IDENTITY": "Developer ID Application: Test (TEAM)",
+            "STAPLE_ATTEMPTS": "2",
+            "STAPLE_RETRY_DELAY": "0",
+        },
+    )
+    assert done.returncode != 0
+    assert "could not staple a notarization ticket" in done.stderr
