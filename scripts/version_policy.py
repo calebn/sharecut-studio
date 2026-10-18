@@ -19,7 +19,7 @@ MAX_MAJOR = 0
 _SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 
-def _cargo_lock_version(path: Path, package: str) -> str:
+def _lock_version(path: Path, package: str) -> str:
     for entry in tomllib.loads(path.read_text())["package"]:
         if entry["name"] == package:
             return entry["version"]
@@ -37,13 +37,14 @@ def versions(root: Path = ROOT) -> dict[str, str]:
             "version"
         ],
         "src/podcast_mcp/__init__.py": module.group(1) if module else "<missing>",
+        "uv.lock": _lock_version(root / "uv.lock", "podcast-mcp"),
         "gui/desktop/package.json": json.loads((desktop / "package.json").read_text())["version"],
         "gui/desktop/package-lock.json": package_lock["version"],
         'gui/desktop/package-lock.json packages[""]': package_lock["packages"][""]["version"],
         "gui/desktop/src-tauri/Cargo.toml": tomllib.loads((tauri / "Cargo.toml").read_text())[
             "package"
         ]["version"],
-        "gui/desktop/src-tauri/Cargo.lock": _cargo_lock_version(tauri / "Cargo.lock", "sharecut"),
+        "gui/desktop/src-tauri/Cargo.lock": _lock_version(tauri / "Cargo.lock", "sharecut"),
         "gui/desktop/src-tauri/tauri.conf.json": json.loads(
             (tauri / "tauri.conf.json").read_text()
         )["version"],

@@ -48,3 +48,5 @@ def test_release_config_pins_working_filters_and_forbids_release_as() -> None:
     filters = [e["jsonpath"] for e in root["extra-files"] if isinstance(e, dict)]
     # release-please's toml updater wraps scalars as {value}, so the lockfile filter reads .value.
     assert "$.package[?(@.name.value=='sharecut')].version" in filters
+    # CI installs with `uv export --locked`, which fails when uv.lock carries a stale project version.
+    assert "$.package[?(@.name.value=='podcast-mcp')].version" in filters
