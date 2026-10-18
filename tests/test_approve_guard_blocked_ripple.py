@@ -112,8 +112,9 @@ def test_programmatic_document_and_mcp_approval_cannot_override_peer_speech(tmp_
     for payload in ({"ids": [decision.id]}, {"ids": [decision.id], "confirm_cut_speech": True}):
         with pytest.raises(ScopeChangedAtApproval):
             approve_edits(ws, payload)
-    with pytest.raises(ScopeChangedAtApproval, match="Guest is speaking"):
-        approve_edits_tool(str(ws.path), [decision.id])
+    reply = json.loads(approve_edits_tool(str(ws.path), [decision.id]))
+    assert reply["approved_count"] == 0
+    assert "Guest is speaking" in reply["held"][0]["reason"]
     assert ws.project.model_dump(mode="json") == before
     assert ws.project.editorial.edit_log == []
     assert (

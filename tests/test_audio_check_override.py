@@ -48,11 +48,18 @@ def test_host_mcp_approve_needs_ids_or_all(tmp_path, monkeypatch):
             approve_edits_tool(str(ws.path), **kwargs)
 
 
-def test_host_mcp_held_error_names_the_finding_and_the_override(tmp_path, monkeypatch):
+def test_host_mcp_held_edit_is_listed_with_its_finding_and_the_override(tmp_path, monkeypatch):
     result, decision = _blocked_filler(tmp_path, monkeypatch)
     ws = workspace(result)
-    with pytest.raises(ScopeChangedAtApproval, match="override_audio_checks=true"):
-        approve_edits_tool(str(ws.path), [decision.id])
+    before = ws.project.model_dump(mode="json")
+
+    reply = json.loads(approve_edits_tool(str(ws.path), [decision.id]))
+
+    assert reply["approved_count"] == 0
+    assert [row["id"] for row in reply["held"]] == [decision.id]
+    assert "Guest is speaking" in reply["held"][0]["reason"]
+    assert "override_audio_checks=true" in reply["apply_anyway"]
+    assert ws.project.model_dump(mode="json") == before
 
 
 @pytest.mark.parametrize("role", ["guest", "agent", "cli"])

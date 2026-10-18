@@ -355,10 +355,9 @@ def approve_edits_tool(
     To give every pending sound its own suggested action at once, use
     ``apply_suggested_actions_tool``.
 
-    ``all_pending=true`` approves every pending proposal and returns ``held`` for the ones the
-    automatic audio-quality and cut-position checks stopped (each with its finding); the rest
-    apply. Without ``all_pending`` one held cut refuses the whole batch and the error names
-    the finding. When the user says to approve a held cut anyway, repeat with
+    ``all_pending=true`` approves every pending proposal; ``ids`` approves those. Either way
+    the edits that pass the automatic audio-quality and cut-position checks apply, and
+    ``held`` lists the ones stopped (each with its finding) and left pending. When the user says to approve a held cut anyway, repeat with
     ``override_audio_checks=true``: it skips those checks for this call and records the
     override (actor and surface) in History and the edit log.
     """
@@ -376,8 +375,8 @@ def approve_edits_tool(
     with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
         outcome = service.approve(
             edit_ids,
-            held_out=held if all_pending else None,
-            asked_out=asked if all_pending else None,
+            held_out=held,
+            asked_out=asked,
         )
     if isinstance(outcome, CutSpeechConfirmation):
         return to_json(outcome.result("approve_edits"))
@@ -387,13 +386,12 @@ def approve_edits_tool(
         "approved_count": outcome,
         "ids": edit_ids,
     }
-    if all_pending:
-        result["held"] = [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held]
-        if asked:
-            result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
-            result["confirm_ids"] = list(asked[0].edit_ids)
-        if held or asked:
-            result["apply_anyway"] = APPLY_ANYWAY
+    result["held"] = [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held]
+    if asked:
+        result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
+        result["confirm_ids"] = list(asked[0].edit_ids)
+    if held or asked:
+        result["apply_anyway"] = APPLY_ANYWAY
     return to_json(result)
 
 
