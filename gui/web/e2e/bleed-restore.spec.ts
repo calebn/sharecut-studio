@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { createRelocatedE2eProject } from "./liveProject";
+import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 
 function createBleedRestoreProject(prefix: string) {
@@ -35,11 +36,16 @@ for (const viewport of [
       async (projectPath) => {
         const project = JSON.parse(fs.readFileSync(projectPath, "utf8"));
         const selected = project.timeline.clips[0];
+        const otherOccurrence = project.timeline.clips.find(
+          (clip: { id: string }) => clip.id === "bleed-other-occurrence",
+        );
         await page.setViewportSize(viewport);
+        if (viewport.width === 390) await rememberInspectorDetent(page, "half");
         await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
         await expect(page.getByRole("heading", { level: 1 })).toContainText(
           /aligned dialogue/i,
         );
+        if (viewport.width === 390) await openPhoneTimeline(page);
         await page.locator(`[data-clip-id="${selected.id}"]`).click();
         await page
           .getByRole("button", { name: "Inspect automatic audio reduction" })
@@ -83,8 +89,8 @@ for (const viewport of [
         expect(
           saved.timeline.clips.find(
             (clip: { id: string }) => clip.id === "bleed-other-occurrence",
-          ).bleed_restore,
-        ).toBeNull();
+          ),
+        ).toEqual(otherOccurrence);
         const undo = page.getByRole("button", {
           name: "Undo Restore",
           exact: true,

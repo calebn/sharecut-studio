@@ -146,6 +146,15 @@ export function ClipBleedHost({
       }}
       onRefresh={() => {
         if (!host) return;
+        const selection = useDawStore.getState().selection;
+        if (
+          selection?.kind === "bleedAttenuation" &&
+          selection.id === clipId &&
+          selection.trackId === trackId
+        )
+          useDawStore
+            .getState()
+            .setSelection({ ...selection, regionKey: null });
         if (active) void clipBleedSession.refresh();
         else void clipBleedSession.open(occurrence);
       }}
