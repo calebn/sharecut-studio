@@ -112,7 +112,12 @@ async function settledScrollTop(list: Locator): Promise<number> {
     const now = await list.evaluate((el) => el.scrollTop);
     stable = now === previous ? stable + 1 : 0;
     previous = now;
-    await list.page().waitForTimeout(60);
+    await list.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
   }
   return previous;
 }
