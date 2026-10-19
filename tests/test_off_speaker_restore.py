@@ -99,7 +99,7 @@ def test_empty_automatic_collection_preserves_legacy_serialized_detector_and_ren
     project = _project(tmp_path)
     old = project.model_dump(mode="json")
     for clip in old["timeline"]["clips"]:
-        clip.pop("off_speaker_mute_regions")
+        clip.pop("off_speaker_mute_regions", None)
     identity = track_render_hash(project, "host")
     detector = bleed_gate_payload(project, "host")
     for clip in project.clips:
