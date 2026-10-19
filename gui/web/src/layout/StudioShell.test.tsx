@@ -439,7 +439,7 @@ describe("StudioShell tablet peek", () => {
       </DawProvider>,
     );
     const target = screen.getByRole("button", {
-      name: "Drop audio files or import",
+      name: /Drop audio files here/,
     });
     expect(target.querySelector(".empty-session-ghost")).toHaveAttribute(
       "aria-hidden",

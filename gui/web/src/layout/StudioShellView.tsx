@@ -140,7 +140,6 @@ export function StudioShellView({
               <button
                 type="button"
                 className={`empty-session-drop${workspace.ingest.over ? " lane-drop-target" : ""}`}
-                aria-label="Drop audio files or import"
                 onDragOver={workspace.ingest.onDragOver}
                 onDragLeave={workspace.ingest.onDragLeave}
                 onDrop={workspace.ingest.onDrop}

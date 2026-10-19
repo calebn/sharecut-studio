@@ -156,13 +156,9 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     await expect(
       dialog.getByText("Proposed source position").locator(".."),
     ).toContainText(/\d+\.\d{3} s/);
-    await dialog
-      .getByRole("button", { name: "Adjust by plus 1 millisecond" })
-      .click();
+    await dialog.getByRole("button", { name: "+1 ms", exact: true }).click();
     await expect(signedOffset).toHaveValue("-0.009");
-    await dialog
-      .getByRole("button", { name: "Adjust by plus 10 milliseconds" })
-      .click();
+    await dialog.getByRole("button", { name: "+10 ms", exact: true }).click();
     await expect(signedOffset).toHaveValue("0.001");
     await signedOffset.fill("999");
     await expect(dialog.getByRole("button", { name: "Apply" })).toBeDisabled();
