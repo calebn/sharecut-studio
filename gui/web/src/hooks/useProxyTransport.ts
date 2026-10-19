@@ -15,6 +15,19 @@ import { useDaw } from "../state/useDaw";
 import { audioContextCtor } from "../utils/audio";
 import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 
+async function firstChunkReadable(manifest: ProxyManifest): Promise<boolean> {
+  const url = Object.values(manifest.tracks)[0]?.urls[0];
+  if (!url) {
+    return true;
+  }
+  try {
+    await cachedFetchArrayBuffer(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Guest proxy transport: Web Audio clip scheduler over FX source-clock chunks.
  * Returns true while the proxy owns timeline playback. Owned source previews
@@ -87,6 +100,17 @@ export function useProxyTransport(): boolean {
         }
         if (!manifest || Object.keys(manifest.tracks).length === 0) {
           setActive(false);
+          return;
+        }
+        if (!(await firstChunkReadable(manifest))) {
+          // A bucket without CORS for this origin fails every chunk fetch and leaves the
+          // player silent; the WAV transport through the share still plays (#1759).
+          if (!cancelled) {
+            setActive(false);
+          }
+          return;
+        }
+        if (cancelled) {
           return;
         }
         manifestRef.current = manifest;

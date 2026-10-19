@@ -26,6 +26,13 @@ export const REVIEW_ROLES: readonly {
 
 export type HostShareKind = "review" | "record";
 
+export type HostShareWarning = {
+  code: string;
+  message: string;
+  origin?: string;
+  rule?: unknown;
+};
+
 export type HostShareRow = {
   token: string;
   url: string | null;
@@ -44,6 +51,7 @@ export type HostShareRow = {
   created_at?: string;
   last_used_at?: string | null;
   expires_at?: string | null;
+  warnings?: HostShareWarning[];
 };
 
 export type HostSharesResponse = {

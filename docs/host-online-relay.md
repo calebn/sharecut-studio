@@ -397,6 +397,14 @@ WAV transport through the tunnel.
 ]
 ```
 
+   Creating a review link asks the bucket the way a guest's browser does (a `GET` with
+   `Origin: <public_base_url>`) and warns the host when `Access-Control-Allow-Origin` is missing:
+   the link dialog and `podcast share create` print the rule to paste. Until the rule is added,
+   the guest manifest serves proxy chunks through the share instead of the bucket, and a guest
+   whose browser still cannot read the first chunk falls back to the WAV transport, so the link
+   plays either way (more tunnel traffic). The host check is cached for 30 s to 5 min per bucket
+   host and origin; an unreachable bucket is treated as unknown and changes nothing.
+
 3. Optional lifecycle rule: expire the `review/` prefix after 30 days.
 4. Smoke: open a review-only share; Network tab should show media from
    your object-store or CDN origin, not multi-MB tunnel frames.
