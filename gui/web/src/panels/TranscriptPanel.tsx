@@ -840,6 +840,8 @@ export function TranscriptPanel() {
     followCancelRef.current = easeScrollTop(root, next, prefersReducedMotion());
   }, [
     activeKey,
+    active.utterances,
+    active.words,
     activeIndex,
     activeTurnStart,
     holdRelease,
