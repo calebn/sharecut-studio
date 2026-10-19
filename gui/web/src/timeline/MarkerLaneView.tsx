@@ -16,22 +16,13 @@ import {
   isPinComment,
   nextInStack,
 } from "./commentPinStacks";
+import { isTouchClick } from "./hitRouting";
 import { hitTargetProps } from "./hitTargets";
 import { type SocialDragMode, socialSpanAfterDrag } from "./socialDrag";
 import type { MarkerRows } from "./timelineMetrics";
 
 /** Point markers are row-square; center them on their time. */
 const MARKER_HALF = MARKER_ROW_HEIGHT / 2;
-/**
- * The router replays a pin's click (a mouse press among overlapping pins, a
- * touch tap, a chooser pick) with detail 1, so only the pointer type tells a
- * mouse click, which steps through a stack, from a touch pick, which opens the
- * pin it names.
- */
-function isTouchClick(event: Event): boolean {
-  return (event as PointerEvent).pointerType === "touch";
-}
-
 const NO_FLAGS: readonly ClippingFlag[] = [];
 
 /**
