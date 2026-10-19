@@ -886,6 +886,12 @@ enforced-by:
 - tests/test_apply_sound_actions_step.py::test_a_rerun_does_not_propose_a_left_sound_again
 - tests/test_session_timeline.py::test_same_source_overlaps_count_a_lowered_span_as_audible_but_not_a_mute
 - tests/test_acoustic_gap.py::test_coalesce_keeps_a_likely_laugh_apart_from_a_pause_or_filler_beside_it
+- tests/test_decided_sounds.py::test_a_proposal_is_decided_only_when_it_and_a_record_cover_each_other
+- tests/test_decided_sounds.py::test_the_source_id_matches_the_way_apply_lower_matches_it
+- tests/test_decided_sounds.py::test_dropping_decided_sounds_keeps_speech_edits_and_applied_rows_beside_them
+- tests/test_apply_suggested_actions.py::test_an_unreadable_peer_check_leaves_the_sound_pending_not_recorded
+- tests/test_apply_sound_actions_step.py::test_a_runner_run_does_not_trust_the_analysis_log_of_an_earlier_run
+- tests/test_speaker_split.py::test_reopening_a_span_inside_a_lowered_region_keeps_its_gain
 - tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
 - tests/test_acoustic_gap.py::test_a_span_the_model_hears_as_a_word_is_flagged_held_and_named_in_the_summary
@@ -949,11 +955,17 @@ The rules that follow from it:
    beside it: review-only proposals stay apart in coalescing
    (`_keeps_independent_review`).
    Apply suggested actions records every sound it lowers or leaves in
-   `editorial.sound_actions` (track, source, span, action). The step drops
-   pending sounds that most of an existing record already covers, so a re-run
-   does not lower a sound again or propose a left one again, and a lower the
-   editor removed by hand stays removed. The record survives that removal and
-   goes only with History Undo of the batch.
+   `editorial.sound_actions` (track, source, span, action). Only the
+   `apply_sound_actions` step drops decided sounds; `analyze_fillers_pauses`,
+   `propose_edits` and Studio still list them as pending. The step drops a
+   pending sound when one record and the proposal each cover at least 75% of
+   the longer of the two, on the same track and recording (equivalent source
+   ids, as Lower matches a clip), so a re-run does not lower a sound again or
+   leave one again, and a lower the editor removed by hand stays removed. A
+   proposal that reaches well past a record keeps its fresh part. The record
+   survives that removal and goes only with History Undo of the batch. A laugh
+   whose peer-speech check cannot read audio is held pending and reported, never
+   recorded as a leave.
 4. **A laugh over someone else is a level problem.** Each speaker has a track,
    so lowering the laugh keeps both the laugh and the other speaker's words.
    Lower reuses the per-track attenuation bleed handling already uses. A lowered
