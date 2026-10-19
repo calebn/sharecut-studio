@@ -14,8 +14,8 @@ export function isPinComment(comment: TimelineComment): boolean {
 
 /**
  * Pins whose dots overlap at this zoom, as groups of comment ids in time
- * order. A pin alone is not listed; a chain of pins each within a dot's width
- * of the last is one group.
+ * order. A pin alone is not listed; a group is the pins within a dot's width
+ * of its first, so a chain of pins never grows one wide stack.
  */
 export function commentPinStacks(
   comments: readonly TimelineComment[],
@@ -31,10 +31,10 @@ export function commentPinStacks(
     run = [];
   };
   for (const pin of pins) {
-    const last = run[run.length - 1];
+    const first = run[0];
     if (
-      last &&
-      (pin.timeline_start - last.timeline_start) * zoomPxPerSec >= STACK_GAP_PX
+      first &&
+      (pin.timeline_start - first.timeline_start) * zoomPxPerSec >= STACK_GAP_PX
     )
       close();
     run.push(pin);
