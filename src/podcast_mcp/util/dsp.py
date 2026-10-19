@@ -407,3 +407,50 @@ def bridge_short_dips(mask: np.ndarray, max_dip: int) -> np.ndarray:
         if start > 0 and end < out.size and end - start <= max_dip:
             out[start:end] = True
     return out
+
+
+def valley_depth_db(levels: np.ndarray, k: int) -> float:
+    """How far the level climbs out of frame ``k`` on its shallower side.
+
+    Walking out either way, the level climbs to some peak before it falls under frame
+    ``k``; the shallower of the two peaks over frame ``k`` is the depth of the dip it
+    bottoms. A ripple on the slope down into a deeper dip is no valley, so it gets only
+    the height it climbs before the deeper dip (lab 705.98: -40 dBFS on the way down
+    from the ``ss`` to the -43 dBFS dip). The first or last frame has no side to
+    climb on: depth 0.
+    """
+    bottom = levels[k]
+    depth = math.inf
+    for side in (levels[k - 1 :: -1] if k > 0 else levels[:0], levels[k + 1 :]):
+        under = side < bottom
+        reach = int(np.argmax(under)) if under.any() else side.size
+        depth = min(depth, float(side[:reach].max() - bottom) if reach else 0.0)
+    return depth
+
+
+def is_valley(levels: np.ndarray, k: int, depth_db: float) -> bool:
+    """Whether frame ``k`` is the bottom of a dip ``depth_db`` deep on both sides."""
+    return valley_depth_db(levels, k) >= depth_db
+
+
+def valley_basins(levels: np.ndarray, depth_db: float) -> np.ndarray:
+    """Frames inside a valley ``depth_db`` deep: its bottom and the frames around it that
+    sit in its lower half.
+
+    A valley is the stretch between two sounds, not one frame: the frames on its flanks
+    are as far from either sound as from the bottom. Half its own depth is measured
+    from the dip itself, so the basin is the same at every recording level.
+    """
+    basin = np.zeros(levels.size, dtype=bool)
+    for k in range(levels.size):
+        depth = valley_depth_db(levels, k)
+        if depth < depth_db:
+            continue
+        midline = levels[k] + depth / 2
+        lo = hi = k
+        while lo > 0 and levels[lo - 1] <= midline:
+            lo -= 1
+        while hi + 1 < levels.size and levels[hi + 1] <= midline:
+            hi += 1
+        basin[lo : hi + 1] = True
+    return basin

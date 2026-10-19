@@ -319,3 +319,62 @@ def test_a_ripple_on_the_slope_into_a_dip_is_not_a_valley():
     breaks = _voice_breaks(levels, -42.3, valley_max_db=-39.3, depth_db=15.0)
 
     assert breaks.tolist() == [False] * 5 + [True, True] + [False] * 3
+
+
+def _uh_decaying_into_a_word(depth_db: float, gain_db: float = 0.0) -> TrackAudioCache:
+    """One unbroken voice: an "uh" from 1.0 that falls ``depth_db`` to a valley at 1.40-1.44
+    and a word rising out of it by 1.50 (word time 1.52). The valley stays over the floor."""
+    _, voice = _voice_envelope(
+        (0.98, -80.0),
+        (1.0, -20.0),
+        (1.25, -20.0),
+        (1.40, -20.0 - depth_db),
+        (1.44, -20.0 - depth_db),
+        (1.50, -20.0),
+        (1.9, -20.0),
+        (1.92, -95.0),
+    )
+    return _cache((0.98, voice), gain_db=gain_db)
+
+
+@pytest.mark.parametrize("gain_db", [-18.0, -12.0, 0.0, 6.0, 12.0])
+@pytest.mark.parametrize(
+    ("depth_db", "onset"),
+    [
+        # A ripple or a dip inside one sound is not a boundary: the word's voice walks
+        # back through it to the "uh" onset.
+        (4.0, 1.0),
+        (8.0, 1.0),
+        # A valley this far under the sound either side is heard as a boundary at any
+        # level over the floor (27 dB under the speech) and at every recording level:
+        # the walk stops at the frame after its bottom.
+        (14.0, 1.42),
+        (20.0, 1.42),
+    ],
+)
+def test_voice_onset_stops_at_a_valley_heard_apart_only_when_asked(depth_db, onset, gain_db):
+    cache = _uh_decaying_into_a_word(depth_db, gain_db)
+
+    assert cache.profile.voice_floor_db == pytest.approx(-47.0 + gain_db, abs=0.5)
+    # Without it the walk runs back through any valley that stays over the floor.
+    assert voice_onset(cache, 1.52, 0.9) == pytest.approx(1.0, abs=0.03)
+    assert voice_onset(cache, 1.52, 0.9, heard_apart=True) == pytest.approx(onset, abs=0.03)
+
+
+@pytest.mark.parametrize("gain_db", [-18.0, 0.0, 12.0])
+@pytest.mark.parametrize(("depth_db", "runs"), [(8.0, 1), (14.0, 2)])
+def test_voiced_runs_split_at_a_valley_heard_apart_only_when_asked(depth_db, runs, gain_db):
+    from podcast_mcp.edits.voiced_runs import voiced_runs
+
+    cache = _uh_decaying_into_a_word(depth_db, gain_db)
+    floor_db = cache.profile.voice_floor_db
+
+    whole = voiced_runs(cache.waveform, 0.5, 2.2, floor_db=floor_db)
+    split = voiced_runs(cache.waveform, 0.5, 2.2, floor_db=floor_db, split_at_valleys=True)
+
+    assert len(whole) == 1
+    assert len(split) == runs
+    if runs == 2:
+        # The valley's lower half (to -27 dBFS here, 1.33-1.47) belongs to neither run; the bottom (1.40-1.44) surely does not.
+        assert 1.30 < split[0][1] <= 1.40
+        assert 1.44 <= split[1][0] < 1.50
