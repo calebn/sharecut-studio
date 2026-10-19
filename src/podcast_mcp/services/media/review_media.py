@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.review_shares import list_shares
+from podcast_mcp.edits.review_shares import effective_review_version_id, list_shares
 from podcast_mcp.edits.review_versions import (
     encode_version_mp3,
     get_version,
@@ -169,7 +169,7 @@ def delete_object_store_object_if_unused(
         if not row.get("revoked")
         and (
             row.get("review_version_id") == version_id
-            or (row.get("follow_latest") and ws.project.review.active_version_id == version_id)
+            or effective_review_version_id(ws.project, row) == version_id
         )
     ]
     if active:

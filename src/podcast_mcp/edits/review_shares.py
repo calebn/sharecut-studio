@@ -161,7 +161,7 @@ def effective_review_version_id(project: EpisodeProject, row: dict[str, Any]) ->
         return str(active)
     if versions:
         # Active cleared: keep serving the newest mix, never fall back to the first one.
-        return str(max(versions, key=lambda v: str(v.created_at or "")).id)
+        return str(versions[-1].id)
     return recorded
 
 
