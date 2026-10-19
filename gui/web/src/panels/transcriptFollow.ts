@@ -14,8 +14,16 @@ export type FollowCandidate = {
   wordKey: string | null;
 };
 
-/** The lane Follow is on, and the playhead at which it last had an active line. */
-export type FollowLead = { trackId: string; sec: number };
+/**
+ * The lane Follow is on, and the playhead at which it last had an active line.
+ * `wordlessSince` is the playhead at which the lane's picks lost their audible
+ * word, so a long word-less stretch cannot pin Follow to the lane.
+ */
+export type FollowLead = {
+  trackId: string;
+  sec: number;
+  wordlessSince?: number;
+};
 
 /**
  * The line Follow should track, or null to leave the scroll alone.
@@ -24,7 +32,8 @@ export type FollowLead = { trackId: string; sec: number };
  * falls silent and another lane is active, the target is held for
  * {@link LEAD_HOLD_SEC} so a short interjection from the other speaker does
  * not flip the list between lanes. A seek (playhead outside the hold) switches
- * at once.
+ * at once. A lane that has held the target without an audible word for longer
+ * than {@link LEAD_HOLD_SEC} yields to a candidate on another lane that has one.
  */
 export function pickFollowCandidate(
   candidates: readonly FollowCandidate[],
@@ -45,7 +54,17 @@ export function pickFollowCandidate(
   if (prev) {
     const sameLane = candidates.filter((c) => c.trackId === prev.trackId);
     if (sameLane.length > 0) {
-      return best(sameLane);
+      const held = best(sameLane);
+      if (held.wordKey == null && prev.wordlessSince != null) {
+        const heldFor = sec - prev.wordlessSince;
+        const spoken = candidates.filter(
+          (c) => c.trackId !== prev.trackId && c.wordKey != null,
+        );
+        if (heldFor >= holdSec && spoken.length > 0) {
+          return best(spoken);
+        }
+      }
+      return held;
     }
     const elapsed = sec - prev.sec;
     if (elapsed >= 0 && elapsed < holdSec) {
@@ -53,6 +72,22 @@ export function pickFollowCandidate(
     }
   }
   return best(candidates);
+}
+
+/** The lead to remember after Follow picked `pick` at playhead `sec`. */
+export function nextFollowLead(
+  prev: FollowLead | null,
+  pick: FollowCandidate,
+  sec: number,
+): FollowLead {
+  if (pick.wordKey != null) {
+    return { trackId: pick.trackId, sec };
+  }
+  const wordlessSince =
+    prev?.trackId === pick.trackId && prev.wordlessSince != null
+      ? Math.min(prev.wordlessSince, sec)
+      : sec;
+  return { trackId: pick.trackId, sec, wordlessSince };
 }
 
 /**

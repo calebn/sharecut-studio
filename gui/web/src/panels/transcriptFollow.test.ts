@@ -3,6 +3,7 @@ import {
   type FollowCandidate,
   followScrollTop,
   LEAD_HOLD_SEC,
+  nextFollowLead,
   pickFollowCandidate,
 } from "./transcriptFollow";
 
@@ -48,11 +49,55 @@ describe("pickFollowCandidate", () => {
     );
   });
 
+  it("lets an audible word on the other lane win once a word-less pick has been held too long", () => {
+    const prev = { trackId: "dani", sec: 12, wordlessSince: 10 };
+    expect(pickFollowCandidate([dani(3), vicky(0, "0.1")], prev, 12)).toEqual(
+      vicky(0, "0.1"),
+    );
+  });
+
+  it("keeps a word-less same-lane pick within the hold", () => {
+    const prev = { trackId: "dani", sec: 10.4, wordlessSince: 10 };
+    expect(pickFollowCandidate([dani(3), vicky(0, "0.1")], prev, 10.4)).toEqual(
+      dani(3),
+    );
+  });
+
+  it("keeps a long word-less pick when the other lane has no audible word", () => {
+    const prev = { trackId: "dani", sec: 12, wordlessSince: 10 };
+    expect(pickFollowCandidate([dani(3), vicky(0)], prev, 12)).toEqual(dani(3));
+  });
+
   it("prefers a word-active candidate, then the lowest index", () => {
     expect(pickFollowCandidate([dani(2), dani(1, "1.0")], null, 1)).toEqual(
       dani(1, "1.0"),
     );
     expect(pickFollowCandidate([vicky(5), dani(2)], null, 1)).toEqual(dani(2));
+  });
+});
+
+describe("nextFollowLead", () => {
+  it("starts the word-less clock on a word-less pick and keeps it on the same lane", () => {
+    const first = nextFollowLead(null, dani(3), 10);
+    expect(first).toEqual({ trackId: "dani", sec: 10, wordlessSince: 10 });
+    expect(nextFollowLead(first, dani(3), 11)).toEqual({
+      trackId: "dani",
+      sec: 11,
+      wordlessSince: 10,
+    });
+  });
+
+  it("clears the clock when a word is audible or the lane changes", () => {
+    const wordless = { trackId: "dani", sec: 10, wordlessSince: 9 };
+    expect(nextFollowLead(wordless, dani(3, "3.0"), 11)).toEqual({
+      trackId: "dani",
+      sec: 11,
+    });
+    expect(nextFollowLead(wordless, vicky(1), 11)).toEqual({
+      trackId: "vicky",
+      sec: 11,
+      wordlessSince: 11,
+    });
   });
 });
 

@@ -89,6 +89,7 @@ import {
   type FollowCandidate,
   type FollowLead,
   followScrollTop,
+  nextFollowLead,
   pickFollowCandidate,
   prefersReducedMotion,
 } from "./transcriptFollow";
@@ -769,6 +770,11 @@ export function TranscriptPanel() {
   };
 
   useEffect(() => {
+    followLeadRef.current = null;
+    followHoldRef.current = null;
+  }, [projectPath]);
+
+  useEffect(() => {
     if (!transcriptFollowPlayhead) {
       followHoldRef.current = null;
       followLeadRef.current = null;
@@ -810,7 +816,7 @@ export function TranscriptPanel() {
     if (!pick) {
       return;
     }
-    followLeadRef.current = { trackId: pick.trackId, sec };
+    followLeadRef.current = nextFollowLead(followLeadRef.current, pick, sec);
     const el = activeElsRef.current.get(
       pick.wordKey ?? `u${pick.utteranceIndex}`,
     );
