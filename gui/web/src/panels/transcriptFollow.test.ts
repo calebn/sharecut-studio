@@ -56,6 +56,13 @@ describe("pickFollowCandidate", () => {
     );
   });
 
+  it("ignores a word-less clock left stale by a gap or a forward seek", () => {
+    const prev = { trackId: "dani", sec: 10.5, wordlessSince: 10 };
+    expect(pickFollowCandidate([dani(3), vicky(0, "0.1")], prev, 30)).toEqual(
+      dani(3),
+    );
+  });
+
   it("keeps a word-less same-lane pick within the hold", () => {
     const prev = { trackId: "dani", sec: 10.4, wordlessSince: 10 };
     expect(pickFollowCandidate([dani(3), vicky(0, "0.1")], prev, 10.4)).toEqual(

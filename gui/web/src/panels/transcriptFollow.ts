@@ -55,7 +55,8 @@ export function pickFollowCandidate(
     const sameLane = candidates.filter((c) => c.trackId === prev.trackId);
     if (sameLane.length > 0) {
       const held = best(sameLane);
-      if (held.wordKey == null && prev.wordlessSince != null) {
+      const fresh = sec - prev.sec >= 0 && sec - prev.sec < holdSec;
+      if (held.wordKey == null && prev.wordlessSince != null && fresh) {
         const heldFor = sec - prev.wordlessSince;
         const spoken = candidates.filter(
           (c) => c.trackId !== prev.trackId && c.wordKey != null,
