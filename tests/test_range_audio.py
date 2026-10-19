@@ -292,7 +292,9 @@ def test_guest_range_http_requires_view_and_returns_full_mix(
         returned.write_bytes(response.content)
         assert len(pcm(returned)) == 4 * 48000
     elif stale:
-        assert "Mix out of date" in response.text
+        assert response.json()["detail"] == (
+            "The mix is out of date. Ask the host to refresh it before playing this range."
+        )
 
 
 @pytest.mark.parametrize("action", ["cut", "mute"])

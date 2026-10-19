@@ -36,7 +36,9 @@ HOST_PATH = "/Users/host/private/episode/raw/host.wav"
 def test_coded_error_is_a_refusal_with_its_message_and_code() -> None:
     exc = CodedKeyError("comment not found: c9", code="comment_not_found")
     assert tool_refusal(exc) == ToolRefusal("comment not found: c9", "comment_not_found")
-    assert tool_refusal(exc, for_guest=True) == tool_refusal(exc)
+    assert tool_refusal(exc, for_guest=True) == ToolRefusal(
+        GENERIC_GUEST_MESSAGE, "comment_not_found"
+    )
 
 
 def test_refusal_found_through_the_cause_chain() -> None:
@@ -68,10 +70,12 @@ def test_busy_lock_is_project_busy_without_the_lock_path() -> None:
     refusal = tool_refusal(Timeout("/some/secret/lock/path"), for_guest=True)
     assert refusal is not None
     assert refusal.code == PROJECT_BUSY_CODE
+    assert refusal.message == "This project is busy; try again."
     assert "/secret" not in refusal.message
     busy = ProjectBusyError("/some/secret/episode.project.json.lock")
     assert lock_timeout_cause(RuntimeError("x")) is None
     assert tool_refusal(busy) == ToolRefusal(str(busy), PROJECT_BUSY_CODE)
+    assert tool_refusal(busy, for_guest=True) == refusal
 
 
 def test_guest_refusal_withholds_host_paths_owner_keeps_them() -> None:
@@ -149,6 +153,9 @@ def test_sqlite_write_lock_is_a_fixed_refusal(tmp_path):
             with pytest.raises(sqlite3.OperationalError) as failure:
                 second.execute("BEGIN IMMEDIATE")
             assert tool_refusal(failure.value, for_guest=True) == ToolRefusal(
+                "This project is busy; try again.", "project_busy"
+            )
+            assert tool_refusal(failure.value) == ToolRefusal(
                 "Project is busy in another process; try again", "project_busy"
             )
         finally:
@@ -169,22 +176,18 @@ def test_sqlite_error_code_prevents_false_busy_refusal():
 def test_guest_message_never_holds_part_of_a_folder_name(folder: str) -> None:
     path = f"/Users/host/{folder}/ep1/raw/host.wav"
     unmarked = CodedFileNotFoundError(f"raw media not found: {path}", code="file_not_found")
-    marked = CodedFileNotFoundError(
-        f"raw media not found: {path}", code="file_not_found", guest_message="Not available."
-    )
 
     assert unmarked.guest_message() == GENERIC_GUEST_MESSAGE
-    assert marked.guest_message() == "Not available."
-    assert str(marked) == f"raw media not found: {path}"
+    assert str(unmarked) == f"raw media not found: {path}"
     assert tool_refusal(unmarked, for_guest=True) == ToolRefusal(
         GENERIC_GUEST_MESSAGE, "file_not_found"
     )
 
 
-def test_guest_message_is_the_message_when_it_names_no_path() -> None:
+def test_guest_message_is_selected_by_code_not_host_message() -> None:
     exc = CodedValueError("unknown track_id: 'Talkin' Shop'", code="track_not_found")
 
-    assert exc.guest_message() == "unknown track_id: 'Talkin' Shop'"
+    assert exc.guest_message() == "That track is unavailable. Ask the host to refresh the project."
 
 
 @pytest.mark.parametrize(
@@ -215,28 +218,30 @@ def test_guest_message_is_the_message_when_it_names_no_path() -> None:
 def test_guest_message_withholds_all_audited_path_forms(message: str) -> None:
     exc = CodedError(message, code="file_not_found")
 
-    assert exc.guest_message() == "That didn't work; ask the host to check this episode."
+    assert exc.guest_message() == GENERIC_GUEST_MESSAGE
 
 
-def test_guest_message_allows_a_bare_filename() -> None:
+def test_guest_message_does_not_forward_a_bare_filename() -> None:
     exc = CodedError("A wav not found: A.wav", code="file_not_found")
 
-    assert exc.guest_message() == "A wav not found: A.wav"
+    assert exc.guest_message() == GENERIC_GUEST_MESSAGE
 
 
 def test_guest_message_withholds_a_path_with_leading_spaces() -> None:
     exc = CodedError("missing: / Private Show/ Ep1.wav", code="file_not_found")
 
-    assert exc.guest_message() == "That didn't work; ask the host to check this episode."
+    assert exc.guest_message() == GENERIC_GUEST_MESSAGE
 
 
-def test_a_marked_guest_message_survives_pickle() -> None:
-    exc = CodedValueError("bad /Users/host/x.wav", code="x", guest_message="Fixed.")
+def test_guest_message_is_derived_after_pickle() -> None:
+    exc = CodedValueError("bad /Users/host/x.wav", code="track_not_found")
 
-    assert pickle.loads(pickle.dumps(exc)).guest_message() == "Fixed."
+    assert pickle.loads(pickle.dumps(exc)).guest_message() == (
+        "That track is unavailable. Ask the host to refresh the project."
+    )
 
 
-def test_a_conflict_wrapping_a_refusal_keeps_the_refusals_guest_message() -> None:
+def test_conflict_wrapping_uses_effective_code_for_guest_message() -> None:
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
     cause = CodedValueError("gone /Users/host/Talkin' Shop/x.wav", code="clip_not_found")
@@ -244,5 +249,20 @@ def test_a_conflict_wrapping_a_refusal_keeps_the_refusals_guest_message() -> Non
     conflict = DocumentConflictError.wrapping(cause, code=cause.code)
 
     assert str(conflict) == str(cause)
-    assert conflict.guest_message() == GENERIC_GUEST_MESSAGE
+    assert (
+        conflict.guest_message() == "That clip is unavailable. Ask the host to refresh the project."
+    )
     assert conflict.code == "clip_not_found"
+
+
+@pytest.mark.parametrize(
+    "host_message",
+    ["Private customer notes", "Different private details", "{private_path}"],
+)
+def test_guest_unknown_code_never_projects_host_text(host_message: str, tmp_path) -> None:
+    host_message = host_message.replace("{private_path}", str(tmp_path / "episode.wav"))
+    exc = CodedValueError(host_message, code="unregistered_guest_failure")
+    assert tool_refusal(exc, for_guest=True) == ToolRefusal(
+        GENERIC_GUEST_MESSAGE, "unregistered_guest_failure"
+    )
+    assert tool_refusal(exc) == ToolRefusal(host_message, "unregistered_guest_failure")

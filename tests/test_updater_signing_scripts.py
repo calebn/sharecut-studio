@@ -226,3 +226,33 @@ def test_stage_fails_when_no_ticket_can_be_stapled(sandbox: Path) -> None:
     )
     assert done.returncode != 0
     assert "could not staple a notarization ticket" in done.stderr
+
+
+def test_stage_accepts_an_identical_archive_when_only_the_copy_cannot_be_validated(
+    sandbox: Path,
+) -> None:
+    macos = sandbox / "gui/desktop/src-tauri/target/release/bundle/macos"
+    contents = macos / "Sharecut Studio.app" / "Contents" / "MacOS"
+    contents.mkdir(parents=True)
+    (contents / "sharecut").write_text("bin")
+    for name, body in (
+        ("codesign", "exit 0\n"),
+        # Validating the extracted copy needs Apple, and the network drops.
+        ("xcrun", '[[ "$2" == "validate" && "$3" == *updater-verify* ]] && exit 68\nexit 0\n'),
+    ):
+        stub = sandbox / "bin" / name
+        stub.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
+        stub.chmod(0o755)
+
+    done = _run(
+        sandbox,
+        "stage_updater_bundle.sh",
+        str(sandbox / "out"),
+        env={
+            "APPLE_SIGNING_IDENTITY": "Developer ID Application: Test (TEAM)",
+            "STAPLE_RETRY_DELAY": "0",
+        },
+    )
+    assert done.returncode == 0, done.stderr
+    assert "identical to the stapled source app" in done.stderr
+    assert len(done.stdout.strip().splitlines()) == 1

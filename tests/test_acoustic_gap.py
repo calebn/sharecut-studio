@@ -742,6 +742,17 @@ def _coalesced(tmp_path, *decisions: EditDecision) -> list[tuple[str, float, flo
     )
 
 
+def test_coalesce_keeps_a_likely_laugh_apart_from_a_pause_or_filler_beside_it(tmp_path) -> None:
+    laugh = _decision("lf", 1.0, 1.5, "filler:acoustic:likely_laugh", review=True)
+    pause = _decision("p", 1.52, 2.4, "pause:0.90s")
+    um = _decision("um", 0.7, 0.98, "filler:um")
+    assert _coalesced(tmp_path, um, laugh, pause) == [
+        ("filler:acoustic:likely_laugh", 1.0, 1.5, False, True),
+        ("filler:um", 0.7, 0.98, False, False),
+        ("pause:0.90s", 1.52, 2.4, False, False),
+    ]
+
+
 def test_coalesce_keeps_acoustic_proposals_independent(tmp_path) -> None:
     applied_um = _decision("um", 0.30, 0.50, "filler:um", applied=True)
     pending_acoustic = _decision("ac", 0.53, 0.90, "filler:acoustic", review=True)

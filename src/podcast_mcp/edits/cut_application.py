@@ -1348,7 +1348,7 @@ def apply_suggested_to_project(
     """
     from podcast_mcp.edits.decisions import reject_edits, unplayed_pending_ids
     from podcast_mcp.edits.source_removals import record_suggested_cut_speech
-    from podcast_mcp.edits.suggested_actions import another_speaker_over
+    from podcast_mcp.edits.suggested_actions import another_speaker_over, record_sound_action
 
     published = project
     project = project.model_copy(deep=True)
@@ -1357,15 +1357,21 @@ def apply_suggested_to_project(
     done: set[str] = set()
     for edit_id in [i for i, a in actions.items() if a == "lower" and i in by_id]:
         decision = by_id[edit_id]
-        if not another_speaker_over(project, decision):
+        peer = another_speaker_over(project, decision)
+        if peer is None:
+            result.held.append(edit_id)  # unreadable, so neither lowered nor recorded as left
+        elif not peer:
             actions[edit_id] = "leave"
             result.left_no_overlap += 1
         elif apply_lower(project, decision, application_intent=application_intent):
+            record_sound_action(project, decision, "lower")
             done.add(edit_id)
             result.applied["lower"] = result.applied.get("lower", 0) + 1
         else:
             result.held.append(edit_id)
     leave_ids = [i for i, a in actions.items() if a == "leave" and i in by_id]
+    for edit_id in leave_ids:
+        record_sound_action(project, by_id[edit_id], "leave")
     reject_edits(project, leave_ids)
     if leave_ids:
         result.applied["leave"] = len(leave_ids)

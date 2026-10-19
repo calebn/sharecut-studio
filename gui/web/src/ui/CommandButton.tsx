@@ -4,7 +4,11 @@ import {
   type ReactNode,
 } from "react";
 import { Button, type ButtonVariant } from "./Button";
-import { type DisabledReasonProps, disabledAttrs } from "./disabledReason";
+import {
+  type DisabledReasonProps,
+  disabledAttrs,
+  unavailableReason,
+} from "./disabledReason";
 import { useCommand } from "./useCommand";
 
 type WhenGate =
@@ -47,14 +51,19 @@ export function CommandButton({
   ...rest
 }: CommandButtonProps) {
   const { run, enabled, label } = useCommand(commandId);
-  const reason =
-    disabledReason || (respectWhen && !enabled ? whenReason : undefined);
-  const isDisabled = Boolean(reason);
+  const reason = unavailableReason(
+    disabledReason ?? (respectWhen && !enabled ? whenReason : undefined),
+  );
+  const isDisabled = reason !== undefined;
   const attrs = disabledAttrs(reason);
 
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
+    if (isDisabled) {
+      e.preventDefault();
+      return;
+    }
     onClick?.(e);
-    if (e.defaultPrevented || isDisabled) {
+    if (e.defaultPrevented) {
       return;
     }
     void run(args, { skipWhen: !respectWhen });

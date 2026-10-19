@@ -42,3 +42,17 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 });
+
+describe("unavailable reason contract", () => {
+  it.each(["", "   "])("keeps a supplied blank reason gated (%j)", (reason) => {
+    const { rerender } = render(<Button disabledReason={reason}>Save</Button>);
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "This action is unavailable right now.",
+    );
+    rerender(<Button>Save</Button>);
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute("title");
+  });
+});

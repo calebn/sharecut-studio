@@ -84,6 +84,14 @@ import {
   parseTranscriptActiveKey,
   transcriptActiveKey,
 } from "./transcriptActive";
+import {
+  easeScrollTop,
+  type FollowCandidate,
+  type FollowLead,
+  followScrollTop,
+  pickFollowCandidate,
+  prefersReducedMotion,
+} from "./transcriptFollow";
 
 const WORDS_LOADING_REASON = "Wait for the transcript words to load.";
 
@@ -224,13 +232,20 @@ export function TranscriptPanel() {
   const prosody = useProsodyOverlay(showProsody);
   const prominentKeys = useMemo(() => prominentWordKeys(prosody), [prosody]);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const activeRef = useRef<HTMLElement | null>(null);
-  const bindActiveRef = (active: boolean) =>
+  /** Mounted active word / utterance elements, by `activeWordId` or `u<flat index>`. */
+  const activeElsRef = useRef(new Map<string, HTMLElement>());
+  const bindActiveRef = (key: string, active: boolean) =>
     active
       ? (el: HTMLElement | null) => {
-          activeRef.current = el;
+          if (el) {
+            activeElsRef.current.set(key, el);
+          } else {
+            activeElsRef.current.delete(key);
+          }
         }
       : undefined;
+  const followLeadRef = useRef<FollowLead | null>(null);
+  const followCancelRef = useRef<(() => void) | null>(null);
   const { handlers: scrollIntentHandlers, isUserScroll } =
     useUserScrollIntent();
   /** Playhead at which a scroll request won over follow (until it moves). */
@@ -756,6 +771,8 @@ export function TranscriptPanel() {
   useEffect(() => {
     if (!transcriptFollowPlayhead) {
       followHoldRef.current = null;
+      followLeadRef.current = null;
+      followCancelRef.current?.();
       return;
     }
     const hold = followHoldRef.current;
@@ -768,13 +785,65 @@ export function TranscriptPanel() {
       return;
     }
     const root = listRef.current;
-    const el = activeRef.current;
-    if (!root || !el || !root.contains(el)) {
+    if (!root) {
       return;
     }
-    scrollChildIntoParent(root, el, 0.5);
+    // The followed line moves only when its lane or the reading position
+    // leaves the comfort band; a word's highlight ending changes nothing.
+    const candidates: FollowCandidate[] = [];
+    for (const ui of active.utterances) {
+      const trackId = utterances[ui]?.track_id;
+      if (trackId == null) {
+        continue;
+      }
+      let wordKey: string | null = null;
+      for (const id of active.words) {
+        if (id.startsWith(`${ui}.`) && activeElsRef.current.has(id)) {
+          wordKey = id;
+          break;
+        }
+      }
+      candidates.push({ utteranceIndex: ui, trackId, wordKey });
+    }
+    const sec = useDawStore.getState().playheadSec;
+    const pick = pickFollowCandidate(candidates, followLeadRef.current, sec);
+    if (!pick) {
+      return;
+    }
+    followLeadRef.current = { trackId: pick.trackId, sec };
+    const el = activeElsRef.current.get(
+      pick.wordKey ?? `u${pick.utteranceIndex}`,
+    );
+    if (!el || !root.contains(el)) {
+      return;
+    }
+    const rootRect = root.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    if (
+      !pick.wordKey &&
+      elRect.bottom > rootRect.top &&
+      elRect.top < rootRect.bottom
+    ) {
+      // Between words of a line that is on screen: stay put. Only a seek
+      // that lands in a gap of an off-screen line goes to its first line.
+      return;
+    }
+    const next = followScrollTop({
+      scrollTop: root.scrollTop,
+      clientHeight: root.clientHeight,
+      scrollHeight: root.scrollHeight,
+      itemTop: elRect.top - rootRect.top,
+      itemHeight: pick.wordKey ? elRect.height : Math.min(elRect.height, 28),
+    });
+    if (next == null) {
+      return;
+    }
+    followCancelRef.current?.();
+    followCancelRef.current = easeScrollTop(root, next, prefersReducedMotion());
   }, [
     activeKey,
+    active.utterances,
+    active.words,
     activeIndex,
     activeTurnStart,
     holdRelease,
@@ -1130,6 +1199,14 @@ export function TranscriptPanel() {
             }
           : {})}
         {...scrollIntentHandlers}
+        onWheel={() => {
+          followCancelRef.current?.();
+          scrollIntentHandlers.onWheel();
+        }}
+        onTouchStart={() => {
+          followCancelRef.current?.();
+          scrollIntentHandlers.onTouchStart();
+        }}
         onFocus={(e) => {
           const turnEl = (e.target as Element).closest("[data-turn-index]");
           const idx = Number(turnEl?.getAttribute("data-turn-index") ?? -1);
@@ -1179,6 +1256,7 @@ export function TranscriptPanel() {
           if (!isUserScroll()) {
             return;
           }
+          followCancelRef.current?.();
           if (transcriptFollowPlayhead) {
             setTranscriptFollowPlayhead(false);
           }
@@ -1212,9 +1290,6 @@ export function TranscriptPanel() {
               const flatIndex = turn.startIndex + j;
               const unmapped = !isMappedUtterance(u);
               const uttActive = !unmapped && active.utterances.has(flatIndex);
-              // Follow scrolls to the first active utterance (the pinned one),
-              // not whichever overlapping row rendered last.
-              const followed = uttActive && flatIndex === activeIndex;
               const words = wordsForUtterance(u);
               const runsByLastPos = hostEditable
                 ? new Map(
@@ -1232,7 +1307,10 @@ export function TranscriptPanel() {
                 active: uttActive,
                 unmapped,
                 suppressedOnly: Boolean(u.suppressed_only),
-                activeRef: bindActiveRef(followed && !activeWord),
+                activeRef: bindActiveRef(
+                  `u${flatIndex}`,
+                  uttActive && !activeWord,
+                ),
                 words: words.map((w, wi) => {
                   const afterWordIndex = flatWordIndex;
                   flatWordIndex += 1;
@@ -1342,7 +1420,10 @@ export function TranscriptPanel() {
                     suspectHallucination: suspectChip,
                     prominent,
                     interactive: wordInteractive,
-                    activeRef: bindActiveRef(followed && wActive),
+                    activeRef: bindActiveRef(
+                      activeWordId(flatIndex, wi),
+                      wActive,
+                    ),
                     anchorProps: wordAnchor,
                     title:
                       [

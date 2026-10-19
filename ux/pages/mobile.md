@@ -66,11 +66,16 @@ the comment; use **More → Comments** for comment actions.
 Inspector action buttons, including **Replace audio…**, **Remove track**,
 **Go to start**, and preview controls, keep at least 44 CSS px of height on
 touch devices and in the phone layout, including when you use a mouse.
+Pipeline's toolbar scrolls with the content at every height in one panel
+scroller. The original pinned-on-tall behavior is removed to avoid an overlay
+and scroll-owner switches during resize. Controls keep their DOM, form and
+disclosure state.
+
 Transcript **Find and replace** and Pipeline **Add term** rows wrap their
 controls on a coarse pointer so landscape panels stay inside the panel. Pipeline's
 selects and the From / Only shortcuts row are 44 CSS px tall on touch. At large text
-or in a short window, the Pipeline toolbar scrolls with the panel and the Transcript
-panel scrolls as a whole, so neither covers the rows under it.
+or in a short window, the Transcript panel scrolls as a whole so its chrome does
+not cover the rows under it.
 The envelope-point select, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
 
 The overlay toggles in **More** (Pending edits, Markers, Comments and the rest) are whole rows at least 44 CSS px tall on touch.
@@ -213,3 +218,27 @@ layouts. Closing a focused feedback action returns focus to the current usable
 inspector Close. Navigating to another selection or project ends that focus
 intent; a selection the agent makes or one you follow does not (no other client's selection reaches your phone). If a peer's edit removes the
 focused Undo, focus goes to the sheet Close. An open modal keeps its own focus.
+
+## Move clips without dragging
+
+Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
+**Target track** and use **Earlier 10 ms**, **Later 10 ms**, or **Use playhead**.
+For an exact destination, enter **Timeline start (seconds)**. Review the timeline
+preview, then choose **Apply move** or **Cancel**. A selected group moves together,
+with each clip clamped at zero and the outer tracks. Exact input does not snap.
+Apply uses one existing move History action. Cancel and unchanged Apply save
+nothing. A refused save keeps a current draft and an error so you can retry.
+The **Moved clips** feedback offers **Undo** for the saved move, including the
+whole selected group. A move waiting to send offers no Undo.
+
+The panel size buttons sit beside the editor tabs. The tabs scroll horizontally
+when the controls and labels need more room.
+
+On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
+by a 1 rem request, subject to the current available bounds. Steps start at the
+visible height, including when a saved size exceeds the space available, so the
+first step can clamp by more than 1 rem. Banners and root-text changes refresh
+the bounds without rewriting that preference. **Reset panel size** clears
+the browser preference. These controls do
+not change the episode or History. Phone uses the sheet's **Expand** and
+**Collapse** controls and has no desktop splitter.

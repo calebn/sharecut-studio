@@ -42,6 +42,10 @@ Episode workspaces have two protection layers:
 
 **Anti-patterns:** `ws.save()` after changing transcripts or edit decisions; one-off Python scripts that call `correct_word` / `cut_time_range` on a loaded project without `mutate`; hand-editing mirrored `transcripts/{track}.json` (canonical data is `episode.project.json`).
 
+GUI move feedback uses the nullable history entry from its own command reply.
+Its captured document scope guards queued work, feedback, and rollback across
+project switches and reopening. See [History](../../docs/history.md).
+
 History failure recovery uses the shared `HistoryCheckpoint`. Mutation callers can
 consume `RollbackOutcome` through `on_failure`; external artifacts may be deleted
 only on certified `restored`: raw history restoration alone does not certify editable

@@ -6,10 +6,15 @@ import {
   rippleDeleteClips,
   splitAtTime,
 } from "../api";
+import {
+  documentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { patchClipsMove } from "../document/projectPatch";
 import { getClipboard, setClipboard } from "../edit/clipboard";
+import { clipPlacementIsCurrent } from "../edit/clipPlacement";
 import { payloadFromSelection } from "../edit/selectionClipboard";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -362,8 +367,21 @@ export function registerClipMoveCommands(): void {
   });
 
   registerCommand("edit.moveClips", async (args) => {
+    const scope = documentScope();
     return enqueueTrackMutate(async () => {
+      if (!isCurrentDocumentScope(scope))
+        return { status: "disabled", reason: "The episode changed" };
       const s = useDawStore.getState();
+      if (
+        args.placementToken !== undefined &&
+        (typeof args.placementToken !== "number" ||
+          !clipPlacementIsCurrent(args.placementToken))
+      ) {
+        return {
+          status: "disabled",
+          reason: "The clip placement changed. Reopen Move clip.",
+        };
+      }
       if (s.joinMutationInFlight) {
         return {
           status: "disabled",
@@ -433,10 +451,14 @@ export function registerClipMoveCommands(): void {
         }
       }
       try {
-        await moveClips(s.projectPath, clips);
-        useDawStore.getState().announceStatus("Moved clips");
+        const undo = await moveClips(s.projectPath, clips);
+        if (!isCurrentDocumentScope(scope))
+          return { status: "disabled", reason: "The episode changed" };
+        useDawStore.getState().announceStatus("Moved clips", { undo });
         return { status: "ok" };
       } catch (e) {
+        if (!isCurrentDocumentScope(scope))
+          return { status: "disabled", reason: "The episode changed" };
         revertOptimisticIfUnchanged(
           previous,
           seqAtStart,

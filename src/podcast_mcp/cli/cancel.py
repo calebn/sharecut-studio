@@ -15,6 +15,7 @@ import signal
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from types import FrameType
 
 import typer
@@ -33,6 +34,20 @@ FATAL_SIGNALS: tuple[signal.Signals, ...] = tuple(
 
 
 _Handler = Callable[[int, FrameType | None], object] | int | signal.Handlers
+
+# The cancel check of a command a Studio runs for another process (#1733): its caller's
+# Ctrl+C reaches the command as this check, not as a signal.
+_handoff_cancel: ContextVar[Callable[[], bool] | None] = ContextVar("handoff_cancel", default=None)
+
+
+@contextmanager
+def bind_handoff_cancel(check: Callable[[], bool]) -> Iterator[None]:
+    """Make ``sigint_cancel`` in this context yield ``check`` (a command run for a caller)."""
+    token = _handoff_cancel.set(check)
+    try:
+        yield
+    finally:
+        _handoff_cancel.reset(token)
 
 
 def _handler_before(signum: signal.Signals) -> _Handler:
@@ -60,10 +75,12 @@ def sigint_cancel() -> Iterator[Callable[[], bool]]:
     that signal's earlier handler and passes the signal on, so the exit status is the usual
     one for that signal. A signal ignored on entry (``nohup``) stays ignored. Every handler
     is restored on exit. Signal handlers can only be installed from the main thread;
-    elsewhere the check never fires and the signals keep their usual meaning.
+    elsewhere the check never fires and the signals keep their usual meaning. A command a
+    Studio runs for another process yields that caller's cancel check instead
+    (``bind_handoff_cancel``).
     """
     if threading.current_thread() is not threading.main_thread():
-        yield lambda: False
+        yield _handoff_cancel.get() or (lambda: False)
         return
     requested = threading.Event()
     previous: dict[int, _Handler] = {

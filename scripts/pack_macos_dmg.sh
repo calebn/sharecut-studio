@@ -154,8 +154,19 @@ if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
     echo "error: signed DMG requires notarization credentials (APPLE_API_KEY+APPLE_API_ISSUER or APPLE_ID+APPLE_PASSWORD+APPLE_TEAM_ID)" >&2
     exit 1
   fi
-  xcrun stapler staple "$partial"
-  xcrun stapler validate "$partial"
+  # stapler fetches the ticket from Apple CloudKit, which drops connections on CI runners.
+  staple_attempts="${STAPLE_ATTEMPTS:-8}"
+  staple_delay="${STAPLE_RETRY_DELAY:-20}"
+  staple_try=1
+  until xcrun stapler staple "$partial" && xcrun stapler validate "$partial"; do
+    if ((staple_try >= staple_attempts)); then
+      echo "error: could not staple a notarization ticket to $partial after ${staple_try} attempts" >&2
+      exit 1
+    fi
+    echo "stapling attempt ${staple_try}/${staple_attempts} failed; retrying in ${staple_delay}s" >&2
+    sleep "$staple_delay"
+    staple_try=$((staple_try + 1))
+  done
 fi
 
 mv -f "$partial" "$OUT"

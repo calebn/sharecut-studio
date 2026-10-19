@@ -937,9 +937,7 @@ def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(world: Wor
     assert not world.leaks(missing_mix.text)
     assert missing_stem.status_code == 404
     assert missing_stem.headers["x-sharecut-error-code"] == "file_not_found"
-    assert missing_stem.json() == {
-        "detail": "Processed audio is unavailable yet. Ask the host to refresh the mix."
-    }
+    assert missing_stem.json() == {"detail": GENERIC_GUEST_MESSAGE}
     assert not world.leaks(missing_stem.text)
     assert track_id not in missing_stem.text
 

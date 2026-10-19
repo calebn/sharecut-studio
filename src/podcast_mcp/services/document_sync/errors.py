@@ -17,16 +17,14 @@ class DocumentConflictError(CodedError, ValueError):
 
     code = "document_conflict"
 
-    def __init__(
-        self, message: str, *, code: str | None = None, guest_message: str | None = None
-    ) -> None:
-        super().__init__(message, code=code, guest_message=guest_message)
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message, code=code)
         self.conflict = True
 
     @classmethod
     def wrapping(cls, cause: CodedError, *, code: str | None = None) -> DocumentConflictError:
-        """The conflict for a refusal about a target that moved: its message, and what a guest reads."""
-        return cls(str(cause), code=code, guest_message=cause.guest_message())
+        """Wrap a refusal about a moved target, retaining its host diagnostic and effective code."""
+        return cls(str(cause), code=code)
 
 
 class DocumentSequenceConflictError(DocumentConflictError):

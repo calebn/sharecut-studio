@@ -13,11 +13,9 @@ the exception's ``__cause__`` chain:
 Anything else is a crash and returns ``None``: the adapter logs it on the host and the caller
 sees only ``Error executing tool <name>`` (#1178, #1182).
 
-A share guest is not the host: ``for_guest=True`` uses the refusal's ``guest_message()``: the
-fixed, path-free text the raise site gave, else the message when it names no host path, else
-one generic line. A message that names a path is never partly redacted (#1327), so a refusal
-written for the host's own agent, such as ``raw media not found: <path>``, cannot leak a
-folder name to a guest.
+A share guest is not the host: ``for_guest=True`` uses the refusal's ``guest_message()``,
+which selects fixed copy by code and falls back to one generic line for unknown codes. Host
+diagnostics never become guest copy (#1327).
 
 The same rule covers what a guest sees while a call fails, not only its result:
 ``guest_failure_detail`` is the hook guest progress (``install_guest_tool_progress``) uses,
@@ -32,7 +30,7 @@ from dataclasses import dataclass
 from filelock import Timeout
 from mcp.types import CallToolResult, TextContent
 
-from podcast_mcp.util.coded_error import coded_cause
+from podcast_mcp.util.coded_error import coded_cause, guest_message_for_code
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
@@ -65,12 +63,16 @@ def tool_refusal(exc: BaseException, *, for_guest: bool = False) -> ToolRefusal 
     """The refusal ``exc`` carries, or ``None`` when ``exc`` is a crash (see the module doc)."""
     busy = lock_timeout_cause(exc)
     if busy is not None:
-        return ToolRefusal(busy_message(busy), PROJECT_BUSY_CODE)
+        message = guest_message_for_code(PROJECT_BUSY_CODE) if for_guest else busy_message(busy)
+        return ToolRefusal(message, PROJECT_BUSY_CODE)
     seen: set[int] = set()
     current: BaseException | None = exc
     while current is not None and id(current) not in seen:
         if is_sqlite_busy(current):
-            return ToolRefusal(PROJECT_BUSY_MESSAGE, PROJECT_BUSY_CODE)
+            message = (
+                guest_message_for_code(PROJECT_BUSY_CODE) if for_guest else PROJECT_BUSY_MESSAGE
+            )
+            return ToolRefusal(message, PROJECT_BUSY_CODE)
         seen.add(id(current))
         current = current.__cause__
     refusal = coded_cause(exc)

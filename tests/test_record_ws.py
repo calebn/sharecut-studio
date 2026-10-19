@@ -1862,7 +1862,7 @@ def test_guest_record_input_refusal_hides_payload_and_keeps_socket_usable(
             "plane": "record",
             "type": "Error",
             "code": "invalid_state",
-            "detail": "invalid client sequence",
+            "detail": GENERIC_GUEST_MESSAGE,
             "error_code": "invalid_record_request",
         }
         socket.send_json({"type": "Record", "command_type": "Heartbeat", "client_seq": 2})
@@ -1908,9 +1908,7 @@ def test_guest_record_busy_command_keeps_socket_usable(
             "plane": "record",
             "type": "Error",
             "code": "invalid_state",
-            "detail": "Project is busy in another process; try again"
-            if busy_type == "sqlite"
-            else "This project is busy; try again",
+            "detail": "This project is busy; try again.",
             "error_code": "project_busy",
         }
         socket.send_json(command)

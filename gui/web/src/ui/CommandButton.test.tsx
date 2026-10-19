@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { CommandButton } from "./CommandButton";
 
 describe("CommandButton", () => {
@@ -16,9 +16,11 @@ describe("CommandButton", () => {
 
   it("runs execute on click and is axe-clean", async () => {
     const user = userEvent.setup();
+    const project = minimalProject({ tracks: [sampleTrack()] });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
     useDawStore.getState().setIsPlaying(false);
     const { container } = render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
         <CommandButton commandId="transport.togglePlay">Play</CommandButton>
       </DawProvider>,
     );
@@ -47,4 +49,38 @@ describe("CommandButton", () => {
       "play-btn",
     );
   });
+
+  it.each([false, true])(
+    "keeps explicit empty reason disabled in %s button mode",
+    async (bare) => {
+      const user = userEvent.setup();
+      useDawStore.getState().setIsPlaying(false);
+      const onClick = vi.fn();
+      render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <CommandButton
+            bare={bare}
+            commandId="transport.togglePlay"
+            disabledReason=""
+            respectWhen
+            whenReason="This command is unavailable."
+            onClick={onClick}
+          >
+            Play
+          </CommandButton>
+        </DawProvider>,
+      );
+      const button = screen.getByRole("button", { name: "Play" });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription(
+        "This action is unavailable right now.",
+      );
+      await user.click(button);
+      expect(onClick).not.toHaveBeenCalled();
+      expect(useDawStore.getState().isPlaying).toBe(false);
+    },
+  );
 });
