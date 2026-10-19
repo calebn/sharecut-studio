@@ -223,6 +223,30 @@ describe("a comment pin's reach", () => {
     ).toEqual(["comment"]);
   });
 
+  it("picks the nearer of two neighbouring pins even when the farther is selected", () => {
+    const b: HitTarget = {
+      ...pin,
+      id: "c2",
+      selected: true,
+      rect: { left: 211, top: 76, right: 255, bottom: 100 },
+    };
+    const a = { ...pin, rect: { left: 181, top: 76, right: 225, bottom: 100 } };
+    const ids = (hit: HitTarget) =>
+      rankHitTargets([a, b], { x: 190, y: 88 }, 22, hit).map(
+        (r) => r.candidate.id,
+      );
+    expect(ids(a)).toEqual(["c1", "c2"]);
+  });
+
+  it("keeps the selected pin first among pins at the same distance", () => {
+    const stacked = [pin, { ...pin, id: "c2", selected: true }];
+    expect(
+      rankHitTargets(stacked, { x: 203, y: 88 }, 22, pin).map(
+        (r) => r.candidate.id,
+      )[0],
+    ).toBe("c2");
+  });
+
   it("leaves a finger on the clip below to the clip, selected or not", () => {
     expect(kinds({ x: 203, y: 118 })).toEqual(["clip"]);
     expect(kinds({ x: 203, y: 118 }, true)).toEqual(["clip"]);
