@@ -26,6 +26,7 @@ from podcast_mcp.util.dsp import (
     bool_runs,
     bridge_short_dips,
     frame_rms_db,
+    valley_basins,
     voicing_probes,
 )
 
@@ -44,12 +45,28 @@ _QUIET_VOICED_PEAK = 0.28
 _QUIET_F0_IQR_REL = 0.1
 _QUIET_F0_IQR_MIN_HZ = 20.0
 _MIN_VOICED_FRAMES = 3
+# Any dip this deep on both sides, at any level, is a break between two sounds: "did"
+# and the repeated "that." at lab 1020.30 are 14 dB apart and heard as two words; with
+# Whisper times the repeat at 752.72-752.90 never dips more than 6 dB inside the voice
+# of "well,". A level ripples a few dB inside one sound. The depth is a dB difference,
+# so it reads the same at every recording level.
+HEARD_APART_DEPTH_DB = 10.0
 
 
 def audible_runs(
-    audio: TrackRmsCache, start: float, end: float, *, floor_db: float
+    audio: TrackRmsCache,
+    start: float,
+    end: float,
+    *,
+    floor_db: float,
+    split_at_valleys: bool = False,
 ) -> list[VoicedRun]:
     """Runs of frames at or above ``floor_db`` inside ``[start, end)``, voiced or not.
+
+    ``split_at_valleys`` ends a run in a valley :data:`HEARD_APART_DEPTH_DB` deep on both
+    sides, even over the floor (the valley's basin is in neither run, see
+    :func:`~podcast_mcp.util.dsp.valley_basins`): the sound before it and the sound
+    after it are two runs (#1358).
 
     Frames start on the absolute 10 ms grid, so a run's bounds depend only on the
     audio, not on the window the caller asked for. A run edge is exact to one frame:
@@ -65,6 +82,8 @@ def audible_runs(
     if levels.size == 0:
         return []
     active = bridge_short_dips(levels >= floor_db, max(1, round(_BRIDGE_SEC / HOP_SEC)))
+    if split_at_valleys:
+        active &= ~valley_basins(levels, HEARD_APART_DEPTH_DB)
     return [(t0 + i * hop / sr, t0 + ((j - 1) * hop + frame) / sr) for i, j in bool_runs(active)]
 
 
@@ -136,13 +155,20 @@ def carries_speech_pitch(
 
 
 def voiced_runs(
-    audio: TrackRmsCache, start: float, end: float, *, floor_db: float
+    audio: TrackRmsCache,
+    start: float,
+    end: float,
+    *,
+    floor_db: float,
+    split_at_valleys: bool = False,
 ) -> list[VoicedRun]:
     """The :func:`audible_runs` that carry a clear speech-pitch peak in three probes."""
     sr = int(audio.sample_rate)
     return [
         run
-        for run in audible_runs(audio, start, end, floor_db=floor_db)
+        for run in audible_runs(
+            audio, start, end, floor_db=floor_db, split_at_valleys=split_at_valleys
+        )
         if carries_speech_pitch(audio.window(*run), sr)
     ]
 
