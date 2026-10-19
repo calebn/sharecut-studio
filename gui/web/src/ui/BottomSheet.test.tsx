@@ -792,6 +792,9 @@ describe("BottomSheet", () => {
         const input = screen.getByLabelText("Gain");
         const header = screen.getByText("Header");
         const dialog = screen.getByRole("dialog");
+        await waitFor(() =>
+          expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+        );
         await userEvent.type(input, "-6");
         expect(input).toHaveFocus();
 
