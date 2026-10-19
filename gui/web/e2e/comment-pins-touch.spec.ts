@@ -1,5 +1,4 @@
 import { expect, type Page, test } from "@playwright/test";
-import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
@@ -24,7 +23,6 @@ import {
  */
 
 const CLIENT_ID = "e2e-comment-pins-touch";
-const HOLD_MS = LONG_PRESS_MS + 150;
 const TOUCH_MIN = 44;
 const MARKER_ROW = 24;
 const STACKED = ["Ada", "Ben", "Cy"] as const;
@@ -78,20 +76,31 @@ async function centre(page: Page, author: string): Promise<Point> {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/** Where a pin is once the layout (the inspector opening shifts it) holds still. */
+async function settledCentre(page: Page, author: string): Promise<Point> {
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await centre(page, author));
+      const still = now === last;
+      last = now;
+      return still;
+    })
+    .toBe(true);
+  return centre(page, author);
+}
+
 const selectedPins = (page: Page) =>
   page
     .locator(".comment-marker.selected")
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
 
 async function tap(
-  page: Page,
   cdp: Awaited<ReturnType<typeof newTouchPage>>["cdp"],
   at: Point,
 ) {
   await touch(cdp, "touchStart", [at]);
-  await page.waitForTimeout(60);
   await touch(cdp, "touchEnd");
-  await page.waitForTimeout(400);
 }
 
 for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
@@ -117,22 +126,22 @@ test("a tap beside a pin picks it, and a tap on a clip under the lane never does
   await addComments(page);
   const { page: p, cdp } = await newTouchPage(context);
   await openTimeline(p, "phone");
-  const dee = await centre(p, "Dee");
-  await tap(p, cdp, { x: dee.x + 18, y: dee.y });
-  expect(await selectedPins(p)).toEqual(["Comment by Dee"]);
-  await tap(p, cdp, { x: dee.x - 18, y: dee.y });
-  expect(await selectedPins(p)).toEqual(["Comment by Dee"]);
+  const dee = await settledCentre(p, "Dee");
+  await tap(cdp, { x: dee.x + 18, y: dee.y });
+  await expect.poll(() => selectedPins(p)).toEqual(["Comment by Dee"]);
+  const settled = await settledCentre(p, "Dee");
 
   const lane = (await p.locator(".marker-lane").boundingBox())!;
   const clip = (await p
     .locator('[data-hit-kind="clip"]')
     .first()
     .boundingBox())!;
-  await tap(p, cdp, {
-    x: dee.x,
+  await tap(cdp, {
+    x: settled.x,
     y: Math.max(clip.y, lane.y + lane.height) + 8,
   });
-  expect(await selectedPins(p)).toEqual([]);
+  // Dee was selected: only a tap that reached the clip clears her.
+  await expect.poll(() => selectedPins(p)).toEqual([]);
   await p.close();
 });
 
@@ -147,25 +156,32 @@ test("pins on one spot count themselves and the chooser picks each comment", asy
   await expect(pin(p, "Ada")).toHaveAttribute("data-stack-count", "3");
   await expect(pin(p, "Dee")).not.toHaveAttribute("data-stack-count", /.+/);
 
-  const at = await centre(p, "Ada");
   // Against the stack's order, so a pick that cycled would land on the wrong pin.
   for (const author of [...STACKED].reverse()) {
+    const at = await settledCentre(p, "Ada");
     await touch(cdp, "touchStart", [at]);
-    await p.waitForTimeout(HOLD_MS);
     const chip = p.getByRole("menuitemradio", {
       name: `Comment by ${author} at 00:05.000`,
     });
     await expect(chip).toBeVisible();
     await touch(cdp, "touchEnd");
-    await p.waitForTimeout(250);
+    // The chips fly out from the finger; take the box once it holds still.
+    let last = "";
+    await expect
+      .poll(async () => {
+        const now = JSON.stringify(await chip.boundingBox());
+        const still = now === last;
+        last = now;
+        return still;
+      })
+      .toBe(true);
     const box = (await chip.boundingBox())!;
     await touch(cdp, "touchStart", [
       { x: box.x + box.width / 2, y: box.y + box.height / 2 },
     ]);
     await touch(cdp, "touchEnd");
     await expect(p.locator(".target-chooser:not(.is-closing)")).toHaveCount(0);
-    await p.waitForTimeout(300);
-    expect(await selectedPins(p)).toEqual([`Comment by ${author}`]);
+    await expect.poll(() => selectedPins(p)).toEqual([`Comment by ${author}`]);
   }
   await p.close();
 });
@@ -181,21 +197,15 @@ test.describe("with a mouse", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
     await expect(page.locator(".comment-marker.pin")).toHaveCount(5);
-    const seen: (string | null)[] = [];
-    for (let i = 0; i < STACKED.length + 1; i += 1) {
+    for (const author of [...STACKED, STACKED[0]]) {
       const box = (await pin(page, "Ada").boundingBox())!;
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      await page.waitForTimeout(150);
-      seen.push((await selectedPins(page))[0] ?? null);
+      await expect
+        .poll(() => selectedPins(page))
+        .toEqual([`Comment by ${author}`]);
     }
-    expect(seen).toEqual([
-      "Comment by Ada",
-      "Comment by Ben",
-      "Comment by Cy",
-      "Comment by Ada",
-    ]);
     await pin(page, "Ben").focus();
     await page.keyboard.press("Enter");
-    expect(await selectedPins(page)).toEqual(["Comment by Ben"]);
+    await expect.poll(() => selectedPins(page)).toEqual(["Comment by Ben"]);
   });
 });
