@@ -231,6 +231,9 @@ nothing. A refused save keeps a current draft and an error so you can retry.
 The **Moved clips** feedback offers **Undo** for the saved move, including the
 whole selected group. A move waiting to send offers no Undo.
 
+The panel size buttons sit beside the editor tabs. The tabs scroll horizontally
+when the controls and labels need more room.
+
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
 by a 1 rem request, subject to the current available bounds. Steps start at the
 visible height, including when a saved size exceeds the space available, so the

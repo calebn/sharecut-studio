@@ -831,6 +831,9 @@ with each clip clamped at zero and the outer tracks. Exact input does not snap.
 Apply uses one existing move History action. Cancel and unchanged Apply save
 nothing. A refused save keeps a current draft and an error so you can retry.
 
+The panel size buttons sit beside the editor tabs. The tabs scroll horizontally
+when the controls and labels need more room.
+
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
 by a 1 rem request, subject to the current available bounds. Steps start at the
 visible height even when a saved preference is taller than the space available,
