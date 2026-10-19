@@ -1050,6 +1050,9 @@ A refused save keeps a current draft and an error so you can retry. The
 selected group. Queued or unchanged replies offer no Undo. Late move feedback
 cannot replace the status after another episode opens or this one reopens.
 
+The panel size buttons sit beside the editor tabs. The tabs scroll horizontally
+when the controls and labels need more room.
+
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
 by a 1 rem request, subject to the current available bounds. Steps start at the
 visible height even when a saved preference is taller than the space available,
