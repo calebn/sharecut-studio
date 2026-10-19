@@ -105,6 +105,12 @@ describe("useProxyTransport", () => {
     expect(engine.setManifest).not.toHaveBeenCalled();
   });
 
+  it("keeps the proxy engine when the first chunk fails with an HTTP status", async () => {
+    chunkCache.cachedFetchArrayBuffer.mockRejectedValue(new Error("fetch 503"));
+    const { result } = renderHook(() => useProxyTransport());
+    await vi.waitFor(() => expect(result.current).toBe(true));
+  });
+
   it("Stop rewinds the store and seeks the paused engine to the play start", async () => {
     const { result } = renderHook(() => useProxyTransport());
     await vi.waitFor(() => expect(result.current).toBe(true));

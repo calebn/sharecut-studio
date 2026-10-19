@@ -23,8 +23,10 @@ async function firstChunkReadable(manifest: ProxyManifest): Promise<boolean> {
   try {
     await cachedFetchArrayBuffer(url);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // Only a network or CORS failure (fetch's TypeError) says the bucket is unreadable
+    // for this origin; an HTTP status error keeps the proxy engine and its retries.
+    return !(err instanceof TypeError);
   }
 }
 
