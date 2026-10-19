@@ -22,6 +22,7 @@ _PROTECTED_PREFIXES = (
     "/api/pending-edits",
     "/api/pipeline",
     "/api/export",
+    "/api/handoff",
     "/api/bootstrap",
     "/api/diagnostics",
     "/api/media",

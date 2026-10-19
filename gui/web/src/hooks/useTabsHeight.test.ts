@@ -137,3 +137,22 @@ describe("the short window default", () => {
     expect(SHORT_MIN_TABS_HEIGHT_REM).toBeLessThan(MIN_TABS_HEIGHT_REM);
   });
 });
+
+it("reads policy after a font change without resizing or writing the preference", () => {
+  localStorage.setItem(TABS_HEIGHT_STORAGE_KEY, "12.5");
+  const { result, unmount } = renderHook(() => useTabsHeight());
+  try {
+    document.documentElement.style.fontSize = "24px";
+    expect(result.current.getPolicyBounds()).toEqual({
+      minRem: 8,
+      maxRem: 16.5,
+    });
+    expect(result.current.heightRem).toBe(12.5);
+    expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("12.5");
+  } finally {
+    unmount();
+    document.documentElement.style.removeProperty("font-size");
+    document.documentElement.style.removeProperty("--tabs-height");
+    localStorage.removeItem(TABS_HEIGHT_STORAGE_KEY);
+  }
+});

@@ -30,6 +30,10 @@ All episode state changes must be **undoable** and must **never overwrite `raw/`
 
 Canonical implementation: [`run_mutation`](../src/podcast_mcp/history/session.py) (snapshot before → change → snapshot after → `ProjectStore.commit`).
 
+GUI move feedback uses the nullable history entry from its own command reply.
+Its captured document scope guards queued work, feedback, and rollback across
+project switches and reopening. See [History](../docs/history.md).
+
 History failure recovery uses the shared `HistoryCheckpoint`. Mutation callers can
 consume `RollbackOutcome` through `on_failure`; external artifacts may be deleted
 only on certified `restored`: raw history restoration alone does not certify editable

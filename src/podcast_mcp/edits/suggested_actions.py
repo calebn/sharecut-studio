@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from podcast_mcp.edits.cut_safety import decision_policy
 from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.models import (
     EditDecision,
     EpisodeProject,
+    SoundActionRecord,
 )
 
 log = logging.getLogger(__name__)
@@ -66,8 +67,12 @@ def describe_sounds(
         info = decision_policy(decision)
         mapped = edit_timeline_range(project, decision)
         action = actions[decision.id]
-        if action == "lower" and not another_speaker_over(project, decision):
-            action = "leave"  # what apply_suggested_to_project will do with it
+        if action == "lower":
+            over = another_speaker_over(project, decision)
+            if over is False:
+                action = "leave"  # what apply_suggested_to_project will do with it
+            elif over is None:
+                action = "pending"  # the check could not read audio; the sound stays pending
         rows.append(
             {
                 "id": decision.id,
@@ -80,8 +85,12 @@ def describe_sounds(
     return rows
 
 
-def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> bool:
-    """True when a peer track is speaking over the decision's span."""
+def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> bool | None:
+    """True when a peer track is speaking over the span, False when none is, None when unknown.
+
+    None means the audio could not be read; a caller must not treat it as "nobody talks over
+    it", or a passing read failure becomes a recorded decision.
+    """
     from podcast_mcp.edits import cut_safety
 
     try:
@@ -90,4 +99,60 @@ def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> boo
         ).blocked
     except (OSError, ValueError):
         log.debug("peer speech check unavailable for %s", decision.id, exc_info=True)
-        return False
+        return None
+
+
+# A re-scan moves a sound's edges a little, so a decided sound is matched by overlap, not by
+# equal bounds. The match is symmetric: the proposal and one record must each cover at least
+# this share of the longer of the two, so a larger proposal's fresh part is never swallowed.
+_DECIDED_COVERAGE = 0.75
+
+
+def record_sound_action(
+    project: EpisodeProject, decision: EditDecision, action: Literal["lower", "leave"]
+) -> None:
+    """Remember that ``decision``'s sound was lowered or left, so a re-run does not redo it."""
+    from podcast_mcp.edits.cut_safety import is_non_speech_sound
+
+    if decision.timebase != "source" or not is_non_speech_sound(decision.reason):
+        return
+    project.editorial.sound_actions.append(
+        SoundActionRecord(
+            track_id=decision.track_id,
+            source_id=decision.source_id,
+            start_s=decision.start,
+            end_s=decision.end,
+            action=action,
+        )
+    )
+
+
+def is_decided_sound(project: EpisodeProject, decision: EditDecision) -> bool:
+    """True when one recorded sound and ``decision`` cover at least 75% of each other's length.
+
+    The record must be on the same track and the same recording (equivalent source ids, as
+    ``apply_lower`` matches a clip).
+    """
+    sources = project.equivalent_source_ids(decision.track_id, decision.source_id)
+    for record in project.editorial.sound_actions:
+        if record.track_id != decision.track_id or record.source_id not in sources:
+            continue
+        longest = max(decision.end - decision.start, record.end_s - record.start_s)
+        shared = min(decision.end, record.end_s) - max(decision.start, record.start_s)
+        if longest > 0 and shared >= _DECIDED_COVERAGE * longest - 1e-9:
+            return True
+    return False
+
+
+def drop_decided_sounds(project: EpisodeProject) -> int:
+    """Drop pending non-speech proposals of sounds already lowered or left; returns the count."""
+    from podcast_mcp.edits.cut_safety import is_non_speech_sound
+
+    kept = [
+        e
+        for e in project.edit_decisions
+        if e.applied or not is_non_speech_sound(e.reason) or not is_decided_sound(project, e)
+    ]
+    dropped = len(project.edit_decisions) - len(kept)
+    project.edit_decisions = kept
+    return dropped

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
+import type { TransportAvailability } from "../state/transportAvailability";
 import { Pill, Timecode } from "../ui";
 import { transportTimecode } from "../utils/time";
 import { ListenHero } from "./ListenHero";
@@ -14,6 +15,7 @@ const meta: Meta<typeof TransportPlayControls> = {
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
   args: {
+    availability: { togglePlay: undefined, stop: undefined },
     onTogglePlay: fn(),
     onStop: fn(),
   },
@@ -24,15 +26,13 @@ type Story = StoryObj<typeof TransportPlayControls>;
 
 function TransportPreview({
   initiallyPlaying = false,
-  disabled = false,
-  disabledTitle,
+  availability,
   phone = false,
   onTogglePlay,
   onStop,
 }: {
   initiallyPlaying?: boolean;
-  disabled?: boolean;
-  disabledTitle?: string;
+  availability: TransportAvailability;
   phone?: boolean;
   onTogglePlay: () => void;
   onStop: () => void;
@@ -42,8 +42,7 @@ function TransportPreview({
   const controls = (
     <TransportPlayControls
       playing={playing}
-      disabled={disabled}
-      disabledTitle={disabledTitle}
+      availability={availability}
       onTogglePlay={() => {
         onTogglePlay();
         setPlaying((value) => !value);
@@ -80,14 +79,12 @@ function TransportPreview({
   }
   return (
     <>
-      <div style={{ blockSize: "var(--transport-height)" }}>
+      <div className="daw-shell-transport">
         <TransportFrame playing={playing}>
           <TransportZone position="start">
             <h1>Episode 12: Field notes</h1>
           </TransportZone>
-          <TransportZone position="center">
-            <div className="transport-play">{controls}</div>
-          </TransportZone>
+          <TransportZone position="center">{controls}</TransportZone>
           <TransportZone position="end">
             <Pill tone="ok">Mix up to date</Pill>
           </TransportZone>
@@ -116,12 +113,24 @@ export const Playing: Story = {
 };
 
 export const EmptyProject: Story = {
-  args: { disabled: true, disabledTitle: "Import audio to play" },
+  args: {
+    availability: {
+      togglePlay: "Import audio to play.",
+      stop: "Import audio to play.",
+    },
+  },
   render: (args) => <TransportPreview {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Play" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
+    await expect(canvas.getByText("Import audio to play.")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Play" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(canvas.getByRole("button", { name: "Stop" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 
@@ -134,5 +143,24 @@ export const CompactPhone: Story = {
     await expect(canvas.getByRole("heading", { level: 1 })).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Play" }));
     await expect(canvas.getByRole("button", { name: "Pause" })).toBeVisible();
+  },
+};
+
+export const PausedEmptyProject: Story = {
+  args: {
+    playing: false,
+    availability: { togglePlay: "Import audio to play.", stop: undefined },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Play" }),
+    ).toHaveAccessibleDescription("Import audio to play.");
+    await expect(
+      canvas.getByRole("button", { name: "Stop" }),
+    ).not.toHaveAttribute("aria-disabled");
+    await expect(
+      canvas.getByRole("button", { name: "Stop" }),
+    ).not.toHaveAttribute("aria-describedby");
   },
 };

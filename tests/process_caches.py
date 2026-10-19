@@ -50,6 +50,9 @@ SHARED: dict[str, str] = {
     "podcast_mcp.services.remote_mcp.tools:_arguments_model": (
         "Keyed by the handler function itself; a patched handler is a new key."
     ),
+    "podcast_mcp.gui.routes.handoff:_click_root": (
+        "Keyed by the Typer app object; the click command tree it builds is static."
+    ),
 }
 
 

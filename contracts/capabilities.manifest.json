@@ -2788,7 +2788,7 @@
       "id": "daw.edit.moveClips",
       "label": "Move clips",
       "effect": "project",
-      "tooltip": "Drag clip bodies to move in time or onto another track \u00b7 gaps and overlap allowed",
+      "tooltip": "Move clip in the inspector previews time and target track before Apply move; clip-body drag also moves clips",
       "service": "Sharecut Studio \u2192 MoveClips document command",
       "industry_standard_key": false,
       "gates": [
@@ -2797,7 +2797,8 @@
       "surfaces": {
         "command": "edit.moveClips",
         "gui": [
-          "timeline.clip.body"
+          "timeline.clip.body",
+          "clipInspector"
         ],
         "mcp": [
           "move_clips_tool"
@@ -2808,7 +2809,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "pointer clip-body drag; arrow keys stay playhead nudge"
+        "keyboard_reason": "Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge"
       },
       "presence": {
         "cursor": "time",

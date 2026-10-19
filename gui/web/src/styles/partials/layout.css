@@ -27,7 +27,8 @@ html[data-shell] body {
  * layout or a banner never shifts another child. Layouts change only
  * --shell-main-row / --shell-tabs-row (responsive.css). */
 .daw-shell {
-  --shell-main-row: minmax(0, 1fr);
+  --shell-main-min-height: 0rem;
+  --shell-main-row: minmax(var(--shell-main-min-height), 1fr);
   --shell-tabs-row: var(--tabs-height);
 
   display: grid;
@@ -62,7 +63,8 @@ html[data-shell] body {
  * Reject. `:where` keeps the layouts' own rows (responsive.css) in charge. The
  * touch shells size their sheets from `--tabs-height`, so they keep it whole. */
 :where(html[data-shell="desktop"]) .daw-shell {
-  --shell-main-row: minmax(7.5rem, 1fr);
+  --shell-main-min-height: var(--editor-main-min-height);
+  --shell-main-row: minmax(var(--shell-main-min-height), 1fr);
   --shell-tabs-row: minmax(0, var(--tabs-height));
 }
 
@@ -80,6 +82,12 @@ html[data-shell] body {
 
 .daw-shell-transport > .transport {
   block-size: var(--transport-height);
+}
+
+.daw-shell-transport > .transport:has(.transport-play-reason) {
+  block-size: auto;
+  min-block-size: var(--transport-height);
+  padding-block-start: var(--space-3);
 }
 
 .daw-shell--phone .daw-shell-transport > .transport {
@@ -1970,4 +1978,51 @@ button.save-dot {
   padding: var(--space-3) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+}
+
+.panel-size-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+}
+
+.bottom-tabs:has(> .panel-size-controls) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.bottom-tabs > .bottom-tabs-splitter {
+  grid-column: 1 / -1;
+}
+
+.bottom-tabs > .panel-size-controls {
+  grid-area: 2 / 2;
+}
+
+.bottom-tabs:has(> .panel-size-controls) > .tab-bar {
+  grid-area: 2 / 1;
+  min-inline-size: 0;
+  overflow-x: auto;
+}
+
+.bottom-tabs:has(> .panel-size-controls) > .tab-content {
+  grid-area: 3 / 1 / 4 / -1;
+}
+
+@media (pointer: coarse) {
+  .panel-size-controls button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
+
+.splitter-rem-signal {
+  position: absolute;
+  inline-size: 1rem;
+  block-size: 1rem;
+  visibility: hidden;
+  pointer-events: none;
 }

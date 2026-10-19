@@ -15,6 +15,9 @@ describe("GesturesSheet", () => {
     expect(screen.getByText("Two-finger tap")).toBeInTheDocument();
     expect(screen.getByText("Long-press")).toBeInTheDocument();
     expect(screen.getByText("Pinch")).toBeInTheDocument();
+    expect(
+      screen.getByText(/To move a clip without dragging/),
+    ).toHaveTextContent("Apply move saves the preview. Cancel discards it.");
   });
 
   it("lists only shipped gestures", () => {

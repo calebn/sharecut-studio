@@ -24,6 +24,7 @@ from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.services.session_sync.service import SessionSyncService
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
 
 @pytest.fixture
@@ -401,11 +402,7 @@ def test_guest_socket_busy_is_transient_and_releases_admission(
         with TestClient(create_app()).websocket_connect(path) as socket:
             socket.receive_json()
     assert failure.value.code == 1013
-    assert failure.value.reason == (
-        "Project is busy in another process; try again"
-        if busy_type == "sqlite"
-        else "This project is busy; try again"
-    )
+    assert failure.value.reason == "This project is busy; try again."
     assert not [r for r in caplog.records if r.exc_info]
     keys = (
         [str(shared_workspace.project.workspace_path()), document_hub_key(shared_workspace.project)]
@@ -434,5 +431,5 @@ def test_guest_review_revocation_during_admission_remains_terminal(
         with TestClient(create_app()).websocket_connect(f"/api/review/{token}/daw/ws") as socket:
             socket.receive_json()
     assert failure.value.code == 4403
-    assert failure.value.reason == "invalid or revoked share token"
+    assert failure.value.reason == GENERIC_GUEST_MESSAGE
     assert not [r for r in caplog.records if r.exc_info]

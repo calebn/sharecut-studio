@@ -155,6 +155,27 @@ def _nominal_mute_span(region: ClipMuteRegion) -> Span:
     return (start, end)
 
 
+def _lowered_leftovers(
+    region: ClipMuteRegion, start: float, end: float, fade_ms: int
+) -> list[ClipMuteRegion]:
+    """A lowered region minus ``[start, end)``: each piece keeps its gain and original edge fades."""
+    pieces: list[ClipMuteRegion] = []
+    for lo, hi in subtract_intervals([(region.start_s, region.end_s)], [(start, end)]):
+        if hi <= lo + 1e-9:
+            continue
+        pieces.append(
+            region.model_copy(
+                update={
+                    "start_s": lo,
+                    "end_s": hi,
+                    "fade_out_ms": region.fade_out_ms if lo <= region.start_s + 1e-9 else fade_ms,
+                    "fade_in_ms": region.fade_in_ms if hi >= region.end_s - 1e-9 else fade_ms,
+                }
+            )
+        )
+    return pieces
+
+
 def _rebuild_leftover_mutes(
     project: EpisodeProject,
     clip: Clip,
@@ -170,6 +191,9 @@ def _rebuild_leftover_mutes(
     for region in clip.mute_regions:
         if region.end_s <= hole.start_s + 1e-9 or region.start_s >= hole.end_s - 1e-9:
             kept.append(region)
+            continue
+        if region.gain_db is not None:
+            leftovers.extend(_lowered_leftovers(region, start, end, fade_ms))
             continue
         for span in subtract_intervals([_nominal_mute_span(region)], [(start, end)]):
             if span[1] <= span[0] + 1e-9:

@@ -4,7 +4,7 @@
 Every adapter already reports a ``CodedError``'s message and code (``util/coded_error.py``):
 the CLI prints one ``Error:`` line, an MCP tool returns a structured refusal, and the GUI maps
 it app-wide in ``gui/routes/deps.py``. A share guest never gets that message: the error holds
-a fixed ``GUEST_MESSAGE`` with no path and no command, read through ``util/tool_refusal.py``.
+fixed guest copy selected by code, read through ``util/tool_refusal.py``.
 
 The refusal is fail-closed: it names what is wrong and how to fix it, and never repairs
 anything. A fix is a command only when running it on a folder the host owns cannot widen access.
@@ -20,7 +20,6 @@ from pathlib import Path
 from podcast_mcp.util.coded_error import HostSetupError
 
 REVIEW_NOT_PRIVATE_CODE = "review_artifacts_not_private"
-GUEST_MESSAGE = "The host's review files need attention; ask the host to check them."
 _MOVE = "move the project to a folder you own"
 
 
@@ -60,6 +59,4 @@ class ReviewPrivacyError(HostSetupError):
         self.path = path
         self.reason = reason
         self.fix = _FIX[reason].format(**fields)
-        super().__init__(
-            f"{_PROBLEM[reason].format(**fields)}; {self.fix}", guest_message=GUEST_MESSAGE
-        )
+        super().__init__(f"{_PROBLEM[reason].format(**fields)}; {self.fix}")
