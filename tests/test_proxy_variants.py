@@ -979,7 +979,8 @@ def test_share_cors_fallback_preserves_current_complete_restore_generation(
         share, "require_share_cap", lambda *_: ({"capabilities": ["play", "view"]}, ws)
     )
     monkeypatch.setattr(
-        pm, "presigned_proxy_urls", lambda *_a, **_k: ["https://store.example.test/chunk"]
+        "podcast_mcp.services.media.presigned_proxy_urls",
+        lambda *_a, **_k: ["https://store.example.test/chunk"],
     )
     monkeypatch.setattr(
         "podcast_mcp.services.collaboration.share_page.share_public_origin",
