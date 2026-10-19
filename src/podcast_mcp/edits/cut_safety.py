@@ -950,12 +950,21 @@ def assess_voiced_edges(
     peer_caches: Sequence[TrackAudioCache] = (),
     accept_nudge: Callable[[tuple[float, float], float, float], tuple[float, float] | None]
     | None = None,
+    split_own_at_valleys: bool = False,
 ) -> VoicedEdgeAssessment:
-    """Classify held edges; candidate preparation alone may supply an in-bounds nudge."""
+    """Classify held edges; candidate preparation alone may supply an in-bounds nudge.
+
+    ``split_own_at_valleys`` ends this track's voiced runs at a valley a listener hears as
+    a boundary (:data:`HEARD_APART_DEPTH_DB`), for a cut whose edge was placed in one.
+    """
     reach = EDGE_NUDGE_MAX_SEC + VOICE_EDGE_PAD_SEC + FRAME_SEC
     window_lo, window_hi = cut_start - reach, cut_end + reach
     own_runs = voiced_runs(
-        audio_cache.waveform, window_lo, window_hi, floor_db=audio_cache.profile.voice_floor_db
+        audio_cache.waveform,
+        window_lo,
+        window_hi,
+        floor_db=audio_cache.profile.voice_floor_db,
+        split_at_valleys=split_own_at_valleys,
     )
     peer_runs = [
         voiced_runs(c.waveform, window_lo, window_hi, floor_db=c.profile.voice_floor_db)

@@ -23,8 +23,11 @@ from podcast_mcp.util.dsp import (
     frame_rms_db,
     frame_rms_db_stream,
     high_band_energy_fraction,
+    is_valley,
     next_fast_len,
     rms_db,
+    valley_basins,
+    valley_depth_db,
     voicing_probes,
 )
 
@@ -306,3 +309,27 @@ def test_frame_level_noise_is_what_stationary_noise_reads() -> None:
     assert float(averaged.std()) == pytest.approx(
         frame_level_noise_db(SPEECH_BAND, rate, 0.05), rel=0.08
     )
+
+
+def test_valley_depth_is_the_shallower_climb_before_the_level_falls_under() -> None:
+    levels = np.array([-10.0, -12.0, -30.0, -22.0, -14.0, -40.0, -9.0])
+
+    # Left climbs 20 dB to -10; right climbs 16 dB to -14 before -40 falls under.
+    assert valley_depth_db(levels, 2) == pytest.approx(16.0)
+    assert is_valley(levels, 2, 15.0)
+    assert not is_valley(levels, 2, 17.0)
+    # The ends have no side to climb on; a dip into a deeper dip is a ripple.
+    assert valley_depth_db(levels, 0) == 0.0
+    assert valley_depth_db(levels, 6) == 0.0
+    assert valley_depth_db(levels, 1) == pytest.approx(0.0)
+
+
+def test_valley_basin_is_the_lower_half_of_the_valley_in_every_recording_level() -> None:
+    levels = np.array([-10.0, -10.0, -14.0, -20.0, -26.0, -30.0, -26.0, -20.0, -14.0, -10.0, -10.0])
+
+    basin = valley_basins(levels, 10.0)
+
+    # 20 dB deep: the lower half is -20 dB and under, frames 3 to 7.
+    assert np.flatnonzero(basin).tolist() == [3, 4, 5, 6, 7]
+    assert np.array_equal(valley_basins(levels + 40.0, 10.0), basin)
+    assert not valley_basins(levels, 21.0).any()

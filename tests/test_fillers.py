@@ -3439,9 +3439,9 @@ def test_acoustic_mute_ends_in_the_valley_a_filler_decays_into_the_next_word_thr
         return
     (decision,) = decisions
     assert decision.reason == "filler:acoustic"
-    assert decision.start == pytest.approx(0.91, abs=0.03)
-    # The edge falls on the decay into the valley, 60 ms clear of the word's rise.
-    assert 1.2 < decision.end <= 1.42
+    assert 0.8 < decision.start <= 0.91
+    # The edge falls in the valley, at its bottom, before the word's voice rises out of it.
+    assert decision.end == pytest.approx(1.40, abs=0.021)
     assert found == {}
 
 

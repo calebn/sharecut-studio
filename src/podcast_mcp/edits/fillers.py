@@ -1511,6 +1511,10 @@ class _CutPlan:
     # A gradual onset is not carried: a fade-in may cover it.
     next_burst: float | None = None
     effects: tuple[PauseEdgeFade, ...] = ()
+    # The right edge was placed in a valley between the cut sound and the next kept
+    # word, not in air under the voice floor: the voiced-edge check reads that valley
+    # as a break too (#1358).
+    end_in_valley: bool = False
 
     @classmethod
     def for_cut(
@@ -1713,6 +1717,7 @@ def _between_kept_voices(
     wordless = candidate.cut_kind == "pause" or candidate.reason == ACOUSTIC_FILLER_REASON
     before, after = _kept_neighbours(project, candidate)
     start, end = plan.start, plan.end
+    in_valley = plan.end_in_valley
     if before is not None:
         ceiling = end if wordless else min(end, candidate.start)
         ends = voice_end(audio_cache, before.end, ceiling)
@@ -1725,16 +1730,25 @@ def _between_kept_voices(
     if after is not None:
         floor = start if wordless else max(start, candidate.end)
         onset = voice_onset(audio_cache, after.start, floor)
+        air = cut_safety.VOICE_EDGE_PAD_SEC if wordless else _onset_guard_sec(defaults)
+        if candidate.reason == ACOUSTIC_FILLER_REASON:
+            # A sound the transcript missed can end in a valley that stays over the
+            # voice floor, 20 dB under it and 17 dB under the word it decays into
+            # (lab 646.88, #1358): the word's voice does not run back through that.
+            # The edge sits in the valley, where the air is, not 60 ms before the word.
+            apart = voice_onset(audio_cache, after.start, floor, heard_apart=True)
+            if apart != onset:
+                onset, air = apart, _onset_guard_sec(defaults)
+                in_valley = apart is not None
         if onset is not None and onset < after.start:
-            air = cut_safety.VOICE_EDGE_PAD_SEC if wordless else _onset_guard_sec(defaults)
             end = min(end, onset - air)
-    if (start, end) == (plan.start, plan.end):
+    if (start, end, in_valley) == (plan.start, plan.end, plan.end_in_valley):
         return plan
     if end - start + 1e-9 < _cut_minimum_sec(candidate) or (
         candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, start, end)
     ):
         return CutRejected("kept_voice")
-    return replace(plan, start=start, end=end)
+    return replace(plan, start=start, end=end, end_in_valley=in_valley)
 
 
 def _covered_kept_word(
@@ -1903,6 +1917,7 @@ def _gate_cut_edges(
             selected_end=candidate.end,
             pause=candidate.cut_kind == "pause",
             accept_nudge=lambda before, start, end: _accept_nudge(candidate, before, start, end),
+            split_own_at_valleys=plan.end_in_valley,
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
@@ -2042,6 +2057,7 @@ def _gate_cut_edges(
             selected_end=candidate.end,
             pause=candidate.cut_kind == "pause",
             accept_nudge=lambda before, start, end: _accept_nudge(candidate, before, start, end),
+            split_own_at_valleys=plan.end_in_valley,
         )
         if (settled.start, settled.end) != protected:
             return CutRejected("unsettled_edges")
