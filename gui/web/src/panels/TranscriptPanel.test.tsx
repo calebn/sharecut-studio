@@ -1956,7 +1956,7 @@ describe("TranscriptPanel virtualization", () => {
     expect(useDawStore.getState().transcriptFollowPlayhead).toBe(true);
   });
 
-  it("follows the first of two overlapping active turns", () => {
+  it("follows the audible word of two overlapping active turns", async () => {
     // Turn 5 runs 10-14 s; turn 6 talks over it at 12-13 s.
     const base = largeProject();
     const utterances = base.transcript.utterances.map((u, index) =>
@@ -1989,8 +1989,9 @@ describe("TranscriptPanel virtualization", () => {
     act(() => {
       useDawStore.getState().setPlayheadSec(12.5);
     });
-    // Turn 5 sits at y=480 (96 px stride, 600 px list): centered at 228.
-    expect(scrollTopWrites.at(-1)).toBe(228);
+    // Turn 6 holds the audible word (y=576, 96 px stride, 600 px list); the
+    // eased scroll lands with its center at the middle of the list.
+    await vi.waitFor(() => expect(scrollTopWrites.at(-1)).toBe(324));
   });
 
   it("keeps the scroll still when a word's highlight ends (#1755)", () => {
