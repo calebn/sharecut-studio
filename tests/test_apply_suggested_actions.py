@@ -168,9 +168,18 @@ def test_the_whole_batch_is_one_undo_step(tmp_path, sample_wav, monkeypatch) -> 
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
     ws = ProjectWorkspace.open(path)
     EditService(ws).apply_suggested_actions()
+    after = load_project(Path(path))
+    rows = [(r.track_id, r.start_s, r.end_s, r.action) for r in after.editorial.sound_actions]
+    assert rows
     HistoryService(ws).undo()
     assert _pending(path) == ["laugh", "manual", "um", "word"]
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
+    assert load_project(Path(path)).editorial.sound_actions == []
+    HistoryService(ws).redo()
+    redone = load_project(Path(path))
+    assert [
+        (r.track_id, r.start_s, r.end_s, r.action) for r in redone.editorial.sound_actions
+    ] == rows
 
 
 def test_an_override_changes_one_sound_and_ids_narrow_the_batch(
