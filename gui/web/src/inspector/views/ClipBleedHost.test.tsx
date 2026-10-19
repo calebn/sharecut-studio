@@ -240,6 +240,24 @@ describe("ClipBleedHost", () => {
     expect(loadClipBleedInspection).toHaveBeenCalledTimes(2);
   });
 
+  it("clears a selected region on direct refresh and requires a new selection", async () => {
+    render(<ClipBleedHost {...occurrence} />);
+    await userEvent.click(await ready());
+    const restore = screen.getByRole("button", {
+      name: "Restore original audio",
+    });
+    expect(restore).toBeEnabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Refresh regions" }),
+    );
+    const region = await ready();
+    expect(loadClipBleedInspection).toHaveBeenCalledTimes(2);
+    expect(region).toHaveAttribute("aria-pressed", "false");
+    expect(restore).toBeDisabled();
+    await userEvent.click(region);
+    expect(restore).toBeEnabled();
+  });
+
   it("keeps a saving action visible, disables duplicate presses and leaves Refresh explicit", async () => {
     const reply = deferred<Awaited<ReturnType<typeof restoreClipBleed>>>();
     vi.mocked(restoreClipBleed).mockReturnValueOnce(reply.promise);
