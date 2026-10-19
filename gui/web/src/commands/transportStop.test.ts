@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -8,7 +8,9 @@ describe("transport.stop", () => {
   beforeEach(() => {
     clearRegisteredCommands();
     registerDawCommands();
-    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ tracks: [sampleTrack()] }));
   });
 
   it("returns to where playback started (#533)", async () => {

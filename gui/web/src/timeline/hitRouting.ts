@@ -74,6 +74,7 @@ import {
   type HitKind,
   isHitKind,
   longPressAction,
+  needsDirectHit,
 } from "./inputContract";
 
 const replayed = new WeakSet<Event>();
@@ -362,6 +363,21 @@ export function attachHitRouting(
     restore: null,
   };
   let suppressClickUntil = 0;
+  const pendingClicks = new Map<ReturnType<typeof setTimeout>, number>();
+  const cancelClicks = (pointerId?: number) => {
+    for (const [timer, owner] of pendingClicks) {
+      if (pointerId != null && pointerId !== owner) continue;
+      clearTimeout(timer);
+      pendingClicks.delete(timer);
+    }
+  };
+  const deferClick = (element: Element, source: PointerEvent, at: HitPoint) => {
+    const timer = setTimeout(() => {
+      pendingClicks.delete(timer);
+      replayClick(element, source, at);
+    }, 0);
+    pendingClicks.set(timer, source.pointerId);
+  };
   /** The last real press, the source for a pick made on a chip. */
   let lastDown: PointerEvent | null = null;
 
@@ -421,7 +437,7 @@ export function attachHitRouting(
     tap: boolean,
   ) => {
     suppressClickUntil = Date.now() + GHOST_CLICK_MS;
-    if (tap) setTimeout(() => replayClick(element, source, at), 0);
+    if (tap) deferClick(element, source, at);
   };
   const tapOn = (
     element: Element,
@@ -618,10 +634,12 @@ export function attachHitRouting(
     if (!hit && !closestHitSurface(event.target)) return;
     const origin = pointOf(event);
     const hits = resolveHits(part, origin, event.pointerType, hit);
-    // A tap on a body is its own, though a target in reach takes a long-press.
+    const directKind = targetOf(hit)?.kind;
     // A target with no box yet is ranked nowhere, so the press stays its own.
     const winner =
-      hit && !isBody(hit) ? (hits[0]?.element ?? hit) : (hit ?? event.target);
+      hit && !isBody(hit) && !(directKind && needsDirectHit(directKind))
+        ? (hits[0]?.element ?? hit)
+        : (hit ?? event.target);
     const touch = event.pointerType === "touch";
     // One finger moving never edits: every touch, on a selected target too,
     // waits for the press layer, which arms only on a long press. An armed
@@ -739,7 +757,7 @@ export function attachHitRouting(
         report(winner);
         replayPointer("pointerdown", winner, down, origin);
         replayPointer("pointerup", winner, event, origin);
-        setTimeout(() => replayClick(winner, event, origin), 0);
+        deferClick(winner, event, origin);
         return;
       }
       case "open": {
@@ -819,6 +837,7 @@ export function attachHitRouting(
   const onCancel = (event: PointerEvent) => {
     // React Aria's long press cancels its own press with an untyped event.
     if (isReplayed(event) || !event.pointerType) return;
+    cancelClicks(event.pointerId);
     if (phase.kind === "grabbed" && phase.pointerId === event.pointerId) {
       const { element } = phase;
       setPhase(IDLE);
@@ -854,6 +873,7 @@ export function attachHitRouting(
    * `timelineZoomGestures.ts`) owns them all until the last one lifts.
    */
   const yieldToMultiTouch = () => {
+    cancelClicks();
     const owned = phase;
     setPhase(IDLE);
     gesture.multi = true;
@@ -950,6 +970,7 @@ export function attachHitRouting(
 
   const router: HitRouter = {
     dispose() {
+      cancelClicks();
       setPhase(IDLE);
       for (const part of parts) {
         part.removeEventListener("touchmove", onTouchMove as EventListener);

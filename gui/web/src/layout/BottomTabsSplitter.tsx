@@ -8,14 +8,22 @@ import { BottomTabsSplitterView } from "./BottomTabsSplitterView";
  * Collapsing runs the same `layout.timeline` command as **Maximize timeline**.
  */
 export function BottomTabsSplitter() {
-  const { heightRem, setHeightRem, resetHeight, minRem, maxRem, userSet } =
-    useTabsHeight();
+  const {
+    heightRem,
+    setHeightRem,
+    resetHeight,
+    minRem,
+    maxRem,
+    userSet,
+    getPolicyBounds,
+  } = useTabsHeight();
   return (
     <BottomTabsSplitterView
       heightRem={heightRem}
       minRem={minRem}
       maxRem={maxRem}
       userSet={userSet}
+      getPolicyBounds={getPolicyBounds}
       onResize={setHeightRem}
       onReset={resetHeight}
       onCollapse={() => runPointerCommand("layout.timeline")}

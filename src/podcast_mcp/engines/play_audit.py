@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config import mix_peak_ceiling_db
+from podcast_mcp.edits.bleed_restore import RESTORE_RENDER_REV
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
+from podcast_mcp.edits.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
@@ -17,9 +19,10 @@ from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.batch_scope import frozen
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
-from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path
 from podcast_mcp.util.tracks import stem_path as track_stem_path
 
 # Stems are timeline-clock WAVs; tolerate encoder/container rounding.
@@ -83,7 +86,10 @@ def _track_render_hash(project: EpisodeProject, track_id: str) -> str:
             "fade_out_ms": c.fade_out_ms,
             "join_in_mode": c.join_in_mode.value,
             "mute_regions": mute_regions_payload(c.mute_regions),
+            **nonempty_off_speaker_regions_payload(c),
         }
+        if c.bleed_restore is not None:
+            clip_payload["bleed_restore"] = c.bleed_restore.model_dump(mode="json")
         ignored_regions = mute_regions_payload(ignored_lookup.for_clip(c))
         if ignored_regions:
             clip_payload["ignored_words"] = ignored_regions
@@ -112,8 +118,72 @@ def _track_render_hash(project: EpisodeProject, track_id: str) -> str:
         from podcast_mcp.engines.bleed_gate import bleed_gate_payload
 
         payload["bleed_gate"] = bleed_gate_payload(project, track_id)
+    if any(clip.bleed_restore is not None for clip in clips_for_track(project, track_id)):
+        payload["bleed_restore_policy"] = {
+            "revision": RESTORE_RENDER_REV,
+            "media": {
+                str(path): _media_revision(path) for path in _restore_media_paths(project, track_id)
+            },
+        }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return short_digest(raw)
+
+
+def _media_revision(path: Path) -> FileRevision | None:
+    try:
+        return file_revision(path)
+    except OSError:
+        return None
+
+
+def _restore_media_paths(project: EpisodeProject, track_id: str) -> list[Path]:
+    from podcast_mcp.edits.gate_fill import current_gate_fill_path
+    from podcast_mcp.engines.bleed_gate import bleed_gate_payload
+
+    paths = set()
+    for clip in clips_for_track(project, track_id):
+        paths.add(recording_audio_path(project, track_id, clip.source_id).resolve())
+        for region in clip.mute_regions:
+            if region.fill is not None:
+                paths.add(recording_audio_path(project, track_id, region.fill.source_id).resolve())
+    track = project.track_by_id(track_id)
+    if track is not None:
+        fill = current_gate_fill_path(project, track)
+        if fill is not None:
+            paths.add(fill.resolve())
+        if track.transcript_gate:
+            for lane in bleed_gate_payload(project, track_id)["inputs"]:
+                paths.update(Path(media["path"]).resolve() for media in lane["media"])
+    return sorted(paths)
+
+
+@dataclass(frozen=True)
+class RenderDependencies:
+    fingerprint: str
+    media: tuple[tuple[Path, FileRevision | None], ...]
+
+    @classmethod
+    def capture(
+        cls, project: EpisodeProject, track_id: str, paths: tuple[Path, ...] = ()
+    ) -> RenderDependencies:
+        media = tuple(
+            (path, _media_revision(path))
+            for path in sorted(
+                {*_restore_media_paths(project, track_id), *(path.resolve() for path in paths)}
+            )
+        )
+        result = cls(_track_render_hash(project, track_id), media)
+        result.validate(project, track_id)
+        return result
+
+    def validate(self, project: EpisodeProject, track_id: str) -> None:
+        if (
+            any(_media_revision(path) != revision for path, revision in self.media)
+            or _track_render_hash(project, track_id) != self.fingerprint
+        ):
+            raise CodedValueError(
+                "Inputs changed during bleed Restore rendering", code="bleed_restore_inputs_changed"
+            )
 
 
 def _selected_media_identity(
@@ -268,13 +338,37 @@ def publish_stem(
     Callers hold ``render_lock`` (worker threads of a holder excepted); that is what keeps
     two publishes of one stem from interleaving.
     """
+    track = project.track_by_id(track_id)
+    dependencies = (
+        RenderDependencies.capture(project, track_id)
+        if track is not None
+        and any(
+            c.bleed_restore and (track.transcript_gate or c.off_speaker_mute_regions)
+            for c in clips_for_track(project, track_id)
+        )
+        else None
+    )
+
+    def before_replace() -> None:
+        if dependencies is not None:
+            dependencies.validate(project, track_id)
+        clear_stem_hash(project, track_id)
+
     render_atomic(
         stem_path(project, track_id),
         render,
-        before_replace=lambda: clear_stem_hash(project, track_id),
+        before_replace=before_replace,
         reap_partials=True,
     )
-    write_stem_hash(project, track_id, clear_invalidations=clear_invalidations)
+    if dependencies is None:
+        write_stem_hash(project, track_id, clear_invalidations=clear_invalidations)
+    else:
+        write_stem_hash(
+            project,
+            track_id,
+            clear_invalidations=clear_invalidations,
+            validated_hash=dependencies.fingerprint,
+        )
     return stem_path(project, track_id)
 
 
@@ -283,6 +377,7 @@ def write_stem_hash(
     track_id: str,
     *,
     clear_invalidations: bool = True,
+    validated_hash: str | None = None,
 ) -> str:
     """Persist stem content hash; optionally clear diagnostic invalidations.
 
@@ -290,7 +385,10 @@ def write_stem_hash(
     clear on the main thread after ``run_parallel`` so the cause journal is
     not mutated concurrently.
     """
-    h = _write_hash(stem_hash_path(project, track_id), track_render_hash(project, track_id))
+    h = _write_hash(
+        stem_hash_path(project, track_id),
+        validated_hash if validated_hash is not None else track_render_hash(project, track_id),
+    )
     if clear_invalidations:
         from podcast_mcp.engines.render_invalidations import (
             clear_invalidations_for_tracks,

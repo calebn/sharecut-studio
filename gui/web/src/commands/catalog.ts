@@ -5,6 +5,14 @@ import type { CommandDef } from "./types";
  * Key strings live in keymap/registry.ts: keep ids aligned.
  */
 export const COMMANDS: Record<string, CommandDef> = {
+  "edit.restoreClipBleed": {
+    id: "edit.restoreClipBleed",
+    category: "edit",
+    label: "Restore original audio",
+    when: "hostProjectLoaded",
+    paletteRunnable: false,
+    notes: "Restore the selected automatic region in this clip. Host only.",
+  },
   "transport.togglePlay": {
     id: "transport.togglePlay",
     category: "transport",
@@ -709,7 +717,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canApplyPass12",
     paletteRunnable: false,
     notes:
-      "Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment)",
+      "Args: { clips: non-empty list } — Clip inspector Apply move or pointer body drag; one clip or a multi-selection. Inspector placementToken is rechecked inside the mutation queue.",
   },
   "edit.addChapter": {
     id: "edit.addChapter",

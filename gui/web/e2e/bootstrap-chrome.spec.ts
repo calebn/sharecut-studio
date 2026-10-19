@@ -32,7 +32,19 @@ test.describe("Chrome-first bootstrap", () => {
     });
 
     await expect(page.getByText("Loading episode…").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Play" })).toBeDisabled();
+    const play = page.getByRole("button", { name: "Play" });
+    const stop = page.getByRole("button", { name: "Stop" });
+    await expect(
+      page.getByText("Loading project…", { exact: true }),
+    ).toBeVisible();
+    for (const button of [play, stop]) {
+      await expect(button).toHaveAttribute("aria-disabled", "true");
+      await expect(button).toHaveAccessibleDescription("Loading project…");
+      await button.click({ force: true });
+      await button.press("Enter");
+      await button.press("Space");
+    }
+    await expect(play).toHaveAccessibleName("Play");
     await expect(page.getByLabel("Loading timeline")).toBeVisible();
     await expect(page.getByText(/Drop audio files/)).toHaveCount(0);
     await expect(page.locator("main.daw-main")).not.toHaveClass(
@@ -44,7 +56,11 @@ test.describe("Chrome-first bootstrap", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
+    await expect(play).not.toHaveAttribute("aria-disabled");
+    await expect(stop).not.toHaveAttribute("aria-disabled");
+    await expect(
+      page.getByText("Loading project…", { exact: true }),
+    ).toHaveCount(0);
     await expect.poll(() => phases.includes("detail")).toBe(true);
     await expectPageAxeClean(page);
 

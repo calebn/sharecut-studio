@@ -20,7 +20,6 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.proxy_media import (
-    _purge_stale_proxy_dirs,
     chunk_count_for,
     chunk_window,
     delete_all_proxies_if_unused,
@@ -127,7 +126,10 @@ def test_ensure_track_proxy_creates_chunks(minimal_project, monkeypatch):
     assert len(files) == proxy.chunk_count
     again = ensure_track_proxy(ws, track_id)
     assert again.hash == proxy.hash
-    assert local_proxy_chunk_path(ws, track_id, 0).is_file()
+    from podcast_mcp.services.media.proxy_variants import ensure_proxy_manifest
+
+    ensure_proxy_manifest(ws)
+    assert local_proxy_chunk_path(ws, track_id, 0, expected_hash=proxy.hash).is_file()
 
 
 def test_upload_and_presign_proxy(minimal_project, monkeypatch):
@@ -231,16 +233,22 @@ def test_proxy_chunk_key_format():
     assert proxy_chunk_key("host", "abc123", 3) == "proxy/host/abc123/00003.mp3"
 
 
-def test_purge_stale_and_missing_paths(minimal_project, monkeypatch):
+def test_proxy_publication_preserves_old_directories(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
     monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
-    proxy = ensure_track_proxy(ws, "host")
-    stale = proxy_dir(ws, "host", "oldhash")
-    stale.mkdir(parents=True)
-    (stale / "00000.mp3").write_bytes(b"x")
-    _purge_stale_proxy_dirs(ws, "host", proxy.hash)
-    assert not stale.exists()
-    _purge_stale_proxy_dirs(ws, "missing-track", "x")
+    first = ensure_track_proxy(ws, "host")
+    old = proxy_dir(ws, "host", first.hash)
+    before = {path.name: path.read_bytes() for path in old.iterdir()}
+    ws.project.processing_chains = [
+        ProcessingChain(
+            track_id="host",
+            effects=[ProcessingEffect(effect="highpass", params={"frequency": 100})],
+        )
+    ]
+    ws.save()
+    second = ensure_track_proxy(ws, "host")
+    assert second.hash != first.hash
+    assert {path.name: path.read_bytes() for path in old.iterdir()} == before
 
 
 def test_upload_no_object_store_config(minimal_project, monkeypatch):
@@ -459,17 +467,19 @@ def test_ensure_upload_all_swallows_errors(minimal_project, monkeypatch):
 
 
 def test_local_proxy_chunk_path_errors(minimal_project, monkeypatch):
+    from podcast_mcp.services.media.proxy_variants import ensure_proxy_manifest
+
     ws = _seed_track(minimal_project)
-    with pytest.raises(KeyError, match="proxy not available"):
+    with pytest.raises(KeyError, match="not available"):
         local_proxy_chunk_path(ws, "host", 0)
     monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
-    proxy = ensure_track_proxy(ws, "host")
-    with pytest.raises(KeyError, match="chunk not found"):
-        local_proxy_chunk_path(ws, "host", proxy.chunk_count + 5)
-    path = local_proxy_chunk_path(ws, "host", 0)
+    proxy = ensure_proxy_manifest(ws).tracks["host"]
+    with pytest.raises(KeyError, match="not available"):
+        local_proxy_chunk_path(ws, "host", proxy.chunk_count + 5, expected_hash=proxy.hash)
+    path = local_proxy_chunk_path(ws, "host", 0, expected_hash=proxy.hash)
     path.unlink()
-    with pytest.raises(FileNotFoundError, match="chunk not found"):
-        local_proxy_chunk_path(ws, "host", 0)
+    with pytest.raises(KeyError, match="not available"):
+        local_proxy_chunk_path(ws, "host", 0, expected_hash=proxy.hash)
 
 
 def test_delete_mutate_failure_still_returns_true(minimal_project, monkeypatch, tmp_workspace):

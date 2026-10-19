@@ -2,6 +2,65 @@
 
 ## Layers
 
+Occurrence attenuation choices live in `Clip.bleed_restore`. Automatic SOURCE
+mutes live separately in `Clip.off_speaker_mute_regions`. Ordinary mute, Lower,
+ignored-word, and fill state remains independently authored. `OffSpeakerAudio`
+applies automatic gain around the complete prepared body. Its primary
+`SourceAudio` is clock metadata, not a second child. A content-valid Restore
+bypasses only that automatic factor inside its saved source windows.
+
+For automatic recovery, the renderer evaluates authored input `U` and bypassed
+input `W` through the same continuous track FX. Late-gate recovery also evaluates
+`V`, which removes the joint selected windows from complete bypassed bodies.
+With `B = legacyGate(U)` and `L = legacyGate(W)`, the PCM16 result is
+`saturate16(B + h*((L-B) + (1-g)*(W-V)))`. Legacy gate truncation stays separate
+from widened residual arithmetic. Zero corrections copy `B` exactly. Late-only
+Restore retains two FX evaluations. Combined recovery uses three, and automatic
+recovery with a unity or disabled late gate uses two.
+
+The output ramp `h` uses the plan's fade duration at complete saved source bounds,
+capped to half the interval. Splits and crops retain the original automatic fade
+anchors. `engines/render_clock.py` observes actual trim, prepared body,
+composition, and delay counts, including both sides of conversions. The compiler
+first configures the same automatic `aeval` topology with a placeholder gain.
+It then maps absolute SOURCE endpoints through the configured primary trim,
+leaf, prepared body, and evaluator clocks with the shared `MediaSeek` origin.
+Only numeric expressions change before the actual authored pass validates those
+associations. Configuration adds no complete FX evaluation.
+
+`MaskAudio` preserves the full observed producer format before and after binary
+removal, then restores the observed consumer format. Every rendered branch must
+have matching clocks, formats, and extents. Malformed observations or changed
+media refuse publication and retain the previous artifact. Private clock files
+stay inside the render directory. `RenderDependencies` captures primary media,
+room tone, gate fill, peer evidence, and render metadata around every pass.
+Automatic-only recovery also captures dependencies when the late gate is disabled.
+
+This is a joint marginal of quantized shared bus renders. Shared nonlinear FX
+interactions belong to that marginal. Full renders and segments retain their
+existing contexts and staging rules. Empty automatic state leaves the legacy
+commands, PCM, and render identities unchanged. Detector cache serialization and
+direct clip payloads omit empty automatic fields and always exclude Restore.
+Nonempty automatic state participates in detector and render dependencies.
+Changed recording bytes deactivate bypass while retaining authored automatic mutes.
+
+`inspect_clip_bleed` reports the late plan, artifact freshness, and
+saved choice separately. It maps actual automatic regions into the selected
+occurrence and partitions saved coverage from remaining actionable SOURCE
+intervals. Unity late plans expose no late-gate target. Authored speaker mutes
+remain eligible independently. Ordinary project projections do not perform this
+explicit inspection or hash recording bytes.
+
+`services/document/bleed_inspection.py` owns the guarded mutation. Its transaction
+adopts external changes, checks the opening history, occurrence, selected recording
+bytes, file revisions, relevant track state, and current candidate, then saves one
+Undoable choice. The helper does not render audio or reconcile transcripts.
+
+`BleedAttenuationInspector` and `BleedAttenuationOverlay` are controlled React
+leaves. They consume supplied targets, eligibility, receipts, and geometry. Their
+timeline and inspector host integration uses the current-occurrence session and
+shared selection registry described below.
+
 Whole-lane recorder latency is the last stage of pipeline `align_tracks`.
 `engines/envelope_lag.py` finds the lag between a voice's direct track and its copy
 on another mic from level envelopes, tested against shifted nulls. It abstains
@@ -304,8 +363,12 @@ the same seek path.
 `runPointerCommand` dispatches without keyboard `when` gates and returns `void`;
 `executePointerCommand` exposes the same dispatch promise for completion and
 result handling. Keyboard input evaluates its gates in the keymap listener,
-while WebMCP play awaits `execute` in its agent adapter and WebMCP seek awaits
-the shared seek helper. Configurable `CommandButton` gates remain in the UI
+while WebMCP `play_pause` returns the original `execute` result in its agent adapter.
+Its reply is `{ status: "ok" }` on success, `{ status: "disabled", reason }` on
+refusal, or `{ status: "unknown" }` when the command is unavailable. Disabled
+replies preserve command metadata such as `announced`, and command errors reject
+the tool promise unchanged. WebMCP seek awaits the shared seek helper.
+Configurable `CommandButton` gates remain in the UI
 bridge. See [the frontend command adapters](../gui/web/README.md#api-adapters).
 
 `ProjectStore.transcript_vocabulary_state()` keeps a bounded process-local cache of
@@ -356,14 +419,22 @@ script generates Rust constants from that same public profile.
 ### Guest failure presentation
 
 `util/tool_refusal.py` owns refusal recognition along the explicit exception
-cause chain and the guest message (a refusal that names a host path gives a guest a fixed, path-free text). File-lock timeouts take precedence over
-SQLite busy or locked errors, which take precedence over coded refusals.
+cause chain. `util/coded_error.py` owns the sparse code-to-copy table used for
+guest messages; host diagnostics never select guest copy. Unknown codes use
+`GENERIC_GUEST_MESSAGE`, and the path detector checks approved messages as a
+defense in depth. Coded errors keep their host message and code, including
+through document conflict wrapping and pickling. File-lock timeouts take
+precedence over SQLite busy or locked errors, which take precedence over coded
+refusals. Guest lock and SQLite busy failures use the same `project_busy` copy;
+owner messages retain their existing lock or SQLite wording.
 `gui/routes/guest_errors.py` projects that shared policy into HTTP errors and
 safe WebSocket values. Unmarked failures produce fixed `internal error` and a
 host traceback. Busy WebSocket admission and setup close with transient `1013`;
 recording command contention sends `invalid_state` with `error_code=project_busy`
 and leaves the socket usable. Services mark deliberate permission, input, missing-resource,
 and state guards with coded error types. They do not import GUI error handlers.
+Raise sites provide only host diagnostics and a code. Guest HTTP, WebSocket,
+progress, and remote MCP projections all read the same code policy.
 Guest waveform routes call the media facade directly, then project failures;
 owner waveform routes retain their owner adapter. Record upload shells convert
 pre-acknowledgment refusals for their own caller. The shared ingest helper retains
@@ -758,3 +829,34 @@ chosen speech, and rebuild survivors from the accepted mute base. Shared join fa
 carry every contributing accepted ID. Temporary measurement audio may be rendered in
 `TemporaryDirectory`; rejection publishes no render, export, source pool or history.
 `ProjectWorkspace.mutate` still owns history and persistence.
+
+## Occurrence proxy publication
+
+`SourceProxyInputs.capture_legacy` and `capture_occurrence` share source,
+processing, fill, gate, dependency capture and validation. An occurrence binds
+its selected recording before unity, inactive-choice or other shortcut checks.
+The legacy selector requires no manufactured clip or replacement track media.
+
+Source proxies preserve an independently rendered legacy baseline `B0`.
+Continuous whole-source passes produce `W` with the selected automatic reduction
+bypassed and `V` with the joint selected windows removed before the same FX.
+The proxy correction is `saturate16(B0 + (1-g0)*h*(W-V))`. It never substitutes
+a second approximation for `B0`. The observed native, producer, consumer and
+packed-output clocks map saved source bounds, including conversion round trips.
+Existing clip fades and output gains apply once in the client after decoding.
+
+`services/media/proxy_variants.py` owns complete manifest publication under the
+render lock. `RenderSection.proxy_manifests` retains the current and one previous
+complete generation. Ordered chunk digests bind new public hashes to actual
+encoded bytes. Publication uses the shared `util/atomic_directory.py` no-replace
+rename, synchronizes files and the namespace before one derived metadata save,
+and revalidates captured inputs before accepting the generation. It adds no
+History step. Existing accepted URLs are never overwritten or purged on refusal.
+A complete unaccepted directory alone grants no read authority.
+
+The manifest's project basis binds history head, render hashes and complete clip
+geometry to occurrence artifact references. The client admits one complete
+playback snapshot. Changed or unavailable variant generations pause timeline
+audio until a matching snapshot arrives. An offline legacy-only exception
+requires exact replay of validated, locally queued MoveClips geometry; an empty
+variant map alone does not permit a mismatched project.

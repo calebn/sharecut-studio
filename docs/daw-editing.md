@@ -601,3 +601,38 @@ snapshot and composes effects per clip. Any stale target rejects the batch.
 Fully removed lanes retain their timeline extent as silence.
 
 Reviewed bleed targets reuse the exact occurrence-local MUTE workflow; they preserve gaps and do not affect another placement of the same recording. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
+
+## Move clips without dragging
+
+Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
+**Target track** and use **Earlier 10 ms**, **Later 10 ms**, or **Use playhead**.
+For an exact destination, enter **Timeline start (seconds)**. Review the timeline
+preview, then choose **Apply move** or **Cancel**. A selected group moves together,
+with each clip clamped at zero and the outer tracks. Exact input does not snap.
+Apply uses one existing move History action. Cancel and unchanged Apply save
+nothing. A refused save keeps a current draft and an error so you can retry.
+
+On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
+by 1 rem. **Reset panel size** clears the browser preference. These controls do
+not change the episode or History. Phone uses the sheet's **Expand** and
+**Collapse** controls and has no desktop splitter.
+
+## Restore an automatic reduction in one occurrence
+
+Select a clip and open **Automatic reduction**. The inspector distinguishes the
+current reduction plan, rendered-audio freshness and saved Restore choice.
+Select a listed region, or its timeline band, then choose **Restore original
+audio**. The host saves that choice for this occurrence and recording. It does
+not delete ordinary mute regions, ignored words, Lower choices or fill state,
+and it does not change another occurrence of the recording.
+
+**Refresh regions** clears the previous region selection. Select the region again
+before restoring it. Changed recording bytes retain the saved choice for history
+but deactivate its effect. A moved, trimmed, deleted, replaced or reopened
+occurrence retires the old inspection target. The inspector reports changed or
+unavailable evidence rather than silently choosing a new target.
+
+**Undo Restore** appears only after this action acknowledges its own new History
+head. It runs only while that exact head and project opening remain current.
+A queued, unconfirmed or no-op response supplies no action-specific Undo.
+The host-only Restore action has no default shortcut or command-palette entry.

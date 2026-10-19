@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
+from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.decisions import PendingEditBaseline
@@ -215,6 +216,12 @@ class UpdatePendingEditPayload(BaseModel):
 
 class RestoreAppliedEditPayload(BaseModel):
     id: str
+
+
+class RestoreClipBleedPayload(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    target: BleedRestoreTarget
 
 
 class SetClipFadePayload(BaseModel):
@@ -661,6 +668,11 @@ class RestoreAppliedEditCommand(DocumentCommandEnvelope):
     payload: RestoreAppliedEditPayload
 
 
+class RestoreClipBleedCommand(DocumentCommandEnvelope):
+    type: Literal["RestoreClipBleed"] = "RestoreClipBleed"
+    payload: RestoreClipBleedPayload
+
+
 class SetClipFadeCommand(DocumentCommandEnvelope):
     type: Literal["SetClipFade"] = "SetClipFade"
     payload: SetClipFadePayload
@@ -863,6 +875,7 @@ DocumentCommandBody = Annotated[
     | ApplySuggestedActionsCommand
     | UpdatePendingEditCommand
     | RestoreAppliedEditCommand
+    | RestoreClipBleedCommand
     | SetClipFadeCommand
     | TrimClipEdgeCommand
     | RollClipJoinCommand
@@ -972,6 +985,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "ApplySuggestedActions": ApplySuggestedActionsPayload,
     "UpdatePendingEdit": UpdatePendingEditPayload,
     "RestoreAppliedEdit": RestoreAppliedEditPayload,
+    "RestoreClipBleed": RestoreClipBleedPayload,
     "SetClipFade": SetClipFadePayload,
     "TrimClipEdge": TrimClipEdgePayload,
     "RollClipJoin": RollClipJoinPayload,

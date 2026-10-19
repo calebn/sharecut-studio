@@ -212,7 +212,9 @@ def test_service_mutes_the_copy_and_leaves_the_guests_words(tmp_path):
     assert result["applied_count"] == preview["region_count"]
     assert result["held"] == []
 
-    regions = [r for c in ws.project.clips if c.track_id == "guest" for r in c.mute_regions]
+    regions = [
+        r for c in ws.project.clips if c.track_id == "guest" for r in c.off_speaker_mute_regions
+    ]
     assert regions
     assert all(r.end_s <= 5.0 or r.start_s >= 7.5 for r in regions)
     assert not any(r.start_s < 6.9 and r.end_s > 6.1 for r in regions)

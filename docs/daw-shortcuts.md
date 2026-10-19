@@ -126,6 +126,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 
 | Command | Id | When | Notes |
 |---------|----|------|-------|
+| Restore original audio | `edit.restoreClipBleed` | Loaded host project | Restore the selected automatic region in this clip. Host only. |
 | Seek playhead | `transport.seek` | Always (when not typing in an input) | Args: { sec: number } |
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
@@ -167,7 +168,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Show cut away | `view.showCutAway` | Always (when not typing in an input) |  |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join badge popover on the timeline; Incoming transition select and Apply transition length in the clip inspector |
-| Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment) |
+| Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — Clip inspector Apply move or pointer body drag; one clip or a multi-selection. Inspector placementToken is rechecked inside the mutation queue. |
 | Add chapter at playhead | `edit.addChapter` | Loaded host project | Args: { atTime?: number } → chapter titled from that time (the touch create menu's held time), else the playhead (AddChapter); turns the Markers layer on. Host only. |
 | Add envelope point | `envelope.addPoint` | Host or shared edit mode | Args: { trackId: string, atTime: number } → visible volume layer required; SetEnvelope with a point at the envelope's current level there; the touch create menu |
 | Add comment | `comment.draftAt` | Host or a link that can comment | Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu |

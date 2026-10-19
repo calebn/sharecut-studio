@@ -4,6 +4,8 @@ import { createChannelPeakTap } from "./channelPeakTap";
 import { enterPlaybackSession, leavePlaybackSession } from "./playbackSession";
 import {
   buildSchedule,
+  chunkRefKey,
+  type ImmutableChunkRef,
   type ProxyManifest,
   type ScheduledSlice,
 } from "./proxyMath";
@@ -20,7 +22,14 @@ const WINDOW_PAD_SEC = 120;
 const GAIN_GLIDE_SEC = 0.01;
 const LRU_BUDGET_BYTES = 500 * 1024 * 1024;
 
-type FetchChunk = (trackId: string, idx: number) => Promise<ArrayBuffer>;
+export interface ProxyPlaybackSnapshot {
+  readonly manifest: ProxyManifest;
+  readonly clipsByTrack: Readonly<Record<string, readonly ClipRow[]>>;
+  readonly tracks: readonly TrackInfo[];
+}
+
+type FetchChunk = (ref: ImmutableChunkRef) => Promise<ArrayBuffer>;
+type ChunkFailure = (error: unknown, ref: ImmutableChunkRef | null) => void;
 
 interface ActiveSource {
   source: AudioBufferSourceNode;
@@ -30,10 +39,10 @@ interface ActiveSource {
 export class ProxyEngine {
   private ctx: AudioContext;
   private fetchChunk: FetchChunk;
-  private manifest: ProxyManifest | null = null;
-  private clipsByTrack: Record<string, ClipRow[]> = {};
-  private clipsKey = "";
-  private tracks: TrackInfo[] = [];
+  private snapshot: ProxyPlaybackSnapshot | null = null;
+  private scheduleKey = "";
+  private tracks: readonly TrackInfo[] = [];
+  private onFailure: ChunkFailure;
   private buffers = new Map<string, AudioBuffer>();
   private lru: string[] = [];
   private decodedBytes = 0;
@@ -53,27 +62,29 @@ export class ProxyEngine {
   private solo: Record<string, boolean> = {};
   private listenMute: Record<string, boolean> = {};
 
-  constructor(ctx: AudioContext, fetchChunk: FetchChunk) {
+  constructor(
+    ctx: AudioContext,
+    fetchChunk: FetchChunk,
+    onFailure: ChunkFailure,
+  ) {
     this.ctx = ctx;
     this.fetchChunk = fetchChunk;
+    this.onFailure = onFailure;
     this.master = ctx.createGain();
     this.master.connect(ctx.destination);
   }
 
-  setManifest(m: ProxyManifest): void {
-    this.manifest = m;
-  }
-
-  setProject(
-    clipsByTrack: Record<string, ClipRow[]>,
-    tracks: TrackInfo[],
-  ): void {
-    // Full snapshots rebuild `clips` even when nothing moved, so compare
-    // what the clips say rather than the object.
-    const clipsKey = JSON.stringify(clipsByTrack);
-    const clipsChanged = clipsKey !== this.clipsKey;
-    this.clipsKey = clipsKey;
-    this.clipsByTrack = clipsByTrack;
+  setSnapshot(snapshot: ProxyPlaybackSnapshot): void {
+    const { tracks, manifest, clipsByTrack } = snapshot;
+    const scheduleKey = JSON.stringify([
+      manifest.tracks,
+      manifest.artifacts,
+      manifest.occurrences,
+      clipsByTrack,
+    ]);
+    const changed = scheduleKey !== this.scheduleKey;
+    this.scheduleKey = scheduleKey;
+    this.snapshot = snapshot;
     this.tracks = tracks;
     for (const t of tracks) {
       if (!this.trackGains.has(t.id)) {
@@ -94,10 +105,12 @@ export class ProxyEngine {
     }
     this.applyGains();
     // A volume or mute change only moves gains; new clips need new sources.
-    if (this.playing && clipsChanged) {
+    if (changed) {
       const now = this.currentTimeSec();
+      this.scheduleGeneration += 1;
+      this.scheduleReady = false;
       this.stopSources();
-      void this.scheduleAround(now);
+      if (this.playing) this.schedule(now);
     }
   }
 
@@ -140,7 +153,7 @@ export class ProxyEngine {
     // iPhone mutes Web Audio on the silent switch unless the page is in a playback session.
     enterPlaybackSession();
     void this.ctx.resume();
-    void this.scheduleAround(fromTimelineSec);
+    this.schedule(fromTimelineSec);
   }
 
   setPlaybackRate(rate: number): void {
@@ -149,7 +162,10 @@ export class ProxyEngine {
     this.originTimelineSec = at;
     this.originCtxTime = this.ctx.currentTime;
     this.playbackRate = rate;
-    if (this.playing) void this.scheduleAround(at);
+    if (this.playing) {
+      this.stopSources();
+      this.schedule(at);
+    }
   }
 
   pause(): number {
@@ -166,11 +182,13 @@ export class ProxyEngine {
 
   seek(timelineSec: number): void {
     const wasPlaying = this.playing;
+    this.scheduleGeneration += 1;
+    this.scheduleReady = false;
     this.stopSources();
     this.originTimelineSec = timelineSec;
     this.originCtxTime = this.ctx.currentTime;
     if (wasPlaying) {
-      void this.scheduleAround(timelineSec);
+      this.schedule(timelineSec);
     }
   }
 
@@ -189,7 +207,11 @@ export class ProxyEngine {
       this.ctx.state !== "running" ||
       !this.playing ||
       !this.scheduleReady ||
-      !this.manifest?.tracks[trackId]
+      !this.snapshot ||
+      (!this.snapshot.manifest.tracks[trackId] &&
+        !Object.values(this.snapshot.manifest.occurrences).some(
+          (binding) => binding.outputTrackId === trackId,
+        ))
     )
       return null;
     const gain = this.trackGains.get(trackId);
@@ -236,10 +258,6 @@ export class ProxyEngine {
     this.active = [];
   }
 
-  private bufKey(trackId: string, idx: number): string {
-    return `${trackId}/${idx}`;
-  }
-
   private touchLru(key: string, bytes: number): void {
     const i = this.lru.indexOf(key);
     if (i >= 0) {
@@ -262,24 +280,33 @@ export class ProxyEngine {
   }
 
   private async ensureBuffer(
-    trackId: string,
-    idx: number,
+    ref: ImmutableChunkRef,
+    generation: number,
   ): Promise<AudioBuffer | null> {
-    const key = this.bufKey(trackId, idx);
+    if (generation !== this.scheduleGeneration) return null;
+    const key = chunkRefKey(ref);
     const existing = this.buffers.get(key);
     if (existing) {
       this.touchLru(key, 0);
       return existing;
     }
-    const track = this.manifest?.tracks[trackId];
-    if (!track || idx < 0 || idx >= track.chunk_count) {
+    try {
+      const ab = await this.fetchChunk(ref);
+      if (generation !== this.scheduleGeneration) return null;
+      const buf = await this.ctx.decodeAudioData(ab.slice(0));
+      if (generation !== this.scheduleGeneration) return null;
+      this.buffers.set(key, buf);
+      this.touchLru(key, buf.length * 4);
+      return buf;
+    } catch (error) {
+      if (generation === this.scheduleGeneration) this.fail(error, ref);
       return null;
     }
-    const ab = await this.fetchChunk(trackId, idx);
-    const buf = await this.ctx.decodeAudioData(ab.slice(0));
-    this.buffers.set(key, buf);
-    this.touchLru(key, buf.length * 4);
-    return buf;
+  }
+
+  private fail(error: unknown, ref: ImmutableChunkRef | null): void {
+    this.pause();
+    this.onFailure(error, ref);
   }
 
   private applyFades(
@@ -287,76 +314,79 @@ export class ProxyEngine {
     slice: ScheduledSlice,
     when: number,
   ): void {
-    const g = gain.gain;
     const start = Math.max(when, this.ctx.currentTime);
     const end = when + slice.durationSec / this.playbackRate;
-    const fadeIn = slice.fadeInSec / this.playbackRate;
-    const fadeOut = slice.fadeOutSec / this.playbackRate;
-    const initial = Math.min(
-      fadeIn > 0 ? Math.min(1, (start - when) / fadeIn) : 1,
-      fadeOut > 0 ? Math.min(1, (end - start) / fadeOut) : 1,
-    );
-    g.cancelScheduledValues(start);
-    g.setValueAtTime(Math.max(0, initial), start);
-    if (fadeIn > 0 && when + fadeIn > start) {
-      g.linearRampToValueAtTime(1, when + fadeIn);
-    }
-    if (fadeOut > 0) {
-      if (end - fadeOut > start) g.setValueAtTime(1, end - fadeOut);
-      g.linearRampToValueAtTime(0, end);
-    }
+    const envelope = slice.envelope;
+    const timelineAt = (at: number) =>
+      slice.whenTimelineSec + (at - when) * this.playbackRate;
+    const valueAt = (at: number) =>
+      Math.max(
+        0,
+        Math.min(
+          1,
+          envelope.fadeInSec > 0
+            ? (at - envelope.timelineStartSec) / envelope.fadeInSec
+            : 1,
+          envelope.fadeOutSec > 0
+            ? (envelope.timelineEndSec - at) / envelope.fadeOutSec
+            : 1,
+        ),
+      );
+    const points = [start, end];
+    const addPoint = (timeline: number) => {
+      const at = when + (timeline - slice.whenTimelineSec) / this.playbackRate;
+      if (at > start && at < end) points.push(at);
+    };
+    addPoint(envelope.timelineStartSec + envelope.fadeInSec);
+    addPoint(envelope.timelineEndSec - envelope.fadeOutSec);
+    if (envelope.fadeInSec > 0 && envelope.fadeOutSec > 0)
+      addPoint(
+        (envelope.fadeInSec * envelope.timelineEndSec +
+          envelope.fadeOutSec * envelope.timelineStartSec) /
+          (envelope.fadeInSec + envelope.fadeOutSec),
+      );
+    points.sort((a, b) => a - b);
+    gain.gain.cancelScheduledValues(start);
+    gain.gain.setValueAtTime(valueAt(timelineAt(start)), start);
+    for (const point of points.slice(1))
+      gain.gain.linearRampToValueAtTime(valueAt(timelineAt(point)), point);
+  }
+
+  private schedule(timelineSec: number): void {
+    const generation = this.scheduleGeneration + 1;
+    void this.scheduleAround(timelineSec).catch((error: unknown) => {
+      if (generation === this.scheduleGeneration) this.fail(error, null);
+    });
   }
 
   private async scheduleAround(timelineSec: number): Promise<void> {
     this.scheduleReady = false;
     const generation = ++this.scheduleGeneration;
-    if (!this.manifest) {
-      return;
-    }
+    const snapshot = this.snapshot;
+    if (!snapshot || !this.playing) return;
     const windowStart = Math.max(0, timelineSec - WINDOW_PAD_SEC);
     const windowEnd = timelineSec + WINDOW_PAD_SEC;
-    const slices: ScheduledSlice[] = [];
-    for (const [tid, clips] of Object.entries(this.clipsByTrack)) {
-      const meta = this.manifest.tracks[tid];
-      if (!meta) {
-        continue;
-      }
-      slices.push(
-        ...buildSchedule(
-          clips,
-          windowStart,
-          windowEnd,
-          meta.chunk_sec,
-          meta.overlap_ms,
-        ),
-      );
-    }
-    const needed = new Set(
-      slices.map((s) => this.bufKey(s.trackId, s.chunkIdx)),
+    const slices = Object.values(snapshot.clipsByTrack).flatMap((clips) =>
+      buildSchedule(clips, windowStart, windowEnd, snapshot.manifest),
+    );
+    const needed = new Map(
+      slices.map((slice) => [chunkRefKey(slice.chunk), slice.chunk]),
     );
     await Promise.all(
-      [...needed].map(async (key) => {
-        const [tid, idxStr] = key.split("/");
-        await this.ensureBuffer(tid, Number(idxStr));
-      }),
+      [...needed.values()].map((ref) => this.ensureBuffer(ref, generation)),
     );
-    if (!this.playing || generation !== this.scheduleGeneration) {
-      return;
-    }
+    if (!this.playing || generation !== this.scheduleGeneration) return;
     timelineSec = this.currentTimeSec();
     this.stopSources();
     const nowCtx = this.ctx.currentTime;
     for (const slice of slices) {
-      const buf = this.buffers.get(this.bufKey(slice.trackId, slice.chunkIdx));
-      const trackGain = this.trackGains.get(slice.trackId);
-      if (!buf || !trackGain) {
-        continue;
-      }
+      if (generation !== this.scheduleGeneration) return;
+      const buf = this.buffers.get(chunkRefKey(slice.chunk));
+      const trackGain = this.trackGains.get(slice.outputTrackId);
+      if (!buf || !trackGain) continue;
       const when =
         nowCtx + (slice.whenTimelineSec - timelineSec) / this.playbackRate;
-      if (when + slice.durationSec / this.playbackRate < nowCtx) {
-        continue;
-      }
+      if (when + slice.durationSec / this.playbackRate <= nowCtx) continue;
       const source = this.ctx.createBufferSource();
       source.buffer = buf;
       source.playbackRate.value = this.playbackRate;
@@ -364,19 +394,16 @@ export class ProxyEngine {
       source.connect(clipGain);
       clipGain.connect(trackGain);
       this.applyFades(clipGain, slice, when);
-      const offset = slice.bufferOffsetSec;
+      const skipped = Math.max(0, (nowCtx - when) * this.playbackRate);
       try {
-        if (when >= nowCtx) {
-          source.start(when, offset, slice.durationSec);
-        } else {
-          const skipped = (nowCtx - when) * this.playbackRate;
-          source.start(
-            nowCtx,
-            offset + skipped,
-            Math.max(0.01, slice.durationSec - skipped),
-          );
-        }
+        source.start(
+          Math.max(when, nowCtx),
+          slice.bufferOffsetSec + skipped,
+          slice.durationSec - skipped,
+        );
       } catch {
+        source.disconnect();
+        clipGain.disconnect();
         continue;
       }
       this.active.push({ source, gain: clipGain });

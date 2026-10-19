@@ -249,10 +249,13 @@ as `block-size` because WebKit ignores `min-block-size` on one. Transcript
 **Find and replace** and Pipeline **Add term** rows wrap their controls on a
 coarse pointer so landscape panels do not overflow (#1433). The Pipeline panel's
 selects, its From / Only shortcuts summary and the More hub's back button hold the
-floor too (#1445). On touch, in a window under 40rem tall (`@container app`, so large text
-counts) the Pipeline toolbar scrolls with its panel instead of sticking, and the
-Transcript panel scrolls as a whole with the list keeping at least 16rem, so
-neither covers the rows beneath it. `e2e-compat/reachability-sweep.spec.ts` sweeps
+floor too (#1445). Pipeline uses one panel scroller at every size. Its toolbar
+scrolls with the content at every height. The original pinned-on-tall behavior is
+removed to avoid an overlay and scroll-owner switches during resize. Controls
+keep their DOM, form and disclosure state. On touch, in a window under 40rem tall
+(`@container app`, so large text counts), the Transcript panel scrolls as a whole
+with the list keeping at least 16rem, so its chrome does not cover the rows beneath
+it. `e2e-compat/reachability-sweep.spec.ts` sweeps
 both panels whole at every cell. The envelope-point select, the effect Bypass toggles and the comment composer's
 fields and track picks hold the floor too, and the same sweep measures them (a seeded
 track for the first two, the Comments panel on tablet and desktop, and Listen on a phone,
@@ -330,8 +333,10 @@ start below the bar instead of scrolling under overflow. Targets stay
 `gui/web/e2e-compat/phone-transport-zoom.spec.ts` uses a 215×466 layout viewport
 as a page-zoom substitute (half of iPhone 15 Plus CSS) plus a 32 px root at
 430×932. A physical iPhone Safari 200% Aa zoom remains a Mac-simulator check.
-Tablet collapsed transport stays one row so a short landscape window at 200%
-text cannot grow the bar over the ruler.
+Tablet collapsed transport keeps loaded Play and Stop on one line so a short
+landscape window at 200% text cannot grow the bar over the ruler. The shared
+playback group wraps only when it contains an unavailable-action reason; that
+reason-bearing strip grows to fit its controls and text.
 
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
@@ -682,7 +687,7 @@ and phone shells; see [design tokens](design-tokens.md#elevation).
 
 ### Tablet — portrait peek
 
-Bottom tabs default to ~40–45% of space below transport/status, capped so the shell grid never exceeds the viewport (`--tabs-height` on `html[data-shell="tablet"]`). Short viewports (`@media (max-height: 40rem)`) shrink the tabs further, to 38% of the space under the transport and status rows (about 94px at 331px tall). The splitter's floor is 8rem, or 4.5rem where that default is already under 8rem (`minTabsHeightRem`), so a drag there can shrink the panel as well as grow it; before #1694 every drag in a 914×331 window clamped up to 8rem. On the desktop shell only, the grid's main row keeps at least 7.5rem (`--shell-main-row` in `layout.css`) and the bottom tabs row (`--shell-tabs-row`) gives up height first, so a short window with a banner open never lets the tabs cover the inspector's controls; the tablet and phone shells size their sheets from `--tabs-height` and keep it whole. Hosts may drag the top edge of the tabs band to resize (same splitter as desktop); a stored `sharecut.tabsHeight` overrides the CSS default until reset. Dragging it down past its minimum by 1.5rem (the grip turns accent and the separator reads "Release to collapse"), or pressing End on it, collapses the drawer to the tool rail: the same timeline layout as **Maximize timeline** (below), one state with two ways in. The stored height is untouched, so the grab handle that takes the splitter's place on the rail (**Show editor panels**: tap, Enter, Space or swipe up) reopens the drawer at the height it had before the drag. Selection peek sheet docks **above** that band (and above phone mode nav) and sizes to the remaining slot (`max-height: 100%`); text/review focus hides the sheet so the expanded panel stays readable.
+Bottom tabs default to ~40–45% of space below transport/status, capped so the shell grid never exceeds the viewport (`--tabs-height` on `html[data-shell="tablet"]`). Short viewports (`@media (max-height: 40rem)`) shrink the tabs further, to 38% of the space under the transport and status rows (about 94px at 331px tall). The splitter's floor is 8rem, or 4.5rem where that default is already under 8rem (`minTabsHeightRem`), so a drag there can shrink the panel as well as grow it; before #1694 every drag in a 914×331 window clamped up to 8rem. On the desktop shell only, the grid's main row keeps at least 7.5rem (`--editor-main-min-height` in the theme, exposed as `--shell-main-min-height` in `layout.css`) and the bottom tabs row (`--shell-tabs-row`) gives up height first, so a short window with a banner open never lets the tabs cover the inspector's controls; the tablet and phone shells size their sheets from `--tabs-height` and keep it whole. Hosts may drag the top edge of the tabs band to resize (same splitter as desktop); a stored `sharecut.tabsHeight` overrides the CSS default until reset. Passive font or banner changes keep the saved preference; the next explicit resize uses current bounds and may clamp it. Dragging past the minimum by 1.5rem (the grip turns accent and the separator reads "Release to collapse"), or pressing End on it, collapses the drawer to the tool rail: the same timeline layout as **Maximize timeline** (below), one state with two ways in. Collapse keeps the saved preference, and **Show editor panels** (tap, Enter, Space or swipe up) reopens the drawer at the height resolved within current bounds. An overshoot release first restores the prior height through `onResize`, whose resize policy may clamp it to current bounds; canceling a drag uses the same rollback path. Selection peek sheet docks **above** that band (and above phone mode nav) and sizes to the remaining slot (`max-height: 100%`); text/review focus hides the sheet so the expanded panel stays readable.
 
 ```
 ┌─ Transport (decluttered) ─────────────────┐
@@ -815,3 +820,23 @@ The native labeled inputs and preview list wrap within the panel and scroll with
 ### Crossfade length on Timeline
 
 Open a crossfade join badge to reveal a reserved endpoint row below the scrolling lanes. The right-endpoint grip has a target at least 44 px in both dimensions. Its leader connects to the centered overlap X, and its caption shows the seam and effective or draft length. The grip stays outside clip move, seek, fade and roll targets, with the popover above its reserved row. Dragging saves one coupled join change on release. The grip follows the touch grammar like every timeline target (kind `crossfade-end`): a finger sliding on it scrolls, and only a long press arms it to drag. A mouse drags it at once. Use the native Length range for keyboard editing. Canceling restores the saved overlap. Stored unequal fades remain visible in the popover until an intentional edit sets both edges equally.
+
+## Move clips without dragging
+
+Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
+**Target track** and use **Earlier 10 ms**, **Later 10 ms**, or **Use playhead**.
+For an exact destination, enter **Timeline start (seconds)**. Review the timeline
+preview, then choose **Apply move** or **Cancel**. A selected group moves together,
+with each clip clamped at zero and the outer tracks. Exact input does not snap.
+Apply uses one existing move History action. Cancel and unchanged Apply save
+nothing. A refused save keeps a current draft and an error so you can retry.
+
+On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
+by a 1 rem request, subject to the current available bounds. Steps start at the
+visible height even when a saved preference is taller than the space available,
+so the first step can clamp by more than 1 rem. A disabled direction explains
+the size limit and saves nothing. Banners and root-text changes refresh the
+bounds without rewriting the preference. Buttons, keyboard, drag clamps, and
+separator values use the same measured geometry. **Reset panel size** clears the
+browser preference. These controls do not change the episode or History. Phone uses the sheet's **Expand** and
+**Collapse** controls and has no desktop splitter.

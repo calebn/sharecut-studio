@@ -1121,7 +1121,7 @@ def test_guest_keeper_upload_requires_take_consent(
     ava_pid, ava_lease = _guest_join(svc, room, name="Ava", conn="a1")
     denied_ava = _post_keeper(client, token, ava_pid, ava_lease, take=0)
     assert denied_ava.status_code == 403, denied_ava.text
-    assert denied_ava.json()["detail"] == "consent required"
+    assert denied_ava.json()["detail"] == ("Confirm your consent for this take before uploading.")
 
     cal_pid, cal_lease = _guest_join(svc, room, name="Cal", conn="c1")
     _guest_consent(svc, cal_pid, name="Cal", accepted=False, seq=3)
@@ -1198,10 +1198,14 @@ def test_guest_keeper_upload_rejected_after_host_removal(
         headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
     )
     assert status.status_code == 403, status.text
-    assert status.json()["detail"] == "invalid lease"
+    assert status.json()["detail"] == (
+        "Your recording access is no longer valid. Ask the host to reconnect you."
+    )
     denied = _post_keeper(client, token, pid, lease, take=0, segment=1)
     assert denied.status_code == 403, denied.text
-    assert denied.json()["detail"] == "invalid lease"
+    assert denied.json()["detail"] == (
+        "Your recording access is no longer valid. Ask the host to reconnect you."
+    )
 
 
 def test_removed_guest_cannot_upload_stopped_take_after_next_take_starts(
@@ -1245,7 +1249,9 @@ def test_removed_guest_cannot_upload_stopped_take_after_next_take_starts(
 
     denied = _post_keeper(client, token, pid, lease, take=0, segment=1)
     assert denied.status_code == 403, denied.text
-    assert denied.json()["detail"] == "invalid lease"
+    assert denied.json()["detail"] == (
+        "Your recording access is no longer valid. Ask the host to reconnect you."
+    )
 
 
 def test_removed_guest_fails_lease_check_if_revocation_is_interrupted(
@@ -1263,7 +1269,9 @@ def test_removed_guest_fails_lease_check_if_revocation_is_interrupted(
         headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
     )
     assert denied.status_code == 403
-    assert denied.json()["detail"] == "invalid lease"
+    assert denied.json()["detail"] == (
+        "Your recording access is no longer valid. Ask the host to reconnect you."
+    )
 
 
 def test_remove_replay_revokes_only_persisted_target(
@@ -1323,7 +1331,7 @@ def test_guest_keeper_upload_rechecks_consent_after_body_read(
     monkeypatch.setattr(upload_http, "read_body_capped", _read_then_decline)
     res = _post_keeper(client, token, pid, lease, take=0)
     assert res.status_code == 403, res.text
-    assert res.json()["detail"] == "consent required"
+    assert res.json()["detail"] == ("Confirm your consent for this take before uploading.")
     status = RecordUploadService(_ws.project).status(
         session_id=room["session_id"], participant_id=pid
     )
@@ -1356,7 +1364,9 @@ def test_guest_keeper_upload_rechecks_lease_after_body_read(
     monkeypatch.setattr(upload_http, "read_body_capped", _read_then_remove)
     res = _post_keeper(client, token, pid, lease, take=0)
     assert res.status_code == 403, res.text
-    assert res.json()["detail"] == "invalid lease"
+    assert res.json()["detail"] == (
+        "Your recording access is no longer valid. Ask the host to reconnect you."
+    )
     status = RecordUploadService(_ws.project).status(
         session_id=room["session_id"], participant_id=pid
     )

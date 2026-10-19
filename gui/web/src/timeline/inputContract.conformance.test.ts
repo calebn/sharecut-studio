@@ -87,6 +87,7 @@ const project = minimalProject({
 
 /** The id and time each kind's target has in `project`. */
 const TARGET: Record<HitKind, { id: string; sec: number }> = {
+  "bleed-attenuation": { id: "region-key", sec: 20 },
   join: { id: "c2", sec: 10 },
   "envelope-point": { id: "e1", sec: 16 },
   "envelope-line": { id: "level", sec: 0 },

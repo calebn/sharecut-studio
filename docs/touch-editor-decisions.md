@@ -11,6 +11,58 @@ alters controlled `half`/`full` state. Physical mobile and assistive-technology
 acceptance for the repaired envelope workflow remains #960; named-device
 profiling remains #879.
 
+## Non-drag placement and panel sizing #1033
+
+The Clip inspector now has **Move clip** beside Timeline. It opens a local
+placement preview with a native **Target track** select and exact **Timeline
+start (seconds)** field. **Earlier 10 ms**, **Later 10 ms**, and **Use playhead**
+provide a time path without typing or dragging. **Apply move** saves through
+`edit.moveClips` and the existing `MoveClips` History operation. **Cancel**, or
+Escape inside the form, discards the draft. An unchanged Apply sends no command.
+Selected clips move together through `computeClipMoves`, including its independent
+zero-time and outer-lane clamps. Exact input bypasses drag magnets.
+
+The local owner has idle, preview, and committing phases. Its token captures the
+project path, epoch, edit basis, selection, anchor, and track order. The timeline
+reads its placements through a local subscription and `laneMovePreview`; preview
+never patches the project or creates a document delivery draft. The preview stays
+visible while Apply waits for an earlier track save to finish. Invalidation,
+unmount, backgrounding, permission loss, or a competing edit cancels only the
+owned session. Apply rechecks the capture inside the track mutation queue before
+patching or delivery. Settlement cannot clear a replacement session. A refused
+save preserves a current draft and inline error for correction or retry. The
+server's existing concurrency policy is unchanged; this client check is not an
+atomic remote revision guard. Drag, long-press arming, immediate transcript seek,
+armed ranges, track Move up/down, Mix, and the fixed phone playhead keep their
+existing owners.
+
+Desktop and tablet have native **Shorter**, **Taller**, and **Reset panel size**
+buttons outside the separator. Each step starts at the rendered panel height,
+including when a saved preference exceeds the available space. Buttons request
+a 1 rem step or the remaining distance to a bound. When passive layout changes
+leave the retained preference outside fresh bounds, the next step can clamp by
+more than 1 rem. Buttons, keyboard, drag clamps, and separator values share
+measured panel geometry and fresh viewport policy. The desktop grid
+floor comes from `--shell-main-min-height`, used by CSS and read by the view.
+Banner and root-font changes refresh bounds through `useResizeObserver` without
+rewriting the saved preference. Props-only stories use explicit policy bounds
+and their rendered panel height, or the prop height when layout is unavailable.
+A clamped no-op creates no preference; Reset clears it.
+A button press during a drag cancels that drag without also stepping. Sizing
+creates no project write or document History. Phone retains Expand and Collapse
+and has no desktop splitter. Coarse-pointer controls have a 2.75rem target floor.
+
+Focused Vitest coverage lives in `edit/clipPlacement.test.ts`,
+`inspector/views/ClipPlacementControls.test.tsx`, and the splitter tests.
+`e2e/non-drag-placement.spec.ts` defines pointer initiation, intermediate geometry,
+exact 7/27-second placements and lanes, refusal/recovery, Undo, preferences, and
+role/shell/appearance cells. Browser touch automation is not physical-device
+proof; its receipts identify native pointer input and synthetic native-select
+assistance. Real-device and human listening acceptance remains in #1695.
+Editor moves retain the private guest History contract; the host can undo the
+saved edit from the full project view.
+Arbitrary exact timestamp seek remains a separate precision gap.
+
 ## Decision: One touch input grammar for timeline editing
 
 <!-- decision
@@ -257,12 +309,12 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Timeline navigation: `timelineZoomGestures.ts`, `TimelineView` | One-finger pan and pinch zoom; visible zoom controls and Fit | Timeline gesture handlers own navigation and focal zoom. Pan/zoom are view changes, not document commits; no document History. Existing navigation is shared by shell role policy. Phone keeps fixed-center playhead; tablet/desktop retain their timeline layout. | **Keep.** #878 documents tested bounds and known residual combinations. No global gesture rewrite. |
 | Ruler seek and comment-span draft: `TimeRulerView.tsx`, `commentAnchorSession.ts`, comment composer | Tap ruler to seek; visible time/playhead; comment span can be drafted by dragging | Tap seeks immediately. Comment-mode pointer capture previews an anchor draft; a span must reach 4 CSS pixels (`COMMENT_SPAN_MIN_PX`) at the current zoom to get an end time. Pointer cancel, capture loss, unmount, or leaving comment mode calls `cancelDrag`; project/comment-state invalidation is owned by `beginCommentAnchorSession`. Accepted release finishes the local draft. Explicit comment submission persists it. The existing comment composer owns submission failure and permission feedback; no new History entry occurs until comment creation. No new sheet or seek input. | **Keep.** `TimeRulerView.tsx`, `commentAnchorSession.ts`, and `ruler-recovery.spec.ts` identify these paths; #878 evidence covers only its named cases. Arbitrary exact seek remains an open precision gap, while ruler tap is an existing single-pointer navigation path. |
 | Select range: `useRangeGesture.ts`, `EditingToolRail` | Armed range drag; visible Select range mode, In/Out, lane controls and action card | Explicitly arm before drag. Draft is local until Cut/Mute/Comment/Bounce. Existing Cancel/Escape and permission paths own cancellation/failure; one accepted document operation uses existing History. Phone/tablet rail and numeric controls remain. | **Keep and clarify armed state through existing UI.** `contextual-range.spec.ts` covers exact targets and policy; phone dispatched events are synthetic as recorded in #878. |
-| Clip move: `ClipBlockView.tsx`, clip move owner | Drag visible clip body/grip; click selects and modifier click extends selection | Owner previews destination before `MoveClips`; accepted changed release commits once; Escape, capture loss, blur, unmount cancel. Existing command permission and Undo apply. Touch movement competes with scrolling and remains an open single-pointer alternative gap. | **Keep current behavior; gap stays open.** `ClipBlock.test.tsx`, `edit/clipMove.test.ts`, and `inventory-audit.spec.ts` are the cited coverage. Exact 7/27-second persistence remained failed in the #878 record. |
+| Clip move: `ClipBlockView.tsx`, clip move owner | Drag visible clip body/grip; click selects and modifier click extends selection | Owner previews destination before `MoveClips`; accepted changed release commits once; Escape, capture loss, blur, unmount cancel. Existing command permission and Undo apply. Move clip in the inspector previews time and track placement through native fields and pointer step buttons before Apply move or Cancel. | **Keep drag and add inspector placement.** `ClipBlock.test.tsx`, `edit/clipMove.test.ts`, and `inventory-audit.spec.ts` are the cited coverage. Exact 7/27-second persistence remained failed in the #878 record. |
 | Trim, fade, roll and crossfade: clip handles, join controls, inspector | Drag visible edge/seam; native numeric/range fields and keyboard nudges | Local preview follows the active owner. Accepted changes use existing commands; Escape/cancel does not save. Save failures stay in current inspector error routes; accepted edits use document History. Touch and dense-target behavior vary by timeline width. | **Keep.** `fade-curves.spec.ts`, `crossfade-length.spec.ts`, `transitions-acceptance.spec.ts`, and `edit-boundary-precision.spec.ts` retain existing evidence. Do not add another gesture system. |
 | Pending range, chapter, social markers: `MarkerLane`, pending inspector | Drag eligible visible handles/body; inspector numeric timing and Edit timing | Draft remains local before the existing command. Escape, lost ownership, blur, and unmount cancel owned previews. Host/guest permissions remain at current command boundaries; accepted edits are undoable. Phone dense pending handles can give way to Edit timing. | **Keep.** `pending-edge-controls.spec.ts`, `MarkerLane.test.tsx`, and #878 inventory cover named paths; not every interruption combination. |
 | Join endpoint / transition length: join badge and inspector | Select join; numeric transition length | Endpoint row is separated from neighboring actions. Numeric field is the exact visible equivalent; preview/save/failure follow current inspector command. Existing History applies to accepted edit. | **Keep.** `transitions-acceptance.spec.ts` checks saved bounds and Undo. Do not add rotate or hidden pinch. |
 | Envelope points and creation: envelope overlay / #950 inspector | Existing point editing; creation is missing | Point selection/edit behavior remains in #950's ownership. Its future edit contract must define preview, apply/cancel, save failure, permission, History and narrow responsive behavior at that boundary. | **Keep point editing; route creation to #950.** This patch touches none of the #950-owned files or claims. |
-| Desktop/tablet editor splitter: `BottomTabsSplitterView.tsx` | Drag separator; Arrow keys, Home/End, Enter reset | Existing separator owns preview and Escape cancellation; accepted view sizing may persist its preference but creates no document History. It remains a desktop/tablet surface with a 10 CSS-pixel measured pointer strip in #878. | **Keep; touch comfort gap stays open.** `splitter-recovery.spec.ts` is current cancellation evidence. This #951 patch does not widen or relabel it. |
+| Desktop/tablet editor splitter: `BottomTabsSplitterView.tsx` | Drag separator; Shorter/Taller/Reset panel size buttons; Arrow keys, Home/End, Enter reset | Existing separator owns preview and Escape cancellation; accepted view sizing may persist its preference but creates no document History. It remains a desktop/tablet surface with a 10 CSS-pixel measured pointer strip in #878. | **Keep drag and add native size buttons.** `splitter-recovery.spec.ts` is current cancellation evidence. The #1033 native size buttons add the non-drag route without widening the separator. |
 | Track order and gutter: `RelatedCommands`, track reorder controller | Existing Move up/down buttons; reorder grip drag remains available where permitted | Move up/down are single-pointer buttons that invoke current track-order commands; command permission and Undo paths remain authoritative. If a selection has no related or overflow command, `RelatedCommands` renders no empty command region. The reorder grip owns drag preview/drop. No new gutter drag ownership, auto-scroll, or selection model. | **Keep Move up/down as the non-drag route and keep the reorder grip.** Source confirms the alternate action already exists; task-path comparison between the buttons and drag remains open. |
 | Mix: `MixSheet`, native controls, `useCommitRange` | Native volume range and M/S controls; More → Mix | Volume follows the existing preview/commit lifecycle and permission reason; M/S and local/shared listening distinctions remain. Accepted host/editor volume writes use the existing document command. Sheet layout supports row scrolling and text wrapping. | **Keep.** Do not add swipe-to-mix. Existing `phone-mix.spec.ts` covers its current path; failure/cancel combinations not asserted there remain unverified. |
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
@@ -282,13 +334,15 @@ or named test owns that behavior; it does not certify unrun combinations.
   tokens; correct the two-finger Undo
   attribution.
 - **Remove:** `.bottom-sheet-grab` markup and its unused style selector.
-- **Defer:** chrome drag resize, exact seek, a general input library, global
+- **Defer:** exact seek, a general input library, global
   gesture changes, and all #950 envelope creation work.
 
 The inventory does not claim keyboard operation alone meets WCAG 2.5.7. Existing
 visible actions are credited only where the same operation has a single-pointer
-non-drag path. Clip movement and desktop/tablet splitter resizing remain open
-gaps. Track order already has Move up/down buttons; how well those buttons and
+non-drag path. Clip movement and desktop/tablet splitter resizing now have native non-drag
+controls described in #1033 above. Automated Chrome and WebKit cases cover their
+preview, commit, cancellation, recovery and local-preference contract. Physical
+acceptance stays separate. Track order already has Move up/down buttons; how well those buttons and
 drag support the task is an open comparison. Ruler tap supports navigation, but
 arbitrary exact timestamp entry remains a separate precision gap. See the
 [W3C dragging movements criterion](https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements).
@@ -324,7 +378,7 @@ inventory or named source/tests; it does not imply every profile was run here.
 | Reconcile each surface with owner, input, visible equivalent, threshold, preview, commit, cancel, failure, History, permission and responsive behavior | **Documented here** from source and test references. Residual controller/profile combinations remain open. |
 | Correct the false iOS Undo attribution and keep the shortcut optional | **Implemented; focused Vitest passed** for rendered catalog wording. Recognizer tests remain unchanged. |
 | Resolve sheet grip mismatch with a bounded decision | **Implemented and verified.** Controlled unit/axe coverage and 17 Chromium browser cases plus 2 Chromium/WebKit compatibility cases passed. |
-| Every drag has a single-pointer non-drag equivalent; keyboard alone does not count | **Partly existing, partly open.** Visible sheet buttons, numeric/step controls, and track Move up/down remain. Clip move and desktop/tablet splitter resizing remain open gaps; exact seek remains an input precision gap. Track task comparison is open. |
+| Every drag has a single-pointer non-drag equivalent; keyboard alone does not count | **Partly existing, partly open.** Visible sheet buttons, numeric/step controls, and track Move up/down remain. Clip move and desktop/tablet splitter resizing have native non-drag controls in #1033; their executable browser matrix and input provenance are in `non-drag-placement.spec.ts`. Exact seek remains an input precision gap. Track task comparison is open. |
 | Keyboard operation, visible focus, labels, values, errors and roles | **Scoped checks passed.** Component/recognizer/mobile-shell tests cover keyboard and focus; browser sheet cases restore focus after Close and Escape. Mix browser cases cover host/viewer/edit-guest restrictions. VoiceOver/TalkBack and global profile coverage remain pending. |
 | Scroll, seek, selection and editing do not collide; pointer transitions are safe | **Existing limited evidence** in source and #878. Uncovered intersections remain open; this patch adds no recognizer. |
 | Cancel/unmount/background/rotation/failure leave no stuck gesture; history cardinality is correct | **Scoped browser recovery passed** for native fade cancel, 403/422/409 rejection, abort/replay and Undo. Sheet actions send no document commands and leave project bytes and preferences unchanged. Mix-specific cancel/failure-thumb behavior, rotation, backgrounding and other interruption combinations remain open. |

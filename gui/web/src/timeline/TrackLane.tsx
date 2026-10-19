@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ClipBleedSnapshot } from "../edit/clipBleedSession";
 import { clipRowDuringRoll, type RollPreview } from "../edit/clipEdgePreview";
 import { TRIM_MODE } from "../edit/clipEdgeSave";
 import type {
@@ -37,6 +38,7 @@ import { originTrackId } from "../utils/timebase";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
+import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
@@ -83,6 +85,8 @@ interface TrackLaneProps {
     clipId: string,
     mods?: ClipSelectMods,
   ) => void;
+  bleedInspection?: ClipBleedSnapshot;
+  onSelectBleed?: (trackId: string, clipId: string, key: string) => void;
   onSelectTrack: (trackId: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
   bladeHighlight?: boolean;
@@ -123,6 +127,8 @@ export function TrackLaneView({
   pendingEdits,
   onSeek,
   onSelectClip,
+  bleedInspection = null,
+  onSelectBleed,
   onSelectTrack,
   onSelectPending,
   bladeHighlight = false,
@@ -383,6 +389,36 @@ export function TrackLaneView({
             />
           );
         })}
+        {bleedInspection?.read.state === "ready" &&
+        bleedInspection.occurrence.trackId === track.id &&
+        !rollPreview &&
+        !ripple &&
+        !bladeMode &&
+        onSelectBleed &&
+        clips.some(
+          (clip) =>
+            clip.id === bleedInspection.occurrence.clipId && !isMoving(clip.id),
+        ) ? (
+          <BleedAttenuationOverlay
+            regions={bleedInspection.read.inspection.regions
+              .filter(
+                (region) =>
+                  region.trackId === track.id &&
+                  region.occurrenceId === bleedInspection.occurrence.clipId,
+              )
+              .map((region) => ({
+                region,
+                leftPx: region.timelineSpan.start * zoomPxPerSec,
+                widthPx:
+                  (region.timelineSpan.end - region.timelineSpan.start) *
+                  zoomPxPerSec,
+              }))}
+            selectedKey={bleedInspection.selectedKey}
+            onSelect={(key) =>
+              onSelectBleed(track.id, bleedInspection.occurrence.clipId, key)
+            }
+          />
+        ) : null}
         {/* Over the clips, the dragged one included: the span this lane
             loses and where its later clips go (#1135). */}
         {ripple?.cut ? (

@@ -231,6 +231,17 @@
         },
         "Clip": {
           "properties": {
+            "bleed_restore": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipBleedRestore"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "fade_in_ms": {
               "default": 0,
               "type": "integer"
@@ -249,6 +260,12 @@
             "mute_regions": {
               "items": {
                 "$ref": "#/$defs/ClipMuteRegion"
+              },
+              "type": "array"
+            },
+            "off_speaker_mute_regions": {
+              "items": {
+                "$ref": "#/$defs/ClipOffSpeakerMuteRegion"
               },
               "type": "array"
             },
@@ -282,6 +299,25 @@
             "source_start",
             "source_end",
             "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ClipBleedRestore": {
+          "properties": {
+            "regions": {
+              "items": {
+                "$ref": "#/$defs/SourceSpan"
+              },
+              "type": "array"
+            },
+            "source_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_sha256",
+            "regions"
           ],
           "type": "object"
         },
@@ -332,6 +368,33 @@
               "default": null
             },
             "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "ClipOffSpeakerMuteRegion": {
+          "additionalProperties": false,
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "fade_in_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_s": {
+              "minimum": 0,
               "type": "number"
             }
           },
@@ -1292,6 +1355,207 @@
           ],
           "type": "string"
         },
+        "ProxyClipBasis": {
+          "properties": {
+            "origin_track_id": {
+              "type": "string"
+            },
+            "source_end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "source_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "timeline_end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "timeline_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "origin_track_id",
+            "source_id",
+            "source_start",
+            "source_end",
+            "timeline_start",
+            "timeline_end"
+          ],
+          "type": "object"
+        },
+        "ProxyManifestGeneration": {
+          "properties": {
+            "artifacts": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyPublishedArtifact"
+              },
+              "type": "object"
+            },
+            "occurrences": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyOccurrenceBinding"
+              },
+              "type": "object"
+            },
+            "project_basis": {
+              "$ref": "#/$defs/ProxyProjectBasis"
+            },
+            "revision": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "tracks": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyPublishedArtifact"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "revision",
+            "project_basis",
+            "tracks",
+            "artifacts",
+            "occurrences"
+          ],
+          "type": "object"
+        },
+        "ProxyOccurrenceBinding": {
+          "properties": {
+            "artifact_id": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "output_track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "artifact_id",
+            "output_track_id"
+          ],
+          "type": "object"
+        },
+        "ProxyProjectBasis": {
+          "properties": {
+            "clips": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyClipBasis"
+              },
+              "type": "object"
+            },
+            "history_head_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "render_hashes": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "history_head_id",
+            "render_hashes",
+            "clips"
+          ],
+          "type": "object"
+        },
+        "ProxyPublishedArtifact": {
+          "properties": {
+            "bitrate_kbps": {
+              "default": 64,
+              "type": "integer"
+            },
+            "chunk_count": {
+              "type": "integer"
+            },
+            "chunk_sec": {
+              "default": 60.0,
+              "type": "number"
+            },
+            "chunk_sha256": {
+              "items": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "codec": {
+              "default": "mp3",
+              "type": "string"
+            },
+            "context_track_id": {
+              "type": "string"
+            },
+            "duration_sec": {
+              "type": "number"
+            },
+            "hash": {
+              "pattern": "^(?:[0-9a-f]{16}|[0-9a-f]{64})$",
+              "type": "string"
+            },
+            "input_hash": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "object_store_prefix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_uploaded_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "overlap_ms": {
+              "default": 200,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hash",
+            "chunk_count",
+            "duration_sec",
+            "context_track_id",
+            "input_hash",
+            "chunk_sha256"
+          ],
+          "type": "object"
+        },
         "RangeInterval": {
           "additionalProperties": false,
           "properties": {
@@ -1421,6 +1685,13 @@
               "items": {
                 "$ref": "#/$defs/PipelineRun"
               },
+              "type": "array"
+            },
+            "proxy_manifests": {
+              "items": {
+                "$ref": "#/$defs/ProxyManifestGeneration"
+              },
+              "maxItems": 2,
               "type": "array"
             },
             "reconciliation_stale": {
@@ -1939,6 +2210,21 @@
           "required": [
             "id",
             "path"
+          ],
+          "type": "object"
+        },
+        "SourceSpan": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
           ],
           "type": "object"
         },
@@ -2951,6 +3237,17 @@
         },
         "Clip": {
           "properties": {
+            "bleed_restore": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipBleedRestore"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "fade_in_ms": {
               "default": 0,
               "type": "integer"
@@ -2969,6 +3266,12 @@
             "mute_regions": {
               "items": {
                 "$ref": "#/$defs/ClipMuteRegion"
+              },
+              "type": "array"
+            },
+            "off_speaker_mute_regions": {
+              "items": {
+                "$ref": "#/$defs/ClipOffSpeakerMuteRegion"
               },
               "type": "array"
             },
@@ -3002,6 +3305,25 @@
             "source_start",
             "source_end",
             "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ClipBleedRestore": {
+          "properties": {
+            "regions": {
+              "items": {
+                "$ref": "#/$defs/SourceSpan"
+              },
+              "type": "array"
+            },
+            "source_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_sha256",
+            "regions"
           ],
           "type": "object"
         },
@@ -3052,6 +3374,33 @@
               "default": null
             },
             "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "ClipOffSpeakerMuteRegion": {
+          "additionalProperties": false,
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "fade_in_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_s": {
+              "minimum": 0,
               "type": "number"
             }
           },
@@ -4012,6 +4361,207 @@
           ],
           "type": "string"
         },
+        "ProxyClipBasis": {
+          "properties": {
+            "origin_track_id": {
+              "type": "string"
+            },
+            "source_end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "source_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "timeline_end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "timeline_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "origin_track_id",
+            "source_id",
+            "source_start",
+            "source_end",
+            "timeline_start",
+            "timeline_end"
+          ],
+          "type": "object"
+        },
+        "ProxyManifestGeneration": {
+          "properties": {
+            "artifacts": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyPublishedArtifact"
+              },
+              "type": "object"
+            },
+            "occurrences": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyOccurrenceBinding"
+              },
+              "type": "object"
+            },
+            "project_basis": {
+              "$ref": "#/$defs/ProxyProjectBasis"
+            },
+            "revision": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "tracks": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyPublishedArtifact"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "revision",
+            "project_basis",
+            "tracks",
+            "artifacts",
+            "occurrences"
+          ],
+          "type": "object"
+        },
+        "ProxyOccurrenceBinding": {
+          "properties": {
+            "artifact_id": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "output_track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "artifact_id",
+            "output_track_id"
+          ],
+          "type": "object"
+        },
+        "ProxyProjectBasis": {
+          "properties": {
+            "clips": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ProxyClipBasis"
+              },
+              "type": "object"
+            },
+            "history_head_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "render_hashes": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "history_head_id",
+            "render_hashes",
+            "clips"
+          ],
+          "type": "object"
+        },
+        "ProxyPublishedArtifact": {
+          "properties": {
+            "bitrate_kbps": {
+              "default": 64,
+              "type": "integer"
+            },
+            "chunk_count": {
+              "type": "integer"
+            },
+            "chunk_sec": {
+              "default": 60.0,
+              "type": "number"
+            },
+            "chunk_sha256": {
+              "items": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "codec": {
+              "default": "mp3",
+              "type": "string"
+            },
+            "context_track_id": {
+              "type": "string"
+            },
+            "duration_sec": {
+              "type": "number"
+            },
+            "hash": {
+              "pattern": "^(?:[0-9a-f]{16}|[0-9a-f]{64})$",
+              "type": "string"
+            },
+            "input_hash": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "object_store_prefix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_uploaded_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "overlap_ms": {
+              "default": 200,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hash",
+            "chunk_count",
+            "duration_sec",
+            "context_track_id",
+            "input_hash",
+            "chunk_sha256"
+          ],
+          "type": "object"
+        },
         "RangeInterval": {
           "additionalProperties": false,
           "properties": {
@@ -4141,6 +4691,13 @@
               "items": {
                 "$ref": "#/$defs/PipelineRun"
               },
+              "type": "array"
+            },
+            "proxy_manifests": {
+              "items": {
+                "$ref": "#/$defs/ProxyManifestGeneration"
+              },
+              "maxItems": 2,
               "type": "array"
             },
             "reconciliation_stale": {
@@ -4659,6 +5216,21 @@
           "required": [
             "id",
             "path"
+          ],
+          "type": "object"
+        },
+        "SourceSpan": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
           ],
           "type": "object"
         },
@@ -5450,7 +6022,9 @@
     "BalanceBasis": "ignore",
     "ChapterMarker": "ignore",
     "Clip": "ignore",
+    "ClipBleedRestore": "ignore",
     "ClipMuteRegion": "ignore",
+    "ClipOffSpeakerMuteRegion": "forbid",
     "CombinedTranscript": "ignore",
     "CombinedUtterance": "ignore",
     "CommentActionItem": "ignore",
@@ -5475,6 +6049,11 @@
     "ProjectHistory": "ignore",
     "ProjectMeta": "ignore",
     "ProjectStateSnapshot": "ignore",
+    "ProxyClipBasis": "ignore",
+    "ProxyManifestGeneration": "ignore",
+    "ProxyOccurrenceBinding": "ignore",
+    "ProxyProjectBasis": "ignore",
+    "ProxyPublishedArtifact": "ignore",
     "RangeInterval": "forbid",
     "RenderArtifacts": "ignore",
     "RenderInvalidation": "ignore",
@@ -5489,6 +6068,7 @@
     "SocialSection": "ignore",
     "SourceClippingRegion": "ignore",
     "SourceRecording": "ignore",
+    "SourceSpan": "ignore",
     "SpeakerIngestAlignment": "ignore",
     "SpeakerSplit": "ignore",
     "SpeakerTurnRecord": "ignore",

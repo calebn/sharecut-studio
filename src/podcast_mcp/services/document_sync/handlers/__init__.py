@@ -28,6 +28,7 @@ HANDLERS: dict[str, Handler] = {
     "ApplySuggestedActions": edits.apply_suggested_actions,
     "UpdatePendingEdit": edits.update_pending_edit,
     "RestoreAppliedEdit": edits.restore_applied_edit,
+    "RestoreClipBleed": edits.restore_clip_bleed,
     "SetClipFade": edits.set_clip_fade,
     "TrimClipEdge": edits.trim_clip_edge,
     "RollClipJoin": edits.roll_clip_join,

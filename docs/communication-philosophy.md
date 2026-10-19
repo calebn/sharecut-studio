@@ -82,6 +82,14 @@ to UX partners; for UI copy, this table wins.
 | Save state | The host's project save light, a small dot with no visible text. Its name and tooltip read "Saving to project…", "Saved to project", "Not saved yet · 3 waiting to send", a refusal with "Edit and submit again", an unknown outcome with its recovery, or an unreadable saved queue with "Retry to read them". Shape carries the state with the colour: solid circle saved, ring saving, hollow circle waiting, square failed, dashed diamond unknown. The Needs attention banner is the text beside it and holds Send now, Retry, and Inspect History for hosts when needed. A guest with uncertain Undo or Redo asks the project owner to inspect History. It uses the record room's saving and saved words. Edits waiting to send are kept on this device. Desktop and tablet status bar, phone status row in every mode | "Synced", "Offline mode", "Autosave", "Error" |
 | Undo waits for the save | An Undo or Redo pressed while an edit is still saving. A control that would wait says "Undo ready after save" (Redo likewise); a press says "Undo runs after save", then runs on the edit the person just made. A toast's Undo runs only if its change is still the newest step, and otherwise says "Can't undo: the project changed since. Nothing was undone." Never a dead control that only says to wait | "queued", "pending undo", "Wait for the current action to finish." on an Undo |
 | Room tone | The track's own quiet ambient sound, laid into the gap a cut leaves. A track with none to lay gets a silent pad, and the cut still applies | "beat", "pad", a raw cause code such as `missing_seam` |
+| Automatic reduction | Current-occurrence inspector for automatic audio reduction, rendered freshness and saved choices | A claim that stale rendered audio already reflects the saved choice |
+| Restore original audio | Host choice to bypass one selected automatic reduction in this clip occurrence while retaining ordinary mutes and ignored words | A source-wide restore or a promise to remove every mute |
+| Refresh regions | Recheck this occurrence and clear the selected region before another Restore | Silent retargeting of the previous selection |
+| Undo Restore | Undo the acknowledged Restore only while its exact History head and project opening remain current | Success or Undo for a queued, unconfirmed or no-op reply |
+| Move clip | Opens a local time-and-track placement preview in the Clip inspector. Apply move saves it; Cancel discards it | A drag-only instruction |
+| Target track | The destination lane for the anchor clip; selected clips shift by lane order | "source track" for the destination |
+| Timeline start (seconds) | The anchor clip's exact destination on the episode clock | Source start, which trims recorded audio |
+| Shorter / Taller / Reset panel size | Local editor-panel sizing buttons. Steps are 1 rem; Reset clears the browser preference | A project edit or History action |
 | Tighten hit | One candidate tightening decision | — |
 | Likely laugh | The label on a Tighten hit whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
 | Possible missed word | The label on a Tighten hit that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. It is a hint, and its suggested action is Leave, so Apply suggested actions keeps the audio and dismisses the hit (#1434) | "Missed word detected", "Rejected", "filler:acoustic:possible_word" |
@@ -152,8 +160,15 @@ is the fix, enforced in copy review.
   next to it. `Button`, `ToggleButton` and `CommandButton` omit the
   native `disabled` prop: pass `disabledReason="..."` (what is missing
   and what to do), and the control is disabled, titled and described
-  with it; a dead control without a reason does not type-check. Applies to Land mid-take, Start with blockers, and
-  Leave while uploads pend. (Surface 1.)
+  with it. Only `undefined` means enabled; an empty or whitespace-only
+  reason uses "This action is unavailable right now." `CommandButton`
+  preserves an explicit blank reason and guards pointer activation. These
+  generic shared controls still use native disabled buttons with title-based
+  reasons; broader keyboard and touch discovery remains open under #1686. A
+  focusable control such as transport Play or Stop uses `aria-disabled`,
+  keeps the same node, guards activation, and points to a visible reason
+  beside the controls. Remove the reason to restore activation. Applies to
+  Land mid-take, Start with blockers, and Leave while uploads pend. (Surface 1.)
 - **Mutually exclusive states get one contextual control.** Pause and
   Resume are one button that flips; never two buttons with one
   permanently disabled. (Surface 1.)
@@ -624,6 +639,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-16 The track header's **Out** readout follows the volume envelope at the playhead (#1642): it is the gain the mix plays (staging, saved volume and envelope), and silence reads `−∞ dB`. It stays plain text, so playback does not announce it.
 - 2026-10-16 Tighten shows **Just applied (N)** after Apply suggested actions (#1607): the sounds of the latest batch, each with its action in a select. Changing one keeps the others and stays one undo step; the list goes away once another edit follows, and it is host-only. No progress indicator: the change lands like any other edit.
 - 2026-10-15 Panel interiors hold the touch floor and stay clear of sticky chrome (#1445): on touch the Pipeline panel's selects, From / Only shortcuts row and the More hub's back button are 44 px; at large text or in a short window the Pipeline toolbar stops sticking and the Transcript panel scrolls as a whole; the reachability sweep now covers both panels.
+- 2026-10-18 The Pipeline toolbar always scrolls now to preserve reachability (#1033); viewport-resize retention does not require one browser-specific scroll anchor.
 - 2026-10-15 Split speakers (#1319): each speaker in the dialog has **Use selection** to keep the selected range as a **voice sample**, with **Listen** and **Clear**; the done view suggests undoing and marking samples when two tracks sound like one person. Added "Voice sample".
 - 2026-10-12 Split speakers (#1095 phase 2): the track inspector's **Split speakers…** opens a dialog for the speaker count and optional names, shows progress with **Cancel split**, then the new tracks, what to listen for and one **Undo split**. Added "Split speakers", "Overlapping speech" and "Unsure stretch"; the empty-session coach and the phone hint tell people with one recording of everyone where to go.
 - 2026-10-14 Move to speaker (#1341). Range actions on one speaker-split track offer **Move to {speaker}** for each sibling. It mutes the span here and reopens it there. One undo.

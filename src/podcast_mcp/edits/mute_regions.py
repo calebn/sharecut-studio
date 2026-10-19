@@ -165,13 +165,13 @@ def add_source_mute(clip: Clip, region: ClipMuteRegion) -> bool:
 
 
 def muted_source_spans(project: EpisodeProject) -> dict[str, list[ClipMuteRegion]]:
-    """Merged ``clip.mute_regions`` spans per track, fill or not: what render mutes (not Lower)."""
+    """Authored hard-mute spans for acoustic planning; Restore does not veto detection."""
     by_track: dict[str, list[ClipMuteRegion]] = {}
     for clip in project.clips:
         by_track.setdefault(clip.track_id, []).extend(
             ClipMuteRegion(start_s=r.start_s, end_s=r.end_s)
-            for r in clip.mute_regions
-            if r.gain_db is None
+            for r in [*clip.mute_regions, *clip.off_speaker_mute_regions]
+            if not isinstance(r, ClipMuteRegion) or r.gain_db is None
         )
     return {
         track_id: merge_mute_regions(regions) for track_id, regions in by_track.items() if regions

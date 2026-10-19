@@ -443,6 +443,12 @@ export interface ProjectView {
 export type Selection =
   | { kind: "range"; target: ExactRangeTarget }
   | { kind: "clip"; id: string; trackId: string }
+  | {
+      kind: "bleedAttenuation";
+      id: string;
+      trackId: string;
+      regionKey: string | null;
+    }
   | { kind: "pending"; id: string; trackId: string }
   /** `trackId` is omitted for a session-wide record (`track_ids: []`). */
   | { kind: "applied"; id: string; trackId?: string }

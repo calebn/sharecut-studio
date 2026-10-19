@@ -251,6 +251,12 @@ head still lands without a refetch (`document/projectionDelta.ts`). Its click se
 first, the server refuses and the toast says "Can't undo: the project changed since.
 Nothing was undone." The reply, not the tab's store after the await, names the entry,
 because a peer's edit can reach the store while the command is in flight.
+Clip moves use this same reply-bound Undo, including a group moved with
+**Apply move**. `moveClips` returns `HistoryEntryId | null` through `replyHistoryHead`.
+The command captures `documentScope()` before entering the mutation queue and
+checks it before starting work and after success or failure. A retired opening
+cannot receive its feedback or optimistic rollback, including after the same
+project path is closed and reopened.
 
 **Mod+Z: the tab's own moves run one after another.** `history.undo` / `history.redo`
 (Mod+Z, Mod+Shift+Z, the History tab buttons, the toast Undo, the phone two-finger tap
@@ -408,3 +414,21 @@ History Undo restores the stored editable snapshot for the action, including cli
 Speech-review confirmation has the same recovery boundary as saved cut-scope holds. `EditService.approve` returns `needs_confirmation` and `unchanged=true` only after the existing failure callback reports `RollbackOutcome.RESTORED`. UNKNOWN recovery propagates the original `UnconfirmedCutSpeech` error and makes no unchanged claim.
 
 Automatic application evaluates the existing domain operation once on a staged copy under the workspace transaction. When every candidate is held, it returns zero without starting history or writing the project. A positive result adopts the staged editable snapshot inside the normal workspace mutation, preserving before/after history and audio bookkeeping. History Undo restores the entire applied action, including MUTE regions and pending rows.
+
+## Occurrence Restore and exact acknowledged Undo
+
+`RestoreClipBleed` saves one recording-bound automatic-reduction choice in the
+selected clip occurrence through the existing document command and workspace
+mutation. The command retains source media and other authored audio choices.
+Ordinary History Undo and Redo restore its saved editable state.
+
+The inspector's **Undo Restore** captures the Restore response's own acknowledged
+History head and original project opening. A later peer edit, opening change or
+occurrence lifetime change retires it. A nested stored result or the currently
+visible peer head cannot create this receipt. Queued, unconfirmed and explicit
+no-op replies offer no action-specific Undo.
+
+Proxy manifest generations are derived render metadata outside editable History
+snapshots. Their history-free publication preserves entries, cursor and head.
+Undo can reuse a retained complete generation, but a directory left on disk does
+not authorize an evicted artifact or a different manifest/project pair.

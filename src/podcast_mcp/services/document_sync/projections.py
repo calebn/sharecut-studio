@@ -23,6 +23,7 @@ TRANSCRIPT_WORD_COMMANDS: frozenset[str] = (
 
 CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
     {
+        "RestoreClipBleed",
         "SetClipFade",
         "SetJoinMode",
         "SetClipJoin",

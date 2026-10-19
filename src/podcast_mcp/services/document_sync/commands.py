@@ -24,6 +24,7 @@ DocumentCommandType = Literal[
     "ApplySuggestedActions",
     "UpdatePendingEdit",
     "RestoreAppliedEdit",
+    "RestoreClipBleed",
     "SetClipFade",
     "TrimClipEdge",
     "RollClipJoin",

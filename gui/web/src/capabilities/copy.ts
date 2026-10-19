@@ -428,7 +428,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.edit.moveClips": {
     label: "Move clips",
     tooltip:
-      "Drag clip bodies to move in time or onto another track · gaps and overlap allowed",
+      "Move clip in the inspector previews time and target track before Apply move; clip-body drag also moves clips",
   },
   "daw.edit.addChapter": {
     label: "Add chapter at playhead",
@@ -442,6 +442,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.comment.draftAt": {
     label: "Add comment",
     tooltip: "Start a comment at the held time",
+  },
+  "daw.edit.restoreClipBleed": {
+    label: "Restore original audio",
+    tooltip: "Restore one selected automatic reduction in this clip occurrence",
   },
   "daw.edit.rollClipJoin": {
     label: "Roll clip join",
@@ -508,7 +512,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
   bladeConfirmSheet: "daw.edit.bladeCut.cancel",
-  clipInspector: "daw.edit.rippleDelete",
+  clipInspector: "daw.edit.moveClips",
   trackInspector: "daw.track.setVolume",
   SplitSpeakersDialog: "daw.track.splitSpeakers",
   trackHeader: "daw.track.soloToggle",
@@ -556,6 +560,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",
   "timeline.clip.body": "daw.edit.moveClips",
   "mobileShell.more": "daw.edit.addChapter",
+  restoreClipBleed: "daw.edit.restoreClipBleed",
   "timeline.clip.joinDiamond": "daw.edit.rollClipJoin",
   "transcript.editBoundary": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",

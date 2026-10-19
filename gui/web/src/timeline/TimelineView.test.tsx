@@ -1,7 +1,21 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type ClipBleedInspection,
+  loadClipBleedInspection,
+} from "../api/clipBleed";
+import { resetDocumentAuthority } from "../document/authorityState";
 import { projectFromDocumentSnapshot } from "../document/projectPatch";
+import { bleedAttenuationRegionKey } from "../edit/bleedAttenuation";
+import { clipBleedSession } from "../edit/clipBleedSession";
+import {
+  beginClipPlacement,
+  cancelClipPlacement,
+  getClipPlacement,
+  updateClipPlacement,
+} from "../edit/clipPlacement";
+import { LONG_PRESS_MS } from "../hooks/gestureConstants";
 import { useRecordHostStore } from "../record/hostStore";
 import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -13,6 +27,7 @@ import {
   sampleComment,
   sessionRoster,
 } from "../test/fixtures";
+import { place } from "../test/hitDom";
 import { stubRaf } from "../test/raf";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { readyEntry } from "../test/waveform";
@@ -27,6 +42,10 @@ import {
 import { domToLogicalScrollLeft } from "../utils/timelineViewport";
 import { TimelineView } from "./TimelineView";
 import { useTimelineMetrics } from "./timelineMetrics";
+
+vi.mock("../api/clipBleed", () => ({
+  loadClipBleedInspection: vi.fn(),
+}));
 
 const execute = vi.hoisted(() => vi.fn());
 vi.mock("../commands/execute", () => ({ execute }));
@@ -851,8 +870,61 @@ describe("TimelineView lane fit", () => {
     });
 
     afterEach(() => {
+      cancelClipPlacement();
+      useDawStore.getState().setSelection(null);
       // Tests assign an own property; drop it to restore jsdom's.
       Reflect.deleteProperty(document, "elementFromPoint");
+    });
+
+    it("renders inspector placements on destination lanes and a valid body action cancels them", () => {
+      const project = twoTrackProject({
+        clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },
+      });
+      useDawStore.getState().hydrate("/tmp/p.json", project);
+      useDawStore.setState({
+        zoomPxPerSec: 10,
+        userZoomed: true,
+        toolMode: "select",
+        commentMode: false,
+        timelineDragging: false,
+        joinMutationInFlight: false,
+      });
+      const { container } = render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <TimelineView />
+        </DawProvider>,
+      );
+      act(() =>
+        useDawStore
+          .getState()
+          .setSelection({ kind: "clip", id: hostClip.id, trackId: "host" }),
+      );
+      act(() => {
+        beginClipPlacement(hostClip.id);
+      });
+      const active = getClipPlacement();
+      if (active.kind === "idle") throw new Error("placement did not start");
+      const token = active.capture.token;
+      act(() => updateClipPlacement(token, "7", "guest"));
+      const guest = container.querySelector('.lane-row[data-track-id="guest"]');
+      const ghost = guest?.querySelector<HTMLElement>(".clip-move-ghost");
+      expect(ghost?.style.left).toBe("70px");
+      expect(ghost?.dataset.clipId).toBe(hostClip.id);
+      expect(useDawStore.getState().project).toBe(project);
+      act(() => cancelClipPlacement(token));
+      expect(guest?.querySelector(".clip-move-ghost")).toBeNull();
+      act(() => {
+        beginClipPlacement(hostClip.id);
+      });
+      const hit = container.querySelector(
+        '.lane-row[data-track-id="host"] .clip-hit',
+      );
+      if (!hit) throw new Error("clip body is missing");
+      fireEvent.pointerDown(hit, { pointerId: 11, clientX: 100, clientY: 10 });
+      expect(getClipPlacement()).toEqual({ kind: "idle" });
+      fireEvent.pointerCancel(hit, { pointerId: 11 });
+      expect(execute).not.toHaveBeenCalled();
+      act(() => useDawStore.getState().setSelection(null));
     });
 
     it("keeps a lane range owner when a foreign pointer presses a clip body", () => {
@@ -1426,5 +1498,210 @@ describe("TimelineView render isolation", () => {
     act(() => useDawStore.getState().setToolMode("select"));
     expect(useDawStore.getState().bladeHoverSec).toBeNull();
     expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
+  });
+});
+
+describe("TimelineView automatic reduction inspection", () => {
+  const region = {
+    trackId: "host",
+    occurrenceId: "c1",
+    kind: "late_gate" as const,
+    sourceSpan: { start: 31, end: 32 },
+    timelineSpan: { start: 5, end: 6 },
+    actualSourceSpan: { start: 31, end: 32 },
+    restore: { state: "unavailable" as const, reason: "No current target" },
+  };
+  const inspection: ClipBleedInspection = {
+    clipLabel: "Host",
+    planState: "ready",
+    planReasons: [],
+    artifactState: "current",
+    restoreState: "none",
+    savedSourceSpans: [],
+    fadeSec: 0.005,
+    reduction: "attenuate",
+    attenuationDb: -24,
+    regions: [region],
+  };
+  const placed = {
+    ...hostClip,
+    source_start: 30,
+    source_end: 34,
+    timeline_start: 4,
+    timeline_end: 8,
+  };
+  const project = () =>
+    twoTrackProject({
+      clips: { tracks: { host: [placed], guest: [] }, clip_count: 1 },
+    });
+
+  beforeEach(() => {
+    stubResizeObserver();
+    stubElementSize(800, 600);
+    resetDocumentAuthority("/tmp/p.json");
+    useDawStore.getState().hydrate("/tmp/p.json", project());
+    useDawStore.setState({
+      userZoomed: true,
+      zoomPxPerSec: 40,
+      toolMode: "select",
+      commentMode: false,
+      timelineDragging: false,
+      joinMutationInFlight: false,
+    });
+    vi.mocked(loadClipBleedInspection).mockResolvedValue(inspection);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    clipBleedSession.retire();
+    cancelClipPlacement();
+    resetDocumentAuthority();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+  });
+  async function mount() {
+    const view = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    await act(async () =>
+      clipBleedSession.open({
+        trackId: "host",
+        clipId: "c1",
+        clipLabel: "Host",
+      }),
+    );
+    return view;
+  }
+  it("draws only the inspected occurrence using its timeline clock and selects its region", async () => {
+    const { container } = await mount();
+    const band = container.querySelector<HTMLElement>(
+      ".bleed-attenuation-band",
+    )!;
+    expect(band.style.left).toBe("200px");
+    expect(band.style.width).toBe("40px");
+    expect(band.closest(".lane-row")).toHaveAttribute("data-track-id", "host");
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Automatic reduction, timeline/ }),
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "bleedAttenuation",
+      id: "c1",
+      trackId: "host",
+      regionKey: bleedAttenuationRegionKey(region),
+    });
+    expect(clipBleedSession.getSnapshot()?.selectedKey).toBe(
+      bleedAttenuationRegionKey(region),
+    );
+  });
+  it("keeps scrolling touches unchanged and rolls selection and session back when a second finger cancels a long press", async () => {
+    await mount();
+    const band = screen.getByRole("button", {
+      name: /^Automatic reduction, timeline/,
+    });
+    place(band, { left: 200, top: 100, right: 240, bottom: 110 });
+    const baseline = { kind: "clip" as const, id: "c1", trackId: "host" };
+    act(() => useDawStore.getState().setSelection(baseline));
+    vi.useFakeTimers();
+    const touch = {
+      pointerId: 7,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 220,
+      clientY: 105,
+    };
+    fireEvent.pointerDown(band, touch);
+    fireEvent.pointerMove(band, { ...touch, clientY: 200 });
+    fireEvent.pointerCancel(band, touch);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS * 2);
+    });
+    expect(useDawStore.getState().selection).toEqual(baseline);
+    expect(clipBleedSession.getSnapshot()?.selectedKey).toBeNull();
+    fireEvent.pointerDown(band, { ...touch, pointerId: 8 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS + 1);
+    });
+    expect(useDawStore.getState().selection?.kind).toBe("bleedAttenuation");
+    expect(clipBleedSession.getSnapshot()?.selectedKey).toBe(
+      bleedAttenuationRegionKey(region),
+    );
+    fireEvent.pointerDown(band, { ...touch, pointerId: 9, isPrimary: false });
+    expect(useDawStore.getState().selection).toEqual(baseline);
+    expect(clipBleedSession.getSnapshot()?.selectedKey).toBeNull();
+    fireEvent.pointerUp(band, { ...touch, pointerId: 8 });
+    fireEvent.pointerUp(band, { ...touch, pointerId: 9, isPrimary: false });
+  });
+  it("hides bands for a placement preview and restores them after cancellation", async () => {
+    const { container } = await mount();
+    act(() => {
+      useDawStore
+        .getState()
+        .setSelection({ kind: "clip", id: "c1", trackId: "host" });
+      beginClipPlacement("c1");
+    });
+    expect(getClipPlacement().kind).not.toBe("idle");
+    expect(container.querySelector(".bleed-attenuation-band")).toBeNull();
+    act(() => cancelClipPlacement());
+    expect(container.querySelector(".bleed-attenuation-band")).not.toBeNull();
+  });
+  it("cancels an unrelated placement before selecting the inspected region", async () => {
+    const other = {
+      ...placed,
+      id: "other",
+      timeline_start: 10,
+      timeline_end: 14,
+    };
+    const withOther = project();
+    withOther.clips.tracks.host!.push(other);
+    withOther.clips.clip_count = 2;
+    useDawStore.getState().hydrate("/tmp/p.json", withOther);
+    const view = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={withOther}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    await act(async () =>
+      clipBleedSession.open({
+        trackId: "host",
+        clipId: "c1",
+        clipLabel: "Host",
+      }),
+    );
+    act(() => {
+      useDawStore
+        .getState()
+        .setSelection({ kind: "clip", id: "other", trackId: "host" });
+      beginClipPlacement("other");
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Automatic reduction, timeline/ }),
+    );
+    expect(getClipPlacement().kind).toBe("idle");
+    expect(useDawStore.getState().selection?.kind).toBe("bleedAttenuation");
+    expect(
+      view.container.querySelector(".bleed-attenuation-band"),
+    ).not.toBeNull();
+  });
+  it("removes bands when inspection is stale or its occurrence disappears", async () => {
+    const { container } = await mount();
+    act(() => {
+      const p = useDawStore.getState().project!;
+      useDawStore.getState().setProject({ ...p });
+    });
+    expect(clipBleedSession.getSnapshot()?.read.state).toBe("error");
+    expect(container.querySelector(".bleed-attenuation-band")).toBeNull();
+    await act(async () => clipBleedSession.refresh());
+    expect(container.querySelector(".bleed-attenuation-band")).not.toBeNull();
+    act(() => {
+      const p = useDawStore.getState().project!;
+      useDawStore.getState().setProject({
+        ...p,
+        clips: { tracks: { host: [], guest: [] }, clip_count: 0 },
+      });
+    });
+    expect(clipBleedSession.getSnapshot()).toBeNull();
+    expect(container.querySelector(".bleed-attenuation-band")).toBeNull();
   });
 });

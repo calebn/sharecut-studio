@@ -5,8 +5,8 @@ boundary, where the offending path is known. It never carries an account identif
 Every adapter already reports a ``CodedError``'s message and code (``util/coded_error.py``), so
 the CLI prints one ``Error:`` line, an MCP tool returns it as a structured refusal, and the GUI
 maps it in ``gui/routes/deps.py``. A share guest never gets that message: the error holds a
-second, fixed ``GUEST_MESSAGE`` with no path and no command, and every guest or relayed
-adapter reads it through ``util/tool_refusal.py``.
+fixed guest copy selected by code, and every guest or relayed adapter reads it through
+``util/tool_refusal.py``.
 
 The refusal is fail-closed: it names what is wrong and how to fix it, and never repairs anything.
 A fix is a command only when running it on a path the host owns cannot widen access.
@@ -22,7 +22,6 @@ from pathlib import Path, PureWindowsPath
 from podcast_mcp.util.coded_error import HostSetupError
 
 REGISTRY_NOT_PRIVATE_CODE = "registry_not_private"
-GUEST_MESSAGE = "The host's sharing setup needs attention; ask the host to check it."
 _PIN = "set PODCAST_SHARE_REGISTRY to a registry you own"
 
 
@@ -145,5 +144,4 @@ class RegistryPrivacyError(HostSetupError):
         super().__init__(
             f"{_PROBLEM[reason].format(**fields)}; {self.fix}",
             code=_CODE.get(reason, REGISTRY_NOT_PRIVATE_CODE),
-            guest_message=GUEST_MESSAGE,
         )

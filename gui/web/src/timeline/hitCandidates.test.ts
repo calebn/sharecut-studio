@@ -62,6 +62,37 @@ function ranked(
 }
 
 describe("rankHitTargets", () => {
+  const band: HitTarget = {
+    kind: "bleed-attenuation",
+    id: "region-key",
+    rect: { left: 180, top: 110, right: 400, bottom: 122 },
+    selected: true,
+  };
+
+  it.each([trimIn, trimOut, fadeIn, point, join, seam])(
+    "keeps a selected band out of a $kind press even inside its bounds",
+    (handle) => {
+      expect(ranked([band, handle], 22, handle).map((c) => c.kind)).toEqual([
+        handle.kind,
+      ]);
+    },
+  );
+
+  it("does not turn a selected band into a neighbour of a clip body or empty space", () => {
+    const body: HitTarget = { ...band, kind: "clip", id: "clip-b" };
+    expect(ranked([band, body], 22, body).map((c) => c.kind)).toEqual(["clip"]);
+    expect(ranked([band], 22)).toEqual([]);
+  });
+
+  it("keeps nearby editing controls ahead of a directly hit selected band in the chooser", () => {
+    expect(ranked([band, trimIn, fadeIn], 22, band).map((c) => c.kind)).toEqual(
+      ["trim-in", "fade-in", "bleed-attenuation"],
+    );
+    expect(ranked([band], 0, band).map((c) => c.kind)).toEqual([
+      "bleed-attenuation",
+    ]);
+  });
+
   it("keeps a reachable flat-envelope point ahead of its full-width line without overriding selection", () => {
     const line: HitTarget = {
       kind: "envelope-line",

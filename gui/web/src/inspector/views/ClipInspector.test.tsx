@@ -59,6 +59,38 @@ async function dragFade(edge: "in" | "out", value: number) {
 }
 
 describe("ClipInspector presentation", () => {
+  it("inspects the current placed occurrence after cancelling its placement preview", () => {
+    const moved = {
+      ...clip,
+      id: "current-copy",
+      track_id: "guest",
+      origin_track_id: "host",
+      source_start: 30,
+      source_end: 32,
+      timeline_start: 4,
+      timeline_end: 6,
+    };
+    hydrateClipProject(sampleTrack({ id: "guest" }), moved);
+    useDawStore.setState({
+      toolMode: "select",
+      commentMode: false,
+      timelineDragging: false,
+      joinMutationInFlight: false,
+    });
+    render(<ClipInspector clip={moved} />);
+    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Later 10 ms" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Inspect automatic audio reduction" }),
+    );
+    expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "bleedAttenuation",
+      id: "current-copy",
+      trackId: "guest",
+      regionKey: null,
+    });
+  });
   it("names the origin speaker and timeline range with the ID shown once", async () => {
     const moved = {
       ...clip,
@@ -88,6 +120,32 @@ describe("ClipInspector presentation", () => {
     ).toBeVisible();
     expect(screen.getAllByText("internal-clip-id")).toHaveLength(1);
     await expectNoA11yViolations(container);
+  });
+
+  it("preserves placement after invalid trim and cancels it for a valid fade gesture", () => {
+    hydrateClipProject(sampleTrack({ speaker: "Host" }));
+    useDawStore.setState({
+      toolMode: "select",
+      commentMode: false,
+      timelineDragging: false,
+      joinMutationInFlight: false,
+    });
+    render(<ClipInspector clip={clip} />);
+    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Later 10 ms" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Source start" }), {
+      target: { value: "-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply source start" }));
+    expect(screen.getByLabelText("Timeline start (seconds)")).toHaveValue(0.01);
+    fireEvent.pointerDown(screen.getByLabelText("Fade in ms"), {
+      pointerId: 9,
+    });
+    expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
+    expect(screen.getByRole("button", { name: "Move clip" })).toBeVisible();
+    fireEvent.pointerCancel(screen.getByLabelText("Fade in ms"), {
+      pointerId: 9,
+    });
   });
 
   it("places delete actions in a named section after constructive controls", () => {

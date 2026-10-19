@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { transportAvailability } from "../state/transportAvailability";
 import type { MobileMode, MoreDestination } from "../state/types";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { TrackMixView } from "../tracks/TrackMixView";
@@ -65,7 +66,11 @@ function PhonePreview(args: PreviewProps) {
                 controls={
                   <TransportPlayControls
                     playing={playing}
-                    disabled={args.loading}
+                    availability={transportAvailability({
+                      project: args.loading ? null : shellProject,
+                      isPlaying: playing,
+                      playStartSec: null,
+                    })}
                     onTogglePlay={() => onPlayingChange(!playing)}
                     onStop={() => onPlayingChange(false)}
                   />
@@ -343,8 +348,14 @@ export const Loading: Story = {
     await expect(
       canvas.getByRole("heading", { name: "Loading episode…" }),
     ).toBeInTheDocument();
-    await expect(canvas.getByRole("button", { name: "Play" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Play" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(canvas.getByRole("button", { name: "Stop" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 

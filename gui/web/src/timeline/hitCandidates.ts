@@ -4,7 +4,12 @@
  * targets crowd one spot. The selected target wins, then the nearest, then
  * the kind's priority.
  */
-import { HIT_KINDS, type HitKind, outranks } from "./inputContract";
+import {
+  HIT_KINDS,
+  type HitKind,
+  needsDirectHit,
+  outranks,
+} from "./inputContract";
 
 /** Viewport px box, as `getBoundingClientRect` reports it. */
 export interface HitRect {
@@ -75,7 +80,8 @@ export function corePoint(rect: HitRect, p: HitPoint): HitPoint {
 /**
  * Targets whose box is within `radiusPx` of the pointer (plus `hit`, the one
  * the browser hit, at any reach), ranked: selected first, then nearest core,
- * then kind priority. Each candidate keeps the target it came from. A body
+ * then kind priority. Direct-only activation targets follow editing controls
+ * in the chooser. Each candidate keeps the target it came from. A body
  * (`HIT_KINDS[kind].body`) counts only when it is `hit` and nothing else is
  * in reach, and then it is held where the pointer is.
  *
@@ -93,6 +99,7 @@ export function rankHitTargets<T extends HitTarget>(
   const ranked: { candidate: HitCandidate; target: T }[] = [];
   let body: { candidate: HitCandidate; target: T } | null = null;
   for (const target of targets) {
+    if (needsDirectHit(target.kind) && target !== hit) continue;
     if (HIT_KINDS[target.kind].body) {
       if (target === hit) {
         body = {
@@ -131,6 +138,7 @@ export function rankHitTargets<T extends HitTarget>(
   }
   ranked.sort(
     ({ candidate: a }, { candidate: b }) =>
+      Number(needsDirectHit(a.kind)) - Number(needsDirectHit(b.kind)) ||
       Number(b.selected) - Number(a.selected) ||
       a.distance - b.distance ||
       b.priority - a.priority,

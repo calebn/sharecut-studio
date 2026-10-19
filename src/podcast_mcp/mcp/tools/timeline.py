@@ -20,6 +20,31 @@ from podcast_mcp.services.document_sync import (
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
 
+def inspect_clip_bleed_tool(project_path: str, clip_id: str, track_id: str) -> str:
+    """Inspect automatic attenuation on one occurrence and return guarded Restore targets."""
+    inspection = EditService(ProjectWorkspace.open(project_path)).inspect_clip_bleed(
+        clip_id, track_id=track_id
+    )
+    return inspection.model_dump_json()
+
+
+def restore_clip_bleed_tool(
+    project_path: str, target: JsonObject, command_id: str | None = None
+) -> str:
+    """Save one inspected Restore choice. Reuse command_id when retrying the same submission.
+
+    Does not render audio or restore other occurrences. Changed targets must be inspected again.
+    """
+    reply = submit_host_document_command(
+        project_path,
+        "RestoreClipBleed",
+        {"target": target},
+        client_id="mcp:host",
+        command_id=command_id,
+    )
+    return to_json(host_command_result(reply))
+
+
 def strip_silence_tool(
     project_path: str,
     track_id: str | None = None,
@@ -1150,6 +1175,8 @@ def register(mcp: MCPServer) -> None:
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit
     mutating.discard(move_clips_tool)
     for fn in (
+        inspect_clip_bleed_tool,
+        restore_clip_bleed_tool,
         strip_silence_tool,
         ripple_delete_tool,
         ripple_delete_text_tool,
