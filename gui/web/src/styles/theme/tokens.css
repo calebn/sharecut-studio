@@ -150,6 +150,7 @@
   --mute-waveform-opacity: 0.5;
   --status-height: 1.75rem;
   --tabs-height: 12.5rem;
+  --editor-main-min-height: 7.5rem;
   --mobile-nav-height: 3.25rem;
   /* The Inspector column beside the timeline on a phone held sideways (#1696):
      a third of the width, never narrower than a readable form or wider than

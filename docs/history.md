@@ -177,7 +177,7 @@ rebuild the same conservative gate from ungated media. Reapplying rebuilds from
 sources instead of multiplying the existing stem's fades. Undo restores the flag
 and scope together; a rerender recovers the original audio from untouched sources.
 
-A busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, both `filelock.Timeout`) escaping any command is caught by the root `BusyErrorGroup` (`cli/busy.py`), the one choke point for every CLI command: it prints `Error: <message>` to stderr and exits 1, instead of an unhandled-exception traceback. Move-specific commands (`undo`, `redo`, `history goto`) still catch their own narrower errors first for move advice text; a lock timeout reaches the group either way (#488). The same choke point also catches a domain guard error (`ValueError` / `RuntimeError`, e.g. `TranscriptRefineRequiredError`) escaping any command, printing it the same way (#773); set `PODCAST_DEBUG=1` to get the original traceback back for either case instead of the one-line message.
+While a Studio is serving the project a command names, the same group first hands the command to that Studio, which then runs it as the one writer (see [gui-integration.md § CLI commands while Studio is open](gui-integration.md#cli-commands-while-studio-is-open-1733)); a busy lock reaches the CLI only when no Studio is serving the project. A busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, both `filelock.Timeout`) escaping any command is caught by the root `BusyErrorGroup` (`cli/busy.py`), the one choke point for every CLI command: it prints `Error: <message>` to stderr and exits 1, instead of an unhandled-exception traceback. Move-specific commands (`undo`, `redo`, `history goto`) still catch their own narrower errors first for move advice text; a lock timeout reaches the group either way (#488). The same choke point also catches a domain guard error (`ValueError` / `RuntimeError`, e.g. `TranscriptRefineRequiredError`) escaping any command, printing it the same way (#773); set `PODCAST_DEBUG=1` to get the original traceback back for either case instead of the one-line message.
 
 Snapshots are recorded automatically before/after:
 
@@ -251,6 +251,12 @@ head still lands without a refetch (`document/projectionDelta.ts`). Its click se
 first, the server refuses and the toast says "Can't undo: the project changed since.
 Nothing was undone." The reply, not the tab's store after the await, names the entry,
 because a peer's edit can reach the store while the command is in flight.
+Clip moves use this same reply-bound Undo, including a group moved with
+**Apply move**. `moveClips` returns `HistoryEntryId | null` through `replyHistoryHead`.
+The command captures `documentScope()` before entering the mutation queue and
+checks it before starting work and after success or failure. A retired opening
+cannot receive its feedback or optimistic rollback, including after the same
+project path is closed and reopened.
 
 **Mod+Z: the tab's own moves run one after another.** `history.undo` / `history.redo`
 (Mod+Z, Mod+Shift+Z, the History tab buttons, the toast Undo, the phone two-finger tap

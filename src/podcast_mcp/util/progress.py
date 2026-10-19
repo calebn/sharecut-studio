@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import functools
 import json
 import sys
@@ -987,7 +988,11 @@ class ElapsedProgressMixin:
         self._tasks: dict[str, _TaskState] = {}
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+        # Run in a copy of this context so the heartbeat reaches the same output sink as the
+        # command that started it (a handed-off command routes output per context).
+        self._thread = threading.Thread(
+            target=contextvars.copy_context().run, args=(self._heartbeat_loop,), daemon=True
+        )
         self._thread.start()
 
     def _register_task(self, task_id: str, label: str, total: int | None) -> None:

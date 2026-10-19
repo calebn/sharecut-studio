@@ -14,11 +14,19 @@ export type DisabledReasonProps = {
   disabledReason?: string;
 };
 
+export const UNAVAILABLE_REASON = "This action is unavailable right now.";
+
+export function unavailableReason(
+  reason: string | undefined,
+): string | undefined {
+  if (reason === undefined) return undefined;
+  return reason.trim() === "" ? UNAVAILABLE_REASON : reason;
+}
+
 /** Reason for a control that waits on an action already running. */
 export const BUSY_REASON = "Wait for the current action to finish.";
 
 export function disabledAttrs(reason: string | undefined) {
-  return reason === undefined || reason === ""
-    ? {}
-    : { disabled: true, title: reason };
+  const normalized = unavailableReason(reason);
+  return normalized === undefined ? {} : { disabled: true, title: normalized };
 }

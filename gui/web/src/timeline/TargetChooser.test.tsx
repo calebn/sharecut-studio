@@ -128,6 +128,25 @@ describe("TargetChooser", () => {
       document.querySelector(".target-chooser-caption"),
     ).not.toHaveTextContent("00:00");
   });
+  it("tells stacked comment pins apart by author", () => {
+    const pins = ["Ada", "Ben"].map((author, i) =>
+      hit(target(hitTargetProps("comment", `c${i}`, 5, { detail: author })), {
+        kind: "comment",
+        id: `c${i}`,
+        x: 200 + i,
+      }),
+    );
+    view = { ...view, hits: pins };
+    show();
+    const chips = screen.getAllByRole("menuitemradio");
+    expect(chips.map((c) => c.getAttribute("aria-label"))).toEqual([
+      "Comment by Ada at 00:05.000",
+      "Comment by Ben at 00:05.000",
+    ]);
+    expect(chips.map((c) => c.textContent)).toEqual(["A", "B"]);
+    expect(chips[0].querySelector(".target-glyph-comment")).toBeTruthy();
+  });
+
   it("names each target by kind and time, in real-x order, and announces the count", () => {
     show();
     const menu = screen.getByRole("menu", { name: "Targets here" });
@@ -144,7 +163,7 @@ describe("TargetChooser", () => {
     expect(chips[1]).toHaveStyle({
       "--chip-surface": "var(--color-clip-dialogue-0)",
     });
-    expect(announce).toHaveBeenCalledWith("2 targets here");
+    expect(announce).toHaveBeenCalledWith("2 targets here", { toast: false });
     expect(chips[0]).toHaveTextContent("0.80×");
     expect(chips[1]).toHaveTextContent("");
   });

@@ -150,6 +150,8 @@ def test_pack_macos_dmg_retries_hdiutil_only() -> None:
     assert "npm run tauri" not in text
     assert staple_at != -1
     assert sha_at > staple_at
+    assert "until xcrun stapler staple" in text
+    assert "STAPLE_ATTEMPTS" in text
     assert "tauri.conf.json" in text
     assert 'product_name="$(basename "$APP" .app)"' in text
     assert "compact_name=" in text

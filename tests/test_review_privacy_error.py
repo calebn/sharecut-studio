@@ -31,7 +31,6 @@ from podcast_mcp.services.remote_mcp.protocol import _capability_denial, _tool_f
 from podcast_mcp.util.coded_error import CodedError, HostSetupError
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 from podcast_mcp.util.review_privacy_error import (
-    GUEST_MESSAGE,
     REVIEW_NOT_PRIVATE_CODE,
     ReviewPrivacyError,
     ReviewPrivacyReason,
@@ -94,16 +93,22 @@ def test_refusal_survives_pickling() -> None:
 
     assert str(restored) == str(error)
     assert restored.code == REVIEW_NOT_PRIVATE_CODE
-    assert restored.guest_message() == GUEST_MESSAGE
+    assert (
+        restored.guest_message()
+        == "The host's review files need attention; ask the host to check them."
+    )
 
 
 def test_guest_message_has_no_path_and_no_command(tmp_path: Path) -> None:
     error = _error(tmp_path / HOME_NAME / "review")
 
     assert "Mike" in str(error)
-    assert error.guest_message() == GUEST_MESSAGE
-    assert "chmod" not in GUEST_MESSAGE
-    assert "/" not in GUEST_MESSAGE
+    assert (
+        error.guest_message()
+        == "The host's review files need attention; ask the host to check them."
+    )
+    assert "chmod" not in error.guest_message()
+    assert "/" not in error.guest_message()
 
 
 def test_staged_folder_check_picks_the_reason_from_the_folder(
@@ -246,7 +251,10 @@ def test_gui_handler_gives_a_relayed_guest_the_fixed_line(tmp_path: Path) -> Non
 
     assert response.status_code == 500
     assert response.headers["X-Sharecut-Error-Code"] == REVIEW_NOT_PRIVATE_CODE
-    assert response.json()["detail"] == GUEST_MESSAGE
+    assert (
+        response.json()["detail"]
+        == "The host's review files need attention; ask the host to check them."
+    )
     assert str(tmp_path) not in response.text
 
 
@@ -297,7 +305,7 @@ GUEST_SURFACES: dict[str, Callable[[ReviewPrivacyError], str]] = {
 def test_no_guest_surface_shows_the_path(surface: str, name: str, tmp_path: Path) -> None:
     shown = GUEST_SURFACES[surface](_error(tmp_path / name / "artifacts" / "review"))
 
-    assert GUEST_MESSAGE in shown
+    assert "The host's review files need attention; ask the host to check them." in shown
     assert str(tmp_path) not in shown
     assert name not in shown
     assert "chmod" not in shown

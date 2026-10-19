@@ -1028,12 +1028,12 @@ describe("MobileShell", () => {
     expect(
       screen
         .getAllByRole("button", { name: "Play" })
-        .every((el) => el.hasAttribute("disabled")),
+        .every((el) => el.getAttribute("aria-disabled") === "true"),
     ).toBe(true);
     expect(
       screen
         .getAllByRole("button", { name: "Stop" })
-        .every((el) => el.hasAttribute("disabled")),
+        .every((el) => el.getAttribute("aria-disabled") === "true"),
     ).toBe(true);
     expect(document.querySelector(".listen-hero .play-btn")).toHaveAttribute(
       "aria-label",
@@ -1054,9 +1054,46 @@ describe("MobileShell", () => {
       name: project.meta.name,
     });
     const play = within(hero).getByRole("button", { name: "Play" });
-    expect(play).toBeDisabled();
-    expect(play).toHaveAttribute("title", "Import audio to play");
-    expect(within(hero).getByRole("button", { name: "Stop" })).toBeDisabled();
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    expect(play).toHaveAccessibleDescription("Import audio to play.");
+    const stop = within(hero).getByRole("button", { name: "Stop" });
+    expect(stop).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(play);
+    fireEvent.click(stop);
+    expect(useDawStore.getState().isPlaying).toBe(false);
+  });
+
+  it("keeps Listen recovery controls after the last track disappears", async () => {
+    const project = minimalProject({ tracks: [sampleTrack()] });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    useDawStore.getState().setPlayheadSec(0);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    const hero = screen.getByRole("region", { name: project.meta.name });
+    await userEvent.click(within(hero).getByRole("button", { name: "Play" }));
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    act(() => {
+      useDawStore.getState().setPlayheadSec(10);
+      useDawStore.getState().setProject(minimalProject());
+    });
+    const pause = within(hero).getByRole("button", { name: "Pause" });
+    expect(pause).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(pause);
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().playheadSec).toBe(10);
+    expect(
+      within(hero).getByRole("button", { name: "Play" }),
+    ).toHaveAccessibleDescription("Import audio to play.");
+    const stop = within(hero).getByRole("button", { name: "Stop" });
+    expect(stop).not.toHaveAttribute("aria-disabled");
+    expect(stop).not.toHaveAttribute("aria-describedby");
+    await userEvent.click(stop);
+    expect(useDawStore.getState().playheadSec).toBe(0);
+    expect(useDawStore.getState().playStartSec).toBeNull();
+    expect(stop).toHaveAccessibleDescription("Import audio to play.");
   });
 
   it("announces follow status in a live region", () => {

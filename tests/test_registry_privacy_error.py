@@ -27,7 +27,6 @@ from podcast_mcp.util import registry_backup_posix as posix
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 from podcast_mcp.util.registry_privacy_error import (
-    GUEST_MESSAGE,
     REGISTRY_NOT_PRIVATE_CODE,
     RegistryPrivacyError,
     RegistryPrivacyReason,
@@ -318,7 +317,10 @@ def test_gui_handler_redacts_the_path_for_a_relayed_guest(tmp_path: Path) -> Non
     assert guest.status_code == 500
     assert guest.headers["X-Sharecut-Error-Code"] == REGISTRY_NOT_PRIVATE_CODE
     assert str(tmp_path) not in guest.text
-    assert guest.json()["detail"] == GUEST_MESSAGE
+    assert (
+        guest.json()["detail"]
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
 
 
 @pytest.fixture
