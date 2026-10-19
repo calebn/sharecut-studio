@@ -73,7 +73,7 @@ def _fetch_headers(url: str, origin: str) -> dict[str, str] | None:
         url, headers={"Origin": origin, "Range": "bytes=0-0"}, method="GET"
     )
     try:
-        with urllib.request.urlopen(req, timeout=_PROBE_TIMEOUT_SEC) as res:
+        with urllib.request.urlopen(req, timeout=_PROBE_TIMEOUT_SEC) as res:  # nosec B310 - http(s) only
             return {k.lower(): v for k, v in res.headers.items()}
     except urllib.error.HTTPError as exc:
         if exc.code >= 500 or exc.code == 429:
