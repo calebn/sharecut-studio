@@ -56,18 +56,13 @@ from enum import Enum
 import numpy as np
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
-from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
-from podcast_mcp.util.dsp import frame_band_db, frame_rms_db
+from podcast_mcp.edits.voiced_runs import FRAME_SEC, HEARD_APART_DEPTH_DB, HOP_SEC
+from podcast_mcp.util.dsp import frame_band_db, frame_rms_db, is_valley
 
 # The bottom of a dip this deep on both sides ends a voice even when it misses the
 # floor: the ``ss`` of "digress." dips 19 dB under itself and 28 dB under the "uh"
 # after it (lab 706.00). A vowel's level ripples by a few dB from frame to frame.
 _VALLEY_DEPTH_DB = 15.0
-# Whether a kept word's voice runs on into a cut at all asks less: any dip this deep,
-# at any level, is a break between two sounds. "did" and the repeated "that." at
-# lab 1020.30 are 14 dB apart and heard as two words; with Whisper times the repeat
-# at 752.72-752.90 never dips more than 6 dB inside the voice of "well,".
-_SEPARATION_DEPTH_DB = 10.0
 # A walk stops at a valley only this close over the floor. A passage spoken louder
 # than the track's speech level lifts its dips with it; any deeper allowance stops
 # walks at dips inside words (stop closures, syllable breaks). On the lab host track,
@@ -114,22 +109,6 @@ class Onset:
     kind: OnsetKind
 
 
-def _is_valley(levels: np.ndarray, k: int, depth_db: float) -> bool:
-    """Whether frame ``k`` is the bottom of a dip ``depth_db`` deep on both sides.
-
-    Walking out either way, the level must climb that far over frame ``k`` before it
-    falls under it: a ripple on the slope down into a deeper dip is not a valley
-    (lab 705.98: -40 dBFS on the way down from the ``ss`` to the -43 dBFS dip).
-    """
-    bottom = levels[k]
-    for side in (levels[k - 1 :: -1] if k > 0 else levels[:0], levels[k + 1 :]):
-        climbed = side >= bottom + depth_db
-        under = side < bottom
-        if not climbed.any() or under[: int(np.argmax(climbed))].any():
-            return False
-    return True
-
-
 def _voice_breaks(
     levels: np.ndarray, quiet_db: float, *, valley_max_db: float, depth_db: float
 ) -> np.ndarray:
@@ -137,7 +116,7 @@ def _voice_breaks(
     dip no louder than ``valley_max_db``."""
     breaks = levels < quiet_db
     for k in np.flatnonzero(~breaks & (levels <= valley_max_db)):
-        breaks[k] = _is_valley(levels, int(k), depth_db)
+        breaks[k] = is_valley(levels, int(k), depth_db)
     return breaks
 
 
@@ -148,14 +127,22 @@ def _frames(cache: TrackAudioCache, t0: float, t1: float) -> np.ndarray:
     )
 
 
-def _walk_breaks(cache: TrackAudioCache, levels: np.ndarray) -> np.ndarray:
+def _walk_breaks(
+    cache: TrackAudioCache, levels: np.ndarray, *, heard_apart: bool = False
+) -> np.ndarray:
     quiet_db = cache.profile.voice_floor_db
+    if heard_apart:
+        return _voice_breaks(
+            levels, quiet_db, valley_max_db=math.inf, depth_db=HEARD_APART_DEPTH_DB
+        )
     return _voice_breaks(
         levels, quiet_db, valley_max_db=quiet_db + _VALLEY_SLACK_DB, depth_db=_VALLEY_DEPTH_DB
     )
 
 
-def voice_onset(cache: TrackAudioCache, word_start: float, floor: float) -> float | None:
+def voice_onset(
+    cache: TrackAudioCache, word_start: float, floor: float, *, heard_apart: bool = False
+) -> float | None:
     """Where a word's voice begins (source seconds), walking back from its word start.
 
     The word is a filler a cut starts at, or the kept word a cut must end before.
@@ -167,10 +154,16 @@ def voice_onset(cache: TrackAudioCache, word_start: float, floor: float) -> floa
     after the word start, or inside the frame holding it. ``None`` means the voice
     never breaks back to ``floor``, so it runs on from whatever lies there with no
     quiet frame to cut in.
+
+    ``heard_apart`` also stops the walk at a valley :data:`HEARD_APART_DEPTH_DB` deep
+    on both sides at any level, the break :func:`voice_separates` reads. It is for a
+    sound the transcript missed that ends in such a valley before the word (#1358): the
+    walk back from the word runs through the valley into that sound, which is not the
+    word's voice. A word's own voice has no such dip a listener hears as a boundary.
     """
     t0 = math.floor(max(0.0, floor) / HOP_SEC) * HOP_SEC
     levels = _frames(cache, t0, word_start + _VALLEY_FLANK_SEC + FRAME_SEC)
-    breaks = _walk_breaks(cache, levels)
+    breaks = _walk_breaks(cache, levels, heard_apart=heard_apart)
     k = min(levels.size - 1, math.floor((word_start - t0) / HOP_SEC + 1e-9))
     if k < 0 or breaks[k]:
         return word_start
@@ -227,7 +220,7 @@ def voice_end(cache: TrackAudioCache, word_end: float, ceiling: float) -> float 
 def voice_separates(cache: TrackAudioCache, word_end: float, end: float) -> bool:
     """Whether anything between a kept word's end and ``end`` separates its voice from what follows.
 
-    A quiet frame does, and so does a dip ``_SEPARATION_DEPTH_DB`` deep at any level:
+    A quiet frame does, and so does a dip ``HEARD_APART_DEPTH_DB`` deep at any level:
     on the lab tape the edge of the repeated "that" at 753.17 sits in a dip 20 dB
     under "well," either side of it at -30 dBFS, far over the floor, and the words
     are heard apart. With Whisper times the repeat at 752.72-752.90 holds -6 to
@@ -236,7 +229,7 @@ def voice_separates(cache: TrackAudioCache, word_end: float, end: float) -> bool
     """
     levels, first, last, _ = _frames_from_word_end(cache, word_end, end)
     breaks = _voice_breaks(
-        levels, cache.profile.voice_floor_db, valley_max_db=math.inf, depth_db=_SEPARATION_DEPTH_DB
+        levels, cache.profile.voice_floor_db, valley_max_db=math.inf, depth_db=HEARD_APART_DEPTH_DB
     )
     return bool(breaks[first:last].any())
 
