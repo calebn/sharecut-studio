@@ -102,9 +102,10 @@ def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> boo
         return None
 
 
-# A re-scan moves a sound's edges a little, so a decided sound is matched by how much of the
-# new proposal it already covers, not by equal bounds.
-_DECIDED_OVERLAP = 0.5
+# A re-scan moves a sound's edges a little, so a decided sound is matched by overlap, not by
+# equal bounds. The match is symmetric: the proposal and one record must each cover at least
+# this share of the longer of the two, so a larger proposal's fresh part is never swallowed.
+_DECIDED_COVERAGE = 0.75
 
 
 def record_sound_action(
@@ -127,15 +128,20 @@ def record_sound_action(
 
 
 def is_decided_sound(project: EpisodeProject, decision: EditDecision) -> bool:
-    """True when most of ``decision``'s span is already a lowered or left sound."""
-    length = decision.end - decision.start
-    if length <= 0:
-        return False
-    return any(
-        min(decision.end, r.end_s) - max(decision.start, r.start_s) >= _DECIDED_OVERLAP * length
-        for r in project.editorial.sound_actions
-        if r.track_id == decision.track_id and r.source_id == decision.source_id
-    )
+    """True when one recorded sound and ``decision`` cover at least 75% of each other's length.
+
+    The record must be on the same track and the same recording (equivalent source ids, as
+    ``apply_lower`` matches a clip).
+    """
+    sources = project.equivalent_source_ids(decision.track_id, decision.source_id)
+    for record in project.editorial.sound_actions:
+        if record.track_id != decision.track_id or record.source_id not in sources:
+            continue
+        longest = max(decision.end - decision.start, record.end_s - record.start_s)
+        shared = min(decision.end, record.end_s) - max(decision.start, record.start_s)
+        if longest > 0 and shared >= _DECIDED_COVERAGE * longest - 1e-9:
+            return True
+    return False
 
 
 def drop_decided_sounds(project: EpisodeProject) -> int:
