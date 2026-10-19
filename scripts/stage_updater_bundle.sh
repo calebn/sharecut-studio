@@ -35,6 +35,13 @@ name="${stem//[[:space:]]/}_${version}_${arch}.app.tar.gz"
 # so the stapling Tauri does at bundle time sometimes leaves the app without a
 # ticket. Staple again (with retries) before archiving so the tarball always
 # carries a ticket.
+tree_fingerprint() {
+  (
+    cd "$1"
+    find . -type f -exec shasum -a 256 {} + | sort -k2
+    find . -type l -exec sh -c 'for l; do printf "%s -> %s\n" "$l" "$(readlink "$l")"; done' sh {} + | sort
+  )
+}
 ensure_stapled() {
   local app="$1" attempts="${STAPLE_ATTEMPTS:-8}" delay="${STAPLE_RETRY_DELAY:-20}" n=1
   while :; do
@@ -68,6 +75,24 @@ if [[ ${#extracted[@]} -ne 1 || "$(basename "${extracted[0]}")" != "$app_name" ]
 fi
 if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
   codesign --verify --deep --strict "${extracted[0]}"
-  xcrun stapler validate "${extracted[0]}" >&2
+  # stapler validate can reach out to Apple when it runs on a copy, and those
+  # lookups drop on CI runners. The source app was just stapled and validated, so
+  # a few validate attempts that fail only on the network are covered by proving
+  # the archive round-trips the app unchanged.
+  validated=no
+  for attempt in 1 2 3; do
+    if xcrun stapler validate "${extracted[0]}" >&2; then
+      validated=yes
+      break
+    fi
+    sleep "${STAPLE_RETRY_DELAY:-20}"
+  done
+  if [[ "$validated" != yes ]]; then
+    if [[ "$(tree_fingerprint "${apps[0]}")" != "$(tree_fingerprint "${extracted[0]}")" ]]; then
+      echo "error: the archived app differs from the stapled app and has no valid ticket" >&2
+      exit 1
+    fi
+    echo "warning: stapler validate failed on the extracted app; it is identical to the stapled source app" >&2
+  fi
 fi
 echo "$OUT/$name"
