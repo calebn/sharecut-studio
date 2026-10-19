@@ -90,7 +90,7 @@ describe("ShareDialogView", () => {
     ).getAllByRole("listitem");
     expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringMatching(
-        /^Commenter linkShare mix · Created .+sample-review-link/,
+        /^Commenter linkFollows latest: Share mix · Created .+sample-review-link/,
       ),
       "Editor linkAI assistants allowedsample-agent-linkCopy linkCopy MCP URLStop sharing",
     ]);
@@ -121,8 +121,24 @@ describe("ShareDialogView", () => {
       }),
     ];
     render(<ShareDialogView {...props} />);
-    const meta = screen.getByText(/^Share mix · Created/);
+    const meta = screen.getByText(/^Follows latest: Share mix · Created/);
     expect(meta).toHaveTextContent(/Last opened .+ · Expires /);
+  });
+
+  it("says when a link is frozen on one version", () => {
+    const props = baseProps();
+    props.rows = [
+      hostShareRow({
+        token: "sample-frozen-link",
+        follow_latest: false,
+        review_version_label: "Intro fix",
+        created_at: "2026-10-01T12:00:00Z",
+      }),
+    ];
+    render(<ShareDialogView {...props} />);
+    expect(
+      screen.getByText(/^Frozen on Intro fix · Created/),
+    ).toBeInTheDocument();
   });
 
   it("tells the host whether guests can reach their links; axe-clean", async () => {

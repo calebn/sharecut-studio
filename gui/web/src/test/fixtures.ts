@@ -330,6 +330,7 @@ export function hostShareRow(
     usable: true,
     invite_closed: overrides.kind === "record" ? false : null,
     review_version_label: "Share mix",
+    follow_latest: true,
     last_used_at: null,
     ...overrides,
   };

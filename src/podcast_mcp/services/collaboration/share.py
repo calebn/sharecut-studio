@@ -14,6 +14,7 @@ from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.review_shares import (
     create_share,
     drop_share,
+    effective_review_version_id,
     list_room_shares,
     list_shares,
     register_share_globally,
@@ -161,7 +162,14 @@ class ShareService:
         expires_at: str | None = None,
         general_access: str = "link",
         require_sign_in: bool = False,
+        follow_latest: bool = False,
     ) -> dict[str, Any]:
+        """Mint a review link on *review_version_id*.
+
+        ``follow_latest`` makes the link serve the project's active review version
+        from then on, so publishing a fix never needs a new URL (#1763); the
+        default pins the link to *review_version_id*.
+        """
         from podcast_mcp.services.share_auth import normalize_general_access
         from podcast_mcp.util.share_accounts import require_share_accounts_for_restricted
 
@@ -178,6 +186,7 @@ class ShareService:
             expires_at=expires_at,
             general_access=ga,
             require_sign_in=require_sign_in,
+            follow_latest=follow_latest,
         )
         register_share_globally(row)
         try:
@@ -259,11 +268,7 @@ class ShareService:
                 # Revoked or demoted: the registry no longer holds a link for it.
                 continue
             kind = str(row.get("kind") or SHARE_KIND_REVIEW)
-            label = (
-                labels.get(str(row.get("review_version_id") or ""))
-                if kind == SHARE_KIND_REVIEW
-                else None
-            )
+            label = labels.get(self._served_version_id(row)) if kind == SHARE_KIND_REVIEW else None
             presented.append(
                 present_share(
                     row,
@@ -273,6 +278,9 @@ class ShareService:
                 )
             )
         return presented
+
+    def _served_version_id(self, row: dict[str, Any]) -> str:
+        return effective_review_version_id(self.ws.project, row)
 
     def _invite_closed(self, row: dict[str, Any]) -> bool:
         from podcast_mcp.services.record import RecordSessionService
@@ -295,24 +303,32 @@ class ShareService:
         public_base_url: str | None = None,
     ) -> dict[str, Any]:
         """Mint a link share from a review role; publish a mix when none exists."""
-        from podcast_mcp.services.collaboration.review import ReviewService
-
         caps = capabilities_for_role(role, with_mcp=with_mcp)
         with _create_for_host_lock:
-            if not review_version_id:
-                self.ws.reload()
-            version_id = review_version_id or self.ws.project.review.active_version_id
-            if not version_id:
-                versions = ReviewService(self.ws).list_versions()
-                version_id = _latest_review_version_id(versions)
-            if not version_id:
-                published = ReviewService(self.ws).publish(label="Share mix")
-                version_id = str(published["id"])
             return self.create(
-                review_version_id=str(version_id),
+                review_version_id=self.resolve_start_version(review_version_id),
                 public_base_url=public_base_url,
                 capabilities=caps,
+                follow_latest=not review_version_id,
             )
+
+    def resolve_start_version(self, review_version_id: str | None = None) -> str:
+        """Name the version a new link starts on: the one given, else the active one.
+
+        Falls back to the newest version, then publishes a "Share mix" when the
+        project has none.
+        """
+        from podcast_mcp.services.collaboration.review import ReviewService
+
+        if review_version_id:
+            return str(review_version_id)
+        self.ws.reload()
+        version_id = self.ws.project.review.active_version_id
+        if not version_id:
+            version_id = _latest_review_version_id(ReviewService(self.ws).list_versions())
+        if not version_id:
+            version_id = str(ReviewService(self.ws).publish(label="Share mix")["id"])
+        return str(version_id)
 
     def create_record_token(
         self,
@@ -474,7 +490,7 @@ class ShareService:
         for row in list_shares(self.ws.project):
             if row.get("token") == token:
                 kind = str(row.get("kind") or SHARE_KIND_REVIEW)
-                version_id = str(row.get("review_version_id") or "") or None
+                version_id = self._served_version_id(row) or None
                 break
         ok = revoke_share(self.ws.project, token)
         if not ok:
@@ -574,6 +590,11 @@ def open_share_workspace(
     row = lookup_share(token, kind=kind)
     ws = workspace_from_share_row(row)
     vid = str(row.get("review_version_id") or "")
+    if vid and row.get("follow_latest"):
+        # A follow-latest link serves the active version; downstream readers of
+        # row["review_version_id"] then follow it without knowing about links (#1763).
+        vid = effective_review_version_id(ws.project, row)
+        row = {**row, "review_version_id": vid}
     if vid:
         try:
             get_version(ws.project, vid)
@@ -862,6 +883,15 @@ def share_project_view(token: str) -> dict[str, Any]:
     vid = row["review_version_id"]
     ver = get_version(project, vid)
     ver_dump = ver.model_dump()
+    pinned = not row.get("follow_latest")
+    newest = project.review.active_version_id
+    newer = None
+    if pinned and newest and newest != vid:
+        try:
+            newer_ver = get_version(project, newest)
+            newer = {"id": newer_ver.id, "label": newer_ver.label}
+        except KeyError:
+            newer = None
     ver_dump.pop("object_store_key", None)
     ver_dump.pop("object_store_uploaded_at", None)
     duration = project.timeline.duration_sec or 0.0
@@ -874,6 +904,8 @@ def share_project_view(token: str) -> dict[str, Any]:
         "meta": {"name": project.meta.name},
         "timeline_duration_sec": float(duration),
         "review_version": ver_dump,
+        "link_follows_latest": not pinned,
+        "newer_version": newer,
         "comments": comments_for_view(project),
         "tracks": [],
         "capabilities": caps,
@@ -952,6 +984,12 @@ def share_daw_waveform_tiles(
         Path(str(row.get("project_workspace") or "")) / EPISODE_PROJECT_FILENAME
     ).resolve()
     vid = str(row.get("review_version_id") or "")
+    if vid and row.get("follow_latest"):
+        # Any live version keeps a follow-latest link valid; the check below then
+        # only revokes when the project has lost every version it could serve.
+        live = _current_review_version_ids(project_path)
+        if live:
+            vid = ""
     if vid and vid not in _current_review_version_ids(project_path):
         log.warning(
             "Auto-revoking share: review version %s missing from %s",

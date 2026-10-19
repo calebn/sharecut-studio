@@ -42,15 +42,20 @@ def set_active_review_version_tool(
 
 def create_review_share_tool(
     project_path: str,
-    version_id: str,
+    version_id: str = "",
     public_base_url: str = "http://127.0.0.1:8765",
     role: str = "commenter",
     with_mcp: bool = False,
     general_access: str = "link",
     require_sign_in: bool = False,
     invite_emails: str = "",
+    pin: bool = False,
 ) -> str:
     """Create a review share URL (Anyone with the link by default).
+
+    version_id: freeze the link on this review version. Leave empty and the link
+    follows the latest published version, so a fix never needs a new URL.
+    pin: freeze the link on the active version when no version_id is given.
 
     role: review-link role, as in Google Docs. viewer views and plays; commenter
     also comments and suggests edits that wait for an editor or the host; editor
@@ -66,12 +71,14 @@ def create_review_share_tool(
 
     caps = capabilities_for_role(role, with_mcp=with_mcp)
     ws = ProjectWorkspace.open(project_path)
-    row = ShareService(ws).create(
-        review_version_id=version_id,
+    service = ShareService(ws)
+    row = service.create(
+        review_version_id=service.resolve_start_version(version_id or None),
         public_base_url=public_base_url,
         capabilities=caps,
         general_access=general_access,
         require_sign_in=require_sign_in,
+        follow_latest=not (version_id or pin),
     )
     emails = [e.strip() for e in invite_emails.split(",") if e.strip()]
     if emails:

@@ -135,7 +135,15 @@ def review_share_cmd(
     version: str | None = typer.Option(
         None,
         "--version",
-        help="Review mix version id (required for --kind review)",
+        help=(
+            "Review mix version id to freeze the link on. Without it a review link "
+            "follows the latest published version"
+        ),
+    ),
+    pin: bool = typer.Option(
+        False,
+        "--pin",
+        help="Freeze the link on the active version (or --version) instead of following the latest",
     ),
     base_url: str = typer.Option(
         "http://127.0.0.1:8765",
@@ -205,9 +213,6 @@ def review_share_cmd(
     if kind_key != "review":
         typer.echo(f"unknown share kind {kind!r}", err=True)
         raise typer.Exit(2)
-    if not version:
-        typer.echo("--version is required for review shares", err=True)
-        raise typer.Exit(2)
     review_role = "commenter" if role is None else role
     try:
         caps = capabilities_for_role(review_role, with_mcp=with_mcp)
@@ -216,13 +221,15 @@ def review_share_cmd(
         raise typer.Exit(1) from exc
     ws = ProjectWorkspace.open(project)
     try:
-        row = ShareService(ws).create(
-            review_version_id=version,
+        service = ShareService(ws)
+        row = service.create(
+            review_version_id=service.resolve_start_version(version),
             public_base_url=base_url,
             capabilities=caps,
             general_access=general_access,
             require_sign_in=require_sign_in,
             expires_at=expires_at,
+            follow_latest=not (version or pin),
         )
     except (KeyError, ValueError) as exc:
         typer.echo(str(exc), err=True)
