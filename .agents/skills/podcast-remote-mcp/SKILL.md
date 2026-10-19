@@ -32,7 +32,7 @@ Connect a remote MCP client (e.g. Cursor) to a **review share token** so an agen
 5. Create a share with `--with-mcp` **and** the role the agent should have:
 
 ```bash
-podcast review share --project … --version <id> \
+podcast review share --project … \
   --role commenter --with-mcp \
   --base-url https://share.example.com
 ```

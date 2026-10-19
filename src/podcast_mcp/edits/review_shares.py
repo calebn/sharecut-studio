@@ -155,9 +155,13 @@ def effective_review_version_id(project: EpisodeProject, row: dict[str, Any]) ->
     recorded = str(row.get("review_version_id") or "")
     if not row.get("follow_latest"):
         return recorded
+    versions = project.review.versions
     active = project.review.active_version_id
-    if active and any(v.id == active for v in project.review.versions):
+    if active and any(v.id == active for v in versions):
         return str(active)
+    if versions:
+        # Active cleared: keep serving the newest mix, never fall back to the first one.
+        return str(max(versions, key=lambda v: str(v.created_at or "")).id)
     return recorded
 
 

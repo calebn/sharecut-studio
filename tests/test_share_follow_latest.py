@@ -126,3 +126,15 @@ def test_revoking_a_follow_link_keeps_the_object_other_links_serve(
     # follow link on the active version must count as a user of it.
     assert delete_object_store_object_if_unused(ws, first["id"]) is False
     ShareService(ws).revoke(link["token"])
+
+
+def test_follow_latest_keeps_the_newest_mix_when_the_active_version_is_cleared(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    first = ReviewService(ws).publish(label="Rough cut")
+    link = ShareService(ws).create(review_version_id=first["id"], follow_latest=True)
+    second = _publish_second(ws, "Intro fix")
+    ReviewService(ws).set_active(None)
+    row, _ = open_share_workspace(link["token"])
+    assert row["review_version_id"] == second["id"]

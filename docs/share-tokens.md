@@ -114,7 +114,7 @@ off.
 
 Tables (portable schema contract for a future relay backend):
 
-- `active_shares(token PRIMARY KEY, id, project_workspace, review_version_id, created_at, last_used_at, expires_at, capabilities, kind, role, session_id)`: `id` is the random per-share id (`EditDecision.author`); `kind` is `review` \| `record` (default `review`)
+- `active_shares(token PRIMARY KEY, id, project_workspace, review_version_id, created_at, last_used_at, expires_at, capabilities, kind, role, session_id)`; the per-workspace sidecar row also holds `follow_latest` (the link serves the active review version): `id` is the random per-share id (`EditDecision.author`); `kind` is `review` \| `record` (default `review`)
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
 - `recording_key_secret(singleton=1, secret BLOB)`: one random 32-byte host installation secret
 
@@ -522,7 +522,7 @@ CLI:
 
 1. `export PODCAST_SHARE_REGISTRY="$HOME/.podcast_mcp/share_registry.sqlite"` (optional pin)
 2. `podcast review publish-version --label "Guest pass"`
-3. `podcast review share --role commenter --version <vid> --base-url https://share.example.com`
+3. `podcast review share --role commenter --base-url https://share.example.com`
 4. Guest opens `https://share.example.com/r/fantastic-acoustic-whale`
 5. Prefer relay + `podcast tunnel` ([host-online-relay.md](host-online-relay.md))
 6. Periodic: `podcast review backup-registry`

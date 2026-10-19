@@ -720,7 +720,7 @@ export PODCAST_REVIEW_CORS_ORIGINS=https://your-origin.example
 # PODCAST_SESSION_TOKEN if unset; open the printed URL (includes session_token).
 podcast gui --host 0.0.0.0 --port 8765 --project episode.project.json
 podcast review publish-version --project episode.project.json --label "Guest v1"
-podcast review share --project episode.project.json --version <id> \
+podcast review share --project episode.project.json \
   --role commenter --base-url http://YOUR_HOST:8765
 ```
 
@@ -736,7 +736,7 @@ Guests use `/r/{token}` or `/rec/{token}` only (no `?project=` paths). `--role v
 
 ```bash
 PODCAST_REMOTE_MCP=1 podcast gui --project episode.project.json --no-open
-podcast review share --project episode.project.json --version <id> \
+podcast review share --project episode.project.json \
   --role commenter --with-mcp \
   --base-url https://share.example.com
 # Cursor: { "mcpServers": { "podcast-remote": { "url": "<printed MCP URL>" } } }

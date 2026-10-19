@@ -513,15 +513,20 @@ def test_cli_share_kind_record_reinvite_producer(
     assert payload["session_id"] == room["session_id"]
 
 
-def test_cli_share_review_requires_version(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+def test_cli_share_review_follows_latest_without_version(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
     _seed_premix(minimal_project, sample_wav)
     runner = CliRunner()
-    result = runner.invoke(
-        cli_app,
-        ["review", "share", "--project", str(minimal_project), "--kind", "review"],
-    )
-    assert result.exit_code == 2
-    assert "--version is required" in result.output
+    base = ["review", "share", "--project", str(minimal_project), "--kind", "review"]
+    followed = runner.invoke(cli_app, base)
+    assert followed.exit_code == 0, followed.output
+    assert "Follows the latest published version" in followed.output
+    assert '"follow_latest": true' in followed.output
+    pinned = runner.invoke(cli_app, [*base, "--pin"])
+    assert pinned.exit_code == 0, pinned.output
+    assert '"follow_latest": false' in pinned.output
+    assert "Frozen on" in pinned.output
 
 
 def test_cli_share_record_rejects_mcp_and_restricted(

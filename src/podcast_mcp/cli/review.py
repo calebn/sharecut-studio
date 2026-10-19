@@ -246,6 +246,15 @@ def review_share_cmd(
     for warning in row.get("warnings") or []:
         typer.echo(f"\nWarning: {warning['message']}", err=True)
     typer.echo(f"\nShare URL: {row['url']}", err=True)
+    if row.get("follow_latest"):
+        typer.echo(
+            "Follows the latest published version (--pin or --version freezes a link).",
+            err=True,
+        )
+    else:
+        typer.echo(
+            f"Frozen on {row.get('review_version_label') or row['review_version_id']}.", err=True
+        )
     if row.get("mcp_url"):
         typer.echo(f"MCP URL: {row['mcp_url']}", err=True)
         if row.get("general_access") == "restricted" or row.get("require_sign_in"):
