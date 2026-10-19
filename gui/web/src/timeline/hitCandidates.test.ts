@@ -227,6 +227,106 @@ describe("rankHitTargets", () => {
   });
 });
 
+describe("a comment pin's reach", () => {
+  // A 44 px wide pin in the 24 px comments row at y 76..100; clip B starts below at y 109.
+  const pin: HitTarget = {
+    kind: "comment",
+    id: "c1",
+    rect: { left: 181, top: 76, right: 225, bottom: 100 },
+    selected: false,
+  };
+  const clipBody: HitTarget = {
+    kind: "clip",
+    id: "clip-b",
+    rect: { left: 100, top: 109, right: 400, bottom: 195 },
+    selected: false,
+  };
+  const kinds = (at: { x: number; y: number }, selected = false) =>
+    rankHitTargets([{ ...pin, selected }, clipBody], at, 22, clipBody).map(
+      (r) => r.candidate.kind,
+    );
+
+  it("reaches sideways along its row", () => {
+    expect(
+      rankHitTargets([pin], { x: 240, y: 88 }, 22, null).map(
+        (r) => r.candidate.kind,
+      ),
+    ).toEqual(["comment"]);
+  });
+
+  it("picks the nearer of two neighbouring pins even when the farther is selected", () => {
+    const b: HitTarget = {
+      ...pin,
+      id: "c2",
+      selected: true,
+      rect: { left: 211, top: 76, right: 255, bottom: 100 },
+    };
+    const a = { ...pin, rect: { left: 181, top: 76, right: 225, bottom: 100 } };
+    const ids = (hit: HitTarget) =>
+      rankHitTargets([a, b], { x: 190, y: 88 }, 22, hit).map(
+        (r) => r.candidate.id,
+      );
+    expect(ids(a)).toEqual(["c1", "c2"]);
+  });
+
+  it("keeps the selected pin first among pins at the same distance", () => {
+    const stacked = [pin, { ...pin, id: "c2", selected: true }];
+    expect(
+      rankHitTargets(stacked, { x: 203, y: 88 }, 22, pin).map(
+        (r) => r.candidate.id,
+      )[0],
+    ).toBe("c2");
+  });
+
+  it("keeps row distance ordering ahead of a directly hit selected activation band", () => {
+    const farther = {
+      ...pin,
+      id: "c2",
+      selected: true,
+      rect: { left: 211, top: 76, right: 255, bottom: 100 },
+    };
+    const band: HitTarget = {
+      ...pin,
+      kind: "bleed-attenuation",
+      id: "region-key",
+      selected: true,
+    };
+    expect(
+      rankHitTargets([band, farther, pin], { x: 190, y: 88 }, 22, band).map(
+        ({ candidate }) => candidate.id,
+      ),
+    ).toEqual(["c1", "c2", "region-key"]);
+    expect(
+      rankHitTargets([band, farther, pin], { x: 190, y: 88 }, 22, pin).map(
+        ({ candidate }) => candidate.id,
+      ),
+    ).toEqual(["c1", "c2"]);
+  });
+
+  it("keeps off-row pins out of a directly hit activation band", () => {
+    const band: HitTarget = {
+      ...clipBody,
+      kind: "bleed-attenuation",
+      id: "region-key",
+      selected: true,
+    };
+    expect(
+      rankHitTargets([pin, band], { x: 203, y: 118 }, 22, band).map(
+        ({ candidate }) => candidate.kind,
+      ),
+    ).toEqual(["bleed-attenuation"]);
+  });
+
+  it("leaves a finger on the clip below to the clip, selected or not", () => {
+    expect(kinds({ x: 203, y: 118 })).toEqual(["clip"]);
+    expect(kinds({ x: 203, y: 118 }, true)).toEqual(["clip"]);
+  });
+
+  it("leaves a finger on the ruler above to the ruler", () => {
+    expect(rankHitTargets([pin], { x: 203, y: 60 }, 22, null)).toEqual([]);
+  });
+});
+
 describe("a body", () => {
   // Clip B's body, under every target at its start.
   const body: HitTarget = {

@@ -73,6 +73,11 @@ export interface HitKindContract {
   body: boolean;
   /** Broad activation targets participate only when the browser hits them. */
   directOnly?: boolean;
+  /**
+   * `row`: a marker-lane target that reaches sideways along its own row only.
+   * A finger on the ruler or a clip beside the lane is never taken by it.
+   */
+  reach?: "row";
 }
 
 /** Every hit-testable timeline target kind and its input contract. */
@@ -236,6 +241,18 @@ export const HIT_KINDS = {
     command: null,
     outranks: [],
     body: false,
+  },
+  comment: {
+    priority: 3,
+    label: "Comment",
+    axis: "none",
+    nudges: [],
+    soft: false,
+    keys: "activate",
+    command: null,
+    outranks: [],
+    body: false,
+    reach: "row",
   },
   "social-clip": {
     priority: 2,
