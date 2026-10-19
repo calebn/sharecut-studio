@@ -54,7 +54,7 @@ for (const viewport of [
           name: "Automatic regions in this clip",
         });
         const region = regions.getByRole("button", {
-          name: /^Automatic speaker mute, timeline/,
+          name: /^Automatic speaker mute Timeline .* Source /,
         });
         await expect(region).toBeVisible();
         const restore = page.getByRole("button", {

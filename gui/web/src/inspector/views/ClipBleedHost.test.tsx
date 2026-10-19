@@ -112,7 +112,9 @@ function setHead(next = head) {
   });
 }
 async function ready() {
-  return screen.findByRole("button", { name: /^Automatic reduction,/ });
+  return screen.findByRole("button", {
+    name: /^Automatic reduction Timeline /,
+  });
 }
 
 beforeEach(() => {

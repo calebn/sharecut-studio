@@ -2,7 +2,6 @@ import {
   BLEED_ATTENUATION_LABELS,
   type BleedAttenuationInspection,
   bleedAttenuationRegionKey,
-  bleedAttenuationRegionLabel,
   bleedAttenuationSpanLabel,
 } from "../../edit/bleedAttenuation";
 import { Button } from "../../ui/Button";
@@ -210,14 +209,16 @@ export function BleedAttenuationInspector<TTarget, TUndo = never>({
                 return (
                   <Button
                     key={key}
-                    aria-label={bleedAttenuationRegionLabel(region)}
                     aria-pressed={selectedKey === key}
                     disabledReason={busy ? busyLabel : undefined}
                     onClick={() => onSelect(key)}
                   >
-                    {BLEED_ATTENUATION_LABELS[region.kind]}
+                    {BLEED_ATTENUATION_LABELS[region.kind]}{" "}
                     <span>
                       Timeline {bleedAttenuationSpanLabel(region.timelineSpan)}
+                    </span>{" "}
+                    <span>
+                      Source {bleedAttenuationSpanLabel(region.sourceSpan)}
                     </span>
                   </Button>
                 );

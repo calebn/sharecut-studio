@@ -95,7 +95,7 @@ describe("BleedAttenuationInspector", () => {
       screen.getByRole("button", { name: "Restore original audio" }),
     ).toBeDisabled();
     const second = screen.getByRole("button", {
-      name: /^Automatic speaker mute,/,
+      name: /^Automatic speaker mute Timeline /,
     });
     second.focus();
     await userEvent.keyboard("{Enter} ");
