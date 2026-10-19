@@ -138,3 +138,28 @@ def test_follow_latest_keeps_the_newest_mix_when_the_active_version_is_cleared(
     ReviewService(ws).set_active(None)
     row, _ = open_share_workspace(link["token"])
     assert row["review_version_id"] == second["id"]
+
+
+def test_object_cleanup_keeps_the_newest_mix_a_follow_link_serves_without_an_active_version(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.media.review_media import delete_object_store_object_if_unused
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    first = ReviewService(ws).publish(label="Rough cut")
+    ShareService(ws).create(review_version_id=first["id"], follow_latest=True)
+    second = _publish_second(ws, "Intro fix")
+    ReviewService(ws).set_active(None)
+    ws.reload()
+    for ver in ws.project.review.versions:
+        ver.object_store_key = f"mix/{ver.id}.wav"
+
+    class FakeStore:
+        deleted: list[str] = []
+
+        def delete_object(self, key):
+            self.deleted.append(key)
+
+    store = FakeStore()
+    assert delete_object_store_object_if_unused(ws, second["id"], object_store=store) is False
+    assert store.deleted == []
