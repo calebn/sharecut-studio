@@ -456,6 +456,27 @@ def _defaults_without_word_probe(defaults: dict[str, Any]) -> dict[str, Any]:
     return {**defaults, "tighten": tighten}
 
 
+def _tighten_analysis_ran_this_run(project: EpisodeProject, defaults: dict[str, Any]) -> bool:
+    """True when ``analyze_fillers_pauses`` completed earlier in the run that is running now.
+
+    Enabled is not enough: ``--from apply_sound_actions`` or a skipped analysis leaves the
+    proposals of an earlier run on the project, and those are stale.
+    """
+    from podcast_mcp.pipeline.meta import step_noop_reason
+
+    if (
+        step_noop_reason("analyze_fillers_pauses", defaults) is not None
+        or not project.pipeline_runs
+    ):
+        return False
+    return any(
+        log.step == "analyze_fillers_pauses"
+        and log.status == "ok"
+        and not (log.message or "").startswith("skipped")
+        for log in project.pipeline_runs[-1].steps
+    )
+
+
 def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     """Propose and apply each non-speech sound's suggested action, in this one step (#1434).
 
@@ -467,6 +488,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
     from podcast_mcp.edits.cut_safety import decision_policy, is_non_speech_sound
     from podcast_mcp.edits.suggested_actions import (
         SuggestedActionsResult,
+        drop_decided_sounds,
     )
     from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
     from podcast_mcp.pipeline.meta import step_noop_reason
@@ -479,8 +501,9 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
         "Applying sound actions",
         prefer_parent=True,
     ) as prog:
-        if step_noop_reason("analyze_fillers_pauses", defaults) is not None:
-            # The tighten analysis did not run, so look for sounds here and keep only those.
+        if not _tighten_analysis_ran_this_run(project, defaults):
+            # The proposals on the project are from an earlier run (or none), so look for
+            # sounds here and keep only those.
             prog.set_phase("propose", "Looking for non-speech sounds…")
             scratch = project.model_copy(deep=True)
             # Proving each sound reads the same stems and paths again and again; the scan only
@@ -493,6 +516,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
             project.edit_decisions = [
                 e for e in project.edit_decisions if e.applied or not is_non_speech_sound(e.reason)
             ] + found
+        drop_decided_sounds(project)
         prog.set_phase("apply", "Applying sound actions…")
         actions: dict[str, str] = {
             e.id: policy.action

@@ -881,6 +881,11 @@ enforced-by:
 - tests/test_apply_sound_actions_step.py::test_the_defaults_apply_sounds_without_turning_tighten_on
 - tests/test_apply_sound_actions_step.py::test_the_step_acts_on_sounds_and_leaves_spoken_proposals_pending
 - tests/test_apply_sound_actions_step.py::test_with_tighten_off_the_scan_skips_the_word_probe
+- tests/test_apply_sound_actions_step.py::test_with_tighten_on_but_analysis_not_run_the_step_ignores_stale_proposals
+- tests/test_apply_sound_actions_step.py::test_a_rerun_does_not_relower_a_lower_the_editor_removed
+- tests/test_apply_sound_actions_step.py::test_a_rerun_does_not_propose_a_left_sound_again
+- tests/test_session_timeline.py::test_same_source_overlaps_count_a_lowered_span_as_audible_but_not_a_mute
+- tests/test_acoustic_gap.py::test_coalesce_keeps_a_likely_laugh_apart_from_a_pause_or_filler_beside_it
 - tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
 - tests/test_acoustic_gap.py::test_a_span_the_model_hears_as_a_word_is_flagged_held_and_named_in_the_summary
@@ -936,10 +941,25 @@ The rules that follow from it:
    on the non-speech kinds only. Filler, pause, repetition and restart
    proposals keep their own gate: they apply only through the tighten steps,
    behind `tighten.enabled`, and a cut the speech guard holds there still waits
-   for review.
+   for review. The step uses the proposals already on the project only when
+   `analyze_fillers_pauses` completed earlier in the same run. Otherwise
+   (`--from apply_sound_actions`, `--only`, or a skipped analysis) it scans for
+   sounds itself, because the proposals left by an earlier run are stale. A
+   proposal never merges a laugh or unclear sound with a pause or filler cut
+   beside it: review-only proposals stay apart in coalescing
+   (`_keeps_independent_review`).
+   Apply suggested actions records every sound it lowers or leaves in
+   `editorial.sound_actions` (track, source, span, action). The step drops
+   pending sounds that most of an existing record already covers, so a re-run
+   does not lower a sound again or propose a left one again, and a lower the
+   editor removed by hand stays removed. The record survives that removal and
+   goes only with History Undo of the batch.
 4. **A laugh over someone else is a level problem.** Each speaker has a track,
    so lowering the laugh keeps both the laugh and the other speaker's words.
-   Lower reuses the per-track attenuation bleed handling already uses.
+   Lower reuses the per-track attenuation bleed handling already uses. A lowered
+   span still plays, so no later check treats it as silence: the same-source
+   overlap check counts it as audible, and only a mute (no `gain_db`) is skipped
+   as `already_muted` or counted as muted.
 5. **One table, not a detector per sound.** Adding a kind adds a row to the
    table and to its one table-driven test. Owner verdicts on clips are evidence
    for the defaults, never targets to tune a threshold against.

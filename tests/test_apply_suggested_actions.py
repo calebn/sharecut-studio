@@ -96,6 +96,10 @@ def test_one_step_cuts_lowers_and_leaves_each_by_its_own_action(
         for r in clip.mute_regions
     }
     assert regions == {(3.0, 3.3, -12.0)}
+    assert [
+        (r.track_id, r.start_s, r.end_s, r.action)
+        for r in load_project(Path(path)).editorial.sound_actions
+    ] == [("host", 3.0, 3.3, "lower"), ("host", 5.0, 5.3, "leave")]
 
 
 def test_a_laugh_nobody_talks_over_is_left(tmp_path, sample_wav, monkeypatch) -> None:
@@ -180,6 +184,12 @@ def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
     assert _layout(path) == [(0.0, 0.0, 10.0)]
     assert [(r.start_s, r.gain_db) for c in project.clips for r in c.mute_regions] == [(3.0, -12.0)]
     assert _pending(path) == ["manual"]
+    # Revising steps back to before the batch, so a sound is recorded once, and a spoken
+    # filler left by hand is not a sound the pipeline would propose again.
+    assert [(r.start_s, r.action) for r in project.editorial.sound_actions] == [
+        (3.0, "lower"),
+        (5.0, "leave"),
+    ]
     # The revised batch is again one undo step back to the proposals.
     HistoryService(ProjectWorkspace.open(path)).undo()
     assert _pending(path) == ["laugh", "manual", "um", "word"]

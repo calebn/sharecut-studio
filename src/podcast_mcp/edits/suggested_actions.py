@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from podcast_mcp.edits.cut_safety import decision_policy
 from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.models import (
     EditDecision,
     EpisodeProject,
+    SoundActionRecord,
 )
 
 log = logging.getLogger(__name__)
@@ -91,3 +92,53 @@ def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> boo
     except (OSError, ValueError):
         log.debug("peer speech check unavailable for %s", decision.id, exc_info=True)
         return False
+
+
+# A re-scan moves a sound's edges a little, so a decided sound is matched by how much of the
+# new proposal it already covers, not by equal bounds.
+_DECIDED_OVERLAP = 0.5
+
+
+def record_sound_action(
+    project: EpisodeProject, decision: EditDecision, action: Literal["lower", "leave"]
+) -> None:
+    """Remember that ``decision``'s sound was lowered or left, so a re-run does not redo it."""
+    from podcast_mcp.edits.cut_safety import is_non_speech_sound
+
+    if decision.timebase != "source" or not is_non_speech_sound(decision.reason):
+        return
+    project.editorial.sound_actions.append(
+        SoundActionRecord(
+            track_id=decision.track_id,
+            source_id=decision.source_id,
+            start_s=decision.start,
+            end_s=decision.end,
+            action=action,
+        )
+    )
+
+
+def is_decided_sound(project: EpisodeProject, decision: EditDecision) -> bool:
+    """True when most of ``decision``'s span is already a lowered or left sound."""
+    length = decision.end - decision.start
+    if length <= 0:
+        return False
+    return any(
+        min(decision.end, r.end_s) - max(decision.start, r.start_s) >= _DECIDED_OVERLAP * length
+        for r in project.editorial.sound_actions
+        if r.track_id == decision.track_id and r.source_id == decision.source_id
+    )
+
+
+def drop_decided_sounds(project: EpisodeProject) -> int:
+    """Drop pending non-speech proposals of sounds already lowered or left; returns the count."""
+    from podcast_mcp.edits.cut_safety import is_non_speech_sound
+
+    kept = [
+        e
+        for e in project.edit_decisions
+        if e.applied or not is_non_speech_sound(e.reason) or not is_decided_sound(project, e)
+    ]
+    dropped = len(project.edit_decisions) - len(kept)
+    project.edit_decisions = kept
+    return dropped
