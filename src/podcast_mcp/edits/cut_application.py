@@ -1357,7 +1357,10 @@ def apply_suggested_to_project(
     done: set[str] = set()
     for edit_id in [i for i, a in actions.items() if a == "lower" and i in by_id]:
         decision = by_id[edit_id]
-        if not another_speaker_over(project, decision):
+        over = another_speaker_over(project, decision)
+        if over is None:
+            result.held.append(edit_id)  # unreadable, so neither lowered nor recorded as left
+        elif not over:
             actions[edit_id] = "leave"
             result.left_no_overlap += 1
         elif apply_lower(project, decision, application_intent=application_intent):

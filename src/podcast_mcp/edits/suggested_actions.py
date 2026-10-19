@@ -67,8 +67,12 @@ def describe_sounds(
         info = decision_policy(decision)
         mapped = edit_timeline_range(project, decision)
         action = actions[decision.id]
-        if action == "lower" and not another_speaker_over(project, decision):
-            action = "leave"  # what apply_suggested_to_project will do with it
+        if action == "lower":
+            over = another_speaker_over(project, decision)
+            if over is False:
+                action = "leave"  # what apply_suggested_to_project will do with it
+            elif over is None:
+                action = "pending"  # the check could not read audio; the sound stays pending
         rows.append(
             {
                 "id": decision.id,
@@ -81,8 +85,12 @@ def describe_sounds(
     return rows
 
 
-def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> bool:
-    """True when a peer track is speaking over the decision's span."""
+def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> bool | None:
+    """True when a peer track is speaking over the span, False when none is, None when unknown.
+
+    None means the audio could not be read; a caller must not treat it as "nobody talks over
+    it", or a passing read failure becomes a recorded decision.
+    """
     from podcast_mcp.edits import cut_safety
 
     try:
@@ -91,7 +99,7 @@ def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> boo
         ).blocked
     except (OSError, ValueError):
         log.debug("peer speech check unavailable for %s", decision.id, exc_info=True)
-        return False
+        return None
 
 
 # A re-scan moves a sound's edges a little, so a decided sound is matched by how much of the
