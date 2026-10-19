@@ -111,6 +111,27 @@ def test_a_laugh_nobody_talks_over_is_left(tmp_path, sample_wav, monkeypatch) ->
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
 
 
+@pytest.mark.parametrize("error", [OSError("stem unreadable"), ValueError("bad span")])
+def test_an_unreadable_peer_check_leaves_the_sound_pending_not_recorded(
+    tmp_path, sample_wav, monkeypatch, error
+) -> None:
+    from podcast_mcp.edits import cut_safety
+
+    path = _project(tmp_path, sample_wav)
+
+    def unreadable(*_a, **_k):
+        raise error
+
+    monkeypatch.setattr(cut_safety, "assess_cross_track_speech", unreadable)
+    out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["laugh"])
+    assert out["held"] == ["laugh"]
+    assert out["lowered_to_leave"] == 0
+    assert "laugh" in _pending(path)
+    saved = load_project(Path(path))
+    assert saved.editorial.sound_actions == []
+    assert not any(c.mute_regions for c in saved.clips)
+
+
 def test_lowering_a_pending_remove_uses_the_mute_policy_row(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
