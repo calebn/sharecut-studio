@@ -873,6 +873,12 @@
               },
               "type": "array"
             },
+            "sound_actions": {
+              "items": {
+                "$ref": "#/$defs/SoundActionRecord"
+              },
+              "type": "array"
+            },
             "speaker_splits": {
               "items": {
                 "$ref": "#/$defs/SpeakerSplit"
@@ -2110,6 +2116,46 @@
               "type": "array"
             }
           },
+          "type": "object"
+        },
+        "SoundActionRecord": {
+          "properties": {
+            "action": {
+              "enum": [
+                "lower",
+                "leave"
+              ],
+              "type": "string"
+            },
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s",
+            "track_id",
+            "action"
+          ],
           "type": "object"
         },
         "SourceClippingRegion": {
@@ -3879,6 +3925,12 @@
               },
               "type": "array"
             },
+            "sound_actions": {
+              "items": {
+                "$ref": "#/$defs/SoundActionRecord"
+              },
+              "type": "array"
+            },
             "speaker_splits": {
               "items": {
                 "$ref": "#/$defs/SpeakerSplit"
@@ -5118,6 +5170,46 @@
           },
           "type": "object"
         },
+        "SoundActionRecord": {
+          "properties": {
+            "action": {
+              "enum": [
+                "lower",
+                "leave"
+              ],
+              "type": "string"
+            },
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s",
+            "track_id",
+            "action"
+          ],
+          "type": "object"
+        },
         "SourceClippingRegion": {
           "properties": {
             "end_s": {
@@ -6066,6 +6158,7 @@
     "SnapshotMeta": "ignore",
     "SocialClipCandidate": "ignore",
     "SocialSection": "ignore",
+    "SoundActionRecord": "ignore",
     "SourceClippingRegion": "ignore",
     "SourceRecording": "ignore",
     "SourceSpan": "ignore",

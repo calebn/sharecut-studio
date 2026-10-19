@@ -441,7 +441,9 @@ def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
                 automatic, [(r.start_s, r.end_s) for r in clip.bleed_restore.regions]
             )
         muted.extend((lo + shift, hi + shift) for lo, hi in automatic)
-        muted.extend((r.start_s + shift, r.end_s + shift) for r in clip.mute_regions)
+        muted.extend(
+            (r.start_s + shift, r.end_s + shift) for r in clip.mute_regions if r.gain_db is None
+        )
     return sum(end - start for start, end in subtract_intervals([(lo, hi)], muted))
 
 
@@ -459,7 +461,7 @@ def same_source_timeline_overlaps(
     where two lanes play at once, as ``both`` crosstalk does.
     Stored Restore windows count as potentially audible through automatic mutes.
     This geometric report does not hash recording content, so inactive choices may
-    conservatively flag a stack. Ordinary masks still exclude their spans.
+    conservatively flag a stack. Full ordinary mutes still exclude their spans.
     Checks ``clips`` (default: every project clip); empty clips are ignored.
     """
     groups: dict[str, list[Clip]] = {}

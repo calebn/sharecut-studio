@@ -513,6 +513,7 @@
         "edit_log": { "type": "array", "items": { "$ref": "#/$defs/AppliedEditRecord" } },
         "chapters": { "type": "array", "items": { "$ref": "#/$defs/ChapterMarker" } },
         "retained_bleed_alignments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RetainedBleedAlignmentDecision" } },
+        "sound_actions": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SoundActionRecord" } },
         "speaker_splits": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SpeakerSplit" } }
       }
     },
@@ -560,6 +561,18 @@
         "timeline_start": { "type": "number", "minimum": 0 },
         "provenance": { "type": "string", "enum": ["automatic", "requested_scoped_override"], "default": "automatic" },
         "evidence_revision": { "type": "integer", "default": 1 }
+      }
+    },
+    "SoundActionRecord": {
+      "type": "object",
+      "description": "A non-speech sound Apply suggested actions lowered or left, in source seconds on track_id; the pipeline skips a sound recorded here even after its lower is removed by hand. end_s must exceed start_s.",
+      "required": ["track_id", "start_s", "end_s", "action"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "source_id": { "type": ["string", "null"], "default": null },
+        "start_s": { "type": "number", "minimum": 0 },
+        "end_s": { "type": "number", "exclusiveMinimum": 0 },
+        "action": { "type": "string", "enum": ["lower", "leave"] }
       }
     },
     "AppliedEditRecord": {

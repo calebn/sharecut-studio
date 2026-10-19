@@ -843,6 +843,21 @@ class RetainedBleedAlignmentDecision(SourceSpan):
     evidence_revision: int = 1
 
 
+class SoundActionRecord(SourceSpan):
+    """A non-speech sound Apply suggested actions already decided, kept so a re-run skips it.
+
+    The span is source-media seconds on ``track_id`` (and ``source_id`` when the track has
+    several recordings). The record outlives the lower it describes: an editor who removes
+    the lower by hand has still decided the sound, so the pipeline does not lower it again.
+    """
+
+    track_id: str
+    source_id: str | None = None
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    end_s: float = Field(gt=0, allow_inf_nan=False)
+    action: Literal["lower", "leave"]
+
+
 class SpeakerTurnRecord(SourceSpan):
     """A stretch of a split recording and who talks in it, most likely first.
 
@@ -895,6 +910,7 @@ class EditorialSection(BaseModel):
     edit_log: list[AppliedEditRecord] = Field(default_factory=list)
     chapters: list[ChapterMarker] = Field(default_factory=list)
     retained_bleed_alignments: list[RetainedBleedAlignmentDecision] = Field(default_factory=list)
+    sound_actions: list[SoundActionRecord] = Field(default_factory=list)
     speaker_splits: list[SpeakerSplit] = Field(default_factory=list)
 
 

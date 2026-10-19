@@ -5,6 +5,11 @@ sqlite file**, read this doc and extend an existing store. Update this file and
 [AGENTS.md](../AGENTS.md) in the same change.
 
 
+Decided non-speech sounds extend the same store: `editorial.sound_actions` holds one
+`SoundActionRecord` (track, source, source-second span, `lower` or `leave`) per sound
+Apply suggested actions lowered or left, so the `apply_sound_actions` step skips it on a
+re-run, including after the editor removed the lower by hand. Editable snapshots include it.
+
 Local retained-bleed timing choices extend the existing project JSON store:
 `editorial.retained_bleed_alignments` contains typed source-scoped auto/manual/declined
 records, offsets, placement provenance, and evidence revision. There is no new

@@ -88,6 +88,11 @@ clips without a source ID on another lane. Matching unclipped playback holds.
 This identity proof stays transient. Source IDs and stored transcript ownership
 remain unchanged. An outgoing pause fade preserves an earlier incoming join.
 
+`editorial.sound_actions` stores `SoundActionRecord` rows: a non-speech sound that Apply
+suggested actions lowered or left, as a source-second span on `track_id` (and `source_id`)
+with `action` `lower` or `leave`. The `apply_sound_actions` step skips a proposed sound that
+a record mostly covers, even after the editor removed its lower by hand.
+
 `editorial.retained_bleed_alignments` stores local direct-phrase timing decisions.
 Each `RetainedBleedAlignmentDecision` names the direct and retained-bleed track,
 selected `source_id`, and source-clock phrase bounds `start_s` / `end_s`. It records
