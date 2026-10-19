@@ -427,15 +427,19 @@ class SourceStack:
 
 
 def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
-    """Seconds of ``[lo, hi)`` where neither clip mutes its audio."""
-    if not a.mute_regions and not b.mute_regions:
-        return hi - lo
+    """Seconds of ``[lo, hi)`` where neither clip mutes its audio.
+
+    A lowered span (``gain_db`` set) still plays, so it does not count as muted.
+    """
     muted = [
         (region.start_s + shift, region.end_s + shift)
         for clip in (a, b)
         for shift in (clip_source_to_timeline_shift(clip),)
         for region in clip.mute_regions
+        if region.gain_db is None
     ]
+    if not muted:
+        return hi - lo
     return sum(end - start for start, end in subtract_intervals([(lo, hi)], muted))
 
 
