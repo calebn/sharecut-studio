@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { partial, rule, rules } from "../test/cssRules";
 
@@ -61,6 +62,26 @@ describe("shell grid areas", () => {
         expect(["--shell-main-row", "--shell-tabs-row"]).toContain(p);
       }
     }
+  });
+
+  it("shares the desktop main-row floor with measured splitter geometry", () => {
+    const desktop = rule(
+      layoutCss,
+      ':where(html[data-shell="desktop"]) .daw-shell',
+    );
+    expect(desktop).toContain(
+      "--shell-main-min-height: var(--editor-main-min-height)",
+    );
+    expect(desktop).toContain("minmax(var(--shell-main-min-height), 1fr)");
+    const tokens = readFileSync(
+      `${process.cwd()}/src/styles/theme/tokens.css`,
+      "utf8",
+    );
+    expect(tokens).toContain("--editor-main-min-height: 7.5rem");
+    const signal = rule(layoutCss, ".splitter-rem-signal");
+    expect(signal).toContain("position: absolute");
+    expect(signal).toContain("block-size: 1rem");
+    expect(signal).toContain("visibility: hidden");
   });
 
   it("places every area, including the phone nav", () => {

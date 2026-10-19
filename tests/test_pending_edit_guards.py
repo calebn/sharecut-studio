@@ -211,7 +211,13 @@ def test_stale_http_command_replay_returns_conflict_and_keeps_newer_edit(
         response = client.post(url, json=body)
         assert response.status_code == 409
         assert response.json()["detail"]["conflict"] is True
-        assert "changed since you reviewed" in response.json()["detail"]["detail"]
+        message = response.json()["detail"]["detail"]
+        if guest:
+            assert message == (
+                "This edit changed since you reviewed it. Review the updated edit before trying again."
+            )
+        else:
+            assert "changed since you reviewed" in message
         assert pending_project.read_bytes() == before
     current = PendingEditBaseline("host", EditDecisionType.REMOVE, "source", 2, 9)
     valid = _command(expected=current, command_id="reviewed-new-bounds", client_seq=2)

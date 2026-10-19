@@ -4,7 +4,12 @@
  * targets crowd one spot. The selected target wins, then the nearest, then
  * the kind's priority.
  */
-import { HIT_KINDS, type HitKind, outranks } from "./inputContract";
+import {
+  HIT_KINDS,
+  type HitKind,
+  type HitKindContract,
+  outranks,
+} from "./inputContract";
 
 /** Viewport px box, as `getBoundingClientRect` reports it. */
 export interface HitRect {
@@ -59,6 +64,22 @@ export function rectDistance(rect: HitRect, p: HitPoint): number {
   return Math.hypot(dx, dy);
 }
 
+function isRowKind(kind: HitKind): boolean {
+  return (HIT_KINDS[kind] as HitKindContract).reach === "row";
+}
+
+function inReach(
+  rect: HitRect,
+  pointer: HitPoint,
+  radiusPx: number,
+  reach: "row" | undefined,
+): boolean {
+  if (reach === "row" && (pointer.y < rect.top || pointer.y > rect.bottom)) {
+    return false;
+  }
+  return rectDistance(rect, pointer) <= radiusPx;
+}
+
 /**
  * Nearest point of the box's core: the box shrunk by half its short side, so
  * a square's core is its centre and a tall strip's is its centre line. Ranking
@@ -109,7 +130,15 @@ export function rankHitTargets<T extends HitTarget>(
       }
       continue;
     }
-    if (target !== hit && rectDistance(target.rect, pointer) > radiusPx) {
+    if (
+      target !== hit &&
+      !inReach(
+        target.rect,
+        pointer,
+        radiusPx,
+        (HIT_KINDS[target.kind] as HitKindContract).reach,
+      )
+    ) {
       continue;
     }
     const core = corePoint(target.rect, pointer);
@@ -129,12 +158,17 @@ export function rankHitTargets<T extends HitTarget>(
       },
     });
   }
-  ranked.sort(
-    ({ candidate: a }, { candidate: b }) =>
-      Number(b.selected) - Number(a.selected) ||
-      a.distance - b.distance ||
-      b.priority - a.priority,
-  );
+  ranked.sort(({ candidate: a }, { candidate: b }) => {
+    const bySelected = Number(b.selected) - Number(a.selected);
+    const byDistance = a.distance - b.distance;
+    // Marker pins sit a finger's width apart: the nearer one is the one
+    // meant, selected or not. Equal distance (a stack) keeps selected first.
+    return (
+      (isRowKind(a.kind) && isRowKind(b.kind)
+        ? byDistance || bySelected
+        : bySelected || byDistance) || b.priority - a.priority
+    );
+  });
   if (ranked.length === 0 && body) return [body];
   return applyOutranks(ranked);
 }

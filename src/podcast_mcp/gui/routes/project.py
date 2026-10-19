@@ -26,6 +26,7 @@ from podcast_mcp.gui.routes.deps import (
     require_host,
     resolve_project,
 )
+from podcast_mcp.gui.routes.handoff import set_served_project
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
@@ -60,15 +61,14 @@ def pin_served_if_allowed(request: Request, project_path: Path) -> None:
     if not _peer_may_switch_project(request):
         return
     served = project_path.resolve()
-    request.app.state.served_project = served
-    request.app.state.jobs.set_served_project(served)
+    if request.app.state.served_project != served:
+        set_served_project(request.app, served)
 
 
 def _unpin_served_if_allowed(request: Request) -> None:
     if not _peer_may_switch_project(request):
         return
-    request.app.state.served_project = None
-    request.app.state.jobs.set_served_project(None)
+    set_served_project(request.app, None)
 
 
 def _require_episode_path(path_raw: str) -> Path:

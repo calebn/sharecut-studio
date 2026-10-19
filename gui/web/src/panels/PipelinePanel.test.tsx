@@ -301,6 +301,33 @@ function withMasterLufsParam() {
 }
 
 describe("PipelinePanel", () => {
+  it("keeps shortcuts accessible and retains form and disclosure state on rerender", async () => {
+    const { container, rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    await screen.findByRole("button", { name: "Balance tracks" });
+    const summary = screen.getByText("From / Only shortcuts", { exact: true });
+    await userEvent.click(summary);
+    const only = screen.getByRole("combobox", { name: "Only step" });
+    await userEvent.selectOptions(only, "transcribe_tracks");
+    only.focus();
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    expect(screen.getByRole("combobox", { name: "Only step" })).toBe(only);
+    expect(only).toHaveFocus();
+    expect(only).toHaveValue("transcribe_tracks");
+    expect(screen.getByText("From / Only shortcuts", { exact: true })).toBe(
+      summary,
+    );
+    expect(summary.closest("details")).toHaveAttribute("open");
+    await expectNoA11yViolations(container);
+  });
+
   it("merges a parameter edit into the latest working set", async () => {
     const initial: Omit<typeof baseConfig, "config" | "defaults"> &
       Pick<PipelineConfigResponse, "config" | "defaults"> =

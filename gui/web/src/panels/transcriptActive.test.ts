@@ -151,3 +151,38 @@ describe("indexed transcript highlights", () => {
     expect(transcriptActiveKey(index, 10.06)).toBe("|");
   });
 });
+
+describe("audible-only highlight (#1754)", () => {
+  const mixed = utt(
+    0,
+    4,
+    [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+    ],
+    {},
+  );
+  mixed.words![1]!.suppressed = true;
+  mixed.words![2]!.ignored = true;
+  const bleed = utt(0, 4, [[0, 1]], {});
+  bleed.words![0]!.suppressed = true;
+  const index = buildTranscriptActiveIndex([mixed, bleed]);
+
+  it("never marks a suppressed or ignored word active", () => {
+    expect(
+      parseTranscriptActiveKey(transcriptActiveKey(index, 1.5)).words.size,
+    ).toBe(0);
+    expect(
+      parseTranscriptActiveKey(transcriptActiveKey(index, 2.5)).words.size,
+    ).toBe(0);
+    expect([
+      ...parseTranscriptActiveKey(transcriptActiveKey(index, 0.5)).words,
+    ]).toEqual([activeWordId(0, 0)]);
+  });
+
+  it("never marks an all-muted row active", () => {
+    const a = parseTranscriptActiveKey(transcriptActiveKey(index, 0.5));
+    expect(a.utterances.has(1)).toBe(false);
+  });
+});

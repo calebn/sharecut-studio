@@ -13,6 +13,8 @@ from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
     MediaAsset,
+    PipelineRun,
+    PipelineStepLog,
     Track,
     TrackRole,
     load_project,
@@ -86,10 +88,28 @@ def test_turning_the_setting_off_leaves_every_sound_pending(sounds_project):
     ]
 
 
+def _analysis_ran_in_this_run(project, message: str = "3 proposed") -> None:
+    project.pipeline_runs.append(
+        PipelineRun(
+            id="run",
+            started_at="2026-10-19T00:00:00+00:00",
+            steps=[
+                PipelineStepLog(
+                    step="analyze_fillers_pauses",
+                    started_at="2026-10-19T00:00:00+00:00",
+                    message=message,
+                ),
+                PipelineStepLog(step="apply_sound_actions", started_at="2026-10-19T00:00:01+00:00"),
+            ],
+        )
+    )
+
+
 def test_the_step_acts_on_sounds_and_leaves_spoken_proposals_pending(sounds_project, monkeypatch):
-    # Tighten analysis is on, so the step uses the proposals already on the project.
+    # Tighten analysis ran in this run, so the step uses the proposals it just left.
     defaults = load_defaults()
     defaults["tighten"]["enabled"] = True
+    _analysis_ran_in_this_run(sounds_project)
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
 
     summary = steps.apply_sound_actions(sounds_project, defaults)
@@ -155,3 +175,120 @@ def test_with_tighten_off_the_scan_shares_its_repeat_reads(sounds_project, monke
     scope, block = seen["state"]
     assert scope is not None and block is not None
     assert batch_scope.snapshot() == (None, None)
+
+
+def _stale_run_then_scan(monkeypatch, sounds_project, found):
+    seen = {"scans": 0}
+
+    def propose(project, cfg, *, replace_existing):
+        seen["scans"] += 1
+        return type("Proposal", (), {"decisions": found})()
+
+    monkeypatch.setattr(steps, "propose_tighten_edits", propose)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    return seen
+
+
+def test_with_tighten_on_but_analysis_not_run_the_step_ignores_stale_proposals(
+    sounds_project, monkeypatch
+):
+    # ``--from apply_sound_actions``: the proposals on the project come from an earlier run.
+    defaults = load_defaults()
+    defaults["tighten"]["enabled"] = True
+    seen = _stale_run_then_scan(monkeypatch, sounds_project, [])
+
+    summary = steps.apply_sound_actions(sounds_project, defaults)
+
+    assert seen["scans"] == 1
+    assert summary == "no non-speech sounds to act on"
+    assert sounds_project.clips[0].mute_regions == []
+    assert [e.id for e in sounds_project.edit_decisions if not e.applied] == ["um"]
+
+
+def test_an_analysis_that_skipped_does_not_count_as_fresh(sounds_project, monkeypatch):
+    defaults = load_defaults()
+    defaults["tighten"]["enabled"] = True
+    _analysis_ran_in_this_run(sounds_project, message="skipped (tighten.enabled=false)")
+    seen = _stale_run_then_scan(monkeypatch, sounds_project, [])
+
+    steps.apply_sound_actions(sounds_project, defaults)
+
+    assert seen["scans"] == 1
+
+
+def test_a_rerun_does_not_relower_a_lower_the_editor_removed(sounds_project, monkeypatch):
+    defaults = load_defaults()
+    laugh = _decision("laugh", "filler:acoustic:likely_laugh", 3.0)
+    seen = _stale_run_then_scan(monkeypatch, sounds_project, [laugh])
+
+    assert steps.apply_sound_actions(sounds_project, defaults) == "Applied 1 lower."
+    (clip,) = sounds_project.clips
+    assert [(r.start_s, r.gain_db) for r in clip.mute_regions] == [(3.0, -12.0)]
+
+    clip.mute_regions = []  # the editor removed the lower by hand
+    again = _decision("laugh-again", "filler:acoustic:likely_laugh", 3.02)
+    seen["scans"] = 0
+    monkeypatch.setattr(
+        steps,
+        "propose_tighten_edits",
+        lambda *a, **k: type("Proposal", (), {"decisions": [again]})(),
+    )
+
+    assert steps.apply_sound_actions(sounds_project, defaults) == "no non-speech sounds to act on"
+    assert clip.mute_regions == []
+    assert [e.id for e in sounds_project.edit_decisions if "laugh" in e.id] == []
+
+
+def test_a_rerun_does_not_propose_a_left_sound_again(sounds_project, monkeypatch):
+    defaults = load_defaults()
+    unclear = _decision("unclear", "filler:acoustic", 5.0)
+    _stale_run_then_scan(monkeypatch, sounds_project, [unclear])
+    assert steps.apply_sound_actions(sounds_project, defaults) == "Applied 1 leave."
+
+    monkeypatch.setattr(
+        steps,
+        "propose_tighten_edits",
+        lambda *a, **k: type(
+            "Proposal", (), {"decisions": [_decision("unclear2", "filler:acoustic", 5.0)]}
+        )(),
+    )
+
+    assert steps.apply_sound_actions(sounds_project, defaults) == "no non-speech sounds to act on"
+    assert [e.id for e in sounds_project.edit_decisions if e.id.startswith("unclear")] == []
+
+
+def test_a_sound_nobody_decided_still_gets_its_action(sounds_project, monkeypatch):
+    defaults = load_defaults()
+    _stale_run_then_scan(
+        monkeypatch,
+        sounds_project,
+        [_decision("a", "filler:acoustic:likely_laugh", 3.0)],
+    )
+    steps.apply_sound_actions(sounds_project, defaults)
+    monkeypatch.setattr(
+        steps,
+        "propose_tighten_edits",
+        lambda *a, **k: type(
+            "Proposal", (), {"decisions": [_decision("b", "filler:acoustic:likely_laugh", 6.0)]}
+        )(),
+    )
+
+    assert steps.apply_sound_actions(sounds_project, defaults) == "Applied 1 lower."
+
+
+def test_a_runner_run_does_not_trust_the_analysis_log_of_an_earlier_run(
+    sounds_project, monkeypatch
+):
+    # An earlier run analysed fine; this run starts at the sounds step, so its proposals are old.
+    from podcast_mcp.pipeline.runner import PipelineRunner
+
+    defaults = load_defaults()
+    defaults["tighten"]["enabled"] = True
+    _analysis_ran_in_this_run(sounds_project)
+    seen = _stale_run_then_scan(monkeypatch, sounds_project, [])
+
+    run = PipelineRunner(defaults).run(sounds_project, only_step="apply_sound_actions")
+
+    assert seen["scans"] == 1
+    assert [s.status for s in run.steps if s.step == "apply_sound_actions"] == ["ok"]
+    assert sounds_project.pipeline_runs[-1].id == run.id != "run"

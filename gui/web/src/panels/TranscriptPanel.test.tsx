@@ -1950,14 +1950,13 @@ describe("TranscriptPanel virtualization", () => {
       useDawStore.getState().setPlayheadSec(1199 * 2 + 0.5);
     });
     expect(turnEl(container, 1199)).toBeTruthy();
-    expect(lastScrolledTurn()).toBe("1199");
     expect(scrollTopWrites.at(-1)).toBeGreaterThan(100_000);
     // Re-measure / range scrolls arrive without user input.
     fireEvent.scroll(container.querySelector(".transcript-list")!);
     expect(useDawStore.getState().transcriptFollowPlayhead).toBe(true);
   });
 
-  it("follows the first of two overlapping active turns", () => {
+  it("follows the audible word of two overlapping active turns", async () => {
     // Turn 5 runs 10-14 s; turn 6 talks over it at 12-13 s.
     const base = largeProject();
     const utterances = base.transcript.utterances.map((u, index) =>
@@ -1990,7 +1989,35 @@ describe("TranscriptPanel virtualization", () => {
     act(() => {
       useDawStore.getState().setPlayheadSec(12.5);
     });
-    expect(lastScrolledTurn()).toBe("5");
+    // Turn 6 holds the audible word (y=576, 96 px stride, 600 px list); the
+    // eased scroll lands with its center at the middle of the list.
+    await vi.waitFor(() => expect(scrollTopWrites.at(-1)).toBe(324));
+  });
+
+  it("keeps the scroll still when a word's highlight ends (#1755)", () => {
+    useDawStore.setState({ transcriptFollowPlayhead: true });
+    render(<TranscriptPanel />);
+    act(() => {
+      useDawStore.getState().setPlayheadSec(1199 * 2 + 0.5);
+    });
+    const writes = scrollTopWrites.length;
+    act(() => {
+      useDawStore.getState().setPlayheadSec(1199 * 2 + 1.5);
+    });
+    expect(scrollTopWrites.length).toBe(writes);
+  });
+
+  it("never follows a muted bleed word (#1754)", () => {
+    const p = largeProject();
+    Object.assign(p.transcript.utterances[1000]!.words![0]!, {
+      suppressed: true,
+    });
+    useDawStore.setState({ transcriptFollowPlayhead: true, project: p });
+    render(<TranscriptPanel />);
+    act(() => {
+      useDawStore.getState().setPlayheadSec(2000.5);
+    });
+    expect(scrollTopWrites.length).toBe(0);
   });
 
   it("unlocks follow on a manual wheel scroll", () => {
@@ -2011,16 +2038,17 @@ describe("TranscriptPanel virtualization", () => {
     expect(lastScrolledTurn()).toBe("900");
     expect(turnEl(container, 900)).toBeTruthy();
     vi.mocked(scrollChildIntoParent).mockClear();
+    const writes = scrollTopWrites.length;
     // Re-run follow (new project identity, same playhead): must not snap back.
     act(() => {
       useDawStore.setState({ project: largeProject() });
     });
-    expect(vi.mocked(scrollChildIntoParent)).not.toHaveBeenCalled();
+    expect(scrollTopWrites.length).toBe(writes);
     act(() => {
       useDawStore.getState().setPlayheadSec(2.5);
     });
-    expect(lastScrolledTurn()).toBe("1");
-    expect(vi.mocked(scrollChildIntoParent).mock.lastCall?.[2]).toBe(0.5);
+    expect(scrollTopWrites.length).toBeGreaterThan(writes);
+    expect(scrollTopWrites.at(-1)).toBeLessThan(10_000);
   });
 
   it("keeps the selected and focused turns mounted when scrolled away", () => {

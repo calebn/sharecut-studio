@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import type {
@@ -11,6 +11,12 @@ import { MARKER_ROW_HEIGHT } from "../utils/layout";
 import { formatTimeShort } from "../utils/time";
 import { chapterLabelRoomPx } from "./chapterLabels";
 import type { ClippingFlag } from "./clippingFlags";
+import {
+  commentPinStacks,
+  isPinComment,
+  nextInStack,
+} from "./commentPinStacks";
+import { isTouchClick } from "./hitRouting";
 import { hitTargetProps } from "./hitTargets";
 import { type SocialDragMode, socialSpanAfterDrag } from "./socialDrag";
 import type { MarkerRows } from "./timelineMetrics";
@@ -92,6 +98,13 @@ export function MarkerLaneView({
     originStart: number;
     originEnd: number;
   } | null>(null);
+
+  const stackOf = useMemo(() => {
+    const byId = new Map<string, string[]>();
+    for (const stack of commentPinStacks(comments, zoomPxPerSec))
+      for (const id of stack) byId.set(id, stack);
+    return byId;
+  }, [comments, zoomPxPerSec]);
 
   const latest = useRef({ chapters, socialClips });
   latest.current = { chapters, socialClips };
@@ -475,8 +488,8 @@ export function MarkerLaneView({
           {comments.map((c) => {
             const left = c.timeline_start * zoomPxPerSec;
             const end = c.timeline_end ?? c.timeline_start;
-            const isSpan =
-              c.timeline_end != null && c.timeline_end > c.timeline_start;
+            const isSpan = !isPinComment(c);
+            const stack = stackOf.get(c.id);
             const w = isSpan
               ? Math.max(
                   MARKER_ROW_HEIGHT,
@@ -499,13 +512,29 @@ export function MarkerLaneView({
                 className={`comment-marker${isSpan ? " span" : " pin"}${
                   c.resolved ? " resolved" : ""
                 }${selectedCommentId === c.id ? " selected" : ""}`}
+                {...hitTargetProps("comment", c.id, c.timeline_start, {
+                  selected: selectedCommentId === c.id,
+                  detail: c.author,
+                })}
+                data-stack-count={stack ? stack.length : undefined}
                 style={{ left: isSpan ? left : left - MARKER_HALF, width: w }}
                 aria-label={`Comment by ${c.author}`}
                 aria-pressed={selectedCommentId === c.id}
                 title={title}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSelectComment(c);
+                  const next = nextInStack(
+                    e.detail > 0 && !isTouchClick(e.nativeEvent)
+                      ? stack
+                      : undefined,
+                    selectedCommentId,
+                    c.id,
+                  );
+                  onSelectComment(
+                    next === c.id
+                      ? c
+                      : (comments.find((m) => m.id === next) ?? c),
+                  );
                 }}
               />
             );

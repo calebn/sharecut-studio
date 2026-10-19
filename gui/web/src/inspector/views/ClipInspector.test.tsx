@@ -90,6 +90,32 @@ describe("ClipInspector presentation", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("preserves placement after invalid trim and cancels it for a valid fade gesture", () => {
+    hydrateClipProject(sampleTrack({ speaker: "Host" }));
+    useDawStore.setState({
+      toolMode: "select",
+      commentMode: false,
+      timelineDragging: false,
+      joinMutationInFlight: false,
+    });
+    render(<ClipInspector clip={clip} />);
+    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Later 10 ms" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Source start" }), {
+      target: { value: "-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply source start" }));
+    expect(screen.getByLabelText("Timeline start (seconds)")).toHaveValue(0.01);
+    fireEvent.pointerDown(screen.getByLabelText("Fade in ms"), {
+      pointerId: 9,
+    });
+    expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
+    expect(screen.getByRole("button", { name: "Move clip" })).toBeVisible();
+    fireEvent.pointerCancel(screen.getByLabelText("Fade in ms"), {
+      pointerId: 9,
+    });
+  });
+
   it("places delete actions in a named section after constructive controls", () => {
     hydrateClipProject(sampleTrack({ speaker: "Host" }));
     const { container } = render(<ClipInspector clip={clip} />);
