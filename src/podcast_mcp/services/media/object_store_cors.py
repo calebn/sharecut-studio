@@ -23,9 +23,9 @@ log = logging.getLogger(__name__)
 
 CorsStatus = Literal["ok", "blocked", "unknown"]
 
-_PROBE_TIMEOUT_SEC = 5.0
+_PROBE_TIMEOUT_SEC = 3.0
 _OK_TTL_SEC = 300.0
-_FAIL_TTL_SEC = 30.0
+_FAIL_TTL_SEC = 60.0
 
 
 @dataclass(frozen=True)
@@ -76,7 +76,9 @@ def _fetch_headers(url: str, origin: str) -> dict[str, str] | None:
         with urllib.request.urlopen(req, timeout=_PROBE_TIMEOUT_SEC) as res:
             return {k.lower(): v for k, v in res.headers.items()}
     except urllib.error.HTTPError as exc:
-        # A 4xx/5xx still carries the CORS headers the browser would judge.
+        if exc.code >= 500 or exc.code == 429:
+            return None  # a gateway or throttle answer says nothing about the bucket's rule
+        # Other 4xx answers still carry the CORS headers the browser would judge.
         return {k.lower(): v for k, v in exc.headers.items()}
     except Exception:
         log.debug("object-store CORS probe could not reach the store", exc_info=True)
@@ -96,7 +98,7 @@ def probe_guest_cors(url: str, origin: str, *, fetch: Fetcher | None = None) -> 
 
 
 _cache: dict[tuple[str, str], tuple[float, CorsProbe]] = {}
-_cache_lock = threading.Lock()
+_cache_lock = threading.Lock()  # held across the probe on purpose (single flight)
 
 
 def cached_guest_cors(
@@ -108,16 +110,16 @@ def cached_guest_cors(
 ) -> CorsProbe:
     """``probe_guest_cors`` memoised per store host and origin so manifests stay cheap."""
     key = (urlparse(url).netloc, origin)
-    t = now()
+    # One probe at a time: concurrent guests on a cold cache share a single request.
     with _cache_lock:
+        t = now()
         hit = _cache.get(key)
         if hit is not None and hit[0] > t:
             return hit[1]
-    result = probe_guest_cors(url, origin, fetch=fetch)
-    ttl = _OK_TTL_SEC if result.status == "ok" else _FAIL_TTL_SEC
-    with _cache_lock:
+        result = probe_guest_cors(url, origin, fetch=fetch)
+        ttl = _OK_TTL_SEC if result.status == "ok" else _FAIL_TTL_SEC
         _cache[key] = (t + ttl, result)
-    return result
+        return result
 
 
 def clear_cors_cache() -> None:

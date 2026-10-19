@@ -204,12 +204,14 @@ class ShareService:
             public_base_url=public_base_url,
             version_label=ver.label,
         )
-        warnings = self._object_store_warnings(row)
+        warnings = self._object_store_warnings(row, public_base_url)
         if warnings:
             presented["warnings"] = warnings
         return presented
 
-    def _object_store_warnings(self, row: dict[str, Any]) -> list[dict[str, Any]]:
+    def _object_store_warnings(
+        self, row: dict[str, Any], public_base_url: str | None
+    ) -> list[dict[str, Any]]:
         """Tell the host now when guests could not read the bucket (#1759); never raises."""
         if not has_capability(row.get("capabilities"), CAP_VIEW):
             return []
@@ -224,7 +226,7 @@ class ShareService:
             from podcast_mcp.util.tracks import dialogue_track_ids
 
             self.ws.reload()
-            origin = share_public_origin()
+            origin = share_public_origin(public_base_url)
             for tid in dialogue_track_ids(self.ws.project):
                 urls = presigned_proxy_urls(self.ws.project, tid, expires_at=row.get("expires_at"))
                 if not urls:

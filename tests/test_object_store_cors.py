@@ -157,3 +157,34 @@ def test_create_has_no_warning_when_cors_is_in_place_or_unknown(
     _store(monkeypatch)
     share = _share(minimal_project, sample_wav)  # probe answers "unknown" in tests
     assert "warnings" not in share
+
+
+def _raise_http(code: int, headers: dict[str, str]):
+    import email.message
+    import urllib.error
+
+    msg = email.message.Message()
+    for k, v in headers.items():
+        msg[k] = v
+
+    def urlopen(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, code, "x", msg, None)
+
+    return urlopen
+
+
+@pytest.mark.parametrize("code", [429, 502, 503])
+def test_gateway_errors_are_unknown_not_blocked(monkeypatch, code) -> None:
+    monkeypatch.undo()  # conftest stubs _fetch_headers; exercise the real one
+    monkeypatch.setattr("urllib.request.urlopen", _raise_http(code, {}))
+    assert cors.probe_guest_cors(URL, ORIGIN).status == "unknown"
+
+
+def test_forbidden_without_cors_header_is_blocked_and_with_it_ok(monkeypatch) -> None:
+    monkeypatch.undo()
+    monkeypatch.setattr("urllib.request.urlopen", _raise_http(403, {}))
+    assert cors.probe_guest_cors(URL, ORIGIN).blocked
+    monkeypatch.setattr(
+        "urllib.request.urlopen", _raise_http(403, {"Access-Control-Allow-Origin": ORIGIN})
+    )
+    assert cors.probe_guest_cors(URL, ORIGIN).status == "ok"
