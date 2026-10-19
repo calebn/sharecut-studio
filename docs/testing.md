@@ -731,6 +731,10 @@ viewport, containment, and midpoint hit-test checks. Existing `dense` selectors
 retain their whole-target exclusion. `gui/web/e2e/reachability.test.ts` executes
 the scanner callback with explicit jsdom geometry to check these rules. Browser
 runs prove the layout and the clip midpoint tap's exact `Clip` selection.
+A pin is `--touch-min` wide on touch and one marker row tall, so the exemption
+covers its height only; `gui/web/e2e/comment-pins-touch.spec.ts` holds its
+width to the floor and proves that a tap beside a pin picks it, a tap on a clip
+under the lane never does, and the chooser picks each pin of a stack (#1742).
 
 The compatibility matrix's offline comment replay and socket reconnect tests
 each use a private project through `withShareableProject`. Queue accounting
@@ -1751,9 +1755,14 @@ test; other rows are whole tests.
 | rotating a phone from portrait to landscape moves the open Inspector into a column and back | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | tablet and desktop shells keep every control a finger can use across 768 to 1195 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| loaded tablet playback stays inline at 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a track with an envelope and an effect chain keeps every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending-edit and transcript-word sheet bodies keep every control reachable | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Pipeline native targets stay clear in the original short panel | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Pipeline retains a scrolled focused control across viewport resizes | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Pipeline keeps an oversized native control targetable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Pipeline native flow keeps phone and coarse-pointer targets usable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the tablet sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | agent range controls stay reachable from a tablet clip sheet | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -1903,6 +1912,14 @@ regions against rendered ruler ticks within 0.5 CSS px, and the trim ghost
 waveform against the committed clip edge before verifying the saved trim.
 The deep-zoom journey keeps its accessible envelope-point query and measures
 waveform tiles, ruler ticks, and envelope chunks through the same hooks.
+
+`e2e-compat/pipeline-toolbar-fit.spec.ts` checks eight independent cases per
+engine. The cases cover Pipeline controls in the original short panel at 16px
+and 32px text, focused-control and scroll-anchor retention at both text sizes,
+an oversized native control, and phone/coarse-pointer flows at two phone text
+sizes and a short iPad landscape viewport. Each case uses its own disposable
+project. These are bundled Chromium and Playwright WebKit checks, not physical
+Safari or Firefox coverage.
 
 The `frontend-e2e-suites` compatibility job runs the focused
 `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in bundled Chromium

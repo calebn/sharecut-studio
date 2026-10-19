@@ -556,7 +556,9 @@ def test_guest_media_upload_413_and_400(minimal_project, sample_wav, tmp_workspa
         headers={"Content-Type": "application/octet-stream"},
     )
     assert unreadable.status_code == 400
-    assert unreadable.json() == {"detail": "not a playable audio file"}
+    assert unreadable.json() == {
+        "detail": "This upload is not a playable audio file. Choose a supported audio file and try again."
+    }
     assert unreadable.headers["x-sharecut-error-code"] == "invalid_audio"
 
 

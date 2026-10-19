@@ -96,6 +96,10 @@ def test_one_step_cuts_lowers_and_leaves_each_by_its_own_action(
         for r in clip.mute_regions
     }
     assert regions == {(3.0, 3.3, -12.0)}
+    assert [
+        (r.track_id, r.start_s, r.end_s, r.action)
+        for r in load_project(Path(path)).editorial.sound_actions
+    ] == [("host", 3.0, 3.3, "lower"), ("host", 5.0, 5.3, "leave")]
 
 
 def test_a_laugh_nobody_talks_over_is_left(tmp_path, sample_wav, monkeypatch) -> None:
@@ -105,6 +109,27 @@ def test_a_laugh_nobody_talks_over_is_left(tmp_path, sample_wav, monkeypatch) ->
     assert out["lowered_to_leave"] == 1
     assert "lower" not in out["applied"]
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
+
+
+@pytest.mark.parametrize("error", [OSError("stem unreadable"), ValueError("bad span")])
+def test_an_unreadable_peer_check_leaves_the_sound_pending_not_recorded(
+    tmp_path, sample_wav, monkeypatch, error
+) -> None:
+    from podcast_mcp.edits import cut_safety
+
+    path = _project(tmp_path, sample_wav)
+
+    def unreadable(*_a, **_k):
+        raise error
+
+    monkeypatch.setattr(cut_safety, "assess_cross_track_speech", unreadable)
+    out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["laugh"])
+    assert out["held"] == ["laugh"]
+    assert out["lowered_to_leave"] == 0
+    assert "laugh" in _pending(path)
+    saved = load_project(Path(path))
+    assert saved.editorial.sound_actions == []
+    assert not any(c.mute_regions for c in saved.clips)
 
 
 def test_lowering_a_pending_remove_uses_the_mute_policy_row(
@@ -143,9 +168,18 @@ def test_the_whole_batch_is_one_undo_step(tmp_path, sample_wav, monkeypatch) -> 
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
     ws = ProjectWorkspace.open(path)
     EditService(ws).apply_suggested_actions()
+    after = load_project(Path(path))
+    rows = [(r.track_id, r.start_s, r.end_s, r.action) for r in after.editorial.sound_actions]
+    assert rows
     HistoryService(ws).undo()
     assert _pending(path) == ["laugh", "manual", "um", "word"]
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
+    assert load_project(Path(path)).editorial.sound_actions == []
+    HistoryService(ws).redo()
+    redone = load_project(Path(path))
+    assert [
+        (r.track_id, r.start_s, r.end_s, r.action) for r in redone.editorial.sound_actions
+    ] == rows
 
 
 def test_an_override_changes_one_sound_and_ids_narrow_the_batch(
@@ -180,6 +214,12 @@ def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
     assert _layout(path) == [(0.0, 0.0, 10.0)]
     assert [(r.start_s, r.gain_db) for c in project.clips for r in c.mute_regions] == [(3.0, -12.0)]
     assert _pending(path) == ["manual"]
+    # Revising steps back to before the batch, so a sound is recorded once, and a spoken
+    # filler left by hand is not a sound the pipeline would propose again.
+    assert [(r.start_s, r.action) for r in project.editorial.sound_actions] == [
+        (3.0, "lower"),
+        (5.0, "leave"),
+    ]
     # The revised batch is again one undo step back to the proposals.
     HistoryService(ProjectWorkspace.open(path)).undo()
     assert _pending(path) == ["laugh", "manual", "um", "word"]

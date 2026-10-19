@@ -48,4 +48,23 @@ describe("ToggleButton", () => {
       within(container).getByRole("button", { name: "Comments" }),
     ).toHaveAttribute("aria-pressed", "true");
   });
+
+  it("keeps a blank supplied reason disabled and clears it when omitted", () => {
+    const { rerender } = render(
+      <ToggleButton pressed={false} disabledReason="   ">
+        Comments
+      </ToggleButton>,
+    );
+    const button = within(document.body).getByRole("button", {
+      name: "Comments",
+    });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "This action is unavailable right now.",
+    );
+
+    rerender(<ToggleButton pressed={false}>Comments</ToggleButton>);
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute("title");
+  });
 });

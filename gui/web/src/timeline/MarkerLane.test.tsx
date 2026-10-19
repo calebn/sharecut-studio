@@ -180,6 +180,88 @@ describe("MarkerLane", () => {
     expect(pin.style.width).toBe(`${MARKER_ROW_HEIGHT}px`);
   });
 
+  describe("comment pins on one spot (#1742)", () => {
+    const stacked = ["p1", "p2", "p3"].map((id, i) =>
+      sampleComment({ id, author: `A${i}`, timeline_start: 4 }),
+    );
+    const renderStacked = (selectedCommentId: string | null = null) => {
+      const onSelectComment = vi.fn();
+      const view = render(
+        <MarkerLane
+          chapters={[]}
+          socialClips={[]}
+          comments={stacked}
+          rows={{
+            chapters: false,
+            social: false,
+            comments: true,
+            clipping: false,
+          }}
+          selectedCommentId={selectedCommentId}
+          zoomPxPerSec={10}
+          width={400}
+          onSelectChapter={vi.fn()}
+          onSelectSocial={vi.fn()}
+          onSelectComment={onSelectComment}
+        />,
+      );
+      return { ...view, onSelectComment };
+    };
+
+    it("registers every pin with the hit resolver so the chooser can fan them out", () => {
+      const { container } = renderStacked("p2");
+      const pins = [...container.querySelectorAll(".comment-marker.pin")];
+      expect(pins.map((p) => p.getAttribute("data-hit-kind"))).toEqual([
+        "comment",
+        "comment",
+        "comment",
+      ]);
+      expect(pins.map((p) => p.getAttribute("data-hit-id"))).toEqual([
+        "p1",
+        "p2",
+        "p3",
+      ]);
+      expect(pins.map((p) => p.getAttribute("data-hit-selected"))).toEqual([
+        null,
+        "true",
+        null,
+      ]);
+    });
+
+    it("counts the stack on each of its pins, and a lone pin carries no count", () => {
+      const { container } = renderStacked();
+      expect(
+        [...container.querySelectorAll(".comment-marker")].map((p) =>
+          p.getAttribute("data-stack-count"),
+        ),
+      ).toEqual(["3", "3", "3"]);
+      const lone = renderLane({
+        chapters: false,
+        social: false,
+        comments: true,
+        clipping: false,
+      });
+      expect(
+        lone.container
+          .querySelector(".comment-marker")
+          ?.hasAttribute("data-stack-count"),
+      ).toBe(false);
+    });
+
+    it("a mouse click steps through the stack, and a keyboard or chooser pick opens that pin", () => {
+      const { container, onSelectComment } = renderStacked("p1");
+      const pins = container.querySelectorAll<HTMLElement>(".comment-marker");
+      fireEvent.click(pins[2], { detail: 1 });
+      expect(onSelectComment).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: "p2" }),
+      );
+      fireEvent.click(pins[2], { detail: 0 });
+      expect(onSelectComment).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: "p3" }),
+      );
+    });
+  });
+
   describe("social clip drag", () => {
     const rows = {
       chapters: false,

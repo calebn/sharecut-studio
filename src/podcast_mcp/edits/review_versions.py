@@ -243,11 +243,6 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-REVIEW_AUDIO_UNAVAILABLE_GUEST_MESSAGE = (
-    "This review's audio isn't available right now; ask the host to republish."
-)
-
-
 class MixUnavailableError(CodedValueError):
     """No current mix can be published; ``code`` is the typed reason (HTTP 409)."""
 
@@ -357,7 +352,6 @@ def version_audio_path(project: EpisodeProject, version_id: str) -> Path:
         raise CodedFileNotFoundError(
             f"review mix missing: {path}",
             code="review_media_not_found",
-            guest_message=REVIEW_AUDIO_UNAVAILABLE_GUEST_MESSAGE,
         )
     return path
 

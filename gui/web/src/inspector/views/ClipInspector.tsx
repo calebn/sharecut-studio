@@ -3,6 +3,7 @@ import { setClipFade, setClipJoin } from "../../api";
 import { capabilityTooltip } from "../../capabilities/copy";
 import { executePointerCommand } from "../../commands/pointer";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
+import { cancelClipPlacement } from "../../edit/clipPlacement";
 import { clampFadeMs, edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
   clipIdsBeforeCut,
@@ -33,6 +34,7 @@ import { errorMessage } from "../../utils/apiError";
 import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
 import { ModifierInspector } from "../ModifierInspector";
 import { useNudgeRun } from "../useNudgeRun";
+import { ClipPlacementControls } from "./ClipPlacementControls";
 
 type FadePair = { inMs: number; outMs: number };
 type TrimInputDraft = { baseline: number; text: string };
@@ -317,6 +319,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       setError("This clip changed. Reload its source bounds before trimming.");
       return;
     }
+    cancelClipPlacement();
     const saved = await run(async () => {
       const fresh = () => {
         const latest = useDawStore.getState();
@@ -387,6 +390,9 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
             </FieldRow>
             <div
               className="nudge-row-buttons"
+              onPointerDownCapture={() => {
+                if (!clipMutationBusy && !dirty) cancelClipPlacement();
+              }}
               role="group"
               aria-label={`Nudge source ${name}`}
             >
@@ -433,6 +439,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     ) {
       return;
     }
+    cancelClipPlacement();
     const capture: FadeCapture = {
       projectPath: state.projectPath,
       projectEpoch: state.projectEpoch,
@@ -550,6 +557,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       setError("Crossfade length must be at least 1 ms");
       return;
     }
+    cancelClipPlacement();
     const saved = await run(async () => {
       await setClipJoin(projectPath, leftClipId, clip.id, mode, length);
       return true;
@@ -562,6 +570,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
 
   const runDelete = async (ripple: boolean) => {
     if (clipMutationBusy) return;
+    cancelClipPlacement();
     await run(async () => {
       const result = await executePointerCommand(
         ripple ? "edit.rippleDelete" : "edit.delete",
@@ -608,6 +617,10 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
         <DefItem label="ID">{clip.id}</DefItem>
         <DefItem label="Timeline">
           {labels.start} to {labels.end}
+          <ClipPlacementControls
+            clipId={clip.id}
+            busy={clipMutationBusy || trimRun.running}
+          />
         </DefItem>
         {renderTrimField("in")}
         {renderTrimField("out")}

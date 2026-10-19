@@ -222,7 +222,11 @@ result or clear busy state after completion. It returns the command's original
 `ExecuteResult` promise, including rejections. Both helpers share one gate policy.
 `CommandButton` and `useCommand` retain their configurable gate policy.
 The keymap listener evaluates keyboard gates before dispatch. DAW WebMCP play
-uses `execute` through its agent adapter. DAW transport seeking uses
+returns the original `execute` result through its agent adapter. The `play_pause`
+reply is `{ status: "ok" }` on success, `{ status: "disabled", reason }` on refusal,
+or `{ status: "unknown" }` when the command is unavailable. Disabled replies
+preserve command metadata such as `announced`, and command errors reject the
+tool promise unchanged. DAW transport seeking uses
 `src/commands/seek.ts`, which returns the pointer command result for callers
 that need to await it. Listen skip math stays in `src/layout/listenSeek.ts`;
 timeline callers keep their selection and blade actions after the seek

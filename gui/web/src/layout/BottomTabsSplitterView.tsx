@@ -7,7 +7,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { pxToRem, remToPx } from "../hooks/useTabsHeight";
+import {
+  pxToRem,
+  remToPx,
+  type TabsHeightBounds,
+} from "../hooks/useTabsHeight";
+import { Button } from "../ui/Button";
 import { useResizeObserver } from "../ui/useResizeObserver";
 
 export interface BottomTabsSplitterViewProps {
@@ -15,9 +20,11 @@ export interface BottomTabsSplitterViewProps {
   heightRem: number;
   minRem: number;
   maxRem: number;
+  /** Live adapter reads fresh viewport policy; props-only shells use explicit bounds. */
+  getPolicyBounds?: () => TabsHeightBounds;
   /**
-   * Whether a stored preference exists. Without one, keyboard steps start from
-   * the measured parent panel, since CSS decides the default height.
+   * Whether a stored preference exists, so the caller can restore it through
+   * its resize policy after canceling an owned drag.
    */
   userSet: boolean;
   /** Requested height in rem; the live adapter clamps, persists and applies it. */
@@ -26,8 +33,8 @@ export interface BottomTabsSplitterViewProps {
   onReset: () => void;
   /**
    * Collapse the drawer to the tool rail: End, or a drag released more than
-   * `COLLAPSE_OVERSHOOT_REM` below the minimum. The stored height stays, so
-   * reopening returns to it.
+   * `COLLAPSE_OVERSHOOT_REM` below the minimum. The preference stays saved for
+   * reopening; overshoot rollback goes through `onResize` and its resize policy.
    */
   onCollapse: () => void;
 }
@@ -35,29 +42,77 @@ export interface BottomTabsSplitterViewProps {
 /** How far past the minimum a drag must pull before release collapses. */
 export const COLLAPSE_OVERSHOOT_REM = 1.5;
 
+interface PanelGeometry extends TabsHeightBounds {
+  currentRem: number;
+}
+
+const GEOMETRY_EPSILON_PX = 0.5;
+
 /** Props-only horizontal drag handle above the bottom Transcript/Comments/History tabs. */
 export function BottomTabsSplitterView({
   heightRem,
   minRem,
   maxRem,
+  getPolicyBounds,
   userSet,
   onResize,
   onReset,
   onCollapse,
 }: BottomTabsSplitterViewProps) {
   const separatorRef = useRef<HTMLDivElement>(null);
-  const [measuredRem, setMeasuredRem] = useState<number | null>(null);
+  const remSignalRef = useRef<HTMLSpanElement>(null);
+  const readGeometry = useCallback((): PanelGeometry => {
+    const policy = getPolicyBounds?.() ?? { minRem, maxRem };
+    const panel = separatorRef.current?.parentElement;
+    const height = panel?.getBoundingClientRect().height ?? 0;
+    const currentRem = height > 0 ? pxToRem(height) : heightRem;
+    const shell = panel?.closest(".daw-shell");
+    const main = shell?.querySelector(":scope > .daw-main");
+    const mainHeight = main?.getBoundingClientRect().height ?? 0;
+    const floor = shell
+      ? getComputedStyle(shell)
+          .getPropertyValue("--shell-main-min-height")
+          .trim()
+      : "";
+    const capacity =
+      mainHeight > 0 && floor.endsWith("rem")
+        ? pxToRem(height + mainHeight) - Number.parseFloat(floor)
+        : policy.maxRem;
+    const maximum = Math.max(0, Math.min(policy.maxRem, capacity));
+    return {
+      currentRem,
+      minRem: Math.min(currentRem, policy.minRem, maximum),
+      maxRem: Math.max(currentRem, maximum),
+    };
+  }, [heightRem, minRem, maxRem, getPolicyBounds]);
+  const [geometry, setGeometry] = useState<PanelGeometry>(() => ({
+    currentRem: heightRem,
+    minRem,
+    maxRem,
+  }));
   const measure = useCallback(() => {
-    const height =
-      separatorRef.current?.parentElement?.getBoundingClientRect().height;
-    setMeasuredRem(
-      height != null && Number.isFinite(height) && height > 0
-        ? pxToRem(height)
-        : null,
+    const next = readGeometry();
+    setGeometry((prior) =>
+      prior.currentRem === next.currentRem &&
+      prior.minRem === next.minRem &&
+      prior.maxRem === next.maxRem
+        ? prior
+        : next,
     );
-  }, []);
-  useLayoutEffect(measure, [measure, heightRem, userSet]);
-  useResizeObserver(() => separatorRef.current?.parentElement, measure);
+  }, [readGeometry]);
+  useLayoutEffect(measure, [measure, userSet]);
+  useResizeObserver(
+    [
+      () => separatorRef.current?.parentElement,
+      () => separatorRef.current?.closest(".daw-shell"),
+      () =>
+        separatorRef.current
+          ?.closest(".daw-shell")
+          ?.querySelector(":scope > .daw-main"),
+      remSignalRef,
+    ],
+    measure,
+  );
 
   const [collapseArmed, setCollapseArmed] = useState(false);
   const latest = useRef({ heightRem, userSet, onResize, onReset, onCollapse });
@@ -101,10 +156,7 @@ export function BottomTabsSplitterView({
     e.preventDefault();
     e.currentTarget.focus({ preventScroll: true });
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    const panel = e.currentTarget.parentElement;
-    const measured = panel
-      ? pxToRem(panel.getBoundingClientRect().height)
-      : heightRem;
+    const measured = readGeometry().currentRem;
     dragRef.current = {
       pointerId: e.pointerId,
       target: e.currentTarget,
@@ -129,12 +181,13 @@ export function BottomTabsSplitterView({
     }
     const dy = drag.startY - e.clientY;
     const raw = pxToRem(remToPx(drag.startRem) + dy);
-    const collapse = raw < minRem - COLLAPSE_OVERSHOOT_REM;
+    const bounds = readGeometry();
+    const collapse = raw < bounds.minRem - COLLAPSE_OVERSHOOT_REM;
     if (collapse !== drag.collapse) {
       drag.collapse = collapse;
       setCollapseArmed(collapse);
     }
-    const next = Math.min(maxRem, Math.max(minRem, raw));
+    const next = Math.min(bounds.maxRem, Math.max(bounds.minRem, raw));
     if (next === (drag.painted ?? drag.startRem)) return;
     drag.painted = next;
     onResize(next);
@@ -147,12 +200,10 @@ export function BottomTabsSplitterView({
     if (dragRef.current?.pointerId === e.pointerId) finish(true);
   };
 
-  const panelHeightRem = (el: HTMLDivElement): number => {
-    const panel = el.parentElement;
-    const measured = panel
-      ? pxToRem(panel.getBoundingClientRect().height)
-      : heightRem;
-    return Number.isFinite(measured) && measured > 0 ? measured : heightRem;
+  const resizeTo = (target: number, bounds: PanelGeometry) => {
+    const next = Math.min(bounds.maxRem, Math.max(bounds.minRem, target));
+    if (Math.abs(next - bounds.currentRem) > pxToRem(GEOMETRY_EPSILON_PX))
+      onResize(next);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -169,19 +220,20 @@ export function BottomTabsSplitterView({
       return;
     }
     const step = e.shiftKey ? 1 : 0.25;
-    const base = userSet ? heightRem : panelHeightRem(e.currentTarget);
+    const bounds = readGeometry();
+    const base = bounds.currentRem;
     if (e.key === "ArrowUp") {
       e.preventDefault();
       e.stopPropagation();
-      onResize(base + step);
+      resizeTo(base + step, bounds);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       e.stopPropagation();
-      onResize(base - step);
+      resizeTo(base - step, bounds);
     } else if (e.key === "Home") {
       e.preventDefault();
       e.stopPropagation();
-      onResize(maxRem);
+      resizeTo(bounds.maxRem, bounds);
     } else if (e.key === "End") {
       e.preventDefault();
       e.stopPropagation();
@@ -193,32 +245,93 @@ export function BottomTabsSplitterView({
     }
   };
 
-  const valueNow = Math.round((measuredRem ?? heightRem) * 10) / 10;
-
+  const valueNow = Math.round(geometry.currentRem * 10) / 10;
+  const epsilon = pxToRem(GEOMETRY_EPSILON_PX);
+  const suppressClickRef = useRef(false);
+  const stepPanel = (delta: number) => {
+    if (dragRef.current) return;
+    const bounds = readGeometry();
+    resizeTo(bounds.currentRem + delta, bounds);
+  };
   return (
-    <div
-      ref={separatorRef}
-      className="bottom-tabs-splitter"
-      role="separator"
-      aria-orientation="horizontal"
-      aria-label="Resize editor panels"
-      aria-valuemin={minRem}
-      aria-valuemax={Math.round(maxRem * 10) / 10}
-      aria-valuenow={valueNow}
-      aria-valuetext={collapseArmed ? "Release to collapse" : `${valueNow} rem`}
-      data-collapse-armed={collapseArmed ? "" : undefined}
-      tabIndex={0}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
-      onLostPointerCapture={onPointerCancel}
-      onBlur={() => finish(true)}
-      onDoubleClick={() => onReset()}
-      onKeyDown={onKeyDown}
-      title="Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets"
-    >
-      <span className="bottom-tabs-splitter-grip" aria-hidden />
-    </div>
+    <>
+      <div
+        ref={separatorRef}
+        className="bottom-tabs-splitter"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize editor panels"
+        aria-valuemin={Math.round(geometry.minRem * 10) / 10}
+        aria-valuemax={Math.round(geometry.maxRem * 10) / 10}
+        aria-valuenow={valueNow}
+        aria-valuetext={
+          collapseArmed ? "Release to collapse" : `${valueNow} rem`
+        }
+        data-collapse-armed={collapseArmed ? "" : undefined}
+        tabIndex={0}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onLostPointerCapture={onPointerCancel}
+        onBlur={() => finish(true)}
+        onDoubleClick={() => {
+          if (!dragRef.current) onReset();
+        }}
+        onKeyDown={onKeyDown}
+        title="Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets"
+      >
+        <span className="bottom-tabs-splitter-grip" aria-hidden />
+        <span ref={remSignalRef} className="splitter-rem-signal" aria-hidden />
+      </div>
+      <div
+        className="panel-size-controls"
+        role="group"
+        aria-label="Panel size"
+        onClickCapture={(event) => {
+          if (suppressClickRef.current || dragRef.current) {
+            suppressClickRef.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+        onPointerDownCapture={(event) => {
+          suppressClickRef.current = Boolean(dragRef.current);
+          if (dragRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            finish(true);
+          }
+        }}
+      >
+        <Button
+          disabledReason={
+            geometry.currentRem <= geometry.minRem + epsilon
+              ? "Panel is at its shortest size."
+              : undefined
+          }
+          onClick={() => stepPanel(-1)}
+        >
+          Shorter
+        </Button>
+        <Button
+          disabledReason={
+            geometry.currentRem >= geometry.maxRem - epsilon
+              ? "Panel is at its tallest size."
+              : undefined
+          }
+          onClick={() => stepPanel(1)}
+        >
+          Taller
+        </Button>
+        <Button
+          onClick={() => {
+            if (!dragRef.current) onReset();
+          }}
+        >
+          Reset panel size
+        </Button>
+      </div>
+    </>
   );
 }

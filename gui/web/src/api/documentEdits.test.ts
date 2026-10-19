@@ -33,6 +33,7 @@ import {
   correctTranscriptPhrase,
   correctTranscriptWord,
   loadPendingCutSuggestion,
+  moveClips,
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
@@ -734,5 +735,33 @@ describe("pending cut suggestions", () => {
     expect(
       await updatePendingEdit("/tmp/p.json", "pending/id", 2, 8, true),
     ).toEqual({ queued: false });
+  });
+});
+
+describe("moveClips reply history", () => {
+  const clips = [{ clip_id: "c1", timeline_start: 4, track_id: "host" }];
+  it.each([
+    ["own entry", { history_head_id: "move-own" }, "move-own"],
+    ["queued", { queued: true, command_id: "queued-move" }, null],
+    ["unchanged", { history_head_id: null }, null],
+    ["absent", {}, null],
+    ["malformed", { history_head_id: 42 }, null],
+    ["empty", { history_head_id: "" }, null],
+  ])("returns the eligible id for %s", async (_label, reply, expected) => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce(reply);
+    expect(await moveClips("/tmp/ep", clips)).toBe(expected);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "MoveClips",
+      { clips },
+      undefined,
+    );
+  });
+  it("does not reuse an entry on an idempotent retry", async () => {
+    vi.mocked(submitQueuedDocumentCommand)
+      .mockResolvedValueOnce({ history_head_id: "move-first" })
+      .mockResolvedValueOnce({ command_id: "retry", idempotent: true });
+    expect(await moveClips("/tmp/ep", clips)).toBe("move-first");
+    expect(await moveClips("/tmp/ep", clips)).toBeNull();
   });
 });

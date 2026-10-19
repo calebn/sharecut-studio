@@ -457,6 +457,31 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
   expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
 });
 
+test("loaded tablet playback stays inline at 200% text", async ({ page }) => {
+  await arrive(page, {
+    name: "tablet 820, 200% text",
+    width: 820,
+    height: 1180,
+    rootPx: 32,
+  });
+  await settle(page);
+  const play = await page
+    .getByRole("button", { name: "Play", exact: true })
+    .boundingBox();
+  const stop = await page
+    .getByRole("button", { name: "Stop", exact: true })
+    .boundingBox();
+  expect(play).not.toBeNull();
+  expect(stop).not.toBeNull();
+  expect(stop!.y).toBe(play!.y);
+  expect(stop!.x).toBeGreaterThanOrEqual(play!.x + play!.width);
+  expect(
+    describeReach(
+      await reachFailures(page, { scope: ".transport", dense: DENSE }),
+    ),
+  ).toBe("");
+});
+
 test("tablet and desktop shells keep every control a finger can use across 768 to 1195 wide", async ({
   page,
 }) => {

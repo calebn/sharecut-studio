@@ -201,7 +201,7 @@ Models                   models/  (EpisodeProject, snapshots)
    transport logs. The `collaboration` context owns share, review, guest
    progress, record-share, session-control, share-page, and tunnel orchestration.
    `record`, `share_auth`, and `remote_mcp` each own their existing workflows.
-8. **CLI** (`podcast_mcp.cli`) — Typer commands in `main.py`, `episode.py`, `edit.py`, `clips.py`, `comment.py`, `pipeline.py`, `history.py`.
+8. **CLI** (`podcast_mcp.cli`) — Typer commands in `main.py`, `episode.py`, `edit.py`, `clips.py`, `comment.py`, `pipeline.py`, `history.py`. While a Studio serves the project a command names, the root group hands the command to that Studio and relays its output (`cli/handoff.py`, `services/app/studio_host.py`, Studio side `gui/routes/handoff.py`), so Studio is the one writer (#1733): [gui-integration.md § CLI commands while Studio is open](gui-integration.md#cli-commands-while-studio-is-open-1733).
 9. **MCP** (`podcast_mcp.mcp`) — Tool registration in `server.py`; handlers in `mcp/tools/`. Lists and objects are typed tool parameters (`list[str]`, `mcp/args.py` `JsonObject` / `JsonObjectList`) that the SDK validates at the boundary, never JSON text in a `str` parameter; free-text `str` / `str | None` arguments reach tools verbatim (`install_free_text_args`) — see [contributing.md § Structured MCP arguments](contributing.md#structured-mcp-arguments). Tool failures cross one boundary, `install_tool_errors` (`mcp/tool_errors.py`): a busy lock (`project_busy`) or a `CodedError` refusal reaches the agent as a structured `is_error` result with its message and `error_code`; any other exception is a crash whose text stays in the server log. The rule lives in `util/tool_refusal.py` so guest remote MCP (`services/remote_mcp/protocol.py`) applies the same one, reading a refusal's `guest_message()`, which never carries a host path (#1182, #1327) — see [contributing.md § MCP tool errors](contributing.md#mcp-tool-errors).
 10. **GUI** (`podcast_mcp.gui`) — DAW viewer HTTP/WS adapter (`server.py` + `routes/`); must call services (e.g. `PlayService`, `PipelineService`, `BounceService`, `CommentService`, `SessionSyncService`, bootstrap via `services.pipeline`, diagnostics via `services/support/diagnostics.py`), not duplicate path/render logic. Host MCP over Streamable HTTP is the same `MCPServer` as stdio, mounted at `/mcp` on loopback binds via [`gui/host_mcp.py`](../src/podcast_mcp/gui/host_mcp.py) (`streamable_http_app()`). **ProjectView seam:** `ViewProjection` / `parse_view_projection` live in `services/document_sync/projection_types.py` so services can name projections without importing `gui/`. Construction and dump stay in `gui/assembler.py` (`build_project_view`, `dump_project_projection`; assembler re-exports the types as the compatibility path). Services dump via a lazy assembler callback — keep dump next to construction rather than forking a second assembler in `services/`. Agent ↔ DAW transport: [session-sync.md](session-sync.md) — `services/session_sync/service.py` is the sync authority; `services/session_sync/viewer.py` adapts viewer blobs / agent play into typed commands. `services/document/cross_process_sync.py` bridges other processes' journal writes into the in-process hub while a socket watches the workspace (#695). Timeline comments: [timeline-comments.md](timeline-comments.md). Share/auth/guest routes mount only via **Sharecut Studio Extensions** ([extensions.md](extensions.md)). Lightweight stem/range bounce: `BounceService` → `export/bounces/`; mastered deliverables stay on `PipelineService.export_audio`. Both share encode/copy via `export.audio.write_audio_formats` (distinct intents; same writer). Optional native host: Tauri under `gui/desktop/` ([desktop-packaging.md](desktop-packaging.md); frozen sidecar via `PODCAST_GUI_DIST`). Deferred iOS/Android hosts and in-app BYOK agent: [cross-platform-byok.md](cross-platform-byok.md) (keep ffmpeg calls inside `FFmpegEngine`).
 
@@ -304,8 +304,12 @@ the same seek path.
 `runPointerCommand` dispatches without keyboard `when` gates and returns `void`;
 `executePointerCommand` exposes the same dispatch promise for completion and
 result handling. Keyboard input evaluates its gates in the keymap listener,
-while WebMCP play awaits `execute` in its agent adapter and WebMCP seek awaits
-the shared seek helper. Configurable `CommandButton` gates remain in the UI
+while WebMCP `play_pause` returns the original `execute` result in its agent adapter.
+Its reply is `{ status: "ok" }` on success, `{ status: "disabled", reason }` on
+refusal, or `{ status: "unknown" }` when the command is unavailable. Disabled
+replies preserve command metadata such as `announced`, and command errors reject
+the tool promise unchanged. WebMCP seek awaits the shared seek helper.
+Configurable `CommandButton` gates remain in the UI
 bridge. See [the frontend command adapters](../gui/web/README.md#api-adapters).
 
 `ProjectStore.transcript_vocabulary_state()` keeps a bounded process-local cache of
@@ -356,14 +360,22 @@ script generates Rust constants from that same public profile.
 ### Guest failure presentation
 
 `util/tool_refusal.py` owns refusal recognition along the explicit exception
-cause chain and the guest message (a refusal that names a host path gives a guest a fixed, path-free text). File-lock timeouts take precedence over
-SQLite busy or locked errors, which take precedence over coded refusals.
+cause chain. `util/coded_error.py` owns the sparse code-to-copy table used for
+guest messages; host diagnostics never select guest copy. Unknown codes use
+`GENERIC_GUEST_MESSAGE`, and the path detector checks approved messages as a
+defense in depth. Coded errors keep their host message and code, including
+through document conflict wrapping and pickling. File-lock timeouts take
+precedence over SQLite busy or locked errors, which take precedence over coded
+refusals. Guest lock and SQLite busy failures use the same `project_busy` copy;
+owner messages retain their existing lock or SQLite wording.
 `gui/routes/guest_errors.py` projects that shared policy into HTTP errors and
 safe WebSocket values. Unmarked failures produce fixed `internal error` and a
 host traceback. Busy WebSocket admission and setup close with transient `1013`;
 recording command contention sends `invalid_state` with `error_code=project_busy`
 and leaves the socket usable. Services mark deliberate permission, input, missing-resource,
 and state guards with coded error types. They do not import GUI error handlers.
+Raise sites provide only host diagnostics and a code. Guest HTTP, WebSocket,
+progress, and remote MCP projections all read the same code policy.
 Guest waveform routes call the media facade directly, then project failures;
 owner waveform routes retain their owner adapter. Record upload shells convert
 pre-acknowledgment refusals for their own caller. The shared ingest helper retains

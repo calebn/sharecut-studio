@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { transportAvailability } from "../state/transportAvailability";
 import type { LayoutMode, ShellBreakpoint, ToolMode } from "../state/types";
 import { TrackHeaderView } from "../tracks/TrackHeaderView";
 import { TranscriptTurnView } from "../transcript/TranscriptTurnView";
@@ -78,14 +79,16 @@ export function ShellStoryTransport({
         <h1>{loading ? "Loading episode…" : shellProject.meta.name}</h1>
       </TransportZone>
       <TransportZone position="center">
-        <div className="transport-play">
-          <TransportPlayControls
-            playing={playing}
-            disabled={loading}
-            onTogglePlay={() => onPlayingChange(!playing)}
-            onStop={() => onPlayingChange(false)}
-          />
-        </div>
+        <TransportPlayControls
+          playing={playing}
+          availability={transportAvailability({
+            project: loading ? null : shellProject,
+            isPlaying: playing,
+            playStartSec: null,
+          })}
+          onTogglePlay={() => onPlayingChange(!playing)}
+          onStop={() => onPlayingChange(false)}
+        />
         <Timecode
           current={shellTime.current}
           total={compact ? undefined : shellTime.total}

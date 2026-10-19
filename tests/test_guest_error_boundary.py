@@ -25,7 +25,10 @@ def test_disabled_guest_render_projects_safe_http_refusal(monkeypatch):
         failure.value, logger=logging.getLogger(__name__), operation="render preview"
     )
     assert projected.status_code == 403
-    assert projected.detail == "That didn't work; ask the host to check this episode."
+    assert (
+        projected.detail
+        == "This action isn't available on this link. Ask the host to update its access."
+    )
     assert projected.headers == {"X-Sharecut-Error-Code": "share_capability_required"}
     assert tool_refusal(failure.value) == ToolRefusal(
         "Guest render_preview is disabled. Set PODCAST_GUEST_RENDER=1 on the host "
@@ -63,7 +66,7 @@ def test_guest_refusal_contract(guest_client, monkeypatch, caplog, wrapped, kind
             ),
             403,
             "share_capability_required",
-            GENERIC_GUEST_MESSAGE,
+            "This action isn't available on this link. Ask the host to update its access.",
         ),
         "input": (
             CodedValueError("bad input /private/host/project.json", code="invalid_input"),
@@ -87,13 +90,13 @@ def test_guest_refusal_contract(guest_client, monkeypatch, caplog, wrapped, kind
             Timeout("/private/host/project.json.lock"),
             503,
             "project_busy",
-            "This project is busy; try again",
+            "This project is busy; try again.",
         ),
         "sqlite": (
             sqlite3.OperationalError("database is locked"),
             503,
             "project_busy",
-            "Project is busy in another process; try again",
+            "This project is busy; try again.",
         ),
         "nonbusy": (
             sqlite3.OperationalError("private secret phrase /private/host/project.json"),
@@ -119,6 +122,30 @@ def test_guest_refusal_contract(guest_client, monkeypatch, caplog, wrapped, kind
     assert "private secret phrase" not in response.text
     assert "/private/host" not in response.text
     assert bool([r for r in caplog.records if r.exc_info]) == (status == 500)
+
+
+@pytest.mark.parametrize(
+    "diagnostic",
+    ["private customer notes", "denied /Users/host/Private Show/project.json"],
+)
+def test_guest_http_copy_for_known_code_ignores_host_diagnostic(
+    guest_client, monkeypatch, diagnostic
+):
+    from podcast_mcp.util.coded_error import CodedPermissionError
+
+    error = CodedPermissionError(diagnostic, code="share_capability_required")
+
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(review_share, "share_daw_project_view", fail)
+    response = guest_client.get("/api/review/token/daw/project")
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "This action isn't available on this link. Ask the host to update its access."
+    }
+    assert response.headers["x-sharecut-error-code"] == "share_capability_required"
+    assert diagnostic not in response.text
 
 
 @pytest.mark.parametrize("kind", ["sqlite", "timeout"])
@@ -182,7 +209,7 @@ def test_guest_waveform_refusal_preserves_cache_retry_and_releases_slot(
                 "denied /private/host/media.wav", code="share_capability_required"
             ),
             403,
-            GENERIC_GUEST_MESSAGE,
+            "This action isn't available on this link. Ask the host to update its access.",
             "share_capability_required",
         ),
         "busy": (
@@ -190,19 +217,19 @@ def test_guest_waveform_refusal_preserves_cache_retry_and_releases_slot(
                 RateLimitDecision(allowed=False, bucket="pcm_decode", retry_after_sec=1.0)
             ),
             503,
-            "waveform decoder busy",
+            GENERIC_GUEST_MESSAGE,
             "waveform_busy",
         ),
         "stale": (
             StaleWaveformKeyError("waveform key is stale"),
             409,
-            "waveform key is stale",
+            GENERIC_GUEST_MESSAGE,
             "waveform_stale",
         ),
         "input": (
             CodedValueError("level out of range", code="invalid_waveform_request"),
             400,
-            "level out of range",
+            GENERIC_GUEST_MESSAGE,
             "invalid_waveform_request",
         ),
     }
@@ -228,15 +255,20 @@ def test_guest_waveform_refusal_preserves_cache_retry_and_releases_slot(
 
 
 @pytest.mark.parametrize("wrapped", [False, True])
-def test_guest_ws_coded_permission_reason_is_redacted_and_byte_bounded(monkeypatch, wrapped):
+@pytest.mark.parametrize(
+    "diagnostic",
+    ["private customer notes", "denied /private/host/project.json " + "é" * 100],
+)
+def test_guest_ws_coded_permission_reason_ignores_diagnostic_and_is_byte_bounded(
+    monkeypatch, wrapped, diagnostic
+):
     from podcast_mcp.util.coded_error import CodedPermissionError
 
     async def admit(_websocket, _token):
         return False
 
-    error = CodedPermissionError(
-        "denied /private/host/project.json " + "é" * 100, code="share_capability_required"
-    )
+    error = CodedPermissionError(diagnostic, code="share_capability_required")
+    refusal = error
     if wrapped:
         outer = RuntimeError("private secret phrase")
         outer.__cause__ = error
@@ -253,10 +285,13 @@ def test_guest_ws_coded_permission_reason_is_redacted_and_byte_bounded(monkeypat
         with TestClient(app).websocket_connect("/api/review/token/daw/ws") as socket:
             socket.receive_json()
     assert failure.value.code == 4403
-    assert failure.value.reason == GENERIC_GUEST_MESSAGE
+    assert failure.value.reason == (
+        "This action isn't available on this link. Ask the host to update its access."
+    )
     assert len(failure.value.reason.encode("utf-8")) <= 120
     assert "/private/host" not in failure.value.reason
     assert "private secret phrase" not in failure.value.reason
+    assert str(refusal) == diagnostic
 
 
 @pytest.mark.parametrize("cached", ["pending", "image", "context", "context-image"])
@@ -328,8 +363,8 @@ def test_http_token_lookup_uses_guest_boundary(monkeypatch, caplog, route, kind)
     response = TestClient(app, raise_server_exceptions=False).get(route)
     assert response.status_code == (500 if kind == "crash" else 503)
     expected = {
-        "sqlite": "Project is busy in another process; try again",
-        "timeout": "This project is busy; try again",
+        "sqlite": "This project is busy; try again.",
+        "timeout": "This project is busy; try again.",
         "crash": "internal error",
     }[kind]
     assert response.json() == {"detail": expected}

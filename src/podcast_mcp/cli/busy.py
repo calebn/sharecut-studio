@@ -22,6 +22,9 @@ because nothing in this codebase raises them as a domain condition:
   Click usage error -> 2);
 - ``NotImplementedError`` / ``RecursionError`` — always a bug, never a guard.
 
+While a Studio serves the project a command names, ``try_hand_off`` runs it there instead
+(#1733, ``cli/handoff.py``): Studio is then the only writer, so no lock is contended.
+
 A command with its own narrower ``try/except`` (``undo``, ``redo``, ``history goto`` for
 move-advice text; ``transcript context set`` for a busy context lock) is also
 unaffected — its except clause runs first and this group never sees the exception.
@@ -36,6 +39,7 @@ import typer
 from filelock import Timeout
 from typer.core import TyperGroup
 
+from podcast_mcp.cli.handoff import try_hand_off
 from podcast_mcp.util.coded_error import CodedError, describe_error
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError, busy_message
 
@@ -91,6 +95,9 @@ class BusyErrorGroup(TyperGroup):
 
     def invoke(self, ctx: Any) -> Any:
         try:
+            handed_off = try_hand_off(self, ctx)
+            if handed_off is not None:
+                raise typer.Exit(handed_off)
             return super().invoke(ctx)
         except _PASSTHROUGH:
             raise

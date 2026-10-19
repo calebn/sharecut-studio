@@ -34,8 +34,7 @@ export function registerDawWebMcpTools(): () => void {
       description: "Toggle Sharecut Studio playback.",
       inputSchema: { type: "object", properties: {} },
       execute: async () => {
-        await execute("transport.togglePlay", {}, { skipWhen: true });
-        return { ok: true };
+        return execute("transport.togglePlay", {}, { skipWhen: true });
       },
     },
     {

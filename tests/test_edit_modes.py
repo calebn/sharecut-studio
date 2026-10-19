@@ -933,7 +933,11 @@ def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
             {"type": "ApproveEdits", "payload": {"ids": [suggestion.id], **extra}},
         )
         assert reply["result"]["isError"] is True
-        assert "Guest is speaking" in reply["result"]["content"][0]["text"]
+        assert reply["result"]["structuredContent"]["error_code"] == "cut_scope_changed"
+        assert reply["result"]["content"][0]["text"] == (
+            "This edit needs another review. Ask the host to review it in the editor before applying it."
+        )
+        assert "Guest" not in reply["result"]["content"][0]["text"]
         assert _geometry(episode) == before
 
     _submit(episode, "ApproveEdits", {"ids": [suggestion.id]}, trusted_context=INTERACTIVE_COMMAND)

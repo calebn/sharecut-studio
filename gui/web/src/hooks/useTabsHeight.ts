@@ -131,6 +131,20 @@ export function initTabsHeight(): number | null {
   return rem;
 }
 
+export interface TabsHeightBounds {
+  minRem: number;
+  maxRem: number;
+}
+
+/** Read policy at measurement time, including root-font changes without resize. */
+export function getTabsHeightBounds(): TabsHeightBounds {
+  const available = availableBelowChromePx();
+  return {
+    minRem: minTabsHeightRem(available),
+    maxRem: clampTabsHeightRem(999, available),
+  };
+}
+
 export function useTabsHeight(): {
   heightRem: number;
   setHeightRem: (rem: number) => void;
@@ -138,6 +152,7 @@ export function useTabsHeight(): {
   minRem: number;
   maxRem: number;
   userSet: boolean;
+  getPolicyBounds: () => TabsHeightBounds;
 } {
   const [heightRem, setHeightState] = useState(() => {
     const stored = initTabsHeight();
@@ -197,5 +212,6 @@ export function useTabsHeight(): {
     minRem,
     maxRem,
     userSet,
+    getPolicyBounds: getTabsHeightBounds,
   };
 }

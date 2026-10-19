@@ -19,7 +19,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import PlayRequest, PlayService
-from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, CodedFileNotFoundError
 from podcast_mcp.util.time_parse import parse_time_sec
 
 runner = CliRunner()
@@ -398,9 +398,7 @@ def test_resolve_transport_path_premix_stem_raw(minimal_project, sample_wav, tmp
         "processed stem missing for 'host'; run assemble_timeline or pass build_stem=True"
     )
     assert missing_stem.value.code == "file_not_found"
-    assert missing_stem.value.guest_message() == (
-        "Processed audio is unavailable yet. Ask the host to refresh the mix."
-    )
+    assert missing_stem.value.guest_message() == GENERIC_GUEST_MESSAGE
 
     with pytest.raises(ValueError, match="unknown transport"):
         svc.resolve_transport_path("nope")

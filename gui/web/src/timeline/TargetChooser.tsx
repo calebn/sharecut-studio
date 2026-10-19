@@ -34,11 +34,13 @@ import {
 import { hitDetail, hitTimeSec, type ResolvedHit } from "./hitTargets";
 import { type DragAxis, HIT_KINDS, type HitKind } from "./inputContract";
 
-/** Kind label, plus the envelope gain the dot stands for. */
+/** Kind label, plus the envelope gain the dot stands for or the comment's author. */
 function chipTitle(hit: ResolvedHit): string {
   const label = HIT_KINDS[hit.candidate.kind].label;
   if (hit.candidate.kind === "envelope-line") return `${label}, whole track`;
   const detail = hitDetail(hit.element);
+  if (hit.candidate.kind === "comment" && detail)
+    return `${label} by ${detail}`;
   return hit.candidate.kind === "envelope-point" && detail
     ? `${label} ${detail}×`
     : label;
@@ -55,9 +57,11 @@ function chipSurface(hit: ResolvedHit): string | undefined {
     : undefined;
 }
 
-/** In-chip text, only where the glyph alone repeats: an envelope point's gain. */
+/** In-chip text, only where the glyph alone repeats: an envelope point's gain, a comment's author initial. */
 function chipTag(hit: ResolvedHit): string | null {
   const detail = hitDetail(hit.element);
+  if (hit.candidate.kind === "comment")
+    return detail ? Array.from(detail)[0].toUpperCase() : null;
   return hit.candidate.kind === "envelope-point" && detail
     ? `${detail}×`
     : null;
@@ -163,6 +167,9 @@ function TargetGlyph({
             height="8"
             rx="2"
           />
+        ) : null}
+        {kind === "comment" ? (
+          <circle className="target-glyph-comment" cx="12" cy="12" r="5" />
         ) : null}
         {kind === "chapter" ? (
           <rect
@@ -281,7 +288,9 @@ export function TargetChooser({
     orientation: "horizontal",
   });
   useEffect(() => {
-    useDawStore.getState().announceStatus(`${view.hits.length} targets here`);
+    useDawStore
+      .getState()
+      .announceStatus(`${view.hits.length} targets here`, { toast: false });
   }, [view.hits.length]);
   useEffect(() => {
     if (!closing) return;

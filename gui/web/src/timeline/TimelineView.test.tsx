@@ -2,6 +2,12 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectFromDocumentSnapshot } from "../document/projectPatch";
+import {
+  beginClipPlacement,
+  cancelClipPlacement,
+  getClipPlacement,
+  updateClipPlacement,
+} from "../edit/clipPlacement";
 import { useRecordHostStore } from "../record/hostStore";
 import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -851,8 +857,61 @@ describe("TimelineView lane fit", () => {
     });
 
     afterEach(() => {
+      cancelClipPlacement();
+      useDawStore.getState().setSelection(null);
       // Tests assign an own property; drop it to restore jsdom's.
       Reflect.deleteProperty(document, "elementFromPoint");
+    });
+
+    it("renders inspector placements on destination lanes and a valid body action cancels them", () => {
+      const project = twoTrackProject({
+        clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },
+      });
+      useDawStore.getState().hydrate("/tmp/p.json", project);
+      useDawStore.setState({
+        zoomPxPerSec: 10,
+        userZoomed: true,
+        toolMode: "select",
+        commentMode: false,
+        timelineDragging: false,
+        joinMutationInFlight: false,
+      });
+      const { container } = render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <TimelineView />
+        </DawProvider>,
+      );
+      act(() =>
+        useDawStore
+          .getState()
+          .setSelection({ kind: "clip", id: hostClip.id, trackId: "host" }),
+      );
+      act(() => {
+        beginClipPlacement(hostClip.id);
+      });
+      const active = getClipPlacement();
+      if (active.kind === "idle") throw new Error("placement did not start");
+      const token = active.capture.token;
+      act(() => updateClipPlacement(token, "7", "guest"));
+      const guest = container.querySelector('.lane-row[data-track-id="guest"]');
+      const ghost = guest?.querySelector<HTMLElement>(".clip-move-ghost");
+      expect(ghost?.style.left).toBe("70px");
+      expect(ghost?.dataset.clipId).toBe(hostClip.id);
+      expect(useDawStore.getState().project).toBe(project);
+      act(() => cancelClipPlacement(token));
+      expect(guest?.querySelector(".clip-move-ghost")).toBeNull();
+      act(() => {
+        beginClipPlacement(hostClip.id);
+      });
+      const hit = container.querySelector(
+        '.lane-row[data-track-id="host"] .clip-hit',
+      );
+      if (!hit) throw new Error("clip body is missing");
+      fireEvent.pointerDown(hit, { pointerId: 11, clientX: 100, clientY: 10 });
+      expect(getClipPlacement()).toEqual({ kind: "idle" });
+      fireEvent.pointerCancel(hit, { pointerId: 11 });
+      expect(execute).not.toHaveBeenCalled();
+      act(() => useDawStore.getState().setSelection(null));
     });
 
     it("keeps a lane range owner when a foreign pointer presses a clip body", () => {

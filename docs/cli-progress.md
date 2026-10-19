@@ -12,7 +12,7 @@ Long-running CLI operations report progress on **stderr** so stdout stays clean 
 | `--json-progress` | One JSON object per line on stderr (for automation / GUI) |
 | `PODCAST_PROGRESS=0` | Disable progress (same as `--no-progress`) |
 
-When stderr is **not** a TTY and `--json-progress` is off, there is no CLI consumer → `NullProgress` (progress stays silent). Use `--json-progress` in pipes when you want machine-readable events.
+When stderr is **not** a TTY and `--json-progress` is off, there is no CLI consumer → `NullProgress` (progress stays silent). Use `--json-progress` in pipes when you want machine-readable events. A command handed to a running Studio (`docs/gui-integration.md`) is not on a TTY either, so it draws no bars; `--json-progress` events still reach the caller.
 
 The root callback's reporter is scoped to one invocation (`ctx.call_on_close(reset_progress)`), so in-process callers such as `CliRunner` never leave a reporter bound to a stderr stream they have since closed.
 
