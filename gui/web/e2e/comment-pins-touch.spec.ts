@@ -148,7 +148,8 @@ test("pins on one spot count themselves and the chooser picks each comment", asy
   await expect(pin(p, "Dee")).not.toHaveAttribute("data-stack-count", /.+/);
 
   const at = await centre(p, "Ada");
-  for (const author of STACKED) {
+  // Against the stack's order, so a pick that cycled would land on the wrong pin.
+  for (const author of [...STACKED].reverse()) {
     await touch(cdp, "touchStart", [at]);
     await p.waitForTimeout(HOLD_MS);
     const chip = p.getByRole("menuitemradio", {
