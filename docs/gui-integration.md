@@ -1087,3 +1087,9 @@ with unchanged schedule identity avoids restarting sources unnecessarily.
 Derived manifest publication changes the project file certificate without
 advancing editable History. Existing document recovery admits that certificate;
 it must not trigger an endless manifest refresh or proxy save cycle.
+
+Host share preparation publishes the complete manifest after all track upload
+attempts, including their metadata mutations. After successful publication, an
+unchanged guest manifest read reuses that generation without saving or rendering.
+Failed preparation remains best-effort and logs a host warning. A later edit can
+require a new generation.

@@ -854,6 +854,13 @@ and revalidates captured inputs before accepting the generation. It adds no
 History step. Existing accepted URLs are never overwritten or purged on refusal.
 A complete unaccepted directory alone grants no read authority.
 
+Host `ensure_and_upload_all_proxies` publishes the complete generation after its
+independent track ensure and upload attempts, so its basis includes the final
+upload metadata History head. Successful preparation lets unchanged guest reads
+reuse the accepted generation without saving or rendering. Preparation failures
+log a host warning and preserve best-effort sharing. Later edits can require a new
+generation. Standalone `ensure_track_proxy` still grants no aggregate authority.
+
 The manifest's project basis binds history head, render hashes and complete clip
 geometry to occurrence artifact references. The client admits one complete
 playback snapshot. Changed or unavailable variant generations pause timeline

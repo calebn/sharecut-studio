@@ -227,13 +227,19 @@ def delete_proxy_objects_if_unused(
 
 
 def ensure_and_upload_all_proxies(ws: ProjectWorkspace) -> None:
-    """Best-effort ensure+upload proxies for every dialogue track."""
+    """Best-effort prepare a complete manifest after dialogue-track proxy uploads."""
+    from podcast_mcp.services.media.proxy_variants import ensure_proxy_manifest
+
     for tid in dialogue_track_ids(ws.project):
         try:
             ensure_track_proxy(ws, tid)
             upload_track_proxy_to_object_store(ws, tid)
         except Exception:
             log.warning("Proxy ensure/upload failed for track %s", tid, exc_info=True)
+    try:
+        ensure_proxy_manifest(ws)
+    except Exception:
+        log.warning("Proxy manifest preparation failed", exc_info=True)
 
 
 def delete_all_proxies_if_unused(ws: ProjectWorkspace) -> None:
