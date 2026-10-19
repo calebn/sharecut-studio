@@ -541,7 +541,6 @@ export function PrecisionBoundaryDialog({
           </label>
           <div className="precision-boundary-number">
             <Button
-              aria-label="Adjust by minus 1 millisecond"
               disabledReason={
                 saving
                   ? "Saving the boundary."
@@ -583,7 +582,6 @@ export function PrecisionBoundaryDialog({
               }}
             />
             <Button
-              aria-label="Adjust by plus 1 millisecond"
               disabledReason={
                 saving
                   ? "Saving the boundary."
@@ -601,7 +599,6 @@ export function PrecisionBoundaryDialog({
             aria-label="Regular adjustments"
           >
             <Button
-              aria-label="Adjust by minus 10 milliseconds"
               disabledReason={saving ? BUSY_REASON : undefined}
               onClick={() =>
                 changeValue(value - context.limits.regular_step_sec)
@@ -610,7 +607,6 @@ export function PrecisionBoundaryDialog({
               −10 ms
             </Button>
             <Button
-              aria-label="Adjust by plus 10 milliseconds"
               disabledReason={saving ? BUSY_REASON : undefined}
               onClick={() =>
                 changeValue(value + context.limits.regular_step_sec)

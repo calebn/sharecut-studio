@@ -330,7 +330,7 @@ export const Loading: Story = {
       "Loading timeline…",
     );
     await expect(
-      canvas.queryByRole("button", { name: "Drop audio files or import" }),
+      canvas.queryByRole("button", { name: /Drop audio files here/ }),
     ).toBeNull();
     await expect(canvas.getByRole("button", { name: "Play" })).toHaveAttribute(
       "aria-disabled",
@@ -343,14 +343,14 @@ export const EmptyIngest: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: "Drop audio files or import" }),
+      canvas.getByRole("button", { name: /Drop audio files here/ }),
     );
     await expect(args.onImport).toHaveBeenCalledWith();
     await userEvent.click(canvas.getByRole("button", { name: "Got it" }));
     await expect(args.onDismissCoach).toHaveBeenCalledWith();
     await expect(canvas.queryByText(/Drop stems here/)).toBeNull();
     await expect(
-      canvas.getByRole("button", { name: "Drop audio files or import" }),
+      canvas.getByRole("button", { name: /Drop audio files here/ }),
     ).toBeInTheDocument();
   },
 };
