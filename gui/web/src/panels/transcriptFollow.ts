@@ -103,8 +103,8 @@ export function easeScrollTop(
   }
   const t0 = performance.now();
   let raf = 0;
-  const step = (now: number) => {
-    const t = Math.min(1, (now - t0) / EASE_MS);
+  const step = () => {
+    const t = Math.min(1, Math.max(0, (performance.now() - t0) / EASE_MS));
     const eased = 1 - (1 - t) ** 3;
     root.scrollTop = from + (to - from) * eased;
     if (t < 1) {
