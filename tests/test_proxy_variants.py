@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import wave
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -23,6 +24,7 @@ from podcast_mcp.services.media import proxy_media as pm
 from podcast_mcp.services.media import proxy_variants as pv
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.object_store import ObjectStoreConfig
 
 
 @pytest.fixture
@@ -104,6 +106,156 @@ def test_history_free_complete_manifest_and_noop(workspace, monkeypatch, fast_en
     )
     assert pv.ensure_proxy_manifest(ws) == generation
     assert ws.path.read_bytes() == saved
+
+
+def _assert_prepared_read_unchanged(ws, monkeypatch):
+    reopened = ProjectWorkspace.open(ws.path)
+    assert len(reopened.project.render.proxy_manifests) == 1
+    generation = reopened.project.render.proxy_manifests[0]
+    assert generation.project_basis == pv.project_basis(reopened.project)
+    saved = reopened.path.read_bytes()
+    history = reopened.project.history.model_dump()
+    root = reopened.project.workspace_path()
+
+    def files():
+        return {
+            path.relative_to(root): path.read_bytes()
+            for directory in (root / "raw", root / "history", root / "artifacts/proxy")
+            for path in directory.rglob("*")
+            if path.is_file()
+        }
+
+    before = files()
+    monkeypatch.setattr(reopened, "save", lambda: pytest.fail("Prepared manifest saved"))
+    monkeypatch.setattr(
+        pv, "render_source_proxy_inputs", lambda *_a, **_k: pytest.fail("Prepared proxy rendered")
+    )
+    for artifact in [*generation.tracks.values(), *generation.artifacts.values()]:
+        for index in range(artifact.chunk_count):
+            chunk = pv.accepted_proxy_chunk_path(
+                reopened, artifact.context_track_id, index, expected_hash=artifact.hash
+            )
+            assert chunk.read_bytes() == before[chunk.relative_to(root)]
+    assert pv.ensure_proxy_manifest(reopened) == generation
+    assert reopened.path.read_bytes() == saved
+    assert reopened.project.history.model_dump() == history
+    assert files() == before
+    return generation
+
+
+@pytest.mark.parametrize("mode", ["empty", "legacy", "occurrence"])
+def test_host_preparation_persists_complete_generation_before_guest_read(
+    workspace, monkeypatch, fast_encode, mode
+):
+    ws = workspace
+    if mode == "empty":
+        ws.project.tracks = []
+        ws.save()
+    elif mode == "occurrence":
+        _choice(ws)
+    ws.record_snapshot("before host proxy preparation", force=True)
+    history = ws.project.history.model_dump()
+    monkeypatch.setattr(pm, "load_object_store_config", lambda: None)
+
+    pm.ensure_and_upload_all_proxies(ws)
+
+    assert ws.project.history.model_dump() == history
+    generation = _assert_prepared_read_unchanged(ws, monkeypatch)
+    assert set(generation.tracks) == (set() if mode == "empty" else {"host"})
+    assert set(generation.occurrences) == ({"selected"} if mode == "occurrence" else set())
+    assert len(generation.artifacts) == (1 if mode == "occurrence" else 0)
+
+
+@pytest.mark.parametrize("failed_track", [None, "host"])
+def test_host_preparation_accepts_final_upload_history_and_isolates_failure(
+    workspace, monkeypatch, fast_encode, failed_track
+):
+    ws = workspace
+    ws.project.tracks.append(
+        Track(id="guest", label="Guest", media=MediaAsset(path="raw/host.wav"))
+    )
+    ws.save()
+    ws.record_snapshot("before host proxy upload", force=True)
+    initial_head = ws.project.history.head_id()
+    attempts = []
+    uploaded = {}
+
+    def upload(source, key):
+        attempts.append(key.split("/")[1])
+        if key.split("/")[1] == failed_track:
+            raise OSError("injected upload failure")
+        uploaded[key] = source.read()
+
+    client = MagicMock()
+    client.upload_fileobj.side_effect = upload
+    cfg = ObjectStoreConfig(
+        endpoint_url="https://s3.example.test",
+        region="us-test-1",
+        bucket="b",
+        access_key_id="k",
+        secret_access_key="s",
+    )
+    monkeypatch.setattr(pm, "load_object_store_config", lambda: cfg)
+    monkeypatch.setattr(pm, "ObjectStoreClient", lambda _cfg: client)
+
+    pm.ensure_and_upload_all_proxies(ws)
+
+    assert attempts == ["host", "guest"]
+    assert ws.project.history.head_id() != initial_head
+    generation = _assert_prepared_read_unchanged(ws, monkeypatch)
+    assert set(generation.tracks) == {"host", "guest"}
+    assert generation.project_basis.history_head_id == ws.project.history.head_id()
+    for track in ProjectWorkspace.open(ws.path).project.tracks:
+        artifact = generation.tracks[track.id]
+        assert track.proxy.hash == artifact.hash
+        if track.id == failed_track:
+            assert track.proxy.object_store_prefix is None
+            assert track.proxy.object_store_uploaded_at is None
+        else:
+            assert track.proxy.object_store_prefix == pm.proxy_object_prefix(
+                track.id, artifact.hash
+            )
+            assert track.proxy.object_store_uploaded_at
+            assert (
+                uploaded[pm.proxy_chunk_key(track.id, artifact.hash, 0)]
+                == _chunk(ws, artifact).read_bytes()
+            )
+
+
+def test_host_manifest_failure_retains_authority_and_retry_recovers(
+    workspace, monkeypatch, fast_encode, caplog
+):
+    ws = workspace
+    previous = pv.ensure_proxy_manifest(ws)
+    previous_bytes = _chunk(ws, previous.tracks["host"]).read_bytes()
+    _choice(ws)
+    render = pv.render_source_proxy_inputs
+
+    def fail_occurrence(project, inputs, *args, **kwargs):
+        if inputs.selector == "occurrence":
+            raise OSError("injected occurrence render failure")
+        return render(project, inputs, *args, **kwargs)
+
+    monkeypatch.setattr(pm, "load_object_store_config", lambda: None)
+    monkeypatch.setattr(pv, "render_source_proxy_inputs", fail_occurrence)
+    pm.ensure_and_upload_all_proxies(ws)
+
+    reopened = ProjectWorkspace.open(ws.path)
+    assert reopened.project.render.proxy_manifests == [previous]
+    assert (
+        pv.accepted_proxy_chunk_path(
+            reopened, "host", 0, expected_hash=previous.tracks["host"].hash
+        ).read_bytes()
+        == previous_bytes
+    )
+    assert "Proxy manifest preparation failed" in caplog.text
+    monkeypatch.setattr(pv, "render_source_proxy_inputs", render)
+    pm.ensure_and_upload_all_proxies(reopened)
+    recovered = ProjectWorkspace.open(ws.path).project.render.proxy_manifests
+    assert len(recovered) == 2
+    assert recovered[0].project_basis == pv.project_basis(reopened.project)
+    assert set(recovered[0].occurrences) == {"selected"}
+    assert recovered[1] == previous
 
 
 def test_standalone_64_self_verifies_but_does_not_authorize(workspace, monkeypatch, fast_encode):
