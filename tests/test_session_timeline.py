@@ -18,6 +18,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import (
     Clip,
+    ClipMuteRegion,
     EpisodeProject,
     MediaAsset,
     SourceRecording,
@@ -742,6 +743,29 @@ def test_same_source_overlaps_flags_stacked_split_copies(tmp_path) -> None:
     assert stacks[0].clip_ids == ("c1", "c2")
     assert stacks[0].track_ids == ("guest", "guest")
     assert stacks[0].overlap_sec == pytest.approx(100.0)
+
+
+def test_same_source_overlaps_count_a_lowered_span_as_audible_but_not_a_mute(tmp_path) -> None:
+    host = [Clip(id="h", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0)]
+
+    def stacked(region: ClipMuteRegion):
+        guest = [
+            Clip(
+                id="c1",
+                track_id="guest",
+                source_start=0.0,
+                source_end=100.0,
+                timeline_start=0.0,
+                mute_regions=[region],
+            ),
+            Clip(id="c2", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        ]
+        return same_source_timeline_overlaps(_drift_project(tmp_path, "lowered", host, guest))
+
+    (lowered,) = stacked(ClipMuteRegion(start_s=10.0, end_s=40.0, gain_db=-12.0))
+    assert lowered.overlap_sec == pytest.approx(100.0)
+    (muted,) = stacked(ClipMuteRegion(start_s=10.0, end_s=40.0))
+    assert muted.overlap_sec == pytest.approx(70.0)
 
 
 def test_same_source_overlaps_ignores_abutting_and_tolerance(tmp_path) -> None:
