@@ -217,11 +217,11 @@ class ShareService:
             return []
         try:
             from podcast_mcp.services.collaboration.share_page import share_public_origin
-            from podcast_mcp.services.media import presigned_proxy_urls
-            from podcast_mcp.services.media.object_store_cors import (
+            from podcast_mcp.services.media import (
                 cached_guest_cors,
                 cors_blocked_message,
                 cors_rule,
+                presigned_proxy_urls,
             )
             from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -1066,7 +1066,7 @@ def _object_store_cors_blocked(
 ) -> Any:
     """The failed probe when the first object-store chunk is unreadable to guests, else None."""
     from podcast_mcp.services.collaboration.share_page import share_public_origin
-    from podcast_mcp.services.media.object_store_cors import cached_guest_cors
+    from podcast_mcp.services.media import cached_guest_cors
 
     for tid in store_tracks:
         urls = tracks_out[tid]["urls"]
