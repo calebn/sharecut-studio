@@ -64,6 +64,10 @@ export function rectDistance(rect: HitRect, p: HitPoint): number {
   return Math.hypot(dx, dy);
 }
 
+function isRowKind(kind: HitKind): boolean {
+  return (HIT_KINDS[kind] as HitKindContract).reach === "row";
+}
+
 function inReach(
   rect: HitRect,
   pointer: HitPoint,
@@ -154,12 +158,17 @@ export function rankHitTargets<T extends HitTarget>(
       },
     });
   }
-  ranked.sort(
-    ({ candidate: a }, { candidate: b }) =>
-      Number(b.selected) - Number(a.selected) ||
-      a.distance - b.distance ||
-      b.priority - a.priority,
-  );
+  ranked.sort(({ candidate: a }, { candidate: b }) => {
+    const bySelected = Number(b.selected) - Number(a.selected);
+    const byDistance = a.distance - b.distance;
+    // Marker pins sit a finger's width apart: the nearer one is the one
+    // meant, selected or not. Equal distance (a stack) keeps selected first.
+    return (
+      (isRowKind(a.kind) && isRowKind(b.kind)
+        ? byDistance || bySelected
+        : bySelected || byDistance) || b.priority - a.priority
+    );
+  });
   if (ranked.length === 0 && body) return [body];
   return applyOutranks(ranked);
 }
