@@ -282,6 +282,14 @@ export function ShareDialog() {
         announce("Review link created");
       }
       await load(request.scope);
+      const corsWarning = share.warnings?.find(
+        (w) => w.code === "object_store_cors",
+      );
+      if (corsWarning && isCurrentScope(request.scope)) {
+        setError(
+          `Link created, but its bucket has no CORS rule for ${corsWarning.origin ?? "the share origin"}, so guests stream through your connection until you add one. The rule to paste is in docs/host-online-relay.md.`,
+        );
+      }
     } catch (err) {
       if (!isCurrentScope(request.scope)) {
         return;

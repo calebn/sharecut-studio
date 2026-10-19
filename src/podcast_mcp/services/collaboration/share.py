@@ -199,11 +199,52 @@ class ShareService:
                     exc_info=True,
                 )
         ver = get_version(self.ws.project, review_version_id)
-        return present_share(
+        presented = present_share(
             row,
             public_base_url=public_base_url,
             version_label=ver.label,
         )
+        warnings = self._object_store_warnings(row, public_base_url)
+        if warnings:
+            presented["warnings"] = warnings
+        return presented
+
+    def _object_store_warnings(
+        self, row: dict[str, Any], public_base_url: str | None
+    ) -> list[dict[str, Any]]:
+        """Tell the host now when guests could not read the bucket (#1759); never raises."""
+        if not has_capability(row.get("capabilities"), CAP_VIEW):
+            return []
+        try:
+            from podcast_mcp.services.collaboration.share_page import share_public_origin
+            from podcast_mcp.services.media import (
+                cached_guest_cors,
+                cors_blocked_message,
+                cors_rule,
+                presigned_proxy_urls,
+            )
+            from podcast_mcp.util.tracks import dialogue_track_ids
+
+            self.ws.reload()
+            origin = share_public_origin(public_base_url)
+            for tid in dialogue_track_ids(self.ws.project):
+                urls = presigned_proxy_urls(self.ws.project, tid, expires_at=row.get("expires_at"))
+                if not urls:
+                    continue
+                probe = cached_guest_cors(urls[0], origin)
+                if not probe.blocked:
+                    return []
+                return [
+                    {
+                        "code": "object_store_cors",
+                        "message": cors_blocked_message(origin),
+                        "origin": origin,
+                        "rule": cors_rule(origin),
+                    }
+                ]
+        except Exception:
+            log.debug("object-store CORS check failed; skipping warning", exc_info=True)
+        return []
 
     def list(self) -> list[dict[str, Any]]:
         return list_shares(self.ws.project)
@@ -982,7 +1023,39 @@ def share_proxy_manifest(token: str) -> dict[str, Any]:
                 signed = presigned_proxy_urls(project, tid, expires_at=row.get("expires_at"))
                 if signed is not None:
                     urls[tid] = signed
-    return proxy_manifest_payload(generation, token, legacy_urls=urls)
+    out = proxy_manifest_payload(generation, token, legacy_urls=urls)
+    store_tracks = {
+        tid: (generation.tracks[tid].hash, generation.tracks[tid].chunk_count) for tid in urls
+    }
+    blocked = _object_store_cors_blocked(out["tracks"], store_tracks)
+    if blocked is not None:
+        for tid, (proxy_hash, count) in store_tracks.items():
+            out["tracks"][tid]["urls"] = _local_proxy_urls(token, tid, proxy_hash, count)
+        out["object_store_cors"] = {"status": "blocked", "origin": blocked.origin}
+    return out
+
+
+def _local_proxy_urls(token: str, track_id: str, proxy_hash: str, count: int) -> list[str]:
+    return [f"/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{i}" for i in range(count)]
+
+
+def _object_store_cors_blocked(
+    tracks_out: dict[str, Any], store_tracks: dict[str, tuple[str, int]]
+) -> Any:
+    """The failed probe when the first object-store chunk is unreadable to guests, else None."""
+    from podcast_mcp.services.collaboration.share_page import share_public_origin
+    from podcast_mcp.services.media import cached_guest_cors
+
+    for tid in store_tracks:
+        urls = tracks_out[tid]["urls"]
+        if not urls:
+            continue
+        probe = cached_guest_cors(urls[0], share_public_origin())
+        if probe.blocked:
+            log.warning("Object store has no CORS rule for %s; guests use the share", probe.origin)
+            return probe
+        return None
+    return None
 
 
 def share_proxy_chunk_path(

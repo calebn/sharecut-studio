@@ -345,6 +345,70 @@ describe("useProxyTransport", () => {
     expect(players.every((player) => player.paused)).toBe(true);
   });
 
+  it.each(["track", "artifact"] as const)(
+    "retains generation ownership when a %s chunk fails with CORS",
+    async (kind) => {
+      const fixture = moveFixture();
+      useDawStore.getState().setProject(fixture.base);
+      const id = "b".repeat(64);
+      const manifest =
+        kind === "artifact"
+          ? {
+              ...fixture.manifest,
+              artifacts: {
+                [id]: { ...fixture.manifest.tracks.host, hash: id },
+              },
+              occurrences: { c: { artifactId: id, outputTrackId: "host" } },
+            }
+          : fixture.manifest;
+      vi.mocked(loadProxyManifest).mockResolvedValue(manifest);
+      const { result } = renderHook(() => {
+        const owns = useProxyTransport();
+        useAudioTransport(!owns);
+        return owns;
+      });
+      await ready();
+      act(() => useDawStore.getState().setIsPlaying(true));
+      const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2];
+      act(() =>
+        failure?.(new TypeError("Failed to fetch"), {
+          kind,
+          artifactId: kind === "artifact" ? id : "host",
+          hash: kind === "artifact" ? id : "a".repeat(16),
+          index: 0,
+          url: "chunk-url",
+        }),
+      );
+      expect(result.current).toBe(true);
+      expect(useDawStore.getState().isPlaying).toBe(false);
+      expect(useDawStore.getState().audioError).toBe("Failed to fetch");
+      expect(players).toHaveLength(0);
+    },
+  );
+
+  it("refuses an older generation after the displayed project revision advances", async () => {
+    const cached = manifestFor();
+    const current = structuredClone(useDawStore.getState().project!);
+    current.history.head_id = "after-restore" as typeof current.history.head_id;
+    useDawStore.getState().setProject(current);
+    vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
+    vi.mocked(loadOfflineSnapshot).mockResolvedValue({
+      manifest: cached,
+      saved_at: 1,
+    });
+    const { result } = renderHook(() => {
+      const owns = useProxyTransport();
+      useAudioTransport(!owns);
+      return owns;
+    });
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().audioError).toBeTruthy(),
+    );
+    expect(result.current).toBe(true);
+    expect(engine.setSnapshot).not.toHaveBeenCalled();
+    expect(players).toHaveLength(0);
+  });
+
   it("uses the immutable copied URL through the permanent engine fetch callback", async () => {
     renderHook(() => useProxyTransport());
     await ready();

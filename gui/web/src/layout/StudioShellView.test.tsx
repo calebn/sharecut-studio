@@ -187,7 +187,7 @@ describe("StudioShellView", () => {
       "Timeline skeleton",
     );
     expect(
-      screen.queryByRole("button", { name: "Drop audio files or import" }),
+      screen.queryByRole("button", { name: /Drop audio files here/ }),
     ).toBeNull();
     await expectNoA11yViolations(document.body);
     rerender(<StudioShellView {...presentation()} />);
@@ -218,9 +218,7 @@ describe("StudioShellView", () => {
       },
     };
     render(<StudioShellView {...props} />);
-    const target = screen.getByRole("button", {
-      name: "Drop audio files or import",
-    });
+    const target = screen.getByRole("button", { name: "Add 2 tracks" });
     expect(target).toHaveClass("lane-drop-target");
     expect(target).toHaveTextContent("Add 2 tracks");
     expect(target.querySelector(".empty-session-ghost")).toHaveAttribute(

@@ -959,3 +959,75 @@ def test_namespace_sync_failure_preserves_saved_authority_and_retries(
     accepted = pv.ensure_proxy_manifest(ws)
     assert accepted.tracks["host"].hash == orphan.parent.name
     assert orphan.read_bytes() == original
+
+
+@pytest.mark.parametrize("probe_status", ["ok", "blocked", "unknown"])
+def test_share_cors_fallback_preserves_current_complete_restore_generation(
+    workspace, monkeypatch, fast_encode, probe_status
+):
+    from podcast_mcp.services.collaboration import share
+    from podcast_mcp.services.media import object_store_cors as cors
+
+    ws = workspace
+    _choice(ws)
+    generation = pv.ensure_proxy_manifest(ws)
+    ws.project.tracks[0].proxy = generation.tracks["host"].model_copy()
+    ws.save()
+    saved = ws.path.read_bytes()
+    probes = []
+    monkeypatch.setattr(
+        share, "require_share_cap", lambda *_: ({"capabilities": ["play", "view"]}, ws)
+    )
+    monkeypatch.setattr(
+        pm, "presigned_proxy_urls", lambda *_a, **_k: ["https://store.example.test/chunk"]
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share_page.share_public_origin",
+        lambda: "https://share.example.test",
+    )
+
+    def probe(url, origin):
+        probes.append((url, origin))
+        return cors.probe_guest_cors(
+            url,
+            origin,
+            fetch=lambda *_: (
+                None
+                if probe_status == "unknown"
+                else ({} if probe_status == "blocked" else {"access-control-allow-origin": origin})
+            ),
+        )
+
+    monkeypatch.setattr("podcast_mcp.services.media.cached_guest_cors", probe)
+    monkeypatch.setattr(ws, "save", lambda: pytest.fail("Guest CORS probe wrote the project"))
+    body = share.share_proxy_manifest("token")
+    assert body["project_basis"] == generation.project_basis.model_dump(mode="json")
+    assert body["revision"] == generation.revision
+    assert body["artifacts"] == pv.proxy_manifest_payload(generation, "token")["artifacts"]
+    assert body["tracks"]["host"]["hash"] == generation.tracks["host"].hash
+    assert body["occurrences"] == {
+        "selected": {
+            "artifactId": generation.occurrences["selected"].artifact_id,
+            "outputTrackId": "host",
+        }
+    }
+    for descriptor in body["artifacts"].values():
+        assert descriptor["urls"][0].startswith("/api/review/token/daw/proxy/host/")
+        assert pv.accepted_proxy_chunk_path(
+            ws, "host", 0, expected_hash=descriptor["hash"]
+        ).is_file()
+    assert probes == [("https://store.example.test/chunk", "https://share.example.test")]
+    if probe_status == "blocked":
+        hash_ = generation.tracks["host"].hash
+        assert body["tracks"]["host"]["urls"] == [f"/api/review/token/daw/proxy/host/{hash_}/0"]
+        assert share.share_proxy_chunk_path("token", "host", 0, proxy_hash=hash_) == _chunk(
+            ws, generation.tracks["host"]
+        )
+        assert body["object_store_cors"] == {
+            "status": "blocked",
+            "origin": "https://share.example.test",
+        }
+    else:
+        assert body["tracks"]["host"]["urls"] == ["https://store.example.test/chunk"]
+        assert "object_store_cors" not in body
+    assert ws.path.read_bytes() == saved

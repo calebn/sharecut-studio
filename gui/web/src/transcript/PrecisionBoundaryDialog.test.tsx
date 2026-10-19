@@ -122,13 +122,9 @@ describe("PrecisionBoundaryDialog", () => {
     });
     expect(input).toHaveValue(0);
     await expectNoA11yViolations(document.body);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Adjust by plus 1 millisecond" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "+1 ms" }));
     expect(input).toHaveValue(0.001);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Adjust by minus 10 milliseconds" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "−10 ms" }));
     expect(input).toHaveValue(-0.009);
     expect(screen.getByText("3.991 s")).toBeInTheDocument();
   });

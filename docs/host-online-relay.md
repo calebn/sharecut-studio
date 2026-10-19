@@ -377,8 +377,16 @@ Guests with `play`+`view` prefer **FX source-clock proxy chunks** (64 kbps mono 
 3. Guest Sharecut Studio (`useProxyTransport`) decodes a sliding window via Web Audio and
    schedules clips from the project file. Host lossless WAV remains the only mixdown/export path.
 
-When object storage is unset or proxy ensure fails, guests fall back to the existing HTMLAudio
-WAV transport through the tunnel.
+The host probes the first signed track chunk for the public guest origin. A blocked bucket
+adds `object_store_cors` metadata and replaces signed track URLs with authenticated share URLs
+for the same accepted hash. Occurrence artifacts always use immutable authenticated share URLs.
+
+Every manifest carries its project basis and generation, including projects without occurrence
+artifacts. The guest retains timeline ownership on loading or playback failure so an older WAV
+cannot play in place of the displayed project or its Restore choices. A changed project basis
+invalidates playback until its matching manifest arrives.
+An unknown probe result or a previously allowed origin that later blocks browser fetches can
+still stop guest playback. These failures retain proxy ownership and show an audio error.
 
 **Object-store bucket setup (once):**
 
@@ -396,6 +404,14 @@ WAV transport through the tunnel.
   }
 ]
 ```
+
+   Creating a review link asks the bucket the way a guest's browser does (a `GET` with
+   `Origin: <public_base_url>`) and warns the host when `Access-Control-Allow-Origin` is missing:
+   the link dialog and `podcast share create` print the rule to paste. Until the rule is added,
+   the guest manifest serves proxy chunks through the share instead of the bucket, and a guest
+   whose browser still cannot read the first chunk falls back to the WAV transport, so the link
+   plays either way (more tunnel traffic). The host check is cached for 30 s to 5 min per bucket
+   host and origin; an unreachable bucket is treated as unknown and changes nothing.
 
 3. Optional lifecycle rule: expire the `review/` prefix after 30 days.
 4. Smoke: open a review-only share; Network tab should show media from

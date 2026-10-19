@@ -22,6 +22,11 @@ if TYPE_CHECKING:
         unique_raw_path,
         write_upload_chunk,
     )
+    from podcast_mcp.services.media.object_store_cors import (
+        cached_guest_cors,
+        cors_blocked_message,
+        cors_rule,
+    )
     from podcast_mcp.services.media.proxy_media import (
         delete_all_proxies_if_unused,
         ensure_and_upload_all_proxies,
@@ -82,7 +87,10 @@ __all__ = [
     "VocabularyConflictError",
     "WaveformBusyError",
     "accepted_proxy_chunk_path",
+    "cached_guest_cors",
     "coerce_enrollment",
+    "cors_blocked_message",
+    "cors_rule",
     "delete_all_proxies_if_unused",
     "delete_object_store_object_if_unused",
     "ensure_and_upload_all_proxies",
@@ -132,6 +140,9 @@ _MODULE_BY_NAME = {
     "gui_media_max_bytes": "media_store",
     "write_upload_chunk": "media_store",
     "unique_raw_path": "media_store",
+    "cached_guest_cors": "object_store_cors",
+    "cors_blocked_message": "object_store_cors",
+    "cors_rule": "object_store_cors",
     "ensure_and_upload_all_proxies": "proxy_media",
     "delete_all_proxies_if_unused": "proxy_media",
     "ensure_track_proxy": "proxy_media",

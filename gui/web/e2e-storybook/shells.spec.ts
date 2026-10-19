@@ -182,7 +182,7 @@ for (const theme of ["light", "dark"] as const) {
       page.getByRole("button", { name: "Play", exact: true }),
     ).toBeDisabled();
     await expect(
-      page.getByRole("button", { name: "Drop audio files or import" }),
+      page.getByRole("button", { name: /Drop audio files here/ }),
     ).toHaveCount(0);
     await expectShellFit(page, 1440);
     await expectPageAxeClean(page);
@@ -194,7 +194,7 @@ for (const theme of ["light", "dark"] as const) {
     await openStory(page, "studioshell--empty-ingest", 1440, theme);
     await expect(page.getByRole("button", { name: "Got it" })).toHaveCount(0);
     const target = page.getByRole("button", {
-      name: "Drop audio files or import",
+      name: /Drop audio files here/,
     });
     await expect(target).toBeVisible();
     await target.focus();
