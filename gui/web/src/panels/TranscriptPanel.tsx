@@ -806,26 +806,28 @@ export function TranscriptPanel() {
       candidates.push({ utteranceIndex: ui, trackId, wordKey });
     }
     const sec = useDawStore.getState().playheadSec;
-    const prevLead = followLeadRef.current;
-    const pick = pickFollowCandidate(candidates, prevLead, sec);
+    const pick = pickFollowCandidate(candidates, followLeadRef.current, sec);
     if (!pick) {
       return;
     }
     followLeadRef.current = { trackId: pick.trackId, sec };
-    // Between words of a line already followed: stay put. A new lane or a
-    // seek into a gap (nothing audible mounted) goes to the utterance's
-    // first line instead.
-    const moved =
-      !prevLead ||
-      prevLead.trackId !== pick.trackId ||
-      Math.abs(sec - prevLead.sec) > 1;
-    const key = pick.wordKey ?? (moved ? `u${pick.utteranceIndex}` : null);
-    const el = key ? activeElsRef.current.get(key) : undefined;
+    const el = activeElsRef.current.get(
+      pick.wordKey ?? `u${pick.utteranceIndex}`,
+    );
     if (!el || !root.contains(el)) {
       return;
     }
     const rootRect = root.getBoundingClientRect();
     const elRect = el.getBoundingClientRect();
+    if (
+      !pick.wordKey &&
+      elRect.bottom > rootRect.top &&
+      elRect.top < rootRect.bottom
+    ) {
+      // Between words of a line that is on screen: stay put. Only a seek
+      // that lands in a gap of an off-screen line goes to its first line.
+      return;
+    }
     const next = followScrollTop({
       scrollTop: root.scrollTop,
       clientHeight: root.clientHeight,

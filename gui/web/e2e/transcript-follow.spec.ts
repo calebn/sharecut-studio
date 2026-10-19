@@ -137,6 +137,18 @@ async function activeWordCenter(
   }, track);
 }
 
+/** 0 normally; a few px when both positions sit at the bottom of the list. */
+async function bottomSlack(
+  list: Locator,
+  a: number,
+  b: number,
+): Promise<number> {
+  const max = await list.evaluate((el) => el.scrollHeight - el.clientHeight);
+  return a >= max - BOTTOM_SLACK_PX && b >= max - BOTTOM_SLACK_PX
+    ? BOTTOM_SLACK_PX
+    : 0;
+}
+
 type Sample = { top: number; max: number };
 
 async function sample(list: Locator): Promise<Sample> {
@@ -164,10 +176,15 @@ async function sweep(
  * bottom differ only because the active turn changed height there, which moves
  * the maximum, not Follow.
  */
+/** Within a few px of the bottom, where an active turn's height moves the maximum. */
+const BOTTOM_SLACK_PX = 8;
+
 function directionChanges(samples: Sample[], playbackSign: 1 | -1): number {
   return samples.slice(1).filter((now, i) => {
     const prev = samples[i];
-    const pinned = now.top === now.max && prev.top === prev.max;
+    const pinned =
+      now.top >= now.max - BOTTOM_SLACK_PX &&
+      prev.top >= prev.max - BOTTOM_SLACK_PX;
     return !pinned && (now.top - prev.top) * playbackSign < -0.5;
   }).length;
 }
@@ -198,12 +215,18 @@ for (const viewport of viewports) {
         const centre = await activeWordCenter(list, "reference");
         if (centre == null) {
           silent += 1;
-          expect(after, `scrollTop in the silence at ${sec}s`).toBe(before);
+          expect(
+            Math.abs(after - before),
+            `scrollTop in the silence at ${sec}s`,
+          ).toBeLessThanOrEqual(await bottomSlack(list, after, before));
         } else {
           const wasAt = (centre + (after - before)) / height;
           if (wasAt >= COMFORT_BAND[0] && wasAt <= COMFORT_BAND[1]) {
             held += 1;
-            expect(after, `scrollTop at ${sec}s`).toBe(before);
+            expect(
+              Math.abs(after - before),
+              `scrollTop at ${sec}s`,
+            ).toBeLessThanOrEqual(await bottomSlack(list, after, before));
           }
         }
         before = after;
@@ -224,9 +247,11 @@ for (const viewport of viewports) {
         await seekTo(page, sec - 1);
         const parked = await settledScrollTop(list);
         await page.keyboard.press("ArrowRight");
-        expect(await settledScrollTop(list), `scrollTop at ${sec}s`).toBe(
-          parked,
-        );
+        const now = await settledScrollTop(list);
+        expect(
+          Math.abs(now - parked),
+          `scrollTop at ${sec}s`,
+        ).toBeLessThanOrEqual(await bottomSlack(list, now, parked));
         await expect(list.locator(".utterance-word.active")).toHaveCount(0);
       }
     });
