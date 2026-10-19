@@ -169,3 +169,33 @@ test("pins on one spot count themselves and the chooser picks each comment", asy
   }
   await p.close();
 });
+
+test.describe("with a mouse", () => {
+  test.use({ hasTouch: false, isMobile: false });
+
+  test("a click on a stack steps through its pins and Tab with Enter opens exactly one", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await addComments(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".comment-marker.pin")).toHaveCount(5);
+    const seen: (string | null)[] = [];
+    for (let i = 0; i < STACKED.length + 1; i += 1) {
+      const box = (await pin(page, "Ada").boundingBox())!;
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await page.waitForTimeout(150);
+      seen.push((await selectedPins(page))[0] ?? null);
+    }
+    expect(seen).toEqual([
+      "Comment by Ada",
+      "Comment by Ben",
+      "Comment by Cy",
+      "Comment by Ada",
+    ]);
+    await pin(page, "Ben").focus();
+    await page.keyboard.press("Enter");
+    expect(await selectedPins(page)).toEqual(["Comment by Ben"]);
+  });
+});
