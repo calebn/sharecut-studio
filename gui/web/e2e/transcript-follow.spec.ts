@@ -235,13 +235,13 @@ for (const viewport of viewports) {
       expect(forward.at(-1)?.top).toBeGreaterThan(forward[0].top);
       expect(
         directionChanges(forward, 1),
-        `forward ${forward.map((f) => f.top)}`,
+        `forward ${forward.map((f) => f.top).join(",")}`,
       ).toBe(0);
       const backward = await sweep(page, list, "ArrowLeft", 54);
       expect(backward.at(-1)?.top).toBeLessThan(backward[0].top);
       expect(
         directionChanges(backward, -1),
-        `backward ${backward.map((f) => f.top)}`,
+        `backward ${backward.map((f) => f.top).join(",")}`,
       ).toBe(0);
     });
   });
