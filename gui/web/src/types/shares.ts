@@ -48,6 +48,7 @@ export type HostShareRow = {
   capabilities?: string[];
   review_version_id?: string;
   review_version_label?: string | null;
+  follow_latest?: boolean;
   created_at?: string;
   last_used_at?: string | null;
   expires_at?: string | null;

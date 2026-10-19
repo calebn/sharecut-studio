@@ -166,7 +166,11 @@ def delete_object_store_object_if_unused(
     active = [
         row
         for row in list_shares(ws.project)
-        if row.get("review_version_id") == version_id and not row.get("revoked")
+        if not row.get("revoked")
+        and (
+            row.get("review_version_id") == version_id
+            or (row.get("follow_latest") and ws.project.review.active_version_id == version_id)
+        )
     ]
     if active:
         return False

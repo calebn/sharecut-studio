@@ -244,7 +244,7 @@ Two axes (Google Docs–shaped):
 `mcp` is not part of any role. `--with-mcp` adds it to the chosen role. The role decides which document commands a guest runs (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`), so a capability set that holds no role in full runs none. There is no `--capabilities` flag.
 
 ```bash
-podcast review share --role viewer --project … --version <id> --base-url https://sharecut.studio
+podcast review share --role viewer --project … --base-url https://sharecut.studio
 podcast review share --role commenter --with-mcp …
 podcast review share --role editor --with-mcp …
 podcast review share --kind record --project … --base-url https://sharecut.studio
@@ -267,25 +267,27 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 
 Default for new shares: **Commenter**, Anyone with the link. Every role holds `view`, so `/r/{token}` opens Sharecut Studio for all three. There is no separate listen page: a share without `view` has no page, and no role, CLI flag, MCP tool or Share dialog option mints one.
 
+A review link **follows the latest published version**: publishing a fix (`review publish-version`) changes what the same URL plays, so the host keeps one link and never re-sends it. Pass `--version <id>` to freeze the link on one version, or `--pin` to freeze it on the active version now; the Share dialog marks such links "Frozen on …", and the guest project view (`/api/review/{token}/project`, `link_follows_latest`, `newer_version`) says which version is heard and whether a newer one exists. MCP `create_review_share_tool` takes the same `version_id` (frozen) and `pin`.
+
 ```bash
 # Read-only full DAW (timeline + playback)
 podcast review share --role viewer \
-  --project episode.project.json --version <id> \
+  --project episode.project.json \
   --base-url https://sharecut.studio
 
 # Comments + Suggest cut (the default role)
 podcast review share --role commenter \
-  --project episode.project.json --version <id> \
+  --project episode.project.json \
   --base-url https://sharecut.studio
 
 # Edit directly and approve suggestions
 podcast review share --role editor \
-  --project episode.project.json --version <id> \
+  --project episode.project.json \
   --base-url https://sharecut.studio
 
 # Remote MCP (capability-scoped; trusted collaborators)
 podcast review share --role commenter --with-mcp \
-  --project episode.project.json --version <id> \
+  --project episode.project.json \
   --base-url https://share.example.com
 ```
 

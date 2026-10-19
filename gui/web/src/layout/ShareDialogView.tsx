@@ -42,7 +42,11 @@ function roleLabel(row: HostShareRow): string {
 function reviewMeta(row: HostShareRow): string {
   const parts: string[] = [];
   if (row.review_version_label) {
-    parts.push(row.review_version_label);
+    parts.push(
+      row.follow_latest
+        ? `Follows latest: ${row.review_version_label}`
+        : `Frozen on ${row.review_version_label}`,
+    );
   }
   if (row.mcp_url) {
     parts.push("AI assistants allowed");

@@ -84,6 +84,7 @@ def create_share(
     kind: str = SHARE_KIND_REVIEW,
     role: str | None = None,
     session_id: str | None = None,
+    follow_latest: bool = False,
 ) -> dict[str, Any]:
     from podcast_mcp.edits.review_versions import get_version
     from podcast_mcp.services.share_auth import normalize_general_access
@@ -127,6 +128,7 @@ def create_share(
             "kind": kind,
             "role": role,
             "session_id": session_id,
+            "follow_latest": bool(follow_latest) and kind == SHARE_KIND_REVIEW,
         },
         registry=reg,
     )
@@ -142,6 +144,21 @@ def create_share(
         reg.release_claim(token)
         raise
     return row
+
+
+def effective_review_version_id(project: EpisodeProject, row: dict[str, Any]) -> str:
+    """The version a share serves: the active one for a follow-latest link (#1763).
+
+    A pinned link, or a follow-latest link whose project has no live active
+    version, serves the version recorded on the row.
+    """
+    recorded = str(row.get("review_version_id") or "")
+    if not row.get("follow_latest"):
+        return recorded
+    active = project.review.active_version_id
+    if active and any(v.id == active for v in project.review.versions):
+        return str(active)
+    return recorded
 
 
 def list_shares(project: EpisodeProject) -> list[dict[str, Any]]:
