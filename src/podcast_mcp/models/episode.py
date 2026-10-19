@@ -7,7 +7,14 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Literal, SupportsIndex, TypeVar, cast
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, require_v2_document
@@ -313,6 +320,18 @@ class Clip(BaseModel):
     ) -> list[ClipOffSpeakerMuteRegion]:
         keyed = {(r.start_s, r.end_s, r.fade_out_ms, r.fade_in_ms): r for r in regions}
         return [keyed[key] for key in sorted(keyed)]
+
+    @model_serializer(mode="wrap")
+    def _serialize_automatic_presence(self, handler: SerializerFunctionWrapHandler):
+        data = handler(self)
+        if (
+            "off_speaker_mute_regions" not in self.model_fields_set
+            and not self.off_speaker_mute_regions
+        ):
+            data.pop("off_speaker_mute_regions", None)
+        if "bleed_restore" not in self.model_fields_set and self.bleed_restore is None:
+            data.pop("bleed_restore", None)
+        return data
 
     @property
     def timeline_end(self) -> float:

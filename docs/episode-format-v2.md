@@ -211,6 +211,10 @@ Relocation and source pinning preserve choices. Changed bytes deactivate them.
 These choices affect timeline attenuation rendering and do not alter automatic
 gate evidence, source scope, transcript words, or manual `mute_regions`.
 
+For both automatic fields, an absent default remains absent in project JSON and
+editable History snapshots. Explicitly stored empty arrays and null values retain
+their presence. Nonempty choices persist, including list changes made in place.
+
 Split, extract, duplicate, and clipboard operations copy the object independently
 and retain full saved source intervals. Trims retain intervals for later extension.
 A roll retains each neighbor's own choices. Fresh media clips start with null.
