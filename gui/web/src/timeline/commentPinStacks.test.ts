@@ -14,6 +14,14 @@ describe("commentPinStacks", () => {
     expect(stacks).toEqual([["a", "b", "c"]]);
   });
 
+  it("measures a stack from its first pin, so a chain of pins is not one stack", () => {
+    const chain = [0, 1, 2, 3, 4].map((i) => pin(`p${i}`, i * 1.1));
+    expect(commentPinStacks(chain, 10)).toEqual([
+      ["p0", "p1"],
+      ["p2", "p3"],
+    ]);
+  });
+
   it("splits a stack as the zoom opens it", () => {
     const comments = [pin("a", 5), pin("b", 5.5)];
     expect(commentPinStacks(comments, 10)).toEqual([["a", "b"]]);

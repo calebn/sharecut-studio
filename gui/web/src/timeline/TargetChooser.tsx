@@ -61,7 +61,7 @@ function chipSurface(hit: ResolvedHit): string | undefined {
 function chipTag(hit: ResolvedHit): string | null {
   const detail = hitDetail(hit.element);
   if (hit.candidate.kind === "comment")
-    return detail?.[0]?.toUpperCase() ?? null;
+    return detail ? Array.from(detail)[0].toUpperCase() : null;
   return hit.candidate.kind === "envelope-point" && detail
     ? `${detail}×`
     : null;
