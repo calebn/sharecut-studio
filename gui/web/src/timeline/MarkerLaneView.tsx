@@ -16,6 +16,7 @@ import {
   isPinComment,
   nextInStack,
 } from "./commentPinStacks";
+import { isReplayed } from "./hitRouting";
 import { hitTargetProps } from "./hitTargets";
 import { type SocialDragMode, socialSpanAfterDrag } from "./socialDrag";
 import type { MarkerRows } from "./timelineMetrics";
@@ -523,7 +524,9 @@ export function MarkerLaneView({
                 onClick={(e) => {
                   e.stopPropagation();
                   const next = nextInStack(
-                    e.detail > 0 ? stack : undefined,
+                    e.detail > 0 && !isReplayed(e.nativeEvent)
+                      ? stack
+                      : undefined,
                     selectedCommentId,
                     c.id,
                   );
