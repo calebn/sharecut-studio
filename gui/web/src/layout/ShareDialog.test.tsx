@@ -229,6 +229,34 @@ describe("ShareDialog", () => {
     );
   });
 
+  it("tells the host when the bucket has no CORS rule for the share origin", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    createHostShare.mockResolvedValue({
+      ...liveRow,
+      warnings: [
+        {
+          code: "object_store_cors",
+          message: "Guests will hear nothing",
+          origin: "https://sharecut.studio",
+        },
+      ],
+    });
+    listHostShares
+      .mockResolvedValueOnce(listed())
+      .mockResolvedValue(listed([liveRow]));
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+    await screen.findByText("No review links yet.");
+    fireEvent.click(screen.getByRole("button", { name: "Create review link" }));
+    expect(
+      await screen.findByText(/no CORS rule for https:\/\/sharecut\.studio/),
+    ).toBeTruthy();
+    expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
+  });
+
   it("ignores a create completion after the dialog unmounts", async () => {
     const user = userEvent.setup();
     const create = deferred<HostShareRow>();

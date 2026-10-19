@@ -26,6 +26,10 @@ vi.mock("../audio/proxyEngine", () => ({
     return engine;
   }),
 }));
+const chunkCache = vi.hoisted(() => ({
+  cachedFetchArrayBuffer: vi.fn(async () => new ArrayBuffer(1)),
+}));
+vi.mock("../audio/chunkCache", () => chunkCache);
 vi.mock("../utils/audio", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../utils/audio")>()),
   audioContextCtor: () => class {},
@@ -47,6 +51,7 @@ describe("useProxyTransport", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    chunkCache.cachedFetchArrayBuffer.mockResolvedValue(new ArrayBuffer(1));
     engine.pause.mockReturnValue(26);
     engine.currentTimeSec.mockReturnValue(30);
     frames.length = 0;
@@ -83,6 +88,21 @@ describe("useProxyTransport", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("yields to the WAV transport when the first chunk cannot be read (bucket without CORS)", async () => {
+    chunkCache.cachedFetchArrayBuffer.mockRejectedValue(
+      new TypeError("Failed to fetch"),
+    );
+    const { result } = renderHook(() => useProxyTransport());
+    await vi.waitFor(() =>
+      expect(chunkCache.cachedFetchArrayBuffer).toHaveBeenCalledWith("u0"),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current).toBe(false);
+    expect(engine.setManifest).not.toHaveBeenCalled();
   });
 
   it("Stop rewinds the store and seeks the paused engine to the play start", async () => {

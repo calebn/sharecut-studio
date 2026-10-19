@@ -236,6 +236,8 @@ def review_share_cmd(
             invites.append(store.invite_to_share(row["token"], email=email, role=review_role))
         row = {**row, "invites": invites}
     typer.echo(json.dumps(row, indent=2))
+    for warning in row.get("warnings") or []:
+        typer.echo(f"\nWarning: {warning['message']}", err=True)
     typer.echo(f"\nShare URL: {row['url']}", err=True)
     if row.get("mcp_url"):
         typer.echo(f"MCP URL: {row['mcp_url']}", err=True)
