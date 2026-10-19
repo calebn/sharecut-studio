@@ -19,6 +19,7 @@ from podcast_mcp.edits.speaker_split import (
     LaneSpanMove,
     SplitMediaIdentity,
     _mute_region,
+    _rebuild_leftover_mutes,
     move_lane_span,
     owned_spans,
     split_track_by_speaker,
@@ -684,6 +685,28 @@ def test_move_lane_span_mutes_source_and_reopens_target(scripted_ws: ProjectWork
         assert summed == pytest.approx(1.0), t
     words = {tr.track_id: [w.text for w in tr.words] for tr in project.transcripts}
     assert words == {"room": [], "room_ben": ["hello", "there"]}
+
+
+def test_reopening_a_span_inside_a_lowered_region_keeps_its_gain(
+    scripted_ws: ProjectWorkspace,
+) -> None:
+    project = scripted_ws.project
+    clip = next(c for c in project.clips if c.track_id == "room")
+    clip.mute_regions = [
+        ClipMuteRegion(start_s=10.0, end_s=14.0, fade_out_ms=40, fade_in_ms=40, gain_db=-12.0),
+        ClipMuteRegion(start_s=20.0, end_s=22.0, fade_out_ms=40, fade_in_ms=40),
+    ]
+    _rebuild_leftover_mutes(project, clip, 12.0, 13.0, 30.0, SPLIT_FADE_MS)
+    lowered = [r for r in clip.mute_regions if r.gain_db is not None]
+    assert [r.gain_db for r in lowered] == [-12.0, -12.0]
+    assert lowered[0].start_s == pytest.approx(10.0)
+    assert lowered[1].end_s == pytest.approx(14.0)
+    # The reopened hole stays open: neither piece reaches into it.
+    assert lowered[0].end_s <= 12.0 + SPLIT_FADE_MS / 2000 + 1e-6
+    assert lowered[1].start_s >= 13.0 - SPLIT_FADE_MS / 2000 - 1e-6
+    assert [(r.start_s, r.gain_db) for r in clip.mute_regions if r.gain_db is None] == [
+        (20.0, None)
+    ]
 
 
 def test_move_lane_span_undo_restores_lanes(scripted_ws: ProjectWorkspace) -> None:
