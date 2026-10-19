@@ -274,3 +274,21 @@ def test_a_sound_nobody_decided_still_gets_its_action(sounds_project, monkeypatc
     )
 
     assert steps.apply_sound_actions(sounds_project, defaults) == "Applied 1 lower."
+
+
+def test_a_runner_run_does_not_trust_the_analysis_log_of_an_earlier_run(
+    sounds_project, monkeypatch
+):
+    # An earlier run analysed fine; this run starts at the sounds step, so its proposals are old.
+    from podcast_mcp.pipeline.runner import PipelineRunner
+
+    defaults = load_defaults()
+    defaults["tighten"]["enabled"] = True
+    _analysis_ran_in_this_run(sounds_project)
+    seen = _stale_run_then_scan(monkeypatch, sounds_project, [])
+
+    run = PipelineRunner(defaults).run(sounds_project, only_step="apply_sound_actions")
+
+    assert seen["scans"] == 1
+    assert [s.status for s in run.steps if s.step == "apply_sound_actions"] == ["ok"]
+    assert sounds_project.pipeline_runs[-1].id == run.id != "run"

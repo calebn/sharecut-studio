@@ -456,18 +456,14 @@ def _defaults_without_word_probe(defaults: dict[str, Any]) -> dict[str, Any]:
     return {**defaults, "tighten": tighten}
 
 
-def _tighten_analysis_ran_this_run(project: EpisodeProject, defaults: dict[str, Any]) -> bool:
+def _tighten_analysis_ran_this_run(project: EpisodeProject) -> bool:
     """True when ``analyze_fillers_pauses`` completed earlier in the run that is running now.
 
-    Enabled is not enough: ``--from apply_sound_actions`` or a skipped analysis leaves the
-    proposals of an earlier run on the project, and those are stale.
+    The step's own log is the one guard: a disabled or skipped analysis logs "skipped ...", and
+    ``--from apply_sound_actions`` has no log in this run, so the proposals an earlier run left
+    on the project are stale either way.
     """
-    from podcast_mcp.pipeline.meta import step_noop_reason
-
-    if (
-        step_noop_reason("analyze_fillers_pauses", defaults) is not None
-        or not project.pipeline_runs
-    ):
+    if not project.pipeline_runs:
         return False
     return any(
         log.step == "analyze_fillers_pauses"
@@ -501,7 +497,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
         "Applying sound actions",
         prefer_parent=True,
     ) as prog:
-        if not _tighten_analysis_ran_this_run(project, defaults):
+        if not _tighten_analysis_ran_this_run(project):
             # The proposals on the project are from an earlier run (or none), so look for
             # sounds here and keep only those.
             prog.set_phase("propose", "Looking for non-speech sounds…")
