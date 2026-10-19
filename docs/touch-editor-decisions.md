@@ -624,6 +624,29 @@ slow for the chooser and the rest-to-grab. The scroll-first rule replaced
 select-on-press for every timeline touch, so a touch dragged across a clip no
 longer selects it on the way (the #1051 round-two repro on `main`).
 
+### Comment pins (#1742)
+
+A comment pin is a hit kind, `comment` (select only, no drag), so the resolver
+and the chooser treat it like any other small timeline target.
+
+- **Width.** On touch a pin is `--touch-min` wide around its 10 px dot,
+  centred on its time, and stays one marker row tall: growing the row would
+  cost every phone with comments 20 px of lane. Its height is the named
+  dense-target exception (`e2e/touch-floor.spec.ts`); `e2e/comment-pins-touch.spec.ts`
+  holds its width to the floor.
+- **Row reach.** A comment reaches sideways along its own row only
+  (`reach: "row"` in `inputContract.ts`). A finger on the ruler above or a
+  clip below is never taken by a pin, selected or not, so the pin's reach adds
+  no collision with the ruler's seek or a clip tap.
+- **Stacks.** Pins whose dots overlap at the current zoom draw one dot with the
+  stack's count (`data-stack-count`). A long press fans them out in the
+  chooser, each chip named for its author and its time; a mouse click on a
+  stack steps to the next pin after the selected one. A keyboard activation or
+  a chooser pick opens exactly the pin it named.
+- **No toast.** The chooser's "N targets here" is spoken by the live region
+  only. Its toast sat over the chips whenever the inspector had shortened the
+  timeline, which hid the second pick of a stack.
+
 ### Drag from a chip (#1051 round 3)
 
 On a phone, picking a target and then dragging it meant two gestures, with

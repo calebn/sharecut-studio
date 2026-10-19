@@ -100,6 +100,7 @@ const TARGET: Record<HitKind, { id: string; sec: number }> = {
   "trim-in": { id: "c2", sec: 10 },
   "trim-out": { id: "c2", sec: 40 },
   chapter: { id: "30-Middle", sec: 30 },
+  comment: { id: "m1", sec: 20 },
   "social-clip": { id: "s1", sec: 50 },
   clip: { id: "c2", sec: 10 },
 };

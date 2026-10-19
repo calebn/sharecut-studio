@@ -4,7 +4,12 @@
  * targets crowd one spot. The selected target wins, then the nearest, then
  * the kind's priority.
  */
-import { HIT_KINDS, type HitKind, outranks } from "./inputContract";
+import {
+  HIT_KINDS,
+  type HitKind,
+  type HitKindContract,
+  outranks,
+} from "./inputContract";
 
 /** Viewport px box, as `getBoundingClientRect` reports it. */
 export interface HitRect {
@@ -59,6 +64,18 @@ export function rectDistance(rect: HitRect, p: HitPoint): number {
   return Math.hypot(dx, dy);
 }
 
+function inReach(
+  rect: HitRect,
+  pointer: HitPoint,
+  radiusPx: number,
+  reach: "row" | undefined,
+): boolean {
+  if (reach === "row" && (pointer.y < rect.top || pointer.y > rect.bottom)) {
+    return false;
+  }
+  return rectDistance(rect, pointer) <= radiusPx;
+}
+
 /**
  * Nearest point of the box's core: the box shrunk by half its short side, so
  * a square's core is its centre and a tall strip's is its centre line. Ranking
@@ -109,7 +126,15 @@ export function rankHitTargets<T extends HitTarget>(
       }
       continue;
     }
-    if (target !== hit && rectDistance(target.rect, pointer) > radiusPx) {
+    if (
+      target !== hit &&
+      !inReach(
+        target.rect,
+        pointer,
+        radiusPx,
+        (HIT_KINDS[target.kind] as HitKindContract).reach,
+      )
+    ) {
       continue;
     }
     const core = corePoint(target.rect, pointer);
