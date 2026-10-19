@@ -84,6 +84,10 @@ async function openFollowedTranscript(page: Page): Promise<Locator> {
     await follow.click();
   }
   await expect(follow).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await list.evaluate((el) => el.clientHeight),
+    "the transcript list has visible reading space",
+  ).toBeGreaterThan(0);
   const overflow = await list.evaluate(
     (el) => el.scrollHeight - el.clientHeight,
   );

@@ -1988,6 +1988,30 @@ button.save-dot {
   padding: var(--space-1) var(--space-3);
 }
 
+.bottom-tabs:has(> .panel-size-controls) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.bottom-tabs > .bottom-tabs-splitter {
+  grid-column: 1 / -1;
+}
+
+.bottom-tabs > .panel-size-controls {
+  grid-area: 2 / 2;
+}
+
+.bottom-tabs:has(> .panel-size-controls) > .tab-bar {
+  grid-area: 2 / 1;
+  min-inline-size: 0;
+  overflow-x: auto;
+}
+
+.bottom-tabs:has(> .panel-size-controls) > .tab-content {
+  grid-area: 3 / 1 / 4 / -1;
+}
+
 @media (pointer: coarse) {
   .panel-size-controls button {
     min-height: 2.75rem;
