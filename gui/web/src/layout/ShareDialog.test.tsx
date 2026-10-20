@@ -229,6 +229,23 @@ describe("ShareDialog", () => {
     );
   });
 
+  it("sends freeze when the host freezes the new link on the current version", async () => {
+    createHostShare.mockResolvedValue(liveRow);
+    listHostShares.mockResolvedValue(listed());
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+    await screen.findByText("No review links yet.");
+    fireEvent.click(screen.getByLabelText("Freeze on the current version"));
+    fireEvent.click(screen.getByRole("button", { name: "Create review link" }));
+    await waitFor(() => {
+      expect(createHostShare).toHaveBeenCalledWith("/tmp/ep.project.json", {
+        role: "commenter",
+        with_mcp: false,
+        freeze: true,
+      });
+    });
+  });
+
   it("tells the host when the bucket has no CORS rule for the share origin", async () => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,

@@ -43,6 +43,7 @@ import { CollapsedDrawerHandle } from "./CollapsedDrawerHandle";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
+import { GuestVersionNotice } from "./GuestVersionNotice";
 import { HomeScreenHint } from "./HomeScreenHint";
 import { type LoadFailure, LoadFailureBanner } from "./LoadFailureBanner";
 import { MobileShell } from "./MobileShell";
@@ -260,6 +261,7 @@ function StudioShellAdapter({
                   </div>
                 ) : null}
               </Slot>
+              {guestShare ? <GuestVersionNotice /> : null}
               <GuestAttentionBanner host={attentionHost} />
               <HomeScreenHint />
             </>

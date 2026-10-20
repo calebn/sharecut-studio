@@ -17,6 +17,9 @@ import { TunnelStatusLine } from "./TunnelStatusLine";
 const MCP_HELP =
   "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions.";
 
+const FREEZE_HELP =
+  "Guests keep hearing this version even after you publish a newer one. Off, the link follows the latest.";
+
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) {
     return "";
@@ -113,6 +116,9 @@ export type ShareDialogViewProps = {
   onRoleChange: (role: ShareRole) => void;
   withMcp: boolean;
   onWithMcpChange: (on: boolean) => void;
+  /** The new link plays the current version for good instead of following the latest. */
+  freeze: boolean;
+  onFreezeChange: (on: boolean) => void;
   /** Every host share row; the view shows usable rows only, split into review links and record rooms. */
   rows: readonly HostShareRow[];
   busy: boolean;
@@ -254,6 +260,8 @@ function ShareDialogBody(props: ShareDialogViewProps) {
     onRoleChange,
     withMcp,
     onWithMcpChange,
+    freeze,
+    onFreezeChange,
     rows,
     busy,
     onCreateRecord,
@@ -264,6 +272,8 @@ function ShareDialogBody(props: ShareDialogViewProps) {
   const roleName = useId();
   const mcpId = useId();
   const mcpHelpId = useId();
+  const freezeId = useId();
+  const freezeHelpId = useId();
   const reviewLinksHeadingId = useId();
   const recordRoomsHeadingId = useId();
   const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -352,6 +362,25 @@ function ShareDialogBody(props: ShareDialogViewProps) {
         </label>
         <p id={mcpHelpId} className="share-dialog-note share-dialog-mcp-help">
           {MCP_HELP}
+        </p>
+      </div>
+      <div className="share-dialog-mcp">
+        <label className="share-dialog-check" htmlFor={freezeId}>
+          <input
+            id={freezeId}
+            type="checkbox"
+            checked={freeze}
+            disabled={busy}
+            aria-describedby={freezeHelpId}
+            onChange={(e) => onFreezeChange(e.target.checked)}
+          />
+          Freeze on the current version
+        </label>
+        <p
+          id={freezeHelpId}
+          className="share-dialog-note share-dialog-mcp-help"
+        >
+          {FREEZE_HELP}
         </p>
       </div>
       <section aria-labelledby={reviewLinksHeadingId}>

@@ -46,6 +46,8 @@ function baseProps(): Parameters<typeof ShareDialogView>[0] {
     onRoleChange: vi.fn(),
     withMcp: false,
     onWithMcpChange: vi.fn(),
+    freeze: false,
+    onFreezeChange: vi.fn(),
     rows: [reviewRow, agentRow, guestRow, producerRow, revokedRow],
     busy: false,
     createRecovery: { kind: "idle" },
@@ -269,6 +271,9 @@ describe("ShareDialogView", () => {
 
     await user.click(screen.getByLabelText("Allow AI assistants (MCP)"));
     expect(props.onWithMcpChange).toHaveBeenCalledWith(true);
+
+    await user.click(screen.getByLabelText("Freeze on the current version"));
+    expect(props.onFreezeChange).toHaveBeenCalledWith(true);
 
     await user.click(
       screen.getByRole("button", { name: "Create review link" }),

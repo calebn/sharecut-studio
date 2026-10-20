@@ -56,6 +56,7 @@ type ShareCreateRequest = {
   scope: DialogScope;
   role: ShareRole;
   withMcp: boolean;
+  freeze: boolean;
 };
 type BusyOwner = {
   scope: DialogScope;
@@ -82,6 +83,7 @@ export function ShareDialog() {
   );
   const [role, setRole] = useState<ShareRole>("commenter");
   const [withMcp, setWithMcp] = useState(false);
+  const [freeze, setFreeze] = useState(false);
   const [rows, setRows] = useState<HostShareRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -234,6 +236,7 @@ export function ShareDialog() {
     }
     setRole("commenter");
     setWithMcp(false);
+    setFreeze(false);
     setError(null);
     setStatus(null);
     setCreateRecovery({ kind: "idle" });
@@ -253,6 +256,7 @@ export function ShareDialog() {
       const share = await createHostShare(request.scope.projectPath, {
         role: request.role,
         with_mcp: request.withMcp,
+        ...(request.freeze ? { freeze: true } : {}),
       });
       if (!isCurrentScope(request.scope)) {
         return;
@@ -321,6 +325,7 @@ export function ShareDialog() {
       scope: captureScope(),
       role,
       withMcp,
+      freeze,
     };
     const owner = beginOperation(request.scope);
     if (!owner) {
@@ -559,6 +564,8 @@ export function ShareDialog() {
       onRoleChange={setRole}
       withMcp={withMcp}
       onWithMcpChange={setWithMcp}
+      freeze={freeze}
+      onFreezeChange={setFreeze}
       rows={rows}
       busy={busy}
       createRecovery={createRecovery}

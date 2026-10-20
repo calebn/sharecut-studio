@@ -47,6 +47,7 @@ function ShareDialogPreview({
 }: ComponentProps<typeof ShareDialogView> & { initiallyOpen: boolean }) {
   const [role, setRole] = useArgState(args.role);
   const [withMcp, setWithMcp] = useArgState(args.withMcp);
+  const [freeze, setFreeze] = useArgState(args.freeze);
   const [rows, setRows] = useArgState(args.rows);
   const [copiedKey, setCopiedKey] = useArgState<ShareCopiedKey | null>(
     args.copiedKey,
@@ -59,6 +60,7 @@ function ShareDialogPreview({
           open={open}
           role={role}
           withMcp={withMcp}
+          freeze={freeze}
           rows={rows}
           copiedKey={copiedKey}
           onClose={() => {
@@ -72,6 +74,10 @@ function ShareDialogPreview({
           onWithMcpChange={(next) => {
             setWithMcp(next);
             args.onWithMcpChange(next);
+          }}
+          onFreezeChange={(next) => {
+            setFreeze(next);
+            args.onFreezeChange(next);
           }}
           onCopy={(kind, token, label, text) => {
             setCopiedKey(shareCopyKey(kind, token));
@@ -107,6 +113,8 @@ const meta: Meta<typeof ShareDialogView> = {
     onRoleChange: fn(),
     withMcp: false,
     onWithMcpChange: fn(),
+    freeze: false,
+    onFreezeChange: fn(),
     rows: [],
     busy: false,
     createRecovery: { kind: "idle" },

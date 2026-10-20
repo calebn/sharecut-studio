@@ -54,6 +54,7 @@ import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
+import { GuestVersionNotice } from "./GuestVersionNotice";
 import { HomeScreenHint } from "./HomeScreenHint";
 import { ListenCommentComposer } from "./ListenCommentComposer";
 import { ListenHero } from "./ListenHero";
@@ -576,6 +577,7 @@ function MobileShellAdapter({
                   </div>
                 ) : null}
               </Slot>
+              {guestShare ? <GuestVersionNotice /> : null}
               <GuestAttentionBanner host={attentionHost} />
               <HomeScreenHint />
             </>
