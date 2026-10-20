@@ -8,7 +8,7 @@ Canonical strategy and feature map for agents/contributors. Implementation lives
 
 Reading-room actions and Share dialog actions/checkbox labels use the shared
 `--touch-min` target floor. On phones the Share dialog is a modal bottom sheet
-(`Dialog` `phoneSheet`): it rises full width from the bottom edge, and its
+(`Dialog`, a sheet by default on phone and tablet): it rises full width from the bottom edge, and its
 footer pins **Create review link**, the just-created link's **Copy link** and
 the status line in the thumb zone while the body scrolls. Stop sharing and
 End room confirm in place (`ui/InlineConfirm`) rather than stacking a second
@@ -466,7 +466,10 @@ holds every app shortcut (`ui/modalGate.ts`), as the native `confirm()` did:
 Escape closes the dialog and does not also clear the selection, and Mod+Z,
 Space or Delete do nothing behind it, so an in-app confirm over the Inspector
 neither undoes nor removes anything while it asks. An open peek sheet also
-holds Escape: `hasOpenOverlay()` skips keymap `edit.clearSelection`.
+holds Escape: `overlayOpen()` skips keymap `edit.clearSelection`. Every `Dialog` is a bottom sheet on phone and tablet (a tablet sheet keeps a
+42rem measure) with its primary pinned in the footer; the blade cut asks
+`askConfirm` ("Cut at 01:23.500?") on both shells, and the People list on the
+phone More sheet is a `Menu` behind a "People · n" button.
 Inspector dismiss still clears the clip selection. A remounted Inspector
 sheet stays under a still-open JoinPopover and does not steal focus from
 a docked waiver field. A new sheet still takes Close after deferred
