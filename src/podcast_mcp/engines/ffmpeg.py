@@ -235,7 +235,7 @@ def _concat_list_entry(path: Path) -> str:
     resolved = str(path.resolve())
     if "\n" in resolved or "\r" in resolved:
         raise CodedValueError(
-            f"media path must not contain newlines: {path.name!r}. Rename the file so its path has no line break.",
+            f"media path must not contain newlines: {Path(resolved).name!r}. Rename the file so its path has no line break.",
             code="media_path_invalid",
         )
     # FFmpeg concat: escape embedded single quotes as '\''
