@@ -17,6 +17,7 @@ import {
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import {
   stubSyntheticMicrophone,
   syntheticMicrophoneRequested,
@@ -35,7 +36,10 @@ const { defaultBrowserType: _phoneEngine, ...phone } = devices["iPhone 13"];
 const SUBPIXEL_TOLERANCE = 1;
 
 test.describe("browser compatibility matrix", () => {
-  test("advances playback across browser engines", async ({ page }) => {
+  test("advances playback across browser engines", async ({
+    page,
+    browserName,
+  }) => {
     await openHostProject(page);
     await expect(playButton(page)).toBeEnabled();
     await page
@@ -43,7 +47,9 @@ test.describe("browser compatibility matrix", () => {
       .getByRole("button", { name: "Original" })
       .click();
     await expectPlaybackAdvancesThenHolds(page);
-    await expectPageAxeClean(page);
+    if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+      await expectPageAxeClean(page);
+    }
   });
 
   test("persists an offline comment across reload and replays its command", async ({

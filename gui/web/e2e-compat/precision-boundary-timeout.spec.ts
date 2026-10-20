@@ -11,6 +11,7 @@ import {
   waiveRefineGate,
 } from "../e2e/documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "../e2e/env";
+import { type BrowserName, ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import { DOCUMENT_COMMAND_TIMEOUT_MS } from "../src/api/documentTransport";
 
@@ -23,7 +24,7 @@ const VIEWPORTS = {
 
 async function proveHungLoad(
   page: Page,
-  browserName: string,
+  browserName: BrowserName,
   testInfo: TestInfo,
   name: keyof typeof VIEWPORTS,
   failure: "timeout" | "network" | "stale" = "timeout",
@@ -101,7 +102,9 @@ async function proveHungLoad(
       name === "desktop" ? (["light", "dark"] as const) : (["dark"] as const);
     for (const theme of themes) {
       await setTheme(page, theme);
-      await expectPageAxeClean(page);
+      if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+        await expectPageAxeClean(page);
+      }
       await page.screenshot({
         path: `${shots}/${browserName}-${name}-${failure}-${theme}.png`,
       });
@@ -119,7 +122,9 @@ async function proveHungLoad(
     expect(loads).toBe(2);
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme);
-      await expectPageAxeClean(page);
+      if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+        await expectPageAxeClean(page);
+      }
       await page.screenshot({
         path: `${shots}/${browserName}-${name}-${failure}-${theme}-recovered.png`,
       });

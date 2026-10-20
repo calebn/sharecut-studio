@@ -1,14 +1,3 @@
-"""Guard the browser acceptance matrix in docs/testing-ci.md against drift.
-
-A "Pass" cell claims the `frontend-e2e-suites` matrix runs that check on that
-engine on every push to `main` and every nightly run, with at most one retry and
-no skip; the aggregate `frontend-e2e` gate makes a green `main` require every
-main shard and both complete compat engines to pass. "Not run" means no compat
-project runs it. Rows and cells are derived from the specs in
-gui/web/e2e-compat/, playwright.compat.config.ts, scripts/ci_plan.py and the CI
-workflow.
-"""
-
 from __future__ import annotations
 
 import json
@@ -37,6 +26,29 @@ MAIN_COMMAND = "npm run test:e2e"
 MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- --shard=(\d+)/(\d+)$")
 COMPAT_COMMAND = "npm run test:e2e:compat"
 COMPAT_ENGINES = ("chromium", "webkit")
+CHROMIUM_MAIN_OWNERS = {
+    "gui/web/e2e-compat/comment-undo.spec.ts": {
+        "main_spec": "gui/web/e2e/comment-undo.spec.ts",
+        "helper": "commentUndo",
+        "call": "exerciseCommentUndo(page, theme, info)",
+        "profile": "360x800, dark, default motion",
+        "main_profile": """withAppearance([
+            { width: 1440, height: 900 },
+            { width: 360, height: 800 },
+        ])""",
+        "compat_profile": "setViewportSize({ width: 360, height: 800 })",
+        "compat_call": 'exerciseCommentUndo(page, "dark", info)',
+    },
+    "gui/web/e2e-compat/transcript-wordbar.spec.ts": {
+        "main_spec": "gui/web/e2e/transcript-wordbar.spec.ts",
+        "helper": "wordbarFlow",
+        "call": "checkWordbarOutsideRelease(page)",
+        "profile": "inherited Desktop Chrome viewport, default theme and motion",
+        "main_profile": "",
+        "compat_profile": "",
+        "compat_call": "checkWordbarOutsideRelease(page)",
+    },
+}
 
 PASS = "Pass"
 NOT_RUN = "Not run"
@@ -152,6 +164,44 @@ def runs_on(spec: str, engine: str, projects: dict[str, list[str]]) -> bool:
     if engine not in projects:
         return False
     return f"**/{spec.rsplit('/', 1)[-1]}" not in projects[engine]
+
+
+def assert_compat_omissions(projects: dict[str, list[str]]) -> None:
+    expected = {f"**/{Path(spec).name}" for spec in CHROMIUM_MAIN_OWNERS}
+    for engine, ignored in projects.items():
+        allowed = expected if engine == "chromium" else set()
+        assert len(ignored) == len(set(ignored)) and set(ignored) == allowed, (
+            f"{engine}: testIgnore must match the closed main ownership map; "
+            f"expected={sorted(allowed)} actual={ignored}"
+        )
+
+
+def assert_main_ownership(sources: dict[str, str]) -> None:
+    def compact(source: str) -> str:
+        return re.sub(r"\s+", "", source)
+
+    for spec, owner in CHROMIUM_MAIN_OWNERS.items():
+        main = sources[owner["main_spec"]]
+        compat = sources[spec]
+        helper = owner["helper"]
+        assert f'from "./{helper}"' in main, owner
+        assert f'from "../e2e/{helper}"' in compat, owner
+        assert owner["call"] in main, owner
+        assert owner["compat_call"] in compat, owner
+        assert compact(owner["main_profile"]) in compact(main), owner
+        assert compact(owner["compat_profile"]) in compact(compat), owner
+        assert not re.search(r"emulateMedia|setTheme", main + compat), owner
+        if owner["main_profile"]:
+            assert re.findall(r"test\.use\(([^;]+)\);", main) == ["{ viewport }"], owner
+        else:
+            assert "test.use" not in main + compat, owner
+        if not owner["main_profile"]:
+            assert "setViewportSize" not in main + compat, owner
+    theme = compact(sources["gui/web/e2e/theme.ts"])
+    assert '{theme:"light",reducedMotion:false},{theme:"dark",reducedMotion:true}' in theme
+    assert "APPEARANCES[(index+Math.floor(index/4)+offset)%4]" in theme
+    helper = sources["gui/web/e2e/commentUndo.ts"]
+    assert "emulateMedia" not in helper
 
 
 def installed_engines(run: str) -> set[str]:
@@ -384,7 +434,13 @@ def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
     checks = [
         (spec, check) for spec, source in compat_specs().items() for check in spec_checks(source)
     ]
-    expected = {(engine, spec, check) for engine in COMPAT_ENGINES for spec, check in checks}
+    assert_compat_omissions(projects)
+    expected = {
+        (engine, spec, check)
+        for engine in COMPAT_ENGINES
+        for spec, check in checks
+        if not (engine == "chromium" and spec in CHROMIUM_MAIN_OWNERS)
+    }
     selected = [
         (engine, spec, check)
         for engine in engines
@@ -396,6 +452,55 @@ def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
     config = COMPAT_CONFIG.read_text(encoding="utf-8")
     assert re.search(r"\bworkers:\s*1\s*,", config)
     assert re.search(r"\bfullyParallel:\s*false\s*,", config)
+
+
+def test_chromium_omissions_keep_exact_main_helpers_and_profiles() -> None:
+    sources = {
+        path: (REPO_ROOT / path).read_text(encoding="utf-8")
+        for path in {
+            *CHROMIUM_MAIN_OWNERS,
+            *(owner["main_spec"] for owner in CHROMIUM_MAIN_OWNERS.values()),
+            "gui/web/e2e/theme.ts",
+            "gui/web/e2e/commentUndo.ts",
+        }
+    }
+    assert_main_ownership(sources)
+    for owner in CHROMIUM_MAIN_OWNERS.values():
+        changed = {
+            **sources,
+            owner["main_spec"]: sources[owner["main_spec"]].replace(owner["call"], ""),
+        }
+        with pytest.raises(AssertionError):
+            assert_main_ownership(changed)
+    changed = {
+        **sources,
+        "gui/web/e2e/theme.ts": sources["gui/web/e2e/theme.ts"].replace(
+            'theme: "dark"', 'theme: "light"'
+        ),
+    }
+    with pytest.raises(AssertionError):
+        assert_main_ownership(changed)
+
+
+@pytest.mark.parametrize("spec", sorted(compat_specs()))
+@pytest.mark.parametrize("engine", COMPAT_ENGINES)
+def test_compat_ownership_rejects_every_unmapped_omission(spec: str, engine: str) -> None:
+    projects = compat_projects(COMPAT_CONFIG.read_text(encoding="utf-8"))
+    glob = f"**/{Path(spec).name}"
+    if engine == "chromium" and spec in CHROMIUM_MAIN_OWNERS:
+        projects[engine].remove(glob)
+    else:
+        projects[engine].append(glob)
+    with pytest.raises(AssertionError, match="closed main ownership map"):
+        assert_compat_omissions(projects)
+
+
+@pytest.mark.parametrize("glob", ["**/unknown.spec.ts", "**/comment-undo.spec.ts"])
+def test_compat_ownership_rejects_unknown_and_duplicate_ignores(glob: str) -> None:
+    projects = compat_projects(COMPAT_CONFIG.read_text(encoding="utf-8"))
+    projects["chromium"].append(glob)
+    with pytest.raises(AssertionError, match="closed main ownership map"):
+        assert_compat_omissions(projects)
 
 
 @pytest.mark.parametrize(

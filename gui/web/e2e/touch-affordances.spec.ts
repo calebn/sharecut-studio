@@ -13,7 +13,9 @@ for (const { cell: viewport, theme, reducedMotion } of withAppearance(cases)) {
   test(`sheet affordances ${viewport.width}x${viewport.height}, ${theme}, reduced motion ${reducedMotion}`, async ({
     page,
   }) => {
-    await exerciseTouchSheetAffordances(page, viewport, theme, reducedMotion);
+    await exerciseTouchSheetAffordances(page, viewport, theme, reducedMotion, {
+      suite: "main",
+    });
   });
 }
 
@@ -31,5 +33,6 @@ test("sheet affordances remain available at 200% text scale", async ({
     },
     "light",
     true,
+    { suite: "main" },
   );
 });

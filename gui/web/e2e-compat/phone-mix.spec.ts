@@ -16,7 +16,10 @@ test("phone Mix native edits and touch geometry across engines", async ({
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
     await checkNativeMixEdits(page, projectPath);
     await openPhoneMix(page);
-    await checkMixGeometry(page, info);
+    await checkMixGeometry(page, info, {
+      suite: "compat",
+      engine: browserName,
+    });
   });
   await checkPhoneMixFocus(
     page,
