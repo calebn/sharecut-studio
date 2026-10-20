@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
+
+from podcast_mcp import settings
 
 
 def _read_version_file(path: Path) -> str | None:
@@ -23,7 +24,7 @@ def read_relay_version() -> str:
     3. ``deploy/relay/VERSION`` from the repo root / CWD
     4. ``0.0.0-dev`` fallback (never raises)
     """
-    env = (os.environ.get("PODCAST_RELAY_VERSION") or "").strip()
+    env = settings.text("PODCAST_RELAY_VERSION")
     if env:
         return env
 
@@ -50,5 +51,5 @@ def read_relay_version() -> str:
 
 def read_relay_git_sha() -> str | None:
     """Return the git SHA baked at image build, or None locally."""
-    sha = (os.environ.get("PODCAST_RELAY_GIT_SHA") or "").strip()
+    sha = settings.text("PODCAST_RELAY_GIT_SHA")
     return sha or None

@@ -46,9 +46,17 @@ _RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (
     ("PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN", "recording signals per share token", "6000", "200"),
 )
 
+_RELAY_RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (
+    ("PODCAST_RELAY_TOKEN", "relay requests per share token", "600", "80"),
+    ("PODCAST_RELAY_IP", "relay requests per client address", "1200", "120"),
+    ("PODCAST_RELAY_WS_MSG", "relay websocket messages", "120", "30"),
+    ("PODCAST_RELAY_WS_PRESENCE", "relay presence messages", "900", "60"),
+    ("PODCAST_RELAY_REGISTER", "relay tunnel registrations", "60", "20"),
+)
+
 _RATE_ROWS: tuple[Variable, ...] = tuple(
     row
-    for prefix, what, rpm, burst in _RATE_FAMILIES
+    for prefix, what, rpm, burst in (*_RATE_FAMILIES, *_RELAY_RATE_FAMILIES)
     for row in (
         Variable(f"{prefix}_RPM", "limits", f"Requests per minute allowed for {what}.", rpm),
         Variable(f"{prefix}_BURST", "limits", f"Burst allowance for {what}.", burst),
@@ -177,6 +185,28 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         ("PODCAST_RELAY_HOST_TOKENS", "Relay-side map of host_id:secret entries (relay process)."),
         ("PODCAST_RELAY_RATE_LIMIT", "Relay-side rate limiting; 0 disables (relay process)."),
+        (
+            "PODCAST_RELAY_ALLOW_OPEN_TUNNEL",
+            "Let the relay start with no host tokens, local/dev only (1, true, yes, on).",
+        ),
+        ("PODCAST_RELAY_HOST", "Interface the relay binds.", "0.0.0.0"),
+        ("PODCAST_RELAY_PORT", "Port the relay binds.", "8081"),
+        (
+            "PODCAST_RELAY_FORWARDED_ALLOW_IPS",
+            "Proxy addresses whose forwarded headers the relay trusts.",
+            "127.0.0.1",
+        ),
+        ("PODCAST_RELAY_VERSION", "Relay version baked into the Docker image."),
+        ("PODCAST_RELAY_GIT_SHA", "Relay build commit baked into the Docker image."),
+        (
+            "PODCAST_REPORT_STORE",
+            "Writable directory where the relay keeps submitted diagnostics reports.",
+        ),
+        (
+            "PODCAST_REPORT_PUBLIC_BASE_URL",
+            "The relay's public HTTPS origin, used in report links.",
+        ),
+        ("PODCAST_REPORT_GITHUB_TOKEN", "Server-only token that files report issues."),
     ),
     *_group(
         "Distribution metadata",
@@ -193,6 +223,10 @@ VARIABLES: tuple[Variable, ...] = (
         ("PODCAST_RATE_LIMIT", "Host rate limiting; 0, false, no or off disables.", "1"),
         ("PODCAST_RATE_LIMIT_AUDIO_CONCURRENT", "In-flight audio requests allowed.", "8"),
         ("PODCAST_GUEST_WS_CONCURRENT", "Concurrent guest websockets per share token.", "8"),
+        ("PODCAST_RELAY_TOKEN_CONCURRENT", "Relay in-flight requests per share token.", "24"),
+        ("PODCAST_RELAY_HOST_CONCURRENT", "Relay in-flight requests per host.", "96"),
+        ("PODCAST_RELAY_AUDIO_CONCURRENT", "Relay in-flight audio requests.", "8"),
+        ("PODCAST_RELAY_WS_CONCURRENT", "Relay concurrent websockets per share token.", "8"),
         ("PODCAST_GUI_MAX_BODY_BYTES", "Largest Studio request body."),
         ("PODCAST_GUI_MEDIA_MAX_BYTES", "Largest media upload."),
         ("PODCAST_GUI_MEDIA_CHUNK_MAX_BYTES", "Largest media upload chunk."),
@@ -221,10 +255,10 @@ def environ() -> Mapping[str, str]:
 
 
 def read(name: str) -> str | None:
-    """Like :func:`raw` for names a limiter table supplies as data (the relay's own prefixes).
+    """Like :func:`raw` for names a limiter table builds from its prefix.
 
-    The package's literal names go through the checked readers; this one is only for the
-    shared limiter helpers, which the relay process and tests call with names of their own.
+    Only the shared limiter helpers use it, since a table row supplies the name as data;
+    ``tests/test_settings.py`` checks that every row of the host and relay tables is declared.
     """
     return os.environ.get(name)
 

@@ -718,6 +718,15 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY` |  | Admin secret for `podcast relay bucket-setup`. |
 | `PODCAST_RELAY_HOST_TOKENS` |  | Relay-side map of host_id:secret entries (relay process). |
 | `PODCAST_RELAY_RATE_LIMIT` |  | Relay-side rate limiting; 0 disables (relay process). |
+| `PODCAST_RELAY_ALLOW_OPEN_TUNNEL` |  | Let the relay start with no host tokens, local/dev only (1, true, yes, on). |
+| `PODCAST_RELAY_HOST` | `0.0.0.0` | Interface the relay binds. |
+| `PODCAST_RELAY_PORT` | `8081` | Port the relay binds. |
+| `PODCAST_RELAY_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxy addresses whose forwarded headers the relay trusts. |
+| `PODCAST_RELAY_VERSION` |  | Relay version baked into the Docker image. |
+| `PODCAST_RELAY_GIT_SHA` |  | Relay build commit baked into the Docker image. |
+| `PODCAST_REPORT_STORE` |  | Writable directory where the relay keeps submitted diagnostics reports. |
+| `PODCAST_REPORT_PUBLIC_BASE_URL` |  | The relay's public HTTPS origin, used in report links. |
+| `PODCAST_REPORT_GITHUB_TOKEN` |  | Server-only token that files report issues. |
 
 **Distribution metadata**
 
@@ -735,6 +744,10 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_RATE_LIMIT` | `1` | Host rate limiting; 0, false, no or off disables. |
 | `PODCAST_RATE_LIMIT_AUDIO_CONCURRENT` | `8` | In-flight audio requests allowed. |
 | `PODCAST_GUEST_WS_CONCURRENT` | `8` | Concurrent guest websockets per share token. |
+| `PODCAST_RELAY_TOKEN_CONCURRENT` | `24` | Relay in-flight requests per share token. |
+| `PODCAST_RELAY_HOST_CONCURRENT` | `96` | Relay in-flight requests per host. |
+| `PODCAST_RELAY_AUDIO_CONCURRENT` | `8` | Relay in-flight audio requests. |
+| `PODCAST_RELAY_WS_CONCURRENT` | `8` | Relay concurrent websockets per share token. |
 | `PODCAST_GUI_MAX_BODY_BYTES` |  | Largest Studio request body. |
 | `PODCAST_GUI_MEDIA_MAX_BYTES` |  | Largest media upload. |
 | `PODCAST_GUI_MEDIA_CHUNK_MAX_BYTES` |  | Largest media upload chunk. |
@@ -765,6 +778,16 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_GUEST_WS_RECORD_SIGNAL_BURST` | `80` | Burst allowance for recording signal messages. |
 | `PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_RPM` | `6000` | Requests per minute allowed for recording signals per share token. |
 | `PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST` | `200` | Burst allowance for recording signals per share token. |
+| `PODCAST_RELAY_TOKEN_RPM` | `600` | Requests per minute allowed for relay requests per share token. |
+| `PODCAST_RELAY_TOKEN_BURST` | `80` | Burst allowance for relay requests per share token. |
+| `PODCAST_RELAY_IP_RPM` | `1200` | Requests per minute allowed for relay requests per client address. |
+| `PODCAST_RELAY_IP_BURST` | `120` | Burst allowance for relay requests per client address. |
+| `PODCAST_RELAY_WS_MSG_RPM` | `120` | Requests per minute allowed for relay websocket messages. |
+| `PODCAST_RELAY_WS_MSG_BURST` | `30` | Burst allowance for relay websocket messages. |
+| `PODCAST_RELAY_WS_PRESENCE_RPM` | `900` | Requests per minute allowed for relay presence messages. |
+| `PODCAST_RELAY_WS_PRESENCE_BURST` | `60` | Burst allowance for relay presence messages. |
+| `PODCAST_RELAY_REGISTER_RPM` | `60` | Requests per minute allowed for relay tunnel registrations. |
+| `PODCAST_RELAY_REGISTER_BURST` | `20` | Burst allowance for relay tunnel registrations. |
 <!-- settings:end -->
 
 ## Read-only GUI viewer

@@ -9,6 +9,8 @@ from podcast_mcp import settings
 
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = _ROOT / "src" / "podcast_mcp"
+_RELAY = _ROOT / "src" / "podcast_relay"
+_TREES = (_SRC, _RELAY)
 # The only module allowed to touch the process environment directly.
 _ENVIRON_ALLOWLIST = {"settings.py"}
 _DIRECT_READ = re.compile(
@@ -18,8 +20,9 @@ _DIRECT_READ = re.compile(
 
 def test_only_the_settings_module_reads_the_process_environment() -> None:
     offenders = sorted(
-        str(path.relative_to(_SRC))
-        for path in _SRC.rglob("*.py")
+        str(path.relative_to(_ROOT / "src"))
+        for tree in _TREES
+        for path in tree.rglob("*.py")
         if path.name not in _ENVIRON_ALLOWLIST and _DIRECT_READ.search(path.read_text("utf-8"))
     )
     assert offenders == []
@@ -38,12 +41,12 @@ def test_every_package_reference_to_a_podcast_variable_is_declared() -> None:
     declared = {v.name for v in settings.VARIABLES}
     reference = re.compile(r'"(PODCAST_[A-Z0-9_]+|WHISPER_CPP_[A-Z_]+)"')
     unknown: set[str] = set()
-    for path in _SRC.rglob("*.py"):
+    for path in (p for tree in _TREES for p in tree.rglob("*.py")):
         if path.name == "settings.py":
             continue
         for name in reference.findall(path.read_text("utf-8")):
             if name not in declared and f"{name}_RPM" not in declared and not name.endswith("_"):
-                unknown.add(f"{path.relative_to(_SRC)}:{name}")
+                unknown.add(f"{path.relative_to(_ROOT / 'src')}:{name}")
     assert sorted(unknown) == []
 
 
@@ -84,3 +87,21 @@ def test_export_reaches_the_environment(monkeypatch: pytest.MonkeyPatch) -> None
     settings.export("PODCAST_SESSION_TOKEN", "abc")
     assert settings.environ()["PODCAST_SESSION_TOKEN"] == "abc"
     monkeypatch.delenv("PODCAST_SESSION_TOKEN")
+
+
+def test_every_limiter_table_row_is_declared() -> None:
+    from podcast_mcp.services.remote_mcp.limits import HostLimiters
+    from podcast_mcp.util.rate_limit import GateSpec, RateSpec
+    from podcast_relay.limits import RelayLimiters
+
+    declared = {v.name for v in settings.VARIABLES}
+    missing: list[str] = []
+    for table in (HostLimiters.TABLE, RelayLimiters.TABLE):
+        for row in table:
+            if isinstance(row, RateSpec):
+                names = [f"{row.env_prefix}_RPM", f"{row.env_prefix}_BURST"]
+            else:
+                assert isinstance(row, GateSpec)
+                names = [row.env]
+            missing += [name for name in names if name not in declared]
+    assert missing == []
