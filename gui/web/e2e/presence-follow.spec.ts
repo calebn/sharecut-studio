@@ -392,6 +392,7 @@ test.describe("presence follow phone", () => {
           .getByRole("navigation", { name: "Primary" })
           .getByRole("button", { name: "More" })
           .click({ force: true });
+        await pageB.getByRole("button", { name: /^People/ }).click();
       });
       const banner = pageB.locator(".follow-banner");
       await expect(banner).toBeVisible();
@@ -420,6 +421,7 @@ test.describe("presence follow phone", () => {
             .getByRole("navigation", { name: "Primary" })
             .getByRole("button", { name: "More" })
             .click({ force: true });
+          await pageB.getByRole("button", { name: /^People/ }).click();
         });
         const banner = pageB.locator(".follow-banner");
         await expect(banner).toBeVisible();

@@ -229,7 +229,7 @@ for (const width of [1280, 390]) {
         )
         .toBe(2);
       expect(commands.filter((c) => c.type === "SetClipJoin")).toHaveLength(2);
-      await expectPageAxeClean(page, ".join-popover");
+      await expectPageAxeClean(page, ".command-palette-panel");
       await expectPageAxeClean(page, ".join-edit-rail");
       await page.keyboard.press("Escape");
       await page.keyboard.press("ControlOrMeta+Z");

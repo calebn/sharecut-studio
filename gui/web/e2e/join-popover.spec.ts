@@ -75,7 +75,7 @@ test.describe("Join badge popover", () => {
       const popover = page.getByRole("dialog", { name: /join at/ });
       await expect(popover).toBeVisible();
       await expect(badge).toHaveAttribute("aria-expanded", "true");
-      await expectPageAxeClean(page, ".join-popover");
+      await expectPageAxeClean(page, ".command-palette-panel");
       await popover
         .getByRole("button", { name: "Crossfade", exact: true })
         .click();
@@ -90,7 +90,7 @@ test.describe("Join badge popover", () => {
       await expect(
         popover.getByRole("button", { name: "Audition join" }),
       ).toBeVisible();
-      await expectPageAxeClean(page, ".join-popover");
+      await expectPageAxeClean(page, ".command-palette-panel");
       await page.keyboard.press("Escape");
       await expect(popover).toBeHidden();
       await expect(badge).toBeFocused();
