@@ -70,7 +70,9 @@ class TranscriptService(WorkspaceService):
     def _engine(self) -> TranscriptionEngine:
         """The ASR engine, built on first use so word edits never resolve a Whisper model."""
         if self._asr is None:
-            self._asr = TranscriptionEngine(resolve_whisper_model(requested=self._model))
+            self._asr = TranscriptionEngine(
+                resolve_whisper_model(requested=self._model), defaults=self.ws.effective_config()
+            )
         return self._asr
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
@@ -128,7 +130,7 @@ class TranscriptService(WorkspaceService):
     ) -> str:
         p = self.ws.project
         if format == "timestamps":
-            return format_transcript_timestamps(p)
+            return format_transcript_timestamps(p, defaults=self.ws.effective_config())
         if combined:
             transcript = p.combined_transcript or self._engine.merge_transcripts(p)
             return transcript.model_dump_json(indent=2)
@@ -140,7 +142,7 @@ class TranscriptService(WorkspaceService):
         with self.ws.transaction() as p:
             if not p.combined_transcript:
                 p.combined_transcript = self._engine.merge_transcripts(p)
-            out = write_combined_transcript_markdown(p)
+            out = write_combined_transcript_markdown(p, self.ws.effective_config())
             self.ws.save()
         return out
 
