@@ -17,7 +17,7 @@ from podcast_mcp.edits.acoustic_gap import (
     _voiced,
     find_voiced_gap_runs,
 )
-from podcast_mcp.edits.acoustic_laugh import has_laugh_bursts
+from podcast_mcp.edits.acoustic_laugh import burst_count, has_laugh_bursts
 from podcast_mcp.edits.acoustic_word import flag_possible_words, heard_a_word
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audition_context import _build_hypotheses
@@ -1579,3 +1579,12 @@ def test_the_engine_hands_the_model_only_the_samples_it_was_given() -> None:
         "dtype": np.dtype("float32"),
         "size": 1600,
     }
+
+
+def test_burst_count_is_one_for_a_hum_and_counts_each_pulse_at_any_level() -> None:
+    hum = np.array([-40.0, -20.0, -12.0, -12.0, -14.0, -22.0, -30.0])
+    two_syllables = np.array([-40.0, -12.0, -12.0, -22.0, -30.0, -22.0, -12.0, -12.0, -30.0])
+    for offset in (-20.0, 0.0, 12.0):
+        assert burst_count(hum + offset) == 1
+        assert burst_count(two_syllables + offset) == 2
+    assert burst_count(np.zeros(0)) == 0
