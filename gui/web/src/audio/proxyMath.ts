@@ -317,16 +317,91 @@ export function offsetInChunk(
   return Math.max(0, srcSec - chunkFileStartSec(idx, chunkSec, overlapMs));
 }
 
+/** Seconds render overlaps `clip` into its left neighbour (0 unless the join blends). */
+function crossfadeOverlapSec(clip: ClipRow): number {
+  if (
+    !isCrossfadeJoin(clip) ||
+    clip.join_left_clip_id == null ||
+    clip.join_crossfade_blocked
+  )
+    return 0;
+  const ms = clip.join_crossfade_ms ?? 0;
+  if (ms <= 0) return 0;
+  // `timeline_render._place_clips`: overlap is capped at half the right clip.
+  const body = Math.max(0, clip.timeline_end - clip.timeline_start);
+  return Math.max(0.001, Math.min(ms / 1000, body * 0.5));
+}
+
+/**
+ * Place each lane's clips as render does: a crossfade join overlaps the two
+ * clips and pulls everything after it earlier by the overlap, so the preview
+ * plays the same audio on the same clock as the export. `overlapIn` is the
+ * overlap at a clip's incoming join, `overlapOut` at its outgoing one.
+ */
+function placeLikeRender(clips: readonly ClipRow[]): {
+  readonly placed: readonly ClipRow[];
+  readonly overlapIn: ReadonlyMap<string, number>;
+  readonly overlapOut: ReadonlyMap<string, number>;
+} {
+  const overlapIn = new Map<string, number>();
+  const overlapOut = new Map<string, number>();
+  const shiftOf = new Map<string, number>();
+  const byTrack = new Map<string, ClipRow[]>();
+  for (const clip of clips) {
+    const lane = byTrack.get(clip.track_id);
+    if (lane) lane.push(clip);
+    else byTrack.set(clip.track_id, [clip]);
+  }
+  for (const lane of byTrack.values()) {
+    const ordered = [...lane].sort(
+      (a, b) => a.timeline_start - b.timeline_start,
+    );
+    let shift = 0;
+    let prev: ClipRow | undefined;
+    for (const clip of ordered) {
+      const overlap =
+        prev && clip.join_left_clip_id === prev.id
+          ? crossfadeOverlapSec(clip)
+          : 0;
+      if (overlap > 0 && prev) {
+        overlapIn.set(clip.id, overlap);
+        overlapOut.set(prev.id, overlap);
+        shift += overlap;
+      }
+      shiftOf.set(clip.id, shift);
+      prev = clip;
+    }
+  }
+  const placed = clips.map((clip) => {
+    const shift = shiftOf.get(clip.id) ?? 0;
+    return shift === 0
+      ? clip
+      : {
+          ...clip,
+          timeline_start: clip.timeline_start - shift,
+          timeline_end: clip.timeline_end - shift,
+        };
+  });
+  return { placed, overlapIn, overlapOut };
+}
+
 export function buildSchedule(
-  clips: readonly ClipRow[],
+  authoredClips: readonly ClipRow[],
   windowStartSec: number,
   windowEndSec: number,
   manifest: ProxyManifest,
   volumeByTrack: Readonly<Record<string, readonly VolumePoint[]>> = {},
 ): ScheduledSlice[] {
   const out: ScheduledSlice[] = [];
+  const {
+    placed: clips,
+    overlapIn,
+    overlapOut,
+  } = placeLikeRender(authoredClips);
   const beforeCut = clipIdsBeforeCut([...clips]);
   for (const clip of clips) {
+    const overlapInSec = overlapIn.get(clip.id) ?? 0;
+    const overlapAfter = overlapOut.get(clip.id) ?? 0;
     if (
       clip.timeline_end <= windowStartSec ||
       clip.timeline_start >= windowEndSec
@@ -352,10 +427,19 @@ export function buildSchedule(
             ...(clip.mute_regions ?? []),
             ...(clip.ignored_word_regions ?? []),
           ]),
-      fadeInSec: isCutJoin(clip) ? 0 : Math.max(0, clip.fade_in_ms) / 1000,
-      fadeOutSec: beforeCut.has(clip.id)
-        ? 0
-        : Math.max(0, clip.fade_out_ms) / 1000,
+      // A blending join replaces both edge fades with the overlap's ramps.
+      fadeInSec:
+        overlapInSec > 0
+          ? overlapInSec
+          : isCutJoin(clip)
+            ? 0
+            : Math.max(0, clip.fade_in_ms) / 1000,
+      fadeOutSec:
+        overlapAfter > 0
+          ? overlapAfter
+          : beforeCut.has(clip.id)
+            ? 0
+            : Math.max(0, clip.fade_out_ms) / 1000,
       gainCurve: isCrossfadeJoin(clip) ? "equalPower" : "linear",
     };
     const first = chunkIndexForSource(clip.source_start, descriptor.chunk_sec);
