@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    coded_exception_error,
+    coded_http_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.gui.schemas import (
     CommentActionDoneRequest,
     CommentCreateRequest,
@@ -42,7 +47,7 @@ def create_comment(
             ),
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="comment_invalid") from exc
     notify_comments_changed(path, file_revisions=file_revisions)
     return {"comment": comment}
 
@@ -64,7 +69,9 @@ def patch_comment(
         if req.resolved is not None:
             by = req.by
             if not by:
-                raise HTTPException(status_code=400, detail="by is required when setting resolved")
+                raise coded_http_error(
+                    400, "by is required when setting resolved", code="comment_resolver_required"
+                )
             resolved = req.resolved
             assert resolved is not None
             comment, file_revisions = run_comment_mutation_with_file_revisions(
@@ -91,9 +98,9 @@ def patch_comment(
             comment = svc.get(comment_id)
             mutated = False  # read-only PATCH: nothing to journal
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="comment_not_found") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="comment_invalid") from exc
     if mutated:
         notify_comments_changed(path, file_revisions=file_revisions)
     return {"comment": comment}
@@ -119,9 +126,9 @@ def action_done(
             ),
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="comment_not_found") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="comment_invalid") from exc
     notify_comments_changed(path, file_revisions=file_revisions)
     return result
 
@@ -143,9 +150,9 @@ def create_reply(
             lambda: CommentService(ws).add_reply(comment_id, body=req.body, author=req.author),
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="comment_not_found") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="comment_invalid") from exc
     notify_comments_changed(path, file_revisions=file_revisions)
     return result
 
@@ -166,6 +173,6 @@ def remove_comment(
             ws, lambda: CommentService(ws).delete(comment_id)
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="comment_not_found") from exc
     notify_comments_changed(project_path, file_revisions=file_revisions)
     return result

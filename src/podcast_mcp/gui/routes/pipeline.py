@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    bad_request_error,
+    coded_exception_error,
+    coded_http_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import (
     PipelineAnalyzeRequest,
@@ -68,7 +74,7 @@ def pipeline_put_config(
             reset=req.reset,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
     return build_config_payload(project_path)
 
 
@@ -85,7 +91,7 @@ def pipeline_analyze(
     try:
         job = _jobs(request).start_analyze(project_path, apply=req.apply)
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="pipeline_busy") from exc
     return {"job": job.snapshot()}
 
 
@@ -111,13 +117,19 @@ def pipeline_run(
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     if req.from_step and req.from_step not in STEP_NAMES:
-        raise HTTPException(status_code=400, detail=f"Unknown from_step: {req.from_step}")
+        raise coded_http_error(
+            400, f"Unknown from_step: {req.from_step}", code="pipeline_from_step_unknown"
+        )
     if req.only_step and req.only_step not in STEP_NAMES:
-        raise HTTPException(status_code=400, detail=f"Unknown only_step: {req.only_step}")
+        raise coded_http_error(
+            400, f"Unknown only_step: {req.only_step}", code="pipeline_only_step_unknown"
+        )
     if req.skip_steps:
         bad = [s for s in req.skip_steps if s not in STEP_NAMES]
         if bad:
-            raise HTTPException(status_code=400, detail=f"Unknown skip_steps: {bad}")
+            raise coded_http_error(
+                400, f"Unknown skip_steps: {bad}", code="pipeline_skip_steps_unknown"
+            )
 
     store = config_store()
     working = store.get(project_path) if req.use_working_set else None
@@ -129,7 +141,7 @@ def pipeline_run(
         try:
             config = merge_pipeline_config(config)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise bad_request_error(exc) from exc
 
     unattended = req.unattended
     if unattended is None:
@@ -149,7 +161,7 @@ def pipeline_run(
             retime_words=req.retime_words,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
 
     # Persist run choices into working set for agent/GUI parity
     if req.use_working_set:
@@ -169,7 +181,7 @@ def pipeline_run(
             memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
         )
     except WhisperWeightsMissingError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="whisper_weights_missing") from exc
 
     try:
         job = jobs.start(
@@ -181,7 +193,7 @@ def pipeline_run(
             config=run_config,
         )
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="pipeline_busy") from exc
     return {"job": job.snapshot()}
 
 
@@ -195,7 +207,7 @@ def pipeline_cancel(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).cancel(req.job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="No pipeline job")
+        raise coded_http_error(404, "No pipeline job", code="job_not_found")
     return {"job": job.snapshot()}
 
 
@@ -213,7 +225,7 @@ def pipeline_render_preview(
     try:
         job = jobs.start_render_preview(project_path)
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="pipeline_busy") from exc
     return {"job": job.snapshot()}
 
 
@@ -227,5 +239,5 @@ def pipeline_events(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).get_job(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="No pipeline job")
+        raise coded_http_error(404, "No pipeline job", code="job_not_found")
     return job_events_response(job)

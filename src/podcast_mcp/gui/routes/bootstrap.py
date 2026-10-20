@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager, shared_bootstrap_job_manager
-from podcast_mcp.gui.routes.deps import require_host
+from podcast_mcp.gui.routes.deps import (
+    bad_request_error,
+    coded_exception_error,
+    coded_http_error,
+    require_host,
+)
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
 from podcast_mcp.services.pipeline import component_status
@@ -36,7 +41,7 @@ def bootstrap_status(
     try:
         return component_status(whisper_model=whisper_model)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
 
 
 @router.post("/api/bootstrap/run")
@@ -56,9 +61,9 @@ def bootstrap_run(
             force=req.force,
         )
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="bootstrap_job_running") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
     return {"job": job.snapshot()}
 
 
@@ -72,7 +77,7 @@ def bootstrap_cancel(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).cancel(req.job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="No bootstrap job")
+        raise coded_http_error(404, "No bootstrap job", code="bootstrap_job_not_found")
     return {"job": job.snapshot()}
 
 
@@ -100,5 +105,5 @@ def bootstrap_events(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).get_job(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="No bootstrap job")
+        raise coded_http_error(404, "No bootstrap job", code="bootstrap_job_not_found")
     return job_events_response(job)

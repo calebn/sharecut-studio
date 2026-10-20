@@ -30,3 +30,21 @@ def test_bare_refusals_are_flagged_and_validators_are_not():
 
 def test_services_and_registry_raise_only_coded_refusals():
     assert lint.check(lint.scoped_files()) == []
+
+
+def _http_flagged(source: str) -> list[str]:
+    return [scope for _node, scope in lint.http_violations(ast.parse(source))]
+
+
+def test_bare_http_exceptions_are_flagged_and_coded_ones_are_not():
+    source = (
+        "from fastapi import HTTPException\n"
+        "def a():\n    raise HTTPException(status_code=404, detail='x')\n"
+        "def b():\n    raise coded_http_error(404, 'x', code='x_missing')\n"
+        "def c():\n    return fastapi.HTTPException(400, 'y')\n"
+    )
+    assert _http_flagged(source) == ["a", "c"]
+
+
+def test_gui_host_routes_build_http_errors_only_through_coded_http_error():
+    assert lint.check_http(lint.http_scoped_files()) == []

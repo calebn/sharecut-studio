@@ -584,7 +584,7 @@ def test_guest_media_upload_probe_crashes_are_private(
     )
     assert res.status_code == 500
     assert res.json() == {"detail": "internal error"}
-    assert "x-sharecut-error-code" not in res.headers
+    assert res.headers["x-sharecut-error-code"] == "internal_error"
     assert any(row.exc_info and diagnostic in str(row.exc_info[1]) for row in caplog.records)
 
 

@@ -8,10 +8,11 @@ import secrets
 from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from podcast_mcp.gui.routes.deps import coded_exception_error, coded_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.services.share_auth import (
     SESSION_COOKIE,
@@ -143,7 +144,7 @@ def auth_me(request: Request) -> dict[str, Any]:
         if bearer.lower().startswith("bearer "):
             user = store.resolve_session(bearer.split(None, 1)[1].strip())
     if not user:
-        raise HTTPException(status_code=401, detail="not signed in")
+        raise coded_http_error(401, "not signed in", code="sign_in_required")
     return {"user": user}
 
 
@@ -160,13 +161,13 @@ def auth_logout(request: Request, response: Response) -> dict[str, Any]:
 @router.get("/auth/login/{provider}")
 def auth_login_start(provider: str, next: str | None = None) -> RedirectResponse:
     if provider not in {"google", "github"}:
-        raise HTTPException(status_code=404, detail="unknown provider")
+        raise coded_http_error(404, "unknown provider", code="auth_provider_unknown")
     state = secrets.token_urlsafe(24)
     verifier, challenge = make_pkce_pair()
     try:
         url, _cfg = authorization_url(provider, state=state, code_challenge=challenge)
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise coded_exception_error(503, exc, code="oauth_provider_unavailable") from exc
     response = RedirectResponse(url, status_code=302)
     _set_oauth_flow_cookie(response, _OAUTH_STATE_COOKIE, state)
     _set_oauth_flow_cookie(response, _OAUTH_VERIFIER_COOKIE, verifier)
@@ -185,24 +186,24 @@ def auth_callback(
     error: str | None = None,
 ) -> Response:
     if error:
-        raise HTTPException(status_code=400, detail=error)
+        raise coded_http_error(400, error, code="oauth_provider_error")
     if not code or not state:
-        raise HTTPException(status_code=400, detail="missing code or state")
+        raise coded_http_error(400, "missing code or state", code="oauth_callback_incomplete")
     if provider not in {"google", "github"}:
-        raise HTTPException(status_code=404, detail="unknown provider")
+        raise coded_http_error(404, "unknown provider", code="auth_provider_unknown")
     expect_state = request.cookies.get(_OAUTH_STATE_COOKIE)
     verifier = request.cookies.get(_OAUTH_VERIFIER_COOKIE)
     cookie_provider = request.cookies.get(_OAUTH_PROVIDER_COOKIE)
     nxt = request.cookies.get(_OAUTH_NEXT_COOKIE) or "/"
     if not expect_state or not verifier or state != expect_state or cookie_provider != provider:
-        raise HTTPException(status_code=400, detail="invalid oauth state")
+        raise coded_http_error(400, "invalid oauth state", code="oauth_state_invalid")
     try:
         profile = exchange_code(provider, code=code, code_verifier=verifier)
     except Exception as exc:
         log.warning("oauth exchange failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=400, detail="oauth exchange failed") from exc
+        raise coded_http_error(400, "oauth exchange failed", code="oauth_exchange_failed") from exc
     if not profile.get("sub") or not profile.get("email"):
-        raise HTTPException(status_code=400, detail="provider did not return email")
+        raise coded_http_error(400, "provider did not return email", code="oauth_email_missing")
     store = get_identity_store()
     user = store.upsert_user_from_oidc(
         provider=provider,
@@ -222,7 +223,9 @@ def auth_callback(
 def auth_password_register(body: PasswordRegisterRequest, response: Response) -> dict[str, Any]:
     store = get_identity_store()
     if len(body.password) < 8:
-        raise HTTPException(status_code=400, detail="password must be at least 8 characters")
+        raise coded_http_error(
+            400, "password must be at least 8 characters", code="password_too_short"
+        )
     user = store.create_or_get_email_user(
         body.email,
         password=body.password,
@@ -240,7 +243,7 @@ def auth_password_login(body: PasswordLoginRequest, response: Response) -> dict[
     store = get_identity_store()
     user = store.verify_email_password(body.email, body.password)
     if not user:
-        raise HTTPException(status_code=401, detail="invalid email or password")
+        raise coded_http_error(401, "invalid email or password", code="invalid_credentials")
     session = store.create_session(user["id"])
     _set_session_cookie(response, session)
     return {"user": user, "session": session}
@@ -270,7 +273,7 @@ def auth_magic_consume(token: str, response: Response, next: str = "/") -> Redir
     store = get_identity_store()
     result = store.consume_magic_link(token)
     if not result or not result.get("user"):
-        raise HTTPException(status_code=400, detail="invalid or expired magic link")
+        raise coded_http_error(400, "invalid or expired magic link", code="magic_link_invalid")
     session = store.create_session(result["user"]["id"])
     dest = next or "/"
     if result.get("share_token"):
@@ -286,7 +289,7 @@ def passkey_register_begin(request: Request) -> dict[str, Any]:
     raw = request.cookies.get(SESSION_COOKIE)
     user = store.resolve_session(raw)
     if not user:
-        raise HTTPException(status_code=401, detail="sign in before registering a passkey")
+        raise coded_http_error(401, "sign in before registering a passkey", code="sign_in_required")
     return begin_registration(store, user)
 
 
@@ -295,7 +298,7 @@ def passkey_register_finish(body: PasskeyRegisterFinish, request: Request) -> di
     store = get_identity_store()
     user = store.resolve_session(request.cookies.get(SESSION_COOKIE))
     if not user:
-        raise HTTPException(status_code=401, detail="sign in required")
+        raise coded_http_error(401, "sign in required", code="sign_in_required")
     try:
         return finish_registration(
             store,
@@ -307,7 +310,7 @@ def passkey_register_finish(body: PasskeyRegisterFinish, request: Request) -> di
             client_data_json=body.client_data_json,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="passkey_invalid") from exc
 
 
 @router.post("/auth/passkey/login/begin")
@@ -329,7 +332,7 @@ def passkey_login_finish(body: PasskeyAuthFinish, response: Response) -> dict[st
             sign_count=body.sign_count,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="passkey_invalid") from exc
     session = store.create_session(user["id"])
     _set_session_cookie(response, session)
     return {"user": user, "session": session}
@@ -342,10 +345,10 @@ def mint_agent_credential(body: AgentCredentialRequest, request: Request) -> dic
         store = get_identity_store()
         user = store.resolve_session(request.cookies.get(SESSION_COOKIE))
         if not user:
-            raise HTTPException(status_code=401, detail="sign in required")
+            raise coded_http_error(401, "sign in required", code="sign_in_required")
         acl = store.acl_allows(body.share_token, user["id"])
         if acl is None:
-            raise HTTPException(status_code=403, detail="not on share ACL")
+            raise coded_http_error(403, "not on share ACL", code="share_acl_denied")
         raw = store.mint_agent_credential(body.share_token, user["id"], ttl_hours=body.ttl_hours)
     return {
         "token": raw,

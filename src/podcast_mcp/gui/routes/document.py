@@ -5,13 +5,14 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from pydantic import BaseModel
 
 from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
+    coded_exception_error,
     coded_http_error,
     document_conflict_error,
     require_authz,
@@ -120,7 +121,7 @@ def post_document_command(
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise coded_exception_error(403, exc, code="document_command_not_permitted") from exc
 
 
 class RangeAudioInput(BaseModel):
@@ -148,7 +149,7 @@ def range_audio(
         audio = PlayService(ws).play_selected_range(body.target)
         return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
     except RangeChangedError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="range_changed") from exc
 
 
 @router.post("/api/pending-preview/warm")
@@ -225,8 +226,8 @@ def pending_preview_audio(
                 )
         return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
     except RangeChangedError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="range_changed") from exc
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="pending_edit_not_found") from exc
     except ValueError as exc:
         raise bad_request_error(exc) from exc

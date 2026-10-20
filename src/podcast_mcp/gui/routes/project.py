@@ -4,7 +4,7 @@ import threading
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -20,6 +20,9 @@ from podcast_mcp.gui.audio import (
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
 from podcast_mcp.gui.jobs import project_meta
 from podcast_mcp.gui.routes.deps import (
+    bad_request_error,
+    coded_exception_error,
+    coded_http_error,
     peer_host,
     require_host,
     resolve_project,
@@ -69,9 +72,9 @@ def _require_episode_path(path_raw: str) -> Path:
     try:
         return require_episode_project_file(path_raw)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="project_path_invalid") from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="project_file_missing") from exc
 
 
 def _open_validated(path_raw: str) -> ProjectWorkspace:
@@ -80,7 +83,7 @@ def _open_validated(path_raw: str) -> ProjectWorkspace:
     try:
         return ProjectWorkspace.open(path)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="project_open_failed") from exc
 
 
 @router.post("/api/project/create")
@@ -93,11 +96,13 @@ def create_project(
     """Create a new episode workspace (host / loopback only)."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
-        raise HTTPException(status_code=403, detail="project create not allowed from this client")
+        raise coded_http_error(
+            403, "project create not allowed from this client", code="project_create_not_allowed"
+        )
     try:
         ws = ProjectWorkspace.create(body.workspace_dir, name=body.name.strip() or "episode")
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="project_create_failed") from exc
     pin_served_if_allowed(request, ws.path)
     return {"project_path": str(ws.path), "name": ws.project.name}
 
@@ -111,9 +116,11 @@ def pick_project_path(
     """Show a host OS file dialog; return a path without pinning served_project."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
-        raise HTTPException(status_code=403, detail="project pick not allowed from this client")
+        raise coded_http_error(
+            403, "project pick not allowed from this client", code="project_pick_not_allowed"
+        )
     if not _PICK_LOCK.acquire(blocking=False):
-        raise HTTPException(status_code=409, detail="A file dialog is already open")
+        raise coded_http_error(409, "A file dialog is already open", code="file_dialog_open")
     try:
         result = pick_episode_project_path()
         if result.unavailable:
@@ -124,9 +131,10 @@ def pick_project_path(
                 body["detail"] = result.detail
             return body
         if not result.path:
-            raise HTTPException(
-                status_code=400,
-                detail=result.detail or "No project path selected",
+            raise coded_http_error(
+                400,
+                result.detail or "No project path selected",
+                code="project_path_required",
             )
         # Basename gate only — full schema validation happens on open.
         path = _require_episode_path(result.path)
@@ -145,8 +153,10 @@ def open_project_path(
     """Validate an existing project and retarget served_project on loopback."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
-        raise HTTPException(
-            status_code=403, detail="project open/switch not allowed from this client"
+        raise coded_http_error(
+            403,
+            "project open/switch not allowed from this client",
+            code="project_open_not_allowed",
         )
     ws = _open_validated(body.path)
     pin_served_if_allowed(request, ws.path)
@@ -162,7 +172,9 @@ def close_project_path(
     """Unpin served_project on loopback (host home / New project)."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
-        raise HTTPException(status_code=403, detail="project close not allowed from this client")
+        raise coded_http_error(
+            403, "project close not allowed from this client", code="project_close_not_allowed"
+        )
     _unpin_served_if_allowed(request)
     return {"ok": True}
 
@@ -172,7 +184,7 @@ def health(request: Request) -> dict[str, bool]:
     from podcast_mcp.gui.bind import BOOT_TOKEN_HEADER, boot_token_accepted
 
     if not boot_token_accepted(request.headers.get(BOOT_TOKEN_HEADER)):
-        raise HTTPException(status_code=401, detail="invalid boot token")
+        raise coded_http_error(401, "invalid boot token", code="invalid_boot_token")
     return {"ok": True}
 
 
@@ -193,7 +205,7 @@ def get_project(
     try:
         projection = parse_view_projection(phase)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
     ws = ProjectWorkspace.open(project_path)
     return dump_project_projection(ws, projection=projection)
 
@@ -225,9 +237,11 @@ def get_pending_cut_suggestion(
     try:
         suggestion = EditService(ProjectWorkspace.open(project_path)).preview_pending_cut(edit_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="pending edit not found") from exc
+        raise coded_http_error(
+            404, "pending edit not found", code="pending_edit_not_found"
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
     return JSONResponse(asdict(suggestion), headers={"Cache-Control": "no-store"})
 
 
@@ -258,7 +272,7 @@ def get_waveform_snap(
             focus=focus,
         )
     except (KeyError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="waveform_snap_invalid") from exc
 
 
 @router.get("/api/project/prosody")
@@ -316,14 +330,14 @@ def get_audio(
             rerender=rerender,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="audio_source_unknown") from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="audio_file_missing") from exc
     except ProjectMergeConflict as exc:
         # The premix re-render's save collided with a concurrent edit; nothing was saved.
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="project_merge_conflict") from exc
     response = audio_file_response(transport.path, request=request)
     if transport.render_busy:
         # Refresh lost the render-lock race; this is the file already on disk.
@@ -349,4 +363,4 @@ def history_diff(
             to_index=to_index,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc

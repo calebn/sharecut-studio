@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from pydantic import BaseModel
 
 from podcast_mcp.gui.audio import audio_file_response
-from podcast_mcp.gui.routes.deps import bad_request_error, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    bad_request_error,
+    coded_exception_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     BoundaryEdit,
@@ -51,7 +56,7 @@ def post_boundary_context(
             )
         return context.model_dump()
     except DocumentConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="document_conflict") from exc
     except ValueError as exc:
         raise bad_request_error(exc) from exc
 
@@ -72,11 +77,11 @@ def post_boundary_audition(
             .model_dump()
         )
     except DocumentConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="document_conflict") from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="boundary_audio_not_found") from exc
     except (ValueError, KeyError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="invalid_request") from exc
 
 
 @router.get("/api/boundary/audition/{opaque_id}/{side}")
@@ -95,8 +100,8 @@ def get_boundary_audition_audio(
         path = PlayService(ws).boundary_audio_path(opaque_id, side, expected_token)
         return audio_file_response(path, request=request)
     except DocumentConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="document_conflict") from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="boundary_audio_not_found") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc

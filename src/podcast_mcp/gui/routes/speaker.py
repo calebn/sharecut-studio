@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 
 from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.gui.routes.deps import coded_http_error, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    coded_exception_error,
+    coded_http_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.gui.schemas import SpeakerMoveLaneSpanRequest, SpeakerSplitRequest
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import SpeakerService
@@ -51,12 +56,12 @@ def speaker_split(
         )
     except CodedValueError as exc:
         if exc.code != "speaker_backend_unavailable":
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise coded_http_error(400, str(exc), code=exc.code) from exc
         raise coded_http_error(409, str(exc), code=exc.code) from exc
     except (RuntimeError, ImportError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="speaker_split_unavailable") from exc
     except (ValueError, FileNotFoundError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="speaker_split_invalid") from exc
     return {"job": job.snapshot()}
 
 

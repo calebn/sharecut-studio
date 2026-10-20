@@ -53,11 +53,20 @@ def document_conflict_error(exc: DocumentConflictError) -> HTTPException:
     return coded_http_error(409, {"detail": str(exc), "conflict": True}, code=exc.code)
 
 
+def coded_exception_error(status_code: int, exc: Exception, *, code: str) -> HTTPException:
+    """HTTP error carrying *exc*'s message; a ``CodedError`` sends its own code, else *code*.
+
+    *code* is the route's fallback for an exception that is not coded (a lookup that raised a
+    bare ``KeyError``): name what the route refused, not the exception class.
+    """
+    return coded_http_error(
+        status_code, str(exc), code=exc.code if isinstance(exc, CodedError) else code
+    )
+
+
 def bad_request_error(exc: ValueError) -> HTTPException:
     """HTTP 400 with the refusal's message; a ``CodedError`` also sends its code."""
-    if isinstance(exc, CodedError):
-        return coded_http_error(400, str(exc), code=exc.code)
-    return HTTPException(status_code=400, detail=str(exc))
+    return coded_exception_error(400, exc, code="invalid_request")
 
 
 def guard_http_error(exc: GuardRefusal) -> HTTPException:
@@ -165,12 +174,13 @@ def resolve_project(path: str, request: Request | WebSocket | None = None) -> Pa
     """
     project_path = Path(path).expanduser().resolve()
     if not project_path.is_file():
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_path}")
+        raise coded_http_error(404, f"Project not found: {project_path}", code="project_not_found")
     if request is not None:
         served = getattr(request.app.state, "served_project", None)
         if served is not None and project_path != Path(served).resolve():
-            raise HTTPException(
-                status_code=403,
-                detail="project path not allowed for this server instance",
+            raise coded_http_error(
+                403,
+                "project path not allowed for this server instance",
+                code="project_path_not_allowed",
             )
     return project_path

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 
 from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import coded_exception_error, require_host, resolve_project
 from podcast_mcp.gui.schemas import BounceRequestBody, ExportDeliverablesRequest
 
 router = APIRouter()
@@ -42,9 +42,9 @@ def export_bounce(
             exact_range=body.exact_range,
         )
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="export_job_conflict") from exc
     except (ValueError, FileNotFoundError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="export_request_invalid") from exc
     snap = job.snapshot()
     return {"job_id": job.id, "job": snap}
 
@@ -62,8 +62,8 @@ def export_deliverables(
     try:
         job = _jobs(request).start_export(project_path, formats=body.formats)
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="export_job_conflict") from exc
     except (ValueError, FileNotFoundError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="export_request_invalid") from exc
     snap = job.snapshot()
     return {"job_id": job.id, "job": snap}

@@ -26,7 +26,7 @@ from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
-from podcast_mcp.gui.routes.deps import NO_STORE
+from podcast_mcp.gui.routes.deps import NO_STORE, coded_http_error
 from podcast_mcp.gui.routes.document import RangeAudioInput
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
@@ -326,7 +326,7 @@ def get_daw_audio(
     """Guest DAW audio - kind whitelist; ``rerender`` is always rejected."""
     _check_token(token)
     if rerender:
-        raise HTTPException(status_code=403, detail="rerender not allowed for shares")
+        raise coded_http_error(403, "rerender not allowed for shares", code="rerender_not_allowed")
     with guest_boundary(log, "review request"):
         path = share_daw_audio_path(token, kind=kind, track_id=track_id)
     return _audio_file_response(
@@ -485,7 +485,9 @@ def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
 
     projected = guest_render_job(job, ws.path)
     if projected is None:
-        raise HTTPException(status_code=500, detail="Render preview job unavailable")
+        raise coded_http_error(
+            500, "Render preview job unavailable", code="render_preview_job_unavailable"
+        )
     return {"job": projected}
 
 
@@ -501,7 +503,7 @@ def get_daw_render_preview(token: str, job_id: str, request: Request) -> dict[st
     with guest_boundary(log, "review render status"):
         job = guest_render_job(request.app.state.jobs.get_job(job_id), ws.path)
     if job is None:
-        raise HTTPException(status_code=404, detail="Render preview job not found")
+        raise coded_http_error(404, "Render preview job not found", code="job_not_found")
     return {"job": job}
 
 

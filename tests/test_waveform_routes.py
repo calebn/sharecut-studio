@@ -215,7 +215,11 @@ def test_waveform_call_maps_busy_to_503_without_logging(caplog):
     ):
         waveform_call(busy)
     assert info.value.status_code == 503
-    assert info.value.headers == {"Cache-Control": "no-store", "Retry-After": "1"}
+    assert info.value.headers == {
+        "Cache-Control": "no-store",
+        "Retry-After": "1",
+        "X-Sharecut-Error-Code": "waveform_busy",
+    }
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 

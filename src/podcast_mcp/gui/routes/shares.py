@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 
 from podcast_mcp.edits.review_versions import MixUnavailableError
-from podcast_mcp.gui.routes.deps import coded_http_error, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    coded_exception_error,
+    coded_http_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.gui.schemas import (
     RecordInviteReplaceRequest,
     RecordRoomCreateRequest,
@@ -64,11 +69,11 @@ def create_host_share(
     except MixUnavailableError as exc:
         raise coded_http_error(409, str(exc), code=exc.code) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="share_create_invalid") from exc
     except KeyError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="share_create_target_unknown") from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="share_create_media_missing") from exc
     return {"share": share}
 
 
@@ -86,7 +91,7 @@ def revoke_host_share(
     try:
         return ShareService(ws).revoke(share_token)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="share_not_found") from exc
 
 
 @router.post("/api/shares/record")
@@ -106,9 +111,9 @@ def create_host_record_room(
             expires_at=body.expires_at,
         )
     except RecordStateError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="record_room_unavailable") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="record_room_request_invalid") from exc
     return {"room": room}
 
 
@@ -129,9 +134,9 @@ def replace_host_record_invite(
             public_base_url=_origin(request),
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="share_not_found") from exc
     except RecordStateError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="record_invite_replace_refused") from exc
     return {"share": share}
 
 
@@ -149,4 +154,4 @@ def revoke_host_record_room(
     try:
         return ShareService(ws).revoke_room(session_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="record_room_not_found") from exc

@@ -3,12 +3,12 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from podcast_mcp.gui.jobs import session_file_meta
-from podcast_mcp.gui.routes.deps import require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import coded_exception_error, require_authz, resolve_project
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.app import ProjectWorkspace
@@ -240,7 +240,7 @@ def post_session_command(
     try:
         return svc.submit(cmd)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="session_command_refused") from exc
 
 
 @router.post("/api/session/state")
