@@ -28,7 +28,7 @@ def test_cli_launchers_are_bundled_and_release_staged() -> None:
     assert "--bundles deb" in workflow
     assert "sharecut-linux-deb" in workflow
     assert 'grep -Eq "(^|[[:space:]])(\\./)?usr/bin/${stem}$"' in workflow
-    smoke = (ROOT / "scripts/smoke_linux_appimage.sh").read_text(encoding="utf-8")
+    smoke = (ROOT / "scripts/desktop/smoke_linux_appimage.sh").read_text(encoding="utf-8")
     assert "for stem in podcast podcast-mcp; do" in smoke
 
 
@@ -60,7 +60,7 @@ def test_nsis_cli_path_is_optional_and_owned_entry_is_removed() -> None:
 
 
 def test_desktop_build_notarizes_app_once_then_packs_dmg() -> None:
-    text = (ROOT / "scripts/build_desktop.sh").read_text(encoding="utf-8")
+    text = (ROOT / "scripts/desktop/build_desktop.sh").read_text(encoding="utf-8")
     assert "npm run tauri -- build --bundles app" in text
     assert "pack_macos_dmg.sh" in text
     assert "npm run tauri -- build --bundles dmg" not in text
@@ -70,7 +70,7 @@ def test_desktop_build_notarizes_app_once_then_packs_dmg() -> None:
 def test_desktop_build_scripts_canonicalize_relative_profile_before_changing_directory(
     script_name: str,
 ) -> None:
-    text = (ROOT / "scripts" / script_name).read_text(encoding="utf-8")
+    text = (ROOT / "scripts" / "desktop" / script_name).read_text(encoding="utf-8")
 
     caller_at = text.index('CALLER_DIR="$PWD"')
     relative_at = text.index('DIST_PROFILE="$CALLER_DIR/$DIST_PROFILE"')
@@ -119,7 +119,7 @@ def test_desktop_build_scripts_resolve_relative_profiles_from_the_callers_direct
     }
 
     completed = subprocess.run(
-        ["bash", str(ROOT / "scripts" / script_name)],
+        ["bash", str(ROOT / "scripts" / "desktop" / script_name)],
         cwd=caller,
         env=env,
         check=False,
@@ -137,25 +137,24 @@ def _write_executable(path: Path, content: str) -> None:
 
 
 def test_pack_macos_dmg_retries_hdiutil_only() -> None:
-    text = (ROOT / "scripts/pack_macos_dmg.sh").read_text(encoding="utf-8")
+    text = (ROOT / "scripts/desktop/pack_macos_dmg.sh").read_text(encoding="utf-8")
     while_at = text.find("while true")
-    notary_at = text.find("notarytool submit")
-    staple_at = text.find("stapler validate")
+    notary_at = text.find('run_notarytool "$partial"')
     sha_at = text.rfind("shasum -a 256")
     assert while_at != -1
     assert notary_at > while_at
     assert "hdiutil create" in text
     assert 'partial="${OUT}.partial.dmg"' in text
-    assert "trap 'rc=$?" in text
+    assert "on_exit stop_hdiutil" in text
     assert "npm run tauri" not in text
-    assert staple_at != -1
-    assert sha_at > staple_at
-    assert "until xcrun stapler staple" in text
-    assert "STAPLE_ATTEMPTS" in text
-    assert "tauri.conf.json" in text
+    assert sha_at > text.index("staple_with_retries")
+    lib = (ROOT / "scripts/desktop/lib.sh").read_text(encoding="utf-8")
+    assert "until xcrun stapler staple" in lib
+    assert "STAPLE_ATTEMPTS" in lib
+    assert "tauri_version" in text
     assert 'product_name="$(basename "$APP" .app)"' in text
     assert "compact_name=" in text
-    assert "${compact_name}_${version}_$(default_arch).dmg" in text
+    assert "${compact_name}_${version}_$(desktop_arch).dmg" in text
     assert '"$staging/${product_name}.app"' in text
     assert '-volname "$product_name"' in text
     assert "Sharecut Studio.app" not in text
@@ -176,8 +175,10 @@ def test_tauri_bundle_lists_square_png_icons() -> None:
 
 
 def test_linux_appimage_script_is_shared_by_docker_and_gha() -> None:
-    script = (ROOT / "scripts/build_linux_appimage.sh").read_text(encoding="utf-8")
-    docker_run = (ROOT / "scripts/build_linux_appimage_docker.sh").read_text(encoding="utf-8")
+    script = (ROOT / "scripts/desktop/build_linux_appimage.sh").read_text(encoding="utf-8")
+    docker_run = (ROOT / "scripts/desktop/build_linux_appimage_docker.sh").read_text(
+        encoding="utf-8"
+    )
     dockerfile = (ROOT / "gui/desktop/Dockerfile.linux-appimage").read_text(encoding="utf-8")
     gha = (ROOT / ".github/workflows/release-desktop-build.yml").read_text(encoding="utf-8")
     assert "NO_STRIP" in script
@@ -202,7 +203,7 @@ def test_linux_appimage_script_is_shared_by_docker_and_gha() -> None:
     assert "SHARECUT_APPIMAGE_OUT" in script
     assert "/opt/sharecut-debs" in script
     assert "/opt/sharecut-debs" in docker_run
-    assert "./scripts/build_linux_appimage.sh" in gha
+    assert "./scripts/desktop/build_linux_appimage.sh" in gha
     assert "ubuntu-22.04" in gha
     assert ".freeze-complete" in script
     assert "REBUILD_WEB" not in script
@@ -249,7 +250,7 @@ def test_linux_docker_wrapper_mounts_external_distribution_profile(tmp_path: Pat
     }
 
     completed = subprocess.run(
-        ["bash", str(ROOT / "scripts" / "build_linux_appimage_docker.sh")],
+        ["bash", str(ROOT / "scripts" / "desktop" / "build_linux_appimage_docker.sh")],
         cwd=ROOT,
         env=env,
         check=False,
@@ -388,7 +389,7 @@ def test_tauri_production_window_waits_on_splash() -> None:
 
 
 def test_linux_appimage_smoke_kills_process_group() -> None:
-    text = (ROOT / "scripts/smoke_linux_appimage.sh").read_text(encoding="utf-8")
+    text = (ROOT / "scripts/desktop/smoke_linux_appimage.sh").read_text(encoding="utf-8")
     assert "usr/bin/sharecut-sidecar" in text
     assert 'kill -- "-${SIDECAR_PID}"' in text or 'kill -- "-$SIDECAR_PID"' in text
     assert "kill -0" in text
@@ -448,11 +449,9 @@ def test_linux_docker_wrapper_selects_release_architecture_without_reusing_arm_s
     import sys
 
     owned = tmp_path / "checkout"
-    (owned / "scripts").mkdir(parents=True)
-    shutil.copyfile(
-        ROOT / "scripts/build_linux_appimage_docker.sh",
-        owned / "scripts/build_linux_appimage_docker.sh",
-    )
+    (owned / "scripts/desktop").mkdir(parents=True)
+    for name in ("build_linux_appimage_docker.sh", "lib.sh"):
+        shutil.copyfile(ROOT / "scripts/desktop" / name, owned / "scripts/desktop" / name)
     bin_dir = tmp_path / "commands"
     bin_dir.mkdir()
     log = tmp_path / "commands.jsonl"
@@ -502,7 +501,7 @@ exit 1
     ):
         env.pop(key, None)
     completed = subprocess.run(
-        ["bash", str(owned / "scripts/build_linux_appimage_docker.sh")],
+        ["bash", str(owned / "scripts/desktop/build_linux_appimage_docker.sh")],
         env=env,
         capture_output=True,
         text=True,
@@ -512,7 +511,10 @@ exit 1
     commands = [json.loads(line) for line in log.read_text().splitlines()]
     run = next(command for command in commands if command[0] == "run")
     assert run[:4] == ["run", "--platform", "linux/amd64", "--rm"]
-    assert run[-2:] == ["sharecut-linux-amd64-appimage:local", "./scripts/build_linux_appimage.sh"]
+    assert run[-2:] == [
+        "sharecut-linux-amd64-appimage:local",
+        "./scripts/desktop/build_linux_appimage.sh",
+    ]
     volumes = [run[index + 1] for index, value in enumerate(run) if value == "-v"]
     assert "sharecut-linux-amd64-sidecar:/src/gui/desktop/binaries" in volumes
     assert "sharecut-linux-amd64-cargo-target:/cargo-target" in volumes
@@ -546,7 +548,7 @@ exit 1
 
 
 def test_linux_smoke_names_its_failing_command_and_never_pipes_into_grep_q() -> None:
-    text = (ROOT / "scripts/smoke_linux_appimage.sh").read_text(encoding="utf-8")
+    text = (ROOT / "scripts/desktop/smoke_linux_appimage.sh").read_text(encoding="utf-8")
     assert "trap 'echo \"error: smoke failed at line $LINENO: $BASH_COMMAND\" >&2' ERR" in text
     assert '| grep -q "Usage"' not in text
     assert text.count("prints_usage ") >= 3

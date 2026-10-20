@@ -10,8 +10,7 @@ on:
       - "gui/desktop/**"
       - "gui/web/**"
       - "src/podcast_mcp/**"
-      - "scripts/check_desktop.sh"
-      - "scripts/build_desktop.sh"
+      - "scripts/desktop/**"
       - "scripts/build_sidecar.py"
       - "scripts/sidecar_*.rs"
       - "tests/test_pinned_media.py"
@@ -65,7 +64,7 @@ jobs:
           path: gui/web/dist
 
   # Full `tauri build` needs platform runners + icons; scaffold + light Rust hygiene.
-  # Same script as `make test-desktop` / scripts/check_desktop.sh (clippy/tests --lib only).
+  # Same script as `make test-desktop` / scripts/desktop/check_desktop.sh (clippy/tests --lib only).
   desktop-scaffold:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -76,7 +75,7 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: Check desktop (scaffold + rustfmt + clippy + lib tests)
-        run: ./scripts/check_desktop.sh
+        run: ./scripts/desktop/check_desktop.sh
 
   # Compile the Windows-only WebView2 adapters without producing an installer.
   # Full NSIS packaging remains in release-desktop-build.yml.

@@ -7,10 +7,9 @@
 #   Linux   the AppImage -> <file>.sig
 # Needs TAURI_SIGNING_PRIVATE_KEY (content or path) and optionally
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD in the environment of this process only.
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 set +x
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 bundle_dir="$ROOT/gui/desktop/src-tauri/target/release/bundle"
 shopt -s nullglob
 
@@ -24,7 +23,7 @@ one_of() {
 
 case "$(uname -s)" in
   Darwin)
-    bundle="$("$ROOT/scripts/stage_updater_bundle.sh" "$bundle_dir/updater")"
+    bundle="$("$ROOT/scripts/desktop/stage_updater_bundle.sh" "$bundle_dir/updater")"
     ;;
   MINGW* | MSYS* | CYGWIN*)
     bundle="$(one_of "$bundle_dir"/nsis/*-setup.exe)"
@@ -37,4 +36,4 @@ case "$(uname -s)" in
     exit 1
     ;;
 esac
-"$ROOT/scripts/sign_updater_bundle.sh" "$bundle"
+"$ROOT/scripts/desktop/sign_updater_bundle.sh" "$bundle"

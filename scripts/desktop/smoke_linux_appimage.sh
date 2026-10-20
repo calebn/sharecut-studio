@@ -2,7 +2,7 @@
 # Smoke: extract an AppImage and prove the frozen sidecar serves /api/health.
 # Does not drive WebKit (no display). Catches "runtime missing / Python crash"
 # which is the same failure as WebView ERR_CONNECTION_REFUSED.
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 trap 'echo "error: smoke failed at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 # Run a command to completion before matching its output: `cmd | grep -q` under
@@ -18,7 +18,6 @@ if [[ $# -lt 1 ]]; then
   exit 2
 fi
 IMG="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ ! -f "$IMG" ]]; then
   echo "error: AppImage not found: $1" >&2
   exit 1
@@ -31,15 +30,15 @@ fi
 
 WORKDIR="$(mktemp -d)"
 SIDECAR_PID=""
-cleanup() {
+stop_sidecar() {
   if [[ -n "${SIDECAR_PID}" ]]; then
     # Kill the process group so nested Python/uvicorn does not keep :8765.
     kill -- "-${SIDECAR_PID}" 2>/dev/null || kill "${SIDECAR_PID}" 2>/dev/null || true
     wait "${SIDECAR_PID}" 2>/dev/null || true
   fi
-  rm -rf "$WORKDIR"
 }
-trap cleanup EXIT
+on_exit stop_sidecar
+on_exit 'rm -rf "$WORKDIR"'
 
 cd "$WORKDIR"
 chmod +x "$IMG" || true

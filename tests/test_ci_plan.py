@@ -131,6 +131,7 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
         ([".github/workflows/test.yml"], True, "full", PR_E2E),
         ([".github/workflows/desktop.yml"], False, "full", []),
         (["gui/desktop/src-tauri/src/main.rs"], False, "full", []),
+        (["scripts/desktop/lib.sh", "scripts/desktop/pack_macos_dmg.sh"], False, "full", []),
         ([], True, "full", PR_E2E),
     ],
 )

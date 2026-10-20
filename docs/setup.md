@@ -233,7 +233,10 @@ torch extras are not offered in the UI. Contributor CLI path is unchanged.
 Native window (optional): [`gui/desktop/`](../gui/desktop/) — see
 [desktop-packaging.md](desktop-packaging.md). Local CI mirror:
 `make test-desktop` (needs rustup + rustfmt/clippy); full installer:
-`make desktop-build` (freezes sidecar; unsigned unless `APPLE_*` env is set).
+`make desktop-build` (freezes sidecar; unsigned unless `APPLE_*` env is set). Both run scripts in
+[`scripts/desktop/`](../scripts/desktop/) (`check_desktop.sh`, `build_desktop.sh`; the
+Linux AppImage wrapper is `build_linux_appimage_docker.sh`), which share `scripts/desktop/lib.sh`
+([desktop-packaging.md § Desktop shell scripts](desktop-packaging.md#desktop-shell-scripts)).
 Win/Linux/mac-x64 installers are produced by the reusable `release-desktop-build.yml` workflow. A caller repository supplies an immutable source SHA and may set `sign=true` only when its `desktop-signing` environment is complete; unsigned dogfood callers leave signing disabled.
 
 ## macOS (or any OS with a package manager)

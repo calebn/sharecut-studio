@@ -726,13 +726,8 @@
       "advisory": {
         "include": [
           "gui/desktop/",
-          "scripts/build_desktop.sh",
+          "scripts/desktop/",
           "scripts/build_sidecar.py",
-          "scripts/check_desktop.sh",
-          "scripts/pack_macos_dmg.sh",
-          "scripts/sign_windows_authenticode.sh",
-          "scripts/build_linux_appimage*.sh",
-          "scripts/smoke_linux_appimage.sh",
           "scripts/tauri_sidecar_hook.py",
           "scripts/sidecar_*.rs",
           "scripts/mirror_bootstrap_assets.py",
@@ -956,7 +951,7 @@
           "gui/web/scripts/run-e2e.ts",
           "gui/web/scripts/start-e2e-gui.ts",
           "gui/web/scripts/check-bundle-*.ts",
-          "scripts/check_desktop.sh",
+          "scripts/desktop/check_desktop.sh",
           "scripts/biome_format.py",
           "scripts/lint-staged-biome.sh"
         ]

@@ -2,9 +2,8 @@
 # Mirror `.github/workflows/desktop.yml` → desktop-scaffold (local + CI).
 # No Rust coverage % gate. Clippy/tests use --lib --no-default-features
 # so Tauri/GTK/WebKit are not required on the runner.
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "==> Verify Tauri tree"
@@ -38,7 +37,7 @@ done
 echo "==> sidecar launcher: rustfmt --check / clippy / rustc --test"
 rustfmt --edition 2021 --check scripts/sidecar_launcher.rs scripts/sidecar_shared.rs
 launcher_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sharecut-sidecar-launcher.XXXXXX")"
-trap 'rm -rf "$launcher_tmp"' EXIT
+on_exit 'rm -rf "$launcher_tmp"'
 clippy-driver --edition 2021 -D warnings scripts/sidecar_launcher.rs -o "$launcher_tmp/launcher"
 clippy-driver --edition 2021 -D warnings --test scripts/sidecar_launcher.rs -o "$launcher_tmp/launcher-test"
 "$launcher_tmp/launcher-test"

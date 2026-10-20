@@ -2,10 +2,9 @@
 # Local Tauri installer build (not required CI). Needs Rust + platform WebView deps.
 # macOS: signs and notarizes the .app when APPLE_SIGNING_IDENTITY + notarization env
 # are set, then packs a DMG with hdiutil retries (never re-submit the .app to Apple).
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 CALLER_DIR="$PWD"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ -n "${PODCAST_DISTRIBUTION_PROFILE:-}" ]]; then
   DIST_PROFILE="$PODCAST_DISTRIBUTION_PROFILE"
   [[ "$DIST_PROFILE" = /* ]] || DIST_PROFILE="$CALLER_DIR/$DIST_PROFILE"
@@ -20,7 +19,7 @@ python3 "$ROOT/scripts/generate_distribution_config.py" \
   --profile "$DIST_PROFILE" --output "$DIST_OVERLAY"
 
 # The updater private key is held back from every build step and handed only to
-# scripts/sign_updater_artifacts.sh at the end. SHARECUT_SKIP_UPDATER_ARTIFACTS=1
+# scripts/desktop/sign_updater_artifacts.sh at the end. SHARECUT_SKIP_UPDATER_ARTIFACTS=1
 # builds without an update bundle even when the profile has an updater.
 signing_env=()
 for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PATH TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
@@ -77,7 +76,7 @@ fi
     # --bundles app only: Tauri notarizes+staples the .app once. Retrying
     # `build --bundles dmg` re-signs and re-submits to Apple (minutes each).
     npm run tauri -- build --bundles app --config "$DIST_OVERLAY"
-    "$ROOT/scripts/pack_macos_dmg.sh"
+    "$ROOT/scripts/desktop/pack_macos_dmg.sh"
   else
     npm run tauri -- build --config "$DIST_OVERLAY"
   fi
@@ -85,7 +84,7 @@ fi
 
 if [[ "$sign_updater" == "1" ]]; then
   echo "==> Sign updater bundle"
-  env "${signing_env[@]}" "$ROOT/scripts/sign_updater_artifacts.sh"
+  env "${signing_env[@]}" "$ROOT/scripts/desktop/sign_updater_artifacts.sh"
 fi
 
 echo "desktop build OK — see gui/desktop/src-tauri/target/release/bundle/"

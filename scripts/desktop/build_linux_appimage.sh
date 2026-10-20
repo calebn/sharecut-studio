@@ -2,10 +2,9 @@
 # Freeze the Linux sidecar and bundle an unsigned AppImage.
 # Used by gui/desktop/Dockerfile.linux-appimage and the ubuntu job in
 # .github/workflows/release-desktop-build.yml. Iterate in Docker before GHA.
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 CALLER_DIR="$PWD"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ -n "${PODCAST_DISTRIBUTION_PROFILE:-}" ]]; then
   DIST_PROFILE="$PODCAST_DISTRIBUTION_PROFILE"
   [[ "$DIST_PROFILE" = /* ]] || DIST_PROFILE="$CALLER_DIR/$DIST_PROFILE"
@@ -104,5 +103,5 @@ if [[ ${#found[@]} -eq 0 ]]; then
 fi
 if [[ "${SKIP_APPIMAGE_SMOKE:-}" != "1" ]]; then
   echo "==> AppImage sidecar health smoke"
-  "$ROOT/scripts/smoke_linux_appimage.sh" "${found[0]}"
+  "$ROOT/scripts/desktop/smoke_linux_appimage.sh" "${found[0]}"
 fi

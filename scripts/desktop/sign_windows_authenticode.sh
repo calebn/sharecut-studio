@@ -2,7 +2,7 @@
 # Sign (or verify) Windows Authenticode files on a GitHub-hosted runner.
 # Imports the PFX into the current-user store and signs by thumbprint so the
 # PFX password never appears on the signtool command line.
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 set +x
 
 usage() {
@@ -70,15 +70,15 @@ pfx="${RUNNER_TEMP}/sharecut-authenticode-$$.pfx"
 thumbprint=""
 imported=0
 
-cleanup() {
+remove_imported_cert() {
   if [[ "$imported" -eq 1 && "$thumbprint" =~ ^[A-Fa-f0-9]{40}$ ]]; then
     powershell.exe -NoProfile -NonInteractive -Command \
       "Get-ChildItem Cert:\\CurrentUser\\My\\${thumbprint} -ErrorAction SilentlyContinue | Remove-Item" \
       >/dev/null 2>&1 || true
   fi
-  rm -f "$pfx"
 }
-trap cleanup EXIT
+on_exit remove_imported_cert
+on_exit 'rm -f "$pfx"'
 
 printf '%s' "$WINDOWS_SIGN_CERT_PFX_B64" | base64 --decode > "$pfx"
 chmod 600 "$pfx"

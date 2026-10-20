@@ -11,16 +11,21 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ("sign_updater_bundle.sh", "stage_updater_bundle.sh", "sign_updater_artifacts.sh")
+SCRIPTS = (
+    "lib.sh",
+    "sign_updater_bundle.sh",
+    "stage_updater_bundle.sh",
+    "sign_updater_artifacts.sh",
+)
 SENTINEL = "sentinel-text-that-must-never-be-printed"
 
 
 @pytest.fixture
 def sandbox(tmp_path: Path) -> Path:
     """A fake checkout holding the real scripts and a stub `npm` that records its call."""
-    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/desktop").mkdir(parents=True)
     for name in SCRIPTS:
-        shutil.copy2(ROOT / "scripts" / name, tmp_path / "scripts" / name)
+        shutil.copy2(ROOT / "scripts/desktop" / name, tmp_path / "scripts/desktop" / name)
     conf = tmp_path / "gui" / "desktop" / "src-tauri" / "tauri.conf.json"
     conf.parent.mkdir(parents=True)
     conf.write_text(json.dumps({"version": "1.2.3"}), encoding="utf-8")
@@ -50,7 +55,7 @@ def _run(
         "STUB_DIR": str(sandbox),
     }
     return subprocess.run(
-        ["/bin/bash", str(sandbox / "scripts" / script), *args],
+        ["/bin/bash", str(sandbox / "scripts/desktop" / script), *args],
         check=False,
         capture_output=True,
         text=True,

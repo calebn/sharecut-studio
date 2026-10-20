@@ -2,11 +2,10 @@
 # Sign one shipped bundle with the Tauri updater key, writing <file>.sig.
 # The key lives only in this process's environment: builds run without it.
 # Usage: TAURI_SIGNING_PRIVATE_KEY=<content|existing file path> [TAURI_SIGNING_PRIVATE_KEY_PASSWORD=…] \
-#        scripts/sign_updater_bundle.sh <file>
-set -euo pipefail
+#        scripts/desktop/sign_updater_bundle.sh <file>
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 set +x
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 file="${1:?usage: sign_updater_bundle.sh <file>}"
 if [[ ! -s "$file" ]]; then
   echo "error: bundle to sign is missing or empty: $file" >&2
@@ -26,8 +25,7 @@ fi
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD-}"
 
 file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
-version="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
-  "$ROOT/gui/desktop/src-tauri/tauri.conf.json")"
+version="$(tauri_version)"
 cli_file="$file"
 if command -v cygpath >/dev/null 2>&1; then
   cli_file="$(cygpath -w "$file")"
