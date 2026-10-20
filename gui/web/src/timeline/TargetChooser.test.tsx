@@ -55,6 +55,7 @@ beforeEach(() => {
     longPress: vi.fn(),
     choose: vi.fn(),
     nextPage: vi.fn(),
+    openCreate: vi.fn(),
     close: vi.fn(),
     adopt: vi.fn(() => vi.fn()),
   };

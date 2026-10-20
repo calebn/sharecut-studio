@@ -394,6 +394,14 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   overflow: visible;
 }
 
+/* Select range armed on a tablet: the sheet holds only In, Out, the tracks and
+   its two buttons, so it is as tall as they are and the lanes the range is
+   dragged across stay in view (#1793). */
+html[data-shell="tablet"] .bottom-sheet--half:has(.range-numeric) {
+  height: auto;
+  max-block-size: min(75%, 32rem);
+}
+
 .bottom-sheet:has(.modifier-inspector),
 .bottom-sheet:has(.range-actions--sheet) {
   overflow: auto;

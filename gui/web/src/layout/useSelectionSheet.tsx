@@ -36,13 +36,13 @@ import { useRevealEditedLane } from "./useRevealEditedLane";
 
 /**
  * The shells that carry a selection sheet. `armedOpens`: Select range alone
- * opens it, because the phone has no bar for the In and Out fields. Where it
- * does not, the fields sit in the transport bar until a selection opens the
- * sheet.
+ * opens it, with the In and Out fields in the bottom zone. Doing controls
+ * never sit in a card at the top (`docs/interaction-system.md` § Shells and
+ * placement), so the tablet does it too (#1793).
  */
 export const SHEET_SHELLS = {
   phone: { armedOpens: true },
-  tablet: { armedOpens: false },
+  tablet: { armedOpens: true },
 } as const satisfies Partial<Record<ShellBreakpoint, { armedOpens: boolean }>>;
 
 export type SheetShell = keyof typeof SHEET_SHELLS;
@@ -66,9 +66,9 @@ function shownScreen(s: SheetOpenState): SheetScreen | null {
 /**
  * Is the selection sheet open? One rule for every shell: the selection's kind
  * lists the screens it opens on (`SELECTION_SURFACES`), and the phone and the
- * tablet each name the screen they show. Arming a range opens it alone where
- * the shell has no bar for the In and Out fields. Where it does, the tracks
- * ticked for the range are its scope, not a request to inspect them.
+ * tablet each name the screen they show. Arming a range opens it alone, so the
+ * In and Out fields sit in the sheet. The tracks ticked for the range are its
+ * scope, not a request to inspect them.
  */
 export function selectionSheetOpen(s: SheetOpenState): boolean {
   if (s.shell === "desktop") return false;

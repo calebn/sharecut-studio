@@ -268,18 +268,18 @@ describe("selectionSheetOpen reads one table on the phone and the tablet", () =>
     );
   });
 
-  it("opens on an armed range alone on the phone, not on the tablet", () => {
+  it("opens on an armed range alone on the phone and the tablet (#1793)", () => {
     expect(sheetOpen("phone", "timeline", null, true)).toBe(true);
-    expect(sheetOpen("tablet", "timeline", null, true)).toBe(false);
+    expect(sheetOpen("tablet", "timeline", null, true)).toBe(true);
   });
 
-  it("keeps the tablet bar while tracks are ticked for an armed range", () => {
+  it("keeps the sheet open on the range fields while tracks are ticked for an armed range", () => {
     const ticked: Selection = {
       kind: "track",
       trackId: "host",
       trackIds: ["host", "guest"],
     };
-    expect(sheetOpen("tablet", "timeline", ticked, true)).toBe(false);
+    expect(sheetOpen("tablet", "timeline", ticked, true)).toBe(true);
     expect(sheetOpen("tablet", "timeline", ticked, false)).toBe(true);
     expect(sheetOpen("phone", "timeline", ticked, true)).toBe(true);
   });

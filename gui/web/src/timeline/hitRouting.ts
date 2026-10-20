@@ -263,6 +263,11 @@ export interface HitRouter {
    */
   choose: (index: number, pointerType: string | null) => void;
   nextPage: () => void;
+  /**
+   * Opens the create menu at `origin` on `surface` with no finger down: the
+   * right-click and keyboard twin of a long press on empty space (#1793).
+   */
+  openCreate: (origin: HitPoint, surface: Element) => void;
   /** Closes the chooser or the create menu with no change. */
   close: () => void;
   /**
@@ -678,6 +683,32 @@ export function attachHitRouting(
     replayPointer("pointerdown", winner, event);
   };
 
+  /**
+   * The create menu's pointer and keyboard twin (#1793): a right click, the Menu
+   * key or Shift+F10 on a target or lane opens it where a long press on empty
+   * space does on touch. A touch long press raises this event too; the press
+   * layer already owns that one.
+   */
+  const onContextMenu = (event: MouseEvent) => {
+    const { target } = event;
+    if ((event as PointerEvent).pointerType === "touch") return;
+    if (phase.kind !== "idle" || !(target instanceof Element)) return;
+    if (!partOf(target)) return;
+    if (!closestHitTarget(target) && !closestHitSurface(target)) return;
+    event.preventDefault();
+    // A key press carries no pointer position: use the focused target's.
+    const box =
+      event.clientX === 0 && event.clientY === 0
+        ? target.getBoundingClientRect()
+        : null;
+    router.openCreate(
+      box
+        ? { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+        : { x: event.clientX, y: event.clientY },
+      target,
+    );
+  };
+
   const onMove = (event: PointerEvent) => {
     if (isReplayed(event)) return;
     const at = pointOf(event);
@@ -964,6 +995,7 @@ export function attachHitRouting(
     ["pointerup", guard("up", onUp)],
     ["pointercancel", guard("cancel", onCancel)],
     ["click", onClick],
+    ["contextmenu", onContextMenu],
   ] as const;
   for (const [type, listener] of listeners) {
     doc.addEventListener(type, listener as EventListener, true);
@@ -1081,6 +1113,15 @@ export function attachHitRouting(
         armed: false,
       };
       emit(phase.view);
+    },
+    openCreate(origin, surface) {
+      if (phase.kind !== "idle" && phase.kind !== "create") return;
+      setPhase({
+        kind: "create",
+        pointerId: -1,
+        view: { origin, surface, fingerDown: false, over: null },
+      });
+      emitCreate((phase as Extract<Phase, { kind: "create" }>).view);
     },
     close() {
       if (phase.kind !== "open" && phase.kind !== "create") return;
