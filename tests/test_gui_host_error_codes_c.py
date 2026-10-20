@@ -333,8 +333,8 @@ def test_pending_preview_refusals(minimal_project, monkeypatch, client, exc, sta
     ],
 )
 def test_export_refusals(minimal_project, monkeypatch, client, exc, status, code):
-    monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineJobManager.start_bounce", _raise(exc))
-    monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineJobManager.start_export", _raise(exc))
+    monkeypatch.setattr("podcast_mcp.services.jobs.JobManager.start_bounce", _raise(exc))
+    monkeypatch.setattr("podcast_mcp.services.jobs.JobManager.start_export", _raise(exc))
     _check(client.post("/api/export/bounce", json={"path": str(minimal_project)}), status, code)
     _check(
         client.post("/api/export/deliverables", json={"path": str(minimal_project)}),

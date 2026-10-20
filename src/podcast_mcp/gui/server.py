@@ -18,13 +18,8 @@ from filelock import Timeout
 
 from podcast_mcp import __version__
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
-from podcast_mcp.gui.bootstrap_jobs import shared_bootstrap_job_manager
 from podcast_mcp.gui.host_mcp import host_mcp_lifespan, mount_host_mcp
-from podcast_mcp.gui.jobs import (
-    gui_agent_job_progress_sink,
-    gui_sse_progress_sink,
-    shared_job_manager,
-)
+from podcast_mcp.gui.job_events import gui_agent_job_progress_sink, gui_sse_progress_sink
 from podcast_mcp.gui.middleware_host_binding import HostOriginBindingMiddleware
 from podcast_mcp.gui.middleware_security_headers import SecurityHeadersMiddleware
 from podcast_mcp.gui.routes import (
@@ -63,6 +58,7 @@ from podcast_mcp.gui.static_assets import (
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.runtime_config import normalize_exact_origin
 from podcast_mcp.services.document import cross_process_bridge
+from podcast_mcp.services.jobs import shared_bootstrap_job_manager, shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError

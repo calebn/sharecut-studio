@@ -101,10 +101,10 @@ def test_every_protocol_implementer_derives_from_elapsed_progress_mixin() -> Non
         "CliProgressReporter",
         "GuestMcpProgressContext",
         "GuestWsProgressReporter",
-        "_JobProgressReporter",
-        "_SsePublishReporter",
+        "JobProgressReporter",
+        "SsePublishReporter",
         "AgentJobFanInReporter",
-        "_BootstrapProgressReporter",
+        "BootstrapProgressReporter",
     } <= names
     assert not missing, (
         f"derive these from podcast_mcp.util.progress.ElapsedProgressMixin: {missing}"

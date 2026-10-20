@@ -1053,7 +1053,7 @@ def test_guest_render_preview_strips_host_paths(monkeypatch):
             return FakeJob()
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.jobs.shared_job_manager",
+        "podcast_mcp.services.jobs.shared_job_manager",
         lambda: FakeJobs(),
     )
     out = rt.guest_render_preview()
@@ -1100,7 +1100,7 @@ def test_guest_render_preview_busy_is_runtime_error(monkeypatch):
         def start_render_preview(self, _path):
             raise RuntimeError("another pipeline job is already running")
 
-    monkeypatch.setattr("podcast_mcp.gui.jobs.shared_job_manager", lambda: BusyJobs())
+    monkeypatch.setattr("podcast_mcp.services.jobs.shared_job_manager", lambda: BusyJobs())
     with pytest.raises(RuntimeError, match="already running"):
         rt.guest_render_preview()
 
@@ -1137,7 +1137,7 @@ def test_guest_render_preview_non_dict_ok(monkeypatch):
             return FakeJob()
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.jobs.shared_job_manager",
+        "podcast_mcp.services.jobs.shared_job_manager",
         lambda: FakeJobs(),
     )
     assert rt.guest_render_preview() == {

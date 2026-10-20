@@ -450,7 +450,7 @@ def test_same_sequence_race_across_processes_journals_only_the_applied_edit(mini
 
 
 def test_external_mutate_from_another_process_advances_meta_server_seq(minimal_project):
-    from podcast_mcp.gui import jobs
+    from podcast_mcp.gui import poll_meta
 
     p = Path(minimal_project)
     DocumentSyncService.open(p).document_snapshot(projection="comments")
@@ -462,7 +462,7 @@ def test_external_mutate_from_another_process_advances_meta_server_seq(minimal_p
     assert child.exitcode == 0
 
     assert document_server_seq(p) == 1
-    assert jobs.project_meta(p)["server_seq"] == 1
+    assert poll_meta.project_meta(p)["server_seq"] == 1
 
     project = load_project(p)
     store = SyncStore(document_db_path(project))

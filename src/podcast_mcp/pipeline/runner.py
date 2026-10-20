@@ -298,7 +298,7 @@ class PipelineRunner:
                     pass
                 with pipe.child(name, title) as step_prog:
                     # GUI job parser keys off "Running {step_id}" on the
-                    # parent pipeline task (see gui/jobs._JobProgressReporter).
+                    # parent pipeline task (see services/jobs/reporter.JobProgressReporter).
                     # Do not prefix child phase with "Running " — that would
                     # double-append step rows in the GUI parser.
                     reporter.message("pipeline", f"Running {name}")

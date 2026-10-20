@@ -9,9 +9,7 @@ from __future__ import annotations
 import pytest
 
 from job_event_helpers import JobEventTap
-from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager
-from podcast_mcp.gui.jobs import PipelineJobManager, guest_render_job
-from podcast_mcp.services.jobs import Job
+from podcast_mcp.services.jobs import BootstrapJobManager, Job, JobManager, guest_render_job
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 PIPELINE_SNAPSHOT_KEYS = {
@@ -156,13 +154,17 @@ class _RenderSvc:
 
 
 def _stub_services(monkeypatch) -> None:
-    monkeypatch.setattr("podcast_mcp.gui.jobs.ProjectWorkspace.open", lambda _p: object())
-    monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineService", lambda _ws: _RenderSvc())
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open", lambda _p: object()
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.PipelineService", lambda _ws: _RenderSvc()
+    )
 
 
 def test_pipeline_slot_job_publishes_status_then_progress_then_done(tmp_path, monkeypatch) -> None:
     _stub_services(monkeypatch)
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     job = Job(
         id="evt-order",
         project_path=str(tmp_path),
@@ -198,9 +200,11 @@ def test_pipeline_slot_job_failure_event_order(tmp_path, monkeypatch) -> None:
         def render_preview(self, **_kwargs):
             raise RuntimeError("explode at /secret/path now")
 
-    monkeypatch.setattr("podcast_mcp.gui.jobs.ProjectWorkspace.open", lambda _p: object())
-    monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineService", lambda _ws: Boom())
-    mgr = PipelineJobManager()
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open", lambda _p: object()
+    )
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.PipelineService", lambda _ws: Boom())
+    mgr = JobManager()
     job = Job(
         id="evt-fail",
         project_path=str(tmp_path),
@@ -219,7 +223,7 @@ def test_pipeline_slot_job_failure_event_order(tmp_path, monkeypatch) -> None:
 
 
 def test_finished_job_lookup_is_bounded_to_eight_oldest_first() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     jobs = []
     for i in range(10):
         job = mgr.adopt_agent_job(tool_id=f"t{i}", label=f"L{i}", claim=f"c{i}")
@@ -235,7 +239,7 @@ def test_finished_job_lookup_is_bounded_to_eight_oldest_first() -> None:
 
 def test_slot_job_is_archived_when_a_successor_replaces_it(tmp_path, monkeypatch) -> None:
     _stub_services(monkeypatch)
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     first = mgr.start_render_preview(tmp_path / "ep.json")
     mgr.wait(first, timeout=5)
     second = mgr.start_render_preview(tmp_path / "ep.json")
@@ -246,7 +250,7 @@ def test_slot_job_is_archived_when_a_successor_replaces_it(tmp_path, monkeypatch
 
 
 def test_agent_claim_semantics() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     a = mgr.adopt_agent_job(tool_id="tool", label="Tool", claim="claim-1")
     assert a.kind == "agent"
     assert a.status == "running"
@@ -273,9 +277,11 @@ def test_agent_claim_semantics() -> None:
 
 
 def test_agent_live_cap_cancels_the_oldest(monkeypatch) -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     ticks = iter(range(1000, 2000))
-    monkeypatch.setattr("podcast_mcp.gui.jobs.time.monotonic", lambda: float(next(ticks)))
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.catalog.time.monotonic", lambda: float(next(ticks))
+    )
     jobs = [mgr.adopt_agent_job(tool_id=f"t{i}", label="L", claim=f"c{i}") for i in range(8)]
     with JobEventTap(jobs[0].id) as tap:
         newest = mgr.adopt_agent_job(tool_id="t8", label="L", claim="c8")
@@ -294,7 +300,7 @@ def test_bootstrap_lifecycle_event_order_and_fields(monkeypatch) -> None:
         progress.end("bootstrap", message="fin")
         return {"ok": True, "results": {}}
 
-    monkeypatch.setattr("podcast_mcp.gui.bootstrap_jobs.run_bootstrap", fake_run)
+    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", fake_run)
     mgr = BootstrapJobManager()
     job = Job.bootstrap("boot-1", ["whisper"])
     with JobEventTap(job.id) as tap:
@@ -317,7 +323,7 @@ def test_bootstrap_lifecycle_event_order_and_fields(monkeypatch) -> None:
 
 def test_bootstrap_failed_component_sets_error(monkeypatch) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.gui.bootstrap_jobs.run_bootstrap",
+        "podcast_mcp.services.jobs.bootstrap.run_bootstrap",
         lambda *_a, **_k: {"ok": False, "results": {"whisper": {"ok": False, "error": "no net"}}},
     )
     job = Job.bootstrap("boot-2", ["whisper"])
@@ -327,7 +333,7 @@ def test_bootstrap_failed_component_sets_error(monkeypatch) -> None:
 
 def test_bootstrap_single_flight_and_archive(monkeypatch) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.gui.bootstrap_jobs.run_bootstrap",
+        "podcast_mcp.services.jobs.bootstrap.run_bootstrap",
         lambda *_a, **_k: {"ok": True, "results": {}},
     )
     mgr = BootstrapJobManager()

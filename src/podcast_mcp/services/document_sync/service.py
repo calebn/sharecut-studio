@@ -141,7 +141,7 @@ def dump_projection_locked(
 
 
 def _file_wire(revision: FileRevision | None) -> dict[str, int] | None:
-    """{mtime_ns, size} of the project JSON; must equal ``gui.jobs.project_meta``'s
+    """{mtime_ns, size} of the project JSON; must equal ``gui.poll_meta.project_meta``'s
     fields (pinned by ``test_document_snapshot_file_matches_project_meta``, #657)."""
     if revision is None:
         return None

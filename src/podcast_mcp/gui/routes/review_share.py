@@ -466,11 +466,11 @@ def get_daw_proxy_chunk(token: str, track_id: str, proxy_hash: str, chunk_idx: i
 def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
     """Docs Editor (``edit``) may rebuild stems/premix on the host project.
 
-    Opt-in via ``PODCAST_GUEST_RENDER=1``. Uses the same ``PipelineJobManager``
+    Opt-in via ``PODCAST_GUEST_RENDER=1``. Uses the same ``JobManager``
     lock as the host GUI so concurrent host/guest renders cannot race.
     """
 
-    from podcast_mcp.gui.jobs import guest_render_job
+    from podcast_mcp.services.jobs import guest_render_job
     from podcast_mcp.util.guest_render import require_guest_render
 
     _check_token(token)
@@ -494,7 +494,7 @@ def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
 @router.get("/api/review/{token}/daw/render-preview/{job_id}")
 def get_daw_render_preview(token: str, job_id: str, request: Request) -> dict[str, Any]:
     """Poll a render belonging to this edit share's project."""
-    from podcast_mcp.gui.jobs import guest_render_job
+    from podcast_mcp.services.jobs import guest_render_job
 
     _check_token(token)
     _rate_limit(token, "read")

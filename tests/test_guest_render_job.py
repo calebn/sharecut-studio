@@ -3,7 +3,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from podcast_mcp.gui.jobs import guest_render_job
+from podcast_mcp.services.jobs import guest_render_job
 
 
 def test_guest_render_job_scoped_and_sanitized() -> None:
