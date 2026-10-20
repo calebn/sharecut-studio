@@ -4,89 +4,44 @@ from __future__ import annotations
 
 from podcast_mcp.util.rate_limit import (
     ConcurrencyGate,
+    GateSpec,
     KeyedLimiter,
+    LimiterSet,
     RateLimitDecision,
+    RateSpec,
     env_flag,
-    env_float,
-    env_int,
     is_review_audio_path,
 )
-
-# Generous defaults (plan).
-_DEFAULT_TOKEN_RPM = 600.0
-_DEFAULT_TOKEN_BURST = 80.0
-_DEFAULT_IP_RPM = 1200.0
-_DEFAULT_IP_BURST = 120.0
-_DEFAULT_TOKEN_CONCURRENT = 24
-_DEFAULT_HOST_CONCURRENT = 96
-_DEFAULT_AUDIO_CONCURRENT = 8
-_DEFAULT_WS_CONCURRENT = 8
-_DEFAULT_WS_MSG_RPM = 120.0
-_DEFAULT_WS_MSG_BURST = 30.0
-_DEFAULT_WS_PRESENCE_RPM = 900.0
-_DEFAULT_WS_PRESENCE_BURST = 60.0
-_DEFAULT_REGISTER_RPM = 60.0
-_DEFAULT_REGISTER_BURST = 20.0
 
 
 def relay_rate_limit_enabled() -> bool:
     return env_flag("PODCAST_RELAY_RATE_LIMIT", default=True)
 
 
-class RelayLimiters:
-    def __init__(self) -> None:
-        self.token_http = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_RELAY_TOKEN_RPM", _DEFAULT_TOKEN_RPM),
-            burst=env_float("PODCAST_RELAY_TOKEN_BURST", _DEFAULT_TOKEN_BURST),
-            bucket_name="relay_token",
-        )
-        self.ip_http = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_RELAY_IP_RPM", _DEFAULT_IP_RPM),
-            burst=env_float("PODCAST_RELAY_IP_BURST", _DEFAULT_IP_BURST),
-            bucket_name="relay_ip",
-        )
-        self.token_concurrent = ConcurrencyGate(
-            limit=env_int("PODCAST_RELAY_TOKEN_CONCURRENT", _DEFAULT_TOKEN_CONCURRENT),
-            bucket_name="relay_token_concurrent",
-        )
-        self.host_concurrent = ConcurrencyGate(
-            limit=env_int("PODCAST_RELAY_HOST_CONCURRENT", _DEFAULT_HOST_CONCURRENT),
-            bucket_name="relay_host_concurrent",
-        )
-        self.audio_concurrent = ConcurrencyGate(
-            limit=env_int("PODCAST_RELAY_AUDIO_CONCURRENT", _DEFAULT_AUDIO_CONCURRENT),
-            bucket_name="relay_audio_concurrent",
-        )
-        self.ws_concurrent = ConcurrencyGate(
-            limit=env_int("PODCAST_RELAY_WS_CONCURRENT", _DEFAULT_WS_CONCURRENT),
-            bucket_name="relay_ws_concurrent",
-        )
-        self.ws_msg = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_RELAY_WS_MSG_RPM", _DEFAULT_WS_MSG_RPM),
-            burst=env_float("PODCAST_RELAY_WS_MSG_BURST", _DEFAULT_WS_MSG_BURST),
-            bucket_name="relay_ws_msg",
-        )
-        self.ws_presence = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_RELAY_WS_PRESENCE_RPM", _DEFAULT_WS_PRESENCE_RPM),
-            burst=env_float("PODCAST_RELAY_WS_PRESENCE_BURST", _DEFAULT_WS_PRESENCE_BURST),
-            bucket_name="relay_ws_presence",
-        )
-        self.register = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_RELAY_REGISTER_RPM", _DEFAULT_REGISTER_RPM),
-            burst=env_float("PODCAST_RELAY_REGISTER_BURST", _DEFAULT_REGISTER_BURST),
-            bucket_name="relay_register",
-        )
+class RelayLimiters(LimiterSet):
+    TABLE = (
+        RateSpec("token_http", "relay_token", "PODCAST_RELAY_TOKEN", 600.0, 80.0),
+        RateSpec("ip_http", "relay_ip", "PODCAST_RELAY_IP", 1200.0, 120.0),
+        GateSpec(
+            "token_concurrent", "relay_token_concurrent", "PODCAST_RELAY_TOKEN_CONCURRENT", 24
+        ),
+        GateSpec("host_concurrent", "relay_host_concurrent", "PODCAST_RELAY_HOST_CONCURRENT", 96),
+        GateSpec("audio_concurrent", "relay_audio_concurrent", "PODCAST_RELAY_AUDIO_CONCURRENT", 8),
+        GateSpec("ws_concurrent", "relay_ws_concurrent", "PODCAST_RELAY_WS_CONCURRENT", 8),
+        RateSpec("ws_msg", "relay_ws_msg", "PODCAST_RELAY_WS_MSG", 120.0, 30.0),
+        RateSpec("ws_presence", "relay_ws_presence", "PODCAST_RELAY_WS_PRESENCE", 900.0, 60.0),
+        RateSpec("register", "relay_register", "PODCAST_RELAY_REGISTER", 60.0, 20.0),
+    )
 
-    def reset(self) -> None:
-        self.token_http.reset()
-        self.ip_http.reset()
-        self.token_concurrent.reset()
-        self.host_concurrent.reset()
-        self.audio_concurrent.reset()
-        self.ws_concurrent.reset()
-        self.ws_msg.reset()
-        self.ws_presence.reset()
-        self.register.reset()
+    token_http: KeyedLimiter
+    ip_http: KeyedLimiter
+    token_concurrent: ConcurrencyGate
+    host_concurrent: ConcurrencyGate
+    audio_concurrent: ConcurrencyGate
+    ws_concurrent: ConcurrencyGate
+    ws_msg: KeyedLimiter
+    ws_presence: KeyedLimiter
+    register: KeyedLimiter
 
 
 _LIMITERS: RelayLimiters | None = None

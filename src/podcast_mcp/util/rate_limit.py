@@ -11,7 +11,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 
 def env_flag(name: str, *, default: bool = True) -> bool:
@@ -185,3 +185,55 @@ def rate_limit_detail(decision: RateLimitDecision) -> dict[str, Any]:
         "bucket": decision.bucket,
         "retry_after_sec": round(decision.retry_after_sec, 3),
     }
+
+
+@dataclass(frozen=True)
+class RateSpec:
+    """A ``KeyedLimiter`` row: ``<env_prefix>_RPM`` and ``<env_prefix>_BURST`` override the defaults."""
+
+    attr: str
+    bucket: str
+    env_prefix: str
+    rpm: float
+    burst: float
+
+    def build(self, clock: Callable[[], float]) -> KeyedLimiter:
+        return KeyedLimiter(
+            rate_per_min=env_float(f"{self.env_prefix}_RPM", self.rpm),
+            burst=env_float(f"{self.env_prefix}_BURST", self.burst),
+            bucket_name=self.bucket,
+            clock=clock,
+        )
+
+
+@dataclass(frozen=True)
+class GateSpec:
+    """A ``ConcurrencyGate`` row: ``env`` overrides the default in-flight limit."""
+
+    attr: str
+    bucket: str
+    env: str
+    limit: int
+
+    def build(self) -> ConcurrencyGate:
+        return ConcurrencyGate(limit=env_int(self.env, self.limit), bucket_name=self.bucket)
+
+
+class LimiterSet:
+    """A composite whose limiters are the rows of ``TABLE``, one attribute per row.
+
+    A subclass lists its rows and annotates each attribute for the type checker;
+    ``tests/test_limiter_table.py`` holds the two in step. ``reset()`` walks the table.
+    """
+
+    TABLE: ClassVar[tuple[RateSpec | GateSpec, ...]] = ()
+
+    def __init__(self, *, clock: Callable[[], float] | None = None) -> None:
+        limiter_clock = clock or time.monotonic
+        for spec in self.TABLE:
+            built = spec.build(limiter_clock) if isinstance(spec, RateSpec) else spec.build()
+            setattr(self, spec.attr, built)
+
+    def reset(self) -> None:
+        for spec in self.TABLE:
+            getattr(self, spec.attr).reset()
