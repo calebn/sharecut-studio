@@ -6,7 +6,6 @@ import {
 } from "../transcript/rangeSelect";
 import { TranscriptWordInspector } from "./views/TranscriptWordInspector";
 
-/** The word editor under a one-word range, where the person can correct it. */
 export function OneWordEditor({
   selection,
 }: {

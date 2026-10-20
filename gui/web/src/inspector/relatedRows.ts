@@ -27,18 +27,15 @@ const COPY_SELECTION: RelatedCommandDescriptor = {
   whenReason: "Select a clip or word to copy.",
 };
 
-/** Related: Copy, for a clip. */
 export const relatedCopy = (): readonly RelatedCommandDescriptor[] => [
   COPY_SELECTION,
 ];
 
-/** Related: Copy, for one word. A longer range has its own actions in the sheet. */
 export const relatedCopyWord = (
   selection: Of<"transcriptRange">,
 ): readonly RelatedCommandDescriptor[] =>
   oneWordOf(selection) ? [COPY_SELECTION] : [];
 
-/** More: Cut, for a clip that is still in the project and may be cut. */
 export function moreCutClip(
   selection: Of<"clip">,
   project: ProjectView,
@@ -62,7 +59,6 @@ export function moreCutClip(
   ];
 }
 
-/** More: Move up and Move down, for a track, only in the directions that exist. */
 export function moreMoveTrack(
   selection: Of<"track">,
   project: ProjectView,

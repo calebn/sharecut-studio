@@ -184,7 +184,6 @@ const EVERY_KIND: Record<SelectionKind, NonNullable<Selection>> = {
 
 const KINDS = Object.keys(SELECTION_SURFACES) as SelectionKind[];
 
-/** The same screen as each shell names it: the phone's mode, the tablet's layout. */
 const SCREENS = {
   timeline: {
     phone: { mobileMode: "timeline", moreDestination: "hub" },
