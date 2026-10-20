@@ -16,6 +16,7 @@ from podcast_mcp.cli import (
     pipeline,
     play,
     record,
+    relay,
     review,
     session_cmd,
     speaker,
@@ -80,6 +81,7 @@ app.add_typer(session_cmd.session_app, name="session")
 app.add_typer(record.record_app, name="record")
 app.add_typer(fixture.fixture_app, name="fixture")
 app.add_typer(config_cmd.config_app, name="config")
+app.add_typer(relay.relay_app, name="relay")
 
 app.command("transcribe")(episode.transcribe_cmd)
 app.command("propose-edits")(edit.propose_edits_cmd)

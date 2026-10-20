@@ -392,8 +392,35 @@ still stop guest playback. These failures retain proxy ownership and show an aud
 
 **Object-store bucket setup (once):**
 
-1. Create a private S3-compatible bucket and access key; put credentials in host `relay.yaml`.
-2. CORS (allow the public relay origin, Range requests):
+1. Create a private S3-compatible bucket and an access key for uploads; put those credentials in
+   host `relay.yaml` (`object_store:`). That key reads and writes objects only. It cannot read or
+   set bucket CORS (the store answers `AccessDenied`).
+2. CORS (allow the public relay origin, Range requests): one command from the terminal.
+
+   ```bash
+   podcast relay bucket-check    # does the bucket let guests on public_base_url read media?
+   podcast relay bucket-setup    # add the rule; --dry-run shows the change without writing
+   ```
+
+   `bucket-setup` reads the bucket and origin (`public_base_url`) from `relay.yaml` and uses an
+   **admin key** for that one call. It looks for the key in this order: the environment
+   (`PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID` and `PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY`),
+   then `relay-admin.yaml` next to `relay.yaml` (`access_key_id`, `secret_access_key`; mode 0600,
+   a group- or world-readable file is refused), then a prompt in a terminal. Nothing is saved
+   unless you create the file. The GUI and `podcast tunnel` never read the admin key.
+
+   The command is safe to run again. A bucket whose first rule for the origin already allows
+   `GET` and `HEAD`, the `Range` header and the exposed range headers is left untouched
+   (`Nothing changed`). Otherwise the rule below is put in front and every existing rule is kept
+   as it is; the command reads the rules back and fails if the store did not keep it.
+   `bucket-check` uses the admin key when it finds one to read the rules; without one it asks the
+   bucket with the upload key the way a guest's browser does.
+
+   On DigitalOcean Spaces the only key that can set CORS is a "full access" key for all buckets
+   (a grant on one bucket is rejected as "Invalid Grant Combination"). Create it in the control
+   panel (API, Spaces Keys, Generate New Key), run `bucket-setup`, then delete the key; or keep
+   it only in your OS keychain and export the two variables for the one command. The rule the
+   command applies is:
 
 ```json
 [
@@ -409,7 +436,8 @@ still stop guest playback. These failures retain proxy ownership and show an aud
 
    Creating a review link asks the bucket the way a guest's browser does (a `GET` with
    `Origin: <public_base_url>`) and warns the host when `Access-Control-Allow-Origin` is missing:
-   the link dialog and `podcast share create` print the rule to paste. Until the rule is added,
+   the link dialog and `podcast share create` name `podcast relay bucket-setup` and print the
+   rule. Until the rule is added,
    the guest manifest serves proxy chunks through the share instead of the bucket, and a guest
    whose browser still cannot read the first chunk falls back to the WAV transport, so the link
    plays either way (more tunnel traffic). The host check is cached for 30 s to 5 min per bucket
