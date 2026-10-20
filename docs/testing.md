@@ -2737,7 +2737,7 @@ size; nothing is added.
   `import(...)`) fails unless it is one of the 74 allowlisted back edges,
   listed per layer pair. A new directory fails until the table places it.
   Tests, stories and the `test/` and `storybook/` fixtures may import
-  across layers, but production code may not import them. The import reader is
+  across layers, but only the layers below views may not import them. The import reader is
   `test/importGraph.ts`.
 - `state/setProjectGovernance.test.ts` allows `setProject(` calls only in
   `document/` and `state/projectSlice.ts`. Nine calls in seven other files are

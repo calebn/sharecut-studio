@@ -174,6 +174,8 @@ def _runtime_imports(source: str, package: str) -> set[str]:
             if node.level:
                 target = resolve_name("." * node.level + target, package)
             imports.add(target)
+            if target == "podcast_mcp" or target in ("podcast_mcp." + n for n in _ADAPTER_NAMES):
+                imports.update(f"{target}.{alias.name}" for alias in node.names)
     return imports
 
 
@@ -254,6 +256,13 @@ def test_architecture_allowlists_match_the_tree_exactly() -> None:
             {"domain:podcast_mcp.engines.ffmpeg"},
         ),
         ("from podcast_mcp.pipeline.meta import X", "podcast_mcp.cli.pipeline", set()),
+        ("from podcast_mcp import edits", "podcast_mcp.cli.review", {"domain:podcast_mcp.edits"}),
+        ("from . import edits", "podcast_mcp.cli.review", set()),
+        (
+            "from podcast_mcp.gui import jobs",
+            "podcast_mcp.mcp.tools.review",
+            {"adapter:podcast_mcp.gui", "adapter:podcast_mcp.gui.jobs"},
+        ),
         (
             "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"
             "    from podcast_mcp.edits.new_logic import Shape",
