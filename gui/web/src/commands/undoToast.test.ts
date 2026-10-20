@@ -182,7 +182,6 @@ function testBody({ file, test }: Proof): string {
 /** The result shows where the person acted, so no toast is raised. */
 const IN_PLACE: Record<string, string> = {
   "edit.bladeCut": "the blade line splits the clip on the timeline",
-  "edit.bladeCut.confirm": "the blade line splits the clip on the timeline",
   "edit.rollClipJoin": "the join marker moves under the person's hand",
   "edit.setClipJoin": "the join badge shows the new mode",
   "track.muteToggle": "the lane and its button show the mute",
