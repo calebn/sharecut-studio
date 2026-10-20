@@ -1153,6 +1153,19 @@ def test_a_flanking_words_voice_running_into_the_gap_is_not_part_of_a_string() -
     assert len(found) == 3
 
 
+def test_a_flanking_words_voice_running_out_of_the_gap_is_not_part_of_a_string() -> None:
+    transcript, gap_start = _phrase_transcript()
+    gap_end = transcript.words[-1].start
+    total = transcript.words[-1].end + 1.0
+    # Three hits at syllable spacing whose last one runs on into the next word.
+    samples = _hits(total, gap_end - 0.84, 3)
+
+    found = _propose_in_gap(transcript, samples)
+
+    assert gap_start < gap_end - 0.84
+    assert len(found) == 3
+
+
 # --- laughs (#1365) -------------------------------------------------------------
 
 
