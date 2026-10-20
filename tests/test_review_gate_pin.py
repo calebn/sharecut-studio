@@ -238,7 +238,7 @@ def test_mark_pending_defaults(ops: Ops, tmp_path: Path) -> None:
     assert payload[ops.fingerprint_key] == fp
     assert payload["updated_at"].endswith("+00:00")
     assert ops.clear(p) is False
-    report = ops.report(p)
+    report = ops.report(p, defaults={})
     assert (report["status"], report["stored_status"], report["stale"]) == (
         "pending",
         "pending",
@@ -282,7 +282,7 @@ def test_mark_done_then_clear(ops: Ops, tmp_path: Path) -> None:
         ]
     assert _sidecar(ops, p) == payload
     assert ops.clear(p) is True
-    report = ops.report(p)
+    report = ops.report(p, defaults={})
     assert (report["status"], report["clear"], report["stale"]) == ("done", True, False)
     assert report["source"] == "agent"
     assert report["updated_at"] == payload["updated_at"]
@@ -297,7 +297,7 @@ def test_done_goes_stale_when_fingerprint_changes(ops: Ops, tmp_path: Path) -> N
     stored_fp = _fingerprint(ops, p)
     _invalidate(ops, p)
     assert ops.clear(p) is False
-    report = ops.report(p)
+    report = ops.report(p, defaults={})
     assert report["status"] == "pending"
     assert report["stored_status"] == "done"
     assert report["stale"] is True
@@ -312,7 +312,7 @@ def test_pending_is_never_stale(ops: Ops, tmp_path: Path) -> None:
     p = _project(tmp_path)
     ops.pending(p)
     _invalidate(ops, p)
-    report = ops.report(p)
+    report = ops.report(p, defaults={})
     assert (report["status"], report["stale"], report["fingerprint_match"]) == (
         "pending",
         False,
@@ -361,7 +361,6 @@ def test_mode_parsing(ops: Ops, raw: str, expected: str) -> None:
 
 @pytest.mark.refine_gate
 def test_mode_defaults_when_unconfigured(ops: Ops) -> None:
-    assert ops.mode(None) == "waive_unattended"
     assert ops.mode({}) == "waive_unattended"
     assert ops.mode(ops.defaults("require") | {}) == "require"
 
@@ -401,7 +400,7 @@ def test_gate_blocks_interactive_pending(ops: Ops, tmp_path: Path, mode: str) ->
     p = _project(tmp_path)
     with pytest.raises(ops.error) as exc:
         ops.gate(p, defaults=ops.defaults(mode))
-    assert str(exc.value) == ops.report(p)["hint"]
+    assert str(exc.value) == ops.report(p, defaults={})["hint"]
     assert not ops.path(p).exists()
     ops.pending(p)
     with pytest.raises(ops.error):

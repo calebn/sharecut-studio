@@ -58,8 +58,8 @@ def test_precorrect_apply_resets_refine_pending(minimal_project):
     proj = _with_words(minimal_project)
     REFINE_GATE.mark_done(proj, notes="prior")
     assert REFINE_GATE.is_clear(proj)
-    run_precorrect_transcript(proj, dry_run=False)
-    report = REFINE_GATE.report(proj)
+    run_precorrect_transcript(proj, dry_run=False, defaults=load_defaults())
+    report = REFINE_GATE.report(proj, defaults=load_defaults())
     assert report["status"] == "pending"
     assert not report["clear"]
     assert not Path(report["path"]).is_absolute()
@@ -72,7 +72,7 @@ def test_fingerprint_stale_after_text_change(minimal_project):
     assert REFINE_GATE.is_clear(proj)
     proj.transcripts[0].words[0].text = "hola"
     assert not REFINE_GATE.is_clear(proj)
-    report = REFINE_GATE.report(proj)
+    report = REFINE_GATE.report(proj, defaults=load_defaults())
     assert report["status"] == "pending"
     assert report["stale"] is True
 
@@ -83,7 +83,7 @@ def test_suppression_flag_change_keeps_waiver_clear(minimal_project):
     REFINE_GATE.mark_waived(proj, reason="host accepted", source="user")
     proj.transcripts[0].words[0].suppressed = True
     proj.transcripts[0].words[1].audibility_status = "inaudible"
-    assert REFINE_GATE.report(proj)["clear"] is True
+    assert REFINE_GATE.report(proj, defaults=load_defaults())["clear"] is True
 
 
 @pytest.mark.refine_gate
@@ -401,7 +401,7 @@ def test_service_assert_clear_and_cli(minimal_project):
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(TranscriptRefineRequiredError):
-        REFINE_GATE.assert_clear(ws.project)
+        REFINE_GATE.assert_clear(ws.project, defaults=load_defaults())
     runner = CliRunner()
     assert (
         runner.invoke(
@@ -530,7 +530,7 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert reviewed_transcript_fingerprint(reopened.project) == fingerprint
-    assert REFINE_GATE.report(reopened.project)["clear"] is True
+    assert REFINE_GATE.report(reopened.project, defaults=load_defaults())["clear"] is True
     assert REFINE_GATE.load(reopened.project)["status"] == clearance
     EditService(reopened).cut_range(
         0.6, 1.6, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
@@ -577,7 +577,7 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert [word.text for word in reopened.project.transcripts[0].words] == ["world"]
-    assert REFINE_GATE.report(reopened.project)["clear"] is True
+    assert REFINE_GATE.report(reopened.project, defaults=load_defaults())["clear"] is True
     EditService(reopened).cut_range(
         1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
