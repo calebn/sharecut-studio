@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from podcast_mcp import __version__
 from podcast_mcp.mcp import server as mcp_server
+from podcast_mcp.mcp import studio_handoff
 
 
 def test_main_help_is_ascii_and_does_not_start_stdio(monkeypatch, capsys) -> None:
@@ -62,7 +63,12 @@ def test_main_without_flags_starts_stdio(monkeypatch) -> None:
         calls.append(kwargs)
 
     monkeypatch.setattr(mcp_server.mcp, "run", run)
+    # Wrapping the shared server would leak into every later test in this worker, and a
+    # Studio built in-process would then hand its own calls to itself.
+    installed: list[object] = []
+    monkeypatch.setattr(studio_handoff, "install_studio_handoff", installed.append)
 
     mcp_server.main()
 
     assert calls == [{"transport": "stdio"}]
+    assert installed == [mcp_server.mcp]
