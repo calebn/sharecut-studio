@@ -62,9 +62,11 @@ export function Dialog({
 
   const anchored = anchor != null;
   const modalOpen = useModalOpen();
+  const dismissRef = useRef(dismiss);
+  dismissRef.current = dismiss;
   useEffect(() => {
-    if (anchored && open && modalOpen) dismiss();
-  }, [anchored, open, modalOpen, dismiss]);
+    if (anchored && open && modalOpen) dismissRef.current();
+  }, [anchored, open, modalOpen]);
   const topLayer = useTopLayerPanel();
 
   useDialogModal({
