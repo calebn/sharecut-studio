@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('test-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test-main' || format('test-run-{0}', github.run_id) }}
+  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('test-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/main' && 'test-main' || format('test-run-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
