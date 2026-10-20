@@ -13,6 +13,8 @@ Self-host docs: [docs/host-online-relay.md](../../docs/host-online-relay.md) (op
 
 CLI entry: `podcast-relay` → `podcast_relay.app:main`.
 
+Layout: `app.py` builds the shared `RelayState` (`state.py`, on `app.state.relay`) and includes one router per concern from `routes/` (`status`, `tunnel`, `proxy`, `guest_ws`) plus the `reports` router. Each `routes/*` module exposes a `build_*_router(state)` factory, so handlers take their state explicitly instead of closing over `create_relay_app`.
+
 ### Public report intake
 
 Set `PODCAST_REPORT_STORE` to a persistent writable directory,

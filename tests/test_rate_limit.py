@@ -286,7 +286,8 @@ async def test_relay_proxy_returns_429(monkeypatch):
 
     from httpx import ASGITransport, AsyncClient
 
-    from podcast_relay.app import TunnelSession, create_relay_app
+    from podcast_relay.app import create_relay_app
+    from podcast_relay.state import TunnelSession
 
     monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "1")
     monkeypatch.setenv("PODCAST_RELAY_TOKEN_RPM", "60")
@@ -305,7 +306,7 @@ async def test_relay_proxy_returns_429(monkeypatch):
         async def send_json(self, data: dict) -> None:
             if data.get("type") != "http" or self._session is None:
                 return
-            from podcast_relay.app import _ingest_http_response
+            from podcast_relay.routes.tunnel import _ingest_http_response
 
             pending = self._session.pending.get(data["id"])
             if pending is None:

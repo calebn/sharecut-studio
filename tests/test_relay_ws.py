@@ -22,14 +22,9 @@ from websockets.sync.client import connect as ws_connect
 
 from podcast_mcp.util.relay_protocol.protocol import new_id
 from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
-from podcast_relay.app import (
-    GuestWsStream,
-    RelayState,
-    TunnelSession,
-    _parse_host_tokens,
-    create_relay_app,
-    main,
-)
+from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
+from podcast_relay.app import _parse_host_tokens, create_relay_app, main
+from podcast_relay.state import RelayState, TunnelSession
 
 
 @contextlib.contextmanager
@@ -270,7 +265,7 @@ class _AutoAnswerWs:
         pending = session.pending.get(data["id"])
         if pending is None:
             return
-        from podcast_relay.app import _ingest_http_response
+        from podcast_relay.routes.tunnel import _ingest_http_response
 
         await _ingest_http_response(
             pending,
@@ -322,7 +317,7 @@ async def test_proxy_roundtrip_paths(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_proxy_stream_keeps_first_headers_and_all_chunks(monkeypatch):
-    from podcast_relay.app import _ingest_http_response
+    from podcast_relay.routes.tunnel import _ingest_http_response
 
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
     monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "0")
@@ -380,7 +375,8 @@ async def test_proxy_stream_keeps_first_headers_and_all_chunks(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_response_body_is_available_before_eof():
-    from podcast_relay.app import PendingHttp, _ingest_http_response
+    from podcast_relay.routes.tunnel import _ingest_http_response
+    from podcast_relay.state import PendingHttp
 
     pending = PendingHttp()
     await _ingest_http_response(
@@ -411,7 +407,8 @@ async def test_response_body_is_available_before_eof():
     ],
 )
 async def test_single_response_defaults_to_eof(frame, status, body):
-    from podcast_relay.app import PendingHttp, _ingest_http_response
+    from podcast_relay.routes.tunnel import _ingest_http_response
+    from podcast_relay.state import PendingHttp
 
     pending = PendingHttp()
     await _ingest_http_response(pending, frame)
@@ -446,7 +443,7 @@ async def test_proxy_timeout(monkeypatch):
     async def short_wait(aw, timeout=None):
         return await real_wait(aw, timeout=0.05)
 
-    monkeypatch.setattr("podcast_relay.app.asyncio.wait_for", short_wait)
+    monkeypatch.setattr("podcast_relay.routes.proxy.asyncio.wait_for", short_wait)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as http:
         r = await http.get("/r/slow")
