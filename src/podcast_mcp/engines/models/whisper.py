@@ -17,6 +17,7 @@ import yaml
 
 from podcast_mcp import settings
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
     PinnedSnapshot,
     PinnedSnapshotMissingError,
@@ -190,17 +191,20 @@ def prefs_path() -> Path:
 def normalize_whisper_model(model: str) -> str:
     raw = (model or "").strip()
     if not raw:
-        raise ValueError("Whisper model is empty")
+        raise CodedValueError("Whisper model is empty", code="whisper_model_empty")
     key = raw.lower()
     return _ALIASES.get(key, key)
 
 
 def validate_whisper_model(model: str) -> str:
-    """Return a canonical faster-whisper size or raise ValueError."""
+    """Return a canonical faster-whisper size or raise a coded ``ValueError``."""
     normalized = normalize_whisper_model(model)
     if normalized not in FASTER_WHISPER_SIZES:
         allowed = ", ".join(WHISPER_SIZE_ENUM)
-        raise ValueError(f"Unknown Whisper model {model!r}. Choose from: {allowed}")
+        raise CodedValueError(
+            f"Unknown Whisper model {model!r}. Choose from: {allowed}",
+            code="unknown_whisper_model",
+        )
     return normalized
 
 

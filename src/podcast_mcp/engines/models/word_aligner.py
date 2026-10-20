@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
     FileManifest,
     PinnedSnapshot,
@@ -139,7 +140,9 @@ def word_aligner_model(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerModel
         if model.id == model_id:
             return model
     ids = ", ".join(m.id for m in WORD_ALIGNER_CATALOG)
-    raise ValueError(f"Unknown word aligner {model_id!r}. Choose from: {ids}")
+    raise CodedValueError(
+        f"Unknown word aligner {model_id!r}. Choose from: {ids}", code="unknown_word_aligner"
+    )
 
 
 def _has_required_files(root: Path, model: WordAlignerModel) -> bool:
