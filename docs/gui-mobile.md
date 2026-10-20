@@ -388,7 +388,12 @@ less than 9rem of the slot, so the header, Collapse and Close stay on screen
 (half and full then share a height). The header's actions (Collapse, Expand,
 Close) wrap beneath the title when they cannot sit beside it, as at 32 px text
 on a 390 px phone, so the title keeps a line of its own (at least 8rem wide)
-instead of being squeezed to nothing. The strip leaves the timeline undimmed;
+instead of being squeezed to nothing. Collapsing to the strip scrolls the
+body back to its top, so the first nudge is not left out of view by the scroll
+the taller detent had (#1762). A phone held sideways at 200% text (636×390)
+has the strip fill the slot above the mode bar: the title shares the header
+row with the actions there, and the nudges are one scroll of the body away,
+which ends at the mode bar. The strip leaves the timeline undimmed;
 half and full dim it. The drawer's scroll keeps a focused control clear of its
 pinned header in Chromium and WebKit. The
 timeline scrolls the selection above the strip or sheet, and any timeline drag

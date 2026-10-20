@@ -334,6 +334,17 @@ describe("BottomSheet", () => {
     const chrome = () =>
       document.querySelector(".bottom-sheet-chrome") as HTMLElement;
     const dialog = () => screen.getByRole("dialog", { name: "Trim start" });
+    it("shows the top of the strip again when collapsed, not the scroll it had open (#1762)", async () => {
+      const user = userEvent.setup();
+      render(<Drawer start="full" />);
+      const body = document.querySelector(".bottom-sheet-body") as HTMLElement;
+      body.scrollTop = 184;
+      await user.click(
+        screen.getByRole("button", { name: "Collapse to strip" }),
+      );
+      expect(screen.getByText("peek")).toBeInTheDocument();
+      expect(body.scrollTop).toBe(0);
+    });
     /** A 600px slot: strip 100, half 300, full 600; the header is 50. */
     function layOut() {
       const height = (el: HTMLElement) => {

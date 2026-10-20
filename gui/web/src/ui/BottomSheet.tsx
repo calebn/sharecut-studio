@@ -132,6 +132,15 @@ export function BottomSheet({
     panel.addEventListener("focusin", reveal);
     return () => panel.removeEventListener("focusin", reveal);
   }, [open, hasDrawer, className]);
+  // Collapsing to the strip shows its top again. The body keeps the scroll it
+  // had open, which the strip would otherwise clamp to its end, leaving the
+  // first nudge out of view when the strip fills a short, large-text screen
+  // (#1762).
+  const atLowest = drawer != null && drawer.detent === drawer.detents[0];
+  useEffect(() => {
+    const body = panelRef.current?.querySelector(".bottom-sheet-body");
+    if (open && atLowest && body) body.scrollTop = 0;
+  }, [open, atLowest]);
   const isExpanded = expanded ?? size === expandedSize;
   const current = drawer ? drawer.detent : isExpanded ? expandedSize : size;
 

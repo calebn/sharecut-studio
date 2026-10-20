@@ -320,6 +320,10 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   padding-block: var(--space-1);
 }
 
+.bottom-sheet--compact .bottom-sheet-title {
+  flex-basis: 4rem;
+}
+
 .bottom-sheet--compact .bottom-sheet-header-actions {
   flex: 0 1 auto;
   max-inline-size: 100%;
