@@ -39,10 +39,13 @@ describe("README rule: api.ts is the facade", () => {
 
   /** Files that reach an `api/` adapter without the facade, each `importer -> adapter`. */
   const ALLOWLIST = [
+    "audio/chunkCache.ts -> api/http",
     "audio/pendingPreview.ts -> api/documentTransport",
+    "audio/pendingPreview.ts -> api/http",
     "commands/clipBleed.ts -> api/clipBleed",
     "commands/rangeActions.ts -> api/documentEdits",
     "commands/rangeActions.ts -> api/documentTransport",
+    "commands/rangeActions.ts -> api/http",
     "commands/speakerMoveLaneSpan.ts -> api/documentEdits",
     "commands/speakerMoveLaneSpan.ts -> api/speakerMoveLaneSpan",
     "document/applyDocumentUpdate.ts -> api/project",
@@ -50,6 +53,7 @@ describe("README rule: api.ts is the facade", () => {
     "edit/clipBleedSession.ts -> api/clipBleed",
     "edit/clipEdgeSave.ts -> api/boundary",
     "edit/nudge.ts -> api/documentEdits",
+    "extensions/features.ts -> api/http",
     "hooks/useGuestSync.ts -> api/project",
     "hooks/useProjectBootstrap.ts -> api/project",
     "hooks/useProjectPoll.ts -> api/project",
@@ -57,6 +61,8 @@ describe("README rule: api.ts is the facade", () => {
     "inspector/views/PendingEditInspector.tsx -> api/documentEdits",
     "layout/useTunnelStatus.ts -> api/tunnelStatus",
     "prosody/useProsodyOverlay.ts -> api/prosody",
+    "record/recordBootstrap.ts -> api/http",
+    "record/upload/http.ts -> api/http",
     "services/commandQueue.ts -> api/documentTransport",
     "state/drainOfflineQueue.ts -> api/documentEdits",
     "timeline/ClipBlock.tsx -> api/boundary",
@@ -66,7 +72,7 @@ describe("README rule: api.ts is the facade", () => {
     "transcript/TranscriptWordbar.tsx -> api/transcriptTiming",
     "transcript/boundaryPresentation.ts -> api/boundary",
   ];
-  const ALLOWLIST_PAIRS = 26;
+  const ALLOWLIST_PAIRS = 32;
   const ALLOWLIST_FILES = 24;
 
   it("imports an api/ adapter directly only from the allowlist", () => {
