@@ -50,7 +50,8 @@ async function cutIsTappable(
   expect(state).toMatchObject({ fullyVisible: true, hitsControl: true });
   await tapCentre(cut);
   await expect(dialog).toHaveCount(0);
-  expect(commands.map((c) => c.type)).toContain("SplitAtTime");
+  // The split runs after the confirm resolves, so the command can land after the dialog closes.
+  await expect.poll(() => commands.map((c) => c.type)).toContain("SplitAtTime");
 }
 
 test("the Cut button of the blade confirmation can be tapped at 16px text: portrait", ({
