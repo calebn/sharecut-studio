@@ -63,8 +63,11 @@ def open_sqlite(
 
         def wal_and_setup() -> None:
             switch_to_wal(connection)
-            if setup is not None:
-                setup(connection)
+            if setup is None:
+                return
+            if verify is not None:
+                verify()  # the new sidecars are checked before the first write
+            setup(connection)
 
         retry_transient(
             connection,

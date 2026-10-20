@@ -150,3 +150,19 @@ def test_connect_session_db_applies_the_schema_it_is_given(tmp_path: Path) -> No
         connect_session_db(tmp_path / "s.db", schema="CREATE TABLE IF NOT EXISTS t (x)")
     ) as c:
         assert c.execute("SELECT count(*) FROM t").fetchone()[0] == 0
+
+
+def test_open_sqlite_verifies_the_sidecars_before_the_setup_writes(tmp_path: Path) -> None:
+    events: list[str] = []
+    path = tmp_path / "verify.db"
+
+    def verify() -> None:
+        events.append("verify")
+
+    def setup(connection: sqlite3.Connection) -> None:
+        events.append("setup")
+        connection.executescript("CREATE TABLE IF NOT EXISTS t (x)")
+
+    with closing(open_sqlite(path, verify=verify, setup=setup)):
+        pass
+    assert events == ["verify", "verify", "setup", "verify"]
