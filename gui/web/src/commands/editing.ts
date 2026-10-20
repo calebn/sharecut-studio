@@ -102,18 +102,20 @@ async function runDeleteClip(
     return { status: "disabled", reason: "Unknown clip" };
   }
   try {
-    if (ripple) {
-      await rippleDeleteClips(s.projectPath, [clipId]);
-    } else {
-      await deleteClips(s.projectPath, [clipId]);
-    }
+    const undo = ripple
+      ? await rippleDeleteClips(s.projectPath, [clipId])
+      : await deleteClips(s.projectPath, [clipId]);
     const store = useDawStore.getState();
     store.setSelection(null);
-    store.announceStatus(ripple ? "Ripple deleted clip" : "Deleted clip");
+    store.announceStatus(ripple ? "Ripple deleted clip" : "Deleted clip", {
+      undo,
+    });
     return { status: "ok" };
   } catch (e) {
     const msg = errorMessage(e);
-    useDawStore.getState().announceStatus(`Delete failed: ${msg}`);
+    useDawStore
+      .getState()
+      .announceStatus(`Delete failed: ${msg}`, { tone: "error" });
     return { status: "disabled", reason: msg };
   }
 }
@@ -282,14 +284,16 @@ export function registerClipboardCommands(): void {
       void navigator.clipboard?.writeText?.(payload.plainText).catch(() => {});
     }
     try {
-      await rippleDeleteClips(s.projectPath, [s.selection.id]);
+      const undo = await rippleDeleteClips(s.projectPath, [s.selection.id]);
       const store = useDawStore.getState();
       store.setSelection(null);
-      store.announceStatus("Cut to clipboard");
+      store.announceStatus("Cut to clipboard", { undo });
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore.getState().announceStatus(`Cut failed: ${msg}`);
+      useDawStore
+        .getState()
+        .announceStatus(`Cut failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg };
     }
   });
@@ -308,26 +312,29 @@ export function registerClipboardCommands(): void {
     }
     const duration = clip.timelineEnd - clip.timelineStart;
     try {
-      if (clip.mode === "cut" || clip.extracts.length > 0) {
-        await pasteSegment(
-          s.projectPath,
-          s.playheadSec,
-          duration,
-          clip.extracts as unknown as Array<Record<string, unknown>>,
-        );
-      } else {
-        await duplicateSegment(
-          s.projectPath,
-          clip.timelineStart,
-          clip.timelineEnd,
-          s.playheadSec,
-        );
-      }
-      useDawStore.getState().announceStatus("Pasted at playhead (same track)");
+      const undo =
+        clip.mode === "cut" || clip.extracts.length > 0
+          ? await pasteSegment(
+              s.projectPath,
+              s.playheadSec,
+              duration,
+              clip.extracts as unknown as Array<Record<string, unknown>>,
+            )
+          : await duplicateSegment(
+              s.projectPath,
+              clip.timelineStart,
+              clip.timelineEnd,
+              s.playheadSec,
+            );
+      useDawStore
+        .getState()
+        .announceStatus("Pasted at playhead (same track)", { undo });
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore.getState().announceStatus(`Paste failed: ${msg}`);
+      useDawStore
+        .getState()
+        .announceStatus(`Paste failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg };
     }
   });
@@ -461,7 +468,9 @@ export function registerClipMoveCommands(): void {
           optimistic,
         );
         const msg = errorMessage(e);
-        useDawStore.getState().announceStatus(`Move failed: ${msg}`);
+        useDawStore
+          .getState()
+          .announceStatus(`Move failed: ${msg}`, { tone: "error" });
         return { status: "disabled", reason: msg };
       }
     });

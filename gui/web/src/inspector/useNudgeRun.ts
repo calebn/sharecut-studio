@@ -196,7 +196,9 @@ export function useNudgeRun() {
         r.timer = null;
         bumps.current += 1;
         setBump({ key: nudgeKey(r.field), n: bumps.current });
-        store.announceStatus(`${r.name} failed: ${errorMessage(error)}`);
+        store.announceStatus(`${r.name} failed: ${errorMessage(error)}`, {
+          tone: "error",
+        });
         return;
       }
     }
@@ -359,7 +361,7 @@ export function useNudgeRun() {
       !r.trimToken || ownsSavingTrim(useDawStore.getState(), r.trimToken);
     setSaving(true);
     try {
-      const didSave = await saveNudge(
+      const saved = await saveNudge(
         r.projectPath,
         r.origin,
         r.field,
@@ -367,19 +369,23 @@ export function useNudgeRun() {
         fresh,
         settle,
       );
-      if (!didSave) {
+      if (!saved) {
         revert();
         return;
       }
-      const saved = NUDGE_KINDS[r.field.kind].saved;
+      const done = NUDGE_KINDS[r.field.kind].saved;
       useDawStore
         .getState()
-        .announceStatus(r.stoppedAt ? `${saved} at ${r.stoppedAt}` : saved);
+        .announceStatus(r.stoppedAt ? `${done} at ${r.stoppedAt}` : done, {
+          undo: saved.undo,
+        });
     } catch (error) {
       revert();
       useDawStore
         .getState()
-        .announceStatus(`${r.name} not saved: ${errorMessage(error)}`);
+        .announceStatus(`${r.name} not saved: ${errorMessage(error)}`, {
+          tone: "error",
+        });
     } finally {
       settle();
       setSaving(false);

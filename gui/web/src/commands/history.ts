@@ -201,7 +201,9 @@ export function runHistoryAction(
   const report = (reason: string) =>
     useDawStore
       .getState()
-      .announceStatus(`${HISTORY_LABEL[action]} failed: ${reason}`);
+      .announceStatus(`${HISTORY_LABEL[action]} failed: ${reason}`, {
+        tone: "error",
+      });
   void dispatch(`history.${action}`)
     .then((result) => {
       if (result.status === "ok") return;

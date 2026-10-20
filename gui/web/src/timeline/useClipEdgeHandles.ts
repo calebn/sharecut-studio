@@ -280,7 +280,9 @@ export function useClipEdgeHandles(context: Context) {
     } catch (error) {
       useDawStore
         .getState()
-        .announceStatus(`Clip edit failed: ${errorMessage(error)}`);
+        .announceStatus(`Clip edit failed: ${errorMessage(error)}`, {
+          tone: "error",
+        });
       return false;
     }
   };
@@ -307,7 +309,9 @@ export function useClipEdgeHandles(context: Context) {
       if (limited) {
         useDawStore
           .getState()
-          .announceStatus(`${HIT_KINDS[handle].label} is at its limit`);
+          .announceStatus(`${HIT_KINDS[handle].label} is at its limit`, {
+            gesture: true,
+          });
       }
     }
     update(d, candidate);
@@ -352,7 +356,9 @@ export function useClipEdgeHandles(context: Context) {
       if (fresh(c))
         useDawStore
           .getState()
-          .announceStatus(d.kind === "fade" ? "Fade saved" : "Trim saved");
+          .announceStatus(d.kind === "fade" ? "Fade saved" : "Trim saved", {
+            undo: saved.undo,
+          });
     } catch (error) {
       if (
         fresh(c) ||
@@ -362,7 +368,9 @@ export function useClipEdgeHandles(context: Context) {
       )
         useDawStore
           .getState()
-          .announceStatus(`Clip edit failed: ${errorMessage(error)}`);
+          .announceStatus(`Clip edit failed: ${errorMessage(error)}`, {
+            tone: "error",
+          });
     } finally {
       if (draftRef.current === owner) publish(null);
     }
@@ -449,6 +457,7 @@ export function useClipEdgeHandles(context: Context) {
         next.stop.kind === "boundary"
           ? `${name} stopped at ${next.stop.boundary.label}`
           : `${name} is at its limit`,
+        { gesture: true },
       );
     }
     return { status: "ok" as const };

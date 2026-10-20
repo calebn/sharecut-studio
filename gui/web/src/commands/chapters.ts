@@ -44,7 +44,7 @@ export function registerChapterCommands(): void {
         .getState()
         .announceStatus(`Adding chapter at ${atSec.toFixed(1)}s…`);
       try {
-        await addChapter(projectPath, atSec, title);
+        const undo = await addChapter(projectPath, atSec, title);
         if (!sameProject()) {
           return { status: "ok" };
         }
@@ -55,14 +55,14 @@ export function registerChapterCommands(): void {
         });
         useDawStore
           .getState()
-          .announceStatus(`Chapter added at ${atSec.toFixed(1)}s`);
+          .announceStatus(`Chapter added at ${atSec.toFixed(1)}s`, { undo });
         return { status: "ok" };
       } catch (err) {
         const reason = errorMessage(err);
         if (sameProject()) {
           useDawStore
             .getState()
-            .announceStatus(`Add chapter failed: ${reason}`);
+            .announceStatus(`Add chapter failed: ${reason}`, { tone: "error" });
         }
         return { status: "disabled", reason };
       } finally {

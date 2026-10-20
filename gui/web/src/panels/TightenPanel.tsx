@@ -322,7 +322,21 @@ export function TightenPanel() {
       </p>
 
       {filtered.length === 0 ? (
-        <EmptyState>
+        <EmptyState
+          action={
+            hits.length === 0
+              ? undefined
+              : {
+                  label: "Clear filters",
+                  onClick: () => {
+                    setClassFilter("all");
+                    setTrackFilter("");
+                    setHarshOnly(false);
+                    setQuery("");
+                  },
+                }
+          }
+        >
           {hits.length === 0
             ? "No pending tighten decisions."
             : "No hits match these filters."}

@@ -771,4 +771,103 @@ describe("FeedbackToast", () => {
     expect(useDawStore.getState().feedbackToast).toBeNull();
     expect(screen.queryByText("Mix preview refreshed")).not.toBeInTheDocument();
   });
+
+  it("gives an error its own look, holds no internals, and passes axe", async () => {
+    const { container } = render(<FeedbackToast />);
+    act(() => {
+      useDawStore
+        .getState()
+        .announceStatus(
+          "Refresh failed: set PODCAST_MCP_FFMPEG and PODCAST_MCP_FFPROBE to its bin executables.",
+          { tone: "error" },
+        );
+    });
+    const card = container.ownerDocument.querySelector(".ui-toast");
+    expect(card).toHaveClass("ui-toast--error");
+    expect(
+      screen.getByText(
+        "Refresh failed. Export diagnostics from the command palette and try again.",
+      ),
+    ).toBeVisible();
+    expect(useDawStore.getState().statusAnnouncement).not.toMatch(/PODCAST/);
+    await expectNoA11yViolations(document.body);
+    act(() => {
+      useDawStore.getState().announceStatus("Mix preview refreshed");
+    });
+    expect(container.ownerDocument.querySelector(".ui-toast")).not.toHaveClass(
+      "ui-toast--error",
+    );
+  });
+
+  it("runs a reverse Undo for a change History does not record, then says it is done", async () => {
+    const user = userEvent.setup();
+    const run = vi.fn(async () => true);
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Resolved comment at 0:12", {
+        reverse: { run, done: "Comment reopened" },
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(run).toHaveBeenCalledOnce();
+    expect(useDawStore.getState().statusAnnouncement).toBe("Comment reopened");
+  });
+
+  it("names a failed reverse Undo as an error", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Resolved comment at 0:12", {
+        reverse: {
+          run: async () => {
+            throw new Error("Unknown comment");
+          },
+          done: "Comment reopened",
+        },
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Undo failed: Unknown comment",
+      tone: "error",
+    });
+  });
+
+  it.each([
+    [
+      "setMobileMode",
+      (s: ReturnType<typeof useDawStore.getState>) => s.setMobileMode("text"),
+    ],
+    [
+      "setLayoutMode",
+      (s: ReturnType<typeof useDawStore.getState>) => s.setLayoutMode("review"),
+    ],
+    [
+      "setActiveTab",
+      (s: ReturnType<typeof useDawStore.getState>) => s.setActiveTab("history"),
+    ],
+    [
+      "setMoreDestination",
+      (s: ReturnType<typeof useDawStore.getState>) =>
+        s.setMoreDestination("history"),
+    ],
+    [
+      "endGestureFeedback",
+      (s: ReturnType<typeof useDawStore.getState>) => s.endGestureFeedback(),
+    ],
+  ])(
+    "a gesture message clears on %s, and a result does not",
+    (_name, leave) => {
+      const store = useDawStore.getState();
+      store.announceStatus("Clip armed: drag sideways to move it", {
+        gesture: true,
+      });
+      expect(useDawStore.getState().feedbackToast?.gesture).toBe(true);
+      leave(useDawStore.getState());
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+      useDawStore.getState().announceStatus("Trim saved");
+      leave(useDawStore.getState());
+      expect(useDawStore.getState().feedbackToast?.message).toBe("Trim saved");
+    },
+  );
 });

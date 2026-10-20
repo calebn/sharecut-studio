@@ -75,23 +75,26 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
       if (!from || !shown) return;
       const store = useDawStore.getState();
       try {
-        if (
-          await saveNudge(
-            path,
-            from,
-            field,
-            value,
-            () => true,
-            () => undefined,
-          )
-        ) {
-          store.announceStatus(NUDGE_KINDS[field.kind].saved);
+        const saved = await saveNudge(
+          path,
+          from,
+          field,
+          value,
+          () => true,
+          () => undefined,
+        );
+        if (saved) {
+          store.announceStatus(NUDGE_KINDS[field.kind].saved, {
+            undo: saved.undo,
+          });
         } else {
           revert(from, shown);
         }
       } catch (error) {
         revert(from, shown);
-        store.announceStatus(`${name} not saved: ${errorMessage(error)}`);
+        store.announceStatus(`${name} not saved: ${errorMessage(error)}`, {
+          tone: "error",
+        });
       }
     },
     cancel() {

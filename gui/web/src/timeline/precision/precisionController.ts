@@ -216,6 +216,7 @@ function dispatch(s: Session, event: PrecisionEvent) {
         st.stop.kind === "boundary"
           ? `${st.target.name} stopped at ${st.stop.boundary.label}`
           : `${st.target.name} is at its limit`,
+        { gesture: true },
       );
   }
   if (!prev || prev.value !== st.value) s.driver.show(st.value);
@@ -231,6 +232,7 @@ function end(s: Session, event: "commit" | "cancel") {
   s.element.removeAttribute(ARMED_ATTR);
   const store = useDawStore.getState();
   store.setTimelineDragging(false);
+  store.endGestureFeedback();
   publish(null);
   if (st.phase === "committed" && Math.abs(st.value - st.origin) > 1e-9) {
     void s.driver.commit();
@@ -401,7 +403,9 @@ function arm(element: Element, down: PointerEvent): boolean {
   store.setTimelineDragging(true);
   dispatch(s, { type: "arm", variant, target, origin: nudge.value });
   dispatch(s, { type: "enter", pxPerSec: store.zoomPxPerSec });
-  store.announceStatus(`${target.name} armed: ${HINTS[variant]}`);
+  store.announceStatus(`${target.name} armed: ${HINTS[variant]}`, {
+    gesture: true,
+  });
   vibrate();
   return true;
 }

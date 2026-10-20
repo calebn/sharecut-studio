@@ -14,6 +14,7 @@ import {
   currentDocumentSeq,
   resetDocumentSeqForTests,
 } from "../document/cursor";
+import type { EdgeSaved } from "../edit/clipEdgeSave";
 import { saveNudge } from "../edit/nudge";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
@@ -161,7 +162,7 @@ describe("trim nudge document lifetime", () => {
       .mockImplementation(async () => {
         const state = useDawStore.getState();
         if (state.project) state.setProject(state.project);
-        return true;
+        return { undo: null };
       });
     vi.mocked(submitQueuedDocumentCommand).mockReset().mockResolvedValue({});
     clearRegisteredCommands();
@@ -555,7 +556,7 @@ describe("trim nudge document lifetime", () => {
   it("does not restore its preview when a pending save rejects after an update", async () => {
     let rejectSave!: (error: Error) => void;
     vi.mocked(saveNudge).mockReturnValueOnce(
-      new Promise<boolean>((_resolve, reject) => {
+      new Promise<EdgeSaved | null>((_resolve, reject) => {
         rejectSave = reject;
       }),
     );

@@ -291,8 +291,13 @@ the empty state, not a separate discovery task.
   live region speaks it, once per announcement, even when the same text
   repeats.
   Only a status that a persistent control already shows (the job chip,
-  the presence avatars) passes `{ toast: false }`. The Comments panel
-  keeps its own `ui/Toast` for comment resolution. A multi-minute
+  the presence avatars, the Needs attention summary) passes
+  `{ toast: false }`. The Comments panel resolves through the same toast, with
+  a `reverse` Undo that reopens the comment. A failure passes
+  `{ tone: "error" }` and reads in the error look: it names what failed and the
+  next step, never an environment variable, a path or an id. A message about a
+  gesture (a target armed) passes `{ gesture: true }` and clears when the
+  gesture ends or the mode changes. A multi-minute
   export whose only "done" signal is invisible is a high-severity bug.
   (Surface 6.)
 - **A press answers at once, and a long one says it is working.** Make the
@@ -697,3 +702,9 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-20 — Domain refusals in `edits/` and `engines/` are coded (#1810): the ~200 bare `ValueError`s there now raise `CodedValueError` with a code, so the MCP and CLI adapters show the refusal and what to do next instead of a generic failure. `scripts/check_coded_errors.py` covers both packages and has no allowed exceptions.
 - 2026-10-20 — Every refused request names its refusal (#1810): the GUI answers an auth denial, a busy project and a guest 4xx with the same status and message as before plus an `X-Sharecut-Error-Code`, so the client can show the host's message and next step instead of a raw response. The busy text for the audio player is now the shared "This project is busy; try again".
 - 2026-10-20 — The web app shows the host's refusal message and next step (#1810): one HTTP client keeps the error code and message from every request, including the 11 places that used to show the raw response body. A user sees the sentence the host wrote, not env var names or a truncated body.
+- 2026-10-20 — One feedback channel (#1790): the Comments panel and the Needs
+  attention banner speak through `announceStatus`, every mutating command's
+  toast carries Undo, an error toast has its own look and holds no internals,
+  a gesture's message clears with the gesture, "Inspect History" opens History
+  on every shell, and an empty state carries its action ("Show all comments",
+  "Add a comment", "Clear filters").

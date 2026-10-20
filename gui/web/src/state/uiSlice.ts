@@ -10,6 +10,7 @@ import {
   stepLaneHeightPx,
   writeLaneHeightPref,
 } from "../utils/laneHeightPref";
+import { plainError } from "../utils/plainError";
 import {
   fixedLineOffsetPx,
   maxLogicalScrollLeft,
@@ -74,6 +75,25 @@ const LAYOUT_TAB: Readonly<Record<LayoutMode, DawTab | null>> = {
   review: "comments",
 };
 
+/** The panel each More destination shows; the hub shows none. */
+const MORE_DESTINATION_TAB: Readonly<
+  Record<DawStore["moreDestination"], DawTab | null>
+> = {
+  hub: null,
+  comments: "comments",
+  history: "history",
+  impact: "impact",
+  tighten: "tighten",
+  pipeline: "pipeline",
+};
+
+/** A toast that narrates a gesture ends with the gesture or the mode. */
+function endGestureToast(
+  s: Pick<DawStore, "feedbackToast">,
+): Pick<DawStore, "feedbackToast"> | Record<string, never> {
+  return s.feedbackToast?.gesture ? { feedbackToast: null } : {};
+}
+
 /**
  * Switch to `activeTab`, restoring the default layout when the current layout
  * does not show that tab (timeline hides every tab; text/review show only
@@ -119,6 +139,7 @@ type UiSlice = Pick<
   | "setIngestBusy"
   | "setIngestDropTrackId"
   | "announceStatus"
+  | "endGestureFeedback"
   | "dismissFeedbackToast"
   | "dropFeedbackUndo"
   | "expectJobResult"
@@ -275,9 +296,11 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setRenderPreviewBusy: (renderPreviewBusy) => set({ renderPreviewBusy }),
     setIngestBusy: (ingestBusy) => set({ ingestBusy }),
     setIngestDropTrackId: (ingestDropTrackId) => set({ ingestDropTrackId }),
-    announceStatus: (message, options = {}) =>
+    announceStatus: (rawMessage, options = {}) =>
       set((s) => {
         const id = s.statusAnnouncementSeq + 1;
+        const tone = options.tone ?? "status";
+        const message = tone === "error" ? plainError(rawMessage) : rawMessage;
         const showToast = message !== "" && options.toast !== false;
         return {
           statusAnnouncement: message,
@@ -287,13 +310,17 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
                 feedbackToast: {
                   id,
                   message,
+                  tone,
                   undo: options.undo ?? null,
                   baseHead: s.project?.history?.head_id ?? null,
+                  reverse: options.reverse ?? null,
+                  gesture: options.gesture === true,
                 },
               }
             : {}),
         };
       }),
+    endGestureFeedback: () => set(endGestureToast),
     dismissFeedbackToast: (id) =>
       set((s) => (s.feedbackToast?.id === id ? { feedbackToast: null } : {})),
     dropFeedbackUndo: (id) =>
@@ -450,7 +477,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ inspectorSelection: selection });
       get().setSelection(selection);
     },
-    setActiveTab: (activeTab) => set((s) => revealTab(s, activeTab)),
+    setActiveTab: (activeTab) =>
+      set((s) => ({ ...revealTab(s, activeTab), ...endGestureToast(s) })),
     setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
       set({ transcriptFollowPlayhead }),
     toggleTranscriptFollowPlayhead: () =>
@@ -627,41 +655,37 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setPointerKind: (pointerKind) =>
       set((s) => (s.pointerKind === pointerKind ? s : { pointerKind })),
     setMobileMode: (mobileMode) =>
-      set({
+      set((s) => ({
         mobileMode,
-        moreDestination: mobileMode === "more" ? get().moreDestination : "hub",
+        moreDestination: mobileMode === "more" ? s.moreDestination : "hub",
         ...(mobileMode === "text"
           ? { activeTab: "transcript" as DawTab, timelineFocused: false }
           : {}),
         ...(mobileMode === "timeline" ? { timelineFocused: true } : {}),
         ...(mobileMode === "listen" ? { timelineFocused: true } : {}),
-      }),
+        ...endGestureToast(s),
+      })),
     setMoreDestination: (moreDestination) =>
-      set({
-        moreDestination,
-        mobileMode: "more",
-        ...(moreDestination === "comments"
-          ? { activeTab: "comments" as DawTab }
-          : moreDestination === "history"
-            ? { activeTab: "history" as DawTab }
-            : moreDestination === "impact"
-              ? { activeTab: "impact" as DawTab }
-              : moreDestination === "tighten"
-                ? { activeTab: "tighten" as DawTab }
-                : moreDestination === "pipeline"
-                  ? { activeTab: "pipeline" as DawTab }
-                  : {}),
+      set((s) => {
+        const tab = MORE_DESTINATION_TAB[moreDestination];
+        return {
+          moreDestination,
+          mobileMode: "more" as const,
+          ...(tab ? revealTab(s, tab) : {}),
+          ...endGestureToast(s),
+        };
       }),
     setLayoutMode: (layoutMode) => {
       const tab = LAYOUT_TAB[layoutMode];
-      set({
+      set((s) => ({
         layoutMode,
         ...(tab
           ? { activeTab: tab, timelineFocused: false }
           : layoutMode === "timeline"
             ? { timelineFocused: true }
             : {}),
-      });
+        ...endGestureToast(s),
+      }));
     },
     setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),
     setCompactInspectorView: (compactInspectorView) => {

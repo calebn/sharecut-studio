@@ -28,7 +28,12 @@ function subscribeToFocus(notify: () => void): () => void {
   };
 }
 
-export type ToastState = { id: number; message: string };
+export type ToastState = {
+  id: number;
+  message: string;
+  /** `error` is a failure with its next step; it never shares the status look. */
+  tone?: "status" | "error";
+};
 
 type Props = {
   /** Current toast; null hides it while the region stays mounted. A new `id` restarts the timer. */
@@ -44,8 +49,6 @@ type Props = {
   visibility?: "visible" | "clipped";
   /** Receives focus when the toast closes while focus is inside it, or after focus fell from it to `<body>` (e.g. a focused Undo becoming disabled). */
   returnFocusRef?: RefObject<HTMLElement | null>;
-  /** False when another live region already speaks the message (the app-wide status region). */
-  announce?: boolean;
   /** Placement class for the region. */
   className?: string;
   /** The always-mounted region, for a caller that positions it (the phone dock). */
@@ -54,39 +57,27 @@ type Props = {
 
 /**
  * Short-lived message with optional Undo and Dismiss. The region is always
- * mounted; when `announce` is on it is a polite live region, so screen readers
- * hear each new message. The auto-dismiss timer pauses while a mouse or pen
+ * mounted and never a live region: the shell's `StatusLiveRegion` speaks every
+ * message `announceStatus` sends, and `feedback/FeedbackToast` is the only
+ * caller. The auto-dismiss timer pauses while a mouse or pen
  * pointer is over the toast, while focus is inside it, and while Undo is
  * disabled. Touch contact does not pause it (touch has no persistent hover).
  * If the toast closes with focus inside it, or after focus fell from it to
  * `<body>` (the browser blurs a focused Undo when it becomes disabled), focus
  * moves to `returnFocusRef`.
  */
-export function Toast({
-  toast,
-  announce = true,
-  className,
-  regionRef,
-  ...rest
-}: Props) {
+export function Toast({ toast, className, regionRef, ...rest }: Props) {
   const regionClass = className
     ? `ui-toast-region ${className}`
     : "ui-toast-region";
   return (
-    <div
-      ref={regionRef}
-      className={regionClass}
-      {...(announce ? { role: "status", "aria-live": "polite" as const } : {})}
-    >
+    <div ref={regionRef} className={regionClass}>
       {toast ? <ToastCard toast={toast} {...rest} /> : null}
     </div>
   );
 }
 
-type CardProps = Omit<
-  Props,
-  "toast" | "announce" | "className" | "regionRef"
-> & {
+type CardProps = Omit<Props, "toast" | "className" | "regionRef"> & {
   toast: ToastState;
 };
 
@@ -179,7 +170,9 @@ function ToastCard({
   return (
     <div
       ref={cardRef}
-      className="ui-toast"
+      className={
+        toast.tone === "error" ? "ui-toast ui-toast--error" : "ui-toast"
+      }
       onPointerEnter={onPointerEnter}
       onPointerLeave={() => setHovered(false)}
       onFocus={onFocus}

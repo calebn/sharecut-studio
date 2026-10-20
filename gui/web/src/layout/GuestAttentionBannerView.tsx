@@ -2,7 +2,6 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { OfflineConflict } from "../state/offlineStore";
 import { Button } from "../ui/Button";
-import { StatusLiveRegion } from "../ui/StatusLiveRegion";
 import { overflowLabel } from "../utils/format";
 import { attentionCountLabel, attentionRegionLabel } from "./attentionLabel";
 
@@ -29,8 +28,6 @@ export interface GuestAttentionBannerViewProps {
   onRetry?: () => void;
   /** Open the existing History surface for a command that may have applied. */
   onInspectHistory?: () => void;
-  attentionLiveMessage?: string;
-  attentionLiveSeq?: number;
 }
 
 /** Props-only guest-attention rendering for live state and static catalog cases. */
@@ -47,8 +44,6 @@ export function GuestAttentionBannerView({
   unreadable = false,
   dismissFailed = false,
   checking = false,
-  attentionLiveMessage = "",
-  attentionLiveSeq = 0,
 }: GuestAttentionBannerViewProps) {
   const dismissReasonId = useId();
   const slotRef = useRef<HTMLDivElement>(null);
@@ -142,12 +137,6 @@ export function GuestAttentionBannerView({
           tabIndex={-1}
           aria-label={regionLabel}
         >
-          {attentionLiveMessage ? (
-            <StatusLiveRegion
-              message={attentionLiveMessage}
-              seq={attentionLiveSeq}
-            />
-          ) : null}
           <details className="guest-attention-details">
             <summary
               className="guest-attention-head"

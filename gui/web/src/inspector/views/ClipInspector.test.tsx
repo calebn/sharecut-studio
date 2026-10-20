@@ -230,7 +230,7 @@ describe("ClipInspector mute regions", () => {
 
 describe("ClipInspector fades", () => {
   beforeEach(() => {
-    vi.mocked(setClipFade).mockReset().mockResolvedValue(undefined);
+    vi.mocked(setClipFade).mockReset().mockResolvedValue(null);
   });
 
   it("clamps to the dialogue track's cap and has no axe violations", async () => {
@@ -287,8 +287,8 @@ describe("ClipInspector fades", () => {
     let resolveSave: (() => void) | undefined;
     vi.mocked(setClipFade).mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          resolveSave = resolve;
+        new Promise<null>((resolve) => {
+          resolveSave = () => resolve(null);
         }),
     );
     const view = render(<ClipInspector clip={clip} />);
@@ -333,7 +333,7 @@ describe("ClipInspector fades", () => {
     let refuse!: (error: Error) => void;
     vi.mocked(setClipFade).mockImplementationOnce(
       () =>
-        new Promise<void>((_resolve, reject) => {
+        new Promise<null>((_resolve, reject) => {
           refuse = reject;
         }),
     );
@@ -439,7 +439,7 @@ describe("ClipInspector fades", () => {
     let rejectSave: ((reason: Error) => void) | undefined;
     vi.mocked(setClipFade).mockImplementationOnce(
       () =>
-        new Promise<void>((_resolve, reject) => {
+        new Promise<null>((_resolve, reject) => {
           rejectSave = reject;
         }),
     );
@@ -643,8 +643,8 @@ describe("ClipInspector join", () => {
     let resolveSave: (() => void) | undefined;
     vi.mocked(setClipFade).mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          resolveSave = resolve;
+        new Promise<null>((resolve) => {
+          resolveSave = () => resolve(null);
         }),
     );
     render(<ClipInspector clip={second} />);

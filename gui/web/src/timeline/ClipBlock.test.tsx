@@ -721,8 +721,8 @@ describe("ClipBlock waveform", () => {
       let resolveFade!: () => void;
       vi.mocked(setClipFade).mockImplementationOnce(
         () =>
-          new Promise<void>((resolve) => {
-            resolveFade = resolve;
+          new Promise<null>((resolve) => {
+            resolveFade = () => resolve(null);
           }),
       );
       const { container } = renderWithKeymap({ ...clip, fade_in_ms: 10 });
@@ -751,8 +751,8 @@ describe("ClipBlock waveform", () => {
       let resolveOldWrite!: () => void;
       vi.mocked(setClipFade).mockImplementationOnce(
         () =>
-          new Promise<void>((resolve) => {
-            resolveOldWrite = resolve;
+          new Promise<null>((resolve) => {
+            resolveOldWrite = () => resolve(null);
           }),
       );
       const firstRow = { ...clip, fade_in_ms: 10 };
@@ -826,7 +826,7 @@ describe("ClipBlock waveform", () => {
       let refuse!: (error: Error) => void;
       vi.mocked(setClipFade).mockImplementationOnce(
         () =>
-          new Promise<void>((_resolve, reject) => {
+          new Promise<null>((_resolve, reject) => {
             refuse = reject;
           }),
       );

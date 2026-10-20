@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { attentionRegionLabel } from "../layout/attentionLabel";
+import { useDawStore } from "../state/dawStore";
 import type { AttentionStatus } from "../state/offlineAttention";
 
 type Input = {
@@ -30,55 +31,31 @@ function attentionAnnouncement(input: Input): string | null {
   });
 }
 
-type LiveState = { projectPath: string; message: string; seq: number };
+/**
+ * Speaks the Needs-attention summary through the app's one live region when
+ * it changes. A summary that goes away and comes back is spoken again; one
+ * that only waits on a check is not.
+ */
+export function useOfflineAttentionAnnouncement(input: Input): void {
+  const { projectPath, unreadable, loaded, status } = input;
+  const spoken = useRef({ projectPath: "", message: "" });
+  const message = attentionAnnouncement(input);
 
-export function useOfflineAttentionAnnouncement(input: Input): {
-  liveMessage: string;
-  liveSeq: number;
-} {
-  const {
-    projectPath,
-    pending,
-    conflictCount,
-    unreadable,
-    dismissFailed,
-    loaded,
-    status,
-  } = input;
-  const live = useRef<LiveState>({ projectPath: "", message: "", seq: 0 });
-
-  if (live.current.projectPath !== projectPath) {
-    live.current = { projectPath, message: "", seq: 0 };
-  }
-
-  const message = attentionAnnouncement({
-    projectPath,
-    pending,
-    conflictCount,
-    unreadable,
-    dismissFailed,
-    loaded,
-    status,
-  });
-
-  if (message) {
-    if (message !== live.current.message) {
-      live.current = {
-        projectPath,
-        message,
-        seq: live.current.seq + 1,
-      };
+  useEffect(() => {
+    if (spoken.current.projectPath !== projectPath) {
+      spoken.current = { projectPath, message: "" };
     }
-  } else if (
-    status !== "checking" &&
-    status !== "dismissing" &&
-    !(unreadable && !loaded)
-  ) {
-    live.current = { projectPath, message: "", seq: live.current.seq };
-  }
-
-  return {
-    liveMessage: live.current.message,
-    liveSeq: live.current.seq,
-  };
+    if (message) {
+      if (message !== spoken.current.message) {
+        spoken.current.message = message;
+        useDawStore.getState().announceStatus(message, { toast: false });
+      }
+    } else if (
+      status !== "checking" &&
+      status !== "dismissing" &&
+      !(unreadable && !loaded)
+    ) {
+      spoken.current.message = "";
+    }
+  }, [projectPath, message, status, unreadable, loaded]);
 }

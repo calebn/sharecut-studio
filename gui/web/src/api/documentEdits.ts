@@ -397,13 +397,15 @@ export async function setClipFade(
   fadeInMs: number,
   fadeOutMs: number,
   expected: ClipFadeBaseline,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, DocumentCommand.SetClipFade, {
-    clip_id: clipId,
-    fade_in_ms: fadeInMs,
-    fade_out_ms: fadeOutMs,
-    expected: { ...expected },
-  });
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.SetClipFade, {
+      clip_id: clipId,
+      fade_in_ms: fadeInMs,
+      fade_out_ms: fadeOutMs,
+      expected: { ...expected },
+    }),
+  );
 }
 
 export async function trimClipEdge(
@@ -413,7 +415,7 @@ export async function trimClipEdge(
   sourceSec: number,
   mode: EditMode,
   expectedToken: string,
-): Promise<{ queued: boolean }> {
+): Promise<{ queued: boolean; undo: HistoryEntryId | null }> {
   const result = await submitDocumentCommand(
     projectPath,
     DocumentCommand.TrimClipEdge,
@@ -425,7 +427,7 @@ export async function trimClipEdge(
       expected_token: expectedToken,
     },
   );
-  return { queued: result.queued === true };
+  return { queued: result.queued === true, undo: replyHistoryHead(result) };
 }
 
 export async function rollClipJoin(
@@ -695,7 +697,7 @@ export async function setEnvelope(
   trackId: string,
   points: AutomationPoint[],
   expectedPoints: AutomationPoint[],
-): Promise<void> {
+): Promise<HistoryEntryId | null> {
   let result: Record<string, unknown>;
   try {
     result = await submitDocumentCommand(
@@ -722,6 +724,7 @@ export async function setEnvelope(
     // applies queued commands in order, so the host will hold these points.
     applyQueuedEnvelope(projectPath, trackId, points);
   }
+  return replyHistoryHead(result);
 }
 
 async function refreshProjectPhase(
@@ -753,11 +756,13 @@ export async function addChapter(
   projectPath: string,
   time: number,
   title: string,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, DocumentCommand.AddChapter, {
-    time,
-    title,
-  });
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.AddChapter, {
+      time,
+      title,
+    }),
+  );
 }
 
 export async function updateChapter(
@@ -839,26 +844,25 @@ export async function splitAtTime(
 export async function deleteClips(
   projectPath: string,
   clipIds: string[],
-): Promise<void> {
-  await submitDocumentCommand(projectPath, DocumentCommand.DeleteClip, {
-    clip_ids: clipIds,
-    mode: "gap",
-  });
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.DeleteClip, {
+      clip_ids: clipIds,
+      mode: "gap",
+    }),
+  );
 }
 
 export async function rippleDeleteClips(
   projectPath: string,
   clipIds: string[],
-): Promise<{ queued: boolean }> {
-  const result = await submitDocumentCommand(
-    projectPath,
-    DocumentCommand.DeleteClip,
-    {
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.DeleteClip, {
       clip_ids: clipIds,
       mode: "ripple",
-    },
+    }),
   );
-  return { queued: result.queued === true };
 }
 
 export async function duplicateSegment(
@@ -866,12 +870,14 @@ export async function duplicateSegment(
   sourceStart: number,
   sourceEnd: number,
   insertAt: number,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, DocumentCommand.DuplicateSegment, {
-    source_start: sourceStart,
-    source_end: sourceEnd,
-    insert_at: insertAt,
-  });
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.DuplicateSegment, {
+      source_start: sourceStart,
+      source_end: sourceEnd,
+      insert_at: insertAt,
+    }),
+  );
 }
 
 export async function moveSegment(
@@ -892,13 +898,15 @@ export async function pasteSegment(
   insertAt: number,
   duration: number,
   extracts: Array<Record<string, unknown>>,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, DocumentCommand.PasteSegment, {
-    insert_at: insertAt,
-    duration,
-    extracts,
-    mode: "ripple",
-  });
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.PasteSegment, {
+      insert_at: insertAt,
+      duration,
+      extracts,
+      mode: "ripple",
+    }),
+  );
 }
 
 /** Reload project view after a document-plane mutation. */

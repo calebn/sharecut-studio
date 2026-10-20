@@ -11,6 +11,20 @@ import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import { commitCommentActor } from "../utils/commentAuthor";
 
+/** Sets a comment's resolved state through the command bus; throws the reason when it is refused. */
+export async function setCommentResolved(
+  commentId: string,
+  resolved: boolean,
+  by: string,
+): Promise<void> {
+  const result = await execute("comment.resolve", { commentId, resolved, by });
+  if (result.status !== "ok") {
+    throw new Error(
+      result.status === "disabled" ? result.reason : "Resolve unavailable",
+    );
+  }
+}
+
 export function useCommentActions(opts: {
   role: CommentRole;
   author?: string;
@@ -58,20 +72,7 @@ export function useCommentActions(opts: {
   const resolve = useCallback(
     async (c: TimelineComment, resolved: boolean) => {
       const by = actor();
-      return wrap(async () => {
-        const result = await execute("comment.resolve", {
-          commentId: c.id,
-          resolved,
-          by,
-        });
-        if (result.status !== "ok") {
-          throw new Error(
-            result.status === "disabled"
-              ? result.reason
-              : "Resolve unavailable",
-          );
-        }
-      });
+      return wrap(() => setCommentResolved(c.id, resolved, by));
     },
     [actor, wrap],
   );

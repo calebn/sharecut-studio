@@ -6,7 +6,7 @@
 import { setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
 import { trackEditSave } from "../state/documentSendOrder";
-import type { ClipRow } from "../types/project";
+import type { ClipRow, HistoryEntryId } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
 
 /**
@@ -20,8 +20,11 @@ export type ClipEdgeChange =
   | { kind: "fade"; inMs: number; outMs: number }
   | { kind: "trim"; edge: TrimEdge; mode: EditMode; sourceSec: number };
 
+/** A save that went out: the History entry it left, for the toast's Undo (null while queued). */
+export type EdgeSaved = { undo: HistoryEntryId | null };
+
 /**
- * Saves `change` to `clip`; a ripple trim moves every dialogue track. Returns false
+ * Saves `change` to `clip`; a ripple trim moves every dialogue track. Returns null
  * when nothing was saved: `fresh` turned false once the trim's boundary token
  * arrived (the trim is dropped unsent).
  * The save counts as in flight from the call, boundary token included, so an
@@ -33,7 +36,7 @@ export function saveClipEdge(
   change: ClipEdgeChange,
   fresh: () => boolean = () => true,
   settled: () => void = () => {},
-): Promise<boolean> {
+): Promise<EdgeSaved | null> {
   return trackEditSave(
     projectPath,
     send(projectPath, clip, change, fresh).finally(settled),
@@ -45,13 +48,16 @@ async function send(
   clip: ClipRow,
   change: ClipEdgeChange,
   fresh: () => boolean,
-): Promise<boolean> {
+): Promise<EdgeSaved | null> {
   if (change.kind === "fade") {
-    await setClipFade(projectPath, clip.id, change.inMs, change.outMs, {
-      fade_in_ms: clip.fade_in_ms,
-      fade_out_ms: clip.fade_out_ms,
-    });
-    return true;
+    const undo = await setClipFade(
+      projectPath,
+      clip.id,
+      change.inMs,
+      change.outMs,
+      { fade_in_ms: clip.fade_in_ms, fade_out_ms: clip.fade_out_ms },
+    );
+    return { undo };
   }
   const { id, source_start, source_end, timeline_start, source_id } = clip;
   const boundary = await loadBoundaryContext(
@@ -59,8 +65,8 @@ async function send(
     { kind: "trim", clip_id: id, edge: change.edge, mode: change.mode },
     [{ id, source_start, source_end, timeline_start, source_id }],
   );
-  if (!fresh()) return false;
-  await trimClipEdge(
+  if (!fresh()) return null;
+  const { undo } = await trimClipEdge(
     projectPath,
     id,
     change.edge,
@@ -68,5 +74,5 @@ async function send(
     change.mode,
     boundary.token,
   );
-  return true;
+  return { undo };
 }
