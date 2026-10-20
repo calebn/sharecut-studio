@@ -66,7 +66,8 @@ def test_biome_formatted_exporters_run_in_the_frontend_job(command: str) -> None
     assert f"python3 {command}" in WORKFLOW.read_text(encoding="utf-8")
 
 
-def test_project_type_generator_fails_on_a_schema_shape_it_cannot_express() -> None:
+def test_project_type_generator_fails_on_a_schema_shape_it_cannot_express(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(SCRIPTS))
     gen = load_script("export_project_types")
     assert gen._ts({"title": "Any"}) == "unknown"
     with pytest.raises(ValueError, match="unhandled JSON-schema shape"):
