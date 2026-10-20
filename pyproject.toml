@@ -125,6 +125,7 @@ packages = ["src/podcast_mcp", "src/podcast_relay"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "contracts" = "podcast_mcp/contracts"
+".agents/defaults" = "podcast_mcp/defaults"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
