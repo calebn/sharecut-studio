@@ -237,6 +237,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
             className="ui-control--compact"
             onClick={() => {
               state.setRangeArmed(false);
+              if (selection?.kind === "track") state.setSelection(null);
             }}
           >
             Cancel range selection

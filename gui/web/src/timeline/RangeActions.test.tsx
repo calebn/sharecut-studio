@@ -109,6 +109,34 @@ describe("range action bar and phone sheet", () => {
     expect(useDawStore.getState().playheadSec).toBe(9);
     expect(useDawStore.getState().followingClientId).toBe("agent");
   });
+  it("clears the ticked scope once the agent range is adopted", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({
+      selection: null,
+      sessionRegion: { start_sec: 3, end_sec: 4 },
+    });
+    render(<RangeActions sheet />);
+    await user.click(screen.getByRole("checkbox", { name: "Speaker" }));
+    expect(useDawStore.getState().rangeScopeTrackIds).toEqual(["a"]);
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use agent range on selected tracks",
+      }),
+    );
+    expect(useDawStore.getState().rangeScopeTrackIds).toBeNull();
+  });
+  it("clears a track selection made while armed when the range is cancelled", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({
+      rangeArmed: true,
+      selection: { kind: "track", trackId: "a" },
+    });
+    render(<RangeActions sheet />);
+    await user.click(
+      screen.getByRole("button", { name: "Cancel range selection" }),
+    );
+    expect(useDawStore.getState().selection).toBeNull();
+  });
   it("offers Move to the sibling speaker track", () => {
     const ana = sampleTrack({
       id: "room",
