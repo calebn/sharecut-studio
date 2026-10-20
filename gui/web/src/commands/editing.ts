@@ -20,7 +20,6 @@ import { askConfirm } from "../feedback/ask";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
-import { openCreateMenu } from "../timeline/createMenuHost";
 import {
   SOLO_OFF_ANNOUNCEMENT,
   SOLO_ON_ANNOUNCEMENT,
@@ -34,6 +33,7 @@ import {
 } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
 import type { CommandContext } from "./context";
+import { openCreateMenu } from "./createMenuHost";
 import { registerCommand } from "./execute";
 import { runFocusedClipHandle } from "./focusedClipHandle";
 import { runRangeAction } from "./rangeActions";

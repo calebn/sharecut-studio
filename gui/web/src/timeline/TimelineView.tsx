@@ -12,6 +12,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { shallow } from "zustand/shallow";
+import { registerCreateMenuOpener } from "../commands/createMenuHost";
 import { runPointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
 import { clipBleedSession } from "../edit/clipBleedSession";
@@ -69,7 +70,6 @@ import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 import { CreateMenu, type CreateMenuPlace } from "./CreateMenu";
 import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
-import { registerCreateMenuOpener } from "./createMenuHost";
 import { DetentMark } from "./DetentMark";
 import { attachDragWatch } from "./dragWatch";
 import { FixedPlayheadNeedle } from "./FixedPlayheadNeedle";
