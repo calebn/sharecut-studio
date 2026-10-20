@@ -44,6 +44,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.dsp import bool_runs
 from podcast_mcp.util.timebase import SourceSec
 
 
@@ -1055,6 +1056,9 @@ def _dense_bleed_with_independent_gap(
         peer[inside] = 0.0045 * np.sin(2 * np.pi * 140.0 * clock[inside])
     elif content == "voice_over_room":
         peer[remark] += _voice(clock[remark], 150.0, 0.004)
+    elif content == "reverb_tail":
+        since = clock[inside] - gap[0]
+        peer[inside] += rng.normal(0.0, 0.01, since.size) * 10 ** (-3.0 * since / 0.15)
     elif content == "unvoiced_burst_over_room":
         peer[remark] += rng.normal(0.0, 0.02, int(remark.sum()))
     return owner, peer
@@ -1073,8 +1077,10 @@ def _dense_bleed_with_independent_gap(
         ("tone_other_pitch", (3.0, 3.1), ("guest",)),
         ("voice_over_room", (3.0, 3.3), ("guest",)),
         ("unvoiced_burst_over_room", (3.0, 3.3), ("guest",)),
-        ("room_noise", (3.0, 3.03), ("guest",)),
-        ("room_noise", (3.0, 3.05), ("guest",)),
+        ("room_noise", (3.0, 3.01), ()),
+        ("room_noise", (3.0, 3.03), ()),
+        ("reverb_tail", (3.0, 3.3), ()),
+        ("room_noise", (3.0, 3.05), ()),
     ],
     ids=[
         "room_100ms",
@@ -1085,7 +1091,9 @@ def _dense_bleed_with_independent_gap(
         "voice_at_other_pitch",
         "voice_over_room",
         "unvoiced_burst_over_room",
-        "room_too_short_to_judge",
+        "room_one_stray_frame",
+        "room_three_stray_frames",
+        "reverb_tail_in_gap",
         "room_under_three_probes",
     ],
 )
@@ -1759,3 +1767,92 @@ def test_a_burst_under_the_peers_voice_floor_is_not_speech(
     )
     assert levels is not None
     assert levels.speaking == expected
+
+
+def _colored_room(kind: str, size: int, rms: float, seed: int) -> np.ndarray:
+    white = np.random.default_rng(seed).normal(0.0, 1.0, size)
+    spectrum = np.fft.rfft(white)
+    slope = np.arange(spectrum.size, dtype=float)
+    slope[0] = 1.0
+    noise = white if kind == "white" else np.fft.irfft(spectrum / np.sqrt(slope), size)
+    return rms * noise / np.sqrt(np.mean(noise**2))
+
+
+def _owner_words_over_room(
+    kind: str, gap_sec: float, *, remark: str | None, bleed: float, tail: bool, seed: int = 3
+) -> tuple[np.ndarray, np.ndarray, tuple[float, float]]:
+    """A host who talks word after word ``gap_sec`` apart, bleeding into a guest in a steady room.
+
+    The guest's own voice reads in the first second, the host's in the second; a ``remark`` sits
+    in a half-second pause after the twelfth word.
+    """
+    words, word_sec = 24, 0.4
+    pause = 0.5
+    size = int((3.0 + words * (word_sec + gap_sec) + pause + 1.0) * _SR)
+    clock = np.arange(size) / _SR
+    owner = np.where((clock >= 1.0) & (clock < 2.0), 0.1 * np.sin(2 * np.pi * 150 * clock), 0.0)
+    rng = np.random.default_rng(seed)
+    speaking = np.zeros(size, dtype=bool)
+    at, pause_at = 2.0, 0.0
+    for word in range(words):
+        mask = (clock >= at) & (clock < at + word_sec)
+        speaking |= mask
+        owner[mask] = 0.3 * np.sin(2 * np.pi * (200 + 10 * (word % 5)) * clock[mask])
+        at += word_sec + gap_sec
+        if word == 11:
+            pause_at, at = at, at + pause
+    peer = _colored_room(kind, size, 10 ** (-50.0 / 20), seed) + bleed * owner
+    if tail:
+        ring = rng.normal(0.0, 1.0, size)
+        for _, end in bool_runs(speaking):
+            after = np.arange(end, min(size, end + int(0.3 * _SR)))
+            peer[after] += bleed * 0.15 * ring[after] * 10 ** (-3.0 * (after - end) / (0.3 * _SR))
+    peer += np.where(clock < 1.0, _voice(clock, 140.0, 0.1), 0.0)
+    if remark == "voiced":
+        said = (clock >= pause_at + 0.15) & (clock < pause_at + 0.35)
+        peer[said] += _voice(clock[said], 150.0, 0.04)
+    elif remark == "whispered":
+        said = (clock >= pause_at + 0.15) & (clock < pause_at + 0.35)
+        peer[said] += rng.normal(0.0, 0.02, int(said.sum()))
+    return owner, peer, (3.0, pause_at + pause)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("gain", [-20.0, 0.0, 30.0])
+@pytest.mark.parametrize("tail", [False, True], ids=["abrupt_bleed", "ringing_bleed"])
+@pytest.mark.parametrize("gap_sec", [0.01, 0.03, 0.15])
+@pytest.mark.parametrize("kind", ["white", "pink"])
+@pytest.mark.parametrize(
+    ("remark", "expected"),
+    [(None, ()), ("voiced", ("guest",)), ("whispered", ("guest",))],
+    ids=["room_only", "voiced_remark", "whispered_remark"],
+)
+def test_room_between_owner_words_is_clear_and_a_remark_in_it_still_warns(
+    tmp_path: Path,
+    cached: bool,
+    gain: float,
+    tail: bool,
+    gap_sec: float,
+    kind: str,
+    remark: str | None,
+    expected: tuple[str, ...],
+) -> None:
+    """#1361: stray frames and the decaying tail of the owner's bleed are not the peer speaking."""
+    owner, peer, span = _owner_words_over_room(kind, gap_sec, remark=remark, bleed=0.03, tail=tail)
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    for track in p.tracks:
+        track.gain_db = gain
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [span],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == expected
+    assert levels.unread == {}

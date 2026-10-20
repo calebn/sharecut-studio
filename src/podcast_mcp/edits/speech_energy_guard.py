@@ -269,6 +269,35 @@ def _pitchless_independent_runs(
     return pitchless
 
 
+def _without_bleed_tails(levels: np.ndarray, own: np.ndarray, dominated: np.ndarray) -> np.ndarray:
+    """``own`` less the decaying tail of the owner's bleed that runs on past where it dominated.
+
+    A room rings on after the owner's word: the peer's frames fall away from the bleed level
+    toward the level the run settles at, and none of those frames is the peer's. A remark
+    begins with a rise, so a run that starts right after a dominated frame is tail only while
+    its level keeps falling (over a pitch-probe window, so one frame's flicker does not end it),
+    stays under that bleed, and sits more than :data:`VOICE_FLOOR_OVER_ROOM_DB` over the run's
+    own lower quartile. A steady sound that follows the owner's word does not fall, so it is not
+    tail.
+    """
+    size = round(PROBE_SEC / LEVEL_FRAME_SEC)
+    smooth = np.convolve(10 ** (levels / 10), np.ones(size) / size)[: levels.size]
+    kept = own.copy()
+    for first, last in bool_runs(own):
+        if first == 0 or not dominated[first - 1]:
+            continue
+        settled = float(np.percentile(levels[first:last], _OWN_ROOM_PERCENTILE))
+        for frame in range(first, last):
+            if (
+                levels[frame] > levels[first - 1]
+                or smooth[frame] > smooth[frame - 1]
+                or levels[frame] <= settled + VOICE_FLOOR_OVER_ROOM_DB
+            ):
+                break
+            kept[frame] = False
+    return kept
+
+
 def _owned_peer_frames(
     project: EpisodeProject,
     peer_track_id: str,
@@ -300,6 +329,7 @@ def _owned_peer_frames(
     own = levels > DIGITAL_SILENCE_DB + gain
     refs = _voice_refs(project, [peer_track_id, *owner_track_ids], caches)
     peer_voice = gain + refs[peer_track_id]
+    dominated = np.zeros(levels.size, dtype=bool)
     for tid in owner_track_ids:
         owner = timeline_frame_levels_db(
             project,
@@ -318,10 +348,12 @@ def _owned_peer_frames(
         size = min(levels.size, owner.size)
         # Which mic is louder is read on the recordings against each one's own voice, with no
         # balance gain: a gain is a listening choice (#1549).
-        own[:size] &= ~(
-            (owner[:size] > DIGITAL_SILENCE_DB + owner_gain)
-            & ((owner[:size] - owner_voice) - (levels[:size] - peer_voice) >= dominance_db)
+        owner_louder = (owner[:size] > DIGITAL_SILENCE_DB + owner_gain) & (
+            (owner[:size] - owner_voice) - (levels[:size] - peer_voice) >= dominance_db
         )
+        dominated[:size] |= owner_louder
+        own[:size] &= ~owner_louder
+    own = _without_bleed_tails(levels, own, dominated)
     return _PeerFrames(
         levels,
         own,
@@ -358,6 +390,29 @@ def _run_windows(levels: np.ndarray, own: np.ndarray) -> list[tuple[tuple[int, i
     return runs
 
 
+# Three pitch probes (``PROBE_SEC`` long, a ``HOP_SEC`` apart) need this many level frames; a run
+# under it holds no pitch for the pitch test to read.
+_PITCH_READABLE_FRAMES = round((PROBE_SEC + 2 * HOP_SEC) / LEVEL_FRAME_SEC)
+
+
+def _mean_level_db(levels: np.ndarray) -> float:
+    return 10 * math.log10(float(np.mean(10 ** (levels / 10))))
+
+
+def _run_reads(levels: np.ndarray, own: np.ndarray) -> np.ndarray:
+    """The level of each pitch-probe window of the peer's own runs, and the mean level of each run
+    too short to read a pitch from, which is read by its mean."""
+    reads = [np.empty(0)]
+    for first, last in bool_runs(own):
+        if last - first < _PITCH_READABLE_FRAMES:
+            reads.append(np.array([_mean_level_db(levels[first:last])]))
+        else:
+            reads.extend(
+                windows for _, windows in _run_windows(levels[first:last], own[first:last])
+            )
+    return np.concatenate(reads)
+
+
 def _independent_frames_are_room(block: _PeerSpan, references: Sequence[_PeerSpan]) -> bool:
     """Whether every frame of ``block`` that is the peer's own is quiet room, not speech.
 
@@ -365,24 +420,46 @@ def _independent_frames_are_room(block: _PeerSpan, references: Sequence[_PeerSpa
     the owner's bleed fills them. The peer's own frames then show its room: a run of them
     that carries no speech pitch, and no window of which rises more than
     :data:`~podcast_mcp.edits.audio_cache.VOICE_FLOOR_OVER_ROOM_DB` over the lower quartile
-    of the peer's own windows, is room. A run too short to judge, or that carries pitch or
-    rises above that quiet, may be a remark and is not.
+    of the peer's own windows, is room. A run that carries pitch or rises above that quiet may
+    be a remark and is not. A run too short for three pitch probes has no pitch to read: it is
+    room where its mean power stays within that margin, so the stray frames between the owner's
+    words do not hold the decision open (#1361).
     """
-    runs = _run_windows(block.levels, block.own)
-    if not runs:
+    reads = [_run_reads(part.levels, part.own) for part in references]
+    if not any(read.size for read in reads):
         return False
-    room = room_floor_db(
-        np.concatenate(
-            [windows for part in references for _, windows in _run_windows(part.levels, part.own)]
-        ),
-        percentile=_OWN_ROOM_PERCENTILE,
+    ceiling = (
+        room_floor_db(np.concatenate(reads), percentile=_OWN_ROOM_PERCENTILE)
+        + VOICE_FLOOR_OVER_ROOM_DB
     )
     pitchless = block.pitchless()
     room_like = np.zeros(block.own.size, dtype=bool)
-    for (first, last), windows in runs:
-        if bool(pitchless[first:last].all()) and windows.max() <= room + VOICE_FLOOR_OVER_ROOM_DB:
+    for first, last in bool_runs(block.own):
+        if last - first < _PITCH_READABLE_FRAMES:
+            room_like[first:last] = _mean_level_db(block.levels[first:last]) <= ceiling
+            continue
+        windows = _run_windows(block.levels[first:last], block.own[first:last])
+        if bool(pitchless[first:last].all()) and all(w.max() <= ceiling for _, w in windows):
             room_like[first:last] = True
     return not bool((block.own & ~room_like).any())
+
+
+def _sustained_reaches(levels: np.ndarray, own: np.ndarray, threshold: float) -> bool:
+    """Whether the peer's own frames hold ``threshold`` for a pitch-probe window, not one frame.
+
+    A room's level flickers frame to frame by an amount that grows with how low and steady
+    its sound is, so a single frame over a margin read from the room's quiet is the room's
+    own peak, not a voice. A run shorter than a window is read by its mean power.
+    """
+    judged = _run_windows(levels, own)
+    if any(bool((windows >= threshold).any()) for _, windows in judged):
+        return True
+    windowed = {span for span, _ in judged}
+    return any(
+        _mean_level_db(levels[first:last]) >= threshold
+        for first, last in bool_runs(own)
+        if (first, last) not in windowed
+    )
 
 
 def _peer_speaks_near_span(
@@ -559,7 +636,7 @@ def _peer_speaks_near_span(
                             return True
                         continue
                     unavailable = True
-                elif bool((own & (levels >= max(floor, audible))).any()):
+                elif _sustained_reaches(levels, own, max(floor, audible)):
                     return True
             else:
                 unavailable = True
