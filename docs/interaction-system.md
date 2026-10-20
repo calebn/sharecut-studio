@@ -48,10 +48,10 @@ Each thing is declared once. A second map from the same key is a bug.
 | Thing | Declared in | Locked by |
 | --- | --- | --- |
 | Command (`id`, `label`, `shortLabel`, `variants`, `category`, `when`, `paletteRunnable`, `breaksFollow`) | `gui/web/src/commands/catalog.ts` (`COMMANDS`), types in `commands/types.ts`, predicates in `commands/context.ts`, names read through `commands/labels.ts` | `commands/governance.test.ts`, `commands/labelParity.test.ts` |
-| Shortcut | `gui/web/src/keymap/registry.ts` (`KEYMAP_COMMANDS`); the only window `keydown` listener is `keymap/listener.ts` | `commands/governance.test.ts` (second listener fails), `make cheatsheet-check` |
+| Shortcut | `gui/web/src/keymap/registry.ts` (`KEYMAP_COMMANDS`, and `SHARED_KEY_ORDER` for a key more than one row binds); the only window `keydown` listener is `keymap/listener.ts` | `commands/governance.test.ts` (second listener fails), `keymap/sharedKeys.test.ts`, `make cheatsheet-check` |
 | Touch hit kind and gesture | `gui/web/src/timeline/inputContract.ts` (`HIT_KINDS`, `TOUCH_GESTURES`), routing in `timeline/hitRouting*.ts`, thresholds in `hooks/gestureConstants.ts` | `timeline/gestureGovernance.test.ts`, `inputContract.conformance.test.ts`, `inputContract.manifest.test.ts` |
 | Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body`, `screens`, `peek`, `related` and `more`) | `selectionSurface` tests, `layout/useSelectionSheet.test.tsx` |
-| Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check` |
+| Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check`, `commands/manifestSurfaces.test.ts` |
 | Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
 | Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
 
@@ -191,11 +191,14 @@ There are three overlay primitives.
    (`ui/useMenuKeyboard.ts` is one). Component-local keys (arrow keys inside a
    menu, Escape inside a field) stay inside that component.
 3. **Dispatch order is declared.** When two commands share a key, the keymap
-   declares the order and a test pins it. A comment is not a declaration.
+   declares the order in `SHARED_KEY_ORDER` and the listener runs it; a new
+   shared key fails `keymap/sharedKeys.test.ts` until it is placed. A comment
+   is not a declaration.
 4. **One touch grammar.** `HIT_KINDS` and `TOUCH_GESTURES` cover every
    draggable in `gui/web/src/`, not only the timeline. A surface that keeps a
-   different gesture carries a waiver in `docs/touch-editor-decisions.md`
-   naming the decision it keeps.
+   different gesture (comment swipe, splitter, reorder grip, fader, Listen
+   scrub) is a line in `SURFACE_GESTURES` in
+   `timeline/gestureGovernance.test.ts` naming the decision it keeps.
 5. **Focus is visible and ordered.** Tab order follows reading order; the focus
    ring is never removed; focus returns to the opener after an overlay closes.
 6. **Targets are 44 px** on coarse pointers. The dense-target exceptions are the
@@ -294,6 +297,20 @@ Locked by a test or a check today:
 - One label per command: the written name on every `CommandButton` and
   `CommandMenuItem`, the palette rows and the manifest equal the catalog entry
   (`commands/labelParity.test.ts`).
+- The manifest `gui` column lists every surface that renders a command, and
+  each row's `gates` equal the catalog `when`
+  (`commands/manifestSurfaces.test.ts`).
+- Keymap order per shared key (`keymap/sharedKeys.test.ts`, and the Backspace
+  and M cases in `keymap/listener.test.tsx`).
+- Every file outside `timeline/` that owns a pointer press, touch, slider or
+  drag handle is a declared surface with its decision
+  (`timeline/gestureGovernance.test.ts`).
+- A `.tsx` control reaches a follow-breaking setter (`setActiveTab`,
+  `setMobileMode`, `setMoreDestination`, `setPlayheadSec`,
+  `applyAnchoredZoom`, `fitToWindow`) through `execute`, not the store
+  (`commands/controlSetters.test.ts`).
+- A `Dialog` leaves the sheet only with an inline `anchor.reason`
+  (`ui/dialogSheet.test.ts`).
 - `no-alert` (oxlint), axe in Vitest and Playwright, the 44 px sweep
   (`gui/web/e2e/touch-floor.spec.ts`), overlay reachability
   (`gui/web/e2e/overlayReachability.ts`).
@@ -312,6 +329,3 @@ consistency epic tracks them.
 | --- | --- |
 | Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` hand-roll `role="menu"` and stay outside the top layer (the touch chooser drag specs break in WebKit when the chooser is a popover; the create menu shares that layer markup). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); a lane, clip or marker is not focusable, so a keyboard user with no focused target reaches the create actions through the palette and keys only. |
 | Confirms: one primitive | `WhisperDownloadDialog` (`panels/WhisperModelPicker.tsx`) is a hand-built confirm-shaped `Dialog` that also runs the download with progress; it is not `askConfirm`. |
-| Touch: one grammar across `src/` | The governance scan walks `timeline/` only; comment swipe, splitter, reorder grip, fader and ruler keep their own gestures. |
-| Keys: declared dispatch order | Backspace tries `tighten.skipHit` before `edit.delete`; the listener comment says catalog order. |
-| Capability rows complete | Transport Undo/Redo and zoom buttons are missing from the manifest `gui` column; zoom gates are stricter than the catalog `when`. |

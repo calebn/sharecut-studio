@@ -34,7 +34,7 @@ Rules:
 
 1. Implement / extend the **service** (with tests).
 2. Add or update a row in `contracts/capabilities.manifest.json`, with its `effect`. A `project` row lists the MCP tool or CLI command that makes the same change.
-   - For a command surface, include its default `COMMANDS[id].when` predicate in manifest `gates`. The catalog controls command execution; the manifest records its gate and any additional handler prerequisites. Keep the governance test free of per-command exceptions.
+   - For a command surface, include its default `COMMANDS[id].when` predicate in manifest `gates`. The manifest `gates` equal `[COMMANDS[id].when]`; a handler prerequisite the predicate lacks belongs in the catalog `when`, not the manifest. List every GUI surface that renders the command in `surfaces.gui`: `commands/manifestSurfaces.test.ts` scans the controls and fails a surface it cannot find in the row. Keep the governance tests free of per-command exceptions.
    - GUI chrome must set `surfaces.gui` **and** a non-empty `tooltip` (toggles also need `tooltip_pressed` + `"toggle": true`).
    - Copy is generated to `gui/web/src/capabilities/copy.ts` (`capabilityTooltip`) — do not hardcode toolbar/handle strings in React.
 3. Add only the declared adapters:
@@ -55,7 +55,7 @@ and prompt limits stay in the service rather than adapters.
 |------|---------|
 | Local | pre-commit hook `capabilities-manifest` (adapters + docs catalog) |
 | CI / `make ci` | `make generated-check` |
-| Frontend | `gui/web/src/commands/governance.test.ts` (single keydown listener), `gui/web/src/timeline/gestureGovernance.test.ts` (one gesture router), `gui/web/src/timeline/inputContract.manifest.test.ts` (touch column) |
+| Frontend | `gui/web/src/commands/governance.test.ts` (single keydown listener), `gui/web/src/commands/manifestSurfaces.test.ts` (gui rows and gates), `gui/web/src/keymap/sharedKeys.test.ts` (shared key order), `gui/web/src/timeline/gestureGovernance.test.ts` (one gesture router, and the surfaces that keep their own gesture across `src/`), `gui/web/src/commands/controlSetters.test.ts` (controls use `execute`), `gui/web/src/ui/dialogSheet.test.ts` (sheet opt-out reason), `gui/web/src/timeline/inputContract.manifest.test.ts` (touch column) |
 | Unit | `tests/test_capabilities_manifest.py` |
 
 Hard fail when a `COMMANDS` / keymap / registered MCP tool / skill is missing from the manifest (hubs/deprecated skills live under `hub_skills`), when an `effect: project` row has no MCP or CLI surface and no `omit.agent_reason`, when a `surfaces.cli` entry names a command or option the `podcast` CLI does not have, or when the published docs catalog is stale. The catalog shows each row's effect; an approved agent reason appears in its CLI column.
