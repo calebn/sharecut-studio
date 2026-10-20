@@ -69,10 +69,10 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await expect(page.locator(".listen-hero")).toHaveCount(1);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     // Hero controls meet the 44pt touch floor.
-    for (const name of ["Play", "Stop", "−15s", "+15s"]) {
+    for (const name of ["Play", "Stop playback", "−15s", "+15s"]) {
       const box = await page
         .locator(".listen-hero")
-        .getByRole("button", { name })
+        .getByRole("button", { name, exact: true })
         .boundingBox();
       expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44);
     }
@@ -276,7 +276,9 @@ test.describe("Sharecut Studio mobile smoke", () => {
           ".timeline-scroll { overflow-y: scroll; } .timeline-scroll::-webkit-scrollbar { width: 0.75rem; height: 0.75rem; }",
       });
       const hero = page.locator(".listen-hero");
-      await expect(hero.getByRole("button", { name: "Play" })).toBeEnabled();
+      await expect(
+        hero.getByRole("button", { name: "Play", exact: true }),
+      ).toBeEnabled();
       await hero.getByRole("button", { name: "+15s" }).click();
       await openPhoneTimeline(page);
 
@@ -414,7 +416,9 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await expect(page.locator(".mobile-listen[aria-busy='true']")).toHaveCount(
       0,
     );
-    await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: "Play", exact: true }),
+    ).toBeEnabled();
     const box = await shell.boundingBox();
     expect(box).toBeTruthy();
 

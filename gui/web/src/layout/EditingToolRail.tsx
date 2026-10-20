@@ -49,6 +49,7 @@ export function EditingToolRail({ inert = false }: { inert?: boolean }) {
           <CommandButton
             commandId="range.arm"
             className="editing-tool-rail-range"
+            aria-label={commandLabel("range.arm", "short")}
           >
             <Icon
               name="range"

@@ -84,12 +84,12 @@ test.describe("control state parity", () => {
     );
 
     const panels = page.getByLabel("Editor panels");
-    const transcriptTab = panels.getByRole("button", {
+    const transcriptTab = panels.getByRole("tab", {
       name: "Transcript",
       exact: true,
     });
     await transcriptTab.click();
-    await expect(transcriptTab).toHaveAttribute("aria-pressed", "true");
+    await expect(transcriptTab).toHaveAttribute("aria-selected", "true");
     expect(
       await transcriptTab.evaluate((el) =>
         el.classList.contains("ui-control--quiet"),
