@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  openCreateMenu,
+  registerCreateMenuOpener,
+} from "../commands/createMenuHost";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { place } from "../test/hitDom";
-import { openCreateMenu, registerCreateMenuOpener } from "./createMenuHost";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { keyboardCreateAnchor } from "./touchGrammar";
 
