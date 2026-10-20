@@ -680,6 +680,13 @@ html[data-shell="phone"] .modifier-footer-actions .ui-menu-root {
   font-size: var(--font-size-micro);
 }
 
+.ui-menu-detail {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
 .ui-menu-panel button[role="menuitem"][aria-disabled="true"] {
   cursor: default;
 }
