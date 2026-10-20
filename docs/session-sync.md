@@ -344,7 +344,7 @@ Foreign rows landing within one tick collapse into a single `Applied` at the jou
 exact stored transcript key and word ordinal. The context token guards the word
 sequence and raw recording dependencies before the service saves source-clock
 bounds. A stale token produces `DocumentConflictError`. Its `TRANSCRIPT_AUDIO`
-Applied projection includes transcript words, tracks, and render status, so timing
+Applied projection includes transcript words, tracks, clip rows, and render status, so timing
 changes to ignored words invalidate processed audio in the viewer.
 
 `UpdatePendingEdit` accepts an optional `expected` baseline containing `track_id`,

@@ -170,7 +170,7 @@ timings may be negative or reversed so the host can open their repair context.
 
 `SetTranscriptWordTiming` accepts `{target, expected_token, start, end}` and saves
 through `EditService.set_word_timing`. Its Applied delta includes changes to transcript words,
-tracks, and render status through `TRANSCRIPT_AUDIO`. Stale timing dependencies
+tracks, clip rows (an ignored word is a mute on them), and render status through `TRANSCRIPT_AUDIO`. Stale timing dependencies
 become document conflicts. Guest shares cannot submit this command.
 
 `GET /api/audio` accepts optional `source_id` only for `kind=raw` or `kind=track`.

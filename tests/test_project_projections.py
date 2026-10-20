@@ -12,6 +12,7 @@ from podcast_mcp.gui.assembler import (
     dump_project_projection,
 )
 from podcast_mcp.models import (
+    Clip,
     CombinedTranscript,
     CombinedUtterance,
     Transcript,
@@ -155,6 +156,9 @@ def test_transcript_audio_projection_is_detail_plus_freshness(minimal_project) -
     ws.project.transcripts[0].words[0] = (
         ws.project.transcripts[0].words[0].model_copy(update={"ignored": True})
     )
+    ws.project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    ]
     ws.save()
     ta = dump_project_projection(ws, projection=ViewProjection.TRANSCRIPT_AUDIO)
     assert ta["transcript"]["utterances"][0]["words"][0]["ignored"] is True
@@ -162,6 +166,14 @@ def test_transcript_audio_projection_is_detail_plus_freshness(minimal_project) -
     assert "tracks" in ta
     assert "render_status" in ta
     assert "groups" in ta["history"]
+    # The clip rows carry the ignored word as the mute the render adds (preview parity, #1649).
+    rows = [row for track in ta["clips"]["tracks"].values() for row in track]
+    word = ws.project.transcripts[0].words[0]
+    assert any(
+        [(r["start_s"], r["end_s"]) for r in row.get("ignored_word_regions", [])]
+        == [(word.start, word.end)]
+        for row in rows
+    )
 
 
 def test_transcript_audio_projection_guest_gets_hydration_and_freshness(
