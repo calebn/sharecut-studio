@@ -76,6 +76,64 @@ describe("layoutMode store", () => {
     expect(st().layoutMode).toBe("default");
   });
 
+  describe("arriving on the phone shell with a selection (#1767)", () => {
+    const st = () => useDawStore.getState();
+    const arrive = (setup: () => void) => {
+      st().setShellBreakpoint("tablet");
+      st().setMobileMode("listen");
+      st().setSelection(null);
+      setup();
+      st().setShellBreakpoint("phone");
+    };
+
+    it("opens on Timeline so the selection is visible", () => {
+      arrive(() => st().setSelection({ kind: "track", trackId: "host" }));
+      expect(st().mobileMode).toBe("timeline");
+    });
+
+    it("opens a transcript selection on Text", () => {
+      arrive(() =>
+        st().setSelection({
+          kind: "transcriptRange",
+          trackId: "host",
+          startWordIndex: 1,
+          endWordIndex: 2,
+        }),
+      );
+      expect(st().mobileMode).toBe("text");
+    });
+
+    it("stays on Listen with nothing selected", () => {
+      arrive(() => {});
+      expect(st().mobileMode).toBe("listen");
+    });
+
+    it("keeps a screen the person chose", () => {
+      arrive(() => {
+        st().setSelection({ kind: "track", trackId: "host" });
+        st().setMobileMode("more");
+      });
+      expect(st().mobileMode).toBe("more");
+    });
+
+    it("keeps Listen for the comment composer", () => {
+      arrive(() => {
+        st().setSelection({ kind: "track", trackId: "host" });
+        st().setCommentMode(true);
+      });
+      expect(st().mobileMode).toBe("listen");
+      st().setCommentMode(false);
+    });
+
+    it("leaves a phone-to-phone update alone", () => {
+      st().setShellBreakpoint("phone");
+      st().setMobileMode("listen");
+      st().setSelection({ kind: "track", trackId: "host" });
+      st().setShellBreakpoint("phone");
+      expect(st().mobileMode).toBe("listen");
+    });
+  });
+
   it("sets mobile mode and more destination", () => {
     useDawStore.getState().setMobileMode("more");
     useDawStore.getState().setMoreDestination("impact");
