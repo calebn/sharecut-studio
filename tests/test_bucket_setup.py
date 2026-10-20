@@ -14,7 +14,7 @@ from podcast_mcp.services.media import bucket_setup as bs
 from podcast_mcp.services.media.object_store_cors import cors_rule
 
 ORIGIN = "https://share.example.test"
-BUCKET = "houndstooth"
+BUCKET = "example-bucket"
 runner = CliRunner()
 
 
