@@ -4,6 +4,7 @@ import { rangeActionDescriptors } from "../commands/rangeActions";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
 import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
+import { oneWordOf } from "../transcript/rangeSelect";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -15,6 +16,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
     selection: s.selection,
     rangeArmed: s.rangeArmed,
     rangeBusy: s.rangeBusy,
+    transcriptCorrecting: s.transcriptCorrecting,
     sessionRegion: s.sessionRegion,
     selectedTrackIds: selectedTrackIdsOf(s.selection),
     projectPath: s.projectPath,
@@ -143,7 +145,8 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
           <SpeakerLaneMoveActions />
         </div>
       ) : null}
-      {selection?.kind === "transcriptRange" ? (
+      {selection?.kind === "transcriptRange" &&
+      !(state.transcriptCorrecting && oneWordOf(selection)) ? (
         <WordRangeControls selection={selection} />
       ) : null}
       {rangeArmed ? (

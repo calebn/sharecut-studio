@@ -109,6 +109,27 @@ describe("edit.copy/cut/paste", () => {
     expect(api.rippleDeleteClips).not.toHaveBeenCalled();
   });
 
+  it("refuses every range action on a tapped word in Correct mode", async () => {
+    useDawStore.setState({
+      selection: wordSelection({
+        trackId: "host",
+        sourceId: null,
+        wordIndex: 0,
+      }),
+      transcriptCorrecting: true,
+    });
+    for (const id of [
+      "range.cut",
+      "range.mute",
+      "range.play",
+      "range.comment",
+      "range.bounce",
+    ]) {
+      expect((await execute(id)).status).toBe("disabled");
+    }
+    expect(api.rippleDeleteClips).not.toHaveBeenCalled();
+  });
+
   it("does not cut a different clip after a selection-sheet action goes stale", async () => {
     expect((await execute("edit.cut", { clipId: "another" })).status).toBe(
       "disabled",

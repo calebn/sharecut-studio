@@ -23,7 +23,6 @@ import {
   SOLO_OFF_ANNOUNCEMENT,
   SOLO_ON_ANNOUNCEMENT,
 } from "../tracks/trackMuteCopy";
-import { oneWordOf } from "../transcript/rangeSelect";
 import { errorMessage } from "../utils/apiError";
 import { anySolo } from "../utils/audio";
 import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
@@ -250,12 +249,6 @@ export function registerClipboardCommands(): void {
 
   registerCommand("edit.cut", async (args) => {
     const held = useDawStore.getState();
-    if (held.transcriptCorrecting && oneWordOf(held.selection)) {
-      return {
-        status: "disabled",
-        reason: "Use Select mode for media cut (Correct is ASR-only)",
-      };
-    }
     if (
       held.selection?.kind === "range" ||
       held.selection?.kind === "transcriptRange"
