@@ -115,7 +115,7 @@ class ShareIdentityStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod
             self.path.parent.chmod(0o700)
-        self._conn = open_sqlite(self.path, isolation_level="", row_factory=sqlite3.Row)
+        self._conn = open_sqlite(self.path, isolation_level="DEFERRED", row_factory=sqlite3.Row)
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
         with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod

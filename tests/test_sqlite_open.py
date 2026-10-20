@@ -33,7 +33,7 @@ def test_share_identity_store_is_wal_with_the_default_busy_timeout(tmp_path: Pat
     try:
         assert _pragma(store._conn, "journal_mode") == "wal"
         assert _pragma(store._conn, "busy_timeout") == 5000
-        assert store._conn.isolation_level == ""
+        assert store._conn.isolation_level == "DEFERRED"
         assert store._conn.row_factory is sqlite3.Row
     finally:
         store.close()
