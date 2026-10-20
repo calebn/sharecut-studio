@@ -16,10 +16,7 @@ import { execute } from "../commands/execute";
 import type { ExecuteResult } from "../commands/types";
 import { useHasFeature } from "../extensions/FeaturesContext";
 import { FEATURE_TUNNEL_STATUS } from "../extensions/features";
-import {
-  copyText,
-  createRecordRoomAndCopyGuestLink,
-} from "../record/recordLinks";
+import { copyText, createRecordRoomAndCopyGuestLink } from "../record";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import {

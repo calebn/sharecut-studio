@@ -19,9 +19,11 @@ import {
   titleWithShortcut,
 } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
-import { useRecordHostStore } from "../record/hostStore";
-import { RecordTransportChip } from "../record/RecordTransportChip";
-import { isRecordTransportVisible } from "../record/types";
+import {
+  isRecordTransportVisible,
+  RecordTransportChip,
+  useRecordHostStore,
+} from "../record";
 import {
   canIngestMedia,
   canManageProjects,

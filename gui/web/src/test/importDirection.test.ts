@@ -228,9 +228,9 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "api/documentEdits.ts -> edit/clipEdgePreview (type)",
   ],
   "api -> views": [
-    "api/sharesRecord.ts -> record/types (dynamic)",
+    "api/sharesRecord.ts -> record/types (type)",
     "api/sharesRecord.ts -> record/upload/params (static)",
-    "api/sharesRecord.ts -> record/upload/transport (dynamic)",
+    "api/sharesRecord.ts -> record/upload/transport (type)",
   ],
   "services -> commands/edit": [
     "audio/pendingPreview.ts -> edit/rangeSelection (static)",
@@ -249,12 +249,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "commands/editing.ts -> tracks/trackMuteCopy (static)",
     "commands/gestures.ts -> timeline/inputContract (type)",
     "commands/host.ts -> extensions/features (static)",
-    "commands/host.ts -> record/hostControls (static)",
-    "commands/host.ts -> record/hostStore (static)",
-    "commands/host.ts -> record/hostTransport (static)",
-    "commands/host.ts -> record/hostWire (static)",
-    "commands/host.ts -> record/liveCommentQueue (static)",
-    "commands/host.ts -> record/recordLinks (static)",
+    "commands/host.ts -> record (static)",
     "commands/projectMedia.ts -> feedback/ask (static)",
     "commands/rangeActions.ts -> comments/commentAnchor (static)",
     "commands/tighten.ts -> feedback/ask (static)",
@@ -266,10 +261,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "edit/nudge.ts -> timeline/pendingEdgeDrag (static)",
   ],
   "hooks -> views": [
-    "hooks/useHostSync.ts -> record/hostStore (static)",
-    "hooks/useHostSync.ts -> record/hostWire (static)",
-    "hooks/useHostSync.ts -> record/monitor/signalBus (static)",
-    "hooks/useHostSync.ts -> record/types (type)",
+    "hooks/useHostSync.ts -> record (static)",
     "hooks/useKeyboardInset.ts -> ui/focusAndReveal (static)",
     "hooks/useOfflineAttentionAnnouncement.ts -> layout/attentionLabel (static)",
     "hooks/useShortTouchScreen.ts -> layout/useCompactInspector (static)",
@@ -304,10 +296,10 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "services -> commands/edit": 2,
   "services -> views": 2,
   "commands/edit -> hooks": 2,
-  "commands/edit -> views": 19,
-  "hooks -> views": 9,
+  "commands/edit -> views": 14,
+  "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 73;
+const ALLOWLIST_SIZE = 65;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

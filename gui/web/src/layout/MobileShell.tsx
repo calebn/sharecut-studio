@@ -24,7 +24,7 @@ import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab } from "../presence/followSync";
 import { PresenceGhostLayer } from "../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../presence/usePresenceCursorSource";
-import { RecordTransportChip } from "../record/RecordTransportChip";
+import { RecordTransportChip } from "../record";
 import {
   canApplyPass12,
   canComment,
