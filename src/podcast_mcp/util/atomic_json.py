@@ -33,13 +33,18 @@ def load_json_object(path: Path) -> dict[str, Any] | None:
 
 def write_json_atomic(
     path: Path,
-    payload: dict[str, Any],
+    payload: dict[str, Any] | list[Any],
     *,
     mode: int | None = None,
     compact: bool = False,
+    ensure_ascii: bool = True,
+    creation_mode: int = 0o600,
 ) -> Path:
-    text = json.dumps(payload, separators=(",", ":")) if compact else json.dumps(payload, indent=2)
-    return write_text_atomic(path, text + "\n", mode=mode)
+    if compact:
+        text = json.dumps(payload, separators=(",", ":"), ensure_ascii=ensure_ascii)
+    else:
+        text = json.dumps(payload, indent=2, ensure_ascii=ensure_ascii)
+    return write_text_atomic(path, text + "\n", mode=mode, creation_mode=creation_mode)
 
 
 def write_text_atomic(

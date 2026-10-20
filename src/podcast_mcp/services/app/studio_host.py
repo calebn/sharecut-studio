@@ -29,7 +29,7 @@ from urllib.parse import quote
 
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import resolve_project_path
-from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 
 log = logging.getLogger(__name__)
 
@@ -132,7 +132,9 @@ def read_studio_host(project_path: Path | str) -> StudioHost | None:
     try:
         if not _owned_privately(path):
             return None
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = load_json_object(path)
+        if raw is None:
+            return None
         host = StudioHost(
             instance=str(raw["instance"]),
             pid=int(raw["pid"]),
