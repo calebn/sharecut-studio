@@ -8,12 +8,40 @@ from podcast_mcp.services.document_sync.errors import names_missing_target
 from podcast_mcp.util.coded_error import CodedValueError
 
 
-@pytest.mark.parametrize(
-    "code",
-    ["pause_edit_missing", "clip_source_missing", "clip_move_invalid"],
-)
-def test_data_inconsistency_codes_are_not_a_missing_target(code: str) -> None:
-    assert not names_missing_target(CodedValueError("x", code=code))
+def test_data_inconsistency_codes_are_not_a_missing_target() -> None:
+    for code in ("pause_edit_missing", "clip_source_missing"):
+        assert not names_missing_target(CodedValueError("x", code=code))
+
+
+def test_a_clip_with_an_unlisted_source_is_a_data_inconsistency_not_a_missing_target() -> None:
+    from podcast_mcp.engines.timeline_render import _source_audio_path
+    from podcast_mcp.models import EpisodeProject, Track, TrackRole
+
+    project = EpisodeProject.create("t", "/tmp/ws")
+    track = Track(id="host", role=TrackRole.DIALOGUE, label="Host")
+    with pytest.raises(CodedValueError) as raised:
+        _source_audio_path(project, track, "ghost", owner="clip c1")
+    assert raised.value.code == "clip_source_missing"
+    assert not names_missing_target(raised.value)
+
+
+def test_caller_actionable_argument_errors_carry_their_own_codes(tmp_path) -> None:
+    from podcast_mcp.edits.conversation_align import acoustic_clip_offset
+    from podcast_mcp.edits.retained_bleed_alignment import plan_retained_bleed_alignment
+    from podcast_mcp.edits.timeline_ops import move_clips
+    from podcast_mcp.models import EpisodeProject
+
+    project = EpisodeProject.create("t", "/tmp/ws")
+    wav = tmp_path / "a.wav"
+    with pytest.raises(CodedValueError) as moves:
+        move_clips(project, ["not an object"])
+    assert moves.value.code == "clip_move_invalid"
+    with pytest.raises(CodedValueError) as starts:
+        acoustic_clip_offset(wav, wav, starts=[1.0, 2.0], source_starts=[1.0])
+    assert starts.value.code == "align_starts_mismatch"
+    with pytest.raises(CodedValueError) as window:
+        plan_retained_bleed_alignment(project, override_placement_lock=True)
+    assert window.value.code == "placement_window_required"
 
 
 def test_a_missing_edit_the_command_names_still_is() -> None:
