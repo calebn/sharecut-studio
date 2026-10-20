@@ -353,6 +353,53 @@ describe("ClipInspector fades", () => {
     expect(screen.getByLabelText("Fade in ms")).toHaveValue(40);
   });
 
+  it("shows a stale refusal after the clip changed underneath and saves a fresh edit", async () => {
+    const old = { ...clip, fade_in_ms: 1 };
+    hydrateClipProject(sampleTrack(), old);
+    let refuse!: (error: Error) => void;
+    vi.mocked(setClipFade).mockImplementationOnce(
+      () =>
+        new Promise<null>((_resolve, reject) => {
+          refuse = reject;
+        }),
+    );
+    const view = render(<ClipInspector clip={old} />);
+    await applyFade("out", 1);
+    expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep.json", "c1", 1, 1, {
+      fade_in_ms: 1,
+      fade_out_ms: 0,
+    });
+    const current = useDawStore.getState().project;
+    if (!current) throw new Error("expected hydrated project");
+    act(() =>
+      useDawStore.setState({
+        project: {
+          ...current,
+          clips: { ...current.clips, tracks: { host: [clip] } },
+        },
+      }),
+    );
+    view.rerender(<ClipInspector clip={clip} />);
+    await act(async () =>
+      refuse(
+        new Error(
+          "This clip changed. Nothing was saved. Adjust the fade again.",
+        ),
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Adjust the fade again.",
+    );
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue(0);
+    expect(screen.getByLabelText("Fade out ms")).toHaveValue(1);
+    fireEvent.click(screen.getByRole("button", { name: "Apply fade out" }));
+    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(2));
+    expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep.json", "c1", 0, 1, {
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+    });
+  });
+
   it("drops a typed length when the saved one changes underneath it", () => {
     hydrateClipProject(sampleTrack());
     const view = render(<ClipInspector clip={clip} />);
