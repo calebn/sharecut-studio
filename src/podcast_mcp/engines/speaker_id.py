@@ -427,7 +427,10 @@ def _drop_superseded_profiles(current: Path, profile: SpeakerProfile) -> None:
         except (OSError, ValueError, KeyError, TypeError):
             continue
         if old.speaker_id == profile.speaker_id and old.track_id == profile.track_id:
-            f.unlink(missing_ok=True)
+            try:
+                f.unlink(missing_ok=True)
+            except OSError:
+                log.warning("could not remove superseded speaker profile %s", f)
 
 
 def enroll_track(

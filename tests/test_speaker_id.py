@@ -1423,3 +1423,17 @@ def test_save_profile_ignores_unreadable_siblings(tmp_path, sample_wav) -> None:
     new = _save_profile(project, _profile("host", "host", "bbbb2222"), "bbbb2222")
     assert broken.exists()
     assert new.exists()
+
+
+def test_save_profile_survives_a_stale_file_that_cannot_be_removed(
+    tmp_path, sample_wav, monkeypatch
+) -> None:
+    project = _two_track_project(tmp_path, sample_wav)
+    _save_profile(project, _profile("host", "host", "aaaa1111"), "aaaa1111")
+
+    def locked(self, missing_ok=False):
+        raise PermissionError("in use")
+
+    monkeypatch.setattr(Path, "unlink", locked)
+    new = _save_profile(project, _profile("host", "host", "bbbb2222"), "bbbb2222")
+    assert new.exists()
