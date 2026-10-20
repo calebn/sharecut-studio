@@ -1,17 +1,15 @@
 /** Raw document-command HTTP transport; queue policy belongs to commandQueue. */
-import { authHeaders } from "../sessionAuth";
-import { reviewApiBase } from "../shareMode";
+import { shareProjectKey } from "../shareMode";
 import { withAbortTimeout } from "../utils/abortTimeout";
 import { type ApiError, readApiFailure } from "../utils/apiError";
+import { apiSend, HOST_KEY } from "./http";
 
-export async function hostFetch(
+/** A host request whose caller reads the status itself; others use `apiFetch`. */
+export function hostFetch(
   input: string,
   init?: RequestInit,
 ): Promise<Response> {
-  return fetch(input, {
-    ...init,
-    headers: authHeaders(init?.headers),
-  });
+  return apiSend(HOST_KEY, { host: input }, init);
 }
 
 /**
@@ -77,12 +75,16 @@ export function postGuestDocumentCommand(
 ): Promise<DocumentCommandReply> {
   return postDocumentCommand(
     (signal) =>
-      fetch(`${reviewApiBase(token)}/daw/document/command`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal,
-      }),
+      apiSend(
+        shareProjectKey(token),
+        { guest: "/daw/document/command" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal,
+        },
+      ),
     commandTimeoutMs(body),
   );
 }

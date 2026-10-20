@@ -1,15 +1,11 @@
 import { hostFetch } from "../api/documentTransport";
+import { apiSend } from "../api/http";
 import { rangeIsCurrent, rangeTargetsEqual } from "../edit/rangeSelection";
-import {
-  hasShareCapability,
-  isShareProjectKey,
-  reviewApiBase,
-  shareTokenFromKey,
-} from "../shareMode";
+import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { DawStore } from "../state/types";
 import type { PendingEditView, ProjectView } from "../types/project";
-import { errorMessage, readApiError } from "../utils/apiError";
+import { errorMessage, readApiFailure } from "../utils/apiError";
 import type { PreviewMode } from "../utils/playRange";
 import { parseWavHeader, wavDurationSec } from "./wavHeader";
 
@@ -188,15 +184,23 @@ export async function playPendingPreview(
   active = request;
   try {
     const query = new URLSearchParams({ edit_id: editId, mode });
-    const guest = isShareProjectKey(projectPath);
-    if (!guest) query.set("path", projectPath);
-    const endpoint = guest
-      ? `${reviewApiBase(shareTokenFromKey(projectPath)!)}/daw/pending-preview`
-      : "/api/pending-preview";
-    const response = await (guest ? fetch : hostFetch)(`${endpoint}?${query}`, {
-      signal: request.controller.signal,
-    });
-    if (!response.ok) throw new Error(await readApiError(response));
+    const hostQuery = (q: URLSearchParams, path: string) => {
+      const withPath = new URLSearchParams(q);
+      withPath.set("path", path);
+      return withPath;
+    };
+    const init = { signal: request.controller.signal };
+    const response = isShareProjectKey(projectPath)
+      ? await apiSend(
+          projectPath,
+          { guest: `/daw/pending-preview?${query}` },
+          init,
+        )
+      : await hostFetch(
+          `/api/pending-preview?${hostQuery(query, projectPath)}`,
+          init,
+        );
+    if (!response.ok) throw await readApiFailure(response);
     const blob = await response.blob();
     const durationSec = wavDurationSec(
       parseWavHeader(await blob.arrayBuffer()),

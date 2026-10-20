@@ -1,7 +1,6 @@
-import { hostFetch } from "../api/documentTransport";
 import type { PipelineComponentStatus } from "../types/pipeline";
-import { readApiError } from "../utils/apiError";
 import { isTerminalJobStatus } from "../utils/pipeline";
+import { apiFetch, HOST_KEY } from "./http";
 import { startJobStatusRecheck } from "./pipeline";
 
 /** Bootstrap status adds first-run / source detail on top of the shared component status. */
@@ -54,10 +53,9 @@ export async function fetchBootstrapStatus(
     whisperModel != null && whisperModel !== ""
       ? `?whisper_model=${encodeURIComponent(whisperModel)}`
       : "";
-  const res = await hostFetch(`/api/bootstrap/status${query}`);
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(HOST_KEY, {
+    host: `/api/bootstrap/status${query}`,
+  });
   return (await res.json()) as BootstrapStatus;
 }
 
@@ -66,18 +64,19 @@ export async function runBootstrap(opts?: {
   whisper_model?: string;
   force?: boolean;
 }): Promise<{ job: BootstrapJobSnapshot }> {
-  const res = await hostFetch("/api/bootstrap/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      components: opts?.components ?? null,
-      whisper_model: opts?.whisper_model ?? null,
-      force: opts?.force ?? false,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/bootstrap/run" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        components: opts?.components ?? null,
+        whisper_model: opts?.whisper_model ?? null,
+        force: opts?.force ?? false,
+      }),
+    },
+  );
   return (await res.json()) as { job: BootstrapJobSnapshot };
 }
 
@@ -97,10 +96,7 @@ export type DistributionMetadata = {
 };
 
 export async function fetchDiagnosticsMeta(): Promise<DistributionMetadata> {
-  const res = await hostFetch("/api/diagnostics");
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(HOST_KEY, { host: "/api/diagnostics" });
   return res.json() as Promise<DistributionMetadata>;
 }
 
@@ -119,22 +115,24 @@ export async function submitDiagnosticsReport(input: {
   description: string;
   consent: boolean;
 }): Promise<{ status: string; status_url: string }> {
-  const res = await hostFetch("/api/diagnostics/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) throw new Error(await readApiError(res));
+  const res = await apiFetch(
+    "",
+    { host: "/api/diagnostics/submit" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
   return res.json() as Promise<{ status: string; status_url: string }>;
 }
 
 export async function fetchDiagnosticsReportStatus(
   url: string,
 ): Promise<{ status: string; issue_url: string | null }> {
-  const res = await hostFetch(
-    `/api/diagnostics/report-status?url=${encodeURIComponent(url)}`,
-  );
-  if (!res.ok) throw new Error(await readApiError(res));
+  const res = await apiFetch("", {
+    host: `/api/diagnostics/report-status?url=${encodeURIComponent(url)}`,
+  });
   return res.json() as Promise<{ status: string; issue_url: string | null }>;
 }
 
@@ -142,29 +140,27 @@ export async function createDiagnosticsBundle(opts?: {
   outDir?: string;
   path?: string;
 }): Promise<DiagnosticsBundleResult> {
-  const res = await hostFetch("/api/diagnostics/bundle", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      out_dir: opts?.outDir ?? null,
-      path: opts?.path ?? null,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/diagnostics/bundle" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        out_dir: opts?.outDir ?? null,
+        path: opts?.path ?? null,
+      }),
+    },
+  );
   return res.json() as Promise<DiagnosticsBundleResult>;
 }
 
 export async function fetchBootstrapJob(
   jobId: string,
 ): Promise<BootstrapJobSnapshot | null> {
-  const res = await hostFetch(
-    `/api/bootstrap/status-job?job_id=${encodeURIComponent(jobId)}`,
-  );
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(HOST_KEY, {
+    host: `/api/bootstrap/status-job?job_id=${encodeURIComponent(jobId)}`,
+  });
   const body = (await res.json()) as { job?: BootstrapJobSnapshot | null };
   return body.job ?? null;
 }

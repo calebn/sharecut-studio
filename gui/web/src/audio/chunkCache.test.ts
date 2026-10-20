@@ -25,7 +25,9 @@ for (const cacheAvailable of [false, true]) {
             }),
         ),
       );
-      await expect(cachedFetchArrayBuffer("/chunk")).rejects.toMatchObject({
+      await expect(
+        cachedFetchArrayBuffer("share:t", "/chunk"),
+      ).rejects.toMatchObject({
         name: "ApiError",
         code: "proxy_generation_unavailable",
         status: 404,
@@ -43,7 +45,7 @@ for (const cacheAvailable of [false, true]) {
         "fetch",
         vi.fn(async () => new Response("No chunk", { status: 404 })),
       );
-      const error = await cachedFetchArrayBuffer("/chunk").catch(
+      const error = await cachedFetchArrayBuffer("share:t", "/chunk").catch(
         (error: unknown) => error,
       );
       expect(error).toBeInstanceOf(ApiError);

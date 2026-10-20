@@ -1,6 +1,8 @@
 /** Sharecut Studio Extensions — feature manifest from GET /api/features (absent = no render). */
 
-import { parseShareRoute, recordApiBase, reviewApiBase } from "../shareRoute";
+import { apiSend, HOST_KEY, recordProjectKey } from "../api/http";
+import { shareProjectKey } from "../shareMode";
+import { parseShareRoute } from "../shareRoute";
 
 export type FeaturesManifest = {
   api_version: number;
@@ -56,7 +58,6 @@ export function reviewTokenFromPathname(
 }
 
 export async function fetchFeatures(
-  fetcher: typeof fetch = fetch,
   pathname?: string,
 ): Promise<FeaturesManifest> {
   if (cached) {
@@ -75,11 +76,12 @@ export async function fetchFeatures(
         // Prefer share-scoped features when the host exposes them; fall back to
         // guest defaults so relay guests are not stuck on a 404 /api/features.
         try {
-          const featuresUrl =
+          const scoped = await apiSend(
             route.kind === "record"
-              ? `${recordApiBase(route.token)}/features`
-              : `${reviewApiBase(route.token)}/features`;
-          const scoped = await fetcher(featuresUrl);
+              ? recordProjectKey(route.token)
+              : shareProjectKey(route.token),
+            { guest: "/features" },
+          );
           if (scoped.ok) {
             const data = (await scoped.json()) as FeaturesManifest;
             cached = {
@@ -96,7 +98,7 @@ export async function fetchFeatures(
         cached = GUEST_SHARE_FEATURES;
         return cached;
       }
-      const res = await fetcher("/api/features");
+      const res = await apiSend(HOST_KEY, { host: "/api/features" });
       if (!res.ok) {
         // Transient failure — do not cache empty or guests stick on "extension not loaded".
         return EMPTY;

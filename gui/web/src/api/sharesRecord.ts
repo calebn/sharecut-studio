@@ -10,7 +10,8 @@ import type {
   HostSharesResponse,
   ShareRole,
 } from "../types/shares";
-import { readApiError, readApiFailure } from "../utils/apiError";
+import { readApiFailure } from "../utils/apiError";
+import { apiFetch, HOST_KEY } from "./http";
 
 export async function listHostShares(
   projectPath: string,
@@ -18,12 +19,9 @@ export async function listHostShares(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/shares?path=${encodeURIComponent(projectPath)}`,
-  );
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(HOST_KEY, {
+    host: `/api/shares?path=${encodeURIComponent(projectPath)}`,
+  });
   return res.json() as Promise<HostSharesResponse>;
 }
 
@@ -38,14 +36,15 @@ export async function createHostShare(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
-  const res = await hostFetch("/api/shares", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, ...body }),
-  });
-  if (!res.ok) {
-    throw await readApiFailure(res);
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/shares" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, ...body }),
+    },
+  );
   const data = (await res.json()) as { share: HostShareRow };
   return data.share;
 }
@@ -57,17 +56,15 @@ export async function revokeHostShare(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/shares/${encodeURIComponent(shareToken)}/revoke`,
+  await apiFetch(
+    HOST_KEY,
+    { host: `/api/shares/${encodeURIComponent(shareToken)}/revoke` },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: projectPath }),
     },
   );
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
 }
 
 export async function createHostRecordRoom(
@@ -77,17 +74,18 @@ export async function createHostRecordRoom(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
-  const res = await hostFetch("/api/shares/record", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: projectPath,
-      expires_at: expiresAt ?? null,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/shares/record" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: projectPath,
+        expires_at: expiresAt ?? null,
+      }),
+    },
+  );
   const data = (await res.json()) as { room: HostRecordRoom };
   return data.room;
 }
@@ -99,17 +97,15 @@ export async function replaceHostRecordInvite(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/shares/record/${encodeURIComponent(sourceToken)}/replace`,
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/shares/record/${encodeURIComponent(sourceToken)}/replace` },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: projectPath }),
     },
   );
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
   const data = (await res.json()) as { share: HostShareRow };
   return data.share;
 }
@@ -127,7 +123,7 @@ export async function loadHostRecordState(
     return null;
   }
   if (!res.ok) {
-    throw new Error(await readApiError(res));
+    throw await readApiFailure(res);
   }
   return res.json() as Promise<import("../record/types").RecordSnapshot>;
 }
@@ -140,18 +136,19 @@ export async function postHostRecordCommand(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Record transport is host-only");
   }
-  const res = await hostFetch("/api/record/command", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: projectPath,
-      command_type: commandType,
-      payload,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/record/command" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: projectPath,
+        command_type: commandType,
+        payload,
+      }),
+    },
+  );
   return res.json() as Promise<import("../record/types").RecordSnapshot>;
 }
 
@@ -160,13 +157,11 @@ export function hostRecordUploadTransport(
 ): import("../record/upload/transport").RecordUploadTransport {
   return {
     async status(signal) {
-      const res = await hostFetch(
-        `/api/record/upload?path=${encodeURIComponent(projectPath)}`,
+      const res = await apiFetch(
+        HOST_KEY,
+        { host: `/api/record/upload?path=${encodeURIComponent(projectPath)}` },
         { signal },
       );
-      if (!res.ok) {
-        throw new Error(await readApiError(res));
-      }
       return res.json();
     },
     async put(args) {
@@ -174,14 +169,15 @@ export function hostRecordUploadTransport(
         ...args,
         extra: { path: projectPath },
       });
-      const res = await hostFetch(`/api/record/upload?${q.toString()}`, {
-        method: "POST",
-        body: copyUploadBody(args.data),
-        signal: args.signal,
-      });
-      if (!res.ok) {
-        throw new Error(await readApiError(res));
-      }
+      const res = await apiFetch(
+        HOST_KEY,
+        { host: `/api/record/upload?${q.toString()}` },
+        {
+          method: "POST",
+          body: copyUploadBody(args.data),
+          signal: args.signal,
+        },
+      );
       return res.json();
     },
     async revokeRoomTone(signal) {
@@ -189,13 +185,14 @@ export function hostRecordUploadTransport(
         path: projectPath,
         kind: "room_tone",
       });
-      const res = await hostFetch(`/api/record/upload?${q.toString()}`, {
-        method: "DELETE",
-        signal,
-      });
-      if (!res.ok) {
-        throw new Error(await readApiError(res));
-      }
+      await apiFetch(
+        HOST_KEY,
+        { host: `/api/record/upload?${q.toString()}` },
+        {
+          method: "DELETE",
+          signal,
+        },
+      );
     },
   };
 }
@@ -203,13 +200,11 @@ export function hostRecordUploadTransport(
 export async function hostLandRecord(
   projectPath: string,
 ): Promise<{ clips: unknown[]; align_fallback?: boolean }> {
-  const res = await hostFetch(
-    `/api/record/land?path=${encodeURIComponent(projectPath)}`,
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/record/land?path=${encodeURIComponent(projectPath)}` },
     { method: "POST" },
   );
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
   return res.json();
 }
 
@@ -220,15 +215,13 @@ export async function revokeHostRoom(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/shares/rooms/${encodeURIComponent(sessionId)}/revoke`,
+  await apiFetch(
+    HOST_KEY,
+    { host: `/api/shares/rooms/${encodeURIComponent(sessionId)}/revoke` },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: projectPath }),
     },
   );
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
 }

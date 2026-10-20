@@ -1,13 +1,10 @@
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { withSessionTokenQuery } from "../sessionAuth";
-import {
-  isShareProjectKey,
-  reviewApiBase,
-  shareTokenFromKey,
-} from "../shareMode";
+import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { withAbortTimeout } from "../utils/abortTimeout";
-import { ApiError, readApiError, readApiFailure } from "../utils/apiError";
+import { ApiError, readApiFailure } from "../utils/apiError";
 import { DOCUMENT_COMMAND_TIMEOUT_MS, hostFetch } from "./documentTransport";
+import { apiFetch, NETWORK_ERROR_CODE } from "./http";
 
 export type BoundaryTarget =
   | { kind: "roll"; left_clip_id: string; right_clip_id: string }
@@ -233,43 +230,38 @@ export async function loadBoundaryContext(
   signal?: AbortSignal,
   timeoutMessage = "The server didn't answer. Nothing was saved.",
 ): Promise<BoundaryContext> {
-  const guestToken = shareTokenFromKey(path);
-  const url = guestToken
-    ? `${reviewApiBase(guestToken)}/daw/boundary/context`
-    : "/api/boundary/context";
-  if (isShareProjectKey(path) && !guestToken)
+  if (isShareProjectKey(path) && !shareTokenFromKey(path))
     throw new Error("Invalid guest boundary project key");
   return withAbortTimeout(
     DOCUMENT_COMMAND_TIMEOUT_MS,
     timeoutMessage,
     async (requestSignal) => {
       let body: unknown;
-      let response: Response | null = null;
       try {
-        response = await (guestToken ? fetch : hostFetch)(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...(guestToken ? {} : { path }),
-            target,
-            expected_geometry: expectedGeometry,
-          }),
-          signal: requestSignal,
-        });
-        if (!response.ok) throw await readApiFailure(response);
+        const response = await apiFetch(
+          path,
+          { host: "/api/boundary/context", guest: "/daw/boundary/context" },
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(isShareProjectKey(path) ? {} : { path }),
+              target,
+              expected_geometry: expectedGeometry,
+            }),
+            signal: requestSignal,
+          },
+        );
         body = await response.json();
       } catch (error) {
-        if (error instanceof TypeError && !requestSignal.aborted) {
-          if (response && !response.ok) {
-            throw new ApiError(
-              `Request failed (${response.status})`,
-              response.headers.get("X-Sharecut-Error-Code"),
-              response.status,
-            );
-          }
+        if (
+          (error instanceof TypeError ||
+            (error instanceof ApiError && error.code === NETWORK_ERROR_CODE)) &&
+          !requestSignal.aborted
+        ) {
           throw new ApiError(
             "The boundary couldn't load. Check your connection and try again.",
-            "network_error",
+            NETWORK_ERROR_CODE,
           );
         }
         throw error;
@@ -303,8 +295,12 @@ export async function auditionBoundary(
     signal,
   });
   if (!response.ok) {
-    const message = await readApiError(response);
-    throw new Error(`${response.status} ${message}`);
+    const failure = await readApiFailure(response);
+    throw new ApiError(
+      `${response.status} ${failure.message}`,
+      failure.code,
+      failure.status,
+    );
   }
   const audition = parseAudition((await response.json()) as unknown);
   if (!sameTarget(audition.actual_edit, target))

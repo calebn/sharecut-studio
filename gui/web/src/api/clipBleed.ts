@@ -5,9 +5,8 @@ import type {
 } from "../edit/bleedAttenuation";
 import { isShareProjectKey } from "../shareMode";
 import type { HistoryEntryId } from "../types/project";
-import { readApiFailure } from "../utils/apiError";
 import { replyHistoryHead, submitDocumentCommand } from "./documentEdits";
-import { hostFetch } from "./documentTransport";
+import { apiFetch } from "./http";
 
 declare const restoreTargetBrand: unique symbol;
 
@@ -217,11 +216,11 @@ export async function loadClipBleedInspection(
     path: request.projectPath,
     track_id: request.trackId,
   });
-  const response = await hostFetch(
-    `/api/clips/${encodeURIComponent(request.clipId)}/bleed?${query}`,
+  const response = await apiFetch(
+    "",
+    { host: `/api/clips/${encodeURIComponent(request.clipId)}/bleed?${query}` },
     { signal },
   );
-  if (!response.ok) throw await readApiFailure(response);
   const value: unknown = await response.json();
   return parseInspection(value, request);
 }

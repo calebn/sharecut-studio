@@ -1,5 +1,4 @@
-import { recordApiBase } from "../shareRoute";
-import { readApiError } from "../utils/apiError";
+import { apiFetch, recordProjectKey } from "../api/http";
 
 export type RecordBootstrap = {
   mode: "record";
@@ -18,9 +17,10 @@ export async function loadRecordBootstrap(
   token: string,
   signal?: AbortSignal,
 ): Promise<RecordBootstrap> {
-  const res = await fetch(`${recordApiBase(token)}/bootstrap`, { signal });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    recordProjectKey(token),
+    { guest: "/bootstrap" },
+    { signal },
+  );
   return res.json() as Promise<RecordBootstrap>;
 }

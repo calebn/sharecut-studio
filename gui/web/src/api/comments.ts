@@ -3,13 +3,10 @@ import {
   mergeReturnedComment,
 } from "../document/applyDocumentUpdate";
 import { commentFromCommandResult } from "../document/projectPatch";
-import {
-  isShareProjectKey,
-  reviewApiBase,
-  shareTokenFromKey,
-} from "../shareMode";
+import { isShareProjectKey } from "../shareMode";
 import type { TimelineComment } from "../types/project";
 import { submitDocumentCommand } from "./documentEdits";
+import { apiFetch } from "./http";
 
 export async function createComment(
   projectPath: string,
@@ -25,23 +22,23 @@ export async function createComment(
   },
 ): Promise<TimelineComment | null> {
   if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(`${reviewApiBase(token)}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        body: opts.body,
-        author: opts.author,
-        timeline_start: opts.timelineStart,
-        timeline_end: opts.timelineEnd ?? null,
-        edit_decision_id: opts.editDecisionId ?? null,
-        track_ids: opts.trackIds ?? [],
-        timeline_spans: opts.timelineSpans ?? null,
-      }),
-    });
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
+    const res = await apiFetch(
+      projectPath,
+      { guest: "/comments" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: opts.body,
+          author: opts.author,
+          timeline_start: opts.timelineStart,
+          timeline_end: opts.timelineEnd ?? null,
+          edit_decision_id: opts.editDecisionId ?? null,
+          track_ids: opts.trackIds ?? [],
+          timeline_spans: opts.timelineSpans ?? null,
+        }),
+      },
+    );
     const data = (await res.json()) as { comment: TimelineComment };
     mergeReturnedComment(data.comment);
     return data.comment;
@@ -102,9 +99,11 @@ export async function setCommentActionDone(
   opts: { done: boolean; by: string },
 ): Promise<void> {
   if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(
-      `${reviewApiBase(token)}/comments/${encodeURIComponent(commentId)}/actions/${encodeURIComponent(actionId)}/done`,
+    await apiFetch(
+      projectPath,
+      {
+        guest: `/comments/${encodeURIComponent(commentId)}/actions/${encodeURIComponent(actionId)}/done`,
+      },
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -114,9 +113,6 @@ export async function setCommentActionDone(
         }),
       },
     );
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
     mergeGuestActionDone(commentId, actionId, opts.done);
     return;
   }
@@ -134,9 +130,9 @@ export async function addCommentReply(
   opts: { body: string; author: string },
 ): Promise<void> {
   if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(
-      `${reviewApiBase(token)}/comments/${encodeURIComponent(commentId)}/replies`,
+    await apiFetch(
+      projectPath,
+      { guest: `/comments/${encodeURIComponent(commentId)}/replies` },
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -146,9 +142,6 @@ export async function addCommentReply(
         }),
       },
     );
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
     return;
   }
   await submitDocumentCommand(projectPath, "AddReply", {

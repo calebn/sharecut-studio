@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startSplitSpeakersJob } from "./speakerSplit";
 
 const hostFetch = vi.fn();
-vi.mock("../api/documentTransport", () => ({
-  hostFetch: (...args: unknown[]) => hostFetch(...args),
-}));
 
 describe("startSplitSpeakersJob", () => {
-  beforeEach(() => hostFetch.mockReset());
+  beforeEach(() => {
+    hostFetch.mockReset();
+    vi.stubGlobal("fetch", hostFetch);
+  });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("posts the count and names for the track and returns the job", async () => {
     const job = { id: "s1", kind: "split_speakers" };

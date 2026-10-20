@@ -1,7 +1,6 @@
-import { hostFetch } from "../api/documentTransport";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ExactRangeTarget } from "../types/project";
-import { readApiError } from "../utils/apiError";
+import { apiFetch, HOST_KEY } from "./http";
 import { followExportJob } from "./pipeline";
 
 export async function bounceAudio(
@@ -29,14 +28,15 @@ export async function startBounceJob(
     formats?: string[] | null;
   },
 ): Promise<PipelineJobSnapshot> {
-  const res = await hostFetch("/api/export/bounce", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, ...body }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/export/bounce" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, ...body }),
+    },
+  );
   const data = (await res.json()) as {
     job?: PipelineJobSnapshot;
     job_id?: string;
@@ -75,14 +75,15 @@ export async function startExportJob(
   projectPath: string,
   formats?: Record<string, unknown>[] | null,
 ): Promise<PipelineJobSnapshot> {
-  const res = await hostFetch("/api/export/deliverables", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, formats: formats ?? null }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/export/deliverables" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, formats: formats ?? null }),
+    },
+  );
   const data = (await res.json()) as {
     job?: PipelineJobSnapshot;
     job_id?: string;

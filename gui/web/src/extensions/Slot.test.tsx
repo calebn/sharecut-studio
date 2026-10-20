@@ -11,6 +11,7 @@ import {
 import { Slot } from "./Slot";
 
 beforeEach(() => {
+  vi.unstubAllGlobals();
   resetFeaturesCache();
 });
 
@@ -82,10 +83,11 @@ describe("extensions features", () => {
           features: [FEATURE_SHARE_UI_MENU],
         }),
       });
-    const first = await fetchFeatures(fetchMock);
+    vi.stubGlobal("fetch", fetchMock);
+    const first = await fetchFeatures();
     expect(first.features).toEqual([]);
     expect(peekCachedFeatures()).toBeNull();
-    const second = await fetchFeatures(fetchMock);
+    const second = await fetchFeatures();
     expect(second.features).toEqual([FEATURE_SHARE_UI_MENU]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -98,21 +100,21 @@ describe("extensions features", () => {
         features: [FEATURE_SHARE_UI_MENU, "share.ui.routes"],
       }),
     });
-    const manifest = await fetchFeatures(
-      fetchMock,
-      "/r/ambrosial-valiant-numbat",
-    );
+    vi.stubGlobal("fetch", fetchMock);
+    const manifest = await fetchFeatures("/r/ambrosial-valiant-numbat");
     expect(manifest.features).toContain("share.ui.routes");
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock.mock.calls.map(([input]) => input)).toEqual([
       "/api/review/ambrosial-valiant-numbat/features",
-    );
+    ]);
   });
 
   it("falls back to guest share defaults when scoped features 404", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
-    const manifest = await fetchFeatures(fetchMock, "/r/cool-token");
+    vi.stubGlobal("fetch", fetchMock);
+    const manifest = await fetchFeatures("/r/cool-token");
     expect(manifest.features).toContain("share.ui.routes");
-    expect(fetchMock).toHaveBeenCalledWith("/api/review/cool-token/features");
-    expect(fetchMock).not.toHaveBeenCalledWith("/api/features");
+    expect(fetchMock.mock.calls.map(([input]) => input)).toEqual([
+      "/api/review/cool-token/features",
+    ]);
   });
 });

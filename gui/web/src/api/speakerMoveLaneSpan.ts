@@ -1,5 +1,4 @@
-import { hostFetch } from "../api/documentTransport";
-import { readApiFailure } from "../utils/apiError";
+import { apiFetch } from "./http";
 
 export type MoveSpeakerLaneSpanRequest = {
   fromLane: string;
@@ -21,17 +20,20 @@ export async function moveSpeakerLaneSpan(
   projectPath: string,
   request: MoveSpeakerLaneSpanRequest,
 ): Promise<MoveSpeakerLaneSpanResult> {
-  const res = await hostFetch("/api/speaker/move-lane-span", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: projectPath,
-      from_lane: request.fromLane,
-      to_lane: request.toLane,
-      timeline_start: request.timelineStart,
-      timeline_end: request.timelineEnd,
-    }),
-  });
-  if (!res.ok) throw await readApiFailure(res);
+  const res = await apiFetch(
+    "",
+    { host: "/api/speaker/move-lane-span" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: projectPath,
+        from_lane: request.fromLane,
+        to_lane: request.toLane,
+        timeline_start: request.timelineStart,
+        timeline_end: request.timelineEnd,
+      }),
+    },
+  );
   return (await res.json()) as MoveSpeakerLaneSpanResult;
 }

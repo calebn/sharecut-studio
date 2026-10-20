@@ -1,4 +1,3 @@
-import { hostFetch } from "../api/documentTransport";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import {
   activateDocumentScope,
@@ -12,11 +11,7 @@ import {
   submitLiveHistoryCommand,
   submitQueuedDocumentCommand,
 } from "../services/commandQueue";
-import {
-  isShareProjectKey,
-  reviewApiBase,
-  shareTokenFromKey,
-} from "../shareMode";
+import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
   type OfflineConflict,
@@ -29,9 +24,10 @@ import {
   type PendingEditView,
   parseHistoryEntryId,
 } from "../types/project";
-import { ApiError, readApiError } from "../utils/apiError";
+import { ApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { type HeldCut, type ReviewOutcome } from "../utils/pendingReviewPass";
+import { apiFetch, HOST_KEY } from "./http";
 import { loadDocumentState } from "./project";
 
 /** Wire shape for a guarded transcript command's optional stale-text guard. */
@@ -154,14 +150,15 @@ export async function waiveTranscriptRefine(
   projectPath: string,
   reason: string,
 ): Promise<void> {
-  const res = await hostFetch("/api/transcript/refine/waive", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, reason }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  await apiFetch(
+    HOST_KEY,
+    { host: "/api/transcript/refine/waive" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, reason }),
+    },
+  );
 }
 
 export interface SuggestedActionsOutcome {
@@ -324,18 +321,18 @@ export async function loadPendingCutSuggestion(
   signal: AbortSignal,
 ): Promise<PendingCutProposal> {
   const { projectPath, edit } = request;
-  const guestToken = shareTokenFromKey(projectPath);
-  if (isShareProjectKey(projectPath) && !guestToken) {
+  if (isShareProjectKey(projectPath) && !shareTokenFromKey(projectPath)) {
     throw new Error("Invalid guest cut suggestion project key");
   }
   const endpoint = `/pending-edits/${encodeURIComponent(edit.id)}/cut-suggestion`;
-  const url = guestToken
-    ? `${reviewApiBase(guestToken)}/daw${endpoint}`
-    : `/api${endpoint}?${new URLSearchParams({ path: projectPath })}`;
-  const response = await (guestToken ? fetch : hostFetch)(url, { signal });
-  if (!response.ok) {
-    throw new Error(await readApiError(response));
-  }
+  const response = await apiFetch(
+    projectPath,
+    {
+      host: `/api${endpoint}?${new URLSearchParams({ path: projectPath })}`,
+      guest: `/daw${endpoint}`,
+    },
+    { signal },
+  );
   const value: unknown = await response.json();
   return parsePendingCutSuggestion(value, edit);
 }
