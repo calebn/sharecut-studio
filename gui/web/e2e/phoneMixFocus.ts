@@ -6,7 +6,7 @@ async function openMixAfterKeyboardFocus(page: Page) {
   const nav = page.getByRole("navigation", { name: "Primary" });
   await nav.getByRole("button", { name: "More", exact: true }).click();
   const search = page.getByRole("button", {
-    name: "Search commands",
+    name: "Commands and shortcuts",
     exact: true,
   });
   await search.focus();
