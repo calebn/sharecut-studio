@@ -124,6 +124,7 @@ for (const delivery of ["409", "abort-replay"] as const)
         await expectFeedback(
           page,
           /Clip edit failed:.*Lifecycle audit refused fade/,
+          { superseded: true },
         );
         expect(snapshot(p)).toEqual(origin);
         expect(await hostOfflineQueueCount(page, p)).toBe(0);

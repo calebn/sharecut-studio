@@ -186,6 +186,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       target.focus({ preventScroll: true });
   });
 
+  useLayoutEffect(() => {
+    const target = toast?.returnFocus?.() ?? null;
+    if (target) returnFocusRef.current = target;
+  }, [toast]);
+
   useEffect(() => {
     if (toast?.undo && undoEntry == null) {
       useDawStore.getState().dropFeedbackUndo(toast.id);
@@ -210,11 +215,16 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     }
   };
 
-  const reverse = async ({ run, done }: ReverseAction) => {
+  const reverse = async (
+    { run, done }: ReverseAction,
+    returnFocus: (() => HTMLElement | null) | null,
+  ) => {
     setUndoing(true);
     try {
-      if (await run()) useDawStore.getState().announceStatus(done);
-      else
+      if (await run()) {
+        useDawStore.getState().announceStatus(done);
+        returnFocus?.()?.focus({ preventScroll: true });
+      } else
         useDawStore
           .getState()
           .announceStatus(
@@ -237,7 +247,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     toast && undoEntry
       ? () => void undo(toast.message, undoEntry)
       : reversal
-        ? () => void reverse(reversal)
+        ? () => void reverse(reversal, toast?.returnFocus ?? null)
         : undefined;
 
   return createPortal(
@@ -251,7 +261,10 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       returnFocusRef={returnFocusRef}
       toast={toast}
       onDismiss={() => {
-        if (toast) useDawStore.getState().dismissFeedbackToast(toast.id);
+        if (!toast) return;
+        const held = portal.contains(document.activeElement);
+        useDawStore.getState().dismissFeedbackToast(toast.id);
+        if (held) toast.returnFocus?.()?.focus({ preventScroll: true });
       }}
       onUndo={onUndo}
       undoDisabledReason={undoing ? BUSY_REASON : undefined}

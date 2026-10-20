@@ -1,49 +1,35 @@
 import fs from "node:fs";
-import {
-  expect,
-  type Locator,
-  type Page,
-  type TestInfo,
-} from "@playwright/test";
+import { expect, type Page, type TestInfo } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { withShareableProject } from "./shareableProject";
 import { setTheme, type Theme } from "./theme";
 
-async function expectReachableToast(panel: Locator): Promise<void> {
+/** The app toast and both its buttons sit inside the viewport and take the pointer. */
+async function expectReachableToast(page: Page): Promise<void> {
   await expect(async () => {
-    const geometry = await panel.evaluate((element) => {
-      const panel = element.getBoundingClientRect();
-      const visible = {
-        left: Math.max(0, panel.left + element.clientLeft),
-        top: Math.max(0, panel.top + element.clientTop),
-        right: Math.min(
-          innerWidth,
-          panel.left + element.clientLeft + element.clientWidth,
+    const geometry = await page.evaluate(() => {
+      const controls = [
+        ...document.querySelectorAll(
+          ".ui-toast-region--app .ui-toast, .ui-toast-region--app .ui-toast button",
         ),
-        bottom: Math.min(
-          innerHeight,
-          panel.top + element.clientTop + element.clientHeight,
-        ),
-      };
-      return [...element.querySelectorAll(".ui-toast, .ui-toast button")].map(
-        (control) => {
-          const rect = control.getBoundingClientRect();
-          const hit = document.elementFromPoint(
-            rect.left + rect.width / 2,
-            rect.top + rect.height / 2,
-          );
-          return {
-            name: control.textContent,
-            fits:
-              rect.left >= visible.left - 1 &&
-              rect.right <= visible.right + 1 &&
-              rect.top >= visible.top - 1 &&
-              rect.bottom <= visible.bottom + 1,
-            reachable: hit !== null && control.contains(hit),
-          };
-        },
-      );
+      ];
+      return controls.map((control) => {
+        const rect = control.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        );
+        return {
+          name: control.textContent,
+          fits:
+            rect.left >= -1 &&
+            rect.right <= innerWidth + 1 &&
+            rect.top >= -1 &&
+            rect.bottom <= innerHeight + 1,
+          reachable: hit !== null && control.contains(hit),
+        };
+      });
     });
     expect(geometry).toHaveLength(3);
     for (const control of geometry) {
@@ -101,7 +87,7 @@ export async function exerciseCommentUndo(
     const card = panel
       .locator(".comment-card")
       .filter({ hasText: "Undo regression row 0" });
-    const toast = panel.locator(".ui-toast");
+    const toast = page.locator(".ui-toast-region--app .ui-toast");
     const undo = toast.getByRole("button", { name: "Undo", exact: true });
     const savedResolved = () => {
       const project = JSON.parse(fs.readFileSync(projectPath, "utf8"));
@@ -116,7 +102,7 @@ export async function exerciseCommentUndo(
     await expect(undo).toBeEnabled();
     await undo.focus();
     await expect(undo).toBeFocused();
-    await expectReachableToast(panel);
+    await expectReachableToast(page);
     await expect.poll(savedResolved).toBe(true);
     await page.keyboard.press("Enter");
     await expect(toast).toHaveCount(0);
@@ -168,7 +154,7 @@ export async function exerciseCommentUndo(
       await expect
         .poll(() => panel.evaluate((element) => element.scrollTop))
         .toBe(offset);
-      await expectReachableToast(panel);
+      await expectReachableToast(page);
       observations.push(await observe());
     }
     expect(

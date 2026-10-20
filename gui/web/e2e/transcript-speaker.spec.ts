@@ -118,5 +118,7 @@ test("queued speaker save stays visible and reports pending delivery", async ({
       name: /^Needs attention\. 1 pending(?:,|$)/,
     }),
   ).toBeVisible();
-  await expectFeedback(page, "Track metadata change queued. Still sending.");
+  await expectFeedback(page, "Track metadata change queued. Still sending.", {
+    superseded: true,
+  });
 });

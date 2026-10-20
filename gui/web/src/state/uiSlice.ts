@@ -370,6 +370,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
                   undo: options.undo ?? null,
                   baseHead: s.project?.history?.head_id ?? null,
                   reverse: options.reverse ?? null,
+                  returnFocus: options.returnFocus ?? null,
                   gesture: options.gesture === true,
                 },
               }
