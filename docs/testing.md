@@ -2140,7 +2140,7 @@ Capability → tool matrix and JSON-RPC bridge: `tests/test_remote_mcp.py` (plus
 
 Live host matrix (requires a GUI already running): `scripts/verify_remote_mcp_shares.py` — see [host-online-relay.md](host-online-relay.md) § Manual verification.
 
-Rate limits (host + relay): `tests/test_rate_limit.py`.
+Rate limits (host + relay): `tests/test_rate_limit.py`; `tests/test_limiter_table.py` pins every limiter env name, default and bucket and that both composites are built from their `TABLE`.
 
 ## Lowering the threshold
 
