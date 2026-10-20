@@ -97,6 +97,29 @@ def test_link_global_skills(tmp_path, monkeypatch):
     assert dest.resolve() == skill.resolve()
 
 
+def test_setup_installed_build_without_repo_files(tmp_path, monkeypatch):
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    empty = tmp_path / "site-packages-parent"
+    empty.mkdir()
+    with (
+        patch("podcast_mcp.cli.setup_cmd.repo_root", return_value=empty),
+        patch(
+            "podcast_mcp.cli.setup_cmd.FFmpegEngine.check_available",
+            return_value=(True, "ffmpeg 9.0.2"),
+        ),
+    ):
+        plain = runner.invoke(setup_app, ["setup"])
+        linked = runner.invoke(setup_app, ["setup", "--global-skills"])
+
+    assert plain.exit_code == 0
+    assert '"command": "podcast-mcp"' in plain.output
+    assert "mcp.json" not in plain.output
+    assert linked.exit_code == 1
+    assert "No skills to link" in linked.output
+    assert not (tmp_path / "home" / ".agents").exists()
+
+
 def test_doctor_command():
     result = runner.invoke(setup_app, ["doctor"])
     assert result.exit_code in (0, 1)
