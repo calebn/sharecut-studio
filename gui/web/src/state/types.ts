@@ -228,8 +228,11 @@ export interface DawState {
   /** The one selection: every selected target, one kind. `selection.ts` derives the track and clip sets from it. */
   selection: Selection;
   rangeArmed: boolean;
+  /** The tracks ticked for a range not yet formed; null follows the selection. */
+  rangeScopeTrackIds: readonly string[] | null;
   rangeBusy: boolean;
   setRangeArmed: (armed: boolean) => void;
+  setRangeScopeTrackIds: (trackIds: readonly string[] | null) => void;
   setRangeBusy: (busy: boolean) => void;
   activeTab: DawTab;
   userZoomed: boolean;

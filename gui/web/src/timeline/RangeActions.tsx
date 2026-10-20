@@ -18,14 +18,14 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
     rangeBusy: s.rangeBusy,
     transcriptCorrecting: s.transcriptCorrecting,
     sessionRegion: s.sessionRegion,
-    selectedTrackIds: selectedTrackIdsOf(s.selection),
+    selectedTrackIds: s.rangeScopeTrackIds ?? selectedTrackIdsOf(s.selection),
     projectPath: s.projectPath,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     joinMutationInFlight: s.joinMutationInFlight,
     setSelection: s.setSelection,
     setRangeArmed: s.setRangeArmed,
-    selectTracks: s.selectTracks,
+    setRangeScopeTrackIds: s.setRangeScopeTrackIds,
   }));
   const { project, selection, rangeArmed, sessionRegion, selectedTrackIds } =
     state;
@@ -185,7 +185,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                   type="checkbox"
                   checked={selectedTrackIds.includes(track.id)}
                   onChange={(e) =>
-                    state.selectTracks(
+                    state.setRangeScopeTrackIds(
                       e.target.checked
                         ? [...selectedTrackIds, track.id]
                         : selectedTrackIds.filter((id) => id !== track.id),
@@ -223,7 +223,10 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                   ],
                   selectedTrackIds,
                 );
-                if (next) state.setSelection({ kind: "range", target: next });
+                if (next) {
+                  state.setSelection({ kind: "range", target: next });
+                  state.setRangeScopeTrackIds(null);
+                }
               }}
             >
               Use agent range on selected tracks
@@ -234,7 +237,6 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
             className="ui-control--compact"
             onClick={() => {
               state.setRangeArmed(false);
-              if (selection?.kind === "track") state.setSelection(null);
             }}
           >
             Cancel range selection

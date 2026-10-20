@@ -318,6 +318,7 @@ export const createProjectSlice: StateCreator<
             joinMutationInFlight: false,
             rippleTrim: null,
             rangeArmed: false,
+            rangeScopeTrackIds: null,
             rangeBusy: false,
             bounceRangeTarget: null,
             bounceDialogOpen: false,

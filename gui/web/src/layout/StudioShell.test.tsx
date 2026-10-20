@@ -180,7 +180,7 @@ describe("StudioShell tablet peek", () => {
     });
   });
 
-  it("keeps the range bar and the track sheet shut while the tracks for an armed range are ticked", () => {
+  it("ticking the tracks for an armed range keeps the range bar and opens no sheet", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
         <StudioShell />
@@ -188,10 +188,8 @@ describe("StudioShell tablet peek", () => {
     );
     act(() => useDawStore.getState().setRangeArmed(true));
     fireEvent.click(screen.getByRole("checkbox", { name: /Guest|guest/ }));
-    expect(useDawStore.getState().selection).toMatchObject({
-      kind: "track",
-      trackId: "guest",
-    });
+    expect(useDawStore.getState().rangeScopeTrackIds).toEqual(["guest"]);
+    expect(useDawStore.getState().selection).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("region", { name: "Range actions" })).toBeVisible();
   });
