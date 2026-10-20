@@ -13,7 +13,7 @@ from typing import Any
 from podcast_mcp import settings
 from podcast_mcp.services.share_auth.passwords import hash_password, verify_password
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.sqlite_open import open_sqlite
+from podcast_mcp.util.sqlite_open import open_sqlite, schema_setup
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -115,8 +115,12 @@ class ShareIdentityStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod
             self.path.parent.chmod(0o700)
-        self._conn = open_sqlite(self.path, isolation_level="DEFERRED", row_factory=sqlite3.Row)
-        self._conn.executescript(_SCHEMA)
+        self._conn = open_sqlite(
+            self.path,
+            isolation_level="DEFERRED",
+            row_factory=sqlite3.Row,
+            setup=schema_setup(_SCHEMA),
+        )
         self._conn.commit()
         with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod
             self.path.chmod(0o600)

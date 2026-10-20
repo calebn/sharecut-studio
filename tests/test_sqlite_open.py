@@ -110,3 +110,43 @@ def test_only_the_opener_and_the_registry_backup_target_call_sqlite_connect() ->
         "podcast_mcp/services/collaboration/share_registry.py",
         "podcast_mcp/util/sqlite_open.py",
     ]
+
+
+def test_open_sqlite_retries_the_setup_with_the_wal_switch_on_a_transient_readonly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    attempts: list[int] = []
+
+    def setup(connection: sqlite3.Connection) -> None:
+        attempts.append(1)
+        if len(attempts) <= 2:
+            exc = sqlite3.OperationalError("attempt to write a readonly database")
+            exc.sqlite_errorcode = sqlite3.SQLITE_READONLY  # type: ignore[attr-defined]
+            raise exc
+        connection.executescript("CREATE TABLE IF NOT EXISTS t (x)")
+
+    with closing(open_sqlite(tmp_path / "s.db", setup=setup)) as connection:
+        assert len(attempts) == 3
+        assert connection.execute("SELECT count(*) FROM t").fetchone()[0] == 0
+        assert _pragma(connection, "journal_mode") == "wal"
+
+
+def test_open_sqlite_closes_the_connection_when_the_setup_fails(tmp_path: Path) -> None:
+    opened: list[sqlite3.Connection] = []
+
+    def setup(connection: sqlite3.Connection) -> None:
+        opened.append(connection)
+        raise sqlite3.OperationalError("disk I/O error")
+
+    with pytest.raises(sqlite3.OperationalError, match="disk I/O"):
+        open_sqlite(tmp_path / "s.db", setup=setup)
+    with pytest.raises(sqlite3.ProgrammingError):
+        opened[0].execute("SELECT 1")
+
+
+def test_connect_session_db_applies_the_schema_it_is_given(tmp_path: Path) -> None:
+    with closing(
+        connect_session_db(tmp_path / "s.db", schema="CREATE TABLE IF NOT EXISTS t (x)")
+    ) as c:
+        assert c.execute("SELECT count(*) FROM t").fetchone()[0] == 0

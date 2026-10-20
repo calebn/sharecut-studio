@@ -2641,14 +2641,14 @@ def test_cached_sync_store_if_exists_does_not_recreate_a_vanished_file(
 
 def test_sync_store_closes_its_connection_when_schema_setup_fails(tmp_path, monkeypatch) -> None:
     opened = []
-    real_connect = session_sync_log.connect_session_db
+    real_connect = sqlite3.connect
 
-    def _record(path, **kwargs):
-        conn = real_connect(path, **kwargs)
+    def _record(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
         opened.append(conn)
         return conn
 
-    monkeypatch.setattr(session_sync_log, "connect_session_db", _record)
+    monkeypatch.setattr("podcast_mcp.util.sqlite_open.sqlite3.connect", _record)
     monkeypatch.setattr(session_sync_log, "_schema", lambda _prefix: "NOT VALID SQL;")
     with pytest.raises(sqlite3.OperationalError):
         SyncStore(tmp_path / "sync.db")

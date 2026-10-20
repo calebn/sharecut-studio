@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.util.sqlite_wal import ensure_wal
+from podcast_mcp.util.sqlite_wal import ensure_wal, retry_transient
 
 
 def _error(message: str, code: int) -> sqlite3.OperationalError:
@@ -122,3 +122,18 @@ def test_an_unrelated_operational_error_is_not_retried(tmp_path: Path) -> None:
                 sleep=clock.sleep,
             )
     assert clock.slept == []
+
+
+def test_retry_transient_repeats_any_step_not_only_the_wal_switch(tmp_path: Path) -> None:
+    clock = _Clock()
+    calls: list[int] = []
+
+    def step() -> None:
+        calls.append(1)
+        if len(calls) <= 2:
+            raise _error("attempt to write a readonly database", sqlite3.SQLITE_READONLY)
+
+    with closing(sqlite3.connect(tmp_path / "fresh.db")) as real:
+        retry_transient(real, step, monotonic=clock.monotonic, sleep=clock.sleep)
+    assert len(calls) == 3
+    assert len(clock.slept) == 2

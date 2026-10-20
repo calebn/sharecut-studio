@@ -170,6 +170,11 @@ class ShareRegistryProtocol(Protocol):
     def backup_to_new(self, dest: Path) -> Path: ...
 
 
+def _apply_schema(connection: sqlite3.Connection) -> None:
+    connection.execute("PRAGMA synchronous=NORMAL")
+    connection.executescript(_SCHEMA)
+
+
 class SqliteShareRegistry:
     """Sqlite active + cooldown pools for public share tokens."""
 
@@ -191,10 +196,9 @@ class SqliteShareRegistry:
         connection = None
         try:
             with self._private_files(create=True) as verify:
-                connection = open_sqlite(self.db_path, row_factory=sqlite3.Row, verify=verify)
-                connection.execute("PRAGMA synchronous=NORMAL")
-                connection.executescript(_SCHEMA)
-                verify()
+                connection = open_sqlite(
+                    self.db_path, row_factory=sqlite3.Row, verify=verify, setup=_apply_schema
+                )
             return connection
         except BaseException:
             if connection is not None:
