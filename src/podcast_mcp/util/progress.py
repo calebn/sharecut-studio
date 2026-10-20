@@ -12,11 +12,9 @@ from contextlib import contextmanager, suppress
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Protocol, TextIO, TypeVar, runtime_checkable
+from typing import Any, Protocol, TextIO, runtime_checkable
 
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
-
-F = TypeVar("F", bound=Callable[..., Any])
 
 PROGRESS_LAZY_CHIP_SEC = 1.0
 PROGRESS_UPDATE_MIN_INTERVAL_SEC = 0.25
@@ -615,12 +613,6 @@ def current_progress() -> ProgressReporter:
     return _reporter_var.get() or NullProgress()
 
 
-def current_progress_task_id() -> str | None:
-    """Active ``progress_task`` id from the compliance contextvar, if any."""
-    bucket = _compliance_var.get()
-    return bucket.task_id if bucket is not None else None
-
-
 def current_progress_task() -> ProgressTask | None:
     """Innermost open ``ProgressTask``, if any."""
     return _task_var.get()
@@ -936,30 +928,6 @@ def progress_task(
         reporter=reporter,
         mark_id=mark_id,
     )
-
-
-def wrap_operation(
-    operation_id: str,
-    label: str | None = None,
-    *,
-    total: int | None = None,
-) -> Callable[[F], F]:
-    """Decorator: open a progress_task around a callable (CLI/MCP/guest)."""
-
-    def decorator(fn: F) -> F:
-        @functools.wraps(fn)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            with progress_task(
-                operation_id,
-                label or operation_id,
-                total=total,
-                mark_id=operation_id,
-            ):
-                return fn(*args, **kwargs)
-
-        return wrapper  # type: ignore[return-value]
-
-    return decorator
 
 
 class _TaskState:

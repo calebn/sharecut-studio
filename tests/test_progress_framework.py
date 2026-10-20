@@ -19,7 +19,7 @@ from podcast_mcp.util.progress import (
     clear_compliance_log,
     clear_wrapped_ids,
     current_progress,
-    current_progress_task_id,
+    current_progress_task,
     drain_compliance_log,
     install_cli_progress,
     install_guest_tool_progress,
@@ -30,7 +30,6 @@ from podcast_mcp.util.progress import (
     resolve_progress,
     wrapped_ids,
 )
-from podcast_mcp.util.progress_install import install_all_progress_adapters
 from podcast_mcp.util.tool_refusal import guest_failure_detail
 
 
@@ -146,12 +145,12 @@ def test_mark_wrapped_registry():
     assert "pipeline_run" in wrapped_ids()
 
 
-def test_current_progress_task_id_tracks_active_task():
+def test_current_progress_task_tracks_active_task():
     rec = RecordingProgress()
-    assert current_progress_task_id() is None
-    with bind_progress(rec), progress_task("op", "Op", reporter=rec):
-        assert current_progress_task_id() == "op"
-    assert current_progress_task_id() is None
+    assert current_progress_task() is None
+    with bind_progress(rec), progress_task("op", "Op", reporter=rec) as task:
+        assert current_progress_task() is task
+    assert current_progress_task() is None
 
 
 def test_multi_progress_fail_and_cancel():
@@ -285,7 +284,8 @@ def test_install_cli_progress_wraps_callbacks():
     seen: list[str] = []
 
     def cb():
-        seen.append(current_progress_task_id() or "")
+        task = current_progress_task()
+        seen.append(task.task_id if task else "")
         return "done"
 
     app = App()
@@ -349,7 +349,7 @@ def test_install_guest_tool_progress_binds_reporter():
     assert "guest_get_project" in wrapped_ids()
 
 
-def test_install_all_progress_adapters():
+def test_install_mcp_progress_marks_server_once():
     class FakeServer:
         def add_tool(self, fn, name=None, **kwargs):
             return None
@@ -357,31 +357,12 @@ def test_install_all_progress_adapters():
         async def call_tool(self, name, arguments, context=None, *args, **kwargs):
             return None
 
-    class App:
-        def __init__(self) -> None:
-            self.registered_commands = []
-            self.registered_groups = []
-
     mcp = FakeServer()
-    app = App()
-    install_all_progress_adapters(mcp=mcp, cli_app=app)
+    install_mcp_progress(mcp)
+    wrapped_add_tool = mcp.add_tool
+    install_mcp_progress(mcp)
     assert getattr(mcp, "_podcast_progress_installed", False)
-    install_all_progress_adapters()  # no-op both None
-    install_all_progress_adapters(mcp=None, cli_app=app)
-
-
-def test_wrap_operation_decorator():
-    from podcast_mcp.util.progress import wrap_operation
-
-    rec = RecordingProgress()
-
-    @wrap_operation("decorated_op", "Decorated")
-    def work():
-        return current_progress_task_id()
-
-    with bind_progress(rec):
-        assert work() == "decorated_op"
-    assert "decorated_op" in wrapped_ids()
+    assert mcp.add_tool == wrapped_add_tool
 
 
 def test_progress_task_explicit_fail_and_message():
