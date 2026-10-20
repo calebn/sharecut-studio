@@ -12,6 +12,7 @@ FEATURE_SHARE_UI_MENU: Final = "share.ui.menu"
 FEATURE_SHARE_UI_BANNER: Final = "share.ui.banner"
 FEATURE_SHARE_UI_ROUTES: Final = "share.ui.routes"
 FEATURE_TUNNEL_STATUS: Final = "tunnel.status"
+FEATURE_SHARE_REMOTE_MCP: Final = "share.remote_mcp"
 FEATURE_ONLINE_ACCOUNT: Final = "online.account"
 
 # Experimental reserved chrome slots
@@ -26,6 +27,7 @@ STABLE_FEATURE_IDS: frozenset[str] = frozenset(
         FEATURE_SHARE_UI_MENU,
         FEATURE_SHARE_UI_BANNER,
         FEATURE_SHARE_UI_ROUTES,
+        FEATURE_SHARE_REMOTE_MCP,
         FEATURE_TUNNEL_STATUS,
         FEATURE_ONLINE_ACCOUNT,
     }

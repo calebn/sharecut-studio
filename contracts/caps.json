@@ -19,6 +19,7 @@
     "share.ui.menu",
     "share.ui.banner",
     "share.ui.routes",
+    "share.remote_mcp",
     "tunnel.status",
     "online.account"
   ],

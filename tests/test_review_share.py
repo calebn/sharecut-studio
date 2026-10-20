@@ -208,6 +208,7 @@ def test_share_capabilities_and_remote_mcp(minimal_project, sample_wav, tmp_work
     assert client.get(f"/mcp/{tok}").status_code == 403
 
     monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
+    client = TestClient(create_app())
     enabled = client.post(
         f"/mcp/{mcp_share['token']}/mcp",
         json={"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}},
