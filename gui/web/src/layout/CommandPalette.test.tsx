@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { COMMANDS } from "../commands/catalog";
+import { registerCommand } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { getKeymapOverride } from "../keymap/remaps";
 import { useDawStore } from "../state/dawStore";
@@ -129,5 +130,29 @@ describe("CommandPalette", () => {
     expect(
       screen.queryByRole("button", { name: "Chrome target" }),
     ).not.toHaveFocus();
+  });
+
+  it("does not repeat a refusal the command already announced", async () => {
+    const raw = "Reorder failed: set PODCAST_MCP_FFMPEG to its bin executable.";
+    registerCommand("tool.select", async () => {
+      useDawStore.getState().announceStatus(raw, { tone: "error" });
+      return { status: "disabled", reason: raw };
+    });
+    const before = useDawStore.getState().statusAnnouncementSeq;
+    renderPalette();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("option", { name: "Select tool" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1),
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    const state = useDawStore.getState();
+    expect(state.statusAnnouncementSeq).toBe(before + 1);
+    expect(state.feedbackToast).toMatchObject({
+      tone: "error",
+      message:
+        "Reorder failed. Export diagnostics from the command palette and try again.",
+    });
   });
 });

@@ -122,7 +122,8 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                 disabledReason={d.reason ?? undefined}
                 onClick={() =>
                   void executePointerCommand(d.commandId).then((result) => {
-                    if (result.status === "disabled") setError(result.reason);
+                    if (result.status === "disabled" && !result.announced)
+                      setError(result.reason);
                   })
                 }
               >

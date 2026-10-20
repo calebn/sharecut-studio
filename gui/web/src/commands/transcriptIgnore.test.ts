@@ -263,7 +263,11 @@ describe("transcript.ignoreWords", () => {
       new Error("boom"),
     );
     const result = await execute("transcript.ignoreWords", {});
-    expect(result).toEqual({ status: "disabled", reason: "boom" });
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "boom",
+      announced: true,
+    });
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Ignore failed: boom",
     );

@@ -46,7 +46,7 @@ export type ExecuteResult =
   | {
       status: "disabled";
       reason: string;
-      /** The handler already announced `reason`; callers must not repeat it. */
+      /** The handler announced while it ran (`execute` sets it); callers must not repeat `reason`. */
       announced?: true;
     }
   | { status: "unknown" };

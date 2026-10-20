@@ -225,11 +225,14 @@ export async function runRangeAction(
       live.selection !== selection ||
       !live.project ||
       !rangeIsCurrent(live.project, target)
-    )
-      return {
-        status: "disabled",
-        reason: "Selection changed while audio was prepared",
-      };
+    ) {
+      const reason = "Selection changed while audio was prepared";
+      const spoke = live.projectEpoch === epoch;
+      if (spoke) live.announceStatus(reason, { tone: "error" });
+      return spoke
+        ? { status: "disabled", reason, announced: true }
+        : { status: "disabled", reason };
+    }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(blob);
     live.beginSourcePreview({
@@ -241,9 +244,11 @@ export async function runRangeAction(
     return { status: "ok" };
   } catch (error) {
     const reason = errorMessage(error);
-    if (useDawStore.getState().projectEpoch === epoch)
-      useDawStore.getState().announceStatus(reason, { tone: "error" });
-    return { status: "disabled", reason, announced: true };
+    const spoke = useDawStore.getState().projectEpoch === epoch;
+    if (spoke) useDawStore.getState().announceStatus(reason, { tone: "error" });
+    return spoke
+      ? { status: "disabled", reason, announced: true }
+      : { status: "disabled", reason };
   } finally {
     if (useDawStore.getState().projectEpoch === epoch)
       useDawStore.getState().setRangeBusy(false);

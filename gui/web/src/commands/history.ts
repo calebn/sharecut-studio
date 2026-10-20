@@ -124,7 +124,6 @@ function moveHistory(
         return {
           status: "disabled",
           reason: STALE_COPY[action],
-          announced: true,
         };
       };
       const refuseObsolete = (): ExecuteResult | null =>

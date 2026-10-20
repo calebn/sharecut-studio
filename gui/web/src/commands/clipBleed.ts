@@ -106,7 +106,7 @@ export function registerClipBleedCommands(): void {
             message,
             outcome.status === "queued" ? undefined : { tone: "error" },
           );
-        return { status: "disabled", reason: message, announced: true };
+        return { status: "disabled", reason: message };
       } catch (error) {
         const stale =
           error instanceof ApiError && error.code === "bleed_restore_changed";
