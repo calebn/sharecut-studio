@@ -7,6 +7,7 @@ from io import StringIO
 
 import pytest
 
+from podcast_mcp.cli.progress import install_cli_progress
 from podcast_mcp.util.progress import (
     CancelledProgress,
     CliProgressReporter,
@@ -21,7 +22,6 @@ from podcast_mcp.util.progress import (
     current_progress,
     current_progress_task,
     drain_compliance_log,
-    install_cli_progress,
     install_guest_tool_progress,
     install_mcp_progress,
     mark_wrapped,
@@ -30,6 +30,8 @@ from podcast_mcp.util.progress import (
     resolve_progress,
     wrapped_ids,
 )
+from podcast_mcp.util.progress import compliance as compliance_mod
+from podcast_mcp.util.progress import task as task_mod
 from podcast_mcp.util.tool_refusal import guest_failure_detail
 
 
@@ -42,15 +44,15 @@ def _clean_progress_state():
     clear_compliance_log()
     progress_mod.clear_progress_sinks()
     cli_context.reset_progress()
-    progress_mod._reporter_var.set(None)
-    progress_mod._compliance_var.set(None)
+    task_mod._reporter_var.set(None)
+    compliance_mod.compliance_var.set(None)
     yield
     clear_wrapped_ids()
     clear_compliance_log()
     progress_mod.clear_progress_sinks()
     cli_context.reset_progress()
-    progress_mod._reporter_var.set(None)
-    progress_mod._compliance_var.set(None)
+    task_mod._reporter_var.set(None)
+    compliance_mod.compliance_var.set(None)
 
 
 def test_progress_task_emits_phases_and_marks_wrapped():
@@ -165,10 +167,8 @@ def test_multi_progress_fail_and_cancel():
 
 
 def test_compliance_log_is_capped():
-    from podcast_mcp.util import progress as progress_mod
-
-    old_max = progress_mod._COMPLIANCE_LOG_MAX
-    progress_mod._COMPLIANCE_LOG_MAX = 3
+    old_max = compliance_mod.COMPLIANCE_LOG_MAX
+    compliance_mod.COMPLIANCE_LOG_MAX = 3
     try:
         rec = RecordingProgress()
         for i in range(5):
@@ -177,7 +177,7 @@ def test_compliance_log_is_capped():
         records = drain_compliance_log()
         assert len(records) <= 3
     finally:
-        progress_mod._COMPLIANCE_LOG_MAX = old_max
+        compliance_mod.COMPLIANCE_LOG_MAX = old_max
         clear_compliance_log()
 
 

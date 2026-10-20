@@ -12,7 +12,7 @@ from typing import Any
 
 from podcast_mcp.services.collaboration import scrub_guest_progress_text
 from podcast_mcp.services.remote_mcp.executor import run_guest_mcp_call
-from podcast_mcp.util.progress import _mcp_progress_token, short_fail_headline
+from podcast_mcp.util.progress import mcp_progress_token, short_fail_headline
 
 log = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ def format_mcp_sse(payload: dict[str, Any]) -> str:
 def rpc_progress_token(message: dict[str, Any]) -> Any:
     """Read ``params._meta.progressToken`` from a JSON-RPC request body."""
     params = message.get("params")
-    return _mcp_progress_token(params)
+    return mcp_progress_token(params)
 
 
 async def iter_mcp_sse(token: str, body: dict[str, Any]) -> AsyncIterator[str]:

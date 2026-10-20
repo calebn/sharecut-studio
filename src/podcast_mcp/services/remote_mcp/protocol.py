@@ -36,8 +36,8 @@ from podcast_mcp.services.remote_mcp.tools import (
 )
 from podcast_mcp.util.coded_error import coded_cause
 from podcast_mcp.util.progress import (
-    _mcp_progress_token,
     clear_guest_progress_context,
+    mcp_progress_token,
     set_guest_progress_context,
 )
 from podcast_mcp.util.tool_refusal import crash_tool_result, refusal_tool_result, tool_refusal
@@ -185,7 +185,7 @@ def _dispatch(
         arguments = params.get("arguments") or {}
         if not isinstance(arguments, dict):
             return _error(req_id, -32602, "arguments must be an object")
-        progress_token = _mcp_progress_token(params)
+        progress_token = mcp_progress_token(params)
         mcp_ctx = (
             GuestMcpProgressContext(progress_token, sink=progress_sink)
             if progress_token is not None

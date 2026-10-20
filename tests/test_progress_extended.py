@@ -33,9 +33,9 @@ def test_cli_progress_reporter_disabled():
     reporter.update("t", 1)
     reporter.message("t", "note")
     # Exercise disabled heartbeat early-return
-    from podcast_mcp.util.progress import _TaskState
+    from podcast_mcp.util.progress.reporters import TaskState
 
-    reporter._emit_heartbeat("t", _TaskState(label="Label", total=5), 1.0)
+    reporter._emit_heartbeat("t", TaskState(label="Label", total=5), 1.0)
     reporter.end("t")
     reporter.close()
 
@@ -96,7 +96,7 @@ def test_json_progress_unknown_task_is_noop():
 
 def test_json_progress_heartbeat_loop():
     buf = StringIO()
-    with patch("podcast_mcp.util.progress.threading.Thread"):
+    with patch("podcast_mcp.util.progress.reporters.threading.Thread"):
         reporter = JsonProgressReporter(stream=buf)
     reporter._heartbeat_sec = 0.0  # type: ignore[attr-defined]
     reporter.start("slow", "Slow task", total=1)
@@ -295,7 +295,7 @@ def test_cli_progress_reporter_import_error_fallback(monkeypatch):
 
 def test_cli_progress_heartbeat_with_total(monkeypatch, capsys):
     monkeypatch.setattr("sys.stderr.isatty", lambda: False)
-    with patch("podcast_mcp.util.progress.threading.Thread"):
+    with patch("podcast_mcp.util.progress.reporters.threading.Thread"):
         reporter = CliProgressReporter(enabled=True)
     reporter.start("job", "Job", total=4)
     capsys.readouterr()
