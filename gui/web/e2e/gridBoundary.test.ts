@@ -47,6 +47,10 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 2,
     reason: "hand-picked viewport and theme profiles, one per boundary cell",
   },
+  "feedback-gesture.spec.ts": {
+    loops: 1,
+    reason: "the armed card is themed, so both looks of it are checked",
+  },
   "inventory-audit.spec.ts": {
     loops: 1,
     reason: "hand-picked viewport and theme profiles, one per boundary cell",

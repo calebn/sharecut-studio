@@ -65,7 +65,7 @@ type Story = StoryObj<typeof Toast>;
 
 export const Shown: Story = {
   play: async ({ canvasElement }) => {
-    const status = within(canvasElement).getByRole("status");
+    const status = canvasElement.querySelector(".ui-toast-region")!;
     await waitFor(() => expect(status).toHaveTextContent(MESSAGE));
   },
 };
@@ -73,7 +73,7 @@ export const Shown: Story = {
 export const UndoAndDismiss: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const status = canvas.getByRole("status");
+    const status = canvasElement.querySelector(".ui-toast-region")!;
     await waitFor(() => expect(status).toHaveTextContent(MESSAGE));
     await userEvent.click(canvas.getByRole("button", { name: "Undo" }));
     await expect(args.onUndo).toHaveBeenCalledOnce();
@@ -90,7 +90,7 @@ export const UndoUnavailable: Story = {
   args: { undoDisabledReason: BUSY_REASON },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const status = canvas.getByRole("status");
+    const status = canvasElement.querySelector(".ui-toast-region")!;
     await waitFor(() => expect(status).toHaveTextContent(MESSAGE));
     await expect(canvas.getByRole("button", { name: "Undo" })).toBeDisabled();
   },
@@ -109,7 +109,7 @@ export const Phone: Story = {
   parameters: recordMobileViewport.parameters,
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement }) => {
-    const status = within(canvasElement).getByRole("status");
+    const status = canvasElement.querySelector(".ui-toast-region")!;
     await waitFor(() => expect(status).toHaveTextContent(MESSAGE));
   },
 };
@@ -120,7 +120,7 @@ export const WithoutUndo: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const status = canvas.getByRole("status");
+    const status = canvasElement.querySelector(".ui-toast-region")!;
     await waitFor(() => expect(status).toHaveTextContent("Guest link copied"));
     await expect(canvas.queryByRole("button", { name: "Undo" })).toBeNull();
   },

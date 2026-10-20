@@ -1,17 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
+import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
+import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import {
-  buildFixture,
-  newTouchPage,
-  openTimeline,
-  touch,
-} from "./touchTimeline";
+import { setTheme } from "./theme";
+import { newTouchPage, TRACK, touch, VIEWPORTS } from "./touchTimeline";
 
 test.use({ hasTouch: true, isMobile: true });
 
@@ -36,8 +34,20 @@ for (const theme of ["light", "dark"] as const) {
   }, info) => {
     const { page, cdp } = await newTouchPage(context);
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await buildFixture(page, projectPath, "e2e-feedback-gesture");
-    await openTimeline(page, projectPath, "phone", theme);
+    for (const at_time of [10, 40, 50]) {
+      await postDocumentCommand(
+        page,
+        "e2e-feedback-gesture",
+        "SplitAtTime",
+        { at_time, track_ids: [TRACK] },
+        projectPath,
+      );
+    }
+    await page.setViewportSize(VIEWPORTS.phone);
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell")).toBeVisible();
+    await openPhoneTimeline(page);
+    await setTheme(page, theme);
     const card = page.locator(".ui-toast-region--app .ui-toast-message", {
       hasText: "armed",
     });
