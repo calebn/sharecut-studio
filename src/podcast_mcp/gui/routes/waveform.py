@@ -19,7 +19,9 @@ from filelock import Timeout
 from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.routes.deps import (
+    ERROR_CODE_HEADER,
     NO_STORE,
+    coded_http_error,
     guard_http_error,
     require_host,
     resolve_project,
@@ -31,7 +33,7 @@ from podcast_mcp.services.media import (
     tile_bytes,
     waveform_status,
 )
-from podcast_mcp.util.coded_error import GuardRefusal
+from podcast_mcp.util.coded_error import CodedError, GuardRefusal
 
 log = logging.getLogger(__name__)
 
@@ -49,11 +51,17 @@ def no_store_error(exc: HTTPException | GuardRefusal) -> HTTPException:
     """Copy *exc* (an auth guard's refusal included) with ``Cache-Control: no-store``."""
     if isinstance(exc, GuardRefusal):
         exc = guard_http_error(exc)
-    return HTTPException(
-        status_code=exc.status_code,
-        detail=exc.detail,
-        headers={**(exc.headers or {}), **NO_STORE},
+    headers = exc.headers or {}
+    return coded_http_error(
+        exc.status_code,
+        exc.detail,
+        code=headers.get(ERROR_CODE_HEADER, "request_refused"),
+        headers={**headers, **NO_STORE},
     )
+
+
+def _coded(exc: Exception, fallback: str) -> str:
+    return exc.code if isinstance(exc, CodedError) else fallback
 
 
 def waveform_error(exc: Exception) -> HTTPException:
@@ -61,16 +69,21 @@ def waveform_error(exc: Exception) -> HTTPException:
     bad input 400, anything missing 404.
     """
     if isinstance(exc, WaveformBusyError):
-        return HTTPException(
-            status_code=503,
-            detail="waveform decoder busy",
+        return coded_http_error(
+            503,
+            "waveform decoder busy",
+            code=exc.code,
             headers={**NO_STORE, "Retry-After": exc.retry_after},
         )
     if isinstance(exc, StaleWaveformKeyError):
-        return HTTPException(status_code=409, detail=str(exc), headers=NO_STORE)
+        return coded_http_error(409, str(exc), code=exc.code, headers=NO_STORE)
     if isinstance(exc, ValueError):
-        return HTTPException(status_code=400, detail=str(exc), headers=NO_STORE)
-    return HTTPException(status_code=404, detail="not found", headers=NO_STORE)
+        return coded_http_error(
+            400, str(exc), code=_coded(exc, "invalid_request"), headers=NO_STORE
+        )
+    return coded_http_error(
+        404, "not found", code=_coded(exc, "waveform_not_found"), headers=NO_STORE
+    )
 
 
 def binary_response(body: bytes, *, background: BackgroundTask | None = None) -> Response:
@@ -104,7 +117,9 @@ def waveform_call(fn: Callable[[], T]) -> T:
         raise
     except Exception as exc:
         log.exception("waveform request failed")
-        raise no_store_error(HTTPException(status_code=500, detail="internal error")) from exc
+        raise no_store_error(
+            coded_http_error(500, "internal error", code="internal_error")
+        ) from exc
 
 
 @router.get("/api/waveform/status")
@@ -117,7 +132,9 @@ def get_waveform_status(
 ) -> JSONResponse:
     project_path = _host_project(request, path, token, x_podcast_token)
     if kind not in ("raw", "stem"):
-        raise HTTPException(status_code=400, detail="kind must be raw or stem", headers=NO_STORE)
+        raise coded_http_error(
+            400, "kind must be raw or stem", code="waveform_kind_invalid", headers=NO_STORE
+        )
     body = waveform_call(lambda: waveform_status(project_path, "stem" if kind == "stem" else "raw"))
     return JSONResponse(body, headers=NO_STORE)
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -47,6 +47,7 @@ from podcast_mcp.gui.routes import (
 )
 from podcast_mcp.gui.routes.deps import (
     ERROR_CODE_HEADER,
+    coded_http_error,
     guard_exception_handler,
     host_setup_exception_handler,
     project_busy_exception_handler,
@@ -342,9 +343,10 @@ def create_app(
             requested = request.query_params.get("project")
             if requested and _project_mismatch(requested, Path(served)):
                 if not _accepts_html(request):
-                    raise HTTPException(
-                        status_code=403,
-                        detail="project path not allowed for this server instance",
+                    raise coded_http_error(
+                        403,
+                        "project path not allowed for this server instance",
+                        code="project_path_not_allowed",
                     )
                 require_host(request, token=request.query_params.get("session_token"))
                 return _project_mismatch_page(request, Path(served))
@@ -381,9 +383,7 @@ def create_app(
         @app.get("/favicon.svg")
         def favicon_svg() -> Any:
             if not favicon_path.is_file():
-                from fastapi import HTTPException
-
-                raise HTTPException(status_code=404, detail="favicon not found")
+                raise coded_http_error(404, "favicon not found", code="static_asset_not_found")
             return FileResponse(favicon_path, media_type="image/svg+xml")
 
         recovery_css_path = static_root / "recovery.css"
@@ -393,25 +393,23 @@ def create_app(
         def recovery_css() -> Any:
             """Styles for the non-served-project recovery page."""
             if not recovery_css_path.is_file():
-                from fastapi import HTTPException
-
-                raise HTTPException(status_code=404, detail="recovery.css not found")
+                raise coded_http_error(404, "recovery.css not found", code="static_asset_not_found")
             return FileResponse(recovery_css_path, media_type="text/css")
 
         @app.get("/brand-tokens.css")
         def brand_tokens_css() -> Any:
             """Shared brand tokens used by standalone recovery pages."""
             if not brand_tokens_path.is_file():
-                raise HTTPException(status_code=404, detail="brand-tokens.css not found")
+                raise coded_http_error(
+                    404, "brand-tokens.css not found", code="static_asset_not_found"
+                )
             return FileResponse(brand_tokens_path, media_type="text/css")
 
         @app.get("/favicon.ico")
         def favicon_ico() -> Any:
             """Browsers often request .ico; serve the SVG when present."""
             if not favicon_path.is_file():
-                from fastapi import HTTPException
-
-                raise HTTPException(status_code=404, detail="favicon not found")
+                raise coded_http_error(404, "favicon not found", code="static_asset_not_found")
             return FileResponse(favicon_path, media_type="image/svg+xml")
 
         if registry.has("share.ui.routes"):

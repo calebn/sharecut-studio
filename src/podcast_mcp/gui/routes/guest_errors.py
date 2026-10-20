@@ -28,7 +28,7 @@ def guest_http_error(
     """Project an opted-in refusal, or log a crash and return a fixed HTTP 500."""
     refusal = _refusal(exc, logger, operation)
     if refusal is None:
-        return HTTPException(status_code=500, detail="internal error")
+        return coded_http_error(500, "internal error", code="internal_error")
     code = refusal.code
     if code == PROJECT_BUSY_CODE:
         return coded_http_error(503, refusal.message, code=code)

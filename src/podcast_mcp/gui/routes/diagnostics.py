@@ -8,13 +8,18 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    coded_exception_error,
+    coded_http_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
@@ -125,9 +130,11 @@ def create_diagnostics_bundle(
         )
     except OSError:
         log.exception("diagnostics bundle write failed")
-        raise HTTPException(status_code=400, detail="could not write diagnostics bundle") from None
+        raise coded_http_error(
+            400, "could not write diagnostics bundle", code="bundle_write_failed"
+        ) from None
     except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise coded_exception_error(500, exc, code="bundle_build_failed") from exc
     preview = preview_bundle(report.path)
     _register_bundle(request, report.filename, report.path.parent)
     return {
@@ -150,19 +157,19 @@ def download_diagnostics_bundle(
 ) -> FileResponse:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not is_allowed_bundle_name(name):
-        raise HTTPException(status_code=400, detail="invalid bundle filename")
+        raise coded_http_error(400, "invalid bundle filename", code="bundle_filename_invalid")
     registered = _bundle_registry(request).get(name)
     if not registered:
-        raise HTTPException(status_code=404, detail="bundle not found")
+        raise coded_http_error(404, "bundle not found", code="bundle_not_found")
     path = resolve_bundle_file(name, extra_dirs=[Path(registered)])
     if path is None:
-        raise HTTPException(status_code=404, detail="bundle not found")
+        raise coded_http_error(404, "bundle not found", code="bundle_not_found")
     try:
         size = path.stat().st_size
     except OSError:
-        raise HTTPException(status_code=404, detail="bundle not found") from None
+        raise coded_http_error(404, "bundle not found", code="bundle_not_found") from None
     if size > MAX_BUNDLE_BYTES:
-        raise HTTPException(status_code=404, detail="bundle not found")
+        raise coded_http_error(404, "bundle not found", code="bundle_too_large")
     return FileResponse(
         path,
         media_type="application/zip",
@@ -180,15 +187,17 @@ def submit_diagnostics_report(
 ) -> dict[str, str]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not body.consent:
-        raise HTTPException(400, "public upload consent is required")
+        raise coded_http_error(
+            400, "public upload consent is required", code="report_consent_required"
+        )
     if not is_allowed_bundle_name(body.filename):
-        raise HTTPException(400, "invalid bundle filename")
+        raise coded_http_error(400, "invalid bundle filename", code="bundle_filename_invalid")
     directory = _bundle_registry(request).get(body.filename)
     if not directory:
-        raise HTTPException(404, "bundle not found")
+        raise coded_http_error(404, "bundle not found", code="bundle_not_found")
     path = resolve_bundle_file(body.filename, extra_dirs=[Path(directory)])
     if path is None:
-        raise HTTPException(404, "bundle not found")
+        raise coded_http_error(404, "bundle not found", code="bundle_not_found")
     try:
         result = submit_bundle(path, description=body.description)
         statuses: set[str] = getattr(request.app.state, "diagnostics_report_statuses", set())
@@ -196,10 +205,14 @@ def submit_diagnostics_report(
         request.app.state.diagnostics_report_statuses = statuses
         return result
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise coded_exception_error(400, exc, code="report_submit_invalid") from exc
     except (OSError, httpx.HTTPError):
         log.exception("diagnostics report forwarding failed")
-        raise HTTPException(502, "report relay unavailable; use the download fallback") from None
+        raise coded_http_error(
+            502,
+            "report relay unavailable; use the download fallback",
+            code="report_relay_unavailable",
+        ) from None
 
 
 @router.get("/api/diagnostics/report-status")
@@ -212,8 +225,10 @@ def diagnostics_report_status(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     statuses: set[str] = getattr(request.app.state, "diagnostics_report_statuses", set())
     if url not in statuses:
-        raise HTTPException(404, "report not found")
+        raise coded_http_error(404, "report not found", code="report_not_found")
     try:
         return get_report_status(url)
     except (ValueError, httpx.HTTPError):
-        raise HTTPException(502, "report status unavailable") from None
+        raise coded_http_error(
+            502, "report status unavailable", code="report_status_unavailable"
+        ) from None

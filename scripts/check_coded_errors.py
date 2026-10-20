@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Ban uncoded refusals in services/, edits/, engines/ and util/registry*: raise a CodedError subclass instead.
+Also ban a bare ``HTTPException(...)`` in ``gui/``: build it with ``coded_http_error`` (#1855).
 
 A refusal that crosses a service boundary needs a code, a message written for the caller and a
 fix, so every adapter (CLI, MCP, owner GUI, share guest) can project it the same way. A bare
@@ -26,6 +27,15 @@ VALIDATOR_DECORATORS = frozenset(
 )
 ALLOWED: frozenset[tuple[str, str]] = frozenset()
 """Reviewed ``(posix path under src/podcast_mcp, enclosing function)`` pairs that may stay bare."""
+HTTP_ALLOWED: frozenset[tuple[str, str]] = frozenset(
+    {
+        # The single constructor every gui/ refusal goes through.
+        ("gui/routes/deps.py", "coded_http_error"),
+        # util/ must not import gui/, so the 429 builds its own coded response.
+        ("util/rate_limit_http.py", "rate_limited_error"),
+    }
+)
+"""``(path, enclosing function)`` pairs that may construct ``HTTPException`` directly."""
 
 
 def scoped_files() -> list[Path]:
@@ -37,6 +47,10 @@ def scoped_files() -> list[Path]:
             *(PACKAGE / "util").glob("registry*.py"),
         ]
     )
+
+
+def http_scoped_files() -> list[Path]:
+    return sorted([*(PACKAGE / "gui").rglob("*.py"), PACKAGE / "util" / "rate_limit_http.py"])
 
 
 def _decorator_name(node: ast.expr) -> str:
@@ -75,6 +89,36 @@ def violations(tree: ast.AST) -> Iterator[tuple[ast.Raise, str]]:
     yield from walk(tree, "<module>", False)
 
 
+def http_violations(tree: ast.AST) -> Iterator[tuple[ast.Call, str]]:
+    """Each ``HTTPException(...)`` construction, with its enclosing function name."""
+
+    def walk(node: ast.AST, scope: str) -> Iterator[tuple[ast.Call, str]]:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                yield from walk(child, child.name)
+                continue
+            if isinstance(child, ast.Call) and _raised_name(child) == "HTTPException":
+                yield child, scope
+            yield from walk(child, scope)
+
+    yield from walk(tree, "<module>")
+
+
+def check_http(paths: list[Path]) -> list[str]:
+    problems: list[str] = []
+    for path in paths:
+        rel = path.relative_to(PACKAGE).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node, scope in http_violations(tree):
+            if (rel, scope) in HTTP_ALLOWED:
+                continue
+            problems.append(
+                f"{rel}:{node.lineno}: HTTPException in {scope}(): "
+                "build it with coded_http_error(status, detail, code=...) instead"
+            )
+    return problems
+
+
 def check(paths: list[Path]) -> list[str]:
     problems: list[str] = []
     for path in paths:
@@ -92,7 +136,7 @@ def check(paths: list[Path]) -> list[str]:
 
 
 def main() -> int:
-    problems = check(scoped_files())
+    problems = [*check(scoped_files()), *check_http(http_scoped_files())]
     for line in problems:
         print(line, file=sys.stderr)
     return 1 if problems else 0

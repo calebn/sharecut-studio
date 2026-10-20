@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    bad_request_error,
+    coded_exception_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.gui.schemas import (
     TranscriptRefineWaiveRequest,
     TranscriptReplacementPreviewRequest,
@@ -51,9 +56,9 @@ def transcript_vocabulary_put(
             base_revision=req.base_revision,
         )
     except VocabularyConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="vocabulary_conflict") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
 
 
 @router.post("/api/transcript/refine/waive")
@@ -72,7 +77,7 @@ def transcript_refine_waive(
             source="user",
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
 
 
 @router.post("/api/transcript/replacement-preview")
@@ -89,7 +94,7 @@ def transcript_replacement_preview(
             req.search, req.replacement, match_case=req.match_case
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
 
 
 @router.post("/api/transcript/word-timing-context")
@@ -109,8 +114,8 @@ def transcript_word_timing_context(
             expected_end=req.expected_word.end,
         )
     except TranscriptTimingChangedError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise coded_exception_error(409, exc, code="transcript_timing_changed") from exc
     except (KeyError, FileNotFoundError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise coded_exception_error(404, exc, code="word_not_found") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc

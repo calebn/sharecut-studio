@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from pydantic import BaseModel, Field
 
-from podcast_mcp.gui.routes.deps import coded_http_error, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    coded_exception_error,
+    coded_http_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.gui.routes.record_upload_http import (
     ClippingParam,
     ClippingTruncatedParam,
@@ -51,7 +56,7 @@ def get_record_state(
     ws = ProjectWorkspace.open(project_path)
     session_id = RecordSessionService.active_session_id(ws.project)
     if not session_id:
-        raise HTTPException(status_code=404, detail="no active record room")
+        raise coded_http_error(404, "no active record room", code="record_room_not_found")
     return RecordSessionService(ws.project, session_id=session_id).snapshot()
 
 
@@ -68,20 +73,20 @@ def post_record_command(
     try:
         ctrl = RecordControlService(ws)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="no active record room") from exc
+        raise coded_http_error(404, "no active record room", code="record_room_not_found") from exc
     try:
         return ctrl.submit_host(body.command_type, body.payload)
     except RecordAuthzError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise coded_exception_error(403, exc, code="record_command_not_allowed") from exc
     except (RecordStateError, RoomFullError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="record_command_refused") from exc
 
 
 def _host_upload(request: Request, path: str) -> tuple[RecordUploadService, str, ProjectWorkspace]:
     ws = ProjectWorkspace.open(resolve_project(path, request))
     session_id = RecordSessionService.active_session_id(ws.project)
     if not session_id:
-        raise HTTPException(status_code=404, detail="no active record room")
+        raise coded_http_error(404, "no active record room", code="record_room_not_found")
     return RecordUploadService(ws.project), session_id, ws
 
 
@@ -137,7 +142,7 @@ async def post_host_record_upload(
             kind=kind,
         )
     except RecordUploadError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="record_upload_refused") from exc
 
 
 @router.delete("/api/record/upload")
@@ -153,9 +158,11 @@ def delete_host_record_upload(
     try:
         parsed = parse_upload_kind(kind)
     except RecordUploadError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="record_upload_kind_invalid") from exc
     if parsed != UPLOAD_KIND_ROOM_TONE:
-        raise HTTPException(status_code=400, detail="only room_tone can be revoked")
+        raise coded_http_error(
+            400, "only room_tone can be revoked", code="record_upload_kind_unrevocable"
+        )
     uploader.revoke_room_tone(session_id, HOST_PARTICIPANT_ID)
     return {"revoked": True, "kind": UPLOAD_KIND_ROOM_TONE}
 
@@ -177,11 +184,11 @@ def post_host_record_land(
     try:
         return RecordControlService(ws).land()
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="no active record room") from exc
+        raise coded_http_error(404, "no active record room", code="record_room_not_found") from exc
     except RecordTakeOpenError as exc:
         raise coded_http_error(409, str(exc), code=exc.code) from exc
     except RecordLandingError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="record_landing_refused") from exc
 
 
 @router.post("/api/record/discard-take")
@@ -196,6 +203,6 @@ def post_host_record_discard_take(
     try:
         return RecordControlService(ws).discard_take(body.take_index)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="no active record room") from exc
+        raise coded_http_error(404, "no active record room", code="record_room_not_found") from exc
     except RecordLandingError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise coded_exception_error(400, exc, code="record_discard_refused") from exc

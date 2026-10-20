@@ -101,7 +101,7 @@ def test_guest_refusal_contract(guest_client, monkeypatch, caplog, wrapped, kind
         "nonbusy": (
             sqlite3.OperationalError("private secret phrase /private/host/project.json"),
             500,
-            None,
+            "internal_error",
             "internal error",
         ),
     }
@@ -371,7 +371,7 @@ def test_http_token_lookup_uses_guest_boundary(monkeypatch, caplog, route, kind)
     }[kind]
     assert response.json() == {"detail": expected}
     assert response.headers.get("x-sharecut-error-code") == (
-        None if kind == "crash" else "project_busy"
+        "internal_error" if kind == "crash" else "project_busy"
     )
     assert bool([r for r in caplog.records if r.exc_info]) == (kind == "crash")
     if kind == "crash":
