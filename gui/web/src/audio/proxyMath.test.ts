@@ -401,8 +401,8 @@ describe("proxyMath", () => {
         join_crossfade_ms: 100,
       }),
     ];
-    const m = manifest();
-    m.tracks.guest = m.tracks.host;
+    const base = manifest();
+    const m = { ...base, tracks: { ...base.tracks, guest: base.tracks.host } };
     const slices = buildSchedule(rows, 0, 20, m);
     expect(slices.map((s) => s.whenTimelineSec)).toEqual([0, 2, 5]);
     expect(slices[1].envelope.fadeInSec).toBe(0);
