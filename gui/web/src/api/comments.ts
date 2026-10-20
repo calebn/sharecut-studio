@@ -4,6 +4,7 @@ import {
 } from "../document/applyDocumentUpdate";
 import { commentFromCommandResult } from "../document/projectPatch";
 import { isShareProjectKey } from "../shareMode";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { TimelineComment } from "../types/project";
 import { submitDocumentCommand } from "./documentEdits";
 import { apiFetch } from "./http";
@@ -43,16 +44,20 @@ export async function createComment(
     mergeReturnedComment(data.comment);
     return data.comment;
   }
-  const data = await submitDocumentCommand(projectPath, "AddComment", {
-    body: opts.body,
-    author: opts.author,
-    timeline_start: opts.timelineStart,
-    timeline_end: opts.timelineEnd ?? null,
-    track_ids: opts.trackIds ?? [],
-    timeline_spans: opts.timelineSpans ?? null,
-    action_texts: opts.actionTexts ?? [],
-    edit_decision_id: opts.editDecisionId ?? null,
-  });
+  const data = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.AddComment,
+    {
+      body: opts.body,
+      author: opts.author,
+      timeline_start: opts.timelineStart,
+      timeline_end: opts.timelineEnd ?? null,
+      track_ids: opts.trackIds ?? [],
+      timeline_spans: opts.timelineSpans ?? null,
+      action_texts: opts.actionTexts ?? [],
+      edit_decision_id: opts.editDecisionId ?? null,
+    },
+  );
   if (data.queued === true) {
     return null;
   }
@@ -75,7 +80,10 @@ export async function patchComment(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Resolving comments is not available for shared guests");
   }
-  const type = opts.resolved != null ? "ResolveComment" : "UpdateComment";
+  const type =
+    opts.resolved != null
+      ? DocumentCommand.ResolveComment
+      : DocumentCommand.UpdateComment;
   const data = await submitDocumentCommand(projectPath, type, {
     comment_id: commentId,
     ...(opts.body != null ? { body: opts.body } : {}),
@@ -116,7 +124,7 @@ export async function setCommentActionDone(
     mergeGuestActionDone(commentId, actionId, opts.done);
     return;
   }
-  await submitDocumentCommand(projectPath, "SetActionDone", {
+  await submitDocumentCommand(projectPath, DocumentCommand.SetActionDone, {
     comment_id: commentId,
     action_id: actionId,
     done: opts.done,
@@ -144,7 +152,7 @@ export async function addCommentReply(
     );
     return;
   }
-  await submitDocumentCommand(projectPath, "AddReply", {
+  await submitDocumentCommand(projectPath, DocumentCommand.AddReply, {
     comment_id: commentId,
     body: opts.body,
     author: opts.author,

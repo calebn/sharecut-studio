@@ -26,6 +26,8 @@ PYTEST_JOB_CHECKS: tuple[tuple[str, ...], ...] = (
 FRONTEND_JOB_CHECKS: tuple[str, ...] = (
     "scripts/export_capabilities_copy.py --check",
     "scripts/export_timeline_zoom.py --check",
+    "scripts/export_limit_contracts.py --check",
+    "scripts/export_project_types.py --check",
 )
 
 

@@ -94,12 +94,14 @@ cheatsheet-check:
 
 # Every generated artifact and contract check: capability manifest, schemas and docs-site
 # contract, extension caps, progress framework compliance (warn by default;
-# PODCAST_PROGRESS_COMPLIANCE=error to hard-fail) and the decision index. The two
+# PODCAST_PROGRESS_COMPLIANCE=error to hard-fail) and the decision index. The
 # Biome-formatted exporters need gui/web/node_modules, so CI runs them in the frontend job.
 generated-check:
 	uv run pytest -q --no-cov tests/test_generated_artifacts.py
 	uv run python scripts/export_capabilities_copy.py --check
 	uv run python scripts/export_timeline_zoom.py --check
+	uv run python scripts/export_limit_contracts.py --check
+	uv run python scripts/export_project_types.py --check
 
 # Docs-sync gate for this branch (the same check CI runs on the PR diff). Judges commits,
 # not uncommitted worktree edits; commit first, then run this before opening a PR.
@@ -133,6 +135,8 @@ schema-export:
 	uv run python scripts/export_capabilities_docs.py
 	uv run python scripts/export_capabilities_copy.py
 	uv run python scripts/export_timeline_zoom.py
+	uv run python scripts/export_limit_contracts.py
+	uv run python scripts/export_project_types.py
 
 # Static type checks; timebase-critical modules run strict (see [tool.mypy]).
 typecheck:

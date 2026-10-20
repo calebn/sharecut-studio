@@ -4,6 +4,7 @@ import type {
   BleedAttenuationSpan,
 } from "../edit/bleedAttenuation";
 import { isShareProjectKey } from "../shareMode";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { HistoryEntryId } from "../types/project";
 import { replyHistoryHead, submitDocumentCommand } from "./documentEdits";
 import { apiFetch } from "./http";
@@ -230,9 +231,13 @@ export async function restoreClipBleed(
   target: OpaqueBleedRestoreTarget,
 ): Promise<RestoreOutcome> {
   hostOnly(projectPath);
-  const result = await submitDocumentCommand(projectPath, "RestoreClipBleed", {
-    target,
-  });
+  const result = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.RestoreClipBleed,
+    {
+      target,
+    },
+  );
   if (result.queued === true) return { status: "queued" };
   const historyHead = replyHistoryHead(result);
   if (historyHead !== null) return { status: "acknowledged", historyHead };

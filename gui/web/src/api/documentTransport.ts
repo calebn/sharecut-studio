@@ -1,5 +1,6 @@
 /** Raw document-command HTTP transport; queue policy belongs to commandQueue. */
 import { shareProjectKey } from "../shareMode";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import { withAbortTimeout } from "../utils/abortTimeout";
 import { type ApiError, readApiFailure } from "../utils/apiError";
 import { apiSend, HOST_KEY } from "./http";
@@ -31,9 +32,9 @@ export const DOCUMENT_COMMAND_TIMEOUT_MS = 60_000;
  * but healthy batch is not cut off at one minute and shown as "Still sending".
  */
 export const LONG_DOCUMENT_COMMAND_TIMEOUT_MS = 15 * 60_000;
-const LONG_DOCUMENT_COMMANDS = new Set([
-  "ApproveEdits",
-  "ApplySuggestedActions",
+const LONG_DOCUMENT_COMMANDS = new Set<string>([
+  DocumentCommand.ApproveEdits,
+  DocumentCommand.ApplySuggestedActions,
 ]);
 
 function commandTimeoutMs(body: Record<string, unknown>): number {

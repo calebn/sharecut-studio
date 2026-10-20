@@ -1,4 +1,5 @@
 import { isShareProjectKey } from "../shareMode";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type {
   TranscriptTimingTarget,
   TranscriptWordView,
@@ -52,10 +53,14 @@ export function saveWordTiming(
   start: number,
   end: number,
 ) {
-  return submitDocumentCommand(projectPath, "SetTranscriptWordTiming", {
-    target: context.target,
-    expected_token: context.expected_token,
-    start,
-    end,
-  });
+  return submitDocumentCommand(
+    projectPath,
+    DocumentCommand.SetTranscriptWordTiming,
+    {
+      target: context.target,
+      expected_token: context.expected_token,
+      start,
+      end,
+    },
+  );
 }

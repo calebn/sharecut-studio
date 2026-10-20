@@ -12,6 +12,7 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { DawState } from "../state/types";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";
 import { errorMessage, readApiError } from "../utils/apiError";
 import { oneWordOf } from "../utils/rangeSelect";
@@ -163,7 +164,7 @@ export async function runRangeAction(
     if (action === "cut" || action === "mute") {
       const result = await submitDocumentCommand(
         state.projectPath,
-        "EditSelectedRange",
+        DocumentCommand.EditSelectedRange,
         { action, target },
       );
       const live = useDawStore.getState();

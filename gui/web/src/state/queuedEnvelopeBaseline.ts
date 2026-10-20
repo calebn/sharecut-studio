@@ -1,3 +1,4 @@
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { QueuedCommand } from "./offlineStore";
 
 type BaselinePoint = { id?: unknown; time?: unknown; value?: unknown };
@@ -27,12 +28,12 @@ export function chainQueuedEnvelopeBaseline(
   queue: readonly QueuedCommand[],
   cmd: QueuedCommand,
 ): QueuedCommand {
-  if (cmd.type !== "SetEnvelope") {
+  if (cmd.type !== DocumentCommand.SetEnvelope) {
     return cmd;
   }
   const previous = queue.findLast(
     (item) =>
-      item.type === "SetEnvelope" &&
+      item.type === DocumentCommand.SetEnvelope &&
       item.payload.track_id === cmd.payload.track_id,
   );
   if (!previous || !hasIds(previous.payload.points)) {

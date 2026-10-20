@@ -8,6 +8,7 @@ import {
   loadHostConflicts,
   type QueuedCommand,
 } from "../state/offlineStore";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 
 /** How often a shown Still sending notice re-checks the project's command queue. */
@@ -25,9 +26,10 @@ type TimingQueueState = Readonly<{
 }>;
 
 function targetsPendingEdit(command: QueuedCommand, editId: string): boolean {
-  return command.type === "UpdatePendingEdit"
+  return command.type === DocumentCommand.UpdatePendingEdit
     ? command.payload.id === editId
-    : (command.type === "ApproveEdits" || command.type === "RejectEdits") &&
+    : (command.type === DocumentCommand.ApproveEdits ||
+        command.type === DocumentCommand.RejectEdits) &&
         Array.isArray(command.payload.ids) &&
         command.payload.ids.includes(editId);
 }

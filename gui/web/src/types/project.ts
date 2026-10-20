@@ -1,27 +1,15 @@
-export interface TimelineSpan {
-  start: number;
-  end: number;
-}
+import type {
+  ClipJoinMode,
+  ClipMuteRegion,
+  ExactRangeTarget as GeneratedExactRangeTarget,
+  ProjectView as GeneratedProjectView,
+  TrackView as GeneratedTrackView,
+  RangeInterval,
+} from "./project.generated";
 
-/** Room tone tiled under a mute: this stretch of a source (track media when null). */
-export interface RoomToneFill {
-  start_s: number;
-  end_s: number;
-  source_id: string | null;
-}
+export type { ClipMuteRegion, RoomToneFill } from "./project.generated";
 
-/** May run past the clip's source edges: a clip cut through a mute keeps it whole. */
-export interface ClipMuteRegion {
-  start_s: number;
-  end_s: number;
-  /** Absent or null: the mute renders as digital silence. */
-  fill?: RoomToneFill | null;
-  /** Fade over the region's start and end; the server defaults both to 5 ms. */
-  fade_out_ms?: number;
-  fade_in_ms?: number;
-  /** Negative dB: the span is turned down by this much instead of muted (Lower). */
-  gain_db?: number | null;
-}
+export type TimelineSpan = RangeInterval;
 
 /** Encoder-detected sample-peak clipping, in source seconds. */
 export interface ClippingRegion {
@@ -29,7 +17,7 @@ export interface ClippingRegion {
   end_s: number;
 }
 
-export type JoinMode = "fade" | "crossfade" | "cut";
+export type JoinMode = ClipJoinMode;
 
 /** Why a crossfade-mode join renders without an overlap. */
 export type CrossfadeBlocked = "not_abutting" | "no_fade_out" | "no_fade_in";
@@ -84,40 +72,23 @@ export type ExactRangeClip = Pick<
   | "join_in_mode"
 > & { mute_regions: ClipMuteRegion[] };
 
-export interface ExactRangeTarget {
+export interface ExactRangeTarget
+  extends Omit<GeneratedExactRangeTarget, "kind" | "clips"> {
   kind: "exact_range";
-  intervals: TimelineSpan[];
-  track_ids: string[];
   clips: ExactRangeClip[];
-  media_seals: Record<string, string>;
 }
 
-export interface TrackView {
-  range_media_seal?: string;
-  timeline_empty?: boolean;
-  id: string;
-  label: string;
-  role: string;
-  speaker: string | null;
-  /** Staging gain the pipeline's balance step writes. */
-  gain_db: number;
-  balance_stale?: boolean | null;
-  balance_ungated?: boolean | null;
-  balance_measured_lufs?: number | null;
-  /** The user's saved volume on top of gain_db (older servers omit it). */
-  fader_db?: number;
-  /** Saved mix mute: the mix, play and bounce leave the track out. */
-  muted: boolean;
-  duration_sec: number | null;
-  fx_count: number;
-  stem_is_fresh: boolean | null;
-  has_source_audio?: boolean;
-  media_path?: string | null;
-  /** Id of the speaker split this track is a lane of, else null. */
-  speaker_split_id?: string | null;
-  /** Longest edge fade (ms) a clip on this track may take; null = uncapped. */
-  fade_max_ms?: number | null;
-}
+/** Fields the server always sends; the generated model defaults them, so they read optional. */
+type TrackViewSent =
+  | "speaker"
+  | "gain_db"
+  | "muted"
+  | "duration_sec"
+  | "fx_count"
+  | "stem_is_fresh";
+
+export type TrackView = Omit<GeneratedTrackView, TrackViewSent> &
+  Required<Pick<GeneratedTrackView, TrackViewSent>>;
 
 export interface PendingJoinRisk {
   verdict: "pass" | "review" | "fail";
@@ -360,8 +331,25 @@ export interface EditBoundaryView {
   }>;
 }
 
-export interface ProjectView {
-  project_path: string;
+export interface ProjectView
+  extends Omit<
+    GeneratedProjectView,
+    | "meta"
+    | "tracks"
+    | "clips"
+    | "chapters"
+    | "pending_edits"
+    | "edit_boundaries"
+    | "applied_edits"
+    | "effects_by_track"
+    | "envelopes"
+    | "social_clips"
+    | "comments"
+    | "render_status"
+    | "edit_impact"
+    | "history"
+    | "transcript"
+  > {
   meta: {
     name: string;
     workspace_dir: string;
@@ -370,7 +358,6 @@ export interface ProjectView {
       history_groups?: boolean;
     };
   };
-  timeline_duration_sec: number;
   tracks: TrackView[];
   clips: {
     tracks: Record<string, ClipRow[]>;

@@ -3,6 +3,7 @@ import { rosterFromList, type SessionRoster } from "../presence/roster";
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import type { LayerVisibility } from "../state/types";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import {
   type AppliedEditRecord,
@@ -138,7 +139,7 @@ export function offlineConflict(
     command_id: "sample-command",
     client_id: "fixture-client",
     client_seq: 1,
-    type: "SetEnvelope",
+    type: DocumentCommand.SetEnvelope,
     payload: {},
     created_at: 0,
     ...overrides.command,

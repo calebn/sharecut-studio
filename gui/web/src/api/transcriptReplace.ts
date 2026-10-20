@@ -1,4 +1,5 @@
 import { isShareProjectKey } from "../shareMode";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import { submitDocumentCommand } from "./documentEdits";
 import { apiFetch } from "./http";
 
@@ -53,8 +54,12 @@ export async function replaceTranscriptMatches(
   previewToken: string,
 ) {
   requireHost(projectPath);
-  return submitDocumentCommand(projectPath, "ReplaceTranscriptMatches", {
-    ...options,
-    preview_token: previewToken,
-  });
+  return submitDocumentCommand(
+    projectPath,
+    DocumentCommand.ReplaceTranscriptMatches,
+    {
+      ...options,
+      preview_token: previewToken,
+    },
+  );
 }

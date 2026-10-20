@@ -40,6 +40,7 @@ import {
   requestGuestDrainLazy,
   requestHostDrainLazy,
 } from "../state/requestDrainLazy";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import { parseHistoryEntryId } from "../types/project";
 import { ApiError, isRetryLater } from "../utils/apiError";
 import {
@@ -65,10 +66,14 @@ export type DocumentCommandOptions = CommandSettings &
 type ResolvedCommandOptions = CommandSettings &
   CommandIdentity & { replaying: boolean };
 
-export type HistoryCommandType = "UndoHistory" | "RedoHistory";
+export type HistoryCommandType =
+  | typeof DocumentCommand.UndoHistory
+  | typeof DocumentCommand.RedoHistory;
 
 export function isHistoryCommand(type: string): type is HistoryCommandType {
-  return type === "UndoHistory" || type === "RedoHistory";
+  return (
+    type === DocumentCommand.UndoHistory || type === DocumentCommand.RedoHistory
+  );
 }
 
 function commandOutcome(
@@ -604,9 +609,9 @@ async function submitGuestDocumentCommand(
   const { command_id, client_seq, type, payload, bodyBase } = body;
   const token = shareTokenFromKey(projectPath)!;
   const structural =
-    type === "SplitAtTime" ||
-    type === "DeleteClip" ||
-    type === "EditSelectedRange";
+    type === DocumentCommand.SplitAtTime ||
+    type === DocumentCommand.DeleteClip ||
+    type === DocumentCommand.EditSelectedRange;
   const offline =
     opts.offline === true ||
     (typeof navigator !== "undefined" && navigator.onLine === false);
