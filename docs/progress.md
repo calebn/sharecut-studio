@@ -85,6 +85,22 @@ with resolve_progress_task("transcribe", "Transcribing tracks", total=n, prefer_
 
 `ProgressEvent` kinds: `start` \| `update` \| `message` \| `heartbeat` \| `end` \| `fail` \| `cancel`. Optional `phase` field for stable ids.
 
+### Package layout and reporters
+
+`podcast_mcp.util.progress` is a package. Callers import from the package root, which re-exports the public API.
+
+| Module | Owns |
+|--------|------|
+| `protocol.py` | `ProgressReporter` (the six-method protocol), `ProgressEvent`, `short_fail_headline`, the cadence constants |
+| `task.py` | `ProgressTask`, `progress_task`, `resolve_progress_task`, `bind_progress`, the reporter / task / fail-detail context variables, `CancelledProgress` |
+| `sinks.py` | Sink registries (`register_progress_sink`, guest sinks), `compose_progress`, and the MCP and guest wraps (`install_mcp_progress`, `install_guest_tool_progress`) |
+| `reporters.py` | `ElapsedProgressMixin` and the in-process reporters: `NullProgress`, `RecordingProgress`, `MultiProgress`, `NotificationProgress` and its `McpNotificationProgress`, `JsonProgressReporter`, `CliProgressReporter` |
+| `compliance.py` | The runtime record behind `make generated-check`: wrapped operation ids and per-task richness |
+
+`util/` imports no adapter. The CLI command wrap (`cli_progress_task`, `install_cli_progress`) lives in [`cli/progress.py`](../src/podcast_mcp/cli/progress.py), next to the reporter it binds.
+
+**Every class that implements the protocol derives from `ElapsedProgressMixin`.** The mixin supplies no-op bodies for `start` / `update` / `message` / `end` / `fail` / `cancel`, the open-task bookkeeping, and the single per-sink heartbeat (its thread starts with the first registered task, so `NullProgress` costs no thread). A reporter overrides only the events it acts on. Studio's `_JobProgressReporter`, `_SsePublishReporter`, `AgentJobFanInReporter` and `_BootstrapProgressReporter`, and the guest `GuestWsProgressReporter` and `GuestMcpProgressContext`, follow the same rule. `tests/test_progress_compliance.py` finds protocol implementers by AST and fails any without the mixin among its ancestors.
+
 ### Update cadence
 
 `advance` / `advance_to` coalesce to **at most 4 updates/s per task**
@@ -127,7 +143,7 @@ Wrap **before** registrars run — do not copy opt-in decorators like `notify_af
 | Surface | Install |
 |---------|---------|
 | Host MCP | `install_mcp_progress(mcp)` before `register_all` ([mcp/server.py](../src/podcast_mcp/mcp/server.py)) — wraps `add_tool` + `call_tool` (the `call_tool` wrap goes through the shared `util/mcp_call_tool.py::wrap_call_tool`, also used by `install_tool_errors` and host MCP project injection) (MCP notifications when Context exists) |
-| CLI | `install_cli_progress(app)` after `apply_cli_extensions`; its command wrapper and default playback share `cli_progress_task` ([cli/main.py](../src/podcast_mcp/cli/main.py)) |
+| CLI | `install_cli_progress(app)` after `apply_cli_extensions` ([cli/main.py](../src/podcast_mcp/cli/main.py)); its command wrapper and default playback share `cli_progress_task` ([cli/progress.py](../src/podcast_mcp/cli/progress.py)) |
 | Pipeline | Runner opens parent `progress_task("pipeline")` + per-step children ([pipeline/runner.py](../src/podcast_mcp/pipeline/runner.py)) |
 | GUI jobs | `_JobProgressReporter` + `bind_progress` ([gui/jobs.py](../src/podcast_mcp/gui/jobs.py)) |
 | Host MCP request cancel | `install_request_cancel(mcp)` ([mcp/request_cancel.py](../src/podcast_mcp/mcp/request_cancel.py)) — wraps `call_tool`; a cancelled request turns `current_cancel_check()` true for the tool, which export, bounce, render preview and pipeline run pass on, and which `render_lock` waits on the tool's thread fall back to ([nl-editing.md](nl-editing.md#cancelling-a-long-tool)) |

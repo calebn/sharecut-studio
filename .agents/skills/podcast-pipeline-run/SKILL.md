@@ -67,7 +67,7 @@ The default pipeline cuts no content: focus and tighten are off, so a raw sessio
 
 Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
-`podcast pipeline run` and `podcast render-preview` report progress automatically (stderr / `--json-progress`). MCP tools inherit the same progress framework — relay tool headlines to the user; do not invent status. Spec: [docs/progress.md](../../docs/progress.md).
+`podcast pipeline run` and `podcast render-preview` report progress automatically (stderr / `--json-progress`). MCP tools inherit the same progress framework — relay tool headlines to the user; do not invent status. Spec: [docs/progress.md](../../docs/progress.md). The first heartbeat of a long step can arrive about a second after the step starts; that quiet first second is normal, not a stall.
 
 **Unattended:** `podcast pipeline run --unattended` or `PODCAST_BATCH=1` auto-waives the align (small moves only; a move or held candidate above `align.large_move_sec`, or unlocked drift above it, stops the run) and refine gates when `align.accept.mode` / `analysis.transcript_refine.mode` are `waive_unattended` (default). Agents in MCP sessions leave this unset and clear gates with **podcast-align-audio** / **podcast-transcript-refine**.
 

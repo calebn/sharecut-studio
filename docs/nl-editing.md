@@ -91,6 +91,10 @@ List and object arguments are JSON values, not JSON text: `ids=["e1", "e2"]`, `t
 
 After `notifications/cancelled` the SDK sends no response for that request; an in-process `auto`-mode client that cancels its own call can still receive the tool's result or error. An agent should not rely on either: check the files or make the next call.
 
+### Progress reports
+
+`mcp/server.py` installs the host's progress relay through `podcast_mcp.util.progress` (the `install_mcp_progress` sink). A tool reports progress through that package's `progress_task` and `resolve_progress`, not its own timer; see [progress.md](progress.md).
+
 ### Tool errors
 
 The mcp SDK passes an exception's text to the client only for its own `ToolError`; anything else reaches the agent as a bare `Error executing tool <name>`. `mcp.tool_errors.install_tool_errors`, installed once on the server in `mcp/server.py`, is the one boundary that decides what the agent sees (#488, #1178). Its rule lives in `util/tool_refusal.py`, which guest remote MCP shares, so a share-linked agent gets the same result shape ([host-online-relay.md § Remote MCP](host-online-relay.md#remote-mcp), #1182):
