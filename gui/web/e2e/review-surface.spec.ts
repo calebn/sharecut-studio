@@ -44,9 +44,7 @@ for (const theme of ["light", "dark"] as const) {
             .getByRole("button", { name: "Toggle comment mode", exact: true })
             .first()
             .click();
-          await guest
-            .getByRole("slider", { name: "Comment time" })
-            .click();
+          await guest.getByRole("slider", { name: "Comment time" }).click();
           const body = `Commenter feedback in ${theme}`;
           await guest
             .getByRole("textbox", { name: "Comment", exact: true })
