@@ -1,11 +1,7 @@
 import type { TunnelStatus } from "../types/tunnel";
-import { readApiError } from "../utils/apiError";
-import { hostFetch } from "./documentTransport";
+import { apiFetch, HOST_KEY } from "./http";
 
 export async function loadTunnelStatus(): Promise<TunnelStatus> {
-  const res = await hostFetch("/api/tunnel/status");
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(HOST_KEY, { host: "/api/tunnel/status" });
   return res.json() as Promise<TunnelStatus>;
 }

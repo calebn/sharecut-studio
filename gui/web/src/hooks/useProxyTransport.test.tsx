@@ -421,6 +421,7 @@ describe("useProxyTransport", () => {
       url: "copied-url",
     });
     expect(cachedFetchArrayBuffer).toHaveBeenCalledExactlyOnceWith(
+      useDawStore.getState().projectPath,
       "copied-url",
     );
   });

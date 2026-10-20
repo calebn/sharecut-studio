@@ -1,4 +1,3 @@
-import { hostFetch } from "../api/documentTransport";
 import { getSessionToken } from "../sessionAuth";
 import {
   isShareProjectKey,
@@ -10,6 +9,8 @@ import type {
   SessionState,
   ViewerSessionSnapshot,
 } from "../types/session";
+import { readApiFailure } from "../utils/apiError";
+import { apiFetch, apiSend } from "./http";
 
 export async function loadProxyManifest(
   projectPath: string,
@@ -17,11 +18,10 @@ export async function loadProxyManifest(
   if (!isShareProjectKey(projectPath)) {
     return null;
   }
-  const token = shareTokenFromKey(projectPath);
-  if (!token) {
+  if (!shareTokenFromKey(projectPath)) {
     return null;
   }
-  const res = await fetch(`${reviewApiBase(token)}/daw/proxy/manifest`);
+  const res = await apiSend(projectPath, { guest: "/daw/proxy/manifest" });
   if (!res.ok) {
     return null;
   }
@@ -77,12 +77,9 @@ export async function loadSessionMeta(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Session sync is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/session/meta?path=${encodeURIComponent(projectPath)}`,
-  );
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
+  const res = await apiFetch(projectPath, {
+    host: `/api/session/meta?path=${encodeURIComponent(projectPath)}`,
+  });
   return res.json() as Promise<SessionMeta>;
 }
 
@@ -92,14 +89,14 @@ export async function loadSessionState(
   if (isShareProjectKey(projectPath)) {
     return null;
   }
-  const res = await hostFetch(
-    `/api/session/state?path=${encodeURIComponent(projectPath)}`,
-  );
+  const res = await apiSend(projectPath, {
+    host: `/api/session/state?path=${encodeURIComponent(projectPath)}`,
+  });
   if (res.status === 404) {
     return null;
   }
   if (!res.ok) {
-    throw new Error(await res.text());
+    throw await readApiFailure(res);
   }
   return res.json() as Promise<SessionState>;
 }
@@ -111,16 +108,14 @@ export async function postSessionState(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Session sync is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/session/state?path=${encodeURIComponent(projectPath)}`,
+  const res = await apiFetch(
+    projectPath,
+    { host: `/api/session/state?path=${encodeURIComponent(projectPath)}` },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(snapshot),
     },
   );
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
   return res.json() as Promise<SessionState>;
 }

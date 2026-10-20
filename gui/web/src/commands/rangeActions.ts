@@ -1,5 +1,6 @@
 import { replyHistoryHead, submitDocumentCommand } from "../api/documentEdits";
 import { hostFetch } from "../api/documentTransport";
+import { apiSend } from "../api/http";
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
 import { rangeIsCurrent, resolveSelectionRange } from "../edit/rangeSelection";
@@ -8,8 +9,6 @@ import {
   hasShareCapability,
   isShareProjectKey,
   rangeEditMode,
-  reviewApiBase,
-  shareTokenFromKey,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { DawState } from "../state/types";
@@ -190,15 +189,17 @@ export async function runRangeAction(
       }
       return { status: "ok" };
     }
-    const guest = isShareProjectKey(state.projectPath);
-    const url = guest
-      ? `${reviewApiBase(shareTokenFromKey(state.projectPath)!)}/daw/range-audio`
-      : `/api/range-audio?path=${encodeURIComponent(state.projectPath)}`;
-    const response = await (guest ? fetch : hostFetch)(url, {
+    const init = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target, action }),
-    });
+    };
+    const response = isShareProjectKey(state.projectPath)
+      ? await apiSend(state.projectPath, { guest: "/daw/range-audio" }, init)
+      : await hostFetch(
+          `/api/range-audio?path=${encodeURIComponent(state.projectPath)}`,
+          init,
+        );
     if (!response.ok) throw new Error(await readApiError(response));
     const blob = await response.blob();
     const live = useDawStore.getState();

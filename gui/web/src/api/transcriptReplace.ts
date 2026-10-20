@@ -1,7 +1,6 @@
 import { isShareProjectKey } from "../shareMode";
-import { readApiFailure } from "../utils/apiError";
 import { submitDocumentCommand } from "./documentEdits";
-import { hostFetch } from "./documentTransport";
+import { apiFetch } from "./http";
 
 export interface TranscriptReplacementOptions {
   search: string;
@@ -36,12 +35,15 @@ export async function previewTranscriptReplacement(
   options: TranscriptReplacementOptions,
 ): Promise<TranscriptReplacementPreview> {
   requireHost(projectPath);
-  const response = await hostFetch("/api/transcript/replacement-preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, ...options }),
-  });
-  if (!response.ok) throw await readApiFailure(response);
+  const response = await apiFetch(
+    "",
+    { host: "/api/transcript/replacement-preview" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, ...options }),
+    },
+  );
   return response.json() as Promise<TranscriptReplacementPreview>;
 }
 

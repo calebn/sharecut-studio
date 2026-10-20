@@ -67,7 +67,7 @@ const MAX_MESSAGE_DEPTH = 3;
 
 /** Parse a failed fetch Response into a short user-facing message. */
 export async function readApiError(res: Response): Promise<string> {
-  const text = await res.text();
+  const text = await res.text().catch(() => "");
   let message: string | null = null;
   try {
     const body: unknown = JSON.parse(text);

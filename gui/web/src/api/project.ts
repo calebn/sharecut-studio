@@ -1,14 +1,9 @@
-import { hostFetch } from "../api/documentTransport";
 import type { DocumentSnapshot } from "../document/projectPatch";
-import {
-  isShareProjectKey,
-  reviewApiBase,
-  shareTokenFromKey,
-} from "../shareMode";
+import { isShareProjectKey, shareProjectKey } from "../shareMode";
 import type { ProjectMeta } from "../types/pipeline";
 import type { HistoryDiff } from "../types/project";
 import { withAbortTimeout } from "../utils/abortTimeout";
-import { readApiError } from "../utils/apiError";
+import { apiFetch, HOST_KEY } from "./http";
 
 export async function loadReviewBootstrap(token: string): Promise<{
   author?: string;
@@ -16,10 +11,7 @@ export async function loadReviewBootstrap(token: string): Promise<{
   guest_mode?: string;
   meta: { name?: string };
 }> {
-  const res = await fetch(`${reviewApiBase(token)}/project`);
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(shareProjectKey(token), { guest: "/project" });
   return res.json() as Promise<{
     author?: string;
     capabilities: string[];
@@ -38,16 +30,14 @@ export async function loadDocumentState(
     "The server didn't answer.",
     async (requestSignal) => {
       const query = `phase=${phase}`;
-      const response = isShareProjectKey(projectPath)
-        ? await fetch(
-            `${reviewApiBase(shareTokenFromKey(projectPath)!)}/daw/document/state?${query}`,
-            { signal: requestSignal },
-          )
-        : await hostFetch(
-            `/api/document/state?path=${encodeURIComponent(projectPath)}&${query}`,
-            { signal: requestSignal },
-          );
-      if (!response.ok) throw new Error(await readApiError(response));
+      const response = await apiFetch(
+        projectPath,
+        {
+          host: `/api/document/state?path=${encodeURIComponent(projectPath)}&${query}`,
+          guest: `/daw/document/state?${query}`,
+        },
+        { signal: requestSignal },
+      );
       const value: unknown = await response.json();
       if (
         !value ||
@@ -74,11 +64,7 @@ export async function loadProjectMeta(
   projectPath: string,
 ): Promise<ProjectMeta> {
   if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(`${reviewApiBase(token)}/daw/meta`);
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
+    const res = await apiFetch(projectPath, { guest: "/daw/meta" });
     const data = (await res.json()) as {
       mtime_ns: number;
       size: number;
@@ -91,12 +77,9 @@ export async function loadProjectMeta(
       server_seq: data.server_seq,
     };
   }
-  const res = await hostFetch(
-    `/api/project/meta?path=${encodeURIComponent(projectPath)}`,
-  );
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
+  const res = await apiFetch(projectPath, {
+    host: `/api/project/meta?path=${encodeURIComponent(projectPath)}`,
+  });
   return res.json() as Promise<ProjectMeta>;
 }
 
@@ -108,51 +91,51 @@ export async function loadHistoryDiff(
   if (isShareProjectKey(projectPath)) {
     throw new Error("History diff is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/history/diff?path=${encodeURIComponent(projectPath)}&from_index=${fromIndex}&to_index=${toIndex}`,
-  );
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
+  const res = await apiFetch(projectPath, {
+    host: `/api/history/diff?path=${encodeURIComponent(projectPath)}&from_index=${fromIndex}&to_index=${toIndex}`,
+  });
   return res.json() as Promise<HistoryDiff>;
 }
 export async function createEpisodeProject(
   workspaceDir: string,
   name: string,
 ): Promise<{ project_path: string; name: string }> {
-  const res = await hostFetch("/api/project/create", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ workspace_dir: workspaceDir, name }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/create" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace_dir: workspaceDir, name }),
+    },
+  );
   return res.json() as Promise<{ project_path: string; name: string }>;
 }
 
 export async function openEpisodeProject(
   path: string,
 ): Promise<{ project_path: string; name: string }> {
-  const res = await hostFetch("/api/project/open", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/open" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    },
+  );
   return res.json() as Promise<{ project_path: string; name: string }>;
 }
 
 export async function closeEpisodeProject(signal?: AbortSignal): Promise<void> {
-  const res = await hostFetch("/api/project/close", {
-    method: "POST",
-    signal,
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/close" },
+    {
+      method: "POST",
+      signal,
+    },
+  );
 }
 
 export type PickEpisodeProjectResult =
@@ -161,12 +144,13 @@ export type PickEpisodeProjectResult =
   | { unavailable: true; detail?: string };
 
 export async function pickEpisodeProject(): Promise<PickEpisodeProjectResult> {
-  const res = await hostFetch("/api/project/pick", {
-    method: "POST",
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/pick" },
+    {
+      method: "POST",
+    },
+  );
   const body = (await res.json()) as Record<string, unknown>;
   if (body.unavailable === true) {
     return {
@@ -221,25 +205,20 @@ export async function uploadMediaFile(
       params.set("upload_id", uploadId);
     }
 
-    let res: Response;
-    if (isShareProjectKey(projectPath)) {
-      const token = shareTokenFromKey(projectPath)!;
-      res = await fetch(`${reviewApiBase(token)}/daw/media/upload?${params}`, {
+    const hostParams = new URLSearchParams(params);
+    hostParams.set("path", projectPath);
+    const res = await apiFetch(
+      projectPath,
+      {
+        host: `/api/media/upload?${hostParams}`,
+        guest: `/daw/media/upload?${params}`,
+      },
+      {
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
         body: chunk,
-      });
-    } else {
-      params.set("path", projectPath);
-      res = await hostFetch(`/api/media/upload?${params}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: chunk,
-      });
-    }
-    if (!res.ok) {
-      throw new Error(await readApiError(res));
-    }
+      },
+    );
     last = (await res.json()) as MediaUploadResult;
     if (last.upload_id) {
       uploadId = String(last.upload_id);

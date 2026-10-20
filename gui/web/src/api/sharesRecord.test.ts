@@ -1,16 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHostShare } from "./sharesRecord";
 
 const hostFetch = vi.fn();
 
-vi.mock("./documentTransport", () => ({
-  hostFetch: (...args: unknown[]) => hostFetch(...args),
-}));
-
 describe("createHostShare", () => {
   beforeEach(() => {
     hostFetch.mockReset();
+    vi.stubGlobal("fetch", hostFetch);
   });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("preserves the typed stale-mix conflict for recovery callers", async () => {
     hostFetch.mockResolvedValue(

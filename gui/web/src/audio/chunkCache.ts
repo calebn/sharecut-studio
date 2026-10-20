@@ -1,15 +1,14 @@
-import { readApiFailure } from "../utils/apiError";
+import { apiFetch } from "../api/http";
 
 const CACHE_NAME = "podcast-proxy-v1";
 
+/** `url` is a server-issued chunk URL for the share `projectKey`. */
 export async function cachedFetchArrayBuffer(
+  projectKey: string,
   url: string,
 ): Promise<ArrayBuffer> {
   if (typeof caches === "undefined") {
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw await readApiFailure(res);
-    }
+    const res = await apiFetch(projectKey, { url });
     return res.arrayBuffer();
   }
   const cache = await caches.open(CACHE_NAME);
@@ -17,10 +16,7 @@ export async function cachedFetchArrayBuffer(
   if (hit) {
     return hit.arrayBuffer();
   }
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw await readApiFailure(res);
-  }
+  const res = await apiFetch(projectKey, { url });
   const clone = res.clone();
   await cache.put(url, clone);
   return res.arrayBuffer();

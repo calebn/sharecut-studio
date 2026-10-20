@@ -1,9 +1,4 @@
-import { hostFetch } from "../api/documentTransport";
-import {
-  isShareProjectKey,
-  reviewApiBase,
-  shareTokenFromKey,
-} from "../shareMode";
+import { isShareProjectKey } from "../shareMode";
 import type {
   PipelineAnalyzeResponse,
   PipelineConfigResponse,
@@ -11,14 +6,11 @@ import type {
   PipelineJobSnapshot,
   PipelineStatusResponse,
 } from "../types/pipeline";
-import { readApiError, readApiFailure } from "../utils/apiError";
 import { isTerminalJobStatus, jobResultPaths } from "../utils/pipeline";
+import { apiFetch, HOST_KEY } from "./http";
 
 export async function loadPipelineSteps(): Promise<string[]> {
-  const res = await hostFetch("/api/pipeline/steps");
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
+  const res = await apiFetch(HOST_KEY, { host: "/api/pipeline/steps" });
   const data = (await res.json()) as { steps: string[] };
   return data.steps;
 }
@@ -29,12 +21,9 @@ export async function loadPipelineConfig(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Pipeline config is not available for shared guests");
   }
-  const res = await hostFetch(
-    `/api/pipeline/config?path=${encodeURIComponent(projectPath)}`,
-  );
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(HOST_KEY, {
+    host: `/api/pipeline/config?path=${encodeURIComponent(projectPath)}`,
+  });
   return res.json() as Promise<PipelineConfigResponse>;
 }
 
@@ -50,14 +39,15 @@ export async function putPipelineConfig(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Pipeline config is not available for shared guests");
   }
-  const res = await hostFetch("/api/pipeline/config", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, ...body }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/config" },
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, ...body }),
+    },
+  );
   return res.json() as Promise<PipelineConfigResponse>;
 }
 
@@ -69,14 +59,15 @@ export async function startPipelineAnalyze(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Pipeline analyze is not available for shared guests");
   }
-  const res = await hostFetch("/api/pipeline/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, apply: opts?.apply ?? false }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/analyze" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, apply: opts?.apply ?? false }),
+    },
+  );
   const data = (await res.json()) as { job: PipelineJobSnapshot };
   return data.job;
 }
@@ -138,10 +129,11 @@ export async function analyzePipeline(
 export async function loadPipelineStatus(init?: {
   signal?: AbortSignal;
 }): Promise<PipelineStatusResponse> {
-  const res = await hostFetch("/api/pipeline/status", { signal: init?.signal });
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/status" },
+    { signal: init?.signal },
+  );
   return res.json() as Promise<PipelineStatusResponse>;
 }
 
@@ -164,8 +156,9 @@ export async function loadTranscriptVocabulary(
     throw new Error("Vocabulary is not available for shared guests");
   }
   const params = new URLSearchParams({ path: projectPath });
-  const res = await hostFetch(`/api/transcript/vocabulary?${params}`);
-  if (!res.ok) throw await readApiFailure(res);
+  const res = await apiFetch("", {
+    host: `/api/transcript/vocabulary?${params}`,
+  });
   return res.json() as Promise<TranscriptVocabulary>;
 }
 
@@ -178,12 +171,15 @@ export async function saveTranscriptVocabulary(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Vocabulary is not available for shared guests");
   }
-  const res = await hostFetch("/api/transcript/vocabulary", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath, ...vocabulary }),
-  });
-  if (!res.ok) throw await readApiFailure(res);
+  const res = await apiFetch(
+    "",
+    { host: "/api/transcript/vocabulary" },
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, ...vocabulary }),
+    },
+  );
   return res.json() as Promise<TranscriptVocabulary>;
 }
 
@@ -205,26 +201,27 @@ export async function startPipelineRun(
   if (isShareProjectKey(projectPath)) {
     throw new Error("Pipeline is not available for shared guests");
   }
-  const res = await hostFetch("/api/pipeline/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: projectPath,
-      from_step: opts?.fromStep ?? null,
-      only_step: opts?.onlyStep ?? null,
-      skip_steps: opts?.skipSteps ?? null,
-      enabled_steps: opts?.enabledSteps ?? null,
-      unattended: opts?.unattended ?? null,
-      config: opts?.config ?? null,
-      use_working_set: opts?.useWorkingSet ?? true,
-      force_transcribe: opts?.forceTranscribe ?? false,
-      retime_words: opts?.retimeWords ?? false,
-      overwrite_edited: opts?.overwriteEdited ?? false,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/run" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: projectPath,
+        from_step: opts?.fromStep ?? null,
+        only_step: opts?.onlyStep ?? null,
+        skip_steps: opts?.skipSteps ?? null,
+        enabled_steps: opts?.enabledSteps ?? null,
+        unattended: opts?.unattended ?? null,
+        config: opts?.config ?? null,
+        use_working_set: opts?.useWorkingSet ?? true,
+        force_transcribe: opts?.forceTranscribe ?? false,
+        retime_words: opts?.retimeWords ?? false,
+        overwrite_edited: opts?.overwriteEdited ?? false,
+      }),
+    },
+  );
   const data = (await res.json()) as { job: PipelineJobSnapshot };
   return data.job;
 }
@@ -232,14 +229,15 @@ export async function startPipelineRun(
 export async function cancelPipelineRun(
   jobId?: string | null,
 ): Promise<PipelineJobSnapshot> {
-  const res = await hostFetch("/api/pipeline/cancel", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ job_id: jobId ?? null }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/cancel" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: jobId ?? null }),
+    },
+  );
   const data = (await res.json()) as { job: PipelineJobSnapshot };
   return data.job;
 }
@@ -251,22 +249,17 @@ export async function startRenderPreview(
   { mode: "job"; job: PipelineJobSnapshot } | { mode: "sync"; ok: boolean }
 > {
   if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(`${reviewApiBase(token)}/daw/render-preview`, {
-      method: "POST",
-    });
-    if (!res.ok) {
-      throw new Error(await readApiError(res));
-    }
+    const res = await apiFetch(
+      projectPath,
+      { guest: "/daw/render-preview" },
+      { method: "POST" },
+    );
     const data = (await res.json()) as { job: { id: string } };
     const deadline = Date.now() + 600_000;
     while (Date.now() < deadline) {
-      const statusRes = await fetch(
-        `${reviewApiBase(token)}/daw/render-preview/${encodeURIComponent(data.job.id)}`,
-      );
-      if (!statusRes.ok) {
-        throw new Error(await readApiError(statusRes));
-      }
+      const statusRes = await apiFetch(projectPath, {
+        guest: `/daw/render-preview/${encodeURIComponent(data.job.id)}`,
+      });
       const status = (await statusRes.json()) as {
         job: { status: string; error: string | null };
       };
@@ -281,14 +274,15 @@ export async function startRenderPreview(
     }
     throw new Error("Timed out waiting for render preview");
   }
-  const res = await hostFetch("/api/pipeline/render-preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: projectPath }),
-  });
-  if (!res.ok) {
-    throw new Error(await readApiError(res));
-  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/render-preview" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath }),
+    },
+  );
   const data = (await res.json()) as { job: PipelineJobSnapshot };
   return { mode: "job", job: data.job };
 }

@@ -1,11 +1,7 @@
-import { hostFetch } from "../api/documentTransport";
-import {
-  isShareProjectKey,
-  reviewApiBase,
-  shareTokenFromKey,
-} from "../shareMode";
+import { isShareProjectKey } from "../shareMode";
 import { ApiError } from "../utils/apiError";
 import type { WaveformKind, WaveformStatus } from "../waveform/types";
+import { apiSend } from "./http";
 
 export class WaveformFetchError extends ApiError {
   readonly retryAfterSec: number | null;
@@ -39,12 +35,11 @@ async function waveformFetch(
   sharePath: string,
   signal?: AbortSignal,
 ): Promise<Response> {
-  const res = isShareProjectKey(projectPath)
-    ? await fetch(
-        `${reviewApiBase(shareTokenFromKey(projectPath)!)}${sharePath}`,
-        { signal },
-      )
-    : await hostFetch(hostPath, { signal });
+  const res = await apiSend(
+    projectPath,
+    { host: hostPath, guest: sharePath },
+    { signal },
+  );
   return waveformResponse(res);
 }
 
@@ -115,8 +110,9 @@ export async function loadWaveformPcm(
     ref: req.ref,
     block: String(req.block),
   });
-  const res = await hostFetch(
-    `/api/waveform/pcm/${encodeURIComponent(req.key)}?${params}`,
+  const res = await apiSend(
+    projectPath,
+    { host: `/api/waveform/pcm/${encodeURIComponent(req.key)}?${params}` },
     { signal },
   );
   return (await waveformResponse(res)).arrayBuffer();
@@ -141,39 +137,26 @@ export async function loadWaveformSnap(
   signal?: AbortSignal,
   focus?: number,
 ): Promise<WaveformSnapPayload | null> {
-  if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const params = new URLSearchParams({
-      track_id: trackId,
-      start: String(start),
-      end: String(end),
-      timeline: timeline ? "true" : "false",
-    });
-    if (focus != null) {
-      params.set("focus", String(focus));
-    }
-    const res = await fetch(
-      `${reviewApiBase(token)}/daw/waveform-snap?${params.toString()}`,
-      { signal },
-    );
-    if (!res.ok) {
-      return null;
-    }
-    return res.json() as Promise<WaveformSnapPayload>;
-  }
-  const params = new URLSearchParams({
-    path: projectPath,
+  const snapQuery = {
     track_id: trackId,
     start: String(start),
     end: String(end),
     timeline: timeline ? "true" : "false",
-  });
+  };
+  const hostParams = new URLSearchParams({ path: projectPath, ...snapQuery });
+  const guestParams = new URLSearchParams(snapQuery);
   if (focus != null) {
-    params.set("focus", String(focus));
+    hostParams.set("focus", String(focus));
+    guestParams.set("focus", String(focus));
   }
-  const res = await hostFetch(`/api/waveform-snap?${params.toString()}`, {
-    signal,
-  });
+  const res = await apiSend(
+    projectPath,
+    {
+      host: `/api/waveform-snap?${hostParams}`,
+      guest: `/daw/waveform-snap?${guestParams}`,
+    },
+    { signal },
+  );
   if (!res.ok) {
     return null;
   }

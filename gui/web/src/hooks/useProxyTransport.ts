@@ -175,7 +175,7 @@ export function useProxyTransport(): boolean {
       if (!Ctx) throw new Error("Web Audio unavailable");
       engineRef.current = new ProxyEngine(
         new Ctx(),
-        (ref) => cachedFetchArrayBuffer(ref.url),
+        (ref) => cachedFetchArrayBuffer(projectPath, ref.url),
         (error, ref) => handleFailure(error, ref),
       );
     } catch (error) {

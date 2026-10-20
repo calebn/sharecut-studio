@@ -3,10 +3,9 @@ import type {
   TranscriptTimingTarget,
   TranscriptWordView,
 } from "../types/project";
-import { readApiFailure } from "../utils/apiError";
 import type { MediaRef } from "../waveform/types";
 import { submitDocumentCommand } from "./documentEdits";
-import { hostFetch } from "./documentTransport";
+import { apiFetch } from "./http";
 
 export interface WordTimingContext {
   target: TranscriptTimingTarget;
@@ -31,16 +30,19 @@ export async function loadWordTimingContext(
 ): Promise<WordTimingContext> {
   if (isShareProjectKey(projectPath))
     throw new Error("Timing changes require the host project.");
-  const response = await hostFetch("/api/transcript/word-timing-context", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: projectPath,
-      target,
-      expected_word: { text: word.text, start: word.start, end: word.end },
-    }),
-  });
-  if (!response.ok) throw await readApiFailure(response);
+  const response = await apiFetch(
+    "",
+    { host: "/api/transcript/word-timing-context" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: projectPath,
+        target,
+        expected_word: { text: word.text, start: word.start, end: word.end },
+      }),
+    },
+  );
   return response.json() as Promise<WordTimingContext>;
 }
 
