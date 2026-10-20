@@ -20,7 +20,7 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
-from podcast_mcp.edits import fillers, room_tone
+from podcast_mcp.edits import filler_pacing, room_tone
 from podcast_mcp.edits.edit_reasons import NL_MANUAL_REASON
 from podcast_mcp.edits.ripple import EditMode
 from podcast_mcp.edits.room_tone import RecordedBedSample, SampleAbsent
@@ -486,7 +486,7 @@ def test_existing_timing_jnd_uses_final_loss_in_a_literal_five_second_original_p
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     assert SessionAir(ws.project).silence_around(1, 2) == pytest.approx(5)
-    native_jnd = fillers.pause_trim_is_imperceptible
+    native_jnd = filler_pacing.pause_trim_is_imperceptible
     jnd_checks = []
 
     def observe_jnd(removed_sec, pause_sec):

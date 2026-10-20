@@ -14,20 +14,28 @@ from podcast_mcp.edits.acoustic_word import (
 )
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.cut_safety import decision_policy
-from podcast_mcp.edits.fillers import (
-    _add_acoustic_candidates,
-    _apply_analyzed_cut,
-    _collect_candidates,
-    _CutCandidate,
-    _peer_speech_indexes,
-    _resolve_analyzed_cuts,
-    _speaker_cut_context,
-    _word_indexes,
-    analyze_candidates,
-    normalize_edit_mode,
-)
 from podcast_mcp.edits.mute_regions import muted_source_spans
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
+from podcast_mcp.edits.tighten.acoustic_scan import (
+    _add_acoustic_candidates,
+    _peer_speech_indexes,
+)
+from podcast_mcp.edits.tighten.apply import (
+    _apply_analyzed_cut,
+    _resolve_analyzed_cuts,
+)
+from podcast_mcp.edits.tighten.candidate import (
+    _CutCandidate,
+    _speaker_cut_context,
+    _word_indexes,
+    normalize_edit_mode,
+)
+from podcast_mcp.edits.tighten.collect import (
+    _collect_candidates,
+)
+from podcast_mcp.edits.tighten.prepare import (
+    analyze_candidates,
+)
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,

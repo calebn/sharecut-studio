@@ -1016,7 +1016,7 @@ review-window twin).
 ## Not yet implemented (see `ROADMAP.md`)
 
 - Applying the same Silero VAD signal to the pause-floor logic in
-  [`edits/fillers.py`](../src/podcast_mcp/edits/fillers.py) (breath detection is done;
+  [`edits/tighten/`](../src/podcast_mcp/edits/tighten/) (breath detection is done;
   filler/pause detection still uses the RMS heuristic only).
 - Recording MOS / non-intrusive quality scoring in `engines/audio_audit.py`
   (see `ROADMAP.md`; distinct from shipped joinqc NISQA).

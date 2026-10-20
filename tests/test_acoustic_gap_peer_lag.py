@@ -26,9 +26,9 @@ import pytest
 
 from bleed_helpers import DURATION_SEC, RATE, delay, voices, write_wav
 from podcast_mcp.edits.audio_cache import build_track_audio_caches
-from podcast_mcp.edits.fillers import _add_acoustic_candidates
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_reconciliation_caches
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.models import (

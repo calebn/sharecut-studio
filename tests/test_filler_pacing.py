@@ -16,8 +16,8 @@ from podcast_mcp.edits.filler_pacing import (
     flanking_retained_words,
     shrink_cut_for_min_gap,
 )
-from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
+from podcast_mcp.edits.tighten import analyze_fillers_and_pauses
 from podcast_mcp.edits.timeline_ops import insert_room_tone_pad
 from podcast_mcp.edits.transcript_cuts import cut_time_range
 from podcast_mcp.models import (
@@ -686,9 +686,9 @@ def test_analyze_fillers_sets_replace_gap(monkeypatch):
         )
 
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=25),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=25),
     ):
         defaults = {
             "tighten": {
@@ -1037,7 +1037,7 @@ def test_play_cli_paths_cover_misses(tmp_path, monkeypatch):
 
 
 def test_filler_analysis_skips_bleed_labeled_span() -> None:
-    from podcast_mcp.edits.fillers import _cut_span_is_bleed_not_owner
+    from podcast_mcp.edits.tighten.candidate import _cut_span_is_bleed_not_owner
 
     words = [
         TranscriptWord(
@@ -1053,7 +1053,7 @@ def test_filler_analysis_skips_bleed_labeled_span() -> None:
 
 
 def test_cut_span_bleed_swallows_profile_errors() -> None:
-    from podcast_mcp.edits.fillers import _cut_span_is_bleed_not_owner
+    from podcast_mcp.edits.tighten.candidate import _cut_span_is_bleed_not_owner
 
     project = _project([])
     with patch(
@@ -1064,7 +1064,7 @@ def test_cut_span_bleed_swallows_profile_errors() -> None:
 
 
 def test_cut_span_uses_speaker_role_when_profiles_exist() -> None:
-    from podcast_mcp.edits.fillers import _cut_span_is_bleed_not_owner
+    from podcast_mcp.edits.tighten.candidate import _cut_span_is_bleed_not_owner
 
     project = _project([])
     with (
@@ -1082,7 +1082,8 @@ def test_cut_span_uses_speaker_role_when_profiles_exist() -> None:
 
 def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(
@@ -1107,15 +1108,16 @@ def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
     opt = type("O", (), {"start": 1.0, "end": 1.3})()
     risk = type("R", (), {"too_risky": False})()
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", return_value=(opt, risk)),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", return_value=(opt, risk)),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
     ):
         assert _analyze_candidate(project, candidate, defaults) == CutRejected("not_owner")
 
 
 def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(text="um", start=1.0, end=1.3, confidence=0.95),
@@ -1135,10 +1137,10 @@ def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
     opt = type("O", (), {"start": 1.0, "end": 1.3})()
     risk = type("R", (), {"too_risky": False})()
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", return_value=(opt, risk)),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", return_value=(opt, risk)),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
@@ -1151,8 +1153,9 @@ def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
 
 def test_analyze_candidate_marks_review_when_guard_requests() -> None:
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(text="um", start=1.0, end=1.3, confidence=0.95),
@@ -1177,17 +1180,17 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
         action="review",
     )
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", return_value=(opt, risk)),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", return_value=(opt, risk)),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", guard),
         ),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=10),
     ):
         analyzed = _analyze_candidate(project, candidate, defaults)
     assert analyzed is not None
@@ -1197,8 +1200,9 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
 
 def test_analyze_candidate_blocked_peer_waits_for_review_as_a_padded_session_ripple() -> None:
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     project = _project(
         [
@@ -1224,17 +1228,17 @@ def test_analyze_candidate_blocked_peer_waits_for_review_as_a_padded_session_rip
         action="review",
     )
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", return_value=(opt, risk)),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", return_value=(opt, risk)),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("peer_speech", guard),
         ),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=10),
     ):
         analyzed = _analyze_candidate(project, candidate, defaults)
     assert analyzed is not None

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from audibility_floors import floors_at
-from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
+from podcast_mcp.edits.tighten import analyze_fillers_and_pauses
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import (
     maybe_auto_reconcile,

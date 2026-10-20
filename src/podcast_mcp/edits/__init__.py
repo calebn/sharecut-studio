@@ -7,9 +7,9 @@ from podcast_mcp.edits.decisions import (
     reject_edits,
     update_pending_edit,
 )
-from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.tighten import (
     TightenProposal,
+    analyze_fillers_and_pauses,
     apply_tighten_decisions,
     propose_tighten_edits,
 )

@@ -50,7 +50,9 @@ def _stored_remove(tmp_path, *, rustle=False, seconds=6, seed=1214):
 def _prepared_remove(result, edit_id, start, end, next_word):
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches
     from podcast_mcp.edits.cut_safety import CutRejected
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate, _decision_for_analyzed
+    from podcast_mcp.edits.tighten.apply import _decision_for_analyzed
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     caches = shared_source_audio_caches(result)
     analyzed = _analyze_candidate(

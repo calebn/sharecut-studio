@@ -20,8 +20,8 @@ from podcast_mcp.edits.cut_quality import (
     word_margin_violation_sec,
 )
 from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
-from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
+from podcast_mcp.edits.tighten import analyze_fillers_and_pauses
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -72,7 +72,7 @@ def _pause_audio(project: EpisodeProject, tmp_path: Path) -> EpisodeProject:
 
 
 def test_peer_speech_index_matches_direct_gap_scan() -> None:
-    from podcast_mcp.edits.fillers import _peer_speaking_in_gap, _peer_speech_indexes
+    from podcast_mcp.edits.tighten.acoustic_scan import _peer_speaking_in_gap, _peer_speech_indexes
 
     project = _project_with_transcript([])
     project.tracks.append(
@@ -110,7 +110,7 @@ def test_peer_speech_index_matches_direct_gap_scan() -> None:
 
 
 def test_peer_speech_index_falls_back_for_standalone_transcript() -> None:
-    from podcast_mcp.edits.fillers import _peer_speaking_in_gap, _peer_speech_indexes
+    from podcast_mcp.edits.tighten.acoustic_scan import _peer_speaking_in_gap, _peer_speech_indexes
 
     project = _project_with_transcript([TranscriptWord(text="peer", start=2.0, end=2.4)])
     project.tracks.append(
@@ -128,7 +128,7 @@ def test_peer_speech_index_falls_back_for_standalone_transcript() -> None:
 
 
 def test_peer_speech_index_excludes_own_long_word_across_three_tracks(monkeypatch) -> None:
-    from podcast_mcp.edits.fillers import (
+    from podcast_mcp.edits.tighten.acoustic_scan import (
         _peer_speaking_in_gap,
         _peer_speech_indexes,
         _PeerSpeechIndex,
@@ -291,14 +291,14 @@ def _mock_cut_pipeline(request):
         return
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             side_effect=lambda project, track_id, start, end, **kw: (
                 _passthrough_opt(start, end),
                 _safe_risk(),
             ),
         ),
         patch(
-            "podcast_mcp.edits.fillers.detect_adjacent_breath",
+            "podcast_mcp.edits.tighten.prepare.detect_adjacent_breath",
             return_value=[],
         ),
         patch(
@@ -306,11 +306,11 @@ def _mock_cut_pipeline(request):
             side_effect=lambda project, track_id, start, end, **kw: (start, end),
         ),
         patch(
-            "podcast_mcp.edits.fillers.pause_air_span",
+            "podcast_mcp.edits.tighten.gate.pause_air_span",
             side_effect=lambda project, track_id, start, end, **kw: PauseAir(start, end),
         ),
         patch(
-            "podcast_mcp.edits.fillers.recommend_cut_fade_ms",
+            "podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms",
             return_value=25,
         ),
     ):
@@ -327,11 +327,11 @@ def test_fillers_co_remove_adjacent_breath():
 
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), _safe_risk()),
         ),
         patch(
-            "podcast_mcp.edits.fillers.detect_adjacent_breath",
+            "podcast_mcp.edits.tighten.prepare.detect_adjacent_breath",
             return_value=[BreathSpan(start=0.85, end=1.0, side="before")],
         ),
     ):
@@ -395,9 +395,9 @@ def test_solo_pause_retains_higher_floor_than_turn_pause(tmp_path: Path):
     # Solo: only host transcript
     solo = _pause_audio(_project_with_transcript(host_words), tmp_path / "solo")
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
         patch(
-            "podcast_mcp.edits.fillers.detect_adjacent_breath",
+            "podcast_mcp.edits.tighten.prepare.detect_adjacent_breath",
             return_value=[],
         ),
     ):
@@ -432,9 +432,9 @@ def test_solo_pause_retains_higher_floor_than_turn_pause(tmp_path: Path):
     turn.transcripts.append(Transcript(track_id="guest", words=guest_words))
     _pause_audio(turn, tmp_path / "turn")
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
         patch(
-            "podcast_mcp.edits.fillers.detect_adjacent_breath",
+            "podcast_mcp.edits.tighten.prepare.detect_adjacent_breath",
             return_value=[],
         ),
     ):
@@ -462,7 +462,8 @@ def test_solo_pause_retains_higher_floor_than_turn_pause(tmp_path: Path):
 
 
 def test_solo_pause_crossing_earlier_hole_does_not_propose_cut(tmp_path: Path):
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
     from podcast_mcp.engines.session_timeline import SessionTimeline
     from podcast_mcp.util.timebase import SourceSec
 
@@ -496,7 +497,8 @@ def test_solo_pause_crossing_earlier_hole_does_not_propose_cut(tmp_path: Path):
 
 def test_pause_max_end_clamps_breath_extension(tmp_path: Path):
     from podcast_mcp.edits.breath_detect import BreathSpan
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(text="her", start=1.0, end=1.2),
@@ -513,7 +515,7 @@ def test_pause_max_end_clamps_breath_extension(tmp_path: Path):
         max_end=3.15,
     )
     with patch(
-        "podcast_mcp.edits.fillers.detect_adjacent_breath",
+        "podcast_mcp.edits.tighten.prepare.detect_adjacent_breath",
         return_value=[BreathSpan(start=3.15, end=3.5, side="after")],
     ):
         result = _analyze_candidate(
@@ -540,7 +542,7 @@ def test_pause_across_ripple_deleted_material_is_not_proposed():
     though nothing plays there any more. The next clip starts flush with the
     resume word, so none of the gap survives on the timeline.
     """
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="her", start=2.5, end=2.8),
@@ -570,7 +572,7 @@ def test_pause_across_ripple_deleted_material_is_not_proposed():
 
 def test_pause_gap_is_measured_on_the_timeline_not_the_source_clock():
     """A partially ripple-deleted gap is sized by what still plays, not raw source distance."""
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="her", start=4.2, end=4.5),
@@ -602,7 +604,7 @@ def test_timeline_pause_gap_sec_excludes_a_hole_inside_the_gap():
     docs/filler-cut-quality.md: it can only make ``max_pause_sec`` harder to
     reach, never propose a cut over audio that still plays.
     """
-    from podcast_mcp.edits.fillers import _timeline_pause_gap_sec
+    from podcast_mcp.edits.tighten.collect import _timeline_pause_gap_sec
 
     project = _project_with_transcript([])
     project.clips = [
@@ -616,7 +618,7 @@ def test_timeline_pause_gap_sec_excludes_a_hole_inside_the_gap():
 
 def test_pause_dropped_below_threshold_because_of_a_hole_inside_the_gap():
     """The excluded hole (above) can tip a real pause below ``max_pause_sec`` (#783)."""
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="so", start=0.0, end=1.0),
@@ -644,7 +646,7 @@ def test_pause_dropped_below_threshold_because_of_a_hole_inside_the_gap():
 
 
 def test_collect_candidates_without_project_uses_turn_floor():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="one", start=0.0, end=0.4),
@@ -676,7 +678,7 @@ def test_bounded_repeat_start_skips_a_suppressed_neighbor():
     ``words[i - 1]`` directly, ignoring suppression, can float the floor
     inside audio that still plays.
     """
-    from podcast_mcp.edits.fillers import _bounded_repeat_start
+    from podcast_mcp.edits.tighten.repeats import _bounded_repeat_start
 
     words = [
         TranscriptWord(text="well", start=1.0, end=1.5),
@@ -691,7 +693,7 @@ def test_bounded_repeat_start_skips_a_suppressed_neighbor():
 
 def test_marked_partial_restart_is_bounded_by_flanking_silence():
     """The explicit-marker restart path's bound is unpinned without this (PR #792 review)."""
-    from podcast_mcp.edits.fillers import _collect_repetition_candidates
+    from podcast_mcp.edits.tighten.repeats import _collect_repetition_candidates
 
     words = [
         TranscriptWord(text="well", start=0.0, end=0.3),
@@ -706,7 +708,7 @@ def test_marked_partial_restart_is_bounded_by_flanking_silence():
 
 def test_split_partial_restart_is_bounded_by_flanking_silence():
     """The split-repair restart path's bound is unpinned without this (PR #792 review)."""
-    from podcast_mcp.edits.fillers import _collect_repetition_candidates
+    from podcast_mcp.edits.tighten.repeats import _collect_repetition_candidates
 
     words = [
         TranscriptWord(text="well", start=0.0, end=0.2),
@@ -723,7 +725,7 @@ def test_split_partial_restart_is_bounded_by_flanking_silence():
 
 def test_restart_phrase_is_bounded_by_flanking_silence():
     """The phrase-restart path's bound is unpinned without this (PR #792 review)."""
-    from podcast_mcp.edits.fillers import _collect_repetition_candidates
+    from podcast_mcp.edits.tighten.repeats import _collect_repetition_candidates
 
     words = [
         TranscriptWord(text="well", start=0.0, end=0.2),
@@ -749,8 +751,9 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
     ``repetition:word:i`` at 215.81 without touching either "I".
     """
     from podcast_mcp.edits.cut_quality import CutRisk
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(text="I", start=0.5, end=0.53),
@@ -783,8 +786,8 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
         )
 
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
@@ -799,7 +802,7 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
 
 
 def test_repetition_candidates_are_bounded_and_review_required():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="I", start=0.0, end=0.15),
@@ -834,8 +837,9 @@ def test_repetition_cut_cannot_widen_past_the_duplicate_word():
     (0.9-1.35) rather than a hand-set stand-in for them.
     """
     from podcast_mcp.edits.cut_quality import CutRisk
-    from podcast_mcp.edits.fillers import _analyze_candidate, _collect_repetition_candidates
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
+    from podcast_mcp.edits.tighten.repeats import _collect_repetition_candidates
 
     words = [
         TranscriptWord(text="audra", start=0.5, end=0.9),
@@ -867,8 +871,8 @@ def test_repetition_cut_cannot_widen_past_the_duplicate_word():
         )
 
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
@@ -887,7 +891,7 @@ def test_repetition_cut_cannot_widen_past_the_duplicate_word():
 
 
 def test_phrase_restart_and_marked_partial_word_are_review_candidates():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     phrase = [
         TranscriptWord(text="we", start=0.0, end=0.1),
@@ -908,7 +912,7 @@ def test_phrase_restart_and_marked_partial_word_are_review_candidates():
 
 
 def test_four_word_restart_is_one_longest_candidate():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text=text, start=i * 0.2, end=i * 0.2 + 0.1)
@@ -924,7 +928,7 @@ def test_four_word_restart_is_one_longest_candidate():
 
 
 def test_restart_examples_strip_terminal_marker_and_split_partial_word():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     examples = [
         (
@@ -960,7 +964,7 @@ def test_restart_examples_strip_terminal_marker_and_split_partial_word():
 
 
 def test_split_partial_restart_removes_repeated_prefix_and_retains_repair():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="I", start=0.0, end=0.1),
@@ -981,7 +985,7 @@ def test_split_partial_restart_removes_repeated_prefix_and_retains_repair():
 
 
 def test_split_partial_restart_does_not_duplicate_word_repetition():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="I", start=0.0, end=0.1),
@@ -1000,7 +1004,7 @@ def test_split_partial_restart_does_not_duplicate_word_repetition():
 
 
 def test_multiword_filler_repeat_does_not_become_restart_candidate():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="you", start=0.0, end=0.1),
@@ -1019,7 +1023,7 @@ def test_multiword_filler_repeat_does_not_become_restart_candidate():
 
 
 def test_periodic_phrase_repeat_produces_one_small_restart_proposal():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text=text, start=index * 0.12, end=index * 0.12 + 0.1)
@@ -1036,8 +1040,8 @@ def test_periodic_phrase_repeat_produces_one_small_restart_proposal():
 
 
 def test_periodic_phrase_restart_stays_bounded_after_proposal_coalescing(monkeypatch):
-    from podcast_mcp.edits import tighten as tighten_module
-    from podcast_mcp.edits.fillers import _AnalyzedCut
+    from podcast_mcp.edits.tighten import propose as tighten_module
+    from podcast_mcp.edits.tighten.candidate import _AnalyzedCut
 
     words = [
         TranscriptWord(text=text, start=index * 0.12, end=index * 0.12 + 0.1)
@@ -1074,7 +1078,7 @@ def test_periodic_phrase_restart_stays_bounded_after_proposal_coalescing(monkeyp
 
 
 def test_semantic_correction_is_not_detected_as_restart():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="store—", start=0.0, end=0.2),
@@ -1089,7 +1093,7 @@ def test_semantic_correction_is_not_detected_as_restart():
 
 
 def test_split_partial_restart_requires_contiguous_timing():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="I", start=0.0, end=0.1),
@@ -1135,7 +1139,7 @@ def test_reproposal_replaces_prior_generated_restarts():
 
 
 def test_repetition_requires_local_timestamps_and_ignores_filler_words():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="very", start=0.0, end=0.1),
@@ -1153,7 +1157,7 @@ def test_repetition_requires_local_timestamps_and_ignores_filler_words():
 
 
 def test_retained_pause_floor_counts_a_peer_muted_in_the_mix():
-    from podcast_mcp.edits.fillers import _retained_pause_floor_sec
+    from podcast_mcp.edits.tighten.collect import _retained_pause_floor_sec
 
     host_words = [
         TranscriptWord(text="her", start=1.0, end=1.2),
@@ -1193,7 +1197,7 @@ def test_retained_pause_floor_counts_a_peer_muted_in_the_mix():
 
 
 def test_solo_floor_not_below_turn_floor():
-    from podcast_mcp.edits.fillers import _retained_pause_floor_sec
+    from podcast_mcp.edits.tighten.collect import _retained_pause_floor_sec
 
     project = _project_with_transcript(
         [
@@ -1240,7 +1244,7 @@ def test_fillers_store_cut_confidence_on_decision():
             CutRisk(score=0.1, reasons=[]),
         )
 
-    with patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt):
+    with patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt):
         defaults = {
             "tighten": {
                 "filler_words": ["um", "uh"],
@@ -1261,11 +1265,11 @@ def test_append_optimized_cut_returns_none_when_invalid_range():
     project = _project_with_transcript(words)
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), _safe_risk()),
         ),
         patch(
-            "podcast_mcp.edits.fillers.extend_cut_for_breaths",
+            "podcast_mcp.edits.tighten.prepare.extend_cut_for_breaths",
             return_value=(1.2, 1.0),
         ),
     ):
@@ -1439,10 +1443,10 @@ def test_fillers_leave_in_when_risky():
     risky = CutRisk(score=1.0, reasons=["harsh join"])
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), risky),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=risky),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=risky),
     ):
         defaults = {
             "tighten": {
@@ -1488,13 +1492,13 @@ def test_fillers_flags_risky_for_review_when_not_leaving_in():
     risky = CutRisk(score=1.0, reasons=["harsh join"])
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             side_effect=lambda project, track, start, end, **k: (
                 _passthrough_opt(start, end),
                 risky,
             ),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=risky),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=risky),
     ):
         defaults = {
             "tighten": {
@@ -1640,7 +1644,7 @@ def _discourse_defaults(**overrides: object) -> dict:
 
 
 def _collect_with_skips(words: list[TranscriptWord], defaults: dict):
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     project = _project_with_transcript(words)
     skips: dict[str, int] = {}
@@ -1777,7 +1781,7 @@ def test_discourse_skip_counts_surfaced_in_summary():
 
 def test_discourse_config_defaults_round_trip():
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.fillers import (
+    from podcast_mcp.edits.tighten.lexicon import (
         DEFAULT_DISCOURSE_CONFIDENCE_MAX,
         DEFAULT_DISCOURSE_MARKERS,
         DEFAULT_DISCOURSE_PAUSE_SEC,
@@ -1813,7 +1817,8 @@ def test_discourse_first_word_uses_trailing_pause():
 
 
 def test_pause_analyze_retains_original_air_past_junk_words(tmp_path: Path):
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(text="one", start=0.0, end=0.4),
@@ -1857,7 +1862,7 @@ def test_pause_analyze_retains_original_air_past_junk_words(tmp_path: Path):
 
 
 def _pause_candidate(**kwargs):
-    from podcast_mcp.edits.fillers import _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
 
     fields = {
         "track_id": "host",
@@ -1873,7 +1878,7 @@ def _pause_candidate(**kwargs):
 
 def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
-    from podcast_mcp.edits.fillers import _analyze_candidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     paced = FillerPacingResult(start=0.4, end=2.0)
     defaults = {
@@ -1885,7 +1890,7 @@ def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     empty = _project_with_transcript([])
     empty.transcripts = []
     _pause_audio(empty, tmp_path / "empty")
-    with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
+    with patch("podcast_mcp.edits.tighten.prepare.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(empty, _pause_candidate(), defaults)
     assert result == CutRejected("no_air")
 
@@ -1897,7 +1902,7 @@ def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
         ]
     )
     _pause_audio(junk_only, tmp_path / "junk")
-    with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
+    with patch("podcast_mcp.edits.tighten.prepare.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(junk_only, _pause_candidate(), defaults)
     assert result == CutRejected("no_air")
 
@@ -1910,7 +1915,7 @@ def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
         ),
         tmp_path / "valid",
     )
-    with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
+    with patch("podcast_mcp.edits.tighten.prepare.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(valid, _pause_candidate(), defaults)
     assert not isinstance(result, CutRejected)
     assert (result.start, result.end) == pytest.approx((0.4, 2))
@@ -1919,7 +1924,7 @@ def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
 
 def test_pause_analyze_contracts_before_a_flush_next_word(tmp_path: Path):
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
-    from podcast_mcp.edits.fillers import _analyze_candidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(text="one", start=0.0, end=0.4),
@@ -1928,7 +1933,7 @@ def test_pause_analyze_contracts_before_a_flush_next_word(tmp_path: Path):
     project = _project_with_transcript(words)
     _pause_audio(project, tmp_path)
     paced = FillerPacingResult(start=0.4, end=2.0)
-    with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
+    with patch("podcast_mcp.edits.tighten.prepare.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(
             project,
             _pause_candidate(),
@@ -1946,7 +1951,8 @@ def test_pause_analyze_contracts_before_a_flush_next_word(tmp_path: Path):
 
 
 def test_analyze_rejects_when_max_end_collapses_span():
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     project = _project_with_transcript([TranscriptWord(text="um", start=1.0, end=1.2)])
     result = _analyze_candidate(
@@ -1965,7 +1971,8 @@ def test_analyze_rejects_when_max_end_collapses_span():
 
 
 def test_analyze_rejects_when_cut_scope_is_skipped():
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     project = _project_with_transcript(
         [
@@ -1996,12 +2003,9 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
 
     from podcast_mcp.edits.audio_cache import TrackAudioCache
     from podcast_mcp.edits.cut_quality import CutRisk
-    from podcast_mcp.edits.fillers import (
-        _CutCandidate,
-        _word_indexes,
-        analyze_candidates,
-    )
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate, _word_indexes
+    from podcast_mcp.edits.tighten.prepare import analyze_candidates
     from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
 
     words = [
@@ -2065,15 +2069,15 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
 
     with (
         patch(
-            "podcast_mcp.edits.fillers.shared_timeline_rms_caches",
+            "podcast_mcp.edits.tighten.prepare.shared_timeline_rms_caches",
             return_value=timeline_caches,
         ) as shared_timeline,
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             side_effect=capture_resolve,
         ),
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
     ):
         analyze_candidates(
             project,
@@ -2094,7 +2098,8 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
 def test_analyze_marks_review_when_peer_speech_requires_it():
     from types import SimpleNamespace
 
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     project = _project_with_transcript(
         [
@@ -2129,7 +2134,8 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
 def test_analyze_keeps_peer_conflicted_pause_for_session_review(action, tmp_path: Path):
     from types import SimpleNamespace
 
-    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     project = _project_with_transcript(
         [
@@ -2292,8 +2298,8 @@ def test_discourse_immediate_repeat_skips_suppressed_neighbors():
 
 
 def test_discourse_leading_silence_and_trailing_like():
-    from podcast_mcp.edits.fillers import _collect_candidates
     from podcast_mcp.edits.tighten import format_tighten_propose_summary
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     leading = [
         TranscriptWord(text="like", start=0.5, end=0.7, confidence=0.95),
@@ -2348,7 +2354,7 @@ def test_analyze_skips_when_filler_pacing_returns_none():
         TranscriptWord(text="uh", start=1.25, end=1.45),
     ]
     project = _project_with_transcript(words)
-    with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=None):
+    with patch("podcast_mcp.edits.tighten.prepare.apply_filler_pacing", return_value=None):
         decisions = analyze_fillers_and_pauses(
             project,
             project.transcripts[0],
@@ -2391,7 +2397,7 @@ def test_a_rejected_filler_is_counted_under_its_reason(target, kwargs, skip, edi
         TranscriptWord(text="okay.", start=2.0, end=2.3),
     ]
     project = _project_with_transcript(words)
-    module = "podcast_mcp.edits" if "." in target else "podcast_mcp.edits.fillers"
+    module = "podcast_mcp.edits" if "." in target else "podcast_mcp.edits.tighten.prepare"
     skips: dict[str, int] = {}
     with patch(f"{module}.{target}", **kwargs):
         decisions = analyze_fillers_and_pauses(
@@ -2435,7 +2441,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
     project = _project_with_transcript(words)
     with (
         patch(
-            "podcast_mcp.edits.fillers.build_track_audio_caches",
+            "podcast_mcp.edits.tighten.apply.build_track_audio_caches",
             return_value={"host": sentinel_cache},
         ),
         patch(
@@ -2476,7 +2482,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
 
 
 def test_repetition_candidates_flag_off_skips_repetition():
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="the", start=0.0, end=0.15),
@@ -2493,7 +2499,7 @@ def test_repetition_candidates_flag_off_skips_repetition():
 
 def test_intensity_tiers_are_nested_and_ordered():
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
     from podcast_mcp.edits.tighten_intensity import apply_tighten_intensity
 
     spec = [
@@ -2534,7 +2540,7 @@ def test_intensity_tiers_are_nested_and_ordered():
 
 
 def test_propose_tighten_edits_resolves_intensity(monkeypatch):
-    from podcast_mcp.edits import tighten as tighten_module
+    from podcast_mcp.edits.tighten import propose as tighten_module
 
     project = _project_with_transcript([TranscriptWord(text="hi", start=0.0, end=0.2)])
     seen: list[dict] = []
@@ -2562,7 +2568,7 @@ def test_propose_tighten_edits_resolves_intensity(monkeypatch):
 
 
 def test_analyze_fillers_and_pauses_resolves_intensity(monkeypatch):
-    from podcast_mcp.edits import fillers as fillers_module
+    from podcast_mcp.edits.tighten import apply as fillers_module
 
     project = _project_with_transcript([TranscriptWord(text="hi", start=0.0, end=0.2)])
     seen: list[dict] = []
@@ -2589,7 +2595,7 @@ def _uh_with_overshoot(
     project = _project_with_transcript(words)
     skips: dict[str, int] = {}
     with patch(
-        "podcast_mcp.edits.fillers.optimize_and_assess",
+        "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
         side_effect=lambda *a, **k: (_passthrough_opt(*opt_span), _safe_risk()),
     ):
         decisions = analyze_fillers_and_pauses(
@@ -2700,7 +2706,7 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
         return start, end
 
     with (
-        patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air),
+        patch("podcast_mcp.edits.tighten.gate.pause_air_span", side_effect=air),
         patch("podcast_mcp.edits.cut_safety.protect_cut_breaths", side_effect=breaths),
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
@@ -2715,7 +2721,7 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
 )
 def test_a_replacement_pad_counts_against_actual_played_loss(air_end, loss):
     from podcast_mcp.edits.filler_pacing import PacedPad
-    from podcast_mcp.edits.fillers import _CutPlan
+    from podcast_mcp.edits.tighten.plan import _CutPlan
 
     pad = PacedPad(gap_sec=0.45, min_sec=0.45, retain=1, max_sec=0.45)
     plan = _CutPlan.for_cut(1, air_end, mute=False, pad=pad, reason="filler:fixture")
@@ -2731,7 +2737,7 @@ def test_a_pause_trim_with_nothing_to_cut_is_skipped_under_the_reason_it_has(ski
     project = _project_with_transcript(_PAUSE_WORDS)
     skips: dict[str, int] = {}
 
-    with patch("podcast_mcp.edits.fillers.pause_air_span", return_value=skip):
+    with patch("podcast_mcp.edits.tighten.gate.pause_air_span", return_value=skip):
         decisions = analyze_fillers_and_pauses(
             project, project.transcripts[0], _PAUSE_DEFAULTS, skip_counts=skips
         )
@@ -2752,7 +2758,7 @@ def test_a_pause_trim_that_moved_onto_air_is_labelled_not_held_for_review(tmp_pa
 
     project = _project_with_transcript(_PAUSE_WORDS)
     _pause_audio(project, tmp_path)
-    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=shrink):
+    with patch("podcast_mcp.edits.tighten.gate.pause_air_span", side_effect=shrink):
         moved = analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
     project = _pause_audio(_project_with_transcript(_PAUSE_WORDS), tmp_path / "kept")
     kept = analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
@@ -3167,7 +3173,8 @@ def test_acoustic_mute_too_short_beside_a_kept_words_voice_is_skipped(tmp_path, 
 def test_cut_starting_in_a_kept_words_tail_starts_after_its_voice(tmp_path, reason, start):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
-    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.plan import _between_kept_voices, _CutPlan
 
     project = _audio_project(
         tmp_path,
@@ -3263,9 +3270,9 @@ def _owner_cases_project(tmp_path, gain_db: float) -> EpisodeProject:
 def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
-    from podcast_mcp.edits.fillers import (
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.plan import (
         _between_kept_voices,
-        _CutCandidate,
         _CutPlan,
         _start_at_filler_onset,
     )
@@ -3329,7 +3336,8 @@ def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.cut_safety import CutRejected
-    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.plan import _between_kept_voices, _CutPlan
 
     project = _audio_project(
         tmp_path,
@@ -3620,7 +3628,8 @@ def test_a_real_word_the_transcript_dropped_is_not_proposed_as_a_filler_decaying
 def test_the_plan_flags_the_valley_when_the_word_time_falls_in_it(tmp_path):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
-    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.plan import _between_kept_voices, _CutPlan
 
     # Aligned word times can fall on the valley (lab: the valley bottom is 647.29, the
     # word time 647.30): the walk stops at the word start, and the run ends in the valley.
@@ -3714,7 +3723,8 @@ def test_a_filler_decaying_into_a_word_is_held_at_approval_by_the_same_rule_that
 def _decaying_uh_plan_inputs(tmp_path, reason: str, cut_kind: str, end: float = 1.45):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
-    from podcast_mcp.edits.fillers import _CutCandidate, _CutPlan
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.plan import _CutPlan
 
     project = _decaying_uh_project(tmp_path, 20.0, 0.0)
     candidate = _CutCandidate(
@@ -3726,7 +3736,7 @@ def _decaying_uh_plan_inputs(tmp_path, reason: str, cut_kind: str, end: float = 
 
 
 def test_only_an_acoustic_run_ends_in_the_valley_before_the_next_word(tmp_path):
-    from podcast_mcp.edits.fillers import _between_kept_voices
+    from podcast_mcp.edits.tighten.plan import _between_kept_voices
 
     project, candidate, plan, cache, defaults = _decaying_uh_plan_inputs(
         tmp_path, "filler:acoustic", "filler"
@@ -3748,7 +3758,7 @@ def test_only_an_acoustic_run_ends_in_the_valley_before_the_next_word(tmp_path):
 
 
 def test_the_plan_flags_the_valley_only_when_its_edge_lands_in_it(tmp_path):
-    from podcast_mcp.edits.fillers import _between_kept_voices
+    from podcast_mcp.edits.tighten.plan import _between_kept_voices
 
     # The run ends at 1.15, well before the valley: the valley does not place its edge.
     project, candidate, plan, cache, defaults = _decaying_uh_plan_inputs(
@@ -3761,7 +3771,7 @@ def test_the_plan_flags_the_valley_only_when_its_edge_lands_in_it(tmp_path):
 
 
 def test_the_plan_flags_the_valley_when_the_run_itself_ends_in_it(tmp_path):
-    from podcast_mcp.edits.fillers import _between_kept_voices
+    from podcast_mcp.edits.tighten.plan import _between_kept_voices
 
     # The gap scan can end the run at the bottom of the valley (lab 647.285), a frame
     # before the edge the valley would place: the edge still lies in the valley.
@@ -3775,7 +3785,7 @@ def test_the_plan_flags_the_valley_when_the_run_itself_ends_in_it(tmp_path):
 
 
 def test_a_gradual_onset_in_the_decay_does_not_lift_the_valleys_fade_in_cap(tmp_path):
-    from podcast_mcp.edits.fillers import _between_kept_voices, _shrink_to_next_onset
+    from podcast_mcp.edits.tighten.plan import _between_kept_voices, _shrink_to_next_onset
 
     # The plan caps the mute's fade-in at the frame after the valley bottom (1.41). The
     # onset scan then finds a gradual rise in the decay (1.37), which carries no burst of
@@ -4086,9 +4096,9 @@ def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.cut_quality import recommend_prev_word_lead_out_ms
-    from podcast_mcp.edits.fillers import (
+    from podcast_mcp.edits.tighten.candidate import _CutCandidate
+    from podcast_mcp.edits.tighten.plan import (
         _between_kept_voices,
-        _CutCandidate,
         _CutPlan,
         _start_at_filler_onset,
     )
@@ -4241,7 +4251,7 @@ def test_cut_plan_paces_its_pad_from_its_own_span():
 
     from podcast_mcp.edits.cut_safety import CutJoin
     from podcast_mcp.edits.filler_pacing import PacedPad
-    from podcast_mcp.edits.fillers import _CutPlan
+    from podcast_mcp.edits.tighten.plan import _CutPlan
 
     pad = PacedPad(gap_sec=0.0, min_sec=0.35, retain=0.85, max_sec=1.0)
     plan = _CutPlan.for_cut(1.2, 1.3, mute=False, pad=pad, reason="filler:fixture")
@@ -4336,7 +4346,7 @@ def test_a_pause_trim_is_proposed_only_when_a_listener_would_hear_the_pause_shor
     def air(project, track_id, start, end, **kw):
         return PauseAir(start, start + removed)
 
-    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air):
+    with patch("podcast_mcp.edits.tighten.gate.pause_air_span", side_effect=air):
         decisions = analyze_fillers_and_pauses(
             project, project.transcripts[0], _PAUSE_DEFAULTS, skip_counts=skips
         )
@@ -4405,7 +4415,7 @@ def test_a_pause_trim_is_judged_against_the_silence_a_listener_hears_not_the_tra
     with (
         unavailable,
         patch(
-            "podcast_mcp.edits.fillers.pause_air_span",
+            "podcast_mcp.edits.tighten.gate.pause_air_span",
             side_effect=lambda _p, _t, start, end, **kw: PauseAir(start, start + 0.15),
         ),
     ):
@@ -4421,7 +4431,8 @@ def test_a_pause_trim_is_judged_against_the_silence_a_listener_hears_not_the_tra
 
 @pytest.mark.parametrize(("floor", "proposed"), [(1.8, False), (0.55, True)])
 def test_a_pause_with_a_source_hole_retains_original_air_or_holds(floor, proposed, tmp_path: Path):
-    from podcast_mcp.edits.fillers import _analyze_candidate, _AnalyzedCut, _CutCandidate
+    from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate
+    from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
     words = [
         TranscriptWord(text="one", start=0, end=0.4),

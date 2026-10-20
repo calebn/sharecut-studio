@@ -171,13 +171,13 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
         }
         with (
             patch(
-                "podcast_mcp.edits.fillers.optimize_and_assess",
+                "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
                 side_effect=deterministic_optimize,
             ),
-            patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-            patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+            patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+            patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
             patch(
-                "podcast_mcp.edits.fillers.apply_filler_pacing",
+                "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
                 side_effect=lambda _project, _track_id, start, end, **_kwargs: FillerPacingResult(
                     start=start, end=end
                 ),
