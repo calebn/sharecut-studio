@@ -259,7 +259,12 @@ export function TranscriptPanel() {
   const draggingRef = useRef(false);
   /** True when mouseenter extended the range during a drag (survives mouseup→click). */
   const dragExtendedRef = useRef(false);
-  const [intent, setIntentState] = useState<TranscriptIntent>("navigate");
+  /** A tapped word outlives the shell swap on rotation (#1792), so its Correct sheet does too. */
+  const [intent, setIntentState] = useState<TranscriptIntent>(() =>
+    oneWordOf(selection) !== null && !isShareProjectKey(projectPath)
+      ? "correct"
+      : "navigate",
+  );
   const cancelQueuedSeek = useCallback(() => {
     if (clickTimerRef.current != null) {
       window.clearTimeout(clickTimerRef.current);
@@ -290,7 +295,9 @@ export function TranscriptPanel() {
   const gestureRestoreRef = useRef<{
     intent: TranscriptIntent;
     selection: Selection;
-  } | null>(null);
+  } | null>(
+    intent === "correct" ? { intent: "navigate", selection: null } : null,
+  );
   const hostEditable = !isShareProjectKey(projectPath);
   const rangeMode = rangeEditMode(projectPath, shareCapabilities);
   const wordsHydrated = project?.meta.hydration?.transcript_words !== false;

@@ -1,5 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "./overlayReachability";
+import { openTranscriptPanel } from "./transcriptEdit";
 
 /*
  * Rotating a landscape tablet to portrait swaps in the phone shell, which used to open on
@@ -35,4 +36,74 @@ test("a phone with nothing selected still opens on Listen", async ({
   await expect(page.locator(".daw-shell--phone")).toHaveClass(
     /daw-shell--listen/,
   );
+});
+
+async function doubleTapFirstWord(page: Page) {
+  const word = page
+    .locator('[data-transcript-word][data-word-index="0"]')
+    .first();
+  await expect(word).toBeVisible();
+  const box = await word.boundingBox();
+  expect(box).toBeTruthy();
+  const point = {
+    x: box!.x + box!.width / 2,
+    y: box!.y + box!.height / 2,
+    id: 1,
+  };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", {
+    enabled: true,
+    maxTouchPoints: 1,
+  });
+  for (let tap = 0; tap < 2; tap += 1) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [point],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  }
+  return word;
+}
+
+test.describe("rotating with the word editor open (#1870)", () => {
+  test.use({ hasTouch: true });
+
+  const rotations = [
+    { name: "phone portrait to landscape", from: [390, 844], to: [844, 390] },
+    {
+      name: "tablet landscape to portrait",
+      from: [1194, 834],
+      to: [834, 1194],
+    },
+    { name: "tablet landscape to phone", from: [1194, 834], to: [390, 844] },
+  ] as const;
+
+  for (const { name, from, to } of rotations) {
+    test(`${name} keeps Correct, the sheet and the word`, async ({ page }) => {
+      await page.setViewportSize({ width: from[0], height: from[1] });
+      await openHostProject(page);
+      if (from[0] < 768) {
+        await page.getByRole("button", { name: "Text", exact: true }).click();
+      } else {
+        await openTranscriptPanel(page);
+      }
+      const word = await doubleTapFirstWord(page);
+      await expect(word).toHaveClass(/selected/);
+      await expect(page.getByLabel("Corrected text")).toBeVisible();
+
+      await page.setViewportSize({ width: to[0], height: to[1] });
+
+      await expect(
+        page.locator('[data-transcript-word][data-word-index="0"]').first(),
+      ).toHaveClass(/selected/);
+      await expect(page.getByLabel("Corrected text")).toBeVisible();
+      await expect(page.locator("[data-transcript-intent]")).toHaveAttribute(
+        "data-transcript-intent",
+        "correct",
+      );
+    });
+  }
 });
