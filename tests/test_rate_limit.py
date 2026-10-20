@@ -530,7 +530,6 @@ async def test_the_mcp_bridge_answers_a_throttled_rpc_with_429_json_rpc_and_retr
 
     from podcast_mcp.gui.routes import remote_mcp as mcp_route
 
-    monkeypatch.setattr(mcp_route, "_remote_mcp_enabled", lambda _request: True)
     monkeypatch.setattr(mcp_route, "_require_mcp_capability", lambda _t: None)
     monkeypatch.setattr(mcp_route, "check_host_bucket", lambda _t, _k: _DENIED)
     payload = json.dumps({"jsonrpc": "2.0", "id": 7, "method": "tools/list"}).encode()
