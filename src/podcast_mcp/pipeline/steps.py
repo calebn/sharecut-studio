@@ -985,8 +985,8 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
         premix_is_stale,
         premix_path,
         stem_is_fresh,
-        stem_path,
     )
+    from podcast_mcp.util.tracks import stem_path
 
     if premix_path(project).is_file() and not premix_is_stale(project, defaults):
         return

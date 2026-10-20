@@ -19,7 +19,6 @@ from podcast_mcp.engines.play_audit import (
     stem_hash_matches,
     stem_is_fresh,
     stem_matches,
-    stem_path,
     track_render_hash,
     write_stem_hash,
 )
@@ -41,6 +40,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.util.tracks import stem_path
 from podcast_mcp.util.workspace_paths import resolve_within
 
 

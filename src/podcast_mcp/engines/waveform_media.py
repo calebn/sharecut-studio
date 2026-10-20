@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
-from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh, stem_path
+from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh
 from podcast_mcp.engines.waveform_pyramid import (
     PyramidMeta,
     build_pyramid,
@@ -36,6 +36,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     schedule_pyramid_build,
 )
 from podcast_mcp.models import EpisodeProject, Track, load_project, project_file_path
+from podcast_mcp.util.tracks import stem_path
 from podcast_mcp.util.workspace_paths import (
     resolve_under_workspace,
     resolve_within,

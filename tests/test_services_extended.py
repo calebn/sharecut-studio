@@ -2009,10 +2009,10 @@ def test_publish_stem_keeps_the_old_pair_until_the_new_bytes_land(
     from podcast_mcp.engines.play_audit import (
         publish_stem,
         read_stem_hash,
-        stem_path,
         track_render_hash,
         write_stem_hash,
     )
+    from podcast_mcp.util.tracks import stem_path
 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     stem = stem_path(ws.project, "host")
@@ -2115,7 +2115,8 @@ def test_overlapping_stem_renders_publish_one_at_a_time(minimal_project, sample_
 def test_processed_play_skips_a_stem_published_during_the_extract(
     minimal_project, sample_wav
 ) -> None:
-    from podcast_mcp.engines.play_audit import publish_stem, stem_path, write_stem_hash
+    from podcast_mcp.engines.play_audit import publish_stem, write_stem_hash
+    from podcast_mcp.util.tracks import stem_path
 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     stem = stem_path(ws.project, "host")

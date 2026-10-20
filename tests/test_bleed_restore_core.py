@@ -575,9 +575,10 @@ def test_media_change_refuses_restore_publication_preserving_prior_artifacts(
 ) -> None:
     from podcast_mcp.engines import transcript_gated_play
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
-    from podcast_mcp.engines.play_audit import publish_stem, stem_hash_path, stem_path
+    from podcast_mcp.engines.play_audit import publish_stem, stem_hash_path
     from podcast_mcp.util.coded_error import CodedValueError
     from podcast_mcp.util.project_state import render_lock
+    from podcast_mcp.util.tracks import stem_path
 
     project = _project(tmp_path)
     source = tmp_path / "source.wav"
@@ -726,10 +727,11 @@ def test_restore_revalidates_all_bus_fill_and_gate_inputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dependency: str
 ) -> None:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
-    from podcast_mcp.engines.play_audit import publish_stem, stem_hash_path, stem_path
+    from podcast_mcp.engines.play_audit import publish_stem, stem_hash_path
     from podcast_mcp.models import RoomToneFill, SourceRecording
     from podcast_mcp.util.coded_error import CodedValueError
     from podcast_mcp.util.project_state import render_lock
+    from podcast_mcp.util.tracks import stem_path
 
     project = _project(tmp_path)
     changed_path = tmp_path / "dependency.wav"
@@ -794,9 +796,10 @@ def test_restore_revalidates_all_bus_fill_and_gate_inputs(
 def test_stem_publisher_refuses_media_change_after_renderer_returns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.engines.play_audit import publish_stem, stem_hash_path, stem_path
+    from podcast_mcp.engines.play_audit import publish_stem, stem_hash_path
     from podcast_mcp.util.coded_error import CodedValueError
     from podcast_mcp.util.project_state import render_lock
+    from podcast_mcp.util.tracks import stem_path
 
     project = _project(tmp_path)
     plan = BleedGatePlan(attenuation_spans=((0, 1),))

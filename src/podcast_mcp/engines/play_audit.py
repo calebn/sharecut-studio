@@ -22,8 +22,7 @@ from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
-from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path
-from podcast_mcp.util.tracks import stem_path as track_stem_path
+from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, stem_path
 
 # Stems are timeline-clock WAVs; tolerate encoder/container rounding.
 STEM_DURATION_TOLERANCE_SEC = 0.25
@@ -295,10 +294,6 @@ def _clear_hash(path: Path) -> None:
 def _hash_sidecar_matches(render: Path, sidecar: Path, expected: str | None) -> bool:
     """The render file exists and its hash sidecar names ``expected`` (a None never matches)."""
     return expected is not None and render.is_file() and _read_hash(sidecar) == expected
-
-
-def stem_path(project: EpisodeProject, track_id: str) -> Path:
-    return track_stem_path(project, track_id)
 
 
 def stem_hash_path(project: EpisodeProject, track_id: str) -> Path:

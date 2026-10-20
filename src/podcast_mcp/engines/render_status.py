@@ -10,12 +10,11 @@ from podcast_mcp.engines.play_audit import (
     premix_stale_vs_stems,
     probe_stem_duration_sec,
     read_stem_hash,
-    stem_path,
     track_render_hash,
 )
 from podcast_mcp.engines.reconciliation_state import reconciliation_status
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids, stem_path
 
 
 def render_status_report(project: EpisodeProject) -> dict:
