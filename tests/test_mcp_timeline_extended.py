@@ -241,7 +241,12 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
 
-    with patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
+    ):
         svc = svc_cls.return_value
         svc.strip_silence.return_value = {"operation": "strip_silence", "removed_sec": 0.3}
         svc.split_clip.return_value = {"operation": "split_clip", "clip_id": "c1"}
@@ -339,7 +344,12 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
 
-    with patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
+    ):
         svc = svc_cls.return_value
         svc.reconciliation_status.return_value = {"stale": False}
         svc.reconcile_transcript.return_value = {"changed": 0, "dry_run": True}
@@ -406,7 +416,12 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
 
-    with patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
+    ):
         svc = svc_cls.return_value
         svc.strip_silence.return_value = {"operation": "strip_silence"}
         svc.split_clip.return_value = {"operation": "split_clip"}
@@ -491,7 +506,12 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
 
-    with patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
+    ):
         svc = svc_cls.return_value
         svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone"}
         svc.verify_transcript.return_value = 1

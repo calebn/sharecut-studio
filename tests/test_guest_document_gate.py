@@ -653,7 +653,7 @@ def guest_read_routes(minimal_project, sample_wav, published_share):
                 side_effect=[1.975, 8.035],
             ),
             patch(
-                "podcast_mcp.services.document.edit.EditService.preview_inaudible_cut",
+                "podcast_mcp.services.document.analysis.AnalysisService.preview_inaudible_cut",
                 return_value={"start": 0.1, "end": 0.2, "mode": "x"},
             ),
         ):

@@ -2490,7 +2490,7 @@
       "label": "Adjust word timing",
       "effect": "project",
       "tooltip": "Adjust source-word boundaries against the raw recording waveform; one Undo per drag",
-      "service": "EditService.set_word_timing",
+      "service": "TranscriptService.set_word_timing",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -2983,7 +2983,7 @@
       "label": "Find and replace transcript",
       "effect": "project",
       "tooltip": "Preview literal replacements across all source transcripts, then apply them as one undoable pass.",
-      "service": "EditService.replace_transcript_matches",
+      "service": "TranscriptService.replace_transcript_matches",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"

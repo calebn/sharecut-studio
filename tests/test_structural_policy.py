@@ -19,7 +19,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import save_project
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -161,8 +161,8 @@ def test_split_at_time_suggest_proposes(minimal_project, dialogue_wav):
 def test_delete_clip_apply_and_suggest(minimal_project, dialogue_wav):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
-    EditService(svc.ws).split_at_time(4.0, ["host"])
-    EditService(svc.ws).split_at_time(6.0, ["host"])
+    TimelineService(svc.ws).split_at_time(4.0, ["host"])
+    TimelineService(svc.ws).split_at_time(6.0, ["host"])
     clips = [c for c in svc.ws.project.clips if c.track_id == "host"]
     middle = next(
         c for c in clips if abs(c.timeline_start - 4.0) < 1e-6 and abs(c.timeline_end - 6.0) < 1e-6
@@ -196,8 +196,8 @@ def test_delete_clip_apply_and_suggest(minimal_project, dialogue_wav):
 def test_ripple_delete_clip_apply(minimal_project, dialogue_wav):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
-    EditService(svc.ws).split_at_time(3.0, ["host"])
-    EditService(svc.ws).split_at_time(5.0, ["host"])
+    TimelineService(svc.ws).split_at_time(3.0, ["host"])
+    TimelineService(svc.ws).split_at_time(5.0, ["host"])
     clips = [c for c in svc.ws.project.clips if c.track_id == "host"]
     middle = next(
         c for c in clips if abs(c.timeline_start - 3.0) < 1e-6 and abs(c.timeline_end - 5.0) < 1e-6
@@ -225,16 +225,16 @@ def test_structural_mode_from_payload_invalid():
 def test_split_at_time_no_tracks_raises(minimal_project, dialogue_wav):
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError, match="no tracks"):
-        EditService(ws).split_at_time(1.0, [])
+        TimelineService(ws).split_at_time(1.0, [])
 
 
 def test_delete_clips_empty_raises(minimal_project, dialogue_wav):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError, match="clip_ids required"):
-        EditService(ws).delete_clips([], mode=EditMode.GAP)
+        TimelineService(ws).delete_clips([], mode=EditMode.GAP)
     with pytest.raises(KeyError, match="unknown clip"):
-        EditService(ws).delete_clips(["missing_clip"], mode=EditMode.RIPPLE)
+        TimelineService(ws).delete_clips(["missing_clip"], mode=EditMode.RIPPLE)
 
 
 def test_delete_clip_handler_requires_ids(minimal_project, dialogue_wav):
@@ -267,7 +267,7 @@ def test_ripple_delete_clip_suggest(minimal_project, dialogue_wav):
 
 def test_split_clip_all_dialogue_tracks(minimal_project, dialogue_wav):
     ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
-    out = EditService(ws).split_clip(5.0)
+    out = TimelineService(ws).split_clip(5.0)
     assert out["operation"] == "split_clips_at"
     assert set(out["affected_tracks"]) == {"host", "guest"}
 
@@ -300,7 +300,7 @@ def test_update_pending_split_and_skipped_track(minimal_project, dialogue_wav):
 def test_delete_clips_propose_ripple(minimal_project, dialogue_wav):
     ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     clip_id = next(c.id for c in ws.project.clips if c.track_id == "host")
-    out = EditService(ws).delete_clips(
+    out = TimelineService(ws).delete_clips(
         [clip_id], mode=EditMode.RIPPLE, propose=True, reason="guest:ripple"
     )
     assert out["operation"] == "propose_delete_clips"
@@ -319,7 +319,7 @@ def test_append_split_requires_tracks(minimal_project, dialogue_wav):
 def test_delete_clip_via_clip_ids_payload(minimal_project, dialogue_wav):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
-    EditService(svc.ws).split_at_time(5.0, ["host"])
+    TimelineService(svc.ws).split_at_time(5.0, ["host"])
     left = next(
         c for c in svc.ws.project.clips if c.track_id == "host" and abs(c.timeline_start) < 1e-6
     )

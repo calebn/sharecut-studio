@@ -23,7 +23,7 @@ from podcast_mcp.models import (
     load_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, PlayService
+from podcast_mcp.services.document import PlayService, TranscriptService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
@@ -75,7 +75,7 @@ def timing_command(context, seq=1):
 
 def test_timing_command_audio_projection_stale_and_guest_denial(timing_workspace):
     ws = timing_workspace
-    context = EditService(ws).word_timing_context(
+    context = TranscriptService(ws).word_timing_context(
         WordTimingTarget("host", "extra", 0), expected_text="same", expected_start=1, expected_end=2
     )
     service = DocumentSyncService.open(ws.path)

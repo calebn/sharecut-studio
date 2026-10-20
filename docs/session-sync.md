@@ -368,7 +368,7 @@ A refused replay is dequeued and retained in **Needs attention**. An already
 accepted identity returns its original acceptance before checking the baseline.
 
 The local host MCP `set_clip_fade_tool` explicitly sets both current fades through
-`EditService.set_clip_fade` without a baseline. That deliberate local workflow
+`TimelineService.set_clip_fade` without a baseline. That deliberate local workflow
 remains unconditional. Every document-command handler supplies the required pair.
 
 ### Command identity and retries
@@ -421,37 +421,37 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; trusted interactive context, or `override_audio_checks` from a caller that may run the command, overrides the acoustic holds |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (ordinary source MUTE log id). Clip removals and exact ranges refuse with `local_restore_requires_history`; choose guarded `UndoHistory` for the whole action |
-| `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
-| `TrimClipEdge` | `EditService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode |
-| `RollClipJoin` | `EditService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context. The clips must abut (`clips_abut`); across a gap the command is refused, HTTP 400 with `X-Sharecut-Error-Code: roll_needs_abutting_clips`, before the token is checked |
-| `SetJoinMode` | `EditService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) — mode only (fades untouched); the result adds the `join_*` render fields (`join_crossfade_blocked`) |
-| `SetClipJoin` | `EditService.set_clip_join` | `left_clip_id`, `right_clip_id`, `mode` (`fade` \| `crossfade` \| `cut`), `length_ms?` (sets mode and both fades in one undo step; the GUI uses this) |
-| `ApplyFadeRecommendations` | `EditService.apply_fade_recommendations_for_track` | `track_id?` (null = all tracks) |
-| `SetEffectBypass` | `EditService.set_effect_bypass` | `track_id`, `effect_index`, `bypass` |
+| `SetClipFade` | `TimelineService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
+| `TrimClipEdge` | `TimelineService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode |
+| `RollClipJoin` | `TimelineService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context. The clips must abut (`clips_abut`); across a gap the command is refused, HTTP 400 with `X-Sharecut-Error-Code: roll_needs_abutting_clips`, before the token is checked |
+| `SetJoinMode` | `TimelineService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) — mode only (fades untouched); the result adds the `join_*` render fields (`join_crossfade_blocked`) |
+| `SetClipJoin` | `TimelineService.set_clip_join` | `left_clip_id`, `right_clip_id`, `mode` (`fade` \| `crossfade` \| `cut`), `length_ms?` (sets mode and both fades in one undo step; the GUI uses this) |
+| `ApplyFadeRecommendations` | `AnalysisService.apply_fade_recommendations_for_track` | `track_id?` (null = all tracks) |
+| `SetEffectBypass` | `AnalysisService.set_effect_bypass` | `track_id`, `effect_index`, `bypass` |
 | `SetTrackFader` | `EpisodeService.set_track_volume` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |
 | `SetTrackMute` | `EpisodeService.set_track_mute` | `track_id`, `muted` (saved mix mute) |
-| `ReplaceTranscriptMatches` | `EditService.replace_transcript_matches` | `search`, `replacement`, `match_case`, `preview_token` (host-only; full source-keyed preview, one history action) |
-| `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `source_id?`, `word_index`, `text`, `expected_text?` |
-| `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `source_id?`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
-| `SetTranscriptWordTiming` | `EditService.set_word_timing` | `target`, `expected_token`, `start`, `end` (source clock; host-only) |
-| `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `source_id?`, `word_index`, `suppressed`, `expected_text?` |
-| `SetTranscriptWordAutomatic` | `EditService.set_word_automatic` | `track_id`, `source_id?`, `word_index`, `expected_text?` — clears `audibility_locked` only (#824); `suppressed` waits for the next reconcile pass |
-| `SetTranscriptWordsIgnored` | `EditService.set_words_ignored` | `track_id`, `source_id?`, `start_word_index`, `end_word_index` (`ge=0`), `ignored`, `expected_text?` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; host-only, not in guest `EDIT_COMMANDS` |
+| `ReplaceTranscriptMatches` | `TranscriptService.replace_transcript_matches` | `search`, `replacement`, `match_case`, `preview_token` (host-only; full source-keyed preview, one history action) |
+| `CorrectTranscriptWord` | `TranscriptService.correct_word` | `track_id`, `source_id?`, `word_index`, `text`, `expected_text?` |
+| `CorrectTranscriptPhrase` | `TranscriptService.correct_phrase` | `track_id`, `source_id?`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
+| `SetTranscriptWordTiming` | `TranscriptService.set_word_timing` | `target`, `expected_token`, `start`, `end` (source clock; host-only) |
+| `SetTranscriptWordSuppressed` | `TranscriptService.set_word_suppressed` | `track_id`, `source_id?`, `word_index`, `suppressed`, `expected_text?` |
+| `SetTranscriptWordAutomatic` | `TranscriptService.set_word_automatic` | `track_id`, `source_id?`, `word_index`, `expected_text?` — clears `audibility_locked` only (#824); `suppressed` waits for the next reconcile pass |
+| `SetTranscriptWordsIgnored` | `TranscriptService.set_words_ignored` | `track_id`, `source_id?`, `start_word_index`, `end_word_index` (`ge=0`), `ignored`, `expected_text?` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; host-only, not in guest `EDIT_COMMANDS` |
 | `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{time, value, id?}]`, and required `expected_points: [{time, value, id}]` baseline (unique IDs; each list ≤ 10 000 points); missing IDs on new points are generated before the command is journaled. Only the track's volume envelope (`parameter` `volume`/`gain`/unset, via `EpisodeProject.volume_envelope_for`) is compared and replaced; `pan` and other parameters are untouched. The handler reloads the project under the submit lock and rejects a stale baseline with a 409 before mutation/history/logging. Floats compare exactly, so clients must echo the server's points verbatim (never rounded or clamped). Host MCP `set_envelope` submits this same command (optional `expected_points`; default baseline is the envelope read at call time). |
-| `AddChapter` | `EditService.add_chapter` | `time`, `title` (timeline clocks) |
-| `UpdateChapter` | `EditService.update_chapter` | `old_time`, `old_title`, `time`, `title` |
-| `DeleteChapter` | `EditService.delete_chapter` | `time`, `title` |
-| MCP `remove_chapter_tool` / `podcast edit remove-chapter` | `EditService.remove_chapter` | `title` only (removes every marker with that title) |
+| `AddChapter` | `TimelineService.add_chapter` | `time`, `title` (timeline clocks) |
+| `UpdateChapter` | `TimelineService.update_chapter` | `old_time`, `old_title`, `time`, `title` |
+| `DeleteChapter` | `TimelineService.delete_chapter` | `time`, `title` |
+| MCP `remove_chapter_tool` / `podcast edit remove-chapter` | `TimelineService.remove_chapter` | `title` only (removes every marker with that title) |
 | `AddSocialClip` | `ClipService.add_manual` | `track_id`, `start`, `end`, `title?` (timeline clocks) |
 | `UpdateSocialClip` | `ClipService.update_times` | `id`, `start`, `end` |
 | `DeleteSocialClip` | `ClipService.reject` | `id` |
 | `SuggestPendingEdit` | `EditService.suggest_pending_edit` | `track_id`, `start`, `end`, `reason?` (source clocks) |
-| `SplitAtTime` | `EditService.split_at_time` | `at_time`, `track_ids?`, `reason?` — host/Editor applies; Commenter proposes `type: split` |
-| `DeleteClip` | `EditService.delete_clips` | `clip_id` or `clip_ids`, `mode` (`gap` punches a hole, `ripple` closes it on every dialogue track); suggest → pending remove (`scope` `track` or `session`, a ripple records `cut_speech`) |
-| `DuplicateSegment` | `EditService.duplicate_segment` | `source_start`, `source_end`, `insert_at` — same-track paste from live timeline |
-| `MoveSegment` | `EditService.move_segment` | `source_start`, `source_end`, `insert_at` — cut+relocate in one mutate (all dialogue tracks) |
-| `MoveClips` | `EditService.move_clips` | `clips: [{clip_id, timeline_start, track_id}]` — reposition clips (gaps/overlap OK); pins `source_id` on inter-track; not a range shuffle |
-| `PasteSegment` | `EditService.paste_segment` | `insert_at`, `duration`, `extracts[]`, `mode` (`ripple` opens the time on every dialogue track; `gap` pastes over the pasted tracks in place); an unknown track or source or a bad range raises `PasteRejectedError` (`paste_*` code) before any write |
+| `SplitAtTime` | `TimelineService.split_at_time` | `at_time`, `track_ids?`, `reason?` — host/Editor applies; Commenter proposes `type: split` |
+| `DeleteClip` | `TimelineService.delete_clips` | `clip_id` or `clip_ids`, `mode` (`gap` punches a hole, `ripple` closes it on every dialogue track); suggest → pending remove (`scope` `track` or `session`, a ripple records `cut_speech`) |
+| `DuplicateSegment` | `TimelineService.duplicate_segment` | `source_start`, `source_end`, `insert_at` — same-track paste from live timeline |
+| `MoveSegment` | `TimelineService.move_segment` | `source_start`, `source_end`, `insert_at` — cut+relocate in one mutate (all dialogue tracks) |
+| `MoveClips` | `TimelineService.move_clips` | `clips: [{clip_id, timeline_start, track_id}]` — reposition clips (gaps/overlap OK); pins `source_id` on inter-track; not a range shuffle |
+| `PasteSegment` | `TimelineService.paste_segment` | `insert_at`, `duration`, `extracts[]`, `mode` (`ripple` opens the time on every dialogue track; `gap` pastes over the pasted tracks in place); an unknown track or source or a bad range raises `PasteRejectedError` (`paste_*` code) before any write |
 | `CutRange` | `EditService.cut_range` | `start`, `end`, `mode`, `track_ids?` (whose material the cut means; empty = every track) — clipboard cut (host/`edit` apply-only) |
 
 `CorrectTranscriptWord` / `CorrectTranscriptPhrase` / `SetTranscriptWordSuppressed` / `SetTranscriptWordAutomatic` / `SetTranscriptWordsIgnored`'s `expected_text` is optional (#650, #744, #824): the word (or space-joined phrase) text the client saw at these indices, compared whitespace-collapsed and case-sensitive against the current transcript under the submit lock (`edits/transcript_correct.require_word_text`, shared by all five commands via `EditService._guarded_transcript_edit`). A mismatch is a 409 conflict before mutation, history, or the command log — the same contract as `SetEnvelope`'s `expected_points` (`DocumentSyncService._apply` maps every `STALE_TARGET_ERRORS` type to `DocumentConflictError`); indices or a track that no longer exist also count as a mismatch. Omitting it keeps today's unguarded behavior. Host MCP `correct_transcript_tool` / `correct_transcript_phrase_tool` / `set_word_suppressed_tool` / `set_word_automatic_tool` / `set_words_ignored_tool` take the same optional `expected_text`. All five stay host-only: a guest share (HTTP or remote MCP) gets 403 / `-32003` whatever the payload — omission from `EDIT_COMMANDS` / `SUGGEST_COMMANDS` in `services/document_sync/capabilities.py` is what keeps a new transcript command host-only without an explicit denylist.

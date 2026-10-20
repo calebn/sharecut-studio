@@ -26,7 +26,7 @@ from podcast_mcp.models import (
 from podcast_mcp.pipeline import steps
 from podcast_mcp.pipeline.runner import PipelineRunner
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TranscriptService
 from podcast_mcp.services.media.transcript_refine import TranscriptRefineService
 from podcast_mcp.services.pipeline.service import PipelineService
 
@@ -136,7 +136,7 @@ def test_word_correction_stales_waiver(tmp_path):
     refine = TranscriptRefineService(ws)
     refine.waive(reason="host accepted the transcript", source="user")
 
-    EditService(ws).correct_word("caleb", 0, "Its", expected_text="It's")
+    TranscriptService(ws).correct_word("caleb", 0, "Its", expected_text="It's")
 
     status = refine.status()
     assert (status["clear"], status["stale"]) == (False, True)

@@ -45,7 +45,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.services.document import EditService, HistoryService, TimelineService
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 
@@ -1681,7 +1681,7 @@ def test_split_inside_a_mute_renders_like_the_unsplit_mute(tmp_path):
     ws = ProjectWorkspace.open(path)
     unsplit = [c.model_dump() for c in ws.project.clips]
 
-    EditService(ws).split_clip(1.15, track_id="host")
+    TimelineService(ws).split_clip(1.15, track_id="host")
 
     split = [c.model_dump() for c in ws.project.clips]
     assert len(split) == 2
@@ -1759,7 +1759,7 @@ def _trim(ws: ProjectWorkspace, edge: str, source_sec: float) -> None:
     token = boundary_context(
         ws.project, TrimBoundaryTarget(clip_id="c1", edge=edge), defaults=load_defaults()
     ).token
-    EditService(ws).trim_clip_edge(
+    TimelineService(ws).trim_clip_edge(
         "c1",
         edge,
         source_sec,
@@ -1827,12 +1827,12 @@ def _roll(ws: ProjectWorkspace, delta_sec: float) -> None:
     left, right = ws.project.clips[:2]
     target = RollBoundaryTarget(left_clip_id=left.id, right_clip_id=right.id)
     token = boundary_context(ws.project, target, defaults=load_defaults()).token
-    EditService(ws).roll_clip_join(left.id, right.id, delta_sec, expected_token=token)
+    TimelineService(ws).roll_clip_join(left.id, right.id, delta_sec, expected_token=token)
 
 
 def _split_workspace(tmp_path: Path, split_at: float):
     ws, region, whole = _approved_mute_workspace(tmp_path)
-    EditService(ws).split_clip(split_at, track_id="host")
+    TimelineService(ws).split_clip(split_at, track_id="host")
     assert len(ws.project.clips) == 2
     return ws, region, whole
 

@@ -37,6 +37,7 @@ from podcast_mcp.util.wav import open_wav
 
 from .edit import EditService
 from .play import PlayService
+from .timeline import TimelineService
 
 DEFAULT_LIMIT = 40
 MAX_LIMIT = 500
@@ -338,7 +339,7 @@ def _join_metrics(
     audio_caches: dict[str, TrackAudioCache] | None,
 ) -> dict[str, Any]:
     try:
-        return edit_svc.join_quality(
+        return TimelineService(edit_svc.ws).join_quality(
             track_id=edit.track_id,
             cut_start=edit.start,
             cut_end=edit.end,

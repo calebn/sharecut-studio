@@ -7,7 +7,7 @@ from typing import Any
 
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TranscriptService
 
 Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 
@@ -23,7 +23,7 @@ def _source_id(p: dict[str, Any]) -> str | None:
 
 
 def replace_transcript_matches(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    count = EditService(ws).replace_transcript_matches(
+    count = TranscriptService(ws).replace_transcript_matches(
         str(p["search"]),
         str(p["replacement"]),
         str(p["preview_token"]),
@@ -36,7 +36,7 @@ def correct_transcript_word(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str
     track_id = str(p["track_id"])
     word_index = int(p["word_index"])
     text = str(p["text"])
-    EditService(ws).correct_word(
+    TranscriptService(ws).correct_word(
         track_id, word_index, text, expected_text=_expected_text(p), source_id=_source_id(p)
     )
     return {
@@ -52,7 +52,7 @@ def correct_transcript_phrase(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[s
     start_word_index = int(p["start_word_index"])
     end_word_index = int(p["end_word_index"])
     text = str(p["text"])
-    EditService(ws).correct_phrase(
+    TranscriptService(ws).correct_phrase(
         track_id,
         start_word_index,
         end_word_index,
@@ -70,7 +70,7 @@ def correct_transcript_phrase(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[s
 
 
 def set_transcript_word_suppressed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).set_word_suppressed(
+    return TranscriptService(ws).set_word_suppressed(
         track_id=str(p["track_id"]),
         word_index=int(p["word_index"]),
         suppressed=bool(p["suppressed"]),
@@ -80,7 +80,7 @@ def set_transcript_word_suppressed(ws: ProjectWorkspace, p: dict[str, Any]) -> d
 
 
 def set_transcript_word_automatic(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).set_word_automatic(
+    return TranscriptService(ws).set_word_automatic(
         track_id=str(p["track_id"]),
         word_index=int(p["word_index"]),
         expected_text=_expected_text(p),
@@ -89,7 +89,7 @@ def set_transcript_word_automatic(ws: ProjectWorkspace, p: dict[str, Any]) -> di
 
 
 def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).set_words_ignored(
+    return TranscriptService(ws).set_words_ignored(
         track_id=str(p["track_id"]),
         start_word_index=int(p["start_word_index"]),
         end_word_index=int(p["end_word_index"]),
@@ -100,7 +100,7 @@ def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dic
 
 
 def set_transcript_word_timing(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).set_word_timing(
+    return TranscriptService(ws).set_word_timing(
         WordTimingTarget(**p["target"]), p["expected_token"], p["start"], p["end"]
     )
 

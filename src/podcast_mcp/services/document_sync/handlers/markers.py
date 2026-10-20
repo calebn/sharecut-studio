@@ -6,17 +6,17 @@ from typing import Any
 
 from podcast_mcp.edits.envelopes import envelope_matches_baseline
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import ClipService, EditService
+from podcast_mcp.services.document import ClipService, EditService, TimelineService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.pipeline import PipelineService
 
 
 def add_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).add_chapter(float(p["time"]), str(p["title"]))
+    return TimelineService(ws).add_chapter(float(p["time"]), str(p["title"]))
 
 
 def update_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).update_chapter(
+    return TimelineService(ws).update_chapter(
         float(p["old_time"]),
         str(p["old_title"]),
         time=float(p["time"]),
@@ -25,7 +25,7 @@ def update_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def delete_chapter(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).delete_chapter(float(p["time"]), str(p["title"]))
+    return TimelineService(ws).delete_chapter(float(p["time"]), str(p["title"]))
 
 
 def add_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

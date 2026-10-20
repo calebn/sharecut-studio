@@ -7,7 +7,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 @pytest.mark.parametrize("saved", [(2, 0), (0, 2)])
 def test_service_checks_both_fades_after_adopting_another_writer(minimal_project, saved):
     from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeChangedError
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import TimelineService
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.clips = [
@@ -22,8 +22,8 @@ def test_service_checks_both_fades_after_adopting_another_writer(minimal_project
         )
     ]
     ws.save()
-    stale = EditService(ProjectWorkspace.open(minimal_project))
-    EditService(ProjectWorkspace.open(minimal_project)).set_clip_fade("fade", *saved)
+    stale = TimelineService(ProjectWorkspace.open(minimal_project))
+    TimelineService(ProjectWorkspace.open(minimal_project)).set_clip_fade("fade", *saved)
     before = minimal_project.read_bytes()
     with pytest.raises(ClipFadeChangedError, match="Nothing was saved"):
         stale.set_clip_fade("fade", 1, 1, expected=ClipFadeBaseline(0, 0))
@@ -33,7 +33,7 @@ def test_service_checks_both_fades_after_adopting_another_writer(minimal_project
 
 def test_fade_baseline_allows_unrelated_change_and_refuses_missing_clip(minimal_project):
     from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeChangedError
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import TimelineService
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.clips = [
@@ -48,7 +48,7 @@ def test_fade_baseline_allows_unrelated_change_and_refuses_missing_clip(minimal_
         )
     ]
     ws.save()
-    service = EditService(ws)
+    service = TimelineService(ws)
     ws.mutate("before label", "after label", lambda p: setattr(p, "name", "Other edit"))
     service.set_clip_fade("fade", 0, 1, expected=ClipFadeBaseline(0, 0))
     assert load_project(minimal_project).clips[0].fade_out_ms == 1

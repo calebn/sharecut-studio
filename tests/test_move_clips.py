@@ -12,7 +12,7 @@ from podcast_mcp.edits.clips_ops import move_clips, pin_clip_source_id
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, TrackRole
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TimelineService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.handlers import edits as edit_handlers
 from podcast_mcp.services.document_sync.service import DocumentSyncService
@@ -242,21 +242,23 @@ def test_edit_service_move_clips_rejects_non_object(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_tracks(ws)
     with pytest.raises(ValueError, match="object"):
-        EditService(ws).move_clips(["nope"])
+        TimelineService(ws).move_clips(["nope"])
 
 
 def test_edit_service_move_clips_empty(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_tracks(ws)
     with pytest.raises(ValueError, match="non-empty"):
-        EditService(ws).move_clips([])
+        TimelineService(ws).move_clips([])
 
 
 def test_edit_service_move_clips_unknown_id(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_tracks(ws)
     with pytest.raises(ValueError, match="unknown clip_id"):
-        EditService(ws).move_clips([{"clip_id": "nope", "timeline_start": 1.0, "track_id": "host"}])
+        TimelineService(ws).move_clips(
+            [{"clip_id": "nope", "timeline_start": 1.0, "track_id": "host"}]
+        )
 
 
 def test_cli_move_clips(minimal_project):

@@ -6,7 +6,7 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.media import TranscriptService
+from podcast_mcp.services.document import TranscriptService
 
 fixture_app = typer.Typer(help="Test fixture utilities.")
 

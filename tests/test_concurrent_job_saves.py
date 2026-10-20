@@ -816,7 +816,7 @@ def test_history_rerender_errors_are_the_saved_move_errors():
 def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_project, monkeypatch):
     from podcast_mcp.engines import TranscriptionEngine
     from podcast_mcp.models import Transcript, TranscriptWord
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import TranscriptService
     from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     ws = _two_tracks(minimal_project)
@@ -827,7 +827,7 @@ def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_pr
     ws.save()
 
     def asr_while_studio_corrects(self, audio_path, **_kw):
-        EditService(ProjectWorkspace.open(minimal_project)).correct_word("host", 0, "the")
+        TranscriptService(ProjectWorkspace.open(minimal_project)).correct_word("host", 0, "the")
         return Transcript(track_id="", words=[TranscriptWord(text="tea", start=0.0, end=0.5)])
 
     monkeypatch.setattr(TranscriptionEngine, "transcribe_file", asr_while_studio_corrects)

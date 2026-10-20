@@ -51,7 +51,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.pipeline.runner import STEP_NAMES
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TranscriptService
 from podcast_mcp.services.pipeline import PipelineService
 
 
@@ -292,7 +292,7 @@ def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
 
     # First reconcile would classify word 1 ("bleed") as bleed; the user disagrees
     # and explicitly keeps it audible.
-    EditService(workspace).set_word_suppressed("host", 1, False)
+    TranscriptService(workspace).set_word_suppressed("host", 1, False)
     host = workspace.project.transcript_for_track("host")
     assert host is not None
     assert host.words[1].audibility_locked is True
@@ -331,13 +331,13 @@ def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
 
     # Lock word 1 ("bleed") to the wrong value: acoustically it is bleed (see
     # fake_rms below), but the lock keeps it audible until cleared.
-    EditService(workspace).set_word_suppressed("host", 1, False)
+    TranscriptService(workspace).set_word_suppressed("host", 1, False)
     host = workspace.project.transcript_for_track("host")
     assert host is not None
     assert host.words[1].audibility_locked is True
     assert host.words[1].suppressed is False
 
-    EditService(workspace).set_word_automatic("host", 1)
+    TranscriptService(workspace).set_word_automatic("host", 1)
     host = workspace.project.transcript_for_track("host")
     assert host is not None
     assert host.words[1].audibility_locked is False

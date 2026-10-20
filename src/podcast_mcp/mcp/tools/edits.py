@@ -12,7 +12,7 @@ from podcast_mcp.mcp.args import JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import AnalysisService, EditService, TimelineService
 from podcast_mcp.services.document_sync import (
     host_command_result,
     submit_host_command_result,
@@ -227,7 +227,7 @@ def preview_inaudible_cut_tool(
     transition / punchline-to-pivot bounds use ``suggest_handoff_cut_tool``.
     """
     ws = ProjectWorkspace.open(project_path)
-    out = EditService(ws).preview_inaudible_cut(
+    out = AnalysisService(ws).preview_inaudible_cut(
         track_id=track_id,
         speaker=speaker,
         start=start,
@@ -260,7 +260,7 @@ def suggest_handoff_cut_tool(
     bounds on ``ripple_delete_tool``.
     """
     ws = ProjectWorkspace.open(project_path)
-    out = EditService(ws).suggest_handoff_cut(
+    out = AnalysisService(ws).suggest_handoff_cut(
         track_id=track_id,
         speaker=speaker,
         keep_left_end=keep_left_end,
@@ -283,7 +283,7 @@ def join_quality_tool(
 ) -> str:
     """Score an existing or proposed cut join for audibility artifacts (clicks, glitches)."""
     ws = ProjectWorkspace.open(project_path)
-    out = EditService(ws).join_quality(
+    out = TimelineService(ws).join_quality(
         track_id=track_id,
         speaker=speaker,
         join_sec=join_sec,
@@ -300,7 +300,7 @@ def join_qa_sweep_tool(
 ) -> str:
     """Score all joins on a track (or the whole project) for QA review."""
     ws = ProjectWorkspace.open(project_path)
-    out = EditService(ws).join_qa_sweep(track_id=track_id)
+    out = TimelineService(ws).join_qa_sweep(track_id=track_id)
     return to_json(out)
 
 
@@ -318,7 +318,7 @@ def join_label_tool(
 ) -> str:
     """Record a pass/fail label for a join to train the join-quality ranker."""
     ws = ProjectWorkspace.open(project_path)
-    out = EditService(ws).join_label(
+    out = TimelineService(ws).join_label(
         track_id=track_id,
         speaker=speaker,
         join_sec=join_sec,

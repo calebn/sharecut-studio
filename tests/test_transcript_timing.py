@@ -10,7 +10,7 @@ from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, Wo
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, Transcript, TranscriptWord
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.services.document import HistoryService, TranscriptService
 
 
 def workspace(path):
@@ -81,7 +81,7 @@ def test_exact_source_preserves_primary_and_choices_and_one_undo(minimal_project
     ws = workspace(minimal_project)
     before = copy.deepcopy(ws.project.transcripts)
     old_hash = track_render_hash(ws.project, "host", defaults=load_defaults())
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     target = WordTimingTarget("host", "extra", 1)
     shown = context(svc, target)
     assert shown["media"]["ref"] == "source:extra"
@@ -106,7 +106,7 @@ def test_exact_source_preserves_primary_and_choices_and_one_undo(minimal_project
 
 def test_primary_alias_and_unplaced_source_use_raw_clock(minimal_project):
     ws = workspace(minimal_project)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     primary = WordTimingTarget("host", None, 0)
     shown = context(svc, primary)
     assert shown["media"]["ref"] == "track:host"
@@ -121,7 +121,7 @@ def test_primary_alias_and_unplaced_source_use_raw_clock(minimal_project):
 
 def test_noop_creates_no_history(minimal_project):
     ws = workspace(minimal_project)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     target = WordTimingTarget("host", "extra", 1)
     shown = context(svc, target)
     history = ws.project.history.model_dump()
@@ -134,7 +134,7 @@ def test_noop_creates_no_history(minimal_project):
 def test_stale_dependencies_reject_without_history(minimal_project, change):
     ws = workspace(minimal_project)
     target = WordTimingTarget("host", "extra", 1)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     shown = context(svc, target)
     other = ProjectWorkspace.open(minimal_project)
     tr = other.project.transcripts[1]
@@ -160,7 +160,7 @@ def test_stale_dependencies_reject_without_history(minimal_project, change):
 )
 def test_reject_invalid_media_bounds(minimal_project, start, end):
     ws = workspace(minimal_project)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     target = WordTimingTarget("host", "extra", 1)
     shown = context(svc, target)
     with pytest.raises(ValueError):
@@ -172,7 +172,7 @@ def test_zero_span_repair_and_unknown_duration(minimal_project):
     ws = workspace(minimal_project)
     ws.project.transcripts[0].words[0].end = 1
     ws.save()
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     target = WordTimingTarget("host", None, 0)
     shown = svc.word_timing_context(target, expected_text="same", expected_start=1, expected_end=1)
     svc.set_word_timing(target, shown["expected_token"], 1, 1.001)
@@ -188,7 +188,7 @@ def test_zero_span_repair_and_unknown_duration(minimal_project):
 
 def test_context_rejects_stale_chip_and_exact_missing_key(minimal_project):
     ws = workspace(minimal_project)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     with pytest.raises(TranscriptTimingChangedError):
         svc.word_timing_context(
             WordTimingTarget("host", None, 0), expected_text="new", expected_start=1, expected_end=2
@@ -218,7 +218,7 @@ def test_retiming_invalidates_automatic_verdict_but_preserves_choices(
     ws.save()
     before = copy.deepcopy(ws.project.transcripts)
     target = WordTimingTarget("host", None, 0)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     svc.set_word_timing(target, context(svc, target)["expected_token"], 1.2, 2.2)
     changed = ws.project.transcripts[0]
     assert changed.silence_filter_fingerprint is None
@@ -248,7 +248,7 @@ def test_duration_uses_current_recording_waveform_metadata(minimal_project):
         ws.project.artifacts_dir(), "source:extra", MediaEntry("raw", path, "raw/extra.wav")
     )
     write_synthetic_pyramid(pyramid.out, sample_rate=1000, total_frames=10000, seed=1)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     target = WordTimingTarget("host", "extra", 1)
     shown = context(svc, target)
     assert shown["media"]["duration_sec"] == 10
@@ -260,7 +260,7 @@ def test_replaced_or_removed_recording_rejects_without_history(minimal_project):
     import os
 
     ws = workspace(minimal_project)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     target = WordTimingTarget("host", "extra", 1)
     shown = context(svc, target)
     path = ws.project.raw_dir() / "extra.wav"
@@ -290,7 +290,7 @@ def test_bad_waveform_metadata_falls_back_to_stored_duration(minimal_project):
     )
     pyramid.out.parent.mkdir(parents=True, exist_ok=True)
     pyramid.out.write_bytes(b"incomplete-waveform")
-    shown = context(EditService(ws), WordTimingTarget("host", "extra", 1))
+    shown = context(TranscriptService(ws), WordTimingTarget("host", "extra", 1))
     assert shown["media"]["duration_sec"] == 10
     assert shown["media"]["sample_rate"] == 1000
 
@@ -301,7 +301,7 @@ def test_invalid_stored_metadata_disables_bounds_and_previous_overlap_warns(mini
     ws.project.sources[0].sample_rate = 0
     ws.project.transcripts[1].words[0].end = 1.5
     ws.save()
-    shown = context(EditService(ws), WordTimingTarget("host", "extra", 1))
+    shown = context(TranscriptService(ws), WordTimingTarget("host", "extra", 1))
     assert shown["media"]["duration_sec"] is None
     assert shown["media"]["sample_rate"] is None
     assert "overlaps the previous" in shown["warnings"][0]

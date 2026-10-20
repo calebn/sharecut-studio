@@ -44,13 +44,15 @@ def get_clip_bleed(
     from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import TimelineService
 
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
         return (
-            EditService(ws).inspect_clip_bleed(clip_id, track_id=track_id).model_dump(mode="json")
+            TimelineService(ws)
+            .inspect_clip_bleed(clip_id, track_id=track_id)
+            .model_dump(mode="json")
         )
     except BleedRestoreChangedError as exc:
         raise coded_http_error(409, str(exc), code=exc.code) from exc

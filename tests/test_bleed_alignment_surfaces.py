@@ -7,7 +7,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.mcp.tools import timeline
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import AnalysisService
 from test_retained_bleed_alignment import _episode
 
 
@@ -22,12 +22,12 @@ def _workspace(tmp_path: Path) -> ProjectWorkspace:
 def test_gate_service_defaults_to_local_alignment_without_mutating_preview(tmp_path):
     ws = _workspace(tmp_path)
     before = ws.project.model_dump(mode="json")
-    preview = EditService(ws).apply_bleed_mute(
+    preview = AnalysisService(ws).apply_bleed_mute(
         track_id="uncertain", start_sec=0.8, end_sec=3.5, apply=False
     )
     assert preview["alignment"]["proposed_count"] == 1
     assert ws.project.model_dump(mode="json") == before
-    result = EditService(ws).apply_bleed_mute(track_id="uncertain", start_sec=0.8, end_sec=3.5)
+    result = AnalysisService(ws).apply_bleed_mute(track_id="uncertain", start_sec=0.8, end_sec=3.5)
     assert result["alignment"]["applied_count"] == 1
     reopened = ProjectWorkspace.open(ws.path).project
     assert len(reopened.editorial.retained_bleed_alignments) == 1
@@ -48,7 +48,7 @@ def test_declining_mcp_preview_is_saved_and_respected_on_default_gate(tmp_path):
     )
     reopened = ProjectWorkspace.open(ws.path)
     original = [clip.model_dump() for clip in reopened.project.clips]
-    result = EditService(reopened).apply_bleed_mute(
+    result = AnalysisService(reopened).apply_bleed_mute(
         track_id="uncertain", start_sec=0.8, end_sec=3.5
     )
     assert result["alignment"]["applied_count"] == 0
@@ -87,11 +87,11 @@ def test_default_gate_reports_unmeasured_seed_without_retiming_or_changing_raw(t
     clips = [clip.model_dump() for clip in ws.project.clips]
     raw = {path: path.read_bytes() for path in (tmp_path / "raw").glob("*.wav")}
     expected = [{"track_id": "uncertain", "reason": "no_retained_bleed_candidate"}]
-    preview = EditService(ws).apply_bleed_mute(track_id="uncertain", apply=False)
+    preview = AnalysisService(ws).apply_bleed_mute(track_id="uncertain", apply=False)
     assert preview["alignment"]["proposed_count"] == 0
     assert preview["alignment"]["skipped"] == expected
     assert ws.project.model_dump(mode="json") == before
-    result = EditService(ws).apply_bleed_mute(track_id="uncertain")
+    result = AnalysisService(ws).apply_bleed_mute(track_id="uncertain")
     assert result["alignment"]["applied_count"] == 0
     assert result["alignment"]["skipped"] == expected
     reopened = ProjectWorkspace.open(ws.path).project
@@ -106,12 +106,12 @@ def test_explicit_scoped_default_gate_discovers_copy_without_seed(tmp_path):
     ws.save()
     before = ws.project.model_dump(mode="json")
     mixed = [clip.model_dump() for clip in ws.project.clips if clip.track_id == "uncertain"]
-    preview = EditService(ws).apply_bleed_mute(
+    preview = AnalysisService(ws).apply_bleed_mute(
         track_id="uncertain", start_sec=0.8, end_sec=3.5, apply=False
     )
     assert preview["alignment"]["proposed_count"] == 1
     assert ws.project.model_dump(mode="json") == before
-    result = EditService(ws).apply_bleed_mute(track_id="uncertain", start_sec=0.8, end_sec=3.5)
+    result = AnalysisService(ws).apply_bleed_mute(track_id="uncertain", start_sec=0.8, end_sec=3.5)
     assert result["alignment"]["applied_count"] == 1
     assert [
         clip.model_dump()

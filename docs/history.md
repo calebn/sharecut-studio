@@ -322,7 +322,7 @@ An unconfirmed history response reports an unknown outcome. Check History before
 trying again.
 
 A fade drafted before an Undo projection arrives retains its original saved
-fade pair. `EditService.set_clip_fade` compares that pair in the same project
+fade pair. `TimelineService.set_clip_fade` compares that pair in the same project
 transaction, before `mutate()` captures history. A mismatch changes neither
 fades, history head, redo entries, nor the document journal. A fresh gesture can
 save against the restored pair. This target guard leaves the save-before-Undo

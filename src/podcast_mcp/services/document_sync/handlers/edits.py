@@ -10,7 +10,7 @@ from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaseline
 from podcast_mcp.models import CutIntent, EditMode
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import AnalysisService, EditService, TimelineService
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -76,11 +76,13 @@ def restore_applied_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
 
 
 def restore_clip_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return dict(EditService(ws).restore_clip_bleed(BleedRestoreTarget.model_validate(p["target"])))
+    return dict(
+        TimelineService(ws).restore_clip_bleed(BleedRestoreTarget.model_validate(p["target"]))
+    )
 
 
 def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).set_clip_fade(
+    return TimelineService(ws).set_clip_fade(
         p["clip_id"],
         int(p["fade_in_ms"]),
         int(p["fade_out_ms"]),
@@ -89,7 +91,7 @@ def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).trim_clip_edge(
+    return TimelineService(ws).trim_clip_edge(
         p["clip_id"],
         p["edge"],
         float(p["source_sec"]),
@@ -100,7 +102,7 @@ def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def roll_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).roll_clip_join(
+    return TimelineService(ws).roll_clip_join(
         str(p["left_clip_id"]),
         str(p["right_clip_id"]),
         float(p["delta_sec"]),
@@ -109,12 +111,12 @@ def roll_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def set_join_mode(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).set_join_mode(p["clip_id"], str(p["join_in_mode"]))
+    return TimelineService(ws).set_join_mode(p["clip_id"], str(p["join_in_mode"]))
 
 
 def set_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     length = p.get("length_ms")
-    return EditService(ws).set_clip_join(
+    return TimelineService(ws).set_clip_join(
         str(p["left_clip_id"]),
         str(p["right_clip_id"]),
         str(p["mode"]),
@@ -124,7 +126,7 @@ def set_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def apply_fade_recommendations(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_id = p.get("track_id")
-    return EditService(ws).apply_fade_recommendations_for_track(
+    return AnalysisService(ws).apply_fade_recommendations_for_track(
         track_id=str(track_id) if track_id else None,
     )
 
@@ -143,7 +145,7 @@ def remove_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def set_effect_bypass(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).set_effect_bypass(
+    return AnalysisService(ws).set_effect_bypass(
         track_id=str(p["track_id"]),
         effect_index=int(p["effect_index"]),
         bypass=bool(p["bypass"]),
@@ -160,7 +162,7 @@ def split_at_time(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_ids = p.get("track_ids")
     tids = [str(t) for t in track_ids] if track_ids is not None else None
     reason = str(p["reason"]) if p.get("reason") is not None else None
-    return EditService(ws).split_at_time(
+    return TimelineService(ws).split_at_time(
         float(p["at_time"]),
         tids,
         propose=mode is StructuralMutationMode.PROPOSE,
@@ -182,7 +184,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     if not clip_ids:
         raise CodedValueError("clip_id or clip_ids required", code="clip_ids_required")
     reason = str(p["reason"]) if p.get("reason") is not None else None
-    return EditService(ws).delete_clips(
+    return TimelineService(ws).delete_clips(
         [str(c) for c in clip_ids],
         mode=EditMode(p["mode"]),
         propose=structural is StructuralMutationMode.PROPOSE,
@@ -193,7 +195,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def duplicate_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).duplicate_segment(
+    return TimelineService(ws).duplicate_segment(
         float(p["source_start"]),
         float(p["source_end"]),
         float(p["insert_at"]),
@@ -201,7 +203,7 @@ def duplicate_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]
 
 
 def move_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).move_segment(
+    return TimelineService(ws).move_segment(
         float(p["source_start"]),
         float(p["source_end"]),
         float(p["insert_at"]),
@@ -213,14 +215,14 @@ def move_clips(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, list):
         raise CodedValueError("clips must be a list", code="clips_not_list")
     clips = [dict(x) if not isinstance(x, dict) else x for x in raw]
-    return EditService(ws).move_clips(clips)
+    return TimelineService(ws).move_clips(clips)
 
 
 def paste_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     extracts = p.get("extracts") or []
     if not isinstance(extracts, list):
         raise CodedValueError("extracts must be a list", code="extracts_not_list")
-    return EditService(ws).paste_segment(
+    return TimelineService(ws).paste_segment(
         float(p["insert_at"]),
         float(p["duration"]),
         [dict(x) for x in extracts],

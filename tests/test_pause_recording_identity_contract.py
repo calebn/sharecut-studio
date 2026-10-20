@@ -19,7 +19,7 @@ from podcast_mcp.edits.cut_safety import CutRejected, original_pause_support
 from podcast_mcp.edits.edit_log import archive_timeline_op
 from podcast_mcp.edits.session_air import GeometricPause
 from podcast_mcp.models import Clip, SourceRecording, load_project
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 
 
 def _deny_registry(monkeypatch):
@@ -53,7 +53,7 @@ def test_manual_fill_archives_actual_tiles_once_and_empty_refill_adds_no_record(
     if bed:
         add_bed(result, tmp_path)
     ws = workspace(result)
-    summary = EditService(ws).fill_room_tone(track_id="host")
+    summary = TimelineService(ws).fill_room_tone(track_id="host")
     saved = load_project(ws.path)
     inserted = sorted(
         (clip for clip in saved.clips if clip.id not in {"left", "right"}),
@@ -101,7 +101,7 @@ def test_manual_fill_archives_actual_tiles_once_and_empty_refill_adds_no_record(
         assert not isinstance(control, CutRejected)
         assert control.seconds == pytest.approx(0.55)
     _assert_private_archive(saved, tmp_path)
-    second = EditService(ws).fill_room_tone(track_id="host")
+    second = TimelineService(ws).fill_room_tone(track_id="host")
     assert second["pad_samples"] == []
     assert len(load_project(ws.path).editorial.edit_log) == 1
 

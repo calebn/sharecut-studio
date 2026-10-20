@@ -21,7 +21,12 @@ from podcast_mcp.edits.source_removals import STALE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, TrimBoundaryTarget
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    TimelineService,
+    TrimBoundaryTarget,
+)
 
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
 
@@ -33,7 +38,7 @@ def inspect_clip_bleed_cmd(
     track: str = typer.Option(..., "--track"),
 ) -> None:
     """Inspect automatic attenuation on one clip and return guarded Restore targets."""
-    inspection = EditService(ProjectWorkspace.open(project)).inspect_clip_bleed(
+    inspection = TimelineService(ProjectWorkspace.open(project)).inspect_clip_bleed(
         clip, track_id=track
     )
     typer.echo(inspection.model_dump_json(indent=2))
@@ -345,7 +350,7 @@ def edit_preview_cut_cmd(
     timeline: bool = typer.Option(False, "--timeline"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    out = EditService(ws).preview_inaudible_cut(
+    out = AnalysisService(ws).preview_inaudible_cut(
         track_id=track,
         speaker=speaker,
         start=start,
@@ -383,7 +388,7 @@ def edit_suggest_handoff_cut_cmd(
     Use --track or --speaker to analyze only one lane.
     """
     ws = ProjectWorkspace.open(project)
-    out = EditService(ws).suggest_handoff_cut(
+    out = AnalysisService(ws).suggest_handoff_cut(
         track_id=track,
         speaker=speaker,
         keep_left_end=keep_left_end,
@@ -406,7 +411,7 @@ def edit_join_quality_cmd(
     timebase: str = typer.Option("timeline", "--timebase"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    out = EditService(ws).join_quality(
+    out = TimelineService(ws).join_quality(
         track_id=track,
         speaker=speaker,
         join_sec=join,
@@ -423,7 +428,7 @@ def edit_join_sweep_cmd(
     track: str | None = typer.Option(None, "--track"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    out = EditService(ws).join_qa_sweep(track_id=track)
+    out = TimelineService(ws).join_qa_sweep(track_id=track)
     typer.echo(json.dumps(out, indent=2))
 
 
@@ -439,7 +444,7 @@ def edit_join_label_cmd(
     play: bool = typer.Option(False, "--play/--no-play"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    out = EditService(ws).join_label(
+    out = TimelineService(ws).join_label(
         track_id=track,
         speaker=speaker,
         join_sec=join,
@@ -458,7 +463,7 @@ def edit_join_train_cmd(
     out: Path | None = typer.Option(None, "--out"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    result = EditService(ws).join_train(labels_path=labels, out_path=out)
+    result = TimelineService(ws).join_train(labels_path=labels, out_path=out)
     typer.echo(json.dumps(result, indent=2))
 
 
@@ -483,7 +488,7 @@ def edit_strip_silence_cmd(
     ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    result = EditService(ws).strip_silence(
+    result = AnalysisService(ws).strip_silence(
         track_id=track,
         speaker=speaker,
         over_voice_floor_db=over_voice_floor_db,
@@ -574,9 +579,9 @@ def edit_move_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     if from_query and to_query:
-        result = EditService(ws).move_by_text(from_query, to_query, "after")
+        result = TimelineService(ws).move_by_text(from_query, to_query, "after")
     elif source_start is not None and source_end is not None and insert_at is not None:
-        result = EditService(ws).move_segment(source_start, source_end, insert_at)
+        result = TimelineService(ws).move_segment(source_start, source_end, insert_at)
     else:
         raise typer.BadParameter("provide time range or --from-query and --to-after")
     typer.echo(json.dumps(result, indent=2))
@@ -595,7 +600,7 @@ def edit_move_clips_cmd(
     raw = json.loads(clips_json)
     if not isinstance(raw, list):
         raise typer.BadParameter("--clips-json must be a JSON array")
-    typer.echo(json.dumps(EditService(ws).move_clips(raw), indent=2))
+    typer.echo(json.dumps(TimelineService(ws).move_clips(raw), indent=2))
 
 
 @edit_app.command("delete-clips")
@@ -682,7 +687,7 @@ def edit_copy_segment_cmd(
     """Print the clipboard Studio Copy holds for a range; feed it to `edit paste-segment`."""
     track_ids = [t.strip() for t in tracks.split(",") if t.strip()] if tracks else None
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).copy_segment(start, end, track_ids), indent=2))
+    typer.echo(json.dumps(TimelineService(ws).copy_segment(start, end, track_ids), indent=2))
 
 
 @edit_app.command("paste-segment")
@@ -716,7 +721,7 @@ def edit_insert_gap_cmd(
     duration: float = typer.Option(1.0, "--duration"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).insert_gap(at, duration), indent=2))
+    typer.echo(json.dumps(TimelineService(ws).insert_gap(at, duration), indent=2))
 
 
 @edit_app.command("fade-joins")
@@ -730,7 +735,7 @@ def edit_fade_joins_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).fade_joins(
+            TimelineService(ws).fade_joins(
                 track_id=track,
                 speaker=speaker,
                 fade_ms=fade_ms,
@@ -752,7 +757,7 @@ def edit_crossfade_joins_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).crossfade_joins(
+            TimelineService(ws).crossfade_joins(
                 track_id=track,
                 speaker=speaker,
                 fade_ms=fade_ms,
@@ -773,7 +778,9 @@ def edit_set_clip_join_cmd(
 ) -> None:
     """Set one join's mode and fades (crossfade needs fades to blend)."""
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).set_clip_join(left, right, mode, length_ms), indent=2))
+    typer.echo(
+        json.dumps(TimelineService(ws).set_clip_join(left, right, mode, length_ms), indent=2)
+    )
 
 
 @edit_app.command("trim-clip")
@@ -803,7 +810,7 @@ def edit_trim_clip_cmd(
             revision = service.boundary_context(
                 TrimBoundaryTarget(clip_id=clip, edge=trim_edge, mode=mode)
             ).token
-            return service.trim_clip_edge(
+            return TimelineService(service.ws).trim_clip_edge(
                 clip,
                 trim_edge,
                 source_sec,
@@ -856,7 +863,7 @@ def edit_add_chapter_cmd(
     title: str = typer.Option(..., "--title"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).add_chapter(at_time, title), indent=2))
+    typer.echo(json.dumps(TimelineService(ws).add_chapter(at_time, title), indent=2))
 
 
 @edit_app.command("remove-chapter")
@@ -865,7 +872,7 @@ def edit_remove_chapter_cmd(
     title: str = typer.Option(..., "--title"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).remove_chapter(title), indent=2))
+    typer.echo(json.dumps(TimelineService(ws).remove_chapter(title), indent=2))
 
 
 @edit_app.command("list-chapters")
@@ -873,7 +880,7 @@ def edit_list_chapters_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).list_chapters(), indent=2))
+    typer.echo(json.dumps(TimelineService(ws).list_chapters(), indent=2))
 
 
 @edit_app.command("list-clips")
@@ -882,7 +889,7 @@ def edit_list_clips_cmd(
     track: str | None = typer.Option(None, "--track"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).list_clips(track), indent=2))
+    typer.echo(json.dumps(TimelineService(ws).list_clips(track), indent=2))
 
 
 @edit_app.command("list-applied")
@@ -924,7 +931,7 @@ def edit_shorten_gaps_cmd(
 
     def shorten() -> dict:
         with cli_override(override_checks):
-            return EditService(ws).shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt)
+            return TimelineService(ws).shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt)
 
     result = require_cut_applied(shorten)
     typer.echo(json.dumps(result, indent=2))
@@ -939,7 +946,7 @@ def edit_analyze_cleanup_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).analyze_cleanup(
+            AnalysisService(ws).analyze_cleanup(
                 track_id=track, speaker=speaker, progress=get_progress()
             ),
             indent=2,
@@ -958,7 +965,7 @@ def edit_audio_diagnostics_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).audio_diagnostics(
+            AnalysisService(ws).audio_diagnostics(
                 track_id=track, speaker=speaker, start_sec=start, end_sec=end
             ),
             indent=2,
@@ -975,7 +982,7 @@ def edit_recommend_fades_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).recommend_fades(track_id=track, speaker=speaker),
+            AnalysisService(ws).recommend_fades(track_id=track, speaker=speaker),
             indent=2,
         )
     )
@@ -990,7 +997,7 @@ def edit_low_audibility_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).low_audibility_words(
+            AnalysisService(ws).low_audibility_words(
                 track_id=track, speaker=speaker, progress=get_progress()
             ),
             indent=2,
@@ -1007,7 +1014,7 @@ def edit_suppress_low_audibility_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).suppress_low_audibility(track_id=track, speaker=speaker),
+            AnalysisService(ws).suppress_low_audibility(track_id=track, speaker=speaker),
             indent=2,
         )
     )
@@ -1022,7 +1029,7 @@ def edit_gate_overreach_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).gate_overreach(
+            AnalysisService(ws).gate_overreach(
                 track_id=track, speaker=speaker, progress=get_progress()
             ),
             indent=2,
@@ -1039,7 +1046,7 @@ def edit_audibility_map_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).audibility_map(
+            AnalysisService(ws).audibility_map(
                 track_id=track, speaker=speaker, progress=get_progress()
             ),
             indent=2,
@@ -1056,7 +1063,9 @@ def edit_flagged_words_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).flagged_words(track_id=track, speaker=speaker, progress=get_progress()),
+            AnalysisService(ws).flagged_words(
+                track_id=track, speaker=speaker, progress=get_progress()
+            ),
             indent=2,
         )
     )
@@ -1067,7 +1076,7 @@ def edit_reconciliation_status_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).reconciliation_status(), indent=2))
+    typer.echo(json.dumps(AnalysisService(ws).reconciliation_status(), indent=2))
 
 
 @edit_app.command("reconcile-transcript")
@@ -1097,7 +1106,7 @@ def edit_reconcile_transcript_cmd(
         dry_run_param = None
     typer.echo(
         json.dumps(
-            EditService(ws).reconcile_transcript(
+            AnalysisService(ws).reconcile_transcript(
                 track_id=track,
                 speaker=speaker,
                 dry_run=dry_run_param,
@@ -1121,7 +1130,7 @@ def edit_bleed_words_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).list_bleed_words(
+            AnalysisService(ws).list_bleed_words(
                 track_id=track,
                 speaker=speaker,
                 start_sec=start,
@@ -1163,7 +1172,7 @@ def edit_suppress_bleed_cmd(
         raise typer.BadParameter("--exclude-words-json must be a JSON array")
     typer.echo(
         json.dumps(
-            EditService(ws).suppress_bleed(
+            AnalysisService(ws).suppress_bleed(
                 track_id=track,
                 speaker=speaker,
                 word_keys=words,
@@ -1198,7 +1207,7 @@ def edit_apply_bleed_mute_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).apply_bleed_mute(
+            AnalysisService(ws).apply_bleed_mute(
                 track_id=track,
                 speaker=speaker,
                 start_sec=start,
@@ -1228,7 +1237,7 @@ def edit_mute_off_speaker_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).mute_off_speaker(
+            AnalysisService(ws).mute_off_speaker(
                 track_id=track, speaker=speaker, apply=not dry_run, progress=get_progress()
             ),
             indent=2,
@@ -1245,7 +1254,7 @@ def edit_overlap_duplicates_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).overlap_duplicates(
+            AnalysisService(ws).overlap_duplicates(
                 start_sec=start,
                 end_sec=end,
                 progress=get_progress(),
@@ -1266,7 +1275,7 @@ def edit_align_retained_bleed_cmd(
 ) -> None:
     """Align supported complete phrases only where uncertain bleed remains."""
     ws = ProjectWorkspace.open(project)
-    result = EditService(ws).align_retained_bleed(
+    result = AnalysisService(ws).align_retained_bleed(
         track_id=track,
         start_sec=start,
         end_sec=end,
@@ -1290,7 +1299,7 @@ def edit_bleed_alignment_choice_cmd(
     if mode not in ("auto", "manual", "declined"):
         raise typer.BadParameter("mode must be auto, manual, or declined", param_hint="--mode")
     ws = ProjectWorkspace.open(project)
-    result = EditService(ws).set_bleed_alignment_mode(
+    result = AnalysisService(ws).set_bleed_alignment_mode(
         decision,
         cast(Literal["auto", "manual", "declined"], mode),
         track_id=track,

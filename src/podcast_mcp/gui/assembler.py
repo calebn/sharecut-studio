@@ -17,7 +17,12 @@ from podcast_mcp.gui.mapper import (
 )
 from podcast_mcp.gui.schemas import ProjectView, TrackView
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    HistoryService,
+    TimelineService,
+)
 from podcast_mcp.services.document_sync import (
     VIEW_PROJECTION_QUERY_DESCRIPTION,
     ViewProjection,
@@ -77,10 +82,10 @@ def _raw_transcript(ws: ProjectWorkspace) -> dict[str, Any] | None:
     return None
 
 
-def _effects_by_track(edit: EditService, ws: ProjectWorkspace) -> dict[str, list[dict[str, Any]]]:
+def _effects_by_track(ws: ProjectWorkspace) -> dict[str, list[dict[str, Any]]]:
     out: dict[str, list[dict[str, Any]]] = {}
     for track in ws.project.tracks:
-        fx = edit.list_effects(track_id=track.id)
+        fx = AnalysisService(ws).list_effects(track_id=track.id)
         out[track.id] = fx.get("effects", [])
     return out
 
@@ -97,7 +102,7 @@ def build_track_views(
     project = ws.project
     svc = edit if edit is not None else EditService(ws)
     status = render_status if render_status is not None else svc.render_status()
-    fx_map = effects_by_track if effects_by_track is not None else _effects_by_track(svc, ws)
+    fx_map = effects_by_track if effects_by_track is not None else _effects_by_track(ws)
     defaults = ws.effective_config()
     track_views: list[TrackView] = []
     for track in project.tracks:
@@ -159,16 +164,16 @@ def build_project_view(
     project = ws.project
     include_words = proj is ViewProjection.FULL
 
-    clips = edit.list_clips()
+    clips = TimelineService(ws).list_clips()
     render_status = edit.render_status()
     pending = edit.list_decisions(applied=False)
     applied = edit.list_applied_edits()
-    chapters = edit.list_chapters()
+    chapters = TimelineService(ws).list_chapters()
     impact = edit.impact_report()
     if not isinstance(impact, dict):
         impact = {}
 
-    effects_by_track = _effects_by_track(edit, ws)
+    effects_by_track = _effects_by_track(ws)
     track_views = build_track_views(
         ws,
         edit=edit,
@@ -257,10 +262,10 @@ def dump_project_projection(
         return {"comments": comments_for_view(ws.project)}
     if proj is ViewProjection.CLIPS:
         edit = EditService(ws)
-        return _freshness_patch(ws, {"clips": edit.list_clips()}, edit=edit)
+        return _freshness_patch(ws, {"clips": TimelineService(ws).list_clips()}, edit=edit)
     if proj is ViewProjection.FX:
         edit = EditService(ws)
-        return _freshness_patch(ws, {"effects_by_track": _effects_by_track(edit, ws)}, edit=edit)
+        return _freshness_patch(ws, {"effects_by_track": _effects_by_track(ws)}, edit=edit)
     if proj is ViewProjection.MIX:
         return _freshness_patch(ws, {})
     if proj is ViewProjection.ENVELOPES:

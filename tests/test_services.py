@@ -17,9 +17,15 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import ClipService, EditService, EpisodeService, HistoryService
+from podcast_mcp.services.document import (
+    ClipService,
+    EditService,
+    EpisodeService,
+    HistoryService,
+    TimelineService,
+    TranscriptService,
+)
 from podcast_mcp.services.media.speaker import SpeakerService
-from podcast_mcp.services.media.transcript import TranscriptService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 from podcast_mcp.services.pipeline import PipelineService
 
@@ -36,7 +42,9 @@ def test_edit_service_list_applied_and_render_status(minimal_project):
 def test_edit_service_list_clips_acquires_a_fresh_secret_per_call(minimal_project, monkeypatch):
     registry = MagicMock()
     registry.recording_key_secret.side_effect = [b"a" * 32, b"b" * 32]
-    monkeypatch.setattr("podcast_mcp.services.document.edit.get_share_registry", lambda: registry)
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.timeline.get_share_registry", lambda: registry
+    )
     workspace = ProjectWorkspace.open(minimal_project)
     workspace.project.timeline.tracks = [
         Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=1.0))
@@ -44,7 +52,7 @@ def test_edit_service_list_clips_acquires_a_fresh_secret_per_call(minimal_projec
     workspace.project.timeline.clips = [
         Clip(id="clip", track_id="host", source_start=0, source_end=1, timeline_start=0)
     ]
-    service = EditService(workspace)
+    service = TimelineService(workspace)
 
     first = service.list_clips()
     second = service.list_clips()
@@ -58,10 +66,12 @@ def test_edit_service_list_clips_acquires_a_fresh_secret_per_call(minimal_projec
 def test_edit_service_list_clips_propagates_secret_storage_failure(minimal_project, monkeypatch):
     registry = MagicMock()
     registry.recording_key_secret.side_effect = OSError("registry unavailable")
-    monkeypatch.setattr("podcast_mcp.services.document.edit.get_share_registry", lambda: registry)
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.timeline.get_share_registry", lambda: registry
+    )
 
     with pytest.raises(OSError, match="registry unavailable"):
-        EditService(ProjectWorkspace.open(minimal_project)).list_clips()
+        TimelineService(ProjectWorkspace.open(minimal_project)).list_clips()
 
 
 def test_edit_service_search_and_impact(minimal_project):
@@ -274,12 +284,12 @@ def test_transcript_service_resolves_model_for_standalone_transcribe(minimal_pro
     ws = ProjectWorkspace.open(minimal_project)
     with (
         patch(
-            "podcast_mcp.services.media.transcript.resolve_whisper_model",
+            "podcast_mcp.services.document.transcript.resolve_whisper_model",
             return_value="base.en",
         ) as resolve,
-        patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as engine,
+        patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as engine,
     ):
-        TranscriptService(ws, model="base.en")
+        assert TranscriptService(ws, model="base.en")._engine is engine.return_value
 
     resolve.assert_called_once_with(requested="base.en")
     engine.assert_called_once()
@@ -301,7 +311,7 @@ def test_transcript_service_transcribe_fails_when_alignment_is_forced_without_th
         svc = TranscriptService(ws)
         with (
             patch(
-                "podcast_mcp.services.media.transcript.run_transcribe_plan",
+                "podcast_mcp.services.document.transcript.run_transcribe_plan",
                 side_effect=AssertionError("ASR must not start"),
             ),
             pytest.raises(WordAlignerMissingError) as excinfo,
@@ -327,7 +337,7 @@ def test_transcript_service_transcribe_fails_when_the_forced_model_cannot_load(
         svc = TranscriptService(ws)
         with (
             patch(
-                "podcast_mcp.services.media.transcript.run_transcribe_plan",
+                "podcast_mcp.services.document.transcript.run_transcribe_plan",
                 side_effect=AssertionError("ASR must not start"),
             ),
             pytest.raises(WordAlignerMissingError) as excinfo,
@@ -348,11 +358,11 @@ def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_proj
         svc = TranscriptService(ws)
         with (
             patch(
-                "podcast_mcp.services.media.transcript.dialogue_transcribe_jobs", return_value=[]
+                "podcast_mcp.services.document.transcript.dialogue_transcribe_jobs", return_value=[]
             ),
-            patch("podcast_mcp.services.media.transcript.plan_transcription"),
+            patch("podcast_mcp.services.document.transcript.plan_transcription"),
             patch(
-                "podcast_mcp.services.media.transcript.run_transcribe_plan", return_value=[]
+                "podcast_mcp.services.document.transcript.run_transcribe_plan", return_value=[]
             ) as run,
         ):
             svc.transcribe()
@@ -393,7 +403,7 @@ def test_transcript_service_export_subtitles(minimal_project):
 
 def test_transcript_service_export_subtitles_builds_missing_combined(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.merge_transcripts.return_value = CombinedTranscript(utterances=[])
         out = TranscriptService(ws).export_subtitles("srt")
 
@@ -417,7 +427,7 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     _host_dialogue(ws)
     from podcast_mcp.models import Transcript, TranscriptWord
 
-    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(
                 track_id="host",
@@ -438,7 +448,7 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -458,7 +468,7 @@ def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_proj
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -487,7 +497,7 @@ def test_transcript_service_single_track_returns_only_processed_id(minimal_proje
     ws.project.transcripts = [Transcript(track_id="guest", words=[])]
     _host_dialogue(ws)
 
-    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -512,7 +522,7 @@ def test_transcript_service_keeps_other_sources_and_warns_on_edited(minimal_proj
     ]
     ws.save()
     with (
-        patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls,
+        patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls,
         caplog.at_level("WARNING"),
     ):
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
@@ -543,7 +553,7 @@ def test_transcript_service_export_markdown_and_vtt(minimal_project):
     )
     ws.project.transcripts = []
     with patch(
-        "podcast_mcp.services.media.transcript.TranscriptionEngine.merge_transcripts",
+        "podcast_mcp.services.document.transcript.TranscriptionEngine.merge_transcripts",
         return_value=combined,
     ):
         path = TranscriptService(ws).export_markdown()
@@ -805,7 +815,7 @@ def _with_words(ws):
 def test_edit_service_transcript_edits_flag_user_edited(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     assert ws.project.transcripts[0].user_edited is False
     svc.correct_word("host", 0, "the")
     assert ws.project.transcripts[0].user_edited is True
@@ -820,7 +830,7 @@ def test_edit_service_transcript_edits_flag_user_edited(minimal_project):
 def test_edit_service_set_words_ignored_undo_restores_flag(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     out = svc.set_words_ignored("host", 1, 1, True)
     assert out["changed"] == 1
     assert ws.project.transcripts[0].words[1].ignored is True
@@ -835,7 +845,7 @@ def test_edit_service_set_word_suppressed_stale_expected_text_raises(minimal_pro
 
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
 
     with pytest.raises(TranscriptTextChangedError, match="changed since you read it"):
         svc.set_word_suppressed("host", 0, True, expected_text="the")
@@ -849,7 +859,7 @@ def test_edit_service_set_word_suppressed_stale_expected_text_raises(minimal_pro
 def test_edit_service_set_word_automatic_clears_lock_only(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     svc.set_word_suppressed("host", 0, True)
     assert ws.project.transcripts[0].words[0].audibility_locked is True
 
@@ -866,7 +876,7 @@ def test_edit_service_set_word_automatic_undo_restores_lock(minimal_project):
     """Undo puts the word back to locked, mirroring any other mutate() edit (#824)."""
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     svc.set_word_suppressed("host", 0, True)
     svc.set_word_automatic("host", 0)
     assert ws.project.transcripts[0].words[0].audibility_locked is False
@@ -883,7 +893,7 @@ def test_edit_service_set_word_automatic_stale_expected_text_raises(minimal_proj
 
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     svc.set_word_suppressed("host", 0, True)
 
     with pytest.raises(TranscriptTextChangedError, match="changed since you read it"):
@@ -899,7 +909,7 @@ def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_proje
 
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
 
     with pytest.raises(TranscriptTextChangedError, match="changed since you read"):
         svc.set_words_ignored("host", 0, 1, True, expected_text="nope")
@@ -912,7 +922,7 @@ def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_proje
 def test_edit_service_noop_edits_leave_transcript_unflagged(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     assert svc.verify_transcript("host", []) == 0
     assert svc.apply_transcript_cleanup("host", words=[], phrases=[]) == 0
     assert ws.project.transcripts[0].user_edited is False
@@ -924,7 +934,7 @@ def test_edit_service_failed_edit_leaves_transcript_unflagged(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)
     with pytest.raises(ValueError):
-        EditService(ws).correct_word("host", 99, "x")
+        TranscriptService(ws).correct_word("host", 99, "x")
     assert ws.project.transcripts[0].user_edited is False
 
 
@@ -937,7 +947,7 @@ def test_transcript_service_uses_pipeline_language(minimal_project, language):
     store = config_store()
     store.put(ws.path, config={"transcribe": {"language": language}})
     try:
-        with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as engine:
+        with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as engine:
             engine.return_value.transcribe_all_dialogue.return_value = [
                 Transcript(track_id="host", words=[])
             ]
@@ -952,7 +962,7 @@ def test_transcript_service_uses_pipeline_language(minimal_project, language):
 def test_transcript_service_defaults_to_english(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _host_dialogue(ws)
-    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as engine:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as engine:
         engine.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -1031,8 +1041,8 @@ def test_standalone_transcribe_trims_stretched_word_spans(tmp_path):
         return [stretched]
 
     with (
-        patch("podcast_mcp.services.media.transcript.TranscriptionEngine"),
-        patch("podcast_mcp.services.media.transcript.run_transcribe_plan", side_effect=plan_ran),
+        patch("podcast_mcp.services.document.transcript.TranscriptionEngine"),
+        patch("podcast_mcp.services.document.transcript.run_transcribe_plan", side_effect=plan_ran),
     ):
         TranscriptService(ws).transcribe()
 

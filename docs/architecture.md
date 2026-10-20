@@ -39,7 +39,7 @@ Share token algorithm (coolname, active + cooldown pools): [share-tokens.md](sha
 **Extend an existing store** instead of inventing a parallel JSON index or DB.
 Recording sessions reuse the share registry (`kind`) and prefixed session-sync
 sqlite tables (`record_*`) rather than a new plane — see [recording-session.md](recording-session.md).
-`EditService.list_clips` acquires the host-local recording-key secret from the
+`TimelineService.list_clips` acquires the host-local recording-key secret from the
 share registry once per call; `edits.timeline_ops.list_clips` passes it to pure
 HMAC derivation in `edits.clips_ops.recording_key`. Every SQLite store (session sync, share identity, share registry, relay reports) opens through
 `util/sqlite_open.open_sqlite`: WAL by way of the bounded `util/sqlite_wal.ensure_wal`
@@ -62,6 +62,13 @@ services import each context's declared symbols from
 may import implementation modules. The pipeline context depends on the existing
 `services.app` facade for `ProjectWorkspace`, and support reads pipeline component status
 through the public facade. Neither context imports CLI, MCP, or GUI modules.
+The document context splits editing by theme, each service under 40 public
+methods and each module under 800 lines: `EditService` (cuts, approval
+decisions, tighten proposals), `TimelineService` (clip geometry, joins, fades,
+segments, chapters), `TranscriptService` (transcription, export and word
+edits), `AnalysisService` (effects, loudness, bleed, audibility, reconcile and
+cut-boundary previews). They share `WorkspaceService` and `CutMutatingService`
+from `service_base.py`; `tests/test_module_size_budget.py` holds the budgets.
 All eleven service contexts expose explicit typed names through lazy package
 facades using `util/lazy_exports.py`. Importing a facade does not load its
 implementation modules or optional integrations.
@@ -103,7 +110,7 @@ inference runs outside it. The persistence contract is in [persistence.md](persi
 
 ### Narrative handoff evidence
 
-Narrative handoff selection belongs to `EditService.suggest_handoff_cut`. Omitted human selectors resolve to all dialogue IDs, including muted lanes. Explicit selectors resolve to one lane. `edits.silence_islands` accepts a track collection, samples, on a shared timeline grid and from one cache build for the selected lanes, how far the loudest lane is over its own voice floor, and reuses the silence-island retain and snap planner. Missing or incomplete evidence cannot qualify a hop as quiet. The waveform snap overlay passes its one selected lane to the same scanner.
+Narrative handoff selection belongs to `AnalysisService.suggest_handoff_cut`. Omitted human selectors resolve to all dialogue IDs, including muted lanes. Explicit selectors resolve to one lane. `edits.silence_islands` accepts a track collection, samples, on a shared timeline grid and from one cache build for the selected lanes, how far the loudest lane is over its own voice floor, and reuses the silence-island retain and snap planner. Missing or incomplete evidence cannot qualify a hop as quiet. The waveform snap overlay passes its one selected lane to the same scanner.
 
 ### Timebase: source vs timeline clock
 
@@ -292,7 +299,7 @@ A process-wide memo that outlives one call and is not one of these three (an adm
 
 ### Transcript replacement plans
 
-`edits/transcript_replace.py` owns literal whole-token phrase matching and an immutable source-keyed replacement plan. It fingerprints the complete candidate set and reuses `transcript_correct.correct_transcript_word` and the pure `build_phrase_replacement` policy on exact source words. Existing manual track correction keeps its current primary-view resolution. `EditService.preview_transcript_replacement` returns the review data; `replace_transcript_matches` recomputes and validates it under one workspace transaction, assembles each source's replacement word list once without repeated full-list copies, rebuilds the combined transcript once, and records one undo action. The host preview route and document-command handler only parse and delegate.
+`edits/transcript_replace.py` owns literal whole-token phrase matching and an immutable source-keyed replacement plan. It fingerprints the complete candidate set and reuses `transcript_correct.correct_transcript_word` and the pure `build_phrase_replacement` policy on exact source words. Existing manual track correction keeps its current primary-view resolution. `TranscriptService.preview_transcript_replacement` returns the review data; `replace_transcript_matches` recomputes and validates it under one workspace transaction, assembles each source's replacement word list once without repeated full-list copies, rebuilds the combined transcript once, and records one undo action. The host preview route and document-command handler only parse and delegate.
 
 ### Exact-source word timing
 
@@ -301,7 +308,7 @@ A process-wide memo that outlives one call and is not one of these three (an adm
 ### Captured fade dependencies
 
 `edits/clip_fades.py` owns the immutable saved fade pair and its comparison.
-`EditService.set_clip_fade` checks it under the workspace transaction before
+`TimelineService.set_clip_fade` checks it under the workspace transaction before
 history capture. The document payload requires the baseline. Local host MCP
 can deliberately set both fades unconditionally through the same service.
 

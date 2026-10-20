@@ -34,7 +34,7 @@ per-module ownership notes live here.
    track mutation.
 
    The document context (`services/document/`) owns episode, clip, edit,
-   playback, history, boundary, comment, and alignment orchestration. CLI,
+   timeline, transcript, analysis, playback, history, boundary, comment, and alignment orchestration. CLI,
    MCP, GUI, and other services import its public names from
    `podcast_mcp.services.document`. The facade resolves each name on first
    access, so importing the package does not load playback or editing. Its

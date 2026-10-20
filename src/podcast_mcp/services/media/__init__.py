@@ -63,9 +63,6 @@ if TYPE_CHECKING:
         SpeakerService,
         coerce_enrollment,
     )
-    from podcast_mcp.services.media.transcript import (
-        TranscriptService,
-    )
     from podcast_mcp.services.media.transcript_precorrect import (
         TranscriptContextBusyError,
         TranscriptPrecorrectService,
@@ -99,7 +96,6 @@ __all__ = [
     "TranscriptContextBusyError",
     "TranscriptPrecorrectService",
     "TranscriptRefineService",
-    "TranscriptService",
     "VocabularyConflictError",
     "WaveformBusyError",
     "accepted_proxy_chunk_path",
@@ -188,7 +184,6 @@ _MODULE_BY_NAME = {
     "presigned_review_audio_url": "review_media",
     "SpeakerService": "speaker",
     "coerce_enrollment": "speaker",
-    "TranscriptService": "transcript",
     "TranscriptContextBusyError": "transcript_precorrect",
     "TranscriptPrecorrectService": "transcript_precorrect",
     "VocabularyConflictError": "transcript_precorrect",

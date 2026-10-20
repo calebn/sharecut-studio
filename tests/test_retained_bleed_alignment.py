@@ -738,14 +738,14 @@ def test_default_gate_preview_reports_unresolved_direct_phrase_without_mutation(
     tmp_path: Path, case: str
 ) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     p = _episode(tmp_path)
     reason = _remove_matching_direct_phrase(p, case)
     ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
     ws.save()
     before = p.model_dump(by_alias=True)
-    preview = EditService(ws).apply_bleed_mute(
+    preview = AnalysisService(ws).apply_bleed_mute(
         track_id="uncertain", start_sec=0.8, end_sec=3.5, apply=False
     )
     assert "alignment" in preview
@@ -758,14 +758,14 @@ def test_default_gate_preview_accepts_supported_implicit_full_media_timeline(
     tmp_path: Path,
 ) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     p = _episode(tmp_path)
     p.clips = []
     ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
     ws.save()
     before = p.model_dump(by_alias=True)
-    preview = EditService(ws).apply_bleed_mute(track_id="uncertain", apply=False)
+    preview = AnalysisService(ws).apply_bleed_mute(track_id="uncertain", apply=False)
     assert preview["dry_run"] is True
     assert p.model_dump(by_alias=True) == before
 

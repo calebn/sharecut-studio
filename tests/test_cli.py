@@ -96,7 +96,11 @@ def test_edit_crossfade_joins_reports_service_result(tmp_path):
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     project = ws / "episode.project.json"
 
-    with patch("podcast_mcp.cli.edit.EditService") as service:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as service,
+        patch("podcast_mcp.cli.edit.TimelineService", service),
+        patch("podcast_mcp.cli.edit.AnalysisService", service),
+    ):
         service.return_value.crossfade_joins.return_value = {"count": 0}
         result = runner.invoke(
             app,
@@ -278,7 +282,11 @@ def test_edit_suggest_handoff_cut_command(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     project_path = ws / "episode.project.json"
-    with patch("podcast_mcp.cli.edit.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as svc_cls,
+        patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
+        patch("podcast_mcp.cli.edit.AnalysisService", svc_cls),
+    ):
         svc_cls.return_value.suggest_handoff_cut.return_value = {
             "ok": True,
             "cut_start": 1.0,

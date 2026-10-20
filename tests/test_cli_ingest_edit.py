@@ -814,11 +814,11 @@ def test_edit_join_quality_cli(minimal_project, monkeypatch):
             return {"verdict": "pass", "risk": 0.1, "disclaimer": "x"}
 
     monkeypatch.setattr(
-        "podcast_mcp.services.document.edit.assess_existing_join",
+        "podcast_mcp.services.document.timeline.assess_existing_join",
         lambda *a, **k: _Rep(),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.document.edit.assess_project_joins",
+        "podcast_mcp.services.document.timeline.assess_project_joins",
         lambda *a, **k: {"join_count": 1, "fail_count": 0},
     )
     jq = runner.invoke(
@@ -1080,7 +1080,14 @@ def test_edit_service_wrapped_commands(
 ):
     project = _setup_edit_project(minimal_project)
     args = ["edit", command, "--project", str(project), *extra]
-    with patch(f"podcast_mcp.cli.edit.EditService.{patch_method}", return_value=return_value):
+    from podcast_mcp.services import document
+
+    service = next(
+        getattr(document, name)
+        for name in ("EditService", "TimelineService", "AnalysisService", "TranscriptService")
+        if hasattr(getattr(document, name), patch_method)
+    )
+    with patch.object(service, patch_method, return_value=return_value):
         result = runner.invoke(app, args)
     assert result.exit_code == 0
     assert json.loads(result.stdout) == return_value
@@ -1088,7 +1095,11 @@ def test_edit_service_wrapped_commands(
 
 def test_edit_ripple_delete_by_query(minimal_project):
     project = _setup_edit_project(minimal_project)
-    with patch("podcast_mcp.cli.edit.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as svc_cls,
+        patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
+        patch("podcast_mcp.cli.edit.AnalysisService", svc_cls),
+    ):
         svc_cls.return_value.ripple_delete_text.return_value = {
             "operation": "ripple_delete_text",
             "removed_sec": 0.5,
@@ -1111,7 +1122,11 @@ def test_edit_ripple_delete_by_query(minimal_project):
 
 def test_edit_ripple_delete_default_prints_summary(minimal_project):
     project = _setup_edit_project(minimal_project)
-    with patch("podcast_mcp.cli.edit.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as svc_cls,
+        patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
+        patch("podcast_mcp.cli.edit.AnalysisService", svc_cls),
+    ):
         svc_cls.return_value.cut_range.return_value = {
             "operation": "ripple_delete",
             "affected_tracks": ["host", "guest"],
@@ -1139,7 +1154,11 @@ def test_edit_ripple_delete_default_prints_summary(minimal_project):
 
 def test_edit_move_by_query(minimal_project):
     project = _setup_edit_project(minimal_project)
-    with patch("podcast_mcp.cli.edit.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as svc_cls,
+        patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
+        patch("podcast_mcp.cli.edit.AnalysisService", svc_cls),
+    ):
         svc_cls.return_value.move_by_text.return_value = {"moved": True}
         result = runner.invoke(
             app,

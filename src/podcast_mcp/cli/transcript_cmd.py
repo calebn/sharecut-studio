@@ -11,12 +11,11 @@ from podcast_mcp.cli.context import get_progress
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TranscriptService
 from podcast_mcp.services.media import (
     TranscriptContextBusyError,
     TranscriptPrecorrectService,
     TranscriptRefineService,
-    TranscriptService,
 )
 from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
@@ -81,7 +80,7 @@ def transcript_correct_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     try:
-        EditService(ws).correct_word(
+        TranscriptService(ws).correct_word(
             track, word_index, text, expected_text=expected_text, source_id=source
         )
     except TranscriptTextChangedError as exc:
@@ -118,7 +117,7 @@ def transcript_correct_phrase_cmd(
     original timings; use this for merging split ASR tokens or short phrases.
     """
     ws = ProjectWorkspace.open(project)
-    EditService(ws).correct_phrase(
+    TranscriptService(ws).correct_phrase(
         track,
         start_word_index,
         end_word_index,
@@ -151,7 +150,7 @@ def transcript_set_word_timing_cmd(
     )
 
     target = WordTimingTarget(track_id=track, source_id=source, word_index=word_index)
-    context = EditService(ProjectWorkspace.open(project)).word_timing_context(
+    context = TranscriptService(ProjectWorkspace.open(project)).word_timing_context(
         target, expected_text=expected_text
     )
     reply = submit_host_document_command(
@@ -182,7 +181,7 @@ def transcript_find_replace_cmd(
         submit_host_document_command,
     )
 
-    preview = EditService(ProjectWorkspace.open(project)).preview_transcript_replacement(
+    preview = TranscriptService(ProjectWorkspace.open(project)).preview_transcript_replacement(
         search, replacement, match_case=match_case
     )
     if dry_run:
@@ -239,11 +238,11 @@ def transcript_suppress_word_cmd(
         )
     ws = ProjectWorkspace.open(project)
     if automatic:
-        result = EditService(ws).set_word_automatic(
+        result = TranscriptService(ws).set_word_automatic(
             track, word_index, expected_text=expected_text, source_id=source
         )
     else:
-        result = EditService(ws).set_word_suppressed(
+        result = TranscriptService(ws).set_word_suppressed(
             track,
             word_index,
             suppressed if suppressed is not None else True,
@@ -276,7 +275,7 @@ def transcript_cleanup_batch_cmd(
         raise typer.BadParameter("--corrections-json must be a JSON object")
     words = payload.get("words")
     phrases = payload.get("phrases")
-    n = EditService(ws).apply_transcript_cleanup(track, words=words, phrases=phrases)
+    n = TranscriptService(ws).apply_transcript_cleanup(track, words=words, phrases=phrases)
     typer.echo(f"Applied {n} correction(s).")
 
 
@@ -286,7 +285,7 @@ def transcript_review_cmd(
     threshold: float = typer.Option(0.7, "--threshold"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    words = EditService(ws).low_confidence_words(threshold)
+    words = TranscriptService(ws).low_confidence_words(threshold)
     typer.echo(json.dumps(words, indent=2))
 
 

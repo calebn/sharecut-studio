@@ -337,7 +337,7 @@ def test_apply_transcript_bleed_mute_window_scoped_intervals(
 
 def test_bleed_mute_history_records_gate_flag(tmp_path: Path, sample_wav: Path) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService, HistoryService
+    from podcast_mcp.services.document import AnalysisService, HistoryService
 
     project = _project_with_stem(tmp_path, sample_wav)
     path = tmp_path / "episode.project.json"
@@ -354,7 +354,7 @@ def test_bleed_mute_history_records_gate_flag(tmp_path: Path, sample_wav: Path) 
         "podcast_mcp.edits.transcript_bleed_mute.gate_stem_window",
         side_effect=_copy_gate,
     ):
-        EditService(ws).apply_bleed_mute(track_id="host", apply=True)
+        AnalysisService(ws).apply_bleed_mute(track_id="host", apply=True)
 
     hist = HistoryService(ws)
     entries = hist.list_entries()["entries"]

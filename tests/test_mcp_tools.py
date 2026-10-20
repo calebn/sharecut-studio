@@ -17,7 +17,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.pipeline import AudioExportResult
 
 
@@ -311,7 +311,7 @@ def test_mcp_update_and_revert_mute(tmp_path):
     ):
         reverted = json.loads(mcp_server.revert_applied_edit_tool(path, "alog_1"))
     assert reverted["operation"] == "revert_applied_edit"
-    with patch.object(EditService, "join_label", return_value={"ok": True}):
+    with patch.object(TimelineService, "join_label", return_value={"ok": True}):
         labeled = json.loads(
             mcp_server.join_label_tool(path, join_sec=1.0, verdict="pass", track_id="host")
         )
