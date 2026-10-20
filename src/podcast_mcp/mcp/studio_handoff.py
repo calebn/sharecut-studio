@@ -27,6 +27,7 @@ from mcp.types import CallToolResult, TextContent
 from podcast_mcp.mcp.project_default import ENV_VAR as PROJECT_ENV_VAR
 from podcast_mcp.services.app import StudioHost, locate_studio
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
+from podcast_mcp.util.progress import mcp_progress_sink
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +61,27 @@ def _lost_result(host: StudioHost, name: str, why: str) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
 
 
-async def _run_in_studio(host: StudioHost, name: str, arguments: dict[str, Any]) -> Any:
+def _progress_relay(context: Any) -> Any:
+    """Forward Studio's progress to the stdio client, only if that client asked for progress.
+
+    The client opts in with a ``progressToken``; without one nothing is sent, as when the tool
+    runs in this process. A relay that fails never fails the call.
+    """
+    if mcp_progress_sink(context) is None:
+        return None
+
+    async def relay(progress: float, total: float | None, message: str | None) -> None:
+        try:
+            await context.report_progress(progress, total, message)
+        except Exception:
+            log.debug("could not relay Studio progress to the client", exc_info=True)
+
+    return relay
+
+
+async def _run_in_studio(
+    host: StudioHost, name: str, arguments: dict[str, Any], context: Any = None
+) -> Any:
     """Run one tool call in Studio; ``None`` means nothing was sent, so the caller runs it here."""
     sent = False
     try:
@@ -71,7 +92,10 @@ async def _run_in_studio(host: StudioHost, name: str, arguments: dict[str, Any])
         ):
             await session.initialize()
             sent = True
-            return await session.call_tool(name, arguments)
+            relay = _progress_relay(context)
+            if relay is None:
+                return await session.call_tool(name, arguments)
+            return await session.call_tool(name, arguments, progress_callback=relay)
     except Exception as exc:
         if not sent:
             log.debug("Studio at %s:%s did not take the call", host.host, host.port, exc_info=True)
@@ -101,7 +125,7 @@ def install_studio_handoff(server: Any) -> None:
         forwarded = {
             key: _absolute(key, value) for key, value in arguments.items() if key != "project_path"
         }
-        result = await _run_in_studio(host, name, forwarded)
+        result = await _run_in_studio(host, name, forwarded, context)
         if result is None:
             return await call_next(arguments)
         return result
