@@ -275,7 +275,27 @@ if a workflow goes back to an unlocked `pip install -e`.
 
 ### GitHub CI gate
 
-GitHub Actions runs the required checks on every pull request and the full suite on every push to `main`, every night and on `workflow_dispatch` (see [§ Which jobs a run needs](#which-jobs-a-run-needs)). Run focused tests locally while changing code, for example `uv run pytest -q --no-cov tests/test_effects_presets.py`; a single file cannot satisfy the repo-wide 95% coverage threshold. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make test` or `make ci` first, then use the GitHub results to make targeted fixes. Run local `make test` or `make ci` when changes are extensive or a failure needs full-suite diagnosis. Wait for the required GitHub checks on the latest PR head before merging.
+GitHub Actions runs the required checks on every pull request and the full suite on each retained push run for `main`, every night and on `workflow_dispatch` (see [§ Which jobs a run needs](#which-jobs-a-run-needs)). Run focused tests locally while changing code, for example `uv run pytest -q --no-cov tests/test_effects_presets.py`; a single file cannot satisfy the repo-wide 95% coverage threshold. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make test` or `make ci` first, then use the GitHub results to make targeted fixes. Run local `make test` or `make ci` when changes are extensive or a failure needs full-suite diagnosis. Wait for the required GitHub checks on the latest PR head before merging.
+
+#### Superseded PRs and main bursts
+
+The test, desktop, Storybook, extras-import, release-wheel, secret-scan,
+registry-backup-windows, and relay-ci workflows cancel a superseded first-attempt
+PR run in the same workflow and PR group. A rerun gets its own group so rerunning
+an older head cannot cancel the latest head's checks.
+
+Pushes to `main` share one group per workflow and do not cancel the running run.
+GitHub keeps at most one running and one pending run in each group, replacing an
+older pending run when another arrives. A burst therefore validates the running
+commit and the latest pending commit rather than every intermediate commit.
+GitHub does not guarantee ordering within a concurrency group. Before merging,
+verify the exact PR head and its integration with current `main` as usual.
+
+If a coalesced main run fails, inspect or bisect the commits since the previous
+successful run. The latest main run and the full nightly test run retain the
+coverage floor and both browser engines. Scheduled and manual dispatch runs have
+unique groups, so pushes cannot cancel them or replace their pending runs.
+This policy changes scheduling, not which checks a run plans.
 
 #### Which jobs a run needs
 
@@ -321,7 +341,7 @@ The repository merge helper still requires literal `SUCCESS` from `pytest`,
 `frontend`, `frontend-e2e`, and `gitleaks-history` on the exact PR head. It rejects
 missing contexts, arbitrary `SKIPPED` checks, API errors, and moved heads.
 
-Regressions in skipped areas surface on the next `main` push or nightly run. Check the nightly `test` run before trusting `main`.
+Regressions in skipped areas surface on the next retained `main` push run or nightly run. Check the nightly `test` run before trusting `main`.
 
 The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py check --range` over the PR's base/head SHAs — the docs-sync gate from [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync). It needs the job's `actions/checkout` at `fetch-depth: 0` (the merge base and commit trailers, not just the head commit). Run the same check locally with `make docs-sync` before opening a PR; the `docs-sync` pre-commit hook runs it on staged files but only warns.
 
