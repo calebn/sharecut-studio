@@ -5,6 +5,12 @@ import { useResizeObserver } from "./useResizeObserver";
 
 /** Where an anchored `Dialog` sits: beside `ref`, clear of `avoidRef`. */
 export type DialogAnchor = {
+  /**
+   * Why this dialog stays a panel beside its subject instead of becoming a
+   * sheet on phone and tablet. Written at the call site; `dialogSheet.test.ts`
+   * fails an anchor without one.
+   */
+  reason: string;
   /** The element the dialog is about, which stays visible and unobscured. */
   ref: RefObject<HTMLElement | null>;
   /** Chrome the panel must not cover (the timeline's endpoint rail). */

@@ -51,6 +51,8 @@ export function JoinPopover({
       title={joinSeamLabel(joinGlyph(right), seamSec)}
       panelId={id}
       anchor={{
+        reason:
+          "the join under the timeline stays in view while its mode and fades are edited, so a sheet would cover the seam being heard",
         ref: anchorRef,
         avoidRef: railRef,
         moves: `${seamSec}|${right.join_in_mode}`,
