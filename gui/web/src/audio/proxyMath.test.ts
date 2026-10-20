@@ -270,6 +270,83 @@ describe("proxyMath", () => {
     expect(slices[0].envelope.gainCurve).toBe("equalPower");
   });
 
+  it("overlaps a blending crossfade join and pulls later clips earlier, as render does", () => {
+    const join = {
+      join_in_mode: "crossfade" as const,
+      join_crossfade_ms: 200,
+      fade_in_ms: 400,
+      fade_out_ms: 400,
+    };
+    const slices = buildSchedule(
+      [
+        clip({
+          id: "a",
+          source_start: 0,
+          source_end: 2,
+          timeline_start: 0,
+          timeline_end: 2,
+          fade_out_ms: 400,
+        }),
+        clip({
+          id: "b",
+          source_start: 2,
+          source_end: 4,
+          timeline_start: 2,
+          timeline_end: 4,
+          join_left_clip_id: "a",
+          ...join,
+        }),
+        clip({
+          id: "c",
+          source_start: 4,
+          source_end: 6,
+          timeline_start: 4.5,
+          timeline_end: 6.5,
+        }),
+      ],
+      0,
+      20,
+      manifest(),
+    );
+    const [a, b, c] = slices;
+    expect(a.whenTimelineSec).toBe(0);
+    expect(a.envelope.fadeOutSec).toBeCloseTo(0.2, 9);
+    expect(b.whenTimelineSec).toBeCloseTo(1.8, 9);
+    expect(b.envelope.timelineStartSec).toBeCloseTo(1.8, 9);
+    expect(b.envelope.fadeInSec).toBeCloseTo(0.2, 9);
+    expect(c.whenTimelineSec).toBeCloseTo(4.3, 9);
+  });
+
+  it("leaves a blocked or other-lane crossfade join where it was authored", () => {
+    const rows = [
+      clip({ id: "a", timeline_start: 0, timeline_end: 2, fade_out_ms: 100 }),
+      clip({
+        id: "b",
+        timeline_start: 2,
+        timeline_end: 4,
+        join_left_clip_id: "a",
+        join_in_mode: "crossfade",
+        join_crossfade_ms: 0,
+        join_crossfade_blocked: "no_fade_in",
+        fade_in_ms: 0,
+      }),
+      clip({
+        id: "other",
+        track_id: "guest",
+        timeline_start: 5,
+        timeline_end: 6,
+        join_left_clip_id: "x",
+        join_in_mode: "crossfade",
+        join_crossfade_ms: 100,
+      }),
+    ];
+    const m = manifest();
+    m.tracks.guest = m.tracks.host;
+    const slices = buildSchedule(rows, 0, 20, m);
+    expect(slices.map((s) => s.whenTimelineSec)).toEqual([0, 2, 5]);
+    expect(slices[1].envelope.fadeInSec).toBe(0);
+  });
+
   it("reads origin media but plays it through the lane the clip sits on, as render does", () => {
     const slices = buildSchedule(
       [
