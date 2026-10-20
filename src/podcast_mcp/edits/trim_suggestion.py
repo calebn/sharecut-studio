@@ -11,6 +11,7 @@ why when none passes.
 from __future__ import annotations
 
 import logging
+import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +61,7 @@ def check_suggested_trim(
 ) -> CheckedTrim:
     """The suggestion if the trim accepts it, else the nearest edge with a little more air that
     it accepts, else the suggestion with the reasons it is held."""
+    # Imported here: cut_application pulls in the cut-safety stack, which imports this tree.
     from podcast_mcp.edits.cut_application import trim_holds
 
     # Extending an in-point moves it earlier and an out-point later; more air goes that way.
@@ -84,8 +86,8 @@ def check_suggested_trim(
                     return CheckedTrim(landed, "passes", abs(landed - source_sec) * 1000)
                 if not first_reasons:
                     first_reasons = reasons
-    except Exception:
-        log.debug("could not check the suggested trim of %s", clip_id, exc_info=True)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        log.warning("could not check the suggested trim of %s", clip_id, exc_info=True)
         return CheckedTrim(source_sec, "unchecked")
     if not tried:
         return CheckedTrim(source_sec, "unchecked")

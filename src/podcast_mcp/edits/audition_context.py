@@ -33,6 +33,7 @@ from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_pro
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EditMode, EpisodeProject
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import count_noun
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -774,6 +775,7 @@ def _speech_cut_meaning(
     return advice
 
 
+@batch_scope()
 def _speech_cut_hypotheses(
     project: EpisodeProject,
     track_ids: list[str],
