@@ -17,6 +17,7 @@ from podcast_mcp.engines.speaker_id import (
     SpeakerProfile,
     WindowScore,
     _bleed_windows,
+    _save_profile,
     _stem_path,
     classify_track_role,
     compare_window,
@@ -1378,3 +1379,47 @@ def test_home_speaker_gate_apply_respects_lock(tmp_path, sample_wav) -> None:
     # count toward words_suppressed.
     assert report["words_would_suppress"] == 1
     assert report["words_suppressed"] == 0
+
+
+def _profile(speaker_id: str, track_id: str, stem_hash: str) -> SpeakerProfile:
+    return SpeakerProfile(
+        speaker_id=speaker_id,
+        track_id=track_id,
+        embedding=[1.0, 0.0],
+        enrollment_sec=5.0,
+        stem_hash=stem_hash,
+        home_track_id=track_id,
+    )
+
+
+def test_save_profile_drops_cache_files_of_older_stem_revisions(tmp_path, sample_wav) -> None:
+    project = _two_track_project(tmp_path, sample_wav)
+    old = _save_profile(project, _profile("host", "host", "aaaa1111"), "aaaa1111")
+    new = _save_profile(project, _profile("host", "host", "bbbb2222"), "bbbb2222")
+    assert not old.exists()
+    assert new.exists()
+    assert list(load_all_profiles_files(project)) == ["host"]
+
+
+def load_all_profiles_files(project: EpisodeProject) -> list[str]:
+    d = project.artifacts_dir() / "speaker_profiles"
+    return [json.loads(f.read_text())["speaker_id"] for f in sorted(d.glob("*.json"))]
+
+
+def test_save_profile_keeps_other_tracks_and_prefix_speakers(tmp_path, sample_wav) -> None:
+    project = _two_track_project(tmp_path, sample_wav)
+    other_track = _save_profile(project, _profile("host", "guest", "cccc3333"), "cccc3333")
+    prefixed = _save_profile(project, _profile("host_b", "host_b", "dddd4444"), "dddd4444")
+    _save_profile(project, _profile("host", "host", "aaaa1111"), "aaaa1111")
+    _save_profile(project, _profile("host", "host", "bbbb2222"), "bbbb2222")
+    assert other_track.exists()
+    assert prefixed.exists()
+
+
+def test_save_profile_ignores_unreadable_siblings(tmp_path, sample_wav) -> None:
+    project = _two_track_project(tmp_path, sample_wav)
+    broken = _save_profile(project, _profile("host", "host", "aaaa1111"), "aaaa1111")
+    broken.write_text("{not json", encoding="utf-8")
+    new = _save_profile(project, _profile("host", "host", "bbbb2222"), "bbbb2222")
+    assert broken.exists()
+    assert new.exists()
