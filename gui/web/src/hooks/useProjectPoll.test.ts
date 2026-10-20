@@ -54,7 +54,7 @@ describe("useProjectPoll", () => {
     noteDocumentSeq(3);
     noteDocumentFile({ project: {}, file: { mtime_ns: 2, size: 5 } });
 
-    renderHook(() => useProjectPoll("/p.json", vi.fn()));
+    renderHook(() => useProjectPoll("/p.json"));
     await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProject).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe("useProjectPoll", () => {
     });
     loadProjectMeta.mockResolvedValue({ mtime_ns: 3, size: 5, server_seq: 3 });
 
-    renderHook(() => useProjectPoll("/p.json", vi.fn()));
+    renderHook(() => useProjectPoll("/p.json"));
     await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProject).toHaveBeenCalledTimes(1);
@@ -90,7 +90,7 @@ describe("useProjectPoll", () => {
         }),
     );
 
-    renderHook(() => useProjectPoll("/p.json", vi.fn()));
+    renderHook(() => useProjectPoll("/p.json"));
     await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
     expect(loadProject).toHaveBeenCalledTimes(1);
 
@@ -115,7 +115,7 @@ describe("useProjectPoll", () => {
     });
     loadProjectMeta.mockResolvedValue({ mtime_ns: 4, size: 6, server_seq: 4 });
 
-    renderHook(() => useProjectPoll("/p.json", vi.fn()));
+    renderHook(() => useProjectPoll("/p.json"));
     await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
     expect(loadProject).toHaveBeenCalledTimes(1);
 
@@ -139,14 +139,14 @@ describe("useProjectPoll", () => {
     loadProjectMeta.mockResolvedValue({ mtime_ns: 2, size: 5, server_seq: 2 });
     noteDocumentSeq(9);
 
-    renderHook(() => useProjectPoll("/p.json", vi.fn()));
+    renderHook(() => useProjectPoll("/p.json"));
     await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProject).not.toHaveBeenCalled();
   });
 
   it("does not poll meta at all when disabled", async () => {
-    renderHook(() => useProjectPoll("/p.json", vi.fn(), false));
+    renderHook(() => useProjectPoll("/p.json", false));
     await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProjectMeta).not.toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe("useProjectPoll", () => {
   it("no longer polls at the old 1.5 s cadence", async () => {
     loadProjectMeta.mockResolvedValue({ mtime_ns: 1, size: 1, server_seq: 3 });
 
-    renderHook(() => useProjectPoll("/p.json", vi.fn()));
+    renderHook(() => useProjectPoll("/p.json"));
     await vi.advanceTimersByTimeAsync(1500);
 
     expect(loadProjectMeta).toHaveBeenCalledTimes(1);

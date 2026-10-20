@@ -21,5 +21,5 @@ export function useGuestSyncAndProjectPoll(
     setProject,
     opts.guestSyncEnabled,
   );
-  useProjectPoll(projectPath, setProject, opts.hostSyncEnabled || guestWsReady);
+  useProjectPoll(projectPath, opts.hostSyncEnabled || guestWsReady);
 }
