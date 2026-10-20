@@ -3375,24 +3375,23 @@ def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
         assert gated == CutRejected("kept_voice")
 
 
-def _decaying_uh_project(tmp_path, depth_db: float, gain_db: float) -> EpisodeProject:
-    """An "uh" the transcript missed that decays into "Yeah," through a valley (#1358).
+def _sound_then_word_project(
+    tmp_path, name: str, sound: tuple[tuple[float, float], ...], valley_db: float, gain_db: float
+) -> EpisodeProject:
+    """An untranscribed sound shaped by ``sound`` knots (sec, dB), a valley at 1.38-1.42
+    ``valley_db`` low, and the kept "Yeah," (word time 1.5) rising out of it by 1.48.
 
-    The "uh" holds the speech level from 0.91, falls ``depth_db`` over 180 ms to a valley
-    at 1.38-1.42, and the kept word's voice rises out of it by 1.48 (word time 1.5): one
-    unbroken voice, as at lab 646.88 where the valley never reaches the voice floor.
+    The valley stays far over the voice floor, as at lab 646.88 (#1358).
     """
     return _audio_project(
-        tmp_path / f"d{depth_db:g}g{gain_db:+.0f}",
+        tmp_path / f"{name}g{gain_db:+.0f}",
         [
             (0.3, _voice(0.3, level_db=-21.0)),
             _enveloped(
                 _voice,
-                (0.88, -70.0),
-                (0.91, -21.0),
-                (1.2, -21.0),
-                (1.38, -21.0 - depth_db),
-                (1.42, -21.0 - depth_db),
+                *sound,
+                (1.38, valley_db),
+                (1.42, valley_db),
                 (1.48, -21.0),
                 (1.9, -21.0),
                 (1.92, -95.0),
@@ -3409,6 +3408,20 @@ def _decaying_uh_project(tmp_path, depth_db: float, gain_db: float) -> EpisodePr
     )
 
 
+# One sustained hum that decays into the valley: a single burst of level.
+_HUM = ((0.88, -70.0), (0.91, -21.0), (1.2, -21.0), (1.38, -21.0))
+
+
+def _decaying_uh_project(tmp_path, depth_db: float, gain_db: float) -> EpisodeProject:
+    """An "uh" the transcript missed that decays into "Yeah," through a valley (#1358).
+
+    The "uh" holds the speech level from 0.91, falls ``depth_db`` over 180 ms to a valley
+    at 1.38-1.42, and the kept word's voice rises out of it by 1.48 (word time 1.5): one
+    unbroken voice, as at lab 646.88 where the valley never reaches the voice floor.
+    """
+    return _sound_then_word_project(tmp_path, f"d{depth_db:g}", _HUM, -21.0 - depth_db, gain_db)
+
+
 @pytest.mark.parametrize("gain_db", _GAINS_DB)
 @pytest.mark.parametrize(
     ("depth_db", "proposed"),
@@ -3416,6 +3429,9 @@ def _decaying_uh_project(tmp_path, depth_db: float, gain_db: float) -> EpisodePr
         # A dip a few dB under the voice is inside one word: the run is that word's voice.
         (4.0, False),
         (8.0, False),
+        # The depth a listener hears as a boundary is 10 dB (`HEARD_APART_DEPTH_DB`).
+        (9.0, False),
+        (11.0, True),
         # A valley 14 dB or more under the "uh" and under the word after it is heard as
         # the end of one sound and the start of the next (lab: 20 and 17 dB), though it
         # stays far over the voice floor (speech level - 27 dB).
@@ -3443,6 +3459,149 @@ def test_acoustic_mute_ends_in_the_valley_a_filler_decays_into_the_next_word_thr
     # The edge falls in the valley, at its bottom, before the word's voice rises out of it.
     assert decision.end == pytest.approx(1.40, abs=0.021)
     assert found == {}
+
+
+# A first syllable the transcript missed, an 8 dB dip (a level burst, not yet a valley a
+# listener hears as a boundary), a second syllable, then the valley into the kept word.
+_TWO_SYLLABLES = (
+    (0.88, -70.0),
+    (0.91, -21.0),
+    (1.05, -21.0),
+    (1.09, -29.0),
+    (1.13, -29.0),
+    (1.17, -21.0),
+    (1.28, -21.0),
+    (1.38, -21.0),
+)
+# Three pulses of voice 14 dB apart: a short phrase the transcript dropped.
+_SHORT_PHRASE = (
+    (0.88, -70.0),
+    (0.91, -21.0),
+    (1.0, -21.0),
+    (1.03, -35.0),
+    (1.07, -35.0),
+    (1.1, -21.0),
+    (1.18, -21.0),
+    (1.21, -35.0),
+    (1.25, -35.0),
+    (1.28, -21.0),
+    (1.38, -21.0),
+)
+# A hum that wobbles a few dB on its way down.
+_WOBBLING_HUM = (
+    (0.88, -70.0),
+    (0.91, -21.0),
+    (1.1, -21.0),
+    (1.14, -25.0),
+    (1.18, -21.0),
+    (1.38, -21.0),
+)
+
+
+@pytest.mark.parametrize("gain_db", _GAINS_DB)
+@pytest.mark.parametrize(
+    ("name", "sound", "proposed"),
+    [
+        # One sustained hum decays into the valley: the kept word's voice does not run
+        # back into it. A wobble of a few dB is still one burst of level.
+        ("hum", _HUM, True),
+        ("wobble", _WOBBLING_HUM, True),
+        # Two syllables or a phrase before the valley are speech the transcript missed,
+        # not a filler decaying into a word.
+        ("syllables", _TWO_SYLLABLES, False),
+        ("phrase", _SHORT_PHRASE, False),
+    ],
+)
+def test_acoustic_mute_ends_in_a_valley_only_after_one_sustained_hum(
+    tmp_path, name, sound, proposed, gain_db
+):
+    project = _sound_then_word_project(tmp_path, name, sound, -41.0, gain_db)
+    found: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _acoustic_mute_defaults(), skip_counts=found
+    )
+
+    if proposed:
+        (decision,) = decisions
+        assert decision.end == pytest.approx(1.40, abs=0.021)
+    else:
+        assert decisions == []
+        assert found == {"acoustic:kept_voice": 1}
+
+
+def test_a_filler_decaying_into_a_word_waits_for_review_as_a_mute_and_is_refused_as_a_ripple(
+    tmp_path,
+):
+    from podcast_mcp.edits import propose_tighten_edits
+
+    def propose(edit_mode: str):
+        project = _decaying_uh_project(tmp_path / edit_mode, 20.0, 0.0)
+        defaults = _acoustic_mute_defaults()
+        defaults["tighten"]["acoustic_gap_filler"]["word_probe"] = False
+        return propose_tighten_edits(project, defaults, edit_mode=edit_mode, intensity="medium")
+
+    muted = propose("mute")
+    (decision,) = muted.decisions
+    assert decision.reason == "filler:acoustic"
+    assert (decision.review_required, decision.applied) == (True, False)
+    assert muted.to_payload()["edits"][0]["suggested_action"] == "leave"
+
+    # A ripple splices the two sides together at the valley, and the splice checks refuse
+    # an edge there (the breath check, or the join continuity gate where it is installed;
+    # on the lab tape every span the new rule reaches is refused by the breath check).
+    rippled = propose("ripple")
+    assert rippled.decisions == []
+    assert sum(rippled.skip_counts.values()) == 1
+
+
+def _decaying_uh_plan_inputs(tmp_path, reason: str, cut_kind: str, end: float = 1.45):
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.audio_cache import build_track_audio_caches
+    from podcast_mcp.edits.fillers import _CutCandidate, _CutPlan
+
+    project = _decaying_uh_project(tmp_path, 20.0, 0.0)
+    candidate = _CutCandidate(
+        track_id="host", start=0.91, end=end, reason=reason, cut_kind=cut_kind, min_start=0.62
+    )
+    plan = _CutPlan.for_cut(0.91, end, mute=True, pad=None, reason="filler:fixture")
+    cache = build_track_audio_caches(project, {"host"})["host"]
+    return project, candidate, plan, cache, load_defaults()
+
+
+def test_only_an_acoustic_run_ends_in_the_valley_before_the_next_word(tmp_path):
+    from podcast_mcp.edits.fillers import _between_kept_voices
+
+    project, candidate, plan, cache, defaults = _decaying_uh_plan_inputs(
+        tmp_path, "filler:acoustic", "filler"
+    )
+
+    moved = _between_kept_voices(project, plan, candidate, audio_cache=cache, defaults=defaults)
+
+    assert moved.end_in_valley is True
+    assert moved.end == pytest.approx(1.40, abs=0.021)
+
+    # A transcribed filler or a pause is not an untranscribed sound decaying into a word:
+    # the word's voice runs back through the valley as before, and no edge sits in it.
+    for reason, kind in (("filler:uh", "filler"), ("pause:1.00s", "pause")):
+        project, candidate, plan, cache, defaults = _decaying_uh_plan_inputs(
+            tmp_path / reason, reason, kind
+        )
+        other = _between_kept_voices(project, plan, candidate, audio_cache=cache, defaults=defaults)
+        assert getattr(other, "end_in_valley", False) is False
+
+
+def test_the_plan_flags_the_valley_only_when_its_edge_lands_in_it(tmp_path):
+    from podcast_mcp.edits.fillers import _between_kept_voices
+
+    # The run ends at 1.15, well before the valley: the valley does not place its edge.
+    project, candidate, plan, cache, defaults = _decaying_uh_plan_inputs(
+        tmp_path, "filler:acoustic", "filler", end=1.15
+    )
+
+    kept = _between_kept_voices(project, plan, candidate, audio_cache=cache, defaults=defaults)
+
+    assert (kept.end, kept.end_in_valley) == (pytest.approx(1.15), False)
 
 
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
