@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 
 _MCP = Path(__file__).resolve().parents[1] / "src/podcast_mcp/mcp"
-_EDIT_SERVICE_CALL = re.compile(r"EditService\(\w+(?:\.\w+)*\)\s*\.\s*(\w+)\(")
 
 _READ_ONLY = frozenset(
     {
@@ -19,6 +18,7 @@ _READ_ONLY = frozenset(
         "flagged_words",
         "gate_overreach",
         "impact_report",
+        "inspect_clip_bleed",
         "join_label",
         "join_qa_sweep",
         "join_quality",
@@ -55,6 +55,7 @@ _DIRECT_MUTATIONS = frozenset(
         "apply_plan",
         "apply_suggested_actions",
         "apply_transcript_cleanup",
+        "approve",
         "correct_phrase",
         "correct_word",
         "crossfade_joins",
@@ -83,20 +84,50 @@ _DIRECT_MUTATIONS = frozenset(
         "set_words_ignored",
         "shorten_word_gaps",
         "strip_silence",
+        "trim_clip_edge",
         "suppress_bleed",
         "suppress_low_audibility",
         "update_pending",
         "verify_transcript",
     }
 )
-_DIRECT_MUTATIONS_SIZE = 40
+_DIRECT_MUTATIONS_SIZE = 42
+
+
+def _is_edit_service(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "EditService"
+    )
+
+
+def _methods_called_in(source: str) -> set[str]:
+    tree = ast.parse(source)
+    bound = {
+        target.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign) and _is_edit_service(node.value)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    return {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and (
+            _is_edit_service(node.func.value)
+            or (isinstance(node.func.value, ast.Name) and node.func.value.id in bound)
+        )
+    }
 
 
 def _called_methods() -> set[str]:
     return {
-        match.group(1)
+        method
         for path in _MCP.rglob("*.py")
-        for match in _EDIT_SERVICE_CALL.finditer(path.read_text(encoding="utf-8"))
+        for method in _methods_called_in(path.read_text(encoding="utf-8"))
     }
 
 
