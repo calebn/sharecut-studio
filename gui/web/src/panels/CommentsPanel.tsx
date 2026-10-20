@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   CommentAnchorChip,
   CommentAuthorLine,
@@ -6,23 +6,20 @@ import {
   CommentCompose,
   commentPostedStatus,
   commentTimeLabel,
+  setCommentResolved,
   useCommentActions,
   usePostComment,
 } from "../comments";
-import { useMountedRef } from "../hooks/useMountedRef";
 import { canComment, canReply, canSetAction, commentRole } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
+import { EmptyState, InlineError, SegmentedControl, ToggleButton } from "../ui";
 import {
-  EmptyState,
-  InlineError,
-  SegmentedControl,
-  Toast,
-  type ToastState,
-  ToggleButton,
-} from "../ui";
-import { BUSY_REASON } from "../ui/disabledReason";
-import { saveCommentAuthor, sessionDisplayName } from "../utils/commentAuthor";
+  commitCommentActor,
+  saveCommentAuthor,
+  sessionDisplayName,
+} from "../utils/commentAuthor";
 
 type Filter = "open" | "resolved" | "actions" | "all";
 
@@ -78,39 +75,22 @@ export function CommentsPanel({
   const busy = createBusy || actionBusy;
   const error = createError ?? actionError;
 
-  const toastSeq = useRef(0);
-  const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-  const [undoToast, setUndoToast] = useState<
-    (ToastState & { comment: TimelineComment }) | null
-  >(null);
-  const dismissUndo = useCallback(() => setUndoToast(null), []);
-  const mounted = useMountedRef();
 
   const onResolve = async (c: TimelineComment, resolved: boolean) => {
     const ok = await resolve(c, resolved);
-    if (!ok) return;
-    if (resolved) {
-      toastSeq.current += 1;
-      setUndoToast({
-        id: toastSeq.current,
-        message: `Resolved comment at ${commentTimeLabel(c)}`,
-        comment: c,
-      });
-    } else {
-      setUndoToast((prev) => (prev?.comment.id === c.id ? null : prev));
-    }
-  };
-
-  const onUndoResolve = async () => {
-    if (!undoToast) return;
-    const ok = await resolve(undoToast.comment, false);
-    // Unmount disposes the panel-local toast, but cannot cancel this mutation.
-    // Suppress its later app-wide announcement. Revisit if toast ownership moves.
-    if (!ok || !mounted.current) return;
-    setUndoToast(null);
-    // The reopened card is the visual twin; a second toast would cover the panel's.
-    announceStatus("Comment reopened", { toast: false });
+    if (!ok || !resolved) return;
+    const by = commitCommentActor(author, role, setAuthor);
+    announceStatus(`Resolved comment at ${commentTimeLabel(c)}`, {
+      reverse: {
+        run: async () => {
+          if (useDawStore.getState().projectPath !== projectPath) return false;
+          await setCommentResolved(c.id, false, by);
+          return true;
+        },
+        done: "Comment reopened",
+      },
+    });
   };
 
   const comments = project?.comments;
@@ -146,6 +126,8 @@ export function CommentsPanel({
     bodyRef.current?.focus();
   };
 
+  const focusCompose = () => bodyRef.current?.focus();
+
   const toggleTrack = (id: string) => {
     setTrackIds((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
@@ -161,7 +143,7 @@ export function CommentsPanel({
   const mayAction = canSetAction(projectPath, shareCapabilities);
 
   return (
-    <div className="comments-panel" ref={panelRef} tabIndex={-1}>
+    <div className="comments-panel">
       <div className="comments-toolbar">
         <CommentAuthorLine
           name={author}
@@ -291,18 +273,25 @@ export function CommentsPanel({
           );
         })}
         {filtered.length === 0 && (
-          <EmptyState as="li">No comments in this filter.</EmptyState>
+          <EmptyState
+            as="li"
+            action={
+              filter === "all"
+                ? mayComment
+                  ? { label: "Add a comment", onClick: focusCompose }
+                  : undefined
+                : {
+                    label: "Show all comments",
+                    onClick: () => setFilter("all"),
+                  }
+            }
+          >
+            {filter === "all"
+              ? "No comments yet."
+              : "No comments in this filter."}
+          </EmptyState>
         )}
       </ul>
-      {guestShare ? null : (
-        <Toast
-          toast={undoToast}
-          undoDisabledReason={busy ? BUSY_REASON : undefined}
-          onUndo={() => void onUndoResolve()}
-          onDismiss={dismissUndo}
-          returnFocusRef={panelRef}
-        />
-      )}
     </div>
   );
 }

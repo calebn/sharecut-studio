@@ -85,7 +85,9 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore.getState().announceStatus(`Apply failed: ${msg}`);
+      useDawStore
+        .getState()
+        .announceStatus(`Apply failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg };
     }
   });
@@ -118,7 +120,9 @@ async function runReject(id: string): Promise<ExecuteResult> {
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore.getState().announceStatus(`Skip failed: ${msg}`);
+      useDawStore
+        .getState()
+        .announceStatus(`Skip failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg };
     }
   });
@@ -150,7 +154,9 @@ async function runApplySuggested(ids: string[]): Promise<ExecuteResult> {
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore.getState().announceStatus(`Apply failed: ${msg}`);
+      useDawStore
+        .getState()
+        .announceStatus(`Apply failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg };
     }
   });
@@ -191,7 +197,9 @@ async function runReviseSuggested(
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore.getState().announceStatus(`Change failed: ${msg}`);
+      useDawStore
+        .getState()
+        .announceStatus(`Change failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg };
     }
   });

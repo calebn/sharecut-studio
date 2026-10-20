@@ -14,7 +14,7 @@ describe("envelope.addPoint", () => {
   beforeEach(() => {
     clearRegisteredCommands();
     registerDawCommands();
-    vi.mocked(api.setEnvelope).mockReset().mockResolvedValue(undefined);
+    vi.mocked(api.setEnvelope).mockReset().mockResolvedValue(null);
     useDawStore.getState().hydrate(
       "/tmp/p.json",
       minimalProject({

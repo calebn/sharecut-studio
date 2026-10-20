@@ -30,3 +30,10 @@ export const BesideAField: Story = {
     </div>
   ),
 };
+
+export const WithAction: Story = {
+  args: {
+    children: "No comments in this filter.",
+    action: { label: "Show all comments", onClick: () => undefined },
+  },
+};

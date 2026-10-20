@@ -3,6 +3,7 @@ import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject } from "../test/fixtures";
+import type { HistoryEntryId } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -28,7 +29,7 @@ describe("edit.addChapter", () => {
   });
 
   it("adds a chapter titled from the playhead and selects it", async () => {
-    vi.mocked(api.addChapter).mockResolvedValue(undefined);
+    vi.mocked(api.addChapter).mockResolvedValue(null);
     useDawStore.getState().setPlayheadSec(12.34);
     const result = await execute("edit.addChapter", {}, { skipWhen: true });
     expect(result).toEqual({ status: "ok" });
@@ -49,13 +50,13 @@ describe("edit.addChapter", () => {
 
   it("turns the Markers layer on, even if it was off", async () => {
     useDawStore.getState().setLayerVisible("showMarkers", false);
-    vi.mocked(api.addChapter).mockResolvedValue(undefined);
+    vi.mocked(api.addChapter).mockResolvedValue(null);
     await execute("edit.addChapter", {}, { skipWhen: true });
     expect(useDawStore.getState().layers.showMarkers).toBe(true);
   });
 
   it("is single-flight: a second call while one is in flight is disabled", async () => {
-    const pending = deferred<void>();
+    const pending = deferred<HistoryEntryId | null>();
     vi.mocked(api.addChapter).mockReturnValue(pending.promise);
     const first = execute("edit.addChapter", {}, { skipWhen: true });
     expect(useDawStore.getState().chapterAddPending).toBe(true);
@@ -65,7 +66,7 @@ describe("edit.addChapter", () => {
       reason: "Add already in progress",
     });
     expect(api.addChapter).toHaveBeenCalledTimes(1);
-    pending.resolve();
+    pending.resolve(null);
     await first;
     expect(useDawStore.getState().chapterAddPending).toBe(false);
   });
@@ -82,14 +83,14 @@ describe("edit.addChapter", () => {
 
   it("does not select, announce or clear pending for a settled add whose project has since changed", async () => {
     useDawStore.setState({ selection: null, statusAnnouncement: "" });
-    const pending = deferred<void>();
+    const pending = deferred<HistoryEntryId | null>();
     vi.mocked(api.addChapter).mockReturnValue(pending.promise);
     const run = execute("edit.addChapter", {}, { skipWhen: true });
     await vi.waitFor(() => expect(api.addChapter).toHaveBeenCalledOnce());
 
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     useDawStore.getState().setChapterAddPending(true);
-    pending.resolve();
+    pending.resolve(null);
     expect((await run).status).toBe("ok");
 
     expect(useDawStore.getState().projectPath).toBe("/tmp/other.json");
@@ -102,7 +103,7 @@ describe("edit.addChapter", () => {
   });
 
   it("builds the title from the current playhead time", async () => {
-    vi.mocked(api.addChapter).mockResolvedValue(undefined);
+    vi.mocked(api.addChapter).mockResolvedValue(null);
     useDawStore.getState().setPlayheadSec(0);
     await execute("edit.addChapter", {}, { skipWhen: true });
     expect(api.addChapter).toHaveBeenLastCalledWith(

@@ -1,5 +1,6 @@
 import { setEnvelope } from "../api";
 import { useDawStore } from "../state/dawStore";
+import type { HistoryEntryId } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import {
   addVolumePoint,
@@ -61,17 +62,22 @@ export function registerEnvelopeCommands(): void {
       start: randomUuid(),
       end: randomUuid(),
     });
+    let undo: HistoryEntryId | null;
     try {
-      await setEnvelope(projectPath, trackId, next, origin);
+      undo = await setEnvelope(projectPath, trackId, next, origin);
     } catch (error) {
       const reason = errorMessage(error, "Could not add the point");
-      useDawStore.getState().announceStatus(`Point not added: ${reason}`);
+      useDawStore
+        .getState()
+        .announceStatus(`Point not added: ${reason}`, { tone: "error" });
       return { status: "disabled", reason };
     }
     const live = useDawStore.getState();
     if (live.projectEpoch !== projectEpoch) return { status: "ok" };
     live.setSelection({ kind: "envelopePoint", trackId, pointId: point.id });
-    live.announceStatus(`Envelope point added at ${formatTime(time)}`);
+    live.announceStatus(`Envelope point added at ${formatTime(time)}`, {
+      undo,
+    });
     return { status: "ok" };
   });
 }

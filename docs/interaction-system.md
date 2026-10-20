@@ -145,16 +145,22 @@ There are three overlay primitives.
    tell the person what happened. It renders the toast
    (`feedback/FeedbackToast.tsx`) and speaks through the one shell live
    region (`ui/StatusLiveRegion.tsx`). A panel does not mount its own toast or
-   its own `aria-live` region.
+   its own `aria-live` region. The Comments panel and the Needs attention
+   banner speak through it too.
 2. **Undo rides with the result.** Every mutating command passes `undo` to
    `announceStatus`. The toast's Undo is the same History step the Undo button
-   runs.
+   runs. A change History does not record (a comment resolve) passes `reverse`
+   instead, and the toast's Undo runs it. `commands/undoToast.test.ts` walks
+   every catalog command flagged `mutates` and fails on one with no proof.
 3. **Status and error are two styles of one component.** An error names the
    failure and the next step. A status names what changed. They never share one
-   look.
+   look. `announceStatus` takes `tone: "error"`; the toast replaces an
+   environment variable name, a path or an id in the message with the next
+   step.
 4. **Feedback belongs to its surface.** A message about a gesture, a selection
    or a panel clears when that gesture ends, that selection changes or that
-   panel closes. Only job progress and save state persist across modes, and
+   panel closes. A gesture's message passes `gesture: true`, and ending the
+   gesture or changing the mode clears it. Only job progress and save state persist across modes, and
    they live in the status row.
 5. **Empty states carry the action.** `ui/EmptyState` shows what the area is
    for and the one control that fills it. It never tells the person to go
@@ -226,8 +232,8 @@ There are three overlay primitives.
 | A question with text input | `feedback/ask.ts` `askText` | a bespoke dialog |
 | A disabled control | `disabledReason` | `disabled` |
 | A form field | `ui/Field`, `ui/FieldRow`, `ui/InlineError` | a bare `<input>` with a sibling `<span>` |
-| Feedback | `announceStatus` with `undo` | `ui/Toast` in a panel, a local `role="status"` |
-| An empty area | `ui/EmptyState` with its action | a paragraph |
+| Feedback | `announceStatus` with `undo` or `reverse` | `ui/Toast` in a panel, a local `role="status"`, a second `StatusLiveRegion` |
+| An empty area | `ui/EmptyState` with its `action` | a paragraph |
 | A drag | a hit kind in `timeline/inputContract.ts` and `useLongPress` | an ad-hoc `pointerdown` handler |
 | A color, space, size or z value | `var(--…)` from `styles/theme/` | a literal |
 
@@ -291,10 +297,6 @@ consistency epic tracks them.
 | Dialogs: sheet on phone | `Dialog` sheets only with `phoneSheet`; Bounce, Host MCP, Help, Gestures, Record, Precision, Whisper and pipeline step params center on phone. |
 | Dialogs: one gate | `keymap/listener.ts` early returns, `ui/modalGate.ts` and `competingDialogOpen` cover different dialogs. |
 | Confirms: one primitive | `askConfirm`, `InlineConfirm`, the blade `BottomSheet` and the Whisper `Dialog` are four. |
-| Feedback: one channel | `ui/Toast` in the comments panel speaks itself; the attention banner mounts a second `StatusLiveRegion`. |
-| Feedback: undo rides with the result | Trim, fade, delete, paste, chapter add and envelope add toast without `undo`. |
-| Feedback: belongs to its surface | "Clip armed…" stays docked through two phone mode switches. |
-| Feedback: recovery does the thing | "Inspect History" sets a More destination and does not open History on desktop or from Listen. |
 | Names: one label | Select / Select tool, Search commands / Commands and shortcuts, Zoom − / Zoom out. |
 | Shells: bottom zone for doing | The tablet Select range instruction card with In, Out and Select range sits at the top. |
 | Touch: one grammar across `src/` | The governance scan walks `timeline/` only; comment swipe, splitter, reorder grip, fader and ruler keep their own gestures. |

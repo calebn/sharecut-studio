@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerDawCommands } from "../commands/register";
 import { commentTimeLabel } from "../comments";
+import { FeedbackToast } from "../feedback/FeedbackToast";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment } from "../test/fixtures";
@@ -25,6 +26,15 @@ vi.mock("../api", () => ({
   addCommentReply: (...args: unknown[]) => addCommentReply(...args),
   setCommentActionDone: (...args: unknown[]) => setCommentActionDone(...args),
 }));
+
+function renderPanel(props: { guestShare?: boolean } = {}) {
+  return render(
+    <>
+      <CommentsPanel {...props} />
+      <FeedbackToast />
+    </>,
+  );
+}
 
 describe("CommentsPanel", () => {
   beforeEach(() => {
@@ -48,7 +58,7 @@ describe("CommentsPanel", () => {
 
   it("shows an Undo toast after resolving and reopens on Undo", async () => {
     const user = userEvent.setup();
-    render(<CommentsPanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     expect(patchComment).toHaveBeenCalledWith(
       "/tmp/p.json",
@@ -72,14 +82,14 @@ describe("CommentsPanel", () => {
   it("shows the error and no toast when resolving fails", async () => {
     patchComment.mockReset().mockRejectedValue(new Error("boom"));
     const user = userEvent.setup();
-    render(<CommentsPanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await screen.findByText("boom");
     expect(screen.queryByText(/Resolved comment at/)).not.toBeInTheDocument();
   });
 
   it("routes swipe resolve through the command and retains the Undo toast", async () => {
-    render(<CommentsPanel />);
+    renderPanel();
     const card = screen.getByText("Needs a tighter open").closest("li");
     expect(card).not.toBeNull();
     fireEvent.pointerDown(card!, {
@@ -97,7 +107,7 @@ describe("CommentsPanel", () => {
 
   it("Dismiss hides the toast", async () => {
     const user = userEvent.setup();
-    render(<CommentsPanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await screen.findByText(/Resolved comment at/);
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
@@ -107,7 +117,7 @@ describe("CommentsPanel", () => {
   });
 
   it("hides Resolve and the status toast for a guest share", () => {
-    render(<CommentsPanel guestShare />);
+    renderPanel({ guestShare: true });
     expect(
       screen.queryByRole("button", { name: "Resolve" }),
     ).not.toBeInTheDocument();
@@ -115,25 +125,25 @@ describe("CommentsPanel", () => {
   });
 
   it("comments as Host by default", () => {
-    render(<CommentsPanel />);
+    renderPanel();
     expect(screen.getByText(/Commenting as/)).toBeInTheDocument();
     expect(screen.getByText("Host")).toBeInTheDocument();
   });
 
   it("shows a saved comment name", () => {
     localStorage.setItem("podcast-mcp-comment-author", "Caleb");
-    render(<CommentsPanel />);
+    renderPanel();
     expect(screen.getByText("Caleb")).toBeInTheDocument();
   });
 
   it("comments as Guest by default for a guest share", () => {
-    render(<CommentsPanel guestShare />);
+    renderPanel({ guestShare: true });
     expect(screen.getByText("Guest")).toBeInTheDocument();
   });
 
   it("Change then a new name saves it and is used on the next post", async () => {
     const user = userEvent.setup();
-    render(<CommentsPanel />);
+    renderPanel();
     await user.click(
       screen.getByRole("button", { name: "Change your comment name" }),
     );
@@ -160,74 +170,11 @@ describe("CommentsPanel", () => {
 
   it("is axe-clean with the toast visible", async () => {
     const user = userEvent.setup();
-    const { container } = render(<CommentsPanel />);
+    const { container } = renderPanel();
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await screen.findByText(/Resolved comment at/);
     await expectNoA11yViolations(container);
   });
-
-  it("moves focus to the panel after Undo even when the disabled Undo is blurred", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<CommentsPanel />);
-    await user.click(screen.getByRole("button", { name: "Resolve" }));
-    await screen.findByText(/Resolved comment at/);
-    let release: (value: null) => void = () => undefined;
-    patchComment.mockImplementationOnce(
-      () =>
-        new Promise<null>((resolve) => {
-          release = resolve;
-        }),
-    );
-    const undo = screen.getByRole("button", { name: "Undo" });
-    await user.click(undo);
-    expect(undo).toBeDisabled();
-    // Chromium's focus fixup blurs the focused Undo once it is disabled;
-    // jsdom's native .blur() no-ops on a disabled element, so toggle the
-    // underlying DOM property off just long enough to fire a real blur with
-    // relatedTarget null, then restore it to match the disabled markup React
-    // rendered.
-    act(() => {
-      (undo as HTMLButtonElement).disabled = false;
-      undo.blur();
-      (undo as HTMLButtonElement).disabled = true;
-    });
-    expect(document.activeElement).toBe(document.body);
-    await act(async () => {
-      release(null);
-    });
-    await waitFor(() =>
-      expect(screen.queryByText(/Resolved comment at/)).not.toBeInTheDocument(),
-    );
-    expect(document.activeElement).toBe(
-      container.querySelector(".comments-panel"),
-    );
-  });
-
-  it.each([
-    ["hidden", (panel: HTMLElement) => (panel.style.display = "none")],
-    ["inert", (panel: HTMLElement) => panel.setAttribute("inert", "")],
-  ])(
-    "does not move focus to a %s panel when Dismiss removes the toast",
-    async (_, obscure) => {
-      const user = userEvent.setup();
-      const { container } = render(<CommentsPanel />);
-      await user.click(screen.getByRole("button", { name: "Resolve" }));
-      await screen.findByText(/Resolved comment at/);
-      const dismiss = screen.getByRole("button", { name: "Dismiss" });
-      act(() => dismiss.focus());
-      const panel = container.querySelector<HTMLElement>(".comments-panel");
-      if (!panel) throw new Error("missing comments panel");
-      obscure(panel);
-      fireEvent.click(dismiss);
-      await waitFor(() =>
-        expect(
-          screen.queryByText(/Resolved comment at/),
-        ).not.toBeInTheDocument(),
-      );
-      expect(panel).not.toHaveFocus();
-      expect(document.activeElement).toBe(document.body);
-    },
-  );
 
   it("keeps only the latest resolve's toast (latest wins)", async () => {
     const first = sampleComment();
@@ -240,7 +187,7 @@ describe("CommentsPanel", () => {
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ comments: [first, second] }));
     const user = userEvent.setup();
-    render(<CommentsPanel />);
+    renderPanel();
     const [resolveFirst, resolveSecond] = screen.getAllByRole("button", {
       name: "Resolve",
     });
@@ -264,9 +211,9 @@ describe("CommentsPanel", () => {
     );
   });
 
-  it("does not announce a reopen after unmounting mid-Undo", async () => {
+  it("finishes a reopen the panel unmounts during, and says so", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(<CommentsPanel />);
+    const { unmount } = renderPanel();
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await screen.findByText(/Resolved comment at/);
     let release: (value: null) => void = () => undefined;
@@ -281,10 +228,47 @@ describe("CommentsPanel", () => {
     await act(async () => {
       release(null);
     });
-    expect(useDawStore.getState().statusAnnouncement).not.toBe(
-      "Comment reopened",
-    );
+    expect(useDawStore.getState().statusAnnouncement).toBe("Comment reopened");
   });
+
+  it("does not reopen a comment in another project", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    await screen.findByText(/Resolved comment at/);
+    patchComment.mockClear();
+    useDawStore.setState({ projectPath: "/tmp/other.json" });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(patchComment).not.toHaveBeenCalled();
+  });
+
+  it("an empty filter offers the way back to the other comments", async () => {
+    const user = userEvent.setup();
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/p.json",
+        minimalProject({ comments: [sampleComment({ resolved: true })] }),
+      );
+    const { container } = renderPanel();
+    expect(screen.getByText("No comments in this filter.")).toBeVisible();
+    await expectNoA11yViolations(container);
+    await user.click(screen.getByRole("button", { name: "Show all comments" }));
+    expect(screen.getByText("Needs a tighter open")).toBeVisible();
+  });
+
+  it("with no comments at all, the empty state sends the person to the composer", async () => {
+    const user = userEvent.setup();
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ comments: [] }));
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "All" }));
+    expect(screen.getByText("No comments yet.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Add a comment" }));
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveFocus();
+  });
+
   it("posts at the playhead once the body has text, with no ruler press", async () => {
     const user = userEvent.setup();
     createComment.mockResolvedValueOnce(sampleComment({ id: "c2" }));

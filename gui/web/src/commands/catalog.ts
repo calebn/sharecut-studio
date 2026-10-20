@@ -7,6 +7,7 @@ import type { CommandDef } from "./types";
 export const COMMANDS: Record<string, CommandDef> = {
   "edit.restoreClipBleed": {
     id: "edit.restoreClipBleed",
+    mutates: true,
     category: "edit",
     label: "Restore original audio",
     when: "hostProjectLoaded",
@@ -88,6 +89,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "comment.resolve": {
     id: "comment.resolve",
+    mutates: true,
     category: "review",
     label: "Resolve comment",
     when: "hostProjectLoaded",
@@ -153,6 +155,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.bladeCut": {
     id: "edit.bladeCut",
+    mutates: true,
     category: "edit",
     label: "Blade cut",
     keywords: ["razor", "split", "slice"],
@@ -162,6 +165,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.bladeCut.confirm": {
     id: "edit.bladeCut.confirm",
+    mutates: true,
     category: "edit",
     label: "Confirm blade cut",
     when: "canSuggestStructural",
@@ -174,6 +178,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.delete": {
     id: "edit.delete",
+    mutates: true,
     category: "edit",
     label: "Delete clip",
     keywords: ["remove"],
@@ -189,6 +194,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.rippleDelete": {
     id: "edit.rippleDelete",
+    mutates: true,
     category: "edit",
     label: "Ripple delete clip",
     keywords: ["remove", "close gap"],
@@ -210,6 +216,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "range.cut": {
     id: "range.cut",
+    mutates: true,
     category: "edit",
     label: "Cut selected range",
     keywords: ["remove", "delete"],
@@ -217,6 +224,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "range.mute": {
     id: "range.mute",
+    mutates: true,
     category: "edit",
     label: "Mute selected range",
     keywords: ["silence"],
@@ -224,6 +232,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "range.moveSpeakerLane": {
     id: "range.moveSpeakerLane",
+    mutates: true,
     category: "edit",
     label: "Move to speaker",
     keywords: ["lane", "split", "attribution"],
@@ -253,6 +262,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.cut": {
     id: "edit.cut",
+    mutates: true,
     category: "edit",
     label: "Cut",
     when: "canApplyPass12",
@@ -260,6 +270,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.paste": {
     id: "edit.paste",
+    mutates: true,
     category: "edit",
     label: "Paste",
     when: "canApplyPass12",
@@ -281,6 +292,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.muteToggle": {
     id: "track.muteToggle",
+    mutates: true,
     category: "edit",
     label: "Toggle track mute",
     keywords: ["silence"],
@@ -290,6 +302,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.setVolume": {
     id: "track.setVolume",
+    mutates: true,
     category: "edit",
     label: "Set track volume",
     keywords: ["gain", "level", "fader"],
@@ -537,6 +550,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.add": {
     id: "track.add",
+    mutates: true,
     category: "edit",
     label: "New track",
     keywords: ["create", "lane"],
@@ -545,6 +559,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.remove": {
     id: "track.remove",
+    mutates: true,
     category: "edit",
     label: "Remove track",
     keywords: ["delete", "lane"],
@@ -554,6 +569,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.splitSpeakers": {
     id: "track.splitSpeakers",
+    mutates: true,
     category: "edit",
     label: "Split speakers…",
     keywords: ["speakers", "one track", "interview", "room mic", "per person"],
@@ -563,6 +579,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.reorder": {
     id: "track.reorder",
+    mutates: true,
     category: "edit",
     label: "Reorder track",
     when: "canIngestMedia",
@@ -571,6 +588,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.moveUp": {
     id: "track.moveUp",
+    mutates: true,
     category: "edit",
     label: "Move track up",
     when: "canMoveSelectedTrackUp",
@@ -578,6 +596,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "track.moveDown": {
     id: "track.moveDown",
+    mutates: true,
     category: "edit",
     label: "Move track down",
     when: "canMoveSelectedTrackDown",
@@ -585,6 +604,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "media.import": {
     id: "media.import",
+    mutates: true,
     category: "edit",
     label: "Import audio",
     keywords: ["add file", "upload", "recording"],
@@ -645,6 +665,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "transcript.ignoreWords": {
     id: "transcript.ignoreWords",
+    mutates: true,
     category: "edit",
     label: "Ignore / restore transcript words",
     when: "hasProject",
@@ -678,6 +699,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.trimClipEdge": {
     id: "edit.trimClipEdge",
+    mutates: true,
     category: "edit",
     label: "Trim clip edge",
     when: "focusedTrimHandle",
@@ -686,6 +708,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.rollClipJoin": {
     id: "edit.rollClipJoin",
+    mutates: true,
     category: "edit",
     label: "Roll clip join",
     when: "canApplyPass12",
@@ -694,6 +717,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.setClipFade": {
     id: "edit.setClipFade",
+    mutates: true,
     category: "edit",
     label: "Set clip fade",
     when: "focusedFadeHandle",
@@ -703,6 +727,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.setClipJoin": {
     id: "edit.setClipJoin",
+    mutates: true,
     category: "edit",
     label: "Set clip join",
     when: "canApplyPass12",
@@ -712,6 +737,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.moveClips": {
     id: "edit.moveClips",
+    mutates: true,
     category: "edit",
     label: "Move clips",
     when: "canApplyPass12",
@@ -721,6 +747,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "edit.addChapter": {
     id: "edit.addChapter",
+    mutates: true,
     category: "edit",
     label: "Add chapter at playhead",
     keywords: ["marker", "chapters", "section"],
@@ -730,6 +757,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "envelope.addPoint": {
     id: "envelope.addPoint",
+    mutates: true,
     category: "edit",
     label: "Add envelope point",
     when: "canEditEnvelopes",
@@ -766,6 +794,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "tighten.applyHit": {
     id: "tighten.applyHit",
+    mutates: true,
     category: "review",
     label: "Apply tighten hit",
     keywords: ["filler", "um"],
@@ -774,6 +803,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "tighten.skipHit": {
     id: "tighten.skipHit",
+    mutates: true,
     category: "review",
     label: "Skip tighten hit",
     keywords: ["filler", "ignore"],
@@ -782,6 +812,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "tighten.applySuggested": {
     id: "tighten.applySuggested",
+    mutates: true,
     category: "review",
     label: "Apply suggested actions",
     keywords: ["filler", "fillers", "um", "uh", "laugh", "lower"],
@@ -790,6 +821,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "tighten.reviseSuggested": {
     id: "tighten.reviseSuggested",
+    mutates: true,
     category: "review",
     label: "Change an applied sound",
     keywords: ["filler", "laugh", "revise", "undo"],

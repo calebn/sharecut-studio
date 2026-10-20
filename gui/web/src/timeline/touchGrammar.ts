@@ -30,13 +30,21 @@ const ARM_HINT = {
   none: "",
 } as const;
 
-/** Says which target a long-press armed, and gives a platform haptic tick. */
+/**
+ * Says which target a long-press armed, and gives a platform haptic tick. The
+ * message lasts as long as the arm: ending the arm clears it.
+ */
 export function announceArmed(armed: ArmedTarget | null): void {
-  if (!armed) return;
+  if (!armed) {
+    useDawStore.getState().endGestureFeedback();
+    return;
+  }
   const { label } = HIT_KINDS[armed.kind];
   useDawStore
     .getState()
-    .announceStatus(`${label} armed: ${ARM_HINT[armed.axis]}, lift to finish`);
+    .announceStatus(`${label} armed: ${ARM_HINT[armed.axis]}, lift to finish`, {
+      gesture: true,
+    });
   vibrate();
 }
 

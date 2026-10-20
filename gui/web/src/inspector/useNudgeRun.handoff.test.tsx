@@ -29,7 +29,9 @@ vi.mock("../hooks/useSnapTicks", () => ({ useSnapTicks: () => [] }));
 beforeEach(() => {
   resetDocumentSeqForTests();
   vi.mocked(loadBoundaryContext).mockReset();
-  vi.mocked(trimClipEdge).mockReset().mockResolvedValue({ queued: false });
+  vi.mocked(trimClipEdge)
+    .mockReset()
+    .mockResolvedValue({ queued: false, undo: null });
 });
 
 function boundaryReply(): BoundaryContext {
@@ -242,7 +244,7 @@ it("a successful command publication keeps saved geometry after settlement", asy
       server_seq: 5,
       project: useDawStore.getState().project!,
     });
-    return { queued: false };
+    return { queued: false, undo: null };
   });
   await release();
   await act(async () => {

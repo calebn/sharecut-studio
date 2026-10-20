@@ -106,14 +106,18 @@ async function applyTrackReorder(
       optimistic,
     );
     const msg = errorMessage(e);
-    useDawStore.getState().announceStatus(`Reorder failed: ${msg}`);
+    useDawStore
+      .getState()
+      .announceStatus(`Reorder failed: ${msg}`, { tone: "error" });
     return { status: "disabled", reason: msg };
   }
 }
 export function registerProjectMediaCommands(): void {
   registerCommand("project.new", () => {
     if (desktopCloseGuardArmed()) {
-      useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+      useDawStore
+        .getState()
+        .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
       return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
     }
     if (projectNewInFlight) {
@@ -134,7 +138,9 @@ export function registerProjectMediaCommands(): void {
         projectNewInFlight = false;
         useDawStore
           .getState()
-          .announceStatus(`New project failed: ${errorMessage(e)}`);
+          .announceStatus(`New project failed: ${errorMessage(e)}`, {
+            tone: "error",
+          });
         // A timed-out close may still land on the server; re-pin what Studio shows.
         if (
           e instanceof DOMException &&
@@ -156,7 +162,9 @@ export function registerProjectMediaCommands(): void {
 
   registerCommand("project.open", () => {
     if (desktopCloseGuardArmed()) {
-      useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+      useDawStore
+        .getState()
+        .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
       return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
     }
     if (projectOpenInFlight) {
@@ -188,20 +196,26 @@ export function registerProjectMediaCommands(): void {
           }
         } catch (err) {
           const reason = errorMessage(err);
-          useDawStore.getState().announceStatus(`Open failed: ${reason}`);
+          useDawStore
+            .getState()
+            .announceStatus(`Open failed: ${reason}`, { tone: "error" });
           return;
         }
         if (!path?.trim()) {
           return;
         }
         if (desktopCloseGuardArmed()) {
-          useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+          useDawStore
+            .getState()
+            .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
           return;
         }
         try {
           const out = await openEpisodeProject(path.trim());
           if (desktopCloseGuardArmed()) {
-            useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+            useDawStore
+              .getState()
+              .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
             return;
           }
           window.location.assign(
@@ -209,7 +223,9 @@ export function registerProjectMediaCommands(): void {
           );
         } catch (err) {
           const reason = errorMessage(err);
-          useDawStore.getState().announceStatus(`Open failed: ${reason}`);
+          useDawStore
+            .getState()
+            .announceStatus(`Open failed: ${reason}`, { tone: "error" });
         }
       } finally {
         projectOpenInFlight = false;
@@ -278,7 +294,9 @@ export function registerProjectMediaCommands(): void {
         return { status: "ok" };
       } catch (e) {
         const msg = errorMessage(e);
-        useDawStore.getState().announceStatus(`Remove failed: ${msg}`);
+        useDawStore
+          .getState()
+          .announceStatus(`Remove failed: ${msg}`, { tone: "error" });
         return { status: "disabled", reason: msg };
       }
     });

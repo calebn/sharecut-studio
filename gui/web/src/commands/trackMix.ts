@@ -239,7 +239,7 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
           overlaying = false;
         }
       }
-      s.announceStatus(`Mix change failed: ${reason}`);
+      s.announceStatus(`Mix change failed: ${reason}`, { tone: "error" });
     }
   } finally {
     for (const resolve of waiters) {

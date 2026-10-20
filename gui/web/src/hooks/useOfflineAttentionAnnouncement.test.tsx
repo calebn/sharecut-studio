@@ -29,12 +29,6 @@ const offlineStore = vi.hoisted(() => {
 
 vi.mock("../state/offlineStore", () => offlineStore);
 
-function attentionLiveRegion() {
-  const banner = document.getElementById(ATTENTION_BANNER_ID);
-  expect(banner).toBeTruthy();
-  return within(banner as HTMLElement).getByRole("status");
-}
-
 describe("useOfflineAttentionAnnouncement", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -52,7 +46,7 @@ describe("useOfflineAttentionAnnouncement", () => {
     vi.useRealTimers();
   });
 
-  it("announces attention changes politely without duplicating the region label", async () => {
+  it("speaks attention changes once, through the one shell region, without a toast", async () => {
     offlineStore.loadHostCommandCount.mockResolvedValue(2);
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
@@ -67,19 +61,26 @@ describe("useOfflineAttentionAnnouncement", () => {
       name: "Needs attention. 2 pending",
     });
     expectOutsideLiveRegions(container, /^Attention$/);
-    const polite = attentionLiveRegion();
-    expect(polite.getAttribute("aria-live")).toBe("polite");
-    expect(polite.textContent).toBe("Needs attention. 2 pending");
-    expect(useDawStore.getState().statusAnnouncement).toBe("");
-    expect(screen.getAllByRole("status")).toHaveLength(2);
+    expect(
+      within(
+        document.getElementById(ATTENTION_BANNER_ID) as HTMLElement,
+      ).queryByRole("status"),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status").textContent).toBe(
+      "Needs attention. 2 pending",
+    );
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Needs attention. 2 pending",
+    );
+    expect(useDawStore.getState().feedbackToast).toBeNull();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(region).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
-    expect(polite.textContent).toBe("Needs attention. 2 pending");
-    expect(useDawStore.getState().statusAnnouncementSeq).toBe(0);
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
   });
 
   it("announces unreadable saved edits before the first successful read", async () => {
@@ -94,9 +95,9 @@ describe("useOfflineAttentionAnnouncement", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(attentionLiveRegion().textContent).toMatch(
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
       /Saved edits could not be read/,
     );
-    expect(useDawStore.getState().statusAnnouncement).toBe("");
+    expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 });

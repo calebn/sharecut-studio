@@ -55,7 +55,7 @@ describe("trim nudge document writers", () => {
       .mockImplementation(async () => {
         const state = useDawStore.getState();
         if (state.project) state.setProject(state.project);
-        return true;
+        return { undo: null };
       });
     vi.mocked(submitQueuedDocumentCommand).mockReset().mockResolvedValue({});
     clearRegisteredCommands();

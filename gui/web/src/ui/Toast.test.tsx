@@ -5,6 +5,8 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { BUSY_REASON } from "./disabledReason";
 import { TOAST_MS, Toast } from "./Toast";
 
+const region = () => document.querySelector(".ui-toast-region")!;
+
 describe("Toast", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -67,7 +69,7 @@ describe("Toast", () => {
     },
   );
 
-  it("renders the message in a status region and wires Undo/Dismiss", async () => {
+  it("renders the message and wires Undo/Dismiss", async () => {
     const user = userEvent.setup();
     const onUndo = vi.fn();
     const onDismiss = vi.fn();
@@ -78,7 +80,7 @@ describe("Toast", () => {
         onDismiss={onDismiss}
       />,
     );
-    const status = screen.getByRole("status");
+    const status = region();
     expect(status).toHaveTextContent("Resolved comment at 00:12");
     await user.click(screen.getByRole("button", { name: "Undo" }));
     expect(onUndo).toHaveBeenCalledOnce();
@@ -86,9 +88,9 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
-  it("renders an empty status region with no buttons when toast is null", () => {
+  it("renders an empty region with no buttons when toast is null", () => {
     render(<Toast toast={null} onUndo={vi.fn()} onDismiss={vi.fn()} />);
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(region()).toBeEmptyDOMElement();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -149,14 +151,14 @@ describe("Toast", () => {
         onDismiss={onDismiss}
       />,
     );
-    const region = screen.getByRole("status").querySelector(".ui-toast");
-    expect(region).not.toBeNull();
-    fireEvent.pointerEnter(region!, { pointerType: "mouse" });
+    const card = region().querySelector(".ui-toast");
+    expect(card).not.toBeNull();
+    fireEvent.pointerEnter(card!, { pointerType: "mouse" });
     act(() => {
       vi.advanceTimersByTime(TOAST_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
-    fireEvent.pointerLeave(region!);
+    fireEvent.pointerLeave(card!);
     act(() => {
       vi.advanceTimersByTime(TOAST_MS);
     });
@@ -173,10 +175,9 @@ describe("Toast", () => {
         onDismiss={onDismiss}
       />,
     );
-    fireEvent.pointerEnter(
-      screen.getByRole("status").querySelector(".ui-toast")!,
-      { pointerType: "touch" },
-    );
+    fireEvent.pointerEnter(region().querySelector(".ui-toast")!, {
+      pointerType: "touch",
+    });
     act(() => {
       vi.advanceTimersByTime(TOAST_MS);
     });
@@ -223,7 +224,7 @@ describe("Toast", () => {
         onDismiss={onDismiss}
       />,
     );
-    const card = screen.getByRole("status").querySelector(".ui-toast");
+    const card = region().querySelector(".ui-toast");
     expect(card).not.toBeNull();
     fireEvent.pointerEnter(card!, { pointerType: "mouse" });
     rerender(
@@ -237,9 +238,7 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
-    fireEvent.pointerLeave(
-      screen.getByRole("status").querySelector(".ui-toast")!,
-    );
+    fireEvent.pointerLeave(region().querySelector(".ui-toast")!);
     act(() => {
       vi.advanceTimersByTime(TOAST_MS);
     });
@@ -256,10 +255,9 @@ describe("Toast", () => {
         onDismiss={onDismiss}
       />,
     );
-    fireEvent.pointerEnter(
-      screen.getByRole("status").querySelector(".ui-toast")!,
-      { pointerType: "mouse" },
-    );
+    fireEvent.pointerEnter(region().querySelector(".ui-toast")!, {
+      pointerType: "mouse",
+    });
     rerender(<Toast toast={null} onUndo={vi.fn()} onDismiss={onDismiss} />);
     rerender(
       <Toast
@@ -535,7 +533,7 @@ describe("Toast", () => {
         onDismiss={onDismiss}
       />,
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Guest link copied");
+    expect(region()).toHaveTextContent("Guest link copied");
     expect(
       screen.queryByRole("button", { name: "Undo" }),
     ).not.toBeInTheDocument();
@@ -558,21 +556,37 @@ describe("Toast", () => {
     ).toHaveAccessibleDescription("Removed guest");
   });
 
-  it("leaves speech to another region when announce is off", async () => {
+  it("is never a live region: the shell's one region speaks the message", async () => {
     const { container } = render(
       <Toast
-        announce={false}
         className="ui-toast-region--app"
         toast={{ id: 1, message: "Reordered track" }}
         onDismiss={vi.fn()}
       />,
     );
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(region()).not.toHaveAttribute("aria-live");
     expect(container.firstElementChild).toHaveClass(
       "ui-toast-region",
       "ui-toast-region--app",
     );
     expect(screen.getByText("Reordered track")).toBeVisible();
     await expectNoA11yViolations(container);
+  });
+
+  it("styles an error apart from a status", () => {
+    const { rerender } = render(
+      <Toast toast={{ id: 1, message: "Saved" }} onDismiss={vi.fn()} />,
+    );
+    expect(document.querySelector(".ui-toast")).not.toHaveClass(
+      "ui-toast--error",
+    );
+    rerender(
+      <Toast
+        toast={{ id: 2, message: "Refresh failed", tone: "error" }}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(document.querySelector(".ui-toast")).toHaveClass("ui-toast--error");
   });
 });

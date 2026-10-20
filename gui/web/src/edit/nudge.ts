@@ -30,7 +30,7 @@ import {
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
 import type { TrimEdge } from "./clipEdgePreview";
-import { saveClipEdge, TRIM_MODE } from "./clipEdgeSave";
+import { type EdgeSaved, saveClipEdge, TRIM_MODE } from "./clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "./clipHandleSteps";
 import { clampFadeMs, edgeFadeMaxMs } from "./fadeLimits";
 import {
@@ -432,7 +432,7 @@ export function withNudge(
 
 /**
  * Saves `field` at `value` as one document command, against `origin`, the
- * project as it was saved when the nudges began. False when nothing saved:
+ * project as it was saved when the nudges began. Null when nothing saved:
  * a trusted manual trim retains structural boundary validation.
  */
 export async function saveNudge(
@@ -442,21 +442,21 @@ export async function saveNudge(
   value: number,
   fresh: () => boolean,
   settled: () => void,
-): Promise<boolean> {
+): Promise<EdgeSaved | null> {
   switch (field.kind) {
     case "fade":
     case "trim": {
       const clip = laneClip(origin, field.trackId, field.clipId)?.clip;
       if (!clip) throw new Error("The clip is gone.");
       if (field.kind === "fade") {
-        await setClipFade(
+        const undo = await setClipFade(
           projectPath,
           clip.id,
           field.edge === "in" ? value : clip.fade_in_ms,
           field.edge === "out" ? value : clip.fade_out_ms,
           { fade_in_ms: clip.fade_in_ms, fade_out_ms: clip.fade_out_ms },
         );
-        return true;
+        return { undo };
       }
       return saveClipEdge(
         projectPath,
@@ -487,7 +487,7 @@ export async function saveNudge(
         undefined,
         pendingEditBaseline(edit),
       );
-      return true;
+      return { undo: null };
     }
     case "envelope-time":
     case "envelope-level": {
@@ -499,13 +499,13 @@ export async function saveNudge(
         field.kind === "envelope-time"
           ? { ...point, time: value }
           : { ...point, value };
-      await setEnvelope(
+      const undo = await setEnvelope(
         projectPath,
         field.trackId,
         replaceEnvelopePoint(expectedPoints, next),
         expectedPoints,
       );
-      return true;
+      return { undo };
     }
   }
 }

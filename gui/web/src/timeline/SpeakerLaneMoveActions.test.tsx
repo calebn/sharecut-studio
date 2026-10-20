@@ -109,6 +109,9 @@ describe("SpeakerLaneMoveActions", () => {
       timelineStart: 1,
       timelineEnd: 1.4,
     });
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      undo: "head_move",
+    });
   });
   it("disables move for guests", () => {
     useDawStore.setState({ projectPath: "share:token", guestMode: "edit" });

@@ -68,6 +68,12 @@ export type CommandDef = {
   /** Default when-clause when invoked via keyboard; buttons may bypass. */
   when: ContextPredicateId;
   notes?: string;
+  /**
+   * The command writes the document or a comment. `commands/undoToast.test.ts`
+   * walks these: each one raises a toast whose Undo reverses it, or says why
+   * its result needs no toast.
+   */
+  mutates?: true;
   /** False for commands that require context-specific arguments from a caller. */
   paletteRunnable?: false;
   /** Strong local navigation: stop following after a successful run. */

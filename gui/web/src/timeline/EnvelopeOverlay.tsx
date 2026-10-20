@@ -113,7 +113,9 @@ export function EnvelopeOverlay({
         setEnvelope(projectPath, trackId, nextPoints, origin)
       }
       onCommitError={(error) => {
-        announceStatus(errorMessage(error, "Could not apply envelope"));
+        announceStatus(errorMessage(error, "Could not apply envelope"), {
+          tone: "error",
+        });
       }}
       holdGeometry={holdGeometry}
     />

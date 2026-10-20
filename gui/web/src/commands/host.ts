@@ -125,7 +125,9 @@ export function registerHostCommands(): void {
         if (done.status === "error") {
           const reason = done.error ?? "Render preview failed";
           if (isCurrentProject()) {
-            useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+            useDawStore
+              .getState()
+              .announceStatus(`Refresh failed: ${reason}`, { tone: "error" });
           }
           return {
             status: "disabled",
@@ -135,7 +137,9 @@ export function registerHostCommands(): void {
       } else if (!started.ok) {
         const reason = "Render preview failed";
         if (isCurrentProject()) {
-          useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+          useDawStore
+            .getState()
+            .announceStatus(`Refresh failed: ${reason}`, { tone: "error" });
         }
         return { status: "disabled", reason };
       }
@@ -155,7 +159,9 @@ export function registerHostCommands(): void {
     } catch (err) {
       const reason = errorMessage(err);
       if (isCurrentProject()) {
-        useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+        useDawStore
+          .getState()
+          .announceStatus(`Refresh failed: ${reason}`, { tone: "error" });
       }
       return {
         status: "disabled",

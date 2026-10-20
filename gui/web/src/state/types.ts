@@ -170,10 +170,21 @@ export type SourcePreviewError = {
   message: string;
 };
 
+/** How a toast looks and what it asks of the person: a result, or a failure with a next step. */
+export type ToastTone = "status" | "error";
+
+/** An Undo that is not a History step (a comment resolve); `run` reports whether it took effect. */
+export interface ReverseAction {
+  run: () => Promise<boolean>;
+  /** Announced after `run` succeeds. */
+  done: string;
+}
+
 /** The visible twin of an announcement, with its Undo while one is valid. */
 export interface FeedbackToast {
   id: number;
   message: string;
+  tone: ToastTone;
   /** The history entry this change recorded; Undo shows while it is still the head. */
   undo: HistoryEntryId | null;
   /**
@@ -182,11 +193,21 @@ export interface FeedbackToast {
    * while the head is still this one.
    */
   baseHead: HistoryEntryId | null;
+  /** Undo for a change History does not record. */
+  reverse: ReverseAction | null;
+  /** Says what a gesture is doing; it clears when the gesture ends or the mode changes. */
+  gesture: boolean;
 }
 
 export interface AnnounceOptions {
   /** Offer Undo on the toast for this entry (the command reply's `replyHistoryHead`). */
   undo?: HistoryEntryId | null;
+  /** Offer Undo for a change History does not record. */
+  reverse?: ReverseAction;
+  /** `error` names a failure and its next step; internals are replaced before it is shown. */
+  tone?: ToastTone;
+  /** The message belongs to the running gesture (see `FeedbackToast.gesture`). */
+  gesture?: true;
   /** False when a persistent control already shows this status (the job chip), so only the live region speaks it. */
   toast?: false;
 }
@@ -542,6 +563,8 @@ export interface DawState {
   setIngestDropTrackId: (trackId: string | null) => void;
   /** Speak `message` in the live region and show it as a toast (see `AnnounceOptions`). */
   announceStatus: (message: string, options?: AnnounceOptions) => void;
+  /** Clears the toast a gesture raised, when that gesture ends. */
+  endGestureFeedback: () => void;
   /** Close the toast if it is still `id`. */
   dismissFeedbackToast: (id: number) => void;
   /** Remove the toast's Undo once history has moved past its change. */

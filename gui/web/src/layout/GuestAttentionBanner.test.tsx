@@ -241,6 +241,33 @@ describe("GuestAttentionBanner", () => {
     expect(getActionButton("Dismiss all")).toBeInTheDocument();
   });
 
+  it.each([
+    ["the timeline layout", "timeline", "timeline"],
+    ["the text layout", "text", "text"],
+    ["the default layout", "default", "default"],
+  ] as const)(
+    "opens History on desktop from %s",
+    async (_name, layout, shown) => {
+      offlineStore.loadHostConflicts.mockResolvedValue([
+        offlineConflict({
+          kind: "unknown",
+          reason: "Undo or Redo may have been applied.",
+          recovery: "inspect-history",
+          command: { type: "UndoHistory" },
+        }),
+      ]);
+      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+      useDawStore.getState().setLayoutMode(layout);
+      expect(useDawStore.getState().layoutMode).toBe(shown);
+      render(<GuestAttentionBanner />);
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      fireEvent.click(getActionButton("Inspect History"));
+      const state = useDawStore.getState();
+      expect(state.activeTab).toBe("history");
+      expect(state.layoutMode).toBe("default");
+    },
+  );
+
   it("opens History for an Undo outcome whose result is unknown", async () => {
     const conflict = offlineConflict({
       kind: "unknown",

@@ -18,6 +18,7 @@ import {
   documentActivityBusy,
   subscribeDocumentActivity,
 } from "../state/documentSendOrder";
+import type { ReverseAction } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import type { HistoryEntryId } from "../types/project";
 import { TOAST_MS, TOAST_UNDO_MS, Toast } from "../ui";
@@ -201,15 +202,37 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         useDawStore.getState().announceStatus(`Undone: ${message}`);
       }
     } catch (e) {
-      useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`);
+      useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
+        tone: "error",
+      });
     } finally {
       setUndoing(false);
     }
   };
 
+  const reverse = async ({ run, done }: ReverseAction) => {
+    setUndoing(true);
+    try {
+      if (await run()) useDawStore.getState().announceStatus(done);
+    } catch (e) {
+      useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
+        tone: "error",
+      });
+    } finally {
+      setUndoing(false);
+    }
+  };
+
+  const reversal = toast?.reverse ?? null;
+  const onUndo =
+    toast && undoEntry
+      ? () => void undo(toast.message, undoEntry)
+      : reversal
+        ? () => void reverse(reversal)
+        : undefined;
+
   return createPortal(
     <Toast
-      announce={false}
       className={
         host
           ? "ui-toast-region--app ui-toast-region--inspector-flow"
@@ -221,11 +244,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       onDismiss={() => {
         if (toast) useDawStore.getState().dismissFeedbackToast(toast.id);
       }}
-      onUndo={
-        toast && undoEntry
-          ? () => void undo(toast.message, undoEntry)
-          : undefined
-      }
+      onUndo={onUndo}
       undoDisabledReason={undoing ? BUSY_REASON : undefined}
       undoNote={
         waiting?.action === "undo" &&
@@ -236,7 +255,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
             ? readyAfterSaveCopy("undo")
             : undefined
       }
-      timeoutMs={undoEntry ? TOAST_UNDO_MS : TOAST_MS}
+      timeoutMs={onUndo ? TOAST_UNDO_MS : TOAST_MS}
       visibility={visibility}
     />,
     portal,
