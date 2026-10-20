@@ -10,14 +10,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.gui.job_events import (
+from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.jobs import (
     LIVE_JOB_STATUSES,
     TERMINAL_JOB_STATUSES,
     job_listener_count,
     publish_job_event,
 )
-from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import (
     BounceRequest,
     BounceService,

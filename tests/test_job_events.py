@@ -7,16 +7,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.gui.bootstrap_jobs import BootstrapJob
-from podcast_mcp.gui.job_events import (
+from podcast_mcp.gui.job_events import stream_job_events
+from podcast_mcp.gui.jobs import PipelineJob
+from podcast_mcp.services.jobs import (
     JOB_EVENT_QUEUE_MAX,
     LIVE_JOB_STATUSES,
     TERMINAL_JOB_STATUSES,
     job_events_hub,
     job_listener_count,
     publish_job_event,
-    stream_job_events,
 )
-from podcast_mcp.gui.jobs import PipelineJob
 
 
 @dataclass

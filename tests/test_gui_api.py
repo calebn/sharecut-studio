@@ -2494,8 +2494,8 @@ def test_api_pipeline_events_two_subscribers_both_get_done(minimal_project, monk
 
     from fastapi.testclient import TestClient
 
-    from podcast_mcp.gui.job_events import job_listener_count
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs import job_listener_count
 
     started = threading.Event()
     release = threading.Event()

@@ -16,6 +16,7 @@ _CONTEXTS = (
     "collaboration",
     "document",
     "document_sync",
+    "jobs",
     "media",
     "pipeline",
     "record",
