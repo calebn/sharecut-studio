@@ -11,11 +11,6 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.share_capabilities import (
-    guest_mode,
-    has_capability,
-    normalize_capabilities,
-)
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.history.summary import (
     _human_op,
@@ -33,6 +28,11 @@ from podcast_mcp.services.collaboration.share import (
     share_add_comment,
     share_add_reply,
     share_allows_mcp,
+)
+from podcast_mcp.services.collaboration.share_capabilities import (
+    guest_mode,
+    has_capability,
+    normalize_capabilities,
 )
 from podcast_mcp.util.timebase import clock_label
 
@@ -199,7 +199,7 @@ def test_share_error_paths_and_replies(minimal_project, sample_wav, tmp_workspac
     # Missing project file
     row = lookup_share(tok)
     row["project_workspace"] = str(tmp_workspace / "gone")
-    from podcast_mcp.edits.review_shares import register_share_globally
+    from podcast_mcp.services.collaboration.review_shares import register_share_globally
 
     register_share_globally(row)
     with pytest.raises(FileNotFoundError):
@@ -321,11 +321,11 @@ def test_share_object_store_warning_and_daw_meta(
 ):
     from datetime import datetime, timedelta
 
-    from podcast_mcp.edits.share_registry import share_hard_expired
     from podcast_mcp.services.collaboration.share import (
         ShareService,
         share_daw_meta,
     )
+    from podcast_mcp.services.collaboration.share_registry import share_hard_expired
 
     ws, ver, share = _seed_share(
         minimal_project,

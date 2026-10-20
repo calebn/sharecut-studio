@@ -1,6 +1,6 @@
 """The refusal for a review artifacts folder or staging folder that is not private to the host.
 
-``edits/review_versions.py`` raises it at the boundary, where the offending path is known.
+``services/collaboration/review_versions.py`` raises it at the boundary, where the offending path is known.
 Every adapter already reports a ``CodedError``'s message and code (``util/coded_error.py``):
 the CLI prints one ``Error:`` line, an MCP tool returns a structured refusal, and the GUI maps
 it app-wide in ``gui/routes/deps.py``. A share guest never gets that message: the error holds

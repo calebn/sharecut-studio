@@ -7,7 +7,6 @@ import pytest
 
 from pause_policy_public_helpers import RATE, write_wav
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
     Clip,
@@ -19,6 +18,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import save_project
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command

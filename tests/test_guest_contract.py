@@ -15,7 +15,6 @@ import podcast_mcp.edits.transcript_cuts as transcript_cuts
 import podcast_mcp.services.collaboration as collaboration
 import podcast_mcp.services.jobs as service_jobs
 import podcast_mcp.services.record.service as record_service
-from podcast_mcp.edits.review_versions import get_version, version_audio_path
 from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
 from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
 from podcast_mcp.gui.server import create_app
@@ -30,6 +29,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.guest_progress import guest_ws_progress_sink
 from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record.commands import COMMAND_TYPES, RecordCommand
 from podcast_mcp.services.record.service import (

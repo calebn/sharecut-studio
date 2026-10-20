@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.edits.share_registry import SqliteShareRegistry
+from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
 
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="POSIX advisory byte-range locks")
 

@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.comments import comments_for_view
-from podcast_mcp.edits.review_shares import (
+from podcast_mcp.engines.play_audit import premix_path
+from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review_shares import (
     create_share,
     drop_share,
     effective_review_version_id,
@@ -24,8 +28,8 @@ from podcast_mcp.edits.review_shares import (
     sidecar_share,
     touch_share_last_used_for_workspace,
 )
-from podcast_mcp.edits.review_versions import get_version, version_audio_path
-from podcast_mcp.edits.share_capabilities import (
+from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
+from podcast_mcp.services.collaboration.share_capabilities import (
     CAP_MCP,
     CAP_PLAY,
     CAP_VIEW,
@@ -36,7 +40,7 @@ from podcast_mcp.edits.share_capabilities import (
     review_role_for_capabilities,
     share_author,
 )
-from podcast_mcp.edits.share_registry import (
+from podcast_mcp.services.collaboration.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
     SHARE_KIND_RECORD,
     SHARE_KIND_REVIEW,
@@ -44,10 +48,6 @@ from podcast_mcp.edits.share_registry import (
     share_hard_expired,
     share_is_usable,
 )
-from podcast_mcp.engines.play_audit import premix_path
-from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
-from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService, run_comment_mutation_with_file_revisions
 from podcast_mcp.services.document_sync import (
     document_command_types_for_caps,
@@ -259,7 +259,7 @@ class ShareService:
         return list_shares(self.ws.project)
 
     def list_presented(self, *, public_base_url: str | None = None) -> Sequence[dict[str, Any]]:
-        from podcast_mcp.edits.review_versions import list_versions
+        from podcast_mcp.services.collaboration.review_versions import list_versions
 
         labels = {v.id: v.label for v in list_versions(self.ws.project)}
         presented: list[dict[str, Any]] = []
@@ -1639,7 +1639,7 @@ def share_set_action_done(
     by: str = "guest",
 ) -> dict[str, Any]:
     """Toggle a comment action item (requires ``action`` capability)."""
-    from podcast_mcp.edits.share_capabilities import CAP_ACTION
+    from podcast_mcp.services.collaboration.share_capabilities import CAP_ACTION
 
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), CAP_ACTION):

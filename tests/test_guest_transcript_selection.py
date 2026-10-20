@@ -10,7 +10,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.edits.range_edits import range_geometry, range_media_seal
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -27,6 +26,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 
 VIEW = capabilities_for_role("viewer")
 SUGGEST = capabilities_for_role("commenter")

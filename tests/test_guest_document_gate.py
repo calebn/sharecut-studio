@@ -22,14 +22,20 @@ from fastapi.testclient import TestClient
 from history_helpers import history_move
 from pause_policy_public_helpers import room, write_wav
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.share_capabilities import capabilities_for_role, share_author
-from podcast_mcp.edits.share_registry import SHARE_COOLDOWN_DAYS, get_share_registry
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import EditDecision, MediaAsset, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share_capabilities import (
+    capabilities_for_role,
+    share_author,
+)
+from podcast_mcp.services.collaboration.share_registry import (
+    SHARE_COOLDOWN_DAYS,
+    get_share_registry,
+)
 from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import (
     EDIT_COMMANDS,
@@ -336,7 +342,8 @@ def test_a_recycled_share_slug_does_not_inherit_the_old_author(
 ):
     pending_project(minimal_project)
     monkeypatch.setattr(
-        "podcast_mcp.edits.share_registry.generate_slug", lambda _words=3: "recycled-cool-slug"
+        "podcast_mcp.services.collaboration.share_registry.generate_slug",
+        lambda _words=3: "recycled-cool-slug",
     )
     submit = guest_submitter("browser")
     first = _mcp_share(minimal_project, sample_wav, monkeypatch, COMMENTER)

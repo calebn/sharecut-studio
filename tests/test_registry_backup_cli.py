@@ -9,8 +9,8 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits import share_registry
-from podcast_mcp.edits.share_registry import get_share_registry
+from podcast_mcp.services.collaboration import share_registry
+from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
 
 def test_cli_backup_publishes_secret_then_refuses_same_name(tmp_path: Path) -> None:

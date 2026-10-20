@@ -6,8 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from podcast_mcp.edits.share_capabilities import CAP_MONITOR
-from podcast_mcp.services.collaboration import drop_absolute_path_strings
+from podcast_mcp.services.collaboration import CAP_MONITOR, drop_absolute_path_strings
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.state import RecordRole
 from podcast_mcp.services.session_sync import get_hub

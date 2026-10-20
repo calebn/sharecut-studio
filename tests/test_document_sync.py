@@ -19,7 +19,6 @@ from filelock import Timeout
 from pydantic import ValidationError
 
 from history_helpers import history_move
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -37,6 +36,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand

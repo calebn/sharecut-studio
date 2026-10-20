@@ -15,7 +15,6 @@ from fastapi.testclient import TestClient
 from filelock import Timeout
 
 from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.edits.timeline_ops import roll_clip_join
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash
@@ -37,6 +36,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.document.boundary import (
     RollBoundaryEdit,

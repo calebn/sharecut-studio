@@ -10,21 +10,21 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.review_shares import (
+from podcast_mcp.gui.server import create_app
+from podcast_mcp.models import load_project, save_project
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.review_shares import (
     create_share,
     list_shares,
     resolve_share,
     revoke_share,
 )
-from podcast_mcp.edits.review_versions import (
+from podcast_mcp.services.collaboration.review_versions import (
     get_version,
     list_versions,
     set_active_version,
 )
-from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
 runner = CliRunner()

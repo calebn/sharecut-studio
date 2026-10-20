@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from podcast_mcp.edits import share_registry
+from podcast_mcp.services.collaboration import share_registry
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX no-follow registry namespace")

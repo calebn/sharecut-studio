@@ -18,13 +18,16 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.share_registry import SqliteShareRegistry, reset_share_registry_for_tests
 from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share_registry import (
+    SqliteShareRegistry,
+    reset_share_registry_for_tests,
+)
 from podcast_mcp.services.remote_mcp.protocol import _tool_failure, handle_mcp_jsonrpc
 from podcast_mcp.util.registry_privacy_error import (
     REGISTRY_NOT_PRIVATE_CODE,

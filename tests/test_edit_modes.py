@@ -889,7 +889,7 @@ def test_cli_trim_holds_without_a_confirmation_flag(episode):
 
 
 def test_guest_mcp_cannot_authorize_a_cut_with_payload_flags(episode, sample_wav, monkeypatch):
-    from podcast_mcp.edits.share_capabilities import capabilities_for_role
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
     from test_guest_document_gate import _mcp_call, _mcp_share
 
     token = _mcp_share(
@@ -924,7 +924,7 @@ def test_cli_text_consent_cannot_authorize_a_cut(episode):
 def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
     episode, sample_wav, monkeypatch
 ):
-    from podcast_mcp.edits.share_capabilities import capabilities_for_role
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
     from test_guest_document_gate import _mcp_call, _mcp_share
 
     def share(role: str) -> str:

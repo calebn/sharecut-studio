@@ -65,8 +65,7 @@ def create_review_share_tool(
     require_sign_in: force login even on link shares.
     invite_emails: comma-separated emails to add to the ACL.
     """
-    from podcast_mcp.edits.share_capabilities import capabilities_for_role
-    from podcast_mcp.services.collaboration import ShareService
+    from podcast_mcp.services.collaboration import ShareService, capabilities_for_role
     from podcast_mcp.services.share_auth import get_identity_store
 
     caps = capabilities_for_role(role, with_mcp=with_mcp)

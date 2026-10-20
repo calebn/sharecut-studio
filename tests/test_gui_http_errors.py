@@ -410,7 +410,7 @@ def test_request_validation_failure_carries_an_error_code(client):
 def test_oversized_guest_upload_carries_an_error_code(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.edits.share_capabilities import capabilities_for_role
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 
     monkeypatch.setenv("PODCAST_GUI_MEDIA_CHUNK_MAX_BYTES", "16")
     token = _published_share(

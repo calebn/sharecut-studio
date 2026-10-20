@@ -65,7 +65,7 @@ stateDiagram-v2
 
 ### Clocks
 
-- `SHARE_COOLDOWN_DAYS = 365` (`edits/share_registry.py`): how long a slug stays reserved after its link ends. It never limits how long a live link works
+- `SHARE_COOLDOWN_DAYS = 365` (`services/collaboration/share_registry.py`): how long a slug stays reserved after its link ends. It never limits how long a live link works
 - Expiry: optional ISO `expires_at` on the share row, chosen by the host (CLI `--expires-at`, MCP `expires_at`, the shares API). Unset means the link never expires
 - `last_used_at`: display only ("last opened ..."), never part of usability. A link idle for years still opens
 - Touch throttle: `LAST_USED_TOUCH_MIN_INTERVAL = 1h` (avoids write storms on poll)
@@ -118,11 +118,11 @@ Tables (portable schema contract for a future relay backend):
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
 - `recording_key_secret(singleton=1, secret BLOB)`: one random 32-byte host installation secret
 
-Access layer: `ShareRegistryProtocol` in `edits/share_registry.py` (`get_active`,
+Access layer: `ShareRegistryProtocol` in `services/collaboration/share_registry.py` (`get_active`,
 `list_active_for_workspace`, `is_reserved`, `claim_active`, `release_claim`, `upsert_active_metadata`,
 `touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to_new`,
 `recording_key_secret`, `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
-`BEGIN IMMEDIATE` on registry writes and singleton secret initialization). Wired through `edits/review_shares.py`
+`BEGIN IMMEDIATE` on registry writes and singleton secret initialization). Wired through `services/collaboration/review_shares.py`
 and `services/collaboration/share.py`. Do **not** hand-edit the DB or invent a third index.
 
 Clip listing uses the secret once per service call to derive `rec_` identities
@@ -340,7 +340,7 @@ Shares have two independent axes (like Google Drive):
 | **General access** | `link` (Anyone with the link) · `restricted` (ACL + sign-in) | `link` |
 | **Role** | Viewer · Commenter · Editor, as in Google Docs | Commenter |
 
-Each role expands to one capability set in `edits/share_capabilities.py`
+Each role expands to one capability set in `services/collaboration/share_capabilities.py`
 (`REVIEW_ROLE_CAPABILITIES`). Viewer holds `play` and `view`. Commenter adds
 `comment`, `reply`, `action` and `suggest`. Editor adds `edit`. `mcp` is an
 opt-in on any role (`--with-mcp`). `review_role_for_capabilities` returns the

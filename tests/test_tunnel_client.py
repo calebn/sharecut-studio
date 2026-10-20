@@ -166,7 +166,7 @@ def test_build_shares_no_project():
 
 
 def test_build_shares_with_project(minimal_project, published_share):
-    from podcast_mcp.edits.share_capabilities import DEFAULT_CAPABILITIES
+    from podcast_mcp.services.collaboration.share_capabilities import DEFAULT_CAPABILITIES
 
     published_share(capabilities=list(DEFAULT_CAPABILITIES), label="test")
 
@@ -180,8 +180,8 @@ def test_build_shares_with_project(minimal_project, published_share):
 
 
 def test_build_shares_skips_revoked(minimal_project, published_share):
-    from podcast_mcp.edits.review_shares import revoke_share
-    from podcast_mcp.edits.share_capabilities import DEFAULT_CAPABILITIES
+    from podcast_mcp.services.collaboration.review_shares import revoke_share
+    from podcast_mcp.services.collaboration.share_capabilities import DEFAULT_CAPABILITIES
 
     ws, _, row = published_share(capabilities=list(DEFAULT_CAPABILITIES), label="test2")
     revoke_share(ws.project, row["token"])

@@ -13,7 +13,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
 from podcast_mcp.models import load_project, save_project
@@ -26,6 +25,7 @@ from podcast_mcp.services.collaboration.share import (
     share_daw_project_view,
     share_project_view,
 )
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
@@ -2005,7 +2005,7 @@ def test_handle_guest_presence_frame_roster_request(minimal_project) -> None:
 
 
 def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_wav, tmp_workspace):
-    from podcast_mcp.edits.review_versions import get_version
+    from podcast_mcp.services.collaboration.review_versions import get_version
     from podcast_mcp.services.document import PlayService
 
     ws = _seed_premix(minimal_project, sample_wav)
@@ -2174,7 +2174,10 @@ def test_guest_waveform_warm_tiles_do_not_parse_project(minimal_project, sample_
 
 
 def test_guest_waveform_deleted_version_revokes_share(minimal_project, sample_wav):
-    from podcast_mcp.edits.review_shares import list_shares_for_workspace, resolve_share
+    from podcast_mcp.services.collaboration.review_shares import (
+        list_shares_for_workspace,
+        resolve_share,
+    )
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
     share_id = resolve_share(token)["id"]
@@ -2200,7 +2203,10 @@ def test_guest_waveform_deleted_version_revokes_share(minimal_project, sample_wa
 
 
 def test_guest_waveform_live_sidecar_access_and_capability(minimal_project, sample_wav):
-    from podcast_mcp.edits.review_shares import resolve_share, shares_path_for_workspace
+    from podcast_mcp.services.collaboration.review_shares import (
+        resolve_share,
+        shares_path_for_workspace,
+    )
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
     key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
@@ -2232,8 +2238,11 @@ def test_guest_waveform_symlinked_project_uses_target_sidecar(
 ):
     import podcast_mcp.services.app.workspace as workspace
     import podcast_mcp.services.collaboration.share as sharing
-    from podcast_mcp.edits.review_shares import resolve_share, shares_path_for_workspace
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration.review_shares import (
+        resolve_share,
+        shares_path_for_workspace,
+    )
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
     key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
@@ -2599,7 +2608,7 @@ def test_guest_proxy_missing_guards_are_coded_404(
 def test_guest_review_mix_missing_is_coded_404(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.edits.review_versions import get_version, version_audio_path
+    from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
 
     ws = _seed_premix(minimal_project, sample_wav)
     version = ReviewService(ws).publish(label="Missing mix")

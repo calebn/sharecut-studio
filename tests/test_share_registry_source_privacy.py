@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.edits import share_registry
+from podcast_mcp.services.collaboration import share_registry
 from registry_windows_fixture import powershell_environment
 
 

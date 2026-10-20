@@ -230,7 +230,7 @@ rejected.
 Two axes (Google Docs–shaped):
 
 1. **General access** — default **Anyone with the link** (coolname bearer; login-free comments). Optional **Restricted** requires a signed-in principal on the ACL ([share-tokens.md](share-tokens.md) § Identity).
-2. **Role** — Viewer, Commenter or Editor, as in Google Docs. Each role expands to the capability bits below (`REVIEW_ROLE_CAPABILITIES` in `edits/share_capabilities.py`). Browser `/r/{token}` and share MCP `/mcp/{token}` always expose the **same** capability set.
+2. **Role** — Viewer, Commenter or Editor, as in Google Docs. Each role expands to the capability bits below (`REVIEW_ROLE_CAPABILITIES` in `services/collaboration/share_capabilities.py`). Browser `/r/{token}` and share MCP `/mcp/{token}` always expose the **same** capability set.
 
 ### Review roles → caps
 
@@ -526,7 +526,7 @@ never get host CLI, pipeline, ingest, or `afplay` on the host laptop.
 | Catalog | Job | Runtime? |
 |---------|-----|----------|
 | [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json) | Host adapter coverage (Sharecut Studio / **host** MCP / CLI / skills). `omit.guest` is the docs Host-only column only. | No |
-| [`edits/share_capabilities.py`](../src/podcast_mcp/edits/share_capabilities.py) | Token ACL bits (`play` / `view` / `comment` / …) | Yes |
+| [`services/collaboration/share_capabilities.py`](../src/podcast_mcp/services/collaboration/share_capabilities.py) | Token ACL bits (`play` / `view` / `comment` / …) | Yes |
 | [`document_sync/capabilities.py`](../src/podcast_mcp/services/document_sync/capabilities.py) | Document-command types a share may submit | Yes |
 | [`remote_mcp/allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py) | Which `guest_*` tools those bits unlock | Yes (agent transport) |
 | Guest OpenAPI (`make schema-export`) | Share HTTP contract | Docs + parity CI |
@@ -760,7 +760,7 @@ src/podcast_mcp/
   gui/routes/tunnel.py    # GET /api/tunnel/status (tunnel.status)
   runtime_config.py       # validated relay/object-store configuration
   cli/tunnel.py           # podcast tunnel CLI
-  edits/share_capabilities.py  # CAP_* constants, REVIEW_ROLE_CAPABILITIES, guest_mode
+  services/collaboration/share_capabilities.py  # CAP_* constants, REVIEW_ROLE_CAPABILITIES, guest_mode
   gui/routes/remote_mcp.py     # /mcp/{token} info + JSON-RPC bridge
   services/remote_mcp/         # context, allowlist, guest tools, protocol
   mcp/tools/guest/             # re-exports guest tool registry

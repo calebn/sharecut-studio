@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.policy import (
@@ -280,7 +280,7 @@ def test_open_share_auto_revokes_missing_version(
         with pytest.raises(KeyError, match="invalid or revoked"):
             share_mod.open_share_workspace(token)
     assert any("Auto-revoking share" in r.message for r in caplog.records)
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
     reg = get_share_registry()
     assert reg.get_active(token) is None

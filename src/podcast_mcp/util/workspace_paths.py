@@ -18,7 +18,7 @@ def resolve_within(root: Path, stored: str, *, base: Path | None = None) -> Path
     :func:`~podcast_mcp.util.batch_scope.batch_scope` a repeat call returns the
     first result. The message includes *stored* (possibly an absolute host
     path); guest-facing callers must catch it and raise a scrubbed message (see
-    ``edits/review_versions._resolve_review_media``).
+    ``services/collaboration/review_versions._resolve_review_media``).
     """
     return scoped(
         ("resolve_within", root, stored, base), lambda: _resolve_within(root, stored, base)

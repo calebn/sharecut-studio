@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.edits import share_registry
-from podcast_mcp.edits.share_registry import SqliteShareRegistry
+from podcast_mcp.services.collaboration import share_registry
+from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
 from podcast_mcp.util import registry_backup
 from podcast_mcp.util.registry_backup_windows import _WindowsAPI
 from podcast_mcp.util.registry_cleanup import cleanup

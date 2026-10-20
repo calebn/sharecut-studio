@@ -114,7 +114,7 @@ class _PlayStems(_PlayCache):
             )
 
         if normalized == "review" or normalized.startswith("review:"):
-            from podcast_mcp.edits.review_versions import version_audio_path
+            from podcast_mcp.services.collaboration import version_audio_path
 
             if normalized.startswith("review:"):
                 version_id = normalized.split(":", 1)[1].strip()

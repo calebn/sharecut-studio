@@ -1414,7 +1414,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
 
 Shipped in `feat/recording-links`:
 
-- [x] `kind` column migration in `edits/share_registry.py` (`review` | `record`).
+- [x] `kind` column migration in `services/collaboration/share_registry.py` (`review` | `record`).
 - [x] `review_version_id` sentinel `""` for record rows + `create_share`
   branches by `kind` (record shares have no review mix).
 - [x] `/rec/{token}` + `/api/rec/{token}` in the collaboration extension.

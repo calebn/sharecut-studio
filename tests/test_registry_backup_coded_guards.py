@@ -308,8 +308,8 @@ def test_every_windows_name_caller_supplies_full_path(monkeypatch, site):
 def test_postpublication_coded_failure_preserves_outcome_bytes_and_cli(tmp_path, monkeypatch, site):
     from typer.testing import CliRunner
 
+    import podcast_mcp.services.collaboration as collaboration
     from podcast_mcp.cli.main import app
-    from podcast_mcp.edits import share_registry
     from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
 
     source_dir, output_dir = tmp_path / "source", tmp_path / "output"
@@ -352,8 +352,8 @@ def test_postpublication_coded_failure_preserves_outcome_bytes_and_cli(tmp_path,
             source, destination, lambda path: path.write_bytes(b"published snapshot")
         )
 
-    monkeypatch.setattr(share_registry, "backup_share_registry", backup)
-    monkeypatch.setattr(share_registry, "default_share_registry_db_path", lambda: source)
+    monkeypatch.setattr(collaboration, "backup_share_registry", backup)
+    monkeypatch.setattr(collaboration, "default_share_registry_db_path", lambda: source)
     result = CliRunner().invoke(app, ["review", "backup-registry", "--dest", str(destination)])
     assert result.exit_code == 1
     assert result.output == (

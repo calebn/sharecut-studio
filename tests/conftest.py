@@ -12,12 +12,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.config import repo_root
-from podcast_mcp.edits.review_shares import create_share
-from podcast_mcp.edits.share_capabilities import ALL_CAPABILITIES
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.models import EpisodeProject, Track, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.review_shares import create_share
+from podcast_mcp.services.collaboration.share_capabilities import ALL_CAPABILITIES
+from podcast_mcp.services.collaboration.share_registry import reset_share_registry_for_tests
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
 from podcast_mcp.util import pinned_media

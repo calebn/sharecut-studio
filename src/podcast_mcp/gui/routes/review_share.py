@@ -21,8 +21,6 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
 
-from podcast_mcp.edits.share_capabilities import CAP_VIEW, share_author
-from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
@@ -49,6 +47,8 @@ from podcast_mcp.gui.routes.waveform import (
 )
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
 from podcast_mcp.services.collaboration import (
+    CAP_VIEW,
+    SHARE_KIND_REVIEW,
     guest_progress_hub,
     guest_selects_transcript_words,
     lookup_share,
@@ -65,6 +65,7 @@ from podcast_mcp.services.collaboration import (
     share_audition_context_image,
     share_audition_context_image_cached,
     share_audition_context_info,
+    share_author,
     share_daw_audio_path,
     share_daw_meta,
     share_daw_project_view,

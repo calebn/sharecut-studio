@@ -11,6 +11,18 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.collaboration.record_share import record_bootstrap
     from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.review_shares import (
+        effective_review_version_id,
+        list_shares,
+        list_usable_shares,
+    )
+    from podcast_mcp.services.collaboration.review_versions import (
+        MixUnavailableError,
+        encode_version_mp3,
+        get_version,
+        version_audio_path,
+        version_mp3_path,
+    )
     from podcast_mcp.services.collaboration.session_control import SessionControlService
     from podcast_mcp.services.collaboration.share import (
         ShareService,
@@ -52,6 +64,25 @@ if TYPE_CHECKING:
         share_set_action_done,
         share_upload_media,
     )
+    from podcast_mcp.services.collaboration.share_capabilities import (
+        ALL_CAPABILITIES,
+        CAP_ACTION,
+        CAP_COMMENT,
+        CAP_EDIT,
+        CAP_JOIN,
+        CAP_MCP,
+        CAP_MONITOR,
+        CAP_PLAY,
+        CAP_REPLY,
+        CAP_SUGGEST,
+        CAP_VIEW,
+        DEFAULT_CAPABILITIES,
+        ReviewRole,
+        capabilities_for_role,
+        has_capability,
+        review_role_for_capabilities,
+        share_author,
+    )
     from podcast_mcp.services.collaboration.share_page import (
         build_share_head_tags,
         inject_share_document_head,
@@ -59,21 +90,56 @@ if TYPE_CHECKING:
         render_share_spa_html,
         share_public_origin,
     )
+    from podcast_mcp.services.collaboration.share_registry import (
+        SHARE_KIND_RECORD,
+        SHARE_KIND_REVIEW,
+        SqliteShareRegistry,
+        backup_share_registry,
+        default_share_registry_db_path,
+        get_share_registry,
+    )
     from podcast_mcp.services.collaboration.tunnel import run_tunnel_sync
     from podcast_mcp.services.collaboration.tunnel_failure import TunnelError
     from podcast_mcp.services.collaboration.tunnel_status import read_tunnel_status
 
 __all__ = [
+    "ALL_CAPABILITIES",
+    "CAP_ACTION",
+    "CAP_COMMENT",
+    "CAP_EDIT",
+    "CAP_JOIN",
+    "CAP_MCP",
+    "CAP_MONITOR",
+    "CAP_PLAY",
+    "CAP_REPLY",
+    "CAP_SUGGEST",
+    "CAP_VIEW",
+    "DEFAULT_CAPABILITIES",
+    "SHARE_KIND_RECORD",
+    "SHARE_KIND_REVIEW",
+    "MixUnavailableError",
+    "ReviewRole",
     "ReviewService",
     "SessionControlService",
     "ShareService",
+    "SqliteShareRegistry",
     "TunnelError",
+    "backup_share_registry",
     "build_share_head_tags",
+    "capabilities_for_role",
+    "default_share_registry_db_path",
     "drop_absolute_path_strings",
+    "effective_review_version_id",
+    "encode_version_mp3",
+    "get_share_registry",
+    "get_version",
     "guest_progress_hub",
     "guest_selects_transcript_words",
     "guest_ws_progress_sink",
+    "has_capability",
     "inject_share_document_head",
+    "list_shares",
+    "list_usable_shares",
     "lookup_share",
     "open_share_workspace",
     "read_tunnel_status",
@@ -84,6 +150,7 @@ __all__ = [
     "require_share_edit",
     "reset_guest_progress_hub",
     "resolve_share_audio_redirect",
+    "review_role_for_capabilities",
     "run_tunnel_sync",
     "sanitize_guest_document_event",
     "sanitize_guest_session_event",
@@ -97,6 +164,7 @@ __all__ = [
     "share_audition_context_image",
     "share_audition_context_image_cached",
     "share_audition_context_info",
+    "share_author",
     "share_daw_audio_path",
     "share_daw_meta",
     "share_daw_project_view",
@@ -117,6 +185,8 @@ __all__ = [
     "share_selected_range_audio",
     "share_set_action_done",
     "share_upload_media",
+    "version_audio_path",
+    "version_mp3_path",
 ]
 
 _MODULE_BY_NAME = {
@@ -173,6 +243,37 @@ _MODULE_BY_NAME = {
     "share_public_origin": "share_page",
     "share_set_action_done": "share",
     "share_upload_media": "share",
+    "SHARE_KIND_RECORD": "share_registry",
+    "SHARE_KIND_REVIEW": "share_registry",
+    "SqliteShareRegistry": "share_registry",
+    "backup_share_registry": "share_registry",
+    "default_share_registry_db_path": "share_registry",
+    "get_share_registry": "share_registry",
+    "effective_review_version_id": "review_shares",
+    "list_shares": "review_shares",
+    "list_usable_shares": "review_shares",
+    "MixUnavailableError": "review_versions",
+    "encode_version_mp3": "review_versions",
+    "get_version": "review_versions",
+    "version_audio_path": "review_versions",
+    "version_mp3_path": "review_versions",
+    "ALL_CAPABILITIES": "share_capabilities",
+    "CAP_ACTION": "share_capabilities",
+    "CAP_COMMENT": "share_capabilities",
+    "CAP_EDIT": "share_capabilities",
+    "CAP_JOIN": "share_capabilities",
+    "CAP_MCP": "share_capabilities",
+    "CAP_MONITOR": "share_capabilities",
+    "CAP_PLAY": "share_capabilities",
+    "CAP_REPLY": "share_capabilities",
+    "CAP_SUGGEST": "share_capabilities",
+    "CAP_VIEW": "share_capabilities",
+    "DEFAULT_CAPABILITIES": "share_capabilities",
+    "ReviewRole": "share_capabilities",
+    "capabilities_for_role": "share_capabilities",
+    "has_capability": "share_capabilities",
+    "review_role_for_capabilities": "share_capabilities",
+    "share_author": "share_capabilities",
 }
 
 

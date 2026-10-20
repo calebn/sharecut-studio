@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.history.manager import StaleHistoryError
 from podcast_mcp.mcp import server as mcp_server
@@ -21,6 +20,7 @@ from podcast_mcp.services.collaboration.share import (
     sanitize_guest_document_event,
     sanitize_guest_project_view,
 )
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand

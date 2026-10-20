@@ -11,8 +11,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
-from podcast_mcp.edits.share_capabilities import CAP_PLAY, CAP_VIEW, has_capability
 from podcast_mcp.services.collaboration import (
+    CAP_PLAY,
+    CAP_VIEW,
+    has_capability,
     share_add_comment,
     share_add_reply,
     share_audition_context_info,

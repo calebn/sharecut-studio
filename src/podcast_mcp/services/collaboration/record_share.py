@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from podcast_mcp.edits.share_capabilities import CAP_JOIN, has_capability
-from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
 from podcast_mcp.services.collaboration.share import (
     drop_absolute_path_strings,
     lookup_share,
     share_episode_name,
 )
+from podcast_mcp.services.collaboration.share_capabilities import CAP_JOIN, has_capability
+from podcast_mcp.services.collaboration.share_registry import SHARE_KIND_RECORD
 
 RECORDED_CAP = 4
 PRODUCER_CAP = 2

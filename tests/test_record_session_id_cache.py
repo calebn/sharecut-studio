@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
+from podcast_mcp.services.collaboration.share_registry import SHARE_KIND_RECORD
 from podcast_mcp.services.record import service as record_service
 from podcast_mcp.services.record.service import (
     RecordSessionService,

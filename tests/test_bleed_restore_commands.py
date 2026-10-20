@@ -13,10 +13,10 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, ClipOffSpeakerMuteRegion, MediaAsset, Track
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document.bleed_inspection import inspect_clip_bleed
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
@@ -160,7 +160,7 @@ def _exercise_retry(restore_project):
 
 
 def test_document_restore_retry_and_new_id_stale_replay(restore_project):
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
     from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError
 
     try:

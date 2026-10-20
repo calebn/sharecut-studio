@@ -10,10 +10,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.edits.review_shares import list_usable_shares
-from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.collaboration import drop_absolute_path_strings
+from podcast_mcp.services.collaboration import (
+    SHARE_KIND_RECORD,
+    drop_absolute_path_strings,
+    list_usable_shares,
+)
 from podcast_mcp.services.record.commands import (
     COMMAND_TYPES,
     RecordAuthzError,

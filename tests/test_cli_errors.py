@@ -194,8 +194,8 @@ def test_publish_version_without_a_mix_prints_the_no_mix_code(minimal_project):
 
 
 def test_publish_version_with_a_stale_mix_prints_the_stale_mix_code(minimal_project, monkeypatch):
-    from podcast_mcp.edits.review_versions import StaleMixError
     from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.review_versions import StaleMixError
 
     def _stale(self, **kwargs):
         raise StaleMixError("premix.wav is out of date; Refresh", code="stale_mix")

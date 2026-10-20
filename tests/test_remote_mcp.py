@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools import guest as guest_tools_pkg
 from podcast_mcp.models import (
@@ -25,6 +24,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document_sync.capabilities import (
     document_command_types_for_caps,
 )
@@ -1202,7 +1202,7 @@ def test_guest_http_listing_retry_recovers_registry_before_authorization(
     import sqlite3
     from contextlib import closing
 
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
     from podcast_mcp.services.share_auth import store as identity_store
 
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1247,7 +1247,10 @@ def test_guest_http_listing_retry_recovers_registry_before_authorization(
             def fail_entropy(size: int) -> bytes:
                 raise OSError("private entropy failure")
 
-            scope.setattr("podcast_mcp.edits.share_registry.secrets.token_bytes", fail_entropy)
+            scope.setattr(
+                "podcast_mcp.services.collaboration.share_registry.secrets.token_bytes",
+                fail_entropy,
+            )
             first = client.post(endpoint, json=payload)
         assert first.status_code == 200
         assert first.json()["result"]["isError"] is True

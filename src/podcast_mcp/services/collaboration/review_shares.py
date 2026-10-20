@@ -15,12 +15,13 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.share_capabilities import (
+from podcast_mcp.models import EpisodeProject
+from podcast_mcp.services.collaboration.share_capabilities import (
     RECORD_ROLE_PRESETS,
     normalize_capabilities,
     record_capabilities_for_role,
 )
-from podcast_mcp.edits.share_registry import (
+from podcast_mcp.services.collaboration.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
     SHARE_KIND_REVIEW,
     SHARE_KINDS,
@@ -30,7 +31,6 @@ from podcast_mcp.edits.share_registry import (
     get_share_registry,
     share_is_usable,
 )
-from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
@@ -44,7 +44,7 @@ def shares_path(project: EpisodeProject) -> Path:
 
 
 def shares_path_for_workspace(workspace: Path) -> Path:
-    from podcast_mcp.edits.review_versions import REVIEW_ARTIFACTS_RELDIR
+    from podcast_mcp.services.collaboration.review_versions import REVIEW_ARTIFACTS_RELDIR
 
     return workspace / REVIEW_ARTIFACTS_RELDIR / _SHARES_NAME
 
@@ -84,7 +84,7 @@ def create_share(
     session_id: str | None = None,
     follow_latest: bool = False,
 ) -> dict[str, Any]:
-    from podcast_mcp.edits.review_versions import get_version
+    from podcast_mcp.services.collaboration.review_versions import get_version
     from podcast_mcp.services.share_auth import normalize_general_access
 
     assert SHARE_TOKEN_IS_GLOBALLY_UNIQUE  # documented contract

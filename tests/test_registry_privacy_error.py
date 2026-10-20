@@ -19,10 +19,13 @@ from mcp.client import Client
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.share_registry import SqliteShareRegistry, reset_share_registry_for_tests
 from podcast_mcp.gui.routes.deps import host_setup_exception_handler
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
+from podcast_mcp.services.collaboration.share_registry import (
+    SqliteShareRegistry,
+    reset_share_registry_for_tests,
+)
 from podcast_mcp.util import registry_backup_posix as posix
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER

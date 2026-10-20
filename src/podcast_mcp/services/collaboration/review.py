@@ -6,7 +6,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.review_versions import (
+from podcast_mcp.history.rollback import RollbackOutcome
+from podcast_mcp.models import load_project
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review_versions import (
     DirectoryIdentity,
     MediaIdentity,
     attach_version,
@@ -20,9 +23,6 @@ from podcast_mcp.edits.review_versions import (
     sweep_stale_quarantines,
     version_audio_path,
 )
-from podcast_mcp.history.rollback import RollbackOutcome
-from podcast_mcp.models import load_project
-from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
 
 log = logging.getLogger(__name__)

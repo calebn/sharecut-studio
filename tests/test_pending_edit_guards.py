@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from podcast_mcp.edits.decisions import PendingEditBaseline, PendingEditChangedError
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -23,6 +22,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import EditService, HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
