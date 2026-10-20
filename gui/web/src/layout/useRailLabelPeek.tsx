@@ -1,5 +1,11 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { useLongPress } from "../hooks/useLongPress";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { type LongPressHandlers, useLongPress } from "../hooks/useLongPress";
 
 const PEEK_MS = 2500;
 const EDGE_PX = 8;
@@ -21,7 +27,9 @@ export function iconOnlyLabel(control: HTMLElement): string | null {
   const name = control.getAttribute("aria-label") ?? control.title;
   if (!name) return null;
   const note = control.title;
-  return note && note !== name ? `${name}: ${note}` : name;
+  // A title is a reason only on an unavailable control; elsewhere it repeats the name.
+  const unavailable = control.getAttribute("aria-disabled") === "true";
+  return unavailable && note && note !== name ? `${name}: ${note}` : name;
 }
 
 /**
@@ -40,7 +48,7 @@ export function useRailLabelPeek() {
     setPeek(null);
   }, []);
 
-  const handlers = useLongPress((target) => {
+  const press = useLongPress((target) => {
     const control =
       target instanceof Element
         ? target.closest<HTMLElement>("button, [role='button']")
@@ -64,7 +72,27 @@ export function useRailLabelPeek() {
     [],
   );
 
-  return { handlers, peek, dismiss: clear };
+  // Any press ends a showing label, so it never lingers into another gesture.
+  useEffect(() => {
+    if (!peek) return;
+    window.addEventListener("pointerdown", clear, true);
+    return () => window.removeEventListener("pointerdown", clear, true);
+  }, [peek, clear]);
+
+  // Only an icon-only control arms the press, so a slow tap on a labelled
+  // button (Import, Cut at playhead) still activates it.
+  const handlers: LongPressHandlers = {
+    ...press,
+    onPointerDown: (event) => {
+      const control =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>("button, [role='button']")
+          : null;
+      if (control && iconOnlyLabel(control)) press.onPointerDown(event);
+    },
+  };
+
+  return { handlers, peek };
 }
 
 /** The transient label; it lets presses through. The control's own name already reaches screen readers. */

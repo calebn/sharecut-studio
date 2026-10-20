@@ -226,6 +226,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "reopen swipe: a drag up on the collapsed drawer handle reopens the drawer, and a press does the same",
   "layout/BottomTabsSplitterView.tsx":
     "splitter: a drag resizes the bottom tabs; arrow keys and the size buttons do the same by key",
+  "layout/useRailLabelPeek.tsx":
+    "rail label: a touch long press on an icon-only rail control names it for a moment without activating it (useLongPress timing)",
   "layout/ListenPlayhead.tsx":
     "Listen scrub: a native range input seeks the playhead; it is not a timeline target",
   "tracks/TrackFaderView.tsx":

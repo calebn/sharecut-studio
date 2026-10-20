@@ -72,7 +72,41 @@ describe("rail long-press labels", () => {
     render(<EditingToolRailView {...p} />);
     longPress(screen.getByRole("button", { name: "Import" }));
     expect(peekText()).toBe("");
-    expect(p.onImport).toHaveBeenCalledTimes(0);
+    expect(p.onImport).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a slow tap on a labelled button activate it", () => {
+    vi.useFakeTimers();
+    const p = props();
+    render(<EditingToolRailView {...p} />);
+    longPress(screen.getByRole("button", { name: "Import" }));
+    expect(p.onImport).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not repeat a button title that only restates its name", () => {
+    vi.useFakeTimers();
+    const p = props();
+    render(
+      <EditingToolRailView
+        {...p}
+        toolToggle={
+          <button type="button" aria-label="Select" title="Select (V)">
+            <svg aria-hidden="true" />
+          </button>
+        }
+      />,
+    );
+    longPress(screen.getByRole("button", { name: "Select" }));
+    expect(peekText()).toBe("Select");
+  });
+
+  it("drops the label when any other press starts", () => {
+    vi.useFakeTimers();
+    render(<EditingToolRailView {...props()} />);
+    longPress(screen.getByRole("button", { name: "Zoom out" }));
+    expect(peekText()).toBe("Zoom out");
+    fireEvent.pointerDown(document.body, { pointerType: "touch" });
+    expect(peekText()).toBe("");
   });
 
   it("fades after a moment and ignores a mouse press", () => {
