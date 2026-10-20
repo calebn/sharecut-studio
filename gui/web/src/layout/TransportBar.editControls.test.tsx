@@ -303,10 +303,9 @@ describe("TransportBar desktop edit controls", () => {
     await user.click(screen.getByRole("button", { name: "Menu" }));
     expect(screen.queryByRole("menuitem", { name: "Blade cut" })).toBeNull();
     act(() => useDawStore.setState({ toolMode: "blade", commentMode: false }));
-    expect(screen.getByRole("menuitem", { name: "Blade cut" })).not.toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    expect(
+      screen.getByRole("menuitem", { name: "Blade cut" }),
+    ).not.toHaveAttribute("aria-disabled", "true");
     act(() => useDawStore.setState({ commentMode: true }));
     expect(screen.queryByRole("menuitem", { name: "Blade cut" })).toBeNull();
   });
