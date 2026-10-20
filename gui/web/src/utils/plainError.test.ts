@@ -14,6 +14,19 @@ it.each([
     "PODCAST_MCP_FFMPEG is not set",
     "Something went wrong. Export diagnostics from the command palette and try again.",
   ],
+  [
+    "Export failed. See log: C:\\Users\\a\\x.wav",
+    "Export failed. Export diagnostics from the command palette and try again.",
+  ],
+  [
+    "Save failed: set FFMPEG or PATH first",
+    "Save failed. Export diagnostics from the command palette and try again.",
+  ],
+  [
+    "Restore failed: bleed_restore_changed",
+    "Restore failed. Export diagnostics from the command palette and try again.",
+  ],
+  ["Check failed: LUFS is out of range", "Check failed: LUFS is out of range"],
   ["Delete failed: Unknown clip", "Delete failed: Unknown clip"],
   [
     "Import failed: the file is not audio",

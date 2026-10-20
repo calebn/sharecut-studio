@@ -286,6 +286,7 @@ export function useNudgeRun() {
   const end = async (save = true) => {
     const r = run.current;
     if (!r) return;
+    useDawStore.getState().endGestureFeedback();
     if (r.field.kind === "trim" && discardStale(r)) return;
     if (!sameOwnedEnvelope(r)) {
       abandonRun(r);

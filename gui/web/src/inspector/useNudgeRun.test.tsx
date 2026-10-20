@@ -502,6 +502,25 @@ describe("trim nudge document lifetime", () => {
     expect(saveNudge).not.toHaveBeenCalled();
   });
 
+  it("clears a gesture message when the key is released without a save", async () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const button = render(<Harness />).getByRole("button");
+    fireEvent.keyDown(button, { key: "Enter" });
+    applyDocumentSnapshot({
+      server_seq: 1,
+      project: { ...origin, meta: { ...origin.meta, name: "Fresh" } },
+    });
+    act(() => {
+      useDawStore
+        .getState()
+        .announceStatus("Fade is at its limit", { gesture: true });
+    });
+    expect(useDawStore.getState().feedbackToast).not.toBeNull();
+    await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
   it("saves valid pointer and assistive click nudges once", async () => {
     const origin = project();
     useDawStore.getState().hydrate("/tmp/one.json", origin);

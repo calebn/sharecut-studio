@@ -214,6 +214,15 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     setUndoing(true);
     try {
       if (await run()) useDawStore.getState().announceStatus(done);
+      else
+        useDawStore
+          .getState()
+          .announceStatus(
+            "Can't undo: the project changed since. Nothing was undone.",
+            {
+              tone: "error",
+            },
+          );
     } catch (e) {
       useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
         tone: "error",

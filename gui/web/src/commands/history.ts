@@ -118,8 +118,8 @@ function moveHistory(
           .announceStatus(
             STALE_COPY[action],
             queued && standing?.undo && standing.undo !== explicit
-              ? { toast: false }
-              : undefined,
+              ? { toast: false, tone: "error" }
+              : { tone: "error" },
           );
         return {
           status: "disabled",

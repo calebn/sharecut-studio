@@ -174,7 +174,10 @@ export function useClipEdgeHandles(context: Context) {
     if (mounted.current) setDraft(next);
   };
   const cancel = () => {
-    if (draftRef.current?.phase === "preview") publish(null);
+    if (draftRef.current?.phase === "preview") {
+      useDawStore.getState().endGestureFeedback();
+      publish(null);
+    }
   };
   const fresh = (capture: Capture) => {
     const s = useDawStore.getState();
@@ -319,6 +322,7 @@ export function useClipEdgeHandles(context: Context) {
   const finish = async () => {
     const d = draftRef.current;
     if (!d || d.phase !== "preview") return;
+    useDawStore.getState().endGestureFeedback();
     if (!fresh(d.capture)) {
       publish(null);
       return;

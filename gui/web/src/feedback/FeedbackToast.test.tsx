@@ -813,6 +813,21 @@ describe("FeedbackToast", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe("Comment reopened");
   });
 
+  it("says nothing was undone when a reverse Undo declines", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Resolved comment at 0:12", {
+        reverse: { run: async () => false, done: "Comment reopened" },
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Can't undo: the project changed since. Nothing was undone.",
+      tone: "error",
+    });
+  });
+
   it("names a failed reverse Undo as an error", async () => {
     const user = userEvent.setup();
     render(<FeedbackToast />);

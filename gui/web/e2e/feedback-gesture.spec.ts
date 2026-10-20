@@ -11,6 +11,9 @@ import { switchE2eProject } from "./shareableProject";
 import { setTheme } from "./theme";
 import { newTouchPage, TRACK, touch, VIEWPORTS } from "./touchTimeline";
 
+/** Well under TOAST_MS: a card that is gone by then was cleared, not timed out. */
+const GONE_MS = 1000;
+
 test.use({ hasTouch: true, isMobile: true });
 
 let projectPath: string;
@@ -72,17 +75,18 @@ for (const theme of ["light", "dark"] as const) {
       path: info.outputPath(`armed-${theme}.png`),
     });
     await touch(cdp, "touchEnd");
-    await expect(card).toHaveCount(0);
+    await expect(card).toHaveCount(0, { timeout: GONE_MS });
 
     await arm();
     await page
       .getByRole("navigation", { name: "Primary" })
       .getByRole("button", { name: "Text" })
       .click();
-    await expect(card).toHaveCount(0);
+    await expect(card).toHaveCount(0, { timeout: GONE_MS });
     await touch(cdp, "touchEnd");
     await expect(page.locator(".ui-toast-region--app .ui-toast")).toHaveCount(
       0,
+      { timeout: GONE_MS },
     );
   });
 }

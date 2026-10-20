@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetClipboardForTests, setClipboard } from "../edit/clipboard";
@@ -48,6 +48,9 @@ const selectClip = () =>
     .getState()
     .setSelection({ kind: "clip", id: "c1", trackId: "host" });
 
+const selectTrack = (trackId: string) =>
+  useDawStore.getState().setSelection({ kind: "track", trackId });
+
 async function rangeToast(action: "cut" | "mute") {
   const state = useDawStore.getState();
   const target = makeRangeTarget(
@@ -92,6 +95,16 @@ const DRIVEN: Record<string, () => Promise<unknown>> = {
     toastOf("edit.moveClips", {
       clips: [{ clip_id: "c1", timeline_start: 4, track_id: "guest" }],
     }),
+  "track.reorder": () =>
+    toastOf("track.reorder", { trackId: "host", index: 1 }),
+  "track.moveUp": async () => {
+    selectTrack("guest");
+    return toastOf("track.moveUp");
+  },
+  "track.moveDown": async () => {
+    selectTrack("host");
+    return toastOf("track.moveDown");
+  },
   "edit.addChapter": () => toastOf("edit.addChapter", { atTime: 3 }),
   "envelope.addPoint": async () => {
     useDawStore.getState().setLayerVisible("showLevels", true);
@@ -101,24 +114,70 @@ const DRIVEN: Record<string, () => Promise<unknown>> = {
   "range.mute": () => rangeToast("mute"),
 };
 
-/** The toast comes from a gesture or panel; the named test file asserts its Undo. */
-const COVERED: Record<string, string> = {
-  "edit.restoreClipBleed": "commands/clipBleed.test.ts",
-  "edit.trimClipEdge": "timeline/useClipEdgeHandles.undo.test.tsx",
-  "edit.setClipFade": "timeline/useClipEdgeHandles.undo.test.tsx",
-  "range.moveSpeakerLane": "timeline/SpeakerLaneMoveActions.test.tsx",
-  "track.remove": "commands/trackRemoveNav.test.ts",
-  "track.reorder": "commands/trackReorder.test.ts",
-  "track.moveUp": "commands/trackReorder.test.ts",
-  "track.moveDown": "commands/trackReorder.test.ts",
-  "track.splitSpeakers": "layout/SplitSpeakersDialog.test.tsx",
-  "transcript.ignoreWords": "commands/transcriptIgnore.test.ts",
-  "tighten.applyHit": "commands/tighten.test.ts",
-  "tighten.skipHit": "commands/tighten.test.ts",
-  "tighten.applySuggested": "commands/tighten.test.ts",
-  "tighten.reviseSuggested": "commands/tighten.test.ts",
-  "comment.resolve": "panels/CommentsPanel.test.tsx",
+type Proof = { file: string; test: string; shows?: RegExp };
+
+/** The toast comes from a gesture or panel; the named test must assert its Undo. */
+const COVERED: Record<string, Proof> = {
+  "edit.restoreClipBleed": {
+    file: "commands/clipBleed.test.ts",
+    test: "sends the selected opaque target unchanged and offers exact acknowledged Undo",
+  },
+  "edit.trimClipEdge": {
+    file: "timeline/useClipEdgeHandles.undo.test.tsx",
+    test: "it.each([",
+  },
+  "edit.setClipFade": {
+    file: "timeline/useClipEdgeHandles.undo.test.tsx",
+    test: "it.each([",
+  },
+  "range.moveSpeakerLane": {
+    file: "timeline/SpeakerLaneMoveActions.test.tsx",
+    test: "moves the selected range through the host API",
+  },
+  "track.remove": {
+    file: "commands/trackRemoveNav.test.ts",
+    test: "asks by the track's name, then offers Undo for the entry its reply names",
+  },
+  "track.splitSpeakers": {
+    file: "layout/SplitSpeakersDialog.test.tsx",
+    test: "splits with the typed count and names, then shows the tracks and announces with Undo",
+  },
+  "transcript.ignoreWords": {
+    file: "commands/transcriptIgnore.test.ts",
+    test: "offers Undo on the toast for the history entry the command left",
+  },
+  "tighten.applyHit": {
+    file: "commands/tighten.test.ts",
+    test: "applyHit and skipHit offer Undo for the entry the reply names",
+  },
+  "tighten.skipHit": {
+    file: "commands/tighten.test.ts",
+    test: "applyHit and skipHit offer Undo for the entry the reply names",
+  },
+  "tighten.applySuggested": {
+    file: "commands/tighten.test.ts",
+    test: "apply-suggested announces the server summary with an undo",
+  },
+  "tighten.reviseSuggested": {
+    file: "commands/tighten.test.ts",
+    test: "revises the latest batch with the one changed sound and announces an undo",
+  },
+  "comment.resolve": {
+    file: "panels/CommentsPanel.test.tsx",
+    test: "shows an Undo toast after resolving and reopens on Undo",
+    shows: /name: "Undo"/,
+  },
 };
+
+/** The test's own body: from its title to the next test. */
+function testBody({ file, test }: Proof): string {
+  const src = readFileSync(join(SRC_ROOT, file), "utf-8");
+  const at = src.indexOf(test);
+  if (at < 0) return "";
+  const rest = src.slice(at + test.length);
+  const next = rest.search(/\n {0,4}it(?:\.each)?\(/);
+  return src.slice(at, at + test.length + (next < 0 ? rest.length : next));
+}
 
 /** The result shows where the person acted, so no toast is raised. */
 const IN_PLACE: Record<string, string> = {
@@ -165,11 +224,11 @@ describe("every mutating command", () => {
   });
 
   it.each(Object.entries(COVERED))(
-    "%s: %s asserts the toast's Undo",
-    (_id, file) => {
-      const path = join(SRC_ROOT, file);
-      expect(existsSync(path)).toBe(true);
-      expect(readFileSync(path, "utf-8")).toMatch(/feedbackToast|undo/);
+    "%s: its named test asserts the toast's Undo",
+    (_id, proof) => {
+      const body = testBody(proof);
+      expect(body, `${proof.file}: "${proof.test}"`).not.toBe("");
+      expect(body).toMatch(proof.shows ?? /feedbackToast[\s\S]*?\bundo\b/);
     },
   );
 

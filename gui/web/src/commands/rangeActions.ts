@@ -242,8 +242,8 @@ export async function runRangeAction(
   } catch (error) {
     const reason = errorMessage(error);
     if (useDawStore.getState().projectEpoch === epoch)
-      useDawStore.getState().announceStatus(reason);
-    return { status: "disabled", reason };
+      useDawStore.getState().announceStatus(reason, { tone: "error" });
+    return { status: "disabled", reason, announced: true };
   } finally {
     if (useDawStore.getState().projectEpoch === epoch)
       useDawStore.getState().setRangeBusy(false);
