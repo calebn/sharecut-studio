@@ -44,18 +44,15 @@ import {
   shouldHandleWsMessage,
 } from "../session/dedupe";
 import { createRosterRequester } from "../session/rosterRequest";
-import { bindWsSender, type WsSender } from "../session/wsSend";
+import type { WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
-import { detachSocket } from "../sync/detachSocket";
-import { hostReconnectDelay } from "../sync/hostReconnect";
-import { enqueueInbound } from "../sync/inboundQueue";
+import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { HOST_SESSION_LABEL } from "../utils/commentAuthor";
 import { documentClientId } from "../utils/documentClient";
-import { isTerminalWsClose } from "../utils/wsClose";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
 const PLAYHEAD_HEARTBEAT_MS = 200;
@@ -228,11 +225,8 @@ export function useHostSync(
     remoteSessionRef.current = null;
     const scope = activateDocumentScope(projectPath);
     const viewerStateWait = viewerStateWaitRef.current;
-    let attempt = 0;
     const drain = () => requestHostDrainLazy(projectPath);
     let cancelled = false;
-    let retry: number | null = null;
-    let socket: WebSocket | null = null;
     let sessionResyncInFlight = false;
     let sessionResyncTargetSeq = 0;
     let pendingAgentResync: SessionWireMsg | null = null;
@@ -405,71 +399,62 @@ export function useHostSync(
       }
     };
 
-    const connect = () => {
-      if (cancelled || !isCurrentDocumentScope(scope)) {
-        return;
-      }
-      socket = new WebSocket(wsUrl(projectPath, clientIdRef.current));
-      const thisSocket = socket;
-      socket.onopen = () => {
-        if (!current()) return;
+    const initialized = new Set<"session" | "document">();
+    const noteInitialized = (
+      plane: "session" | "document",
+      ctx: PlaneSocketContext,
+    ) => {
+      initialized.add(plane);
+      if (initialized.size === 2) ctx.markHealthy();
+    };
+    const socket = openPlaneSocket<HostWireMsg>({
+      url: () => wsUrl(projectPath, clientIdRef.current),
+      prepare: () => !cancelled && isCurrentDocumentScope(scope),
+      onOpen: (ctx) => {
+        initialized.clear();
         drain();
-        sendRef.current = bindWsSender(thisSocket);
-        bindRecordHostSend(sendRef.current);
+        sendRef.current = ctx.send;
+        bindRecordHostSend(ctx.send);
         setWsReady(true);
         useRecordHostStore.getState().setConnected(true);
-      };
-      let retired = false;
-      const initialized = new Set<"session" | "document">();
-      const current = () =>
-        !cancelled &&
-        !retired &&
-        socket === thisSocket &&
-        isCurrentDocumentScope(scope);
-      const noteInitialized = (plane: "session" | "document") => {
-        initialized.add(plane);
-        if (initialized.size === 2) attempt = 0;
-      };
-      socket.onmessage = (ev) => {
-        if (!current()) return;
-        let msg: HostWireMsg;
-        try {
-          msg = JSON.parse(ev.data as string) as HostWireMsg;
-          if (!msg || typeof msg !== "object") return;
-        } catch {
-          return;
+      },
+      onReceive: (msg) => {
+        if (msg.plane !== "session") return;
+        applyServerClock(msg.server_time_ns ?? msg.snapshot?.server_time_ns);
+        if (
+          msg.type === "Echo" &&
+          msg.snapshot &&
+          msg.command?.type === "ViewerState" &&
+          msg.command.client_id === clientIdRef.current
+        ) {
+          const oldest = viewerStateWait.timers.shift();
+          if (oldest !== undefined) window.clearTimeout(oldest);
         }
-        if (msg.plane === "session") {
-          applyServerClock(msg.server_time_ns ?? msg.snapshot?.server_time_ns);
-          if (
-            msg.type === "Echo" &&
-            msg.snapshot &&
-            msg.command?.type === "ViewerState" &&
-            msg.command.client_id === clientIdRef.current
-          ) {
-            const oldest = viewerStateWait.timers.shift();
-            if (oldest !== undefined) window.clearTimeout(oldest);
-          }
-          enqueueInbound(
-            () => {
-              if (!current()) return;
-              handleSessionFrame(msg);
-              if (msg.type === "Snapshot" && msg.snapshot)
-                noteInitialized("session");
-            },
-            {
-              coalesceKey:
-                msg.type === "Presence" && Array.isArray(msg.clients)
-                  ? "host:presence"
-                  : undefined,
-            },
-          );
-        } else if (msg.plane === "document") {
-          const snap = msg.snapshot;
-          if (!snap || (msg.type !== "Snapshot" && msg.type !== "Applied"))
-            return;
-          enqueueInbound(() => {
-            if (!current()) return;
+      },
+      planes: {
+        session: {
+          coalesceKey: (msg) =>
+            msg.type === "Presence" &&
+            "clients" in msg &&
+            Array.isArray(msg.clients)
+              ? "host:presence"
+              : undefined,
+          handle: (msg, ctx) => {
+            if (msg.plane !== "session") return;
+            handleSessionFrame(msg);
+            if (msg.type === "Snapshot" && msg.snapshot)
+              noteInitialized("session", ctx);
+          },
+        },
+        document: {
+          accepts: (msg) =>
+            msg.plane === "document" &&
+            Boolean(msg.snapshot) &&
+            (msg.type === "Snapshot" || msg.type === "Applied"),
+          handle: (msg, ctx) => {
+            if (msg.plane !== "document") return;
+            const snap = msg.snapshot;
+            if (!snap) return;
             if (msg.command?.command_id)
               finishDocumentDraft(msg.command.command_id);
             applyDocumentSnapshot(snap, { scope });
@@ -479,11 +464,12 @@ export function useHostSync(
               documentAuthority.phase.kind === "ready" &&
               !snap.resync
             )
-              noteInitialized("document");
-          });
-        } else if (msg.plane === "record") {
-          enqueueInbound(() => {
-            if (!current()) return;
+              noteInitialized("document", ctx);
+          },
+        },
+        record: {
+          handle: (msg) => {
+            if (msg.plane !== "record") return;
             if (isRecordSignal(msg)) emitRecordSignal(msg);
             else if (msg.snapshot) {
               const snapshot = msg.snapshot;
@@ -491,28 +477,17 @@ export function useHostSync(
                 useRecordHostStore.getState().setSnapshot(snapshot),
               );
             }
-          });
-        }
-      };
-      socket.onclose = (event) => {
-        if (!current()) return;
-        retired = true;
+          },
+        },
+      },
+      onClose: () => {
         sendRef.current = null;
         stopViewerStateWait(viewerStateWait);
         bindRecordHostSend(null);
         setWsReady(false);
         useRecordHostStore.getState().setConnected(false);
-        if (!isTerminalWsClose(event.code)) {
-          retry = window.setTimeout(connect, hostReconnectDelay(attempt++));
-        }
-      };
-      socket.onerror = () => {
-        if (socket === thisSocket) {
-          socket?.close();
-        }
-      };
-    };
-    connect();
+      },
+    });
     const onOnline = () => drain();
     window.addEventListener("online", onOnline);
     const drainTimer = window.setInterval(drain, SANITY_POLL_MS);
@@ -520,13 +495,8 @@ export function useHostSync(
       window.removeEventListener("online", onOnline);
       window.clearInterval(drainTimer);
       cancelled = true;
-      if (retry != null) {
-        window.clearTimeout(retry);
-      }
       bindRecordHostSend(null);
-      if (socket) {
-        detachSocket(socket);
-      }
+      socket.stop();
       sendRef.current = null;
       rosterRequester.dispose();
       stopViewerStateWait(viewerStateWait);

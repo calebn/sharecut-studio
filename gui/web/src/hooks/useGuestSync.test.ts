@@ -165,7 +165,7 @@ describe("useGuestSync", () => {
   });
 
   it("restores agent authority from the guest hello after a gap reconnect", async () => {
-    const retry = vi.spyOn(globalThis, "setTimeout");
+    const retry = vi.mocked(window.setTimeout);
     const apply = vi.fn();
     renderHook(() => useGuestSync("share:tok123", apply, vi.fn(), true));
     const first = FakeWebSocket.instances[0];
@@ -207,7 +207,9 @@ describe("useGuestSync", () => {
       });
     });
     expect(first.closed).toBe(true);
-    const reconnect = retry.mock.calls.find((call) => call[1] === 2000)?.[0];
+    const reconnect = retry.mock.calls.find(
+      (call) => typeof call[1] === "number" && call[1] >= 250 && call[1] <= 500,
+    )?.[0];
     expect(reconnect).toBeTypeOf("function");
     await act(async () => {
       (reconnect as () => void)();
