@@ -70,8 +70,7 @@ test.describe("Clip inspector fade controls", () => {
     await expect(fadeIn).toBeEnabled();
     const before = Number(await fadeIn.inputValue());
     const maximum = Number(await fadeIn.getAttribute("max"));
-    const key = before < maximum ? "ArrowRight" : "ArrowLeft";
-    const expected = before + (key === "ArrowRight" ? 1 : -1);
+    const expected = before < maximum ? before + 1 : before - 1;
     const fadeRequest = page.waitForRequest((request) => {
       if (!request.url().includes("/api/document/command")) return false;
       try {
@@ -81,8 +80,8 @@ test.describe("Clip inspector fade controls", () => {
         return false;
       }
     });
-    await fadeIn.focus();
-    await page.keyboard.press(key);
+    await fadeIn.fill(String(expected));
+    await page.getByRole("button", { name: "Apply fade in" }).click();
     const request = await fadeRequest;
     expect(request.postDataJSON()).toMatchObject({
       type: "SetClipFade",
