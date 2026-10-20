@@ -36,16 +36,19 @@ test("tablet Select range puts In, Out, Select range and Cancel in the sheet at 
     }),
   ).toHaveCount(0);
   // The sheet sits below the lanes it selects across, so they stay in view.
-  await page.waitForTimeout(600);
-  const sheetBox = await sheet.boundingBox();
-  const lanes = await page
-    .locator(".lane-row")
-    .evaluateAll((rows) =>
-      rows.map((row) => row.getBoundingClientRect().bottom),
-    );
-  expect(sheetBox).not.toBeNull();
-  const visibleLanes = lanes.filter((bottom) => bottom <= sheetBox!.y + 1);
-  expect(visibleLanes.length).toBeGreaterThanOrEqual(2);
+  // Poll: the sheet's slide-in settles before the lanes are measured.
+  await expect
+    .poll(async () => {
+      const sheetBox = await sheet.boundingBox();
+      if (!sheetBox) return 0;
+      const bottoms = await page
+        .locator(".lane-row")
+        .evaluateAll((rows) =>
+          rows.map((row) => row.getBoundingClientRect().bottom),
+        );
+      return bottoms.filter((bottom) => bottom <= sheetBox.y + 1).length;
+    })
+    .toBeGreaterThanOrEqual(2);
 
   await cancel.click();
   await expect(actions).toHaveCount(0);
