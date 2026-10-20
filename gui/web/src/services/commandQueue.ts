@@ -35,7 +35,23 @@ import {
   noteSaveLanded,
   trackEditSave,
 } from "../state/documentSendOrder";
-import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
+import {
+  clearVolatileOutcome,
+  recordVolatileOutcome,
+  volatileOutcomeFor,
+} from "../state/offlineAttention";
+import {
+  enqueueCommand,
+  enqueueHostCommand,
+  loadCommandQueue,
+  loadHostCommandQueue,
+  type OfflineConflict,
+  type QueuedCommand,
+  removeHostQueuedCommand,
+  removeQueuedCommand,
+  settleGuestCommandOutcome,
+  settleHostCommandOutcome,
+} from "../state/offlineStore";
 import {
   requestGuestDrainLazy,
   requestHostDrainLazy,
@@ -102,31 +118,28 @@ async function settleCommandOutcome(
   removeFromQueue: boolean,
 ): Promise<void> {
   const token = shareTokenFromKey(projectPath);
-  const store = await import("../state/offlineStore");
   try {
     if (token) {
-      await store.settleGuestCommandOutcome(
+      await settleGuestCommandOutcome(
         token,
         command.command_id,
         outcome,
         removeFromQueue,
       );
     } else {
-      await store.settleHostCommandOutcome(
+      await settleHostCommandOutcome(
         projectPath,
         command.command_id,
         outcome,
         removeFromQueue,
       );
     }
-    const attention = await import("../state/offlineAttention");
-    attention.clearVolatileOutcome(projectPath, command.command_id);
+    clearVolatileOutcome(projectPath, command.command_id);
   } catch {
-    const attention = await import("../state/offlineAttention");
     if (outcome) {
-      attention.recordVolatileOutcome(projectPath, outcome);
+      recordVolatileOutcome(projectPath, outcome);
       if (removeFromQueue) throw new Error(outcome.reason);
-    } else attention.clearVolatileOutcome(projectPath, command.command_id);
+    } else clearVolatileOutcome(projectPath, command.command_id);
   }
 }
 
@@ -134,11 +147,7 @@ export async function reconcileCommandBeforeReplay(
   projectPath: string,
   command: QueuedCommand,
 ): Promise<"send" | "skip" | "stop"> {
-  const attention = await import("../state/offlineAttention");
-  const volatile = attention.volatileOutcomeFor(
-    projectPath,
-    command.command_id,
-  );
+  const volatile = volatileOutcomeFor(projectPath, command.command_id);
   let outcome: OfflineConflict | null = null;
   if (isHistoryCommand(command.type)) {
     outcome =
@@ -389,12 +398,11 @@ async function submitLiveHistoryIntent(
   };
   if (isShareProjectKey(projectPath)) {
     const token = shareTokenFromKey(projectPath)!;
-    const queue = await import("../state/offlineStore");
     requireCurrent();
-    await queue.enqueueCommand(token, cmd);
+    await enqueueCommand(token, cmd);
     try {
       requireCurrent();
-      const pending = await queue.loadCommandQueue(token);
+      const pending = await loadCommandQueue(token);
       requireCurrent();
       if (!pending.some((item) => item.command_id === identity.command_id)) {
         throw new Error(
@@ -464,9 +472,8 @@ async function submitLiveHistoryIntent(
       return data;
     } catch (error) {
       try {
-        const attention = await import("../state/offlineAttention");
-        if (!attention.volatileOutcomeFor(projectPath, identity.command_id)) {
-          await queue.removeQueuedCommand(token, identity.command_id);
+        if (!volatileOutcomeFor(projectPath, identity.command_id)) {
+          await removeQueuedCommand(token, identity.command_id);
         }
       } catch {}
       throw error;
@@ -474,18 +481,16 @@ async function submitLiveHistoryIntent(
   }
 
   const send = beginDocumentSend(projectPath, identity.command_id);
-  let queue: typeof import("../state/offlineStore") | null = null;
   try {
-    queue = await import("../state/offlineStore");
     requireCurrent();
-    const admitted = await queue.enqueueHostCommand(projectPath, cmd);
+    const admitted = await enqueueHostCommand(projectPath, cmd);
     requireCurrent();
     if (!admitted.persisted) {
       throw new Error(
         "Undo and Redo cannot run right now. Reload the project and try again.",
       );
     }
-    const pending = await queue.loadHostCommandQueue(projectPath);
+    const pending = await loadHostCommandQueue(projectPath);
     requireCurrent();
     const effective = pending.filter(
       (item) =>
@@ -548,12 +553,8 @@ async function submitLiveHistoryIntent(
     return reply.data;
   } finally {
     try {
-      const attention = await import("../state/offlineAttention");
-      if (
-        queue &&
-        !attention.volatileOutcomeFor(projectPath, identity.command_id)
-      ) {
-        await queue.removeHostQueuedCommand(projectPath, identity.command_id);
+      if (!volatileOutcomeFor(projectPath, identity.command_id)) {
+        await removeHostQueuedCommand(projectPath, identity.command_id);
       }
     } catch {}
     send.finish();
@@ -618,8 +619,7 @@ async function submitGuestDocumentCommand(
   const structural_mode =
     opts.structural_mode ?? (offline && structural ? "propose" : undefined);
 
-  const guestQueue = await import("../state/offlineStore");
-  const admitted = await guestQueue.enqueueCommand(token, {
+  const admitted = await enqueueCommand(token, {
     command_id,
     client_id: bodyBase.client_id,
     client_seq,
@@ -631,7 +631,7 @@ async function submitGuestDocumentCommand(
   if (admitted.hadPredecessor && !opts.replaying) {
     const head = send
       ? await queueHeadAfterPriorSend(
-          () => guestQueue.loadCommandQueue(token),
+          () => loadCommandQueue(token),
           command_id,
           send,
         )
@@ -766,7 +766,6 @@ async function submitHostDocumentCommand(
 ): Promise<Record<string, unknown>> {
   const { command_id, client_seq, type, payload } = body;
   let bodyBase = body.bodyBase;
-  const hostQueue = await import("../state/offlineStore");
   let enqueueResult = { persisted: false, hadPredecessor: false };
   let persistenceFailed = false;
   let persistenceFallbackAllowed = false;
@@ -775,7 +774,7 @@ async function submitHostDocumentCommand(
     enqueueResult.persisted = true;
   } else {
     try {
-      enqueueResult = await hostQueue.enqueueHostCommand(
+      enqueueResult = await enqueueHostCommand(
         projectPath,
         {
           command_id,
@@ -795,7 +794,7 @@ async function submitHostDocumentCommand(
       // Direct send is safe only when a readable queue proves there is no older edit.
       let pending;
       try {
-        pending = await hostQueue.loadHostCommandQueue(projectPath);
+        pending = await loadHostCommandQueue(projectPath);
       } catch {
         throw error;
       }
@@ -819,7 +818,7 @@ async function submitHostDocumentCommand(
     // wait for it, then send this command if nothing older remains.
     const head = send
       ? await queueHeadAfterPriorSend(
-          () => hostQueue.loadHostCommandQueue(projectPath),
+          () => loadHostCommandQueue(projectPath),
           command_id,
           send,
         )
