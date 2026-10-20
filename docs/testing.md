@@ -2721,6 +2721,38 @@ lower `_ADAPTER_DOMAIN_ALLOWLIST_SIZE`, because the test asserts the allowlist
 matches the tree exactly. Synthetic sources (inline, relative, `TYPE_CHECKING`)
 verify the guard fails on a new edge.
 
+## Frontend architecture governance
+
+Four Vitest suites under `gui/web/src/` pin the frontend's layering and
+write-path rules. Each holds an allowlist sized at today's violations,
+asserts the allowlist's exact size, fails on a stale entry, and carries
+sabotage tests that feed a synthetic new violation through the same checker.
+A phase that removes a violation deletes the entry and edits the asserted
+size; nothing is added.
+
+- `test/importDirection.test.ts` declares the layer order `types -> utils ->
+  state -> document -> api -> services -> commands/edit -> hooks -> views`
+  and a table placing every top-level `src/` entry in a layer. A
+  lower layer importing a higher one (static, `import type` or dynamic
+  `import(...)`) fails unless it is one of the 74 allowlisted back edges,
+  listed per layer pair. A new directory fails until the table places it.
+  Tests, stories and the `test/` and `storybook/` fixtures may import
+  across layers, but production code may not import them. The import reader is
+  `test/importGraph.ts`.
+- `state/setProjectGovernance.test.ts` allows `setProject(` calls only in
+  `document/` and `state/projectSlice.ts`. Nine calls in seven other files are
+  allowlisted by file and call count.
+- `state/readmeRuleGovernance.test.ts` checks the three rules in
+  `gui/web/README.md`. Files outside `api/` import the `api.ts` facade, not
+  an `api/*` adapter (26 allowlisted file and adapter pairs in 24 files).
+  A file that keeps its own `[error, setError] = useState` beside an API call
+  should use `useProjectMutation` instead (13 allowlisted files). `state/dawStore.ts`
+  is the only DAW store (two other `create` sites allowlisted).
+- `state/storeGovernance.test.ts` keeps its selector and hot-field checks.
+
+Run them with
+`cd gui/web && npx vitest run src/test/importDirection.test.ts src/state/setProjectGovernance.test.ts src/state/readmeRuleGovernance.test.ts`.
+
 ## Exact selected ranges
 
 `tests/test_selected_range.py` proves repeated-source occurrence scope, moved clips, overlap, disjoint islands, unchanged peers, stale geometry and media, guest and agent proposal authority, atomic Undo, and intentionally empty lane rendering. Run it with retained Python and supported disposable share identity and registry overrides.
