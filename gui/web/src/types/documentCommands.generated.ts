@@ -48,6 +48,10 @@ export type DocumentCommandType =
   | "SetTranscriptWordTiming"
   | "SetTranscriptWordsIgnored"
   | "SplitAtTime"
+  | "StageTextMatchCut"
+  | "StageTimeRangeCut"
+  | "StageUtteranceCut"
+  | "StageWordsCut"
   | "SuggestPendingEdit"
   | "TrimClipEdge"
   | "UndoHistory"
@@ -105,6 +109,10 @@ export const DocumentCommand = {
   SetTranscriptWordTiming: "SetTranscriptWordTiming",
   SetTranscriptWordsIgnored: "SetTranscriptWordsIgnored",
   SplitAtTime: "SplitAtTime",
+  StageTextMatchCut: "StageTextMatchCut",
+  StageTimeRangeCut: "StageTimeRangeCut",
+  StageUtteranceCut: "StageUtteranceCut",
+  StageWordsCut: "StageWordsCut",
   SuggestPendingEdit: "SuggestPendingEdit",
   TrimClipEdge: "TrimClipEdge",
   UndoHistory: "UndoHistory",

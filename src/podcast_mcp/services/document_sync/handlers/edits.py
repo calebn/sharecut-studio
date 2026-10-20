@@ -131,6 +131,52 @@ def apply_fade_recommendations(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[
     )
 
 
+def stage_time_range_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    kwargs = {"reason": p["reason"]} if p.get("reason") is not None else {}
+    EditService(ws).cut_time_range(
+        str(p["track_id"]),
+        float(p["start"]),
+        float(p["end"]),
+        review_required=p.get("review_required") is not False,
+        use_inaudible_opt=p.get("use_inaudible_opt"),
+        **kwargs,
+    )
+    return {}
+
+
+def stage_text_match_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    staged = EditService(ws).cut_text_match(
+        str(p["query"]),
+        track_id=p.get("track_id"),
+        speaker=p.get("speaker"),
+        match_all=p.get("match_all") is True,
+        review_required=p.get("review_required") is not False,
+        use_inaudible_opt=p.get("use_inaudible_opt"),
+    )
+    return {"edits": [e.model_dump() for e in staged]}
+
+
+def stage_utterance_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    EditService(ws).cut_utterance(
+        int(p["utterance_index"]),
+        review_required=p.get("review_required") is not False,
+        use_inaudible_opt=p.get("use_inaudible_opt"),
+    )
+    return {}
+
+
+def stage_words_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    EditService(ws).cut_words(
+        str(p["track_id"]),
+        int(p["start_word_index"]),
+        int(p["end_word_index"]),
+        source_id=p.get("source_id"),
+        review_required=p.get("review_required") is not False,
+        use_inaudible_opt=p.get("use_inaudible_opt"),
+    )
+    return {}
+
+
 def add_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return AnalysisService(ws).add_effect(
         track_id=str(p["track_id"]),

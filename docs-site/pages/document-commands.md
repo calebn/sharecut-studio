@@ -78,6 +78,10 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTranscriptWordTiming` | `end` (number), `expected_token` (string), `start` (number), `target` (object) | — |
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
+| `StageTextMatchCut` | `query` (string) | `match_all` (boolean), `review_required` (boolean), `speaker` (string \| null), `track_id` (string \| null), `use_inaudible_opt` (boolean \| null) |
+| `StageTimeRangeCut` | `end` (number), `start` (number), `track_id` (string) | `reason` (string \| null), `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
+| `StageUtteranceCut` | `utterance_index` (integer) | `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
+| `StageWordsCut` | `end_word_index` (integer), `start_word_index` (integer), `track_id` (string) | `review_required` (boolean), `source_id` (string \| null), `use_inaudible_opt` (boolean \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
 | `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | `override_audio_checks` (boolean) |
 | `UndoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
@@ -86,7 +90,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 54 command types._
+_Generated 58 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`
