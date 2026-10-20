@@ -938,6 +938,13 @@ button.history-row {
   cursor: pointer;
 }
 
+@media (pointer: coarse) {
+  .history-row.clickable {
+    min-block-size: var(--touch-min);
+    align-items: center;
+  }
+}
+
 /* Selected = the shared chip; hover = the wash (never the accent). */
 .history-row.selected {
   color: var(--color-chip-selected-fg);

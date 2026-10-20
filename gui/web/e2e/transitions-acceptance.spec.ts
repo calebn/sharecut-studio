@@ -208,13 +208,8 @@ test("clip names identify audio and pending hatching fills the lane", async ({
   expect(name).not.toContain(clipId!);
   expect(name).toMatch(/Select .+ clip .+\d/);
   await hit.click();
-  await expect(page.locator(".inspector")).toContainText(clipId!);
-  expect(
-    await page
-      .locator(".inspector")
-      .getByText(clipId!, { exact: true })
-      .count(),
-  ).toBe(1);
+  await expect(page.locator(".inspector")).toContainText("Delete");
+  await expect(page.locator(".inspector")).not.toContainText(clipId!);
   await expectPageAxeClean(page, ".inspector");
 });
 
