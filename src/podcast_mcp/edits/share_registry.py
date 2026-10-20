@@ -308,13 +308,19 @@ class SqliteShareRegistry:
         caps = share.get("capabilities") or []
         kind = str(share.get("kind") or SHARE_KIND_REVIEW)
         if kind not in SHARE_KINDS:
-            raise ValueError(f"unknown share kind {kind!r}")
+            raise CodedValueError(
+                f"unknown share kind {kind!r}. Use a supported share kind.",
+                code="share_kind_invalid",
+            )
         role = share.get("role")
         session_id = share.get("session_id")
         with self._ready_connection(), self._write_transaction():
             self._purge_expired_cooldown_unlocked(now)
             if self._is_reserved_unlocked(token, now):
-                raise ValueError(f"share token already reserved: {token}")
+                raise CodedValueError(
+                    "share token already reserved. Mint a new share token.",
+                    code="share_token_reserved",
+                )
             try:
                 self._conn.execute(
                     """
@@ -339,7 +345,10 @@ class SqliteShareRegistry:
                     ),
                 )
             except sqlite3.IntegrityError as exc:
-                raise ValueError(f"share token already reserved: {token}") from exc
+                raise CodedValueError(
+                    "share token already reserved. Mint a new share token.",
+                    code="share_token_reserved",
+                ) from exc
 
     def release_claim(self, token: str) -> bool:
         """Drop an active claim without cooldown (create rollback)."""
@@ -355,7 +364,10 @@ class SqliteShareRegistry:
         caps = row.get("capabilities") or []
         kind = str(row.get("kind") or SHARE_KIND_REVIEW)
         if kind not in SHARE_KINDS:
-            raise ValueError(f"unknown share kind {kind!r}")
+            raise CodedValueError(
+                f"unknown share kind {kind!r}. Use a supported share kind.",
+                code="share_kind_invalid",
+            )
         role = row.get("role")
         session_id = row.get("session_id")
         with self._ready_connection(), self._write_transaction():

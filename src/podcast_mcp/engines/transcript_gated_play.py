@@ -15,6 +15,7 @@ from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.atomic_file import publish_completed_file
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
@@ -150,10 +151,16 @@ def _gate_pcm_chunk(
 def _pcm16_wave_info(source: Any) -> tuple[int, int, int, int]:
     """Read RIFF PCM16 format and data bounds, including extensible channel layouts."""
     if source.read(4) != b"RIFF":
-        raise ValueError("transcript gate requires a RIFF PCM16 WAV stem")
+        raise CodedValueError(
+            "transcript gate requires a RIFF PCM16 WAV stem. Re-render the stem and try again.",
+            code="stem_format_unsupported",
+        )
     source.read(4)  # RIFF size
     if source.read(4) != b"WAVE":
-        raise ValueError("transcript gate requires a RIFF PCM16 WAV stem")
+        raise CodedValueError(
+            "transcript gate requires a RIFF PCM16 WAV stem. Re-render the stem and try again.",
+            code="stem_format_unsupported",
+        )
     channels = rate = 0
     while header := source.read(8):
         if len(header) != 8:
@@ -177,13 +184,22 @@ def _pcm16_wave_info(source: Any) -> tuple[int, int, int, int]:
                 or channels < 1
                 or rate < 1
             ):
-                raise ValueError("transcript gate requires an uncompressed PCM16 WAV stem")
+                raise CodedValueError(
+                    "transcript gate requires an uncompressed PCM16 WAV stem. Re-render the stem and try again.",
+                    code="stem_format_unsupported",
+                )
         elif header[:4] == b"data" and channels:
             if chunk_size % (channels * 2):
-                raise ValueError("transcript gate requires complete PCM16 WAV frames")
+                raise CodedValueError(
+                    "transcript gate requires complete PCM16 WAV frames. Re-render the stem and try again.",
+                    code="stem_format_unsupported",
+                )
             return channels, rate, chunk_start, chunk_size
         source.seek(chunk_start + chunk_size + (chunk_size % 2))
-    raise ValueError("transcript gate requires a valid PCM16 WAV stem")
+    raise CodedValueError(
+        "transcript gate requires a valid PCM16 WAV stem. Re-render the stem and try again.",
+        code="stem_format_unsupported",
+    )
 
 
 def gate_stem_window(
@@ -241,7 +257,10 @@ def gate_stem_window(
         bytes_per_frame = channels * 2
         frames = data_bytes // bytes_per_frame
         if data_start + data_bytes > stem_path.stat().st_size:
-            raise ValueError("transcript gate requires complete PCM16 WAV data")
+            raise CodedValueError(
+                "transcript gate requires complete PCM16 WAV data. Re-render the stem and try again.",
+                code="stem_format_unsupported",
+            )
         first = max(0, min(frames, round(win_start * rate)))
         last = max(first, min(frames, round(win_end * rate)))
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -361,16 +380,23 @@ def apply_restored_bleed_gate_plan(
                 if stream is not None:
                     other_channels, other_rate, other_offset, other_size = _pcm16_wave_info(stream)
                     if (channels, rate, size) != (other_channels, other_rate, other_size):
-                        raise ValueError(
-                            "bleed Restore counterfactual PCM extent or format differs"
+                        raise CodedValueError(
+                            "bleed Restore counterfactual PCM extent or format differs. Plan the restore again.",
+                            code="bleed_restore_inputs_changed",
                         )
                     if stream.seek(0, 2) < other_offset + other_size:
-                        raise ValueError("bleed Restore requires complete PCM16 WAV data")
+                        raise CodedValueError(
+                            "bleed Restore requires complete PCM16 WAV data. Re-render the stem and try again.",
+                            code="stem_format_unsupported",
+                        )
                     stream.seek(other_offset)
                 streams.append(stream)
             authored, without = streams
             if whole.seek(0, 2) < offset + size:
-                raise ValueError("bleed Restore requires complete PCM16 WAV data")
+                raise CodedValueError(
+                    "bleed Restore requires complete PCM16 WAV data. Re-render the stem and try again.",
+                    code="stem_format_unsupported",
+                )
             whole.seek(0)
             with target_path.open("wb") as target:
                 shutil.copyfileobj(whole, target, length=64 * 1024)

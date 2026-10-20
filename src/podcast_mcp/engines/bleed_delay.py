@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_RMS
 
 
@@ -107,7 +108,10 @@ def measure_long_delay_regions(
     """
     cfg = config or LongDelayConfig()
     if sample_rate <= 0 or cfg.window_sec <= 0 or cfg.max_lag_sec <= 0 or cfg.max_windows <= 0:
-        raise ValueError("long-delay evidence needs positive rate, window, bound, and budget")
+        raise CodedValueError(
+            "long-delay evidence needs positive rate, window, bound, and budget",
+            code="invalid_arguments",
+        )
     count = min(source.size, bleed.size)
     frame = max(8, round(cfg.window_sec * sample_rate))
     radius = max(1, round(cfg.max_lag_sec * sample_rate))

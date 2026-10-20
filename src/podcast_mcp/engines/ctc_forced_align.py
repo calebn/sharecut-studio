@@ -21,6 +21,7 @@ from typing import Protocol
 
 import numpy as np
 
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.pcm_stream import SequentialWindowReader
 
 FRAME_SEC_WAV2VEC2 = 0.02  # wav2vec2 conv stride: 320 samples @ 16 kHz
@@ -59,7 +60,9 @@ class CtcVocab:
         cls, token_map: Mapping[str, int], *, blank: str = "<pad>", delimiter: str | None = "|"
     ) -> CtcVocab:
         if blank not in token_map:
-            raise ValueError(f"CTC vocab has no blank token {blank!r}")
+            raise CodedValueError(
+                f"CTC vocab has no blank token {blank!r}", code="invalid_arguments"
+            )
         delimiter_id = token_map.get(delimiter) if delimiter else None
         return cls(ids=token_map, blank_id=token_map[blank], delimiter_id=delimiter_id)
 
@@ -242,7 +245,9 @@ def plan_windows(
     if not spans:
         return []
     if any(later[0] < earlier[0] for earlier, later in pairwise(spans)):
-        raise ValueError("plan_windows needs spans sorted by start time")
+        raise CodedValueError(
+            "plan_windows needs spans sorted by start time", code="invalid_arguments"
+        )
 
     groups: list[list[int]] = []
     group_first_start = 0.0

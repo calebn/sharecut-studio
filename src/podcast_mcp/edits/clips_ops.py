@@ -99,7 +99,10 @@ def clip_edges_at(
     from podcast_mcp.util.tracks import dialogue_track_ids
 
     if edge not in ("in", "out"):
-        raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
+        raise CodedValueError(
+            f"edge must be 'in' or 'out', got {edge!r}. Pass \"in\" or \"out\".",
+            code="edge_invalid",
+        )
     out: dict[str, Clip | None] = {}
     for tid in dialogue_track_ids(project):
         out[tid] = next(
@@ -154,7 +157,10 @@ def split_clip_at(clip: Clip, timeline_time: float) -> tuple[Clip, Clip]:
     """Split clip at session timeline position."""
     tl_end = clip.timeline_end
     if timeline_time <= clip.timeline_start + 1e-9 or timeline_time >= tl_end - 1e-9:
-        raise ValueError("split time must be strictly inside clip timeline bounds")
+        raise CodedValueError(
+            "split time must be strictly inside clip timeline bounds. Pick a time between the clip's start and end.",
+            code="split_outside_clip",
+        )
     source_split = clip_timeline_point_to_source(clip, timeline_time)
     fade = join_micro_fade_ms()
     before = clip.model_copy(
@@ -384,7 +390,10 @@ def trim_edge_limits(
     or the previous clip's end or timeline 0 (in).
     """
     if edge not in ("in", "out"):
-        raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
+        raise CodedValueError(
+            f"edge must be 'in' or 'out', got {edge!r}. Pass \"in\" or \"out\".",
+            code="edge_invalid",
+        )
     track_clips = clips_for_track(project, clip.track_id)
     idx = clip_index(track_clips, clip.id)
     prev = previous_clip(track_clips, clip.id)
@@ -501,11 +510,17 @@ def neighbour_clips(
     if right is None:
         raise CodedValueError(f"unknown right_clip_id: {right_clip_id!r}", code="clip_not_found")
     if left.track_id != right.track_id:
-        raise ValueError("join requires clips on the same track")
+        raise CodedValueError(
+            "join requires clips on the same track. Pick two neighbouring clips on one track.",
+            code="clips_not_adjacent",
+        )
     track_clips = clips_for_track(project, left.track_id)
     left_idx = clip_index(track_clips, left_clip_id)
     if left_idx + 1 >= len(track_clips) or track_clips[left_idx + 1].id != right_clip_id:
-        raise ValueError("right clip must be the next clip after left on the track")
+        raise CodedValueError(
+            "right clip must be the next clip after left on the track. Pick two neighbouring clips on one track.",
+            code="clips_not_adjacent",
+        )
     return left, right, track_clips, left_idx
 
 
@@ -524,7 +539,10 @@ def roll_clip_join(
     regions, since the join can hand a muted span from one to the other.
     """
     if not math.isfinite(delta_sec):
-        raise ValueError("delta_sec must be finite")
+        raise CodedValueError(
+            "delta_sec must be finite. Pass a finite number of seconds.",
+            code="delta_sec_not_finite",
+        )
     left, right, _, _ = neighbour_clips(project, left_clip_id, right_clip_id)
 
     lo, hi = roll_join_limits(project, left_clip_id, right_clip_id)
@@ -613,20 +631,28 @@ def move_clips(project: EpisodeProject, moves: Sequence[Mapping[str, Any]]) -> l
     allowed. Inter-track moves pin ``source_id`` to the originating media.
     """
     if not moves:
-        raise ValueError("clips must be a non-empty list")
+        raise CodedValueError(
+            "clips must be a non-empty list. Pass at least one clip to move.",
+            code="missing_argument",
+        )
     seen: set[str] = set()
     parsed: list[tuple[Clip, float, str]] = []
     for raw in moves:
         cid = str(raw["clip_id"])
         if cid in seen:
-            raise ValueError(f"duplicate clip_id: {cid!r}")
+            raise CodedValueError(
+                f"duplicate clip_id: {cid!r}. Name each clip once.", code="duplicate_clip_id"
+            )
         seen.add(cid)
         clip = next((c for c in project.clips if c.id == cid), None)
         if clip is None:
             raise CodedValueError(f"unknown clip_id: {cid!r}", code="clip_not_found")
         tl = float(raw["timeline_start"])
         if not math.isfinite(tl) or tl < 0:
-            raise ValueError(f"timeline_start must be >= 0, got {tl!r}")
+            raise CodedValueError(
+                f"timeline_start must be >= 0, got {tl!r}. Pick a start at or after 0.",
+                code="out_of_range",
+            )
         tid = str(raw["track_id"])
         if project.track_by_id(tid) is None:
             raise unknown_track(tid)
@@ -635,8 +661,9 @@ def move_clips(project: EpisodeProject, moves: Sequence[Mapping[str, Any]]) -> l
         if tid != clip.track_id:
             pin_clip_source_id(project, clip)
             if not clip.source_id:
-                raise ValueError(
-                    f"cannot move clip {clip.id!r} to another track without origin media"
+                raise CodedValueError(
+                    f"cannot move clip {clip.id!r} to another track without origin media. Move it within its own track instead.",
+                    code="clip_move_needs_media",
                 )
             clip.track_id = tid
         destination = project.track_by_id(tid)

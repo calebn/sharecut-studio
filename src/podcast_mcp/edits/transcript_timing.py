@@ -10,7 +10,7 @@ from typing import Any
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
 
 class TranscriptTimingChangedError(CodedError, ValueError):
@@ -111,14 +111,21 @@ def validate_word_timing(
             "The transcript or recording changed. Reopen Adjust timing before saving."
         )
     if not math.isfinite(start) or not math.isfinite(end):
-        raise ValueError("Word times must be finite source seconds.")
+        raise CodedValueError(
+            "Word times must be finite source seconds. Pass finite start and end seconds.",
+            code="word_time_not_finite",
+        )
     if media.duration_sec is None:
-        raise ValueError(
-            "Recording duration is unavailable. Wait for its waveform, then reopen Adjust timing."
+        raise CodedValueError(
+            "Recording duration is unavailable. Wait for its waveform, then reopen Adjust timing.",
+            code="recording_duration_unavailable",
         )
     minimum = 1 / media.sample_rate if media.sample_rate else 1e-6
     if start < 0 or end > media.duration_sec or end - start < minimum - 1e-12:
-        raise ValueError("Word timing must have a positive span within this recording.")
+        raise CodedValueError(
+            "Word timing must have a positive span within this recording.",
+            code="word_timing_invalid",
+        )
     word = transcript.words[target.word_index]
     return word.start != start or word.end != end
 

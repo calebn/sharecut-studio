@@ -37,6 +37,7 @@ import numpy as np
 
 from podcast_mcp.engines.speaker_hand_overs import frame_levels, settle_hand_overs, voice_runs
 from podcast_mcp.engines.speaker_id import SpeakerBackend
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import bool_runs
 from podcast_mcp.util.progress import (
     ProgressReporter,
@@ -329,13 +330,21 @@ def attribute_speakers(
     the remaining indices in the order they first talk.
     """
     if speaker_count < 2:
-        raise ValueError("a speaker split needs at least two speakers")
+        raise CodedValueError(
+            "a speaker split needs at least two speakers. Pass at least 2.",
+            code="speaker_split_count_required",
+        )
     if enrollment and not set(enrollment) <= set(range(speaker_count)):
-        raise ValueError(f"enrolled speakers must be numbered 0 to {speaker_count - 1}")
+        raise CodedValueError(
+            f"enrolled speakers must be numbered 0 to {speaker_count - 1}",
+            code="speaker_enrolled_count_mismatch",
+        )
     duration = samples.size / RATE
     frames = samples.size // round(FRAME_SEC * RATE)
     if frames == 0:
-        raise ValueError("recording is too short to split")
+        raise CodedValueError(
+            "recording is too short to split. Pick a longer recording.", code="recording_too_short"
+        )
     with resolve_progress_task(
         "speaker-split", "Speaker split", prefer_parent=True, progress=progress
     ) as task:
@@ -343,7 +352,10 @@ def attribute_speakers(
         voiced = np.ones(frames, dtype=bool) if detected is None else detected
         centers = _window_centers(voiced, duration, window_sec)
         if centers.size < speaker_count:
-            raise ValueError("too little speech to tell the speakers apart")
+            raise CodedValueError(
+                "too little speech to tell the speakers apart. Pick a recording where each speaker talks.",
+                code="too_little_speech",
+            )
         task.advance(0, total=centers.size + 2, message=f"Embedding {centers.size} windows")
 
         def embedded_one() -> None:

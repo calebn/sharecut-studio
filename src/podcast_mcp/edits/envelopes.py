@@ -7,6 +7,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def volume_envelope_baseline(project: EpisodeProject, track_id: str) -> list[dict[str, Any]]:
@@ -63,4 +64,4 @@ def validate_envelope_point_times(
         if (str(point.get("id")), time) in saved:
             continue
         if not 0.0 <= time <= timeline_end:
-            raise ValueError(envelope_time_range_message(timeline_end))
+            raise CodedValueError(envelope_time_range_message(timeline_end), code="out_of_range")

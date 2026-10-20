@@ -24,6 +24,7 @@ from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.workspace_paths import resolve_within
@@ -49,7 +50,10 @@ def track_diagnostics_audio_path(project: EpisodeProject, track_id: str) -> Path
     if path is None:
         track = project.track_by_id(track_id)
         if not track or not track.media:
-            raise ValueError(f"no audio available for track {track_id!r}")
+            raise CodedValueError(
+                f"no audio available for track {track_id!r}. Add or restore that track's audio first.",
+                code="track_has_no_media",
+            )
         path = Path(track.media.path)
         if not path.is_absolute():
             path = project.workspace_path() / path
@@ -59,12 +63,18 @@ def track_diagnostics_audio_path(project: EpisodeProject, track_id: str) -> Path
 def diagnostics_dir(project: EpisodeProject, track_id: str) -> Path:
     """Resolved ``artifacts/diagnostics/<track_id>/``, refusing path traversal."""
     if not track_id or _UNSAFE_TRACK_ID.search(track_id) or track_id in {".", ".."}:
-        raise ValueError(f"unsafe track_id for diagnostics path: {track_id!r}")
+        raise CodedValueError(
+            f"unsafe track_id for diagnostics path: {track_id!r}. Use a track id from this project.",
+            code="track_id_unsafe",
+        )
     root = (project.artifacts_dir() / "diagnostics").resolve()
     try:
         out = resolve_within(root, str(root / track_id))
     except ValueError:
-        raise ValueError(f"diagnostics path escaped artifacts: {track_id!r}") from None
+        raise CodedValueError(
+            f"diagnostics path escaped artifacts: {track_id!r}. Use a track id from this project.",
+            code="track_id_unsafe",
+        ) from None
     out.mkdir(parents=True, exist_ok=True)
     return out
 
@@ -131,7 +141,10 @@ def audio_diagnostics_report(
     file_end: float
     if start_sec is not None and end_sec is not None:
         if end_sec <= start_sec:
-            raise ValueError("end_sec must be after start_sec")
+            raise CodedValueError(
+                "end_sec must be after start_sec. Pick an end_sec later than start_sec.",
+                code="range_end_before_start",
+            )
         window = (start_sec, end_sec)
         extract_path, file_start, file_end = _window_extract_spec(
             project, track_id, start_sec, end_sec

@@ -649,7 +649,10 @@ def encode_version_mp3(
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{version_id}/mix.mp3"
     version_dir = (resolved_root / version_id).resolve()
     if not version_dir.is_relative_to(resolved_root):
-        raise ValueError("review version directory must stay under artifacts/review/")
+        raise CodedValueError(
+            "review version directory must stay under artifacts/review/",
+            code="review_media_outside_workspace",
+        )
     version_dir.mkdir(parents=True, exist_ok=True)
     mp3_path = version_dir / "mix.mp3"
     engine = eng or FFmpegEngine()
@@ -702,7 +705,7 @@ def stage_version(
     """
     text = (label or "").strip()
     if not text:
-        raise ValueError("label is required")
+        raise CodedValueError("label is required. Name the review version.", code="empty_text")
     src, source = resolve_source_mix(project, prefer=prefer)
     if not _SAFE_FAILED_CLEANUP_SUPPORTED:
         raise OSError(errno.ENOTSUP, "safe review publication requires directory descriptors")

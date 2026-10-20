@@ -51,6 +51,7 @@ from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_DB,
     SPEECH_BAND,
@@ -99,8 +100,9 @@ def parse_bleed_handling(value: object) -> BleedHandling:
     for handling in get_args(BleedHandling):
         if value == handling:
             return handling
-    raise ValueError(
-        f"analysis.heuristics.bleed_handling must be one of {get_args(BleedHandling)}, not {value!r}"
+    raise CodedValueError(
+        f"analysis.heuristics.bleed_handling must be one of {get_args(BleedHandling)}, not {value!r}",
+        code="pipeline_config_value_invalid",
     )
 
 
@@ -684,7 +686,10 @@ def _ungated_cache(
 
     track = snapshot.track_by_id(track_id)
     if track is None:
-        raise ValueError(f"track {track_id!r} is unavailable")
+        raise CodedValueError(
+            f"track {track_id!r} is unavailable. Add media to that track first.",
+            code="track_has_no_media",
+        )
     track.transcript_gate = False
     if not with_chain:
         snapshot.processing_chains = [

@@ -346,14 +346,25 @@ def ensure_splittable(project: EpisodeProject, track_id: str) -> tuple[Track, st
     """The track ``track_id`` names and its media path, if it holds one recording not yet split."""
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
-        raise ValueError(f"track {track_id} has no media to split")
+        raise CodedValueError(
+            f"track {track_id} has no media to split. Add media to that track first.",
+            code="speaker_split_no_media",
+        )
     if split_for_track(project, track_id) is not None:
-        raise ValueError(f"track {track_id} is already split by speaker")
+        raise CodedValueError(
+            f"track {track_id} is already split by speaker", code="speaker_split_already_split"
+        )
     clips = clips_for_track(project, track_id)
     if not clips:
-        raise ValueError(f"track {track_id} has no clips to split")
+        raise CodedValueError(
+            f"track {track_id} has no clips to split. Add clips to that track first.",
+            code="speaker_split_no_media",
+        )
     if any(clip.source_id is not None for clip in clips):
-        raise ValueError(f"track {track_id} plays more than one recording; split needs one")
+        raise CodedValueError(
+            f"track {track_id} plays more than one recording; split needs one",
+            code="speaker_split_multiple_recordings",
+        )
     return track, track.media.path
 
 
@@ -388,9 +399,14 @@ def split_track_by_speaker(
             code="speaker_split_media_changed",
         )
     if crosstalk_mode not in CROSSTALK_MODES:
-        raise ValueError(f"crosstalk_mode must be one of {CROSSTALK_MODES}")
+        raise CodedValueError(
+            f"crosstalk_mode must be one of {CROSSTALK_MODES}", code="crosstalk_mode_invalid"
+        )
     if len(names) != attribution.speaker_count:
-        raise ValueError(f"expected {attribution.speaker_count} speaker names, got {len(names)}")
+        raise CodedValueError(
+            f"expected {attribution.speaker_count} speaker names, got {len(names)}. Pass one name per speaker.",
+            code="speaker_names_count_mismatch",
+        )
 
     taken: set[str] = {track_id}
     lanes = [track_id] + [

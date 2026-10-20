@@ -73,13 +73,19 @@ def _source_audio_path(
     if source_id:
         src = project.source_by_id(source_id)
         if src is None:
-            raise ValueError(f"{owner} source_id {source_id!r} is not in sources[]")
+            raise CodedValueError(
+                f"{owner} source_id {source_id!r} is not in sources[]. Re-ingest the source or fix the clip's source_id.",
+                code="source_not_found",
+            )
         path = resolve_under_workspace(project, src.path)
         if not path.is_file():
             raise FileNotFoundError(f"{owner} source {source_id!r} is missing: {path}")
         return path
     if not track.media:
-        raise ValueError(f"track {track.id} has no media")
+        raise CodedValueError(
+            f"track {track.id} has no media. Add media to that track first.",
+            code="track_has_no_media",
+        )
     return resolve_under_workspace(project, track.media.path)
 
 
@@ -176,7 +182,10 @@ def render_track_from_timeline(
     engine: FFmpegEngine | None = None,
 ) -> Path:
     if not track.media:
-        raise ValueError(f"track {track.id} has no media")
+        raise CodedValueError(
+            f"track {track.id} has no media. Add media to that track first.",
+            code="track_has_no_media",
+        )
 
     dependencies = _restore_dependencies(project, track)
     eng = engine or FFmpegEngine()
@@ -288,7 +297,9 @@ def _place_clips(
         authored_frontier = max(authored_frontier, content.timeline_end)
         clock_shift = authored_frontier - frontier
     if not components:
-        raise ValueError("no clips to render")
+        raise CodedValueError(
+            "no clips to render. Add a clip to the track first.", code="missing_argument"
+        )
     ats = [At(component.start, component.audio) for component in components]
     return _PlacedTrack(
         MixAudio(ats[0], tuple(ats[1:])),
@@ -655,7 +666,10 @@ def render_source_with_chain(
     elif track.media is not None:
         stored_path = track.media.path
     else:
-        raise ValueError(f"track {track.id} has no media")
+        raise CodedValueError(
+            f"track {track.id} has no media. Add media to that track first.",
+            code="track_has_no_media",
+        )
 
     eng = engine or FFmpegEngine()
     src = resolve_under_workspace(project, stored_path)
@@ -711,7 +725,10 @@ def render_track_segment(
     in the output - same placement rules as full-stem ``render_track_from_timeline``.
     """
     if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
+        raise CodedValueError(
+            "timeline_end must be after timeline_start. Pick a timeline_end later than timeline_start.",
+            code="range_end_before_start",
+        )
 
     track = project.track_by_id(track_id)
     if not track:

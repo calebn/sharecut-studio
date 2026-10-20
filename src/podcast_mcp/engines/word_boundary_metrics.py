@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass
 from math import ceil, isfinite
 from typing import Any
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 MAX_BENCHMARK_WORDS = 256
 
 # #715: the sensitivity table for DEFAULT_MAX_WORD_DURATION_SEC re-tuning.
@@ -144,13 +146,17 @@ def matched_word_pairs(
 
 def _validate(reference: list[dict[str, Any]], prediction: list[dict[str, Any]]) -> None:
     if len(reference) > MAX_BENCHMARK_WORDS or len(prediction) > MAX_BENCHMARK_WORDS:
-        raise ValueError(
-            f"word-boundary benchmark supports at most {MAX_BENCHMARK_WORDS} words per side"
+        raise CodedValueError(
+            f"word-boundary benchmark supports at most {MAX_BENCHMARK_WORDS} words per side. Use a smaller sample.",
+            code="benchmark_input_invalid",
         )
     for words in (reference, prediction):
         for word in words:
             if not isinstance(word.get("text"), str) or not _key(word["text"]):
-                raise ValueError("every word needs nonempty text")
+                raise CodedValueError(
+                    "every word needs nonempty text. Remove empty words.",
+                    code="benchmark_input_invalid",
+                )
             start, end = word.get("start"), word.get("end")
             if (
                 isinstance(start, bool)
@@ -158,9 +164,15 @@ def _validate(reference: list[dict[str, Any]], prediction: list[dict[str, Any]])
                 or not isinstance(start, (int, float))
                 or not isinstance(end, (int, float))
             ):
-                raise ValueError("every word needs numeric start and end")
+                raise CodedValueError(
+                    "every word needs numeric start and end. Give each word a start and end.",
+                    code="benchmark_input_invalid",
+                )
             if not (isfinite(start) and isfinite(end) and 0 <= start < end):
-                raise ValueError("word boundaries must satisfy 0 <= start < end")
+                raise CodedValueError(
+                    "word boundaries must satisfy 0 <= start < end. Fix the word times.",
+                    code="benchmark_input_invalid",
+                )
 
 
 def _matched_pairs(

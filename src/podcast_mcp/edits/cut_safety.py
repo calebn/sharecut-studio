@@ -74,6 +74,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.util.batch_scope import scoped, scoped_by_file
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -334,7 +335,10 @@ def inspect_source_remove_placement(
         or edit.exact_range is not None
         or edit.timebase != "source"
     ):
-        raise ValueError("ordinary source remove or mute required")
+        raise CodedValueError(
+            "ordinary source remove or mute required. Use a remove or mute edit.",
+            code="edit_type_invalid",
+        )
     if not (math.isfinite(edit.start) and math.isfinite(edit.end) and 0 <= edit.start < edit.end):
         return CutScopeHold(edit.id, (), "source_geometry")
     pause = edit.type == EditDecisionType.REMOVE and (edit.reason or "").startswith("pause:")
@@ -891,7 +895,10 @@ def assess_proposed_cut(
 ) -> JoinContinuityReport:
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     if cut_end <= cut_start:
-        raise ValueError("cut_end must be > cut_start")
+        raise CodedValueError(
+            "cut_end must be > cut_start. Pick a cut_end later than cut_start.",
+            code="range_end_before_start",
+        )
     samples = join_continuity._resolve_source_samples(
         project, track_id, cfg.sample_rate, audio_caches=audio_caches
     )
@@ -903,8 +910,9 @@ def assess_proposed_cut(
         mapped0 = st.timeline_to_source(track_id, TimelineSec(cut_start))
         mapped1 = st.timeline_to_source(track_id, TimelineSec(cut_end))
         if mapped0 is None or mapped1 is None:
-            raise ValueError(
-                f"timeline cut {cut_start}->{cut_end} falls in a gap on track {track_id!r}"
+            raise CodedValueError(
+                f"timeline cut {cut_start}->{cut_end} falls in a gap on track {track_id!r}. Pick a range inside the track's clips.",
+                code="no_clip_at_time",
             )
         src0, src1 = float(mapped0), float(mapped1)
     else:
@@ -1346,7 +1354,10 @@ def complete_effect_acoustics(
             edit = next((item for item in project.edit_decisions if item.id == edit_id), None)
             try:
                 if edit is None:
-                    raise ValueError("pause contributor has no current edit")
+                    raise CodedValueError(
+                        "pause contributor has no current edit. Refresh the pending edits and try again.",
+                        code="edit_not_found",
+                    )
                 recording = recording_audio_path(project, edit.track_id, edit.source_id)
                 recording = recording.resolve(strict=True)
                 placements: list[tuple[str, float]] = []
@@ -1544,7 +1555,10 @@ def _heard_timeline_audio_cache(
     snapshot = project.model_copy(deep=True)
     track = snapshot.track_by_id(track_id)
     if track is None or track.media is None:
-        raise ValueError(f"track {track_id} has no renderable media")
+        raise CodedValueError(
+            f"track {track_id} has no renderable media. Add media to that track first.",
+            code="track_has_no_media",
+        )
     track.transcript_gate = False
     snapshot.processing_chains = [
         chain

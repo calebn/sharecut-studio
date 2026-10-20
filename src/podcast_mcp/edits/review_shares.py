@@ -32,6 +32,7 @@ from podcast_mcp.edits.share_registry import (
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 
 _SHARES_NAME = "shares.json"
@@ -88,23 +89,40 @@ def create_share(
 
     assert SHARE_TOKEN_IS_GLOBALLY_UNIQUE  # documented contract
     if kind not in SHARE_KINDS:
-        raise ValueError(f"unknown share kind {kind!r}")
+        raise CodedValueError(
+            f"unknown share kind {kind!r}. Use a supported share kind.", code="share_kind_invalid"
+        )
     if expires_at is not None and _parse_iso(expires_at) is None:
-        raise ValueError(f"expires_at must be ISO 8601, got {expires_at!r}")
+        raise CodedValueError(
+            f"expires_at must be ISO 8601, got {expires_at!r}. Pass an ISO 8601 time such as 2026-12-31T00:00:00Z.",
+            code="expires_at_invalid",
+        )
     ga = normalize_general_access(general_access)
     if kind == SHARE_KIND_REVIEW:
         get_version(project, review_version_id)
         caps_out = normalize_capabilities(capabilities)
     else:
         if review_version_id != RECORD_REVIEW_VERSION_SENTINEL:
-            raise ValueError("record shares must use an empty review_version_id")
+            raise CodedValueError(
+                "record shares must use an empty review_version_id. Leave review_version_id empty.",
+                code="invalid_record_request",
+            )
         record_role = str(role or "").strip().lower()
         if record_role not in RECORD_ROLE_PRESETS:
-            raise ValueError("record shares require role guest or producer")
+            raise CodedValueError(
+                "record shares require role guest or producer. Choose the guest or producer role.",
+                code="invalid_record_request",
+            )
         if not session_id:
-            raise ValueError("record shares require session_id")
+            raise CodedValueError(
+                "record shares require session_id. Pass the recording session id.",
+                code="invalid_record_request",
+            )
         if ga != "link" or require_sign_in:
-            raise ValueError("record links do not support restricted access yet")
+            raise CodedValueError(
+                "record links do not support restricted access yet. Share it with anyone who has the link.",
+                code="invalid_record_request",
+            )
         role = record_role
         caps_out = record_capabilities_for_role(role)
     created = _now_iso()

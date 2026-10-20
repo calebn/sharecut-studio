@@ -43,6 +43,7 @@ import numpy as np
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.ffmpeg import PCM_STREAM_CHUNK_FRAMES, FFmpegEngine
 from podcast_mcp.util.atomic_file import atomic_write
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.process import current_niceness, low_priority
@@ -170,7 +171,7 @@ def _knobs(
     fac = level_factor() if factor is None else factor
     bpt = bins_per_data_tile() if bins_per_tile is None else bins_per_tile
     if spp < 1 or fac < 2 or bpt < 1:
-        raise ValueError("invalid pyramid knobs")
+        raise CodedValueError("invalid pyramid knobs", code="invalid_arguments")
     return spp, fac, bpt
 
 
@@ -196,7 +197,7 @@ def build_levels(
     gives one level with 0 bins.
     """
     if sample_rate < 1 or channels < 1:
-        raise ValueError("sample_rate and channels must be >= 1")
+        raise CodedValueError("sample_rate and channels must be >= 1", code="invalid_arguments")
     spp, fac, bpt = _knobs(base_spp, factor, bins_per_tile)
     carry = np.zeros((0, channels), dtype=np.float32)
     mins: list[np.ndarray] = []
@@ -208,7 +209,10 @@ def build_levels(
         if arr.ndim == 1 and channels == 1:
             arr = arr.reshape(-1, 1)
         if arr.ndim != 2 or arr.shape[1] != channels:
-            raise ValueError(f"chunk shape {arr.shape} does not match {channels} channel(s)")
+            raise CodedValueError(
+                f"chunk shape {arr.shape} does not match {channels} channel(s)",
+                code="invalid_arguments",
+            )
         if not len(arr):
             continue
         arr = _sanitize_pcm(arr)
@@ -257,7 +261,7 @@ def write_pyramid(
     """Serialize *levels* (from ``build_levels``) to a ``.wfpk`` file atomically."""
     spp, fac, bpt = _knobs(base_spp, factor, bins_per_tile)
     if not levels:
-        raise ValueError("a pyramid needs at least one level")
+        raise CodedValueError("a pyramid needs at least one level", code="invalid_arguments")
     header_bytes = HEADER_BYTES + LEVEL_ENTRY_BYTES * len(levels)
     header = HEADER_STRUCT.pack(
         MAGIC,
@@ -278,9 +282,11 @@ def write_pyramid(
     level_spp = spp
     for level in levels:
         if level.ndim != 2 or level.shape[1] != 3:
-            raise ValueError("each level must be a (bins, 3) array")
+            raise CodedValueError("each level must be a (bins, 3) array", code="invalid_arguments")
         if len(level) != _ceil_div(total_frames, level_spp):
-            raise ValueError("level bin count does not match total_frames")
+            raise CodedValueError(
+                "level bin count does not match total_frames", code="invalid_arguments"
+            )
         table += LEVEL_STRUCT.pack(level_spp, len(level), offset)
         offset += len(level) * BIN_BYTES
         level_spp *= fac
@@ -300,7 +306,9 @@ def read_meta(path: Path) -> PyramidMeta:
     with path.open("rb") as fh:
         head = fh.read(HEADER_BYTES)
         if len(head) < HEADER_BYTES:
-            raise ValueError("truncated pyramid header")
+            raise CodedValueError(
+                "truncated pyramid header. Rebuild the waveform.", code="waveform_pyramid_corrupt"
+            )
         (
             magic,
             version,
@@ -316,32 +324,59 @@ def read_meta(path: Path) -> PyramidMeta:
             _flags,
         ) = HEADER_STRUCT.unpack(head)
         if magic != MAGIC:
-            raise ValueError("not a .wfpk file")
+            raise CodedValueError(
+                "not a .wfpk file. Rebuild the waveform.", code="waveform_pyramid_corrupt"
+            )
         if version != waveform_format_version():
-            raise ValueError(f"unsupported .wfpk version {version}")
+            raise CodedValueError(
+                f"unsupported .wfpk version {version}. Rebuild the waveform.",
+                code="waveform_pyramid_corrupt",
+            )
         if bin_bytes != BIN_BYTES:
-            raise ValueError(f"unsupported bin size {bin_bytes}")
+            raise CodedValueError(
+                f"unsupported bin size {bin_bytes}. Rebuild the waveform.",
+                code="waveform_pyramid_corrupt",
+            )
         if level_count < 1 or header_bytes != HEADER_BYTES + LEVEL_ENTRY_BYTES * level_count:
-            raise ValueError("bad pyramid level table size")
+            raise CodedValueError(
+                "bad pyramid level table size. Rebuild the waveform.",
+                code="waveform_pyramid_corrupt",
+            )
         if sample_rate < 1 or channels < 1 or base_spp < 1 or factor < 2 or bins_per_tile < 1:
-            raise ValueError("bad pyramid header fields")
+            raise CodedValueError(
+                "bad pyramid header fields. Rebuild the waveform.", code="waveform_pyramid_corrupt"
+            )
         table = fh.read(LEVEL_ENTRY_BYTES * level_count)
     if len(table) < LEVEL_ENTRY_BYTES * level_count:
-        raise ValueError("truncated pyramid level table")
+        raise CodedValueError(
+            "truncated pyramid level table. Rebuild the waveform.", code="waveform_pyramid_corrupt"
+        )
     levels: list[PyramidLevel] = []
     prev_spp = 0
     for idx in range(level_count):
         spp, bins, data_offset = LEVEL_STRUCT.unpack_from(table, idx * LEVEL_ENTRY_BYTES)
         if spp <= prev_spp:
-            raise ValueError("pyramid spp must increase per level")
+            raise CodedValueError(
+                "pyramid spp must increase per level. Rebuild the waveform.",
+                code="waveform_pyramid_corrupt",
+            )
         if bins != _ceil_div(total_frames, spp):
-            raise ValueError("pyramid bin count does not match total_frames")
+            raise CodedValueError(
+                "pyramid bin count does not match total_frames. Rebuild the waveform.",
+                code="waveform_pyramid_corrupt",
+            )
         if data_offset < header_bytes or data_offset + bins * BIN_BYTES > size:
-            raise ValueError("pyramid level data out of bounds")
+            raise CodedValueError(
+                "pyramid level data out of bounds. Rebuild the waveform.",
+                code="waveform_pyramid_corrupt",
+            )
         levels.append(PyramidLevel(spp=spp, bins=bins, data_offset=data_offset))
         prev_spp = spp
     if levels[0].spp != base_spp:
-        raise ValueError("level 0 spp must equal base_spp")
+        raise CodedValueError(
+            "level 0 spp must equal base_spp. Rebuild the waveform.",
+            code="waveform_pyramid_corrupt",
+        )
     return PyramidMeta(
         version=version,
         header_bytes=header_bytes,
@@ -358,9 +393,13 @@ def read_meta(path: Path) -> PyramidMeta:
 def read_bins(path: Path, meta: PyramidMeta, level: int, start_bin: int, count: int) -> bytes:
     """Raw ``(min, max, rms)`` int16 bins ``[start_bin, start_bin+count)``, clipped at level end."""
     if not 0 <= level < len(meta.levels):
-        raise ValueError(f"level {level} out of range")
+        raise CodedValueError(
+            f"level {level} out of range. Pick an existing level.", code="invalid_waveform_request"
+        )
     if start_bin < 0 or count < 0:
-        raise ValueError("start_bin and count must be >= 0")
+        raise CodedValueError(
+            "start_bin and count must be >= 0. Pass 0 or more.", code="invalid_waveform_request"
+        )
     lv = meta.levels[level]
     end = min(start_bin + count, lv.bins)
     if start_bin >= end:
@@ -567,14 +606,22 @@ def read_pcm_minmax(
     parsing the WAV header again; it must be for *path* (``ValueError`` otherwise).
     """
     if start_frame < 0 or frames < 0:
-        raise ValueError("start_frame and frames must be >= 0")
+        raise CodedValueError(
+            "start_frame and frames must be >= 0. Pass 0 or more.", code="invalid_waveform_request"
+        )
     max_frames = PCM_WINDOW_MAX_BLOCKS * pcm_block_frames()
     if frames > max_frames:
-        raise ValueError(f"PCM window of {frames} frames exceeds {max_frames}")
+        raise CodedValueError(
+            f"PCM window of {frames} frames exceeds {max_frames}. Ask for a smaller window.",
+            code="invalid_waveform_request",
+        )
     if source is None:
         source = probe_pcm_source(path)
     elif source.path != path:
-        raise ValueError("source was probed for a different path")
+        raise CodedValueError(
+            "source was probed for a different path. Probe the source again.",
+            code="invalid_waveform_request",
+        )
     info = source.wav
     if info is not None:
         start = min(start_frame, info.frames)
@@ -624,7 +671,7 @@ def ref_slug(kind: str, ref_id: str) -> str:
 def pyramid_path(peaks_dir: Path, slug: str, key: str) -> Path:
     """``peaks_dir/{slug}.{key}.wfpk``; ``ValueError`` if it would escape *peaks_dir*."""
     if not SAFE_TRACK_ID.fullmatch(slug) or not _KEY_RE.fullmatch(key):
-        raise ValueError("invalid pyramid slug or key")
+        raise CodedValueError("invalid pyramid slug or key", code="invalid_waveform_request")
     return resolve_within(peaks_dir, f"{slug}.{key}.wfpk")
 
 
@@ -709,7 +756,7 @@ def write_synthetic_pyramid(
     ``silent=True`` writes all-zero bins. Used for large-project fixtures.
     """
     if sample_rate < 1 or total_frames < 0:
-        raise ValueError("invalid synthetic pyramid size")
+        raise CodedValueError("invalid synthetic pyramid size", code="invalid_arguments")
     spp, fac, bpt = _knobs(None, None, None)
     n_bins = _ceil_div(total_frames, spp)
     amp = np.zeros(n_bins, dtype=np.float64)
@@ -811,7 +858,9 @@ def build_pyramid(
 def _slug_from_out(out: Path, key: str) -> str:
     suffix = f".{key}.wfpk"
     if not _KEY_RE.fullmatch(key) or not out.name.endswith(suffix):
-        raise ValueError(f"pyramid path {out.name!r} does not match key {key!r}")
+        raise CodedValueError(
+            f"pyramid path {out.name!r} does not match key {key!r}", code="invalid_arguments"
+        )
     return out.name[: -len(suffix)]
 
 

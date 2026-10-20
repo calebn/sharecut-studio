@@ -43,6 +43,7 @@ from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_RMS,
     autocorr_peak,
@@ -647,7 +648,10 @@ def _splice_points(
     st = timeline or SessionTimeline(project)
     mapped = st.timeline_to_source(track_id, TimelineSec(join_sec))
     if mapped is None:
-        raise ValueError(f"timeline join {join_sec} falls in a gap on track {track_id!r}")
+        raise CodedValueError(
+            f"timeline join {join_sec} falls in a gap on track {track_id!r}. Pick a join point on a clip.",
+            code="no_clip_at_time",
+        )
     return float(mapped), float(mapped)
 
 
@@ -764,7 +768,9 @@ def _preferred_audio_stream(path: Path) -> int:
     )
     streams = json.loads(result.stdout).get("streams", [])
     if not streams:
-        raise ValueError(f"no audio stream in {path}")
+        raise CodedValueError(
+            f"no audio stream in {path.name}. Choose a playable audio file.", code="invalid_audio"
+        )
     return max(
         range(len(streams)),
         key=lambda i: (

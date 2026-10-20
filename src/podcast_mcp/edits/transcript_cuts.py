@@ -27,6 +27,7 @@ from podcast_mcp.models import (
     Transcript,
 )
 from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import normalize_text
 from podcast_mcp.util.timebase import SourceSec
 
@@ -175,7 +176,9 @@ def time_range_from_words(
 ) -> tuple[float, float]:
     words = transcript.words
     if not words:
-        raise ValueError("Transcript has no words")
+        raise CodedValueError(
+            "Transcript has no words. Transcribe that track first.", code="no_transcript_words"
+        )
     start = max(0, min(start_word_index, len(words) - 1))
     end = max(start, min(end_word_index, len(words) - 1))
     return words[start].start, words[end].end
@@ -186,7 +189,9 @@ def time_range_from_utterance(
     utterance_index: int,
 ) -> tuple[str, str | None, float, float, str]:
     if utterance_index < 0 or utterance_index >= len(combined.utterances):
-        raise ValueError(f"Utterance index out of range: {utterance_index}")
+        raise CodedValueError(
+            f"Utterance index out of range: {utterance_index}", code="utterance_index_out_of_range"
+        )
     utt = combined.utterances[utterance_index]
     return utt.track_id, utt.source_id, utt.start, utt.end, utt.text
 
@@ -220,9 +225,12 @@ def append_remove_decision(
     ``decision_id`` is the generator's stable hit id; omitted, the id is random.
     """
     if end <= start:
-        raise ValueError("end must be greater than start")
+        raise CodedValueError(
+            "end must be greater than start. Pick an end after the start.",
+            code="range_end_before_start",
+        )
     if decision_type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
-        raise ValueError("decision_type must be remove or mute")
+        raise CodedValueError("decision_type must be remove or mute", code="edit_type_invalid")
     decision = EditDecision(
         id=decision_id or f"cut_{uuid.uuid4().hex[:8]}",
         track_id=track_id,
@@ -261,7 +269,10 @@ def append_split_decision(
 ) -> EditDecision:
     """Append a pending blade/split decision (timeline clock, start == end)."""
     if not track_ids:
-        raise ValueError("track_ids required for split proposal")
+        raise CodedValueError(
+            "track_ids required for split proposal. Pass at least one track id.",
+            code="track_ids_empty",
+        )
     decision = EditDecision(
         id=f"split_{uuid.uuid4().hex[:8]}",
         track_id=track_ids[0],
@@ -297,7 +308,10 @@ def add_remove_decision(
     merge_ids: set[str] | None = None,
 ) -> EditDecision:
     if end <= start:
-        raise ValueError("end must be greater than start")
+        raise CodedValueError(
+            "end must be greater than start. Pick an end after the start.",
+            code="range_end_before_start",
+        )
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.cut_safety import (
         CutScopeHold,
@@ -314,7 +328,10 @@ def add_remove_decision(
 
     transcript = _cut_transcript_for_source(project, track_id, source_id) if source_aware else None
     if source_aware and transcript is None and source_id is not None:
-        raise ValueError(f"No transcript for track {track_id} source {source_id}")
+        raise CodedValueError(
+            f"No transcript for track {track_id} source {source_id}. Transcribe that track first.",
+            code="transcript_not_found",
+        )
     selected_source_ids = project.equivalent_source_ids(track_id, source_id)
     selected_clips = any(
         clip_plays_lane(project, clip, track_id) and clip.source_id in selected_source_ids
@@ -368,9 +385,10 @@ def add_remove_decision(
         pacing_kwargs["transcript"] = transcript
     paced = apply_filler_pacing(project, track_id, start, end, **pacing_kwargs)
     if paced is None:
-        raise ValueError(
+        raise CodedValueError(
             "cut would leave flanking words closer than min_gap_after_filler_sec; "
-            "widen the retained gap or leave this hesitation in"
+            "widen the retained gap or leave this hesitation in",
+            code="filler_gap_too_small",
         )
     optimizer_kwargs: dict[str, Any] = {"force_enabled": use_inaudible_opt}
     if source_aware:
@@ -865,7 +883,10 @@ def cut_words(
 ) -> EditDecision:
     transcript = _cut_transcript_for_source(project, track_id, source_id)
     if not transcript:
-        raise ValueError(f"No transcript for track {track_id} source {source_id}")
+        raise CodedValueError(
+            f"No transcript for track {track_id} source {source_id}. Transcribe that track first.",
+            code="transcript_not_found",
+        )
     start, end = time_range_from_words(transcript, start_word_index, end_word_index)
     return _cut_transcript_source_range(
         project,
@@ -892,7 +913,10 @@ def _cut_transcript_source_range(
 ) -> EditDecision:
     transcript = _cut_transcript_for_source(project, track_id, source_id)
     if transcript is None and source_id is not None:
-        raise ValueError(f"No transcript for track {track_id} source {source_id}")
+        raise CodedValueError(
+            f"No transcript for track {track_id} source {source_id}. Transcribe that track first.",
+            code="transcript_not_found",
+        )
     return add_remove_decision(
         project,
         track_id,

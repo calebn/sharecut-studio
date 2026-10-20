@@ -11,6 +11,7 @@ import numpy as np
 
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs
 
 
@@ -119,9 +120,15 @@ def timeline_floor_hops(
     one decode, not one FFmpeg spawn per hop.
     """
     if not track_ids:
-        raise ValueError("at least one dialogue track is required")
+        raise CodedValueError(
+            "at least one dialogue track is required. Pass at least one dialogue track.",
+            code="track_ids_empty",
+        )
     if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
+        raise CodedValueError(
+            "timeline_end must be after timeline_start. Pick a timeline_end later than timeline_start.",
+            code="range_end_before_start",
+        )
     hop = max(0.005, hop_ms / 1000.0)
     track_ids = list(dict.fromkeys(track_ids))
     caches = build_track_rms_caches(project, track_ids=track_ids)
@@ -174,7 +181,10 @@ def suggest_handoff_cut(
     ripple. If a bound is still in energy after snap, the suggestion is not ok.
     """
     if keep_right_start <= keep_left_end:
-        raise ValueError("keep_right_start must be after keep_left_end")
+        raise CodedValueError(
+            "keep_right_start must be after keep_left_end. Pick a later keep_right_start.",
+            code="range_end_before_start",
+        )
 
     track_ids = list(dict.fromkeys(track_ids))
     hops = timeline_floor_hops(

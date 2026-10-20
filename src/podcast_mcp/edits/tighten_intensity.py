@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Final
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dicts import deep_merge
 
 TIGHTEN_INTENSITIES: Final[tuple[str, ...]] = ("light", "medium", "aggressive")
@@ -52,7 +53,10 @@ def normalize_tighten_intensity(raw: object) -> str:
         return DEFAULT_TIGHTEN_INTENSITY
     if value not in TIGHTEN_INTENSITY_PRESETS:
         choices = ", ".join(TIGHTEN_INTENSITIES)
-        raise ValueError(f"unknown tighten intensity {raw!r}; expected one of: {choices}")
+        raise CodedValueError(
+            f"unknown tighten intensity {raw!r}; expected one of: {choices}",
+            code="pipeline_config_value_invalid",
+        )
     return value
 
 
