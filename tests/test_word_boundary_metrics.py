@@ -380,7 +380,7 @@ def test_checked_in_candidate_reports_match_reference_fixture(
 def test_checked_in_shipped_pass_report_matches_pipeline_fixture() -> None:
     """#715 T6a: the shipped production pass (not the harness's own align_prediction)
     beats native on every axis the checked-in *.onnx-base.json (#641 harness) report does,
-    and its exact measured numbers are pinned (measured 2026-09-28; see docs/testing.md
+    and its exact measured numbers are pinned (measured 2026-09-28; see docs/test-results.md
     "Shipped pass results (#715)")."""
     native_matched, native_reference, native_over, native_mae = _rescore_checked_in_reports(
         "native-base"

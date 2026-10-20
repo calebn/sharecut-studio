@@ -1,4 +1,4 @@
-"""Guard the browser acceptance matrix in docs/testing.md against drift.
+"""Guard the browser acceptance matrix in docs/testing-ci.md against drift.
 
 A "Pass" cell claims the `frontend-e2e-suites` matrix runs that check on that
 engine on every push to `main` and every nightly run, with at most one retry and
@@ -224,7 +224,7 @@ def test_rows_match_every_compat_check() -> None:
     missing = sorted(set(expected) - set(documented))
     stale = sorted(set(documented) - set(expected))
     assert set(documented) == set(expected), (
-        f"missing={missing} stale={stale}; update docs/testing.md § Browser acceptance matrix"
+        f"missing={missing} stale={stale}; update docs/testing-ci.md § Browser acceptance matrix"
     )
 
 

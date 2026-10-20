@@ -136,7 +136,7 @@ Host MCP agents can read and replace it with revision checks. See the
 - Editor profiling: `npm --prefix gui/web run profile:remaining` runs disposable
   workload profiles; `profile:compare` freezes or applies local diagnostic budgets;
   `make profile-seek-trim OUT=/tmp/seek-trim` profiles ruler seek and clip trim.
-  See [the profiling commands and limits](docs/testing.mdtesting-e2e.md#large-project-browser-profile-opt-in).
+  See [the profiling commands and limits](docs/testing-e2e.md#large-project-browser-profile-opt-in).
 - [Roadmap](ROADMAP.md)
 
 Diagnostics and report-submission orchestration live in
