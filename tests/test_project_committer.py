@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+_SRC = Path(__file__).resolve().parents[1] / "src/podcast_mcp"
+_STORE_COMMIT = re.compile(r"\b_?store\.commit\(")
+_SAVE_PROJECT = re.compile(r"\bsave_project\(")
+
+# ProjectWorkspace is the committer. The history modules commit the undo/redo and
+# mutation entries it hands them; each shrinks when the history seam moves behind it.
+_COMMITTERS = {
+    "history/manager.py",
+    "history/session.py",
+    "services/app/workspace.py",
+}
+
+
+def _sources(pattern: re.Pattern[str]) -> set[str]:
+    return {
+        rel
+        for path in _SRC.rglob("*.py")
+        if pattern.search(path.read_text(encoding="utf-8"))
+        and (rel := str(path.relative_to(_SRC))) != "project_store.py"
+    }
+
+
+def test_only_the_workspace_and_history_commit_through_the_store() -> None:
+    assert _sources(_STORE_COMMIT) == _COMMITTERS
+
+
+def test_only_the_store_calls_save_project() -> None:
+    assert _sources(_SAVE_PROJECT) == {"models/episode.py"}

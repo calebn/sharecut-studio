@@ -1046,7 +1046,6 @@
       "advisory": {
         "include": [
           "src/podcast_mcp/e2e_fixture.py",
-          "src/podcast_mcp/fixture_seed.py",
           "src/podcast_mcp/cli/fixture.py",
           "src/podcast_mcp/cli/play.py",
           "scripts/bootstrap_fixture_5min.sh",

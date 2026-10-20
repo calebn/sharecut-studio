@@ -8,17 +8,17 @@ Usage (from repo root):
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from pathlib import Path
 
-from podcast_mcp.edits.audition_eval import (
-    DEFAULT_CASES,
-    build_defect_project,
-    score_labeled_windows,
-)
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tests"))
+evaluation = importlib.import_module("audition_eval")
+DEFAULT_CASES = evaluation.DEFAULT_CASES
+build_defect_project = evaluation.build_defect_project
+score_labeled_windows = evaluation.score_labeled_windows
 DEFAULT_THRESHOLDS = ROOT / "tests/fixtures/audition_context_eval_thresholds.json"
 
 

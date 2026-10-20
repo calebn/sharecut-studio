@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from podcast_mcp.fixture_seed import seed_canned_transcript
+from podcast_mcp.cli.fixture import seed_canned_transcript
 from podcast_mcp.models import load_project
 
 
