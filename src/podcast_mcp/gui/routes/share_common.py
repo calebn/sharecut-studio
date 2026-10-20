@@ -12,9 +12,9 @@ from podcast_mcp.gui.routes.guest_errors import guest_http_error
 from podcast_mcp.services.collaboration import lookup_share
 from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
-    rate_limit_detail,
 )
 from podcast_mcp.services.session_sync import authorize_share_token
+from podcast_mcp.util.rate_limit_http import rate_limited_error
 
 log = logging.getLogger(__name__)
 
@@ -45,8 +45,4 @@ def check_share_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str,
 def rate_limit_share(token: str, kind: str) -> None:
     decision = check_host_bucket(token, kind)
     if not decision.allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=rate_limit_detail(decision),
-            headers={"Retry-After": decision.retry_after_header},
-        )
+        raise rate_limited_error(decision)

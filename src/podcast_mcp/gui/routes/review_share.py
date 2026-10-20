@@ -94,7 +94,6 @@ from podcast_mcp.services.media import media_type_for_path
 from podcast_mcp.services.remote_mcp import (
     get_host_limiters,
     host_rate_limit_enabled,
-    rate_limit_detail,
     ws_roster_request_allowed,
 )
 from podcast_mcp.services.session_sync import (
@@ -109,6 +108,7 @@ from podcast_mcp.services.session_sync import (
 )
 from podcast_mcp.services.share_auth import access_required
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.rate_limit_http import rate_limited_error
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
@@ -150,11 +150,7 @@ def _audio_slot(token: str) -> Callable[[], None] | None:
     lim = get_host_limiters()
     decision = lim.audio_concurrent.try_enter(token)
     if not decision.allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=rate_limit_detail(decision),
-            headers={"Retry-After": decision.retry_after_header},
-        )
+        raise rate_limited_error(decision)
     return lambda: lim.audio_concurrent.exit(token)
 
 
