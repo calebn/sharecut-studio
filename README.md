@@ -82,7 +82,7 @@ cd gui/web && npm install && npm run build && cd ../..
 podcast gui --project /path/to/my_episode/episode.project.json
 ```
 
-Release wheels include the web build (the `release-wheel` workflow runs `npm run build` before `uv build`). A wheel built without it makes `podcast gui` warn at startup and `/` explain how to build it and set `PODCAST_GUI_DIST` ([docs/setup.md](docs/setup.md#web-build-in-wheels)). Hot reload: `podcast gui --project … --dev --no-open` plus `cd gui/web && npm run dev`. Agents: MCP `open_gui_tool` / skill `podcast-open-gui` (or `podcast gui --background`). Details: [docs/gui-integration.md](docs/gui-integration.md#read-only-daw-viewer), [docs/setup.md](docs/setup.md#read-only-gui-viewer).
+Release wheels include the web build (the `release-wheel` workflow runs `npm run build` before `uv build`). A wheel built without it makes `podcast gui` warn at startup and `/` explain how to build it and set `PODCAST_GUI_DIST` ([docs/setup.md](docs/setup.md#web-build-in-wheels)). Hot reload: `podcast gui --project … --dev --no-open` plus `cd gui/web && npm run dev`. Agents: MCP `open_gui_tool` / skill `podcast-open-gui` (or `podcast gui --background`). Details: [docs/gui-integration.md](docs/gui-viewer.md#gui-viewer), [docs/setup.md](docs/setup.md#read-only-gui-viewer).
 
 For the development-only UI component catalog, run `cd gui/web && npm ci && npm run storybook`; see [docs/design-system.md](docs/design-system.md) for publishing setup.
 
@@ -136,7 +136,7 @@ Host MCP agents can read and replace it with revision checks. See the
 - Editor profiling: `npm --prefix gui/web run profile:remaining` runs disposable
   workload profiles; `profile:compare` freezes or applies local diagnostic budgets;
   `make profile-seek-trim OUT=/tmp/seek-trim` profiles ruler seek and clip trim.
-  See [the profiling commands and limits](docs/testing.md#large-project-browser-profile-opt-in).
+  See [the profiling commands and limits](docs/testing.mdtesting-e2e.md#large-project-browser-profile-opt-in).
 - [Roadmap](ROADMAP.md)
 
 Diagnostics and report-submission orchestration live in

@@ -24,7 +24,7 @@ from markdown_table import MarkdownTable, code_spans, section_table
 from script_loader import load_script
 
 REPO_ROOT = Path(__file__).parents[1]
-TESTING_DOC = REPO_ROOT / "docs" / "testing.md"
+TESTING_DOC = REPO_ROOT / "docs" / "testing-ci.md"
 HEADING = "### Browser acceptance matrix"
 COMPAT_DIR = REPO_ROOT / "gui" / "web" / "e2e-compat"
 COMPAT_CONFIG = REPO_ROOT / "gui" / "web" / "playwright.compat.config.ts"

@@ -1,0 +1,162 @@
+# Layer reference
+
+Implementation detail for each layer in [architecture.md](architecture.md#layers). The architecture
+page keeps the layer map, the service contexts, the data flow and the design decisions; the
+per-module ownership notes live here.
+
+## Layer items
+
+1. **Models** (`podcast_mcp.models`) — Pydantic episode project on disk; no I/O side effects. `Transcript.words` is a `TranscriptWords` list: every in-place words edit (a `TranscriptWord` field or a list mutation) bumps an in-memory process-wide revision (`models/words_revision.py`), and `Transcript.memoize_words` caches derived values (e.g. the prosody reader's words fingerprint) against it. Never key such a memo on object identity.
+2. **Engines** (`podcast_mcp.engines`) — FFmpeg, transcription, `.wfpk` waveform peak pyramids (`waveform_pyramid.py`, media refs + build hooks in `waveform_media.py`; [waveform.md](waveform.md)), source↔timeline mapping (`session_timeline.py`), utterance gap-run grouping shared by `merge_transcripts` and the GUI view mapper (`utterance_runs.py`, #758), multitrack alignment audit (`alignment_audit.py`: VAD overlap, session-start sweep, `showwavespic` diagnostics), each track's one level profile (`level_profile.py`: room, speech, loud and voice levels and the floors read from them, measured once per audio file revision and sample rate; every detection level is an offset from it, [audio-engineering.md § Detection levels](audio-engineering.md#detection-levels)), cleanup analysis (`audio_audit.py`: gate overreach, boundary fades, word audibility, cross-track bleed), same-room bleed echo profile over timeline-clock tracks (`bleed_echo.py`: per-frame cross-correlation of one mic against another where one speaker dominates, lag clustering, scored against the same pair time-shifted as its null; reconciliation uses rendered stems when available and projects raw media through `SessionTimeline` when they are absent; feeds `audition_context`'s `echo_risk` from fresh-stem evidence), transcript reconciliation (`transcript_reconcile.py`, `reconciliation_state.py`; `lane_words.py` names each word by `(track_id, source_id, word_index)` across every take placed on a lane, #1470), CTC forced word alignment (on by default when its optional model is installed; `word_align.py` over `ctc_forced_align.py`; model catalog in `word_aligner_models.py`, beside `whisper_models.py`; both pin a per-file sha256 manifest via `util/model_manifest.py`), segment-level prosody analysis (`prosody.py`: pitch/rate/energy/voice-quality/prominence/boundary contours via `praat-parselmouth`, optional `prosody` extra; see [pipeline.md § Prosody profile](pipeline.md#prosody-profile)), speaker attribution for a split of one recording into lanes (`speaker_split.py`: voice-embedding windows, k-means with optional enrollment, a Viterbi pass; `speaker_hand_overs.py` builds one fixed union of global and provisional-cluster level measurements plus actual detector-positive sound, then settles each hand-over into its measured pauses or flags it as crosstalk. Detector availability remains distinct from the all-true embedding fallback, cluster calibration qualifies eligible runs before level expansion, and unavailable-detector settlement abstains when any calibrated cluster lacks separation from its measured floor; [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker)).
+3. **Ingest** (`podcast_mcp.ingest`) — generic recorder-folder scan (`import_folder.py`), `ingest.yaml` manifest, consolidate to one dialogue track per speaker. See [multitrack-ingest.md](multitrack-ingest.md).
+4. **Edits** (`podcast_mcp.edits`) — Filler detection, tighten intensity presets (`tighten_intensity.py`), transcript search/cuts, global inaudible cut optimizer (`inaudible_cuts.py`), narrative handoff silence islands (`silence_islands.py`), clip timeline ops (`timeline_ops.py`, `clips_ops.py`, `strip_silence.py`, `ingest_placement.py` for consolidate session placement), room tone for pads and mute fills chosen from the track's audio (`room_tone.py`), the room tone of a recording and the sounds that rise out of it, which a pause trim cuts around (`room_model.py`, pure on level arrays; `session_air.py` reads every dialogue recording once, through its own lane's clips, and lays its sounds on the session clock; the band levels are filtered once per recording in `audio_cache.py::BandLevels`; [filler-cut-quality.md](filler-cut-quality.md) § Decision: Pause trims cut only air), room tone or comfort noise under the digital silence a recorder's noise gate leaves in a track, written as a fill on the media's clock that render sums under the media (`gate_fill.py`; `SourceAudio.fill_path` in `engines/audio.py`), transcript sync/correction, chapters, timeline review comments (`comments.py`), agent audition context (`audition_context.py`; its by-construction defect scorer lives in `tests/audition_eval.py`), the next word's acoustic onset after a filler, plosive bursts included, that a padded Tighten cut must end before (`word_onset.py`), voiced speech cut through at a splice (`join_speech.py`: clipped onset / tail per clip edge from raw source energy plus voicing, shared by `audition_context`'s `speech_crosses_cut` and the join sweep's `speech` rows; joins come from `clips_ops.splice_joins`; `trim_suggestion.py` proves each suggested trim against the same audio checks `trim_clip_edge_tool` runs before `audition_context` offers it), cached per-track prosody profile + timeline window for audition context (`prosody_profile.py`), a speaker split of one recording into lanes that share its media, muted where another speaker owns the audio (`speaker_split.py`, over the attribution in `engines/speaker_split.py`; [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker)).
+
+   `decisions.py` resolves a pending source decision for read-only silence-boundary suggestions and reuses `optimize_source_cut_range` over its full stored interval. `EditService` supplies the workspace. Host and capability-checked guest routes only delegate. Applying a displayed suggestion uses the existing `UpdatePendingEdit` mutation without a second optimization.
+
+   `clips_ops.py` owns trim limits, roll, and move geometry. `ripple.py` owns the edit modes (`EditMode`: `ripple` | `gap`): the one ripple scope rule (`ripple_track_ids`: every dialogue track plus the edited track), planned removals (`RippleRemoval`), the remove/insert kernels every ripple path uses, and trim plans (`plan_trim`, `apply_trim_geometry`). Its private edge-lane transform classifies whole followers from the anchor's original bounds at 1 ns precision. `apply_trim_geometry` builds every moving edge lane before installing any, refusing a newly negative follower atomically with `ripple_before_zero`. `cut_speech.py` measures selected and unselected speech. `cut_application.py` finishes each cut on an unpublished project copy. `cut_safety.py` then owns acoustic edges, peer speech, source/pad placement and provisional receipts. Peer observations retain both mapped-lane evidence and actual removed-unselected speech; `_peer_policy` is their one reducer. The owner adopts the completed candidate once, with no subsequent cut writer. Tighten and NL proposals use `resolve_cut_scope`, which returns available `ResolvedCutScope` evidence or a scope-free `CutScopeUnavailable`. The tighten candidate scan builds timeline RMS caches once (`shared_timeline_rms_caches` / unprocessed stems) and passes them into each `resolve_cut_scope` call (#1660). Manual proposals hold before publishing; generated candidates reject unavailable assessment before initial planning and final-edge publication, counted once as `scope_unavailable`. Completed peer speech and speaker bleed retain their current scope rules. Saved track scope names the selected track operation. Ordinary SOURCE session consumption reassesses the actual span and holds unavailable evidence before publishing the completed session cut; a session hold never silently becomes a punch. `timeline_ops.py` calls those domain mutations and adds transcript rebuilding, applied-edit records, and change summaries for service adapters; it does not independently calculate the same geometry. See [daw-editing.md § Edit modes](daw-editing.md#edit-modes-ripple-and-gap).
+   CutSpeech supplies the containing live removal component to the existing peer
+   measurement path while each residual window owns its evidence and diagnostics.
+   Original clip clocks determine consuming suffix sample boundaries. Coalesced
+   placements retain the reader's origin and count. Exact first and final window
+   endpoints preserve selected and batch-chosen boundaries.
+5. **Clips** (`podcast_mcp.clips`) — Social clip candidates and WAV export.
+6. **Pipeline** (`podcast_mcp.pipeline`) — Registered steps, runner with `--from` / `--only`.
+7. **Services** (`podcast_mcp.services`) — Shared orchestration for CLI, MCP, and GUI; history-wrapped mutations. Owner golden-ear A/B harness: `services/document/golden_ear.py` (script `scripts/golden_ear_harness.py`). Waveform pyramids (host `/api/waveform/*`, guest `/daw/waveform/*`) go through `services/media/waveform.py` (media index LRU, status, tiles, PCM windows, GC); the media refs and build hooks it re-exports live in `engines/waveform_media.py` so the pipeline never imports services. In-process WS fan-out uses [`fanout_hub.py`](../src/podcast_mcp/services/app/fanout_hub.py) (`SessionHub` and the guest progress hub are separate instances); each subscriber queue is fed on the event loop it subscribed with, so one key may mix loops. Studio job SSE streams (pipeline slot, agent, bootstrap) use a third, job-id-keyed `FanoutHub` instance in [`gui/job_events.py`](../src/podcast_mcp/gui/job_events.py): one bounded drop-oldest queue per subscriber. `podcast doctor` checks live in `services/support/doctor.py`; sanitized bug-report zips are `DiagnosticsService` (`services/support/diagnostics.py`) — CLI `podcast doctor --bundle` and host Help; explicit Help consent forwards a registered bundle through `services/support/report_submission.py` to the public relay intake. Mode-specific configuration diagnostics live in `services/support/config_check.py`.
+
+   The media context (`services/media/`) owns bounce, ingest, source uploads,
+   review and proxy media, speaker and transcript services, and waveform requests.
+   CLI, MCP, GUI, and other service contexts import its declared public symbols
+   from `podcast_mcp.services.media`. Its lazy facade loads only the implementation
+   needed for a request. Media implementations may use `services.app` for workspace
+   history and `services.pipeline` for ASR options through those facades.
+   `EpisodeService` delegates external audio
+   copying to `media_store.ensure_audio_in_workspace` before applying the domain
+   track mutation.
+
+   The document context (`services/document/`) owns episode, clip, edit,
+   playback, history, boundary, comment, and alignment orchestration. CLI,
+   MCP, GUI, and other services import its public names from
+   `podcast_mcp.services.document`. The facade resolves each name on first
+   access, so importing the package does not load playback or editing. Its
+   implementations use `services.app` for workspace mutations,
+   `services.media` for media operations, and `services.pipeline` for prosody
+   settings. `document_sync` and `session_sync` own separate document and
+   transport logs. The `collaboration` context owns share, review, guest
+   progress, record-share, session-control, share-page, and tunnel orchestration.
+   `record`, `share_auth`, and `remote_mcp` each own their existing workflows.
+8. **CLI** (`podcast_mcp.cli`) — Typer commands in `main.py`, `episode.py`, `edit.py`, `clips.py`, `comment.py`, `pipeline.py`, `history.py`. While a Studio serves the project a command names, the root group hands the command to that Studio and relays its output (`cli/handoff.py`, `services/app/studio_host.py`, Studio side `gui/routes/handoff.py`), so Studio is the one writer (#1733): [gui-integration.md § CLI commands while Studio is open](gui-viewer.md#cli-commands-while-studio-is-open-1733).
+9. **MCP** (`podcast_mcp.mcp`) — Tool registration in `server.py`; handlers in `mcp/tools/`. Lists and objects are typed tool parameters (`list[str]`, `mcp/args.py` `JsonObject` / `JsonObjectList`) that the SDK validates at the boundary, never JSON text in a `str` parameter; free-text `str` / `str | None` arguments reach tools verbatim (`install_free_text_args`) — see [contributing.md § Structured MCP arguments](contributing.md#structured-mcp-arguments). Tool failures cross one boundary, `install_tool_errors` (`mcp/tool_errors.py`): a busy lock (`project_busy`) or a `CodedError` refusal reaches the agent as a structured `is_error` result with its message and `error_code`; any other exception is a crash whose text stays in the server log. The rule lives in `util/tool_refusal.py` so guest remote MCP (`services/remote_mcp/protocol.py`) applies the same one, reading a refusal's `guest_message()`, which never carries a host path (#1182, #1327) — see [contributing.md § MCP tool errors](contributing.md#mcp-tool-errors).
+10. **GUI** (`podcast_mcp.gui`) — DAW viewer HTTP/WS adapter (`server.py` + `routes/`); must call services (e.g. `PlayService`, `PipelineService`, `BounceService`, `CommentService`, `SessionSyncService`, bootstrap via `services.pipeline`, diagnostics via `services/support/diagnostics.py`), not duplicate path/render logic. Host MCP over Streamable HTTP is the same `MCPServer` as stdio, mounted at `/mcp` on loopback binds via [`gui/host_mcp.py`](../src/podcast_mcp/gui/host_mcp.py) (`streamable_http_app()`). **ProjectView seam:** `ViewProjection` / `parse_view_projection` live in `services/document_sync/projection_types.py` so services can name projections without importing `gui/`. Construction and dump stay in `gui/assembler.py` (`build_project_view`, `dump_project_projection`; assembler re-exports the types as the compatibility path). Services dump via a lazy assembler callback — keep dump next to construction rather than forking a second assembler in `services/`. Agent ↔ DAW transport: [session-sync.md](session-sync.md) — `services/session_sync/service.py` is the sync authority; `services/session_sync/viewer.py` adapts viewer blobs / agent play into typed commands. `services/document/cross_process_sync.py` bridges other processes' journal writes into the in-process hub while a socket watches the workspace (#695). Timeline comments: [timeline-comments.md](timeline-comments.md). Share/auth/guest routes mount only via **Sharecut Studio Extensions** ([extensions.md](extensions.md)). Lightweight stem/range bounce: `BounceService` → `export/bounces/`; mastered deliverables stay on `PipelineService.export_audio`. Both share encode/copy via `export.audio.write_audio_formats` (distinct intents; same writer). Optional native host: Tauri under `gui/desktop/` ([desktop-packaging.md](desktop-packaging.md); frozen sidecar via `PODCAST_GUI_DIST`). Deferred iOS/Android hosts and in-app BYOK agent: [cross-platform-byok.md](cross-platform-byok.md) (keep ffmpeg calls inside `FFmpegEngine`).
+
+`gui/jobs.py` keeps `PipelineJobManager` as the route/MCP facade for starting and waiting on jobs. Its `_JobCatalog` collaborator owns the shared lock, live agent claims, bounded finished-job lookup, and status snapshots. SSE fan-out is not the catalog's job: `gui/job_events.py` publishes and subscribes per job id, and `gui/routes/sse_common.py` builds the shared `StreamingResponse` both `/api/pipeline/events` and `/api/bootstrap/events` return, so concurrent subscribers never steal each other's events. Job execution still resolves `PipelineService` and `ProjectWorkspace` through the facade module so runtime patches and adapters use the same entry points.
+11. **Extensions** (`podcast_mcp.extensions`) — public FeatureRegistry / soft-load SPI; built-in FOSS `collaboration` extension; optional independently installed provider extension named `online`; example stub. `collaboration` composes share CLI/MCP, anonymous guest identity, review/record/remote-MCP routes, guest SPA hooks, and share/tunnel feature slots. `online` contributes only provider account/auth surfaces. Absent extension ⇒ no contributed routes/tools/UI ([extension-seams.md](extension-seams.md)). FOSS share mint works against any self-hosted relay; provider defaults, accounts, and quotas remain outside this repository.
+12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/collaboration/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
+
+## Engines, placement and FFmpeg
+
+`engines/timeline_render.placed_track_audio` builds the same source and placement graph
+that rendering consumes, including mute-fill sources and crossfade clock shifts. It does
+not render or save. Each leaf identifies clip audio or a mute-fill tile. Cut effects
+bind to a qualified BEFORE leaf independently of their final timeline position;
+repeated source plays retain separate occurrence and gain evidence. Ambiguous or
+duplicated bindings fail assessment. Heard-cache source queries use the BEFORE
+leaf displacement, with the sign required by `TrackRmsCache` subtractive indexing.
+`engines/audio.fade_duration` supplies the ordinary fade cap to the
+FFmpeg filter builder. Selected approval now builds its result on a private copy; a
+refusal discards earlier mutes and provisional archives. Automatic retry builds from a
+private mute base and adopts its final clips, archives, and pending rows together.
+`cut_application` submits the completed candidate to `cut_safety` before adoption.
+This implementation does not replace the independent #1403 acceptance gates.
+In particular,
+`cut_proof.shared_timeline_rms_caches` may use the existing temporary measurement
+render in `audio_audit._ungated_cache` for an active processing chain. Its scoped
+cleanup must remove the temporary output on success and failure. Rejected candidates
+must not publish workspace artifacts, pools, project state, history, or exports.
+
+`FFmpegEngine` and single-command consumers select one validated `FFmpegPair`
+through `util.binaries.resolve_ffmpeg_pair`. The value carries absolute command
+paths, an equal numeric release, and the selection source. Explicit supported
+pairs win, followed by the declared exact-release bundle, native Homebrew, complete
+PATH directories and the existing source-use cache. Discovery is lazy and
+read-only. Inaccessible optional directories count as unavailable. Version
+validation lives at this executable boundary. Readiness reports retain its failures and source.
+`contracts/ffmpeg-build.json` owns the release and native source recipe.
+`scripts/ffmpeg_payload.py` owns catalog admission, bounded closed-inventory
+extraction, native proof, complete payload replacement and pair signing. CI and
+the sidecar call this owner. The native dependency producer in
+`scripts/build_ffmpeg.py` shares its executable proofs and has no ordinary
+consumer workflow. The importer retains the original producer manifest and
+records signed executable hashes separately. The production target catalog pins the hosted archive and original manifest hashes. The native launcher supplies `PODCAST_MCP_FFMPEG_BUNDLE` in GUI, CLI and
+MCP modes. Bootstrap downloads model assets only. See
+[FFmpeg version and pair policy](setup.md#ffmpeg-version-and-pair-policy).
+
+## Caches and shared utilities
+
+`ProjectStore.transcript_vocabulary_state()` keeps a bounded process-local cache of
+immutable track/revision/edit metadata from the existing validated project loader.
+The vocabulary status service combines it with freshly loaded layered context YAML.
+It watches canonical project and history-index file signatures, including ctime,
+and publishes a miss only when the signatures stay unchanged across the load.
+It retains no project models or words. Cold reads still validate the complete project.
+If a cache signature cannot be read, it uses the authoritative loader without caching;
+only history reads required by that loader can fail the request.
+
+`engines/timeline_render.py::_render_placed_track` owns placement for full tracks
+and authored seek windows, including clips from one recording. It prepares
+selected retained source pieces and places independent components. A crossfade
+extends only the component ending in the saved predecessor; an enclosing actor
+stays outside the native sequential chain. The maximum component end determines
+the lane clock and its intentional source-edit or join contraction.
+`engines/audio.py` owns pure source, sequence, crossfade, placed mix and silence
+expressions, with derived durations and the shared mute envelope.
+`FFmpegEngine.render_timeline` groups selected media inputs through MediaSeek and
+compiles that expression, with track effects applied once after assembly.
+Windows keep authored source intersections, local selected-piece crossfade caps
+and fades only at selected actual clip edges. They are not full-stem slices.
+Ordinary bodies concatenate when their effective placement meets the actual
+predecessor component end. Component ends are updated incrementally. A requested
+window retains its negotiated extent through final padding and trimming after track effects.
+Full tracks keep their natural extent.
+
+Shared utilities: `project_store.py` (canonical load/commit), `project_merge.py` (three-way merge for long-job saves), `project_io.py`, `history/session.py` (`run_mutation`), `history/rollback.py` (shared `HistoryCheckpoint` and `RollbackOutcome` for mutations and merged saves; ownership-aware entry cleanup or directory-difference cleanup under an uninterrupted commit lock), `util/` (incl. `util/dicts.py` — `deep_merge`, shared by pipeline config, tighten presets and transcript context layering (`skip_private=False` there keeps `_`-prefixed context YAML keys); `util/loudness.py` — BS.1770 gating over ebur128 momentary blocks, optionally speech-gated; `util/dsp.py` — shared scalar clamps (`clamp`, `clamp01`), RMS dB, dB-to-amplitude, pitch autocorrelation, and boolean-run primitives; reuse them instead of private copies in `edits/` / `engines/`; `util/dsp.frame_db_stream` (several per-frame reductions, such as `frame_rms_db` and `frame_peak_db`, in one pass over a chunk stream; `frame_rms_db_stream` is the RMS one); `util/pcm_stream.py` — `SequentialWindowReader`: start-ordered sample windows from a forward-only decode (`FFmpegEngine.stream_mono_f32`), so per-segment analysis never holds a whole track; `window()` takes float seconds (floor/ceil rounding, prosody segments); `window_samples()` takes exact integer sample indices (`engines/ctc_forced_align.py`'s `retime_spans_stream`, #730); reuse one of them instead of a whole-file `load_mono_full` when windows are start-ordered; `NoAudioDecodedError` is the "no audio decoded from <path>" error for an empty ffmpeg decode (`asr_silence.py`, `audio_audit.py`, `word_align.py`); `engines/align.py` keeps `AudioWindowUnavailableError` (its callers skip unusable windows on it) but builds the text with `no_audio_decoded_message`; raise `NoAudioDecodedError`, or reuse `no_audio_decoded_message` for a caller-specific type, instead of a new ad hoc string; `util/file_locks.py` (`shared_file_lock(lock_path)`: one re-entrant `FileLock` per sidecar lock path, built with `timeout=0` so a bare `with lock:` / `lock.acquire()` fails fast instead of filelock's own default of waiting forever; `hold_shared_file_lock(lock_path, *, timeout=...)`: a context manager that acquires the shared instance with that caller's own timeout — each acquisition brings its own timeout rather than one baked into the registry (#494); reuse one of them for any new `artifacts/*.lock` writer instead of a private registry); `util/batch_scope.py` (`batch_scope()`: a ContextVar-held memo freed on exit, entered by `EditService.approve` so one Approve all decodes each stem, builds each track's band levels and resolves each path once; `scoped_by_file` keys on path + mtime + size, so a rewritten file misses; hold only cheap-to-recompute, read-only values, since nothing is evicted before the batch ends; `snapshot()` / `carried(state)`: `run_parallel` hands the caller's scope and frozen block to its worker threads, which start in an empty context, so a parallel scan shares them too (#1608); `frozen_state()` / `frozen(key, make)`: a block the caller promises not to mutate the project in, where repeat reads (`track_render_hash`) share the first result and leaving the block drops them — `cut_application._apply_source_remove` wraps its measurements in one and closes it before the first mutation, #1554); `util/keyed_lock.py` (`KeyedLocks`: one in-process lock per key, created on first use, with `discard_idle` eviction; reuse it instead of a private guard + dict registry)), `export/`.
+
+`util/ws_delivery.py` owns serialized WebSocket send deadlines and count/byte-bounded queues shared by guest GUI guards, relay guest streams and host tunnel proxies. Application hubs retain their document, roster and progress recovery policies.
+
+Shared backend helpers keep caller policy explicit: `util/intervals.merge_intervals` takes a merge gap (the timeline, occupied-span, and range callers retain their respective tolerances); `util/source_spans.source_span_timeline_bounds` takes an empty-span fallback. The `edits/ranges.py` and `edits/timeline_span.py` imports remain compatibility paths for edit callers; engines import the neutral utilities directly to avoid package initialization cycles. `util/wav.open_wav` is the one stdlib-`wave` reader for source code: it accepts integer-PCM WAVE_FORMAT_EXTENSIBLE headers (what ffmpeg and most recorders write for more than two channels or 16 bits) on Python 3.11, whose `wave` rejects them, and raises `wave.Error` for any other EXTENSIBLE sub-format GUID (the same full-GUID rule as 3.12's stdlib; `PCM_SUBFORMAT_GUID` is shared with `transcript_gated_play`); never call `wave.open` on media in `src/`. `util/wav_pcm.decode_integer_pcm` normalizes 8-, 16-, 24-, and 32-bit integer samples for waveform and alignment readers; those readers retain format admission and read bounds. `util/atomic_file` owns byte writes and completed-file fsync/replace, while `util/atomic_render.render_atomic` retains render temp names, stale-partial reaping, and the hash invalidation hook. `util/atomic_json` retains JSON, UTF-8 text, and metadata-preserving copy policy. `util/dsp.py` owns scalar clamps and linear RMS, while `util/tracks.py` owns canonical and existing rendered stem paths; callers still choose their own signal floors and raw-media fallbacks. UTC record timestamps use `util/datetime_utils.now_iso`.
+
+The raw-media, diagnostics, waveform-pyramid, transcript-cache, recorder-import, consolidated-ingest, and playback-stem guards use `util/workspace_paths.resolve_within`. Callers keep their own input grammar and public error messages; the shared resolver checks the resolved path against the resolved allowed root, including symlink targets. Other artifact guards retain their own validation.
+The alignment energy VAD, heuristic/Silero breath scans, and silence-island scan use `util.dsp.bool_runs` for contiguous masks. Only alignment VAD bridges a single quiet chunk before extracting runs; each caller still owns its threshold, duration, and timestamp policy.
+
+`util.intervals.HalfOpenIntervalIndex` provides immutable overlap queries for transcript cut guards, filler spans, and GUI word projection. Callers keep their own word filtering and source-clock rules; the index preserves original word ordinals for view ordering.
+
+## Configuration seam
+
+`runtime_config.py` validates host relay and optional
+S3-compatible storage. Relay fields use explicit > environment > YAML > safe
+default; object-store fields use environment > YAML > disabled. `distribution.py` validates public build identity and exact trusted
+origins. Runtime secrets never enter the distribution profile; Tauri’s build
+script generates Rust constants from that same public profile.
+
+## Guest failure presentation
+
+`util/tool_refusal.py` owns refusal recognition along the explicit exception
+cause chain. `util/coded_error.py` owns the sparse code-to-copy table used for
+guest messages; host diagnostics never select guest copy. Unknown codes use
+`GENERIC_GUEST_MESSAGE`, and the path detector checks approved messages as a
+defense in depth. Coded errors keep their host message and code, including
+through document conflict wrapping and pickling. File-lock timeouts take
+precedence over SQLite busy or locked errors, which take precedence over coded
+refusals. Guest lock and SQLite busy failures use the same `project_busy` copy;
+owner messages retain their existing lock or SQLite wording.
+`gui/routes/guest_errors.py` projects that shared policy into HTTP errors and
+safe WebSocket values. Unmarked failures produce fixed `internal error` and a
+host traceback. Busy WebSocket admission and setup close with transient `1013`;
+recording command contention sends `invalid_state` with `error_code=project_busy`
+and leaves the socket usable. Services mark deliberate permission, input, missing-resource,
+and state guards with coded error types. They do not import GUI error handlers.
+Raise sites provide only host diagnostics and a code. Guest HTTP, WebSocket,
+progress, and remote MCP projections all read the same code policy.
+Guest waveform routes call the media facade directly, then project failures;
+owner waveform routes retain their owner adapter. Record upload shells convert
+pre-acknowledgment refusals for their own caller. The shared ingest helper retains
+post-acknowledgment landing recovery and returns the successful file ACK.

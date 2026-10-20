@@ -32,7 +32,7 @@ _ISSUE_REF_RE = re.compile(r"\s*\(#\d+\)")
 
 
 def _matrix_rows() -> list[list[str]]:
-    return section_table(DOCS_DIR / "testing.md", "### Beta user stories").rows
+    return section_table(DOCS_DIR / "testing-e2e.md", "### Beta user stories").rows
 
 
 def _manual_steps(cell: str) -> list[str]:
@@ -41,7 +41,7 @@ def _manual_steps(cell: str) -> list[str]:
 
 
 def test_matrix_header() -> None:
-    table = section_table(DOCS_DIR / "testing.md", "### Beta user stories")
+    table = section_table(DOCS_DIR / "testing-e2e.md", "### Beta user stories")
     assert table.header == ["Story", "Issue", "Status", "Automated coverage", "Still manual"]
 
 

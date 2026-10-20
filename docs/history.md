@@ -152,7 +152,7 @@ History record/undo/redo/goto and `ProjectStore.commit` run under `project_commi
 
 See [episode-format-v2.md](episode-format-v2.md) for the canonical project layout.
 
-## CLI
+## History CLI
 
 ```bash
 podcast history list --project episode.project.json
@@ -177,7 +177,7 @@ rebuild the same conservative gate from ungated media. Reapplying rebuilds from
 sources instead of multiplying the existing stem's fades. Undo restores the flag
 and scope together; a rerender recovers the original audio from untouched sources.
 
-While a Studio is serving the project a command names, the same group first hands the command to that Studio, which then runs it as the one writer (see [gui-integration.md § CLI commands while Studio is open](gui-integration.md#cli-commands-while-studio-is-open-1733)); a busy lock reaches the CLI only when no Studio is serving the project. A busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, both `filelock.Timeout`) escaping any command is caught by the root `BusyErrorGroup` (`cli/busy.py`), the one choke point for every CLI command: it prints `Error: <message>` to stderr and exits 1, instead of an unhandled-exception traceback. Move-specific commands (`undo`, `redo`, `history goto`) still catch their own narrower errors first for move advice text; a lock timeout reaches the group either way (#488). The same choke point also catches a domain guard error (`ValueError` / `RuntimeError`, e.g. `TranscriptRefineRequiredError`) escaping any command, printing it the same way (#773); set `PODCAST_DEBUG=1` to get the original traceback back for either case instead of the one-line message.
+While a Studio is serving the project a command names, the same group first hands the command to that Studio, which then runs it as the one writer (see [gui-integration.md § CLI commands while Studio is open](gui-viewer.md#cli-commands-while-studio-is-open-1733)); a busy lock reaches the CLI only when no Studio is serving the project. A busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, both `filelock.Timeout`) escaping any command is caught by the root `BusyErrorGroup` (`cli/busy.py`), the one choke point for every CLI command: it prints `Error: <message>` to stderr and exits 1, instead of an unhandled-exception traceback. Move-specific commands (`undo`, `redo`, `history goto`) still catch their own narrower errors first for move advice text; a lock timeout reaches the group either way (#488). The same choke point also catches a domain guard error (`ValueError` / `RuntimeError`, e.g. `TranscriptRefineRequiredError`) escaping any command, printing it the same way (#773); set `PODCAST_DEBUG=1` to get the original traceback back for either case instead of the one-line message.
 
 Snapshots are recorded automatically before/after:
 
@@ -326,7 +326,7 @@ fades, history head, redo entries, nor the document journal. A fresh gesture can
 save against the restored pair. This target guard leaves the save-before-Undo
 wait and unseen-peer history-head refusal unchanged.
 
-## MCP tools
+## History MCP tools
 
 - `history_list` — entries, cursor, and grouped mutations
 - `history_status_tool` — cursor, `head_id` and undo/redo flags (JSON)
@@ -380,7 +380,9 @@ Studio find-and-replace validates its reviewed, source-keyed match set before on
 
 `SetTranscriptWordTiming` checks the exact raw transcript, word sequence and recording revision in a `ProjectWorkspace.transaction()` before one `mutate()` call. A pointer gesture saves only on release; numeric and keyboard drafts require Apply. A no-op or stale draft creates no history action. Undo restores the exact timing, automatic evidence, suppression choices, user-edited flag and silence-filter fingerprint. Render freshness follows the restored ignored-word or transcript-gate intervals. The adjacent Wordbar Undo validates the current project snapshot and document sequence again at click time, then closes the editor before invoking the shared history command.
 
-## Exact selected ranges
+## Selected-range undo
+
+Owner: [daw-editing.md § Exact selected ranges](daw-editing.md#exact-selected-ranges). This section keeps only the selected-range undo facet.
 
 A selected range Cut or Mute is one history mutation across every selected lane and interval. Host approval is also one mutation. Undo restores all clip placements, local mute holes, and the pending decision together. Exact range records require History Undo rather than source-span Restore.
 

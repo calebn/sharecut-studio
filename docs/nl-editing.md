@@ -2,7 +2,7 @@
 
 Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing is **non-destructive**: decisions live in `episode.project.json`; raw audio in `raw/` is never overwritten.
 
-## MCP tools
+## Editing MCP tools
 
 | Tool | Purpose |
 |------|---------|
@@ -123,7 +123,7 @@ Agents compose NL requests: **search transcript → read timestamps → call pri
 
 Stored transcript/edit times are **source-media seconds**; rendered audio (stems, premix, export) is **timeline seconds**. `search_transcript_tool` returns `TranscriptMatch` with **both**: `start`/`end` (source, feeds cut decisions) and `timeline_start`/`timeline_end` (mapped for play/ripple; `null` if the match was cut away). Cut tools (`cut_time_range_tool`, `cut_text_match_tool`, …) take **source** seconds; play/chapter/comment/gate tools take **timeline** seconds. Every time-bearing tool's clock is declared in `util/tool_timebase.py` and enforced by `tests/test_time_conformance.py`.
 
-## CLI
+## Editing CLI
 
 ```bash
 podcast edit-context --project episode.project.json

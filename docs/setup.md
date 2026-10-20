@@ -59,10 +59,10 @@ you want to rebuild that fixture.
 
 `profile:remaining` builds disposable media fixtures and serves the production
 GUI; `profile:compare` freezes or applies worker-specific diagnostic budgets.
-See [editor responsiveness profiling](testing.md#large-project-browser-profile-opt-in)
+See [editor responsiveness profiling](testing.mdtesting-e2e.md#large-project-browser-profile-opt-in)
 for independent repetitions, retained evidence, and cold-cache limits.
 `make profile-seek-trim OUT=/tmp/seek-trim` runs the two-task
-[seek and trim profile](testing.md#seek-and-trim-profile-opt-in) and prints a
+[seek and trim profile](testing.mdtesting-e2e.md#seek-and-trim-profile-opt-in) and prints a
 summary table.
 
 ## Maximal install (all extras)
@@ -143,7 +143,7 @@ pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` also
 benchmarks a heavier `torch-large` candidate, which is not wired into
 `transcribe.forced_alignment` and not part of any bootstrap component. The
 shipped `onnx-base` tier's measured cost and accuracy on real audio are in
-[docs/testing.md § Shipped pass results (#715)](testing.md#shipped-pass-results-715).
+[docs/testing.md § Shipped pass results (#715)](testing.mdtest-results.md#shipped-pass-results-715).
 
 **Pinned model manifests (#728).** The word aligner (`onnx-base`) and the
 Whisper catalog sizes (below) are pinned to a Hugging Face revision plus a
@@ -800,3 +800,7 @@ Creating the zip runs doctor checks and (when a project is open) per-track timeb
 The zip filename is `sharecut-diagnostics-<UTC>-<nonce>.zip` so two bundles in the same second do not overwrite. Host Help shows the local filesystem path so you can attach the file; that path is not uploaded. `GET /api/diagnostics/bundle/{name}` only serves zips registered by a POST in this Studio process.
 
 Redaction replaces home, workspace, and cache roots (`PODCAST_MCP_CACHE`) plus share URL segments after `/r/` and `/rec/` (coolname slugs, including connector words, and legacy `token_urlsafe` values). Bare coolnames in free text are not scrubbed. There is no dry-run: **Create** always writes the zip (`include_logs` only toggles members). Bundle shape is locked by `DiagnosticsService` and tests (no separate `contracts/` schema).
+
+## Docs-sync companions
+
+This page is the owner for its docs-sync row. Also see: [README](../README.md), [ROADMAP](../ROADMAP.md) and the `podcast-setup` skill (`.agents/skills/podcast-setup/`) describe the same install path.

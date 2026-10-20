@@ -21,13 +21,9 @@
     {
       "id": "source-timeline-timebase-sessiontimeline-or",
       "when": "Source/timeline timebase, `SessionTimeline`, or clip time math",
-      "update": "`docs/episode-format-v2.md`, `docs/architecture.md` § Timebase, `docs/contributing.md` § Time handling, `docs/testing.md`, `util/tool_timebase.py` (`TOOL_TIMEBASE`), affected skills (`podcast-play-audition`, `podcast-chapter-markers`, `podcast-edit-natural-language`, `podcast-social-clips`, `podcast-mute-bleed`)",
+      "update": "`docs/architecture.md` § Timebase (owner; it links the format, contributing and testing docs), affected skills",
       "docs": [
-        "docs/episode-format-v2.md",
-        "docs/architecture.md",
-        "docs/contributing.md",
-        "docs/testing.md",
-        "src/podcast_mcp/util/tool_timebase.py"
+        "docs/architecture.md"
       ],
       "advisory": {
         "include": [
@@ -112,17 +108,16 @@
     {
       "id": "prosody-profile",
       "when": "Prosody profile (`analyze_prosody` step, cache, engine, `audition_context` fields)",
-      "update": "`docs/pipeline.md` § Prosody profile, `docs/persistence.md`, `docs/architecture.md`, `docs/setup.md` (extras), `docs/testing.md` (CI extras), `docs/nl-editing.md` (`audition_context_tool` row), `.agents/defaults/pipeline.yaml`, `engines/prosody.py`, `edits/prosody_profile.py`, skills `podcast-play-audition`, `podcast-pipeline-run`, `podcast-pipeline-tune`, `podcast-setup`",
+      "update": "`docs/pipeline.md` § Prosody profile, `docs/persistence.md`, `docs/architecture.md`, `docs/setup.md` (extras), `docs/testing.md` (CI extras), `docs/nl-editing.md` (`audition_context_tool` row), `.agents/defaults/pipeline.yaml`, skills `podcast-play-audition`, `podcast-pipeline-run`, `podcast-pipeline-tune`, `podcast-setup`",
       "docs": [
         "docs/pipeline.md",
         "docs/persistence.md",
         "docs/architecture.md",
         "docs/setup.md",
         "docs/testing.md",
+        "docs/testing-ci.md",
         "docs/nl-editing.md",
-        ".agents/defaults/pipeline.yaml",
-        "src/podcast_mcp/engines/prosody.py",
-        "src/podcast_mcp/edits/prosody_profile.py"
+        ".agents/defaults/pipeline.yaml"
       ],
       "gate": {
         "include": [
@@ -163,21 +158,18 @@
     {
       "id": "public-share-tokens",
       "when": "Public share tokens (coolname, active + cooldown pools)",
-      "update": "`docs/share-tokens.md`, `edits/share_registry.py` (`ShareRegistryProtocol`), `edits/review_shares.py`, `services/collaboration/share.py`, `util/registry_privacy_error.py`, `util/review_privacy_error.py`, `podcast review backup-registry`",
+      "update": "`docs/share-tokens.md`, `podcast review backup-registry`",
       "docs": [
-        "docs/share-tokens.md",
-        "src/podcast_mcp/edits/share_registry.py",
-        "src/podcast_mcp/edits/review_shares.py",
-        "src/podcast_mcp/services/collaboration/share.py",
-        "src/podcast_mcp/util/registry_privacy_error.py",
-        "src/podcast_mcp/util/review_privacy_error.py"
+        "docs/share-tokens.md"
       ],
       "advisory": {
         "include": [
           "src/podcast_mcp/edits/share_registry.py",
           "src/podcast_mcp/edits/review_shares.py",
           "src/podcast_mcp/services/collaboration/share.py",
-          "src/podcast_mcp/cli/review.py"
+          "src/podcast_mcp/cli/review.py",
+          "src/podcast_mcp/util/registry_privacy_error.py",
+          "src/podcast_mcp/util/review_privacy_error.py"
         ],
         "exclude": [
           "src/podcast_mcp/services/collaboration/share.py"
@@ -187,15 +179,9 @@
     {
       "id": "recording-session",
       "when": "Recording session (record links, roles incl. producer, lobby/consent, keeper capture, mix-minus monitor, pause/takes, live comments, upload/landing)",
-      "update": "`docs/recording-session.md` (decisions + test contract MM1–MM9), `docs/share-tokens.md` § Record sessions, `docs/persistence.md`, `docs/session-sync.md` § Recording session, `docs/timeline-comments.md` § Live comments, `ux/pages/guest-journeys.md` § 6, `ux/pages/domain-glossary.md`",
+      "update": "`docs/recording-session.md` (owner: decisions, test contract MM1–MM9, and links to the share-token, persistence, session-sync, live-comment and guest-journey docs)",
       "docs": [
-        "docs/recording-session.md",
-        "docs/share-tokens.md",
-        "docs/persistence.md",
-        "docs/session-sync.md",
-        "docs/timeline-comments.md",
-        "ux/pages/guest-journeys.md",
-        "ux/pages/domain-glossary.md"
+        "docs/recording-session.md"
       ],
       "advisory": {
         "include": [
@@ -244,11 +230,10 @@
     {
       "id": "daw-viewer-launch",
       "when": "DAW viewer launch (`open_gui_tool`)",
-      "update": "`docs/gui-integration.md` § Launch, `docs/setup.md` § Read-only GUI viewer, `services/app/gui_launch.py`, skill `podcast-open-gui`",
+      "update": "`docs/gui-viewer.md` § Launch, `docs/setup.md` § Read-only GUI viewer, skill `podcast-open-gui`",
       "docs": [
-        "docs/gui-integration.md",
-        "docs/setup.md",
-        "src/podcast_mcp/services/app/gui_launch.py"
+        "docs/gui-viewer.md",
+        "docs/setup.md"
       ],
       "advisory": {
         "include": [
@@ -286,11 +271,10 @@
     {
       "id": "cut-boundary-optimization",
       "when": "Cut boundary optimization",
-      "update": "`docs/inaudible-cuts.md` (incl. § Narrative handoffs), `docs/filler-cut-quality.md`, `edits/silence_islands.py` / `suggest_handoff_cut_tool`, `.agents/skills/podcast-tighten-dialogue/`, `.agents/skills/podcast-edit-natural-language/`, `.agents/skills/podcast-inaudible-cuts/`, `.agents/skills/podcast-audio-cleanup/`",
+      "update": "`docs/inaudible-cuts.md` (incl. § Narrative handoffs), `docs/filler-cut-quality.md` / `suggest_handoff_cut_tool`, `.agents/skills/podcast-tighten-dialogue/`, `.agents/skills/podcast-edit-natural-language/`, `.agents/skills/podcast-inaudible-cuts/`, `.agents/skills/podcast-audio-cleanup/`",
       "docs": [
         "docs/inaudible-cuts.md",
         "docs/filler-cut-quality.md",
-        "src/podcast_mcp/edits/silence_islands.py",
         ".agents/skills/podcast-tighten-dialogue/",
         ".agents/skills/podcast-edit-natural-language/",
         ".agents/skills/podcast-inaudible-cuts/",
@@ -334,11 +318,9 @@
     {
       "id": "join-continuity-splice-qa",
       "when": "Join continuity / splice QA",
-      "update": "`docs/inaudible-cuts.md` § Join continuity, `edits/join_continuity.py`, `edits/join_cost_spectral.py`, optional `joinqc` extra, `tighten.join_continuity_gate`, skills above",
+      "update": "`docs/inaudible-cuts.md` § Join continuity, optional `joinqc` extra, `tighten.join_continuity_gate`, skills above",
       "docs": [
-        "docs/inaudible-cuts.md",
-        "src/podcast_mcp/edits/join_continuity.py",
-        "src/podcast_mcp/edits/join_cost_spectral.py"
+        "docs/inaudible-cuts.md"
       ],
       "advisory": {
         "include": [
@@ -414,12 +396,11 @@
     {
       "id": "bounce-stem-range-export",
       "when": "Bounce / stem range export (GUI + MCP)",
-      "update": "`docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`, `services/media/bounce.py`",
+      "update": "`docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`",
       "docs": [
         "docs/gui-integration.md",
         "docs/daw-editing.md",
-        ".agents/skills/podcast-bounce-export/",
-        "src/podcast_mcp/services/media/bounce.py"
+        ".agents/skills/podcast-bounce-export/"
       ],
       "advisory": {
         "include": [
@@ -434,11 +415,11 @@
     {
       "id": "waveform-pyramid-renderer-tiles",
       "when": "Waveform pyramid / renderer / tiles",
-      "update": "`docs/waveform.md`, `contracts/timeline-zoom.json`, `docs/gui-integration.md` § Waveforms, `docs/persistence.md`",
+      "update": "`docs/waveform.md`, `contracts/timeline-zoom.json`, `docs/gui-viewer.md` § Waveforms, `docs/persistence.md`",
       "docs": [
         "docs/waveform.md",
         "contracts/timeline-zoom.json",
-        "docs/gui-integration.md",
+        "docs/gui-viewer.md",
         "docs/persistence.md"
       ],
       "advisory": {
@@ -459,14 +440,9 @@
     {
       "id": "ffmpeg-model-bootstrap-native-binary-resolution",
       "when": "FFmpeg/model bootstrap, native binary resolution, or new `bootstrap` components",
-      "update": "`docs/setup.md`, `README.md`, `ROADMAP.md`, `.agents/skills/podcast-setup/`, `util/binaries.py`/`util/model_assets.py` docstrings",
+      "update": "`docs/setup.md` (owner; it links the README, roadmap and `podcast-setup` skill), util/binaries.py and util/model_assets.py docstrings",
       "docs": [
-        "docs/setup.md",
-        "README.md",
-        "ROADMAP.md",
-        ".agents/skills/podcast-setup/",
-        "src/podcast_mcp/util/binaries.py",
-        "src/podcast_mcp/util/model_assets.py"
+        "docs/setup.md"
       ],
       "advisory": {
         "include": [
@@ -540,11 +516,11 @@
     {
       "id": "gui-timeline-inspector-apis",
       "when": "GUI / timeline inspector APIs",
-      "update": "`docs/gui-integration.md`, `docs/history.md` (`history_diff`), `util/tool_timebase.py`",
+      "update": "`docs/gui-integration.md`, `docs/history.md` (`history_diff`)",
       "docs": [
         "docs/gui-integration.md",
         "docs/history.md",
-        "src/podcast_mcp/util/tool_timebase.py"
+        "docs/gui-viewer.md"
       ],
       "advisory": {
         "include": [
@@ -554,16 +530,17 @@
           "src/podcast_mcp/history/diff.py",
           "src/podcast_mcp/mcp/tools/timeline.py",
           "gui/web/src/inspector/",
-          "gui/web/src/types/project.ts"
+          "gui/web/src/types/project.ts",
+          "src/podcast_mcp/util/tool_timebase.py"
         ]
       }
     },
     {
       "id": "read-only-daw-viewer",
       "when": "Read-only DAW viewer (`gui/`, `podcast gui`)",
-      "update": "`docs/gui-integration.md` § Viewer, `docs/setup.md` § Read-only GUI viewer",
+      "update": "`docs/gui-viewer.md`, `docs/setup.md` § Read-only GUI viewer",
       "docs": [
-        "docs/gui-integration.md",
+        "docs/gui-viewer.md",
         "docs/setup.md"
       ],
       "advisory": {
@@ -600,11 +577,11 @@
     {
       "id": "sharecut-studio-mobile-responsive-shells",
       "when": "Sharecut Studio mobile / responsive shells",
-      "update": "`docs/gui-mobile.md`, `docs/gui-integration.md` § Responsive shells, `ROADMAP.md` § Follow-up",
+      "update": "`docs/gui-mobile.md`, `docs/gui-viewer.md` § Responsive shells, `ROADMAP.md` § Follow-up",
       "docs": [
         "docs/gui-mobile.md",
-        "docs/gui-integration.md",
-        "ROADMAP.md"
+        "ROADMAP.md",
+        "docs/gui-viewer.md"
       ],
       "advisory": {
         "include": [
@@ -701,12 +678,16 @@
     {
       "id": "sharecut-studio-keyboard-command-bus",
       "when": "Sharecut Studio keyboard / command bus",
-      "update": "`gui/web/src/keymap/`, `gui/web/src/commands/` (`execute`); never add a second window `keydown` listener — see `commands/governance.test.ts`",
+      "update": "`gui/web/README.md` (command bus: `execute`); never add a second window `keydown` listener — see `commands/governance.test.ts`",
       "docs": [
-        "gui/web/src/keymap/",
-        "gui/web/src/commands/"
+        "gui/web/README.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "gui/web/src/keymap/",
+          "gui/web/src/commands/"
+        ]
+      }
     },
     {
       "id": "capability-registration",
@@ -797,22 +778,9 @@
     {
       "id": "host-online-relay-tunnel-share-capabilities",
       "when": "Host-online relay / tunnel / share capabilities / remote MCP",
-      "update": "`docs/host-online-relay.md` (§ Remote MCP + Rate limiting + Security notes + cap→tool matrix), `docs/share-tokens.md`, `services/remote_mcp/`, `gui/routes/remote_mcp.py`, `gui/routes/auth.py`, `services/share_auth/`, `mcp/tools/guest/`, `util/rate_limit.py`, `util/proxy_paths.py`, `util/body_limits.py`, `util/registry_privacy_error.py`, `util/review_privacy_error.py`, `podcast_relay`, `PODCAST_RATE_LIMIT` / `PODCAST_RELAY_RATE_LIMIT`, `PODCAST_SESSION_AUTHZ`, `deploy/relay/`, `docs/timeline-comments.md` § Public review share, skill `podcast-remote-mcp` — **mounted via the FOSS collaboration extension**; deployment remains private",
+      "update": "`docs/host-online-relay.md` (owner; it links the share-token, review-share and relay deployment docs), skill `podcast-remote-mcp` — **mounted via the FOSS collaboration extension**; deployment remains private",
       "docs": [
-        "docs/host-online-relay.md",
-        "docs/share-tokens.md",
-        "src/podcast_mcp/services/remote_mcp/",
-        "src/podcast_mcp/gui/routes/remote_mcp.py",
-        "src/podcast_mcp/gui/routes/auth.py",
-        "src/podcast_mcp/services/share_auth/",
-        "src/podcast_mcp/mcp/tools/guest/",
-        "src/podcast_mcp/util/rate_limit.py",
-        "src/podcast_mcp/util/proxy_paths.py",
-        "src/podcast_mcp/util/body_limits.py",
-        "src/podcast_mcp/util/registry_privacy_error.py",
-        "src/podcast_mcp/util/review_privacy_error.py",
-        "deploy/relay/",
-        "docs/timeline-comments.md"
+        "docs/host-online-relay.md"
       ],
       "advisory": {
         "include": [
@@ -839,19 +807,18 @@
           "deploy/relay/",
           "config/relay.example.yaml",
           ".github/workflows/relay-ci.yml",
-          "scripts/verify_remote_mcp_shares.py"
+          "scripts/verify_remote_mcp_shares.py",
+          "src/podcast_mcp/util/registry_privacy_error.py",
+          "src/podcast_mcp/util/review_privacy_error.py"
         ]
       }
     },
     {
       "id": "agent-daw-session-sync",
       "when": "Agent ↔ DAW session sync (typed commands, sqlite log, WS)",
-      "update": "`docs/session-sync.md`, `docs/gui-integration.md` § Shared session state, `services/session_sync/`, `services/collaboration/session_control.py`, skill `podcast-play-audition`; public catalog https://docs.sharecut.studio/#/document-commands",
+      "update": "`docs/session-sync.md` (owner; it links the GUI shared-session section), skill `podcast-play-audition`; public catalog https://docs.sharecut.studio/#/document-commands",
       "docs": [
-        "docs/session-sync.md",
-        "docs/gui-integration.md",
-        "src/podcast_mcp/services/session_sync/",
-        "src/podcast_mcp/services/collaboration/session_control.py"
+        "docs/session-sync.md"
       ],
       "advisory": {
         "include": [
@@ -945,13 +912,11 @@
     {
       "id": "pipeline-step-parallelism-performance",
       "when": "Pipeline step parallelism/performance",
-      "update": "`docs/pipeline.md` § Performance, `.agents/skills/podcast-pipeline-run/`, `.agents/skills/podcast-tighten-dialogue/`, `util/parallel.py`, `edits/audio_cache.py`",
+      "update": "`docs/pipeline.md` § Performance, `.agents/skills/podcast-pipeline-run/`, `.agents/skills/podcast-tighten-dialogue/`",
       "docs": [
         "docs/pipeline.md",
         ".agents/skills/podcast-pipeline-run/",
-        ".agents/skills/podcast-tighten-dialogue/",
-        "src/podcast_mcp/util/parallel.py",
-        "src/podcast_mcp/edits/audio_cache.py"
+        ".agents/skills/podcast-tighten-dialogue/"
       ],
       "advisory": {
         "include": [
@@ -967,6 +932,9 @@
       "update": "`docs/testing.md`, `pyproject.toml`; Python: `make lint-py` / Ruff+Bandit+Vulture+Deptry+mypy; Sharecut Studio frontend: `make test-web`, `make test-web-e2e` (axe), `gui/web/README.md`; Tauri host: `make test-desktop` / `docs/desktop-packaging.md`",
       "docs": [
         "docs/testing.md",
+        "docs/testing-ci.md",
+        "docs/testing-e2e.md",
+        "docs/test-results.md",
         "pyproject.toml",
         "gui/web/README.md",
         "docs/desktop-packaging.md"
@@ -1014,12 +982,11 @@
     {
       "id": "progress-framework",
       "when": "Progress framework (long-running UX)",
-      "update": "`docs/progress.md`, `contracts/progress-exemptions.json`, `contracts/progress-richness.json`, `src/podcast_mcp/util/progress.py`; CLI adapter `docs/cli-progress.md`; `make generated-check` / pre-commit `progress-compliance` (warn → later error)",
+      "update": "`docs/progress.md`, `contracts/progress-exemptions.json`, `contracts/progress-richness.json`; CLI adapter `docs/cli-progress.md`; `make generated-check` / pre-commit `progress-compliance` (warn → later error)",
       "docs": [
         "docs/progress.md",
         "contracts/progress-exemptions.json",
         "contracts/progress-richness.json",
-        "src/podcast_mcp/util/progress.py",
         "docs/cli-progress.md"
       ],
       "advisory": {
@@ -1182,9 +1149,9 @@
     {
       "id": "decision-track-mix",
       "when": "Decision: saved mute and volume, listen-only solo",
-      "update": "The decision blocks in `docs/gui-integration.md`; a waiver names the decision it keeps",
+      "update": "The decision blocks in `docs/gui-viewer.md`; a waiver names the decision it keeps",
       "docs": [
-        "docs/gui-integration.md"
+        "docs/gui-viewer.md"
       ],
       "advisory": {
         "include": [

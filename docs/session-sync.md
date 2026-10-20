@@ -585,7 +585,9 @@ samples with `performance.now()` for a visual-only timeline band/needle;
 per-frame updates do not enter the document or playback planes. Stop/null clears
 the preview; existing Land document refresh supplies the committed media.
 
-## Exact selected ranges
+## Selected-range authority
+
+Owner: [daw-editing.md § Exact selected ranges](daw-editing.md#exact-selected-ranges). This section keeps only the selected-range authority facet.
 
 `EditSelectedRange` accepts `action` (`cut` or `mute`) and an exact target. The server compares selected geometry and media revisions under the workspace lock. Host interactive submission and any Editor submission (DAW, transcript or guest MCP) apply immediately. A Commenter and the host's own agents create one pending decision. The interactive host or an Editor can approve or reject that exact decision (`policy.may_decide_exact_range`); the host's own MCP agents cannot. Payload roles and apply fields cannot elevate it. Owner HTTP credentials currently do not distinguish a human from an agent deliberately using those same credentials.
 
@@ -616,3 +618,7 @@ mix only, and grants no render or export authority.
 
 
 Speech-review approval returns an unchanged confirmation only after the workspace's registered recovery callback certifies RESTORED. UNKNOWN recovery propagates the primary `UnconfirmedCutSpeech` failure. Neither unchanged project-file bytes nor a confirmation payload establishes recovery. Unsupported local Restore uses the existing coded refusal path and does not append a successful document command.
+
+## Docs-sync companions
+
+This page is the owner for its docs-sync row. Also see: [GUI shared session state](gui-integration.md) and the [viewer](gui-viewer.md).
