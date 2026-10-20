@@ -47,6 +47,7 @@ NOT_HANDED_OFF = frozenset(
         "play",
         "record",
         "tunnel",
+        "relay",
         "fixture",
         "config",
         "setup",

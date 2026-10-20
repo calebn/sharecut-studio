@@ -64,6 +64,7 @@ class BucketCorsResult:
     origin: str
     state: Literal["already_set", "added", "would_add"]
     kept: int
+    missing_expose: list[str] = field(default_factory=list)
 
 
 def admin_config_path(relay_config_path: Path | None = None) -> Path:
@@ -78,6 +79,10 @@ def load_admin_credentials(
     relay_config_path: Path | None = None,
 ) -> AdminCredentials | None:
     """Admin credentials from the environment, else ``relay-admin.yaml``; ``None`` if neither."""
+    if path is not None:  # an explicit file beats the environment
+        if not path.is_file():
+            raise BucketSetupError(f"{path} does not exist")
+        return _read_admin_file(path)
     env = os.environ if environ is None else environ
     key_id = env.get(ADMIN_ID_ENV, "").strip()
     secret = env.get(ADMIN_SECRET_ENV, "").strip()
@@ -85,7 +90,7 @@ def load_admin_credentials(
         if not (key_id and secret):
             raise BucketSetupError(f"Set both {ADMIN_ID_ENV} and {ADMIN_SECRET_ENV}, or neither.")
         return AdminCredentials(key_id, secret)
-    file_path = path or admin_config_path(relay_config_path)
+    file_path = admin_config_path(relay_config_path)
     if not file_path.is_file():
         return None
     return _read_admin_file(file_path)
@@ -125,18 +130,24 @@ def rule_covers(rule: Mapping[str, Any], origin: str) -> bool:
         return False
     methods = {str(m).upper() for m in rule.get("AllowedMethods") or []}
     headers = {str(h).lower() for h in rule.get("AllowedHeaders") or []}
-    expose = {str(h).lower() for h in rule.get("ExposeHeaders") or []}
-    return (
-        methods >= _NEEDED_METHODS and bool(headers & {"range", "*"}) and expose >= _NEEDED_EXPOSE
-    )
+    return methods >= _NEEDED_METHODS and bool(headers & {"range", "*"})
 
 
 def cors_covers(rules: list[dict[str, Any]] | None, origin: str) -> bool:
-    """The store answers the first rule that names the origin, so that rule must be enough."""
+    """Whether any rule lets ``origin`` GET and HEAD with a ``Range`` header.
+
+    S3 takes the first rule that matches origin, method and headers together.
+    """
+    return any(rule_covers(rule, origin) for rule in rules or [])
+
+
+def missing_expose_headers(rules: list[dict[str, Any]] | None, origin: str) -> list[str]:
+    """Range headers the covering rule does not expose; reported, never rewritten."""
     for rule in rules or []:
-        if _origin_allowed(rule, origin):
-            return rule_covers(rule, origin)
-    return False
+        if rule_covers(rule, origin):
+            have = {str(h).lower() for h in rule.get("ExposeHeaders") or []}
+            return sorted(_NEEDED_EXPOSE - have)
+    return []
 
 
 def plan_cors(existing: list[dict[str, Any]] | None, origin: str) -> CorsPlan:
@@ -199,7 +210,9 @@ def setup_bucket_cors(
     """Make the bucket allow ``origin``; change nothing if it already does."""
     plan = plan_cors(read_bucket_cors(client, bucket), origin)
     if not plan.changed:
-        return BucketCorsResult(bucket, origin, "already_set", plan.kept)
+        return BucketCorsResult(
+            bucket, origin, "already_set", plan.kept, missing_expose_headers(plan.rules, origin)
+        )
     if dry_run:
         return BucketCorsResult(bucket, origin, "would_add", plan.kept)
     try:
@@ -231,7 +244,10 @@ def guest_check(
     if presign is None:
         from podcast_mcp.util.object_store import ObjectStoreClient
 
-        presign = ObjectStoreClient(cfg).presigned_get_url
+        try:
+            presign = ObjectStoreClient(cfg).presigned_get_url
+        except RuntimeError as exc:
+            raise BucketSetupError(str(exc)) from exc
     return probe_guest_cors(presign(_PROBE_KEY, expires_in=60), origin, fetch=fetch)
 
 
@@ -249,6 +265,7 @@ __all__ = [
     "guest_check",
     "load_admin_credentials",
     "make_admin_client",
+    "missing_expose_headers",
     "plan_cors",
     "read_bucket_cors",
     "rule_covers",

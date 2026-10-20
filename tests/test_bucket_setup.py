@@ -123,15 +123,31 @@ def test_the_upload_key_is_told_it_is_not_enough(deny: str) -> None:
 
 def test_credentials_from_env_win_and_must_be_complete(tmp_path: Path) -> None:
     env = {bs.ADMIN_ID_ENV: "id", bs.ADMIN_SECRET_ENV: "secret"}
-    creds = bs.load_admin_credentials(environ=env, path=tmp_path / "none.yaml")
+    relay_yaml = tmp_path / "relay.yaml"
+    creds = bs.load_admin_credentials(environ=env, relay_config_path=relay_yaml)
     assert creds == bs.AdminCredentials("id", "secret")
     assert "secret" not in repr(creds)
     with pytest.raises(bs.BucketSetupError, match="both"):
-        bs.load_admin_credentials(environ={bs.ADMIN_ID_ENV: "id"}, path=tmp_path / "none.yaml")
+        bs.load_admin_credentials(environ={bs.ADMIN_ID_ENV: "id"}, relay_config_path=relay_yaml)
+
+
+def test_env_beats_the_default_file_but_an_explicit_file_beats_env(tmp_path: Path) -> None:
+    _admin_file(tmp_path, text="access_key_id: file-id\nsecret_access_key: file-secret\n")
+    env = {bs.ADMIN_ID_ENV: "env-id", bs.ADMIN_SECRET_ENV: "env-secret"}
+    relay_yaml = tmp_path / "relay.yaml"
+    assert bs.load_admin_credentials(environ=env, relay_config_path=relay_yaml) == (
+        bs.AdminCredentials("env-id", "env-secret")
+    )
+    explicit = tmp_path / "relay-admin.yaml"
+    assert bs.load_admin_credentials(environ=env, path=explicit) == (
+        bs.AdminCredentials("file-id", "file-secret")
+    )
+    with pytest.raises(bs.BucketSetupError, match="does not exist"):
+        bs.load_admin_credentials(environ=env, path=tmp_path / "missing.yaml")
 
 
 def test_no_credentials_is_none(tmp_path: Path) -> None:
-    assert bs.load_admin_credentials(environ={}, path=tmp_path / "relay-admin.yaml") is None
+    assert bs.load_admin_credentials(environ={}, relay_config_path=tmp_path / "relay.yaml") is None
 
 
 def _admin_file(tmp_path: Path, mode: int = 0o600, text: str | None = None) -> Path:
@@ -382,3 +398,146 @@ def test_guest_check_defaults_to_the_upload_keys_presigned_url() -> None:
 
     assert bs.guest_check(cfg, ORIGIN, fetch=fetch).status == "ok"
     assert seen[0].startswith("https://") and "review/.cors-probe" in seen[0]
+
+
+def test_a_live_rule_with_short_expose_headers_is_left_alone_and_reported() -> None:
+    live = [{**cors_rule(ORIGIN)[0], "ExposeHeaders": ["Content-Range"]}]
+    s3 = FakeS3(list(live))
+    result = bs.setup_bucket_cors(s3, BUCKET, ORIGIN)
+    assert result.state == "already_set"
+    assert result.missing_expose == ["accept-ranges", "content-length"]
+    assert s3.puts == []
+    assert s3.rules == live
+
+
+def test_a_later_rule_that_covers_the_origin_is_enough() -> None:
+    first = {**OTHER_RULE, "AllowedOrigins": ["*"], "AllowedMethods": ["PUT"]}
+    s3 = FakeS3([first, cors_rule(ORIGIN)[0]])
+    assert bs.setup_bucket_cors(s3, BUCKET, ORIGIN).state == "already_set"
+    assert s3.puts == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes")
+@pytest.mark.parametrize(("mode", "refused"), [(0o604, True), (0o640, True), (0o400, False)])
+def test_admin_file_modes(tmp_path: Path, mode: int, refused: bool) -> None:
+    path = _admin_file(tmp_path, mode)
+    if refused:
+        with pytest.raises(bs.BucketSetupError, match="chmod 600"):
+            bs.load_admin_credentials(environ={}, path=path)
+    else:
+        assert bs.load_admin_credentials(environ={}, path=path) is not None
+
+
+def test_errors_never_carry_the_secret(relay_config: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _use(monkeypatch, FakeS3(None, deny="put"))
+    _admin_file(relay_config.parent, text="access_key_id: id\nsecret_access_key: S3CR3T-VALUE\n")
+    denied = runner.invoke(app, ["relay", "bucket-setup", "--config", str(relay_config)])
+    assert denied.exit_code == 1
+    assert "S3CR3T-VALUE" not in denied.output
+    _admin_file(relay_config.parent, text="access_key_id: id\nbucket: S3CR3T-VALUE\n")
+    bad = runner.invoke(app, ["relay", "bucket-setup", "--config", str(relay_config)])
+    assert bad.exit_code == 2
+    assert "S3CR3T-VALUE" not in bad.output
+
+
+def test_prompt_hides_only_the_secret(relay_config: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _use(monkeypatch, FakeS3(None))
+    monkeypatch.setattr("podcast_mcp.cli.relay._interactive", lambda: True)
+    asked: list[tuple[str, bool]] = []
+
+    def prompt(text: str, hide_input: bool = False, **_kw: Any) -> str:
+        asked.append((text, hide_input))
+        return "answer"
+
+    monkeypatch.setattr("podcast_mcp.cli.relay.typer.prompt", prompt)
+    result = runner.invoke(app, ["relay", "bucket-setup", "--config", str(relay_config)])
+    assert result.exit_code == 0, result.output
+    assert asked == [("Admin access key id", False), ("Admin secret access key", True)]
+
+
+def test_admin_keys_are_not_accepted_by_the_runtime_loaders(tmp_path: Path) -> None:
+    from podcast_mcp.runtime_config import (
+        RuntimeConfigError,
+        load_object_store_config,
+        load_relay_config,
+    )
+
+    top = tmp_path / "top.yaml"
+    top.write_text("access_key_id: id\nsecret_access_key: secret\n", encoding="utf-8")
+    with pytest.raises(RuntimeConfigError):
+        load_relay_config(top)
+    nested = tmp_path / "nested.yaml"
+    nested.write_text(
+        "object_store:\n  endpoint_url: https://s.example.test\n  region: r\n  bucket: b\n"
+        "  access_key_id: i\n  secret_access_key: s\n  admin_access_key_id: a\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(RuntimeConfigError):
+        load_object_store_config(nested)
+
+
+def test_check_with_env_credentials_and_a_refused_read(
+    relay_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _use(monkeypatch, FakeS3(None, deny="get"))
+    monkeypatch.setenv(bs.ADMIN_ID_ENV, "env-id")
+    monkeypatch.setenv(bs.ADMIN_SECRET_ENV, "env-secret")
+    result = runner.invoke(app, ["relay", "bucket-check", "--config", str(relay_config)])
+    assert result.exit_code == 1
+    assert seen == [bs.AdminCredentials("env-id", "env-secret")]
+    assert "admin key" in result.output
+
+
+def test_a_blocked_check_prints_the_rule_to_paste(
+    relay_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _use(monkeypatch, FakeS3(None))
+    _admin_file(relay_config.parent)
+    result = runner.invoke(app, ["relay", "bucket-check", "--config", str(relay_config)])
+    assert result.exit_code == 1
+    assert '"AllowedMethods":["GET","HEAD"]' in result.output
+
+
+def test_origin_option_is_normalised_and_checked(
+    relay_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    s3 = FakeS3(None)
+    _use(monkeypatch, s3)
+    _admin_file(relay_config.parent)
+    base = ["relay", "bucket-setup", "--config", str(relay_config)]
+    ok = runner.invoke(app, [*base, "--origin", "https://Share.Example.Test/"])
+    assert ok.exit_code == 0, ok.output
+    assert s3.rules == cors_rule("https://share.example.test")
+    for bad in ("https://share.example.test/app", "*", "https://*.example.test"):
+        result = runner.invoke(app, [*base, "--origin", bad])
+        assert result.exit_code == 2
+        assert "Invalid origin" in result.output
+    assert len(s3.puts) == 1
+
+
+def test_a_loopback_public_base_url_is_refused_unless_origin_is_given(
+    tmp_path: Path, relay_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    s3 = FakeS3(None)
+    _use(monkeypatch, s3)
+    _admin_file(relay_config.parent)
+    text = relay_config.read_text(encoding="utf-8").replace(f"public_base_url: {ORIGIN}\n", "")
+    relay_config.write_text(text, encoding="utf-8")
+    base = ["relay", "bucket-setup", "--config", str(relay_config)]
+    refused = runner.invoke(app, base)
+    assert refused.exit_code == 2
+    assert "loopback" in refused.output
+    assert s3.puts == []
+    assert runner.invoke(app, [*base, "--origin", ORIGIN]).exit_code == 0
+
+
+def test_the_added_message_and_expose_note(
+    relay_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    short = [{**cors_rule(ORIGIN)[0], "ExposeHeaders": []}]
+    _use(monkeypatch, FakeS3(short))
+    _admin_file(relay_config.parent)
+    result = runner.invoke(app, ["relay", "bucket-setup", "--config", str(relay_config)])
+    assert result.exit_code == 0
+    assert "Nothing changed" in result.output
+    assert "does not expose" in result.output

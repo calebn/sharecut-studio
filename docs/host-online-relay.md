@@ -409,18 +409,32 @@ still stop guest playback. These failures retain proxy ownership and show an aud
    a group- or world-readable file is refused), then a prompt in a terminal. Nothing is saved
    unless you create the file. The GUI and `podcast tunnel` never read the admin key.
 
-   The command is safe to run again. A bucket whose first rule for the origin already allows
-   `GET` and `HEAD`, the `Range` header and the exposed range headers is left untouched
-   (`Nothing changed`). Otherwise the rule below is put in front and every existing rule is kept
-   as it is; the command reads the rules back and fails if the store did not keep it.
-   `bucket-check` uses the admin key when it finds one to read the rules; without one it asks the
-   bucket with the upload key the way a guest's browser does.
+   The command is safe to run again. A bucket that already has a rule letting the origin `GET` and
+   `HEAD` with the `Range` header is left untouched (`Nothing changed`; if that rule does not
+   expose `Content-Range`, `Content-Length` and `Accept-Ranges` the command says so and still
+   leaves it alone). Otherwise the rule below is put in front and every existing rule is kept as
+   it is; the command reads the rules back and fails if the store did not keep it. `--origin`
+   overrides `public_base_url` (an exact `https://host` origin; a loopback `public_base_url`
+   is refused so a test setup cannot write a localhost rule into the production bucket).
+   `bucket-check` uses the admin key when it finds one to read the rules. Without one it asks the
+   bucket with the upload key the way a guest's browser does, which only shows whether the origin
+   is allowed (not the methods or exposed headers) and goes through the CDN endpoint when one is
+   set. `--admin-config PATH` uses that file instead of the environment.
 
-   On DigitalOcean Spaces the only key that can set CORS is a "full access" key for all buckets
-   (a grant on one bucket is rejected as "Invalid Grant Combination"). Create it in the control
-   panel (API, Spaces Keys, Generate New Key), run `bucket-setup`, then delete the key; or keep
-   it only in your OS keychain and export the two variables for the one command. The rule the
-   command applies is:
+   Setting CORS needs a key with bucket-admin rights, which the upload key should not have. On
+   DigitalOcean Spaces (as of this writing) only a "full access" key for all buckets can do it, and
+   a grant on a single bucket is rejected as "Invalid Grant Combination". Create the key in the
+   control panel (API, Spaces Keys), run `bucket-setup`, then delete the key. If you pass it in
+   the environment, prefix the one command so the secret does not stay in your shell:
+
+   ```bash
+   PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID=... \
+   PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY=... \
+   podcast relay bucket-setup
+   ```
+
+   The command replaces the bucket's whole CORS configuration in one write, so do not edit CORS
+   in the panel while it runs. The rule it applies is:
 
 ```json
 [
@@ -437,8 +451,7 @@ still stop guest playback. These failures retain proxy ownership and show an aud
    Creating a review link asks the bucket the way a guest's browser does (a `GET` with
    `Origin: <public_base_url>`) and warns the host when `Access-Control-Allow-Origin` is missing:
    the link dialog and `podcast share create` name `podcast relay bucket-setup` and print the
-   rule. Until the rule is added,
-   the guest manifest serves proxy chunks through the share instead of the bucket, and a guest
+   rule. Until the rule is added, the guest manifest serves proxy chunks through the share instead of the bucket, and a guest
    whose browser still cannot read the first chunk falls back to the WAV transport, so the link
    plays either way (more tunnel traffic). The host check is cached for 30 s to 5 min per bucket
    host and origin; an unreachable bucket is treated as unknown and changes nothing.

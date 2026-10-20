@@ -480,6 +480,7 @@ def test_plan_resolves_symlinks_before_dotdot(tmp_path: Path) -> None:
         ["comment", "add", "--help"],
         ["comment", "list"],
         ["pipeline", "list"],
+        ["relay", "bucket-setup", "--config", "relay.yaml"],
         ["comment", "list", "--unknown", "1", "--project", "p.json"],
         ["not-a-command", "--project", "p.json"],
     ],

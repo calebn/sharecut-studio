@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import typer
 
 from podcast_mcp.runtime_config import (
     ObjectStoreConfig,
     RuntimeConfigError,
+    is_loopback_host,
     load_object_store_config,
     load_relay_config,
+    normalize_exact_origin,
 )
 from podcast_mcp.services.media import (
     AdminCredentials,
@@ -40,7 +43,8 @@ _ORIGIN = typer.Option(
 _ADMIN_CONFIG = typer.Option(
     None,
     "--admin-config",
-    help="Admin key YAML (default: relay-admin.yaml next to relay.yaml, mode 0600).",
+    help="Admin key YAML, used instead of the environment "
+    "(default: the environment, then relay-admin.yaml next to relay.yaml, mode 0600).",
 )
 
 
@@ -61,7 +65,17 @@ def _bucket_and_origin(config: Path | None, origin: str | None) -> tuple[ObjectS
             "(docs/host-online-relay.md, Object-store bucket setup).",
             2,
         )
-    return store, (origin or relay.public_base_url).strip().rstrip("/")
+    try:
+        share_origin = normalize_exact_origin("origin", origin or relay.public_base_url)
+    except RuntimeConfigError as exc:
+        raise _fail(f"Invalid origin: {exc}", 2) from exc
+    if origin is None and is_loopback_host(urlparse(share_origin).hostname):
+        raise _fail(
+            f"public_base_url is {share_origin} (loopback), not a public share origin. Set "
+            "public_base_url in relay.yaml or pass --origin https://your.share.domain.",
+            2,
+        )
+    return store, share_origin
 
 
 def _interactive() -> bool:
@@ -110,7 +124,7 @@ def bucket_check_cmd(
             if probe.status == "unknown":
                 raise _fail(f"Could not reach bucket {store.bucket}: {probe.detail}.")
             ok = probe.status == "ok"
-            how = "a guest's request"
+            how = "a guest's request, origin only; use an admin key to check the whole rule"
             detail = probe.detail
     except BucketSetupError as exc:
         raise _fail(str(exc)) from exc
@@ -161,6 +175,13 @@ def bucket_setup_cmd(
     others = f"{result.kept} other rule{'s' if result.kept != 1 else ''} kept"
     if result.state == "already_set":
         typer.echo(f"Bucket {result.bucket} already allows {result.origin}. Nothing changed.")
+        if result.missing_expose:
+            typer.echo(
+                "Its rule does not expose "
+                + ", ".join(result.missing_expose)
+                + ", which the guest player reads for ranged media; it was left as is.",
+                err=True,
+            )
     elif result.state == "would_add":
         typer.echo(
             f"Would add a CORS rule for {result.origin} to bucket {result.bucket} ({others})."
@@ -168,5 +189,5 @@ def bucket_setup_cmd(
     else:
         typer.echo(
             f"Added a CORS rule for {result.origin} to bucket {result.bucket} ({others}). "
-            "Read it back to confirm."
+            "Verified by reading it back."
         )
