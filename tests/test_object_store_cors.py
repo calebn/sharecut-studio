@@ -218,16 +218,3 @@ def test_cached_probe_keeps_a_failure_for_a_shorter_time_than_a_success() -> Non
     cors.cached_guest_cors(ok_url, ORIGIN, fetch=ok, now=now)
     cors.cached_guest_cors(blocked_url, ORIGIN, fetch=blocked, now=now)
     assert (len(ok_calls), len(blocked_calls)) == (1, 2)
-
-
-def test_clear_cors_cache_forces_a_new_probe() -> None:
-    calls: list[str] = []
-
-    def fetch(url: str, origin: str):
-        calls.append(url)
-        return {}
-
-    cors.cached_guest_cors(URL, ORIGIN, fetch=fetch)
-    cors.clear_cors_cache()
-    cors.cached_guest_cors(URL, ORIGIN, fetch=fetch)
-    assert len(calls) == 2

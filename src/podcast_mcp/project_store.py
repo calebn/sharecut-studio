@@ -3,12 +3,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections import OrderedDict
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from threading import Lock
 from typing import Any
 
 from podcast_mcp.models import (
@@ -21,6 +19,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import snapshot_editable_state
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.project_state import FileRevision, project_commit_lock, project_file_revision
 
 log = logging.getLogger(__name__)
@@ -53,9 +52,7 @@ class TranscriptVocabularyState:
 
 _FileSignature = tuple[int, int, int, int, int]
 _VocabularyCacheKey = tuple[Path, _FileSignature, _FileSignature | None]
-_VOCABULARY_CACHE_LIMIT = 16
-_VOCABULARY_CACHE: OrderedDict[_VocabularyCacheKey, TranscriptVocabularyState] = OrderedDict()
-_VOCABULARY_CACHE_LOCK = Lock()
+_VOCABULARY_CACHE: BoundedCache[_VocabularyCacheKey, TranscriptVocabularyState] = BoundedCache(16)
 
 
 def _file_signature(path: Path) -> _FileSignature:
@@ -290,22 +287,16 @@ class ProjectStore:
             before = self._vocabulary_cache_key()
         except OSError:
             return TranscriptVocabularyState.from_project(self.load())
-        with _VOCABULARY_CACHE_LOCK:
-            hit = _VOCABULARY_CACHE.get(before)
-            if hit is not None:
-                _VOCABULARY_CACHE.move_to_end(before)
-                return hit
+        hit = _VOCABULARY_CACHE.get(before)
+        if hit is not None:
+            return hit
         state = TranscriptVocabularyState.from_project(self.load())
         try:
             after = self._vocabulary_cache_key()
         except OSError:
             return state
         if after == before:
-            with _VOCABULARY_CACHE_LOCK:
-                _VOCABULARY_CACHE[before] = state
-                _VOCABULARY_CACHE.move_to_end(before)
-                while len(_VOCABULARY_CACHE) > _VOCABULARY_CACHE_LIMIT:
-                    _VOCABULARY_CACHE.popitem(last=False)
+            _VOCABULARY_CACHE.put(before, state)
         return state
 
     def _vocabulary_cache_key(self) -> _VocabularyCacheKey:

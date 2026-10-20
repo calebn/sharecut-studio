@@ -31,13 +31,41 @@ def _cached_functions() -> set[str]:
     return found
 
 
-def test_every_cached_function_is_classified_for_test_isolation() -> None:
+def _bounded_caches() -> set[str]:
+    src = repo_root() / "src"
+    found: set[str] = set()
+    for path in sorted(src.rglob("*.py")):
+        module = ".".join(path.relative_to(src).with_suffix("").parts)
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.AnnAssign | ast.Assign) and _is_bounded_cache(node.value):
+                targets = [node.target] if isinstance(node, ast.AnnAssign) else node.targets
+                found.update(f"{module}:{t.id}" for t in targets if isinstance(t, ast.Name))
+    return found
+
+
+def _is_bounded_cache(value: ast.expr | None) -> bool:
+    return isinstance(value, ast.Call) and _decorator_name(value) == "BoundedCache"
+
+
+def test_every_cache_is_classified_for_test_isolation() -> None:
     classified = set(ISOLATED) | set(SHARED)
-    assert _cached_functions() == classified
+    assert _cached_functions() | _bounded_caches() == classified
+
+
+def test_bounded_caches_are_found_by_the_scan() -> None:
+    assert "podcast_mcp.util.binaries:_PAIR_CACHE" in _bounded_caches()
 
 
 def test_isolated_and_shared_do_not_overlap() -> None:
     assert not set(ISOLATED) & set(SHARED)
+
+
+def test_reset_clears_an_isolated_bounded_cache() -> None:
+    from podcast_mcp.services.media import object_store_cors
+
+    object_store_cors._cache.put(("host", "origin"), (0.0, object_store_cors.CorsProbe("ok", "o")))
+    reset_isolated_caches()
+    assert len(object_store_cors._cache) == 0
 
 
 def test_reset_clears_a_poisoned_silero_lookup() -> None:
