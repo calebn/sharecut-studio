@@ -45,8 +45,10 @@ _QUIET_VOICED_PEAK = 0.28
 _QUIET_F0_IQR_REL = 0.1
 _QUIET_F0_IQR_MIN_HZ = 20.0
 _MIN_VOICED_FRAMES = 3
-# Any dip this deep on both sides, at any level, is a break between two sounds: "did"
-# and the repeated "that." at lab 1020.30 are 14 dB apart and heard as two words; with
+# Any dip this deep on both sides, at any level, is a break a listener hears: between two
+# words ("did" and the repeated "that." at lab 1020.30 are 14 dB apart), or between two
+# syllables of one word. It does not say which, so a caller that needs the difference
+# adds a test of its own (the span before the dip is one hum, ``is_one_hum``). With
 # Whisper times the repeat at 752.72-752.90 never dips more than 6 dB inside the voice
 # of "well,". A level ripples a few dB inside one sound. The depth is a dB difference,
 # so it reads the same at every recording level.
