@@ -245,6 +245,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "edit/dragThreshold.ts -> hooks/gestureConstants (static)",
   ],
   "commands/edit -> views": [
+    "commands/editing.ts -> feedback/ask (static)",
     "commands/editing.ts -> tracks/trackMuteCopy (static)",
     "commands/gestures.ts -> timeline/inputContract (type)",
     "commands/host.ts -> extensions/features (static)",
@@ -273,7 +274,6 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "hooks/useOfflineAttentionAnnouncement.ts -> layout/attentionLabel (static)",
     "hooks/useShortTouchScreen.ts -> layout/useCompactInspector (static)",
     "hooks/useWaveformSnapTicks.ts -> timeline/snapOverlay (static)",
-    "keymap/listener.ts -> ui/menuGate (static)",
     "keymap/listener.ts -> ui/modalGate (static)",
   ],
 };
@@ -304,8 +304,8 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "services -> commands/edit": 2,
   "services -> views": 2,
   "commands/edit -> hooks": 2,
-  "commands/edit -> views": 18,
-  "hooks -> views": 10,
+  "commands/edit -> views": 19,
+  "hooks -> views": 9,
 };
 const ALLOWLIST_SIZE = 73;
 

@@ -312,7 +312,6 @@ describe("stable callback source governance", () => {
         .sort(),
     ).toEqual([
       "timeline/JoinEditor.tsx:place",
-      "timeline/JoinPopover.tsx:place",
       "timeline/TimelineView.tsx:measure",
       "timeline/TimelineView.tsx:onClipBodyEnd",
       "timeline/TimelineView.tsx:onClipBodyStart",
@@ -323,6 +322,7 @@ describe("stable callback source governance", () => {
       "timeline/TimelineView.tsx:onSelectClip",
       "timeline/TimelineView.tsx:onSelectPending",
       "timeline/TimelineView.tsx:onSelectTrack",
+      "ui/useAnchoredPanel.ts:place",
     ]);
     for (const mutation of mutations) {
       expect(findStableCallbackRenderCalls(mutation.source)).toEqual([
