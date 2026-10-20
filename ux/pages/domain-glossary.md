@@ -334,3 +334,10 @@ ignored words and other occurrences keep their own choices.
 selection. **Undo Restore** reverses the acknowledged Restore action only while
 its exact History head is current. Replacing recording bytes deactivates the old
 saved choice until the host inspects and chooses the new recording explicitly.
+
+## Jobs
+
+A **job** is one long-running operation Studio reports on: a pipeline run, a
+render preview, an agent activity or a model download. They share one job
+record and one progress stream in `services/jobs`; what a person sees (status,
+steps, elapsed time) is unchanged.
