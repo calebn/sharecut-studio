@@ -17,7 +17,7 @@ describe("PipelineStatusChip", () => {
       </footer>,
     );
     const chip = screen.getByRole("button", {
-      name: /Pipeline: running · Preparing mix preview · 1\/3 steps/,
+      name: /Pipeline is running · Preparing mix preview · 1\/3 steps/,
     });
     expect(chip).toHaveAttribute("aria-busy", "true");
     expect(chip).toHaveTextContent("2 activities");
@@ -43,7 +43,7 @@ describe("PipelineStatusChip", () => {
     );
     expect(screen.queryByRole("button")).toBeNull();
     const chip = screen
-      .getByText(/Activity: ok · Transcript ready/)
+      .getByText(/Activity finished · Transcript ready/)
       .closest(".status-pipeline");
     expect(chip).toHaveClass("status-pipeline--static");
     expect(chip).not.toHaveAttribute("aria-busy");
@@ -60,9 +60,7 @@ describe("PipelineStatusChip", () => {
         })}
       />,
     );
-    expect(
-      screen.getByText(/Pipeline: failed · Mix preview failed/),
-    ).toBeTruthy();
+    expect(screen.getByText(/Pipeline failed/)).toBeTruthy();
   });
 
   it("shows stall copy against a supplied clock", async () => {
@@ -74,7 +72,7 @@ describe("PipelineStatusChip", () => {
         onClick={onClick}
       />,
     );
-    const chip = screen.getByRole("button", { name: /Pipeline: running/ });
+    const chip = screen.getByRole("button", { name: /Pipeline is running/ });
     expect(chip).toHaveTextContent("· last update 42s ago");
     await expectNoA11yViolations(container);
   });

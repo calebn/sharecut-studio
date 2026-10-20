@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { StatusLiveRegion } from "../ui/StatusLiveRegion";
-import { unmappedPendingLabel } from "../utils/edits";
+import { pendingEditsStatus, unmappedPendingStatus } from "../utils/edits";
+import { plural } from "../utils/format";
 import { formatTimeShort } from "../utils/time";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import type { StatusBarSummary } from "./statusBarSummary";
@@ -72,26 +73,26 @@ export function StatusBarView({
       {presence}
       {saveState}
       {guestShare ? (
-        <span>Pending: {pendingReviewCount}</span>
+        <span>{pendingEditsStatus(pendingReviewCount)}</span>
       ) : (
         <button
           type="button"
           className="ui-control status-chip"
           onClick={() => onOpenTab("impact")}
         >
-          Pending: {pendingReviewCount}
+          {pendingEditsStatus(pendingReviewCount)}
         </button>
       )}
       {unmappedCount > 0 &&
         (guestShare ? (
-          <span>{unmappedPendingLabel(unmappedCount)}</span>
+          <span>{unmappedPendingStatus(unmappedCount)}</span>
         ) : (
           <button
             type="button"
             className="ui-control status-chip"
             onClick={() => onOpenTab("impact")}
           >
-            {unmappedPendingLabel(unmappedCount)}
+            {unmappedPendingStatus(unmappedCount)}
           </button>
         ))}
       {cut && (
@@ -104,12 +105,12 @@ export function StatusBarView({
       )}
       {socialClipCount > 0 && (
         <span className={narrow ? "status-bar-secondary" : undefined}>
-          Social: {socialClipCount}
+          {`${socialClipCount} social ${plural(socialClipCount, "clip")}`}
         </span>
       )}
       {transcriptNeedsSync ? (
         <span className={reconcileHighlight ? "stale-highlight" : undefined}>
-          Transcript: needs sync
+          Transcript needs sync
         </span>
       ) : null}
       {job && (

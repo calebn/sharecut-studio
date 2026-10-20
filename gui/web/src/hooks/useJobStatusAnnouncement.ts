@@ -3,11 +3,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { joinSentences } from "../utils/format";
 import { isTerminalJobStatus } from "../utils/pipeline";
-import {
-  pipelineKindLabel,
-  pipelineStatusLabel,
-} from "../utils/pipelineProgress";
-import { plainError } from "../utils/plainError";
+import { pipelineStateSentence } from "../utils/pipelineProgress";
 
 /**
  * Speak the Activity/Pipeline chip's status in the shell's polite live region,
@@ -62,16 +58,15 @@ export function useJobStatusAnnouncement(): void {
     if (jobStatus === "ok" && jobId != null && jobId in pending) {
       return;
     }
-    const parts = [
-      `${pipelineKindLabel(jobKind)}: ${pipelineStatusLabel(jobStatus)}`,
-    ];
-    if (jobMessage) {
-      parts.push(jobStatus === "error" ? plainError(jobMessage) : jobMessage);
-    }
-    if (activityRunningCount > 1) {
-      parts.push(`${activityRunningCount} activities`);
-    }
-    announceStatus(parts.join(": "), { toast: false });
+    const failed = jobStatus === "error" || jobStatus === "cancelled";
+    announceStatus(
+      joinSentences([
+        pipelineStateSentence({ kind: jobKind, status: jobStatus }),
+        !failed && jobMessage,
+        activityRunningCount > 1 && `${activityRunningCount} activities`,
+      ]),
+      { toast: false },
+    );
   }, [
     activityRunningCount,
     announceStatus,

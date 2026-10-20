@@ -63,11 +63,15 @@ describe("StatusBar chips", () => {
         <StatusBar />
       </DawProvider>,
     );
-    await user.click(screen.getByRole("button", { name: /^Pending:/ }));
+    await user.click(
+      screen.getByRole("button", { name: /^\d+ pending edits?$/ }),
+    );
     expect(useDawStore.getState().layoutMode).toBe("default");
     expect(useDawStore.getState().activeTab).toBe("impact");
     act(() => useDawStore.getState().setLayoutMode("text"));
-    await user.click(screen.getByRole("button", { name: /^Pending:/ }));
+    await user.click(
+      screen.getByRole("button", { name: /^\d+ pending edits?$/ }),
+    );
     expect(useDawStore.getState().layoutMode).toBe("default");
     expect(useDawStore.getState().activeTab).toBe("impact");
     act(() => useDawStore.getState().setLayoutMode("review"));
@@ -106,7 +110,7 @@ describe("StatusBar render state", () => {
     );
     expect(screen.queryByText(/^Mix /i)).toBeNull();
     expect(screen.queryByText(/Rerender|Reconcile|Premix/)).toBeNull();
-    expect(screen.queryByText("Transcript: needs sync")).toBeNull();
+    expect(screen.queryByText("Transcript needs sync")).toBeNull();
   });
 
   it("reports a stale render and transcript sync once media exists", () => {
@@ -139,7 +143,7 @@ describe("StatusBar render state", () => {
       </DawProvider>,
     );
     expect(screen.queryByText(/^Mix /i)).toBeNull();
-    expect(screen.getByText("Transcript: needs sync")).toBeTruthy();
+    expect(screen.getByText("Transcript needs sync")).toBeTruthy();
   });
 });
 
@@ -223,7 +227,7 @@ describe("StatusBar live region", () => {
     });
     expect(
       screen.getByRole("button", {
-        name: /Pipeline: running · Aligning conversation · 1\/2 steps/,
+        name: /Pipeline is running · Aligning conversation · 1\/2 steps/,
       }),
     ).toBeTruthy();
   });
@@ -250,7 +254,7 @@ describe("StatusBar live region", () => {
       });
     });
     const chip = screen.getByRole("button", {
-      name: /Pipeline: running · Whisper encode/,
+      name: /Pipeline is running · Whisper encode/,
     });
     expect(chip.getAttribute("aria-busy")).toBe("true");
     expect(chip.querySelector(".pipeline-pulse")).toBeTruthy();
@@ -280,7 +284,7 @@ describe("StatusBar live region", () => {
     });
     expect(
       screen.getByRole("button", {
-        name: /Pipeline: cancelled · Stopped by user/,
+        name: /Pipeline was cancelled/,
       }),
     ).toBeTruthy();
   });
@@ -308,11 +312,11 @@ describe("StatusBar live region", () => {
     });
     expect(
       screen.getByRole("button", {
-        name: /Pipeline: failed · Step exploded/,
+        name: /Pipeline failed/,
       }),
     ).toBeTruthy();
     const status = screen.getByRole("status");
-    expect(status.textContent).toBe("Pipeline: failed: Step exploded");
+    expect(status.textContent).toBe("Pipeline failed");
     expect(status.textContent).not.toMatch(/\d+:\d+/);
   });
 
@@ -342,7 +346,7 @@ describe("StatusBar live region", () => {
       useDawStore.getState().setActivityRunningCount(2);
     });
     const chip = screen
-      .getByText(/Activity: running · Scoring bleed windows/)
+      .getByText(/Activity is running · Scoring bleed windows/)
       .closest(".status-pipeline");
     expect(chip).toBeTruthy();
     expect(chip?.querySelector(".activity-count-badge")?.textContent).toContain(
@@ -351,7 +355,7 @@ describe("StatusBar live region", () => {
     expect(chip?.tagName).toBe("SPAN");
     const status = screen.getByRole("status");
     expect(status.textContent).toContain("2 activities");
-    expect(status.textContent).toContain("Activity: running");
+    expect(status.textContent).toContain("Activity is running");
   });
 
   it("speaks a job's own result once its chip is terminal and drops it (#704)", () => {
@@ -390,7 +394,7 @@ describe("StatusBar live region", () => {
         .setActivityJob(bounceChip("b1", "running", "Mixing bounce…"));
     });
     const status = screen.getByRole("status");
-    expect(status.textContent).toBe("Activity: running: Mixing bounce…");
+    expect(status.textContent).toBe("Activity is running. Mixing bounce…");
     expect(useDawStore.getState().pendingJobResults).toEqual({
       b1: "Bounced 1 file(s) to export/bounces/",
     });
@@ -437,7 +441,7 @@ describe("StatusBar live region", () => {
         .setActivityJob({ ...bounceChip("b1", "error", "Bounce failed") });
     });
     const status = screen.getByRole("status");
-    expect(status.textContent).toContain("Activity: failed");
+    expect(status.textContent).toContain("Activity failed");
   });
 
   it("keeps the generic ok headline quiet until the job's own result lands (#704)", () => {
@@ -453,15 +457,15 @@ describe("StatusBar live region", () => {
         .setActivityJob(bounceChip("b1", "running", "Mixing bounce…"));
     });
     let status = screen.getByRole("status");
-    expect(status.textContent).toBe("Activity: running: Mixing bounce…");
+    expect(status.textContent).toBe("Activity is running. Mixing bounce…");
     act(() => {
       useDawStore
         .getState()
         .setActivityJob(bounceChip("b1", "ok", "Bounce complete"));
     });
     status = screen.getByRole("status");
-    expect(status.textContent).toBe("Activity: running: Mixing bounce…");
-    expect(status.textContent).not.toContain("Activity: ok");
+    expect(status.textContent).toBe("Activity is running. Mixing bounce…");
+    expect(status.textContent).not.toContain("Activity finished");
     act(() => {
       useDawStore
         .getState()
@@ -652,7 +656,7 @@ describe("StatusBar live region", () => {
       });
     });
     const bounceChip = screen.getByRole("button", {
-      name: /Activity: running · Mixing bounce/,
+      name: /Activity is running · Mixing bounce/,
     });
     await user.click(bounceChip);
     expect(useDawStore.getState().activeTab).toBe("pipeline");
@@ -676,7 +680,7 @@ describe("StatusBar live region", () => {
       });
     });
     const agentChip = screen
-      .getByText(/Activity: running · Scoring/)
+      .getByText(/Activity is running · Scoring/)
       .closest(".status-pipeline");
     expect(agentChip?.tagName).toBe("SPAN");
     expect(useDawStore.getState().activeTab).toBe("impact");
@@ -706,9 +710,9 @@ describe("StatusBar live region", () => {
       });
     });
     expect(
-      screen.queryByRole("button", { name: /Activity: running/ }),
+      screen.queryByRole("button", { name: /Activity is running/ }),
     ).toBeNull();
-    expect(screen.getByText(/Activity: running · Mixing stems/)).toBeTruthy();
+    expect(screen.getByText(/Activity is running · Mixing stems/)).toBeTruthy();
   });
 
   it("shows last-update copy once lag exceeds 15s without dropping the pulse", () => {
@@ -737,7 +741,7 @@ describe("StatusBar live region", () => {
       });
     });
     const chip = screen.getByRole("button", {
-      name: /Pipeline: running · Aligning conversation/,
+      name: /Pipeline is running · Aligning conversation/,
     });
     expect(chip.textContent).not.toContain("last update");
     expect(chip.querySelector(".pipeline-pulse")).toBeTruthy();
@@ -864,9 +868,9 @@ describe("StatusBar cut chip", () => {
     useDawStore.setState({ activeTab: "transcript", layoutMode: "default" });
     render(<StatusBar guestShare />);
     expect(
-      screen.queryByRole("button", { name: /^Pending:|^Mix /i }),
+      screen.queryByRole("button", { name: /^\d+ pending edits?$|^Mix /i }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByText(/^Pending:/));
+    await user.click(screen.getByText(/^\d+ pending edits?$/));
     expect(useDawStore.getState().activeTab).toBe("transcript");
     await user.click(screen.getByRole("button", { name: "Open comments" }));
     expect(useDawStore.getState().activeTab).toBe("comments");
