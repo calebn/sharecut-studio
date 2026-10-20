@@ -26,6 +26,8 @@ export type UseCommandResult = {
   label: string;
   /** True when keyboard `when` would allow the command. */
   enabled: boolean;
+  /** What is missing when `when` fails, for a disabled control; undefined when enabled. */
+  whenReason: string | undefined;
   run: (
     args?: Record<string, unknown>,
     options?: { skipWhen?: boolean },
@@ -45,9 +47,9 @@ export function useCommand(commandId: string): UseCommandResult {
   );
 
   const def = COMMANDS[commandId];
-  const enabled = def
-    ? evaluateWhen(def.when, buildCommandContext()).ok
-    : false;
+  const gate = def ? evaluateWhen(def.when, buildCommandContext()) : null;
+  const enabled = gate?.ok ?? false;
+  const whenReason = gate && !gate.ok ? gate.reason : undefined;
 
   const run = useCallback(
     (args: Record<string, unknown> = {}, options?: { skipWhen?: boolean }) =>
@@ -61,6 +63,7 @@ export function useCommand(commandId: string): UseCommandResult {
     def,
     label: def?.label ?? commandId,
     enabled,
+    whenReason,
     run,
   };
 }

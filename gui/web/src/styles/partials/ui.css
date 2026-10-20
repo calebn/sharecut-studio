@@ -667,6 +667,27 @@ html[data-shell="phone"] .modifier-footer-actions .ui-menu-root {
   min-inline-size: 0;
 }
 
+.ui-menu-item-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  min-inline-size: 0;
+}
+
+.ui-menu-item-reason {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-micro);
+}
+
+.ui-menu-panel button[role="menuitem"][aria-disabled="true"] {
+  cursor: default;
+}
+
+.ui-menu-panel button[role="menuitem"].is-over {
+  background: var(--color-hover);
+}
+
 .ui-menu-shortcut {
   flex: 0 0 auto;
   margin-inline-start: auto;
@@ -691,7 +712,8 @@ html[data-shell="phone"] .modifier-footer-actions .ui-menu-root {
 
 @media (hover: hover) and (pointer: fine) {
   .ui-menu-panel .ui-control--quiet:hover:not(:disabled, [aria-checked="true"]),
-  .ui-menu-panel button[role="menuitem"]:hover:not(:disabled) {
+  .ui-menu-panel
+    button[role="menuitem"]:hover:not(:disabled, [aria-disabled="true"]) {
     background: var(--color-hover);
     color: var(--color-text-primary);
     border-color: transparent;

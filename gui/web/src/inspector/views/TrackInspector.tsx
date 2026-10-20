@@ -185,7 +185,7 @@ export function TrackInspector({
             trigger={(props) => <Button {...props}>Track actions</Button>}
           >
             <MenuItem
-              disabled={busy}
+              disabledReason={busy ? BUSY_REASON : undefined}
               title="Apply the recommended fade at every join on this track"
               onSelect={() => {
                 setTrackMenuOpen(false);

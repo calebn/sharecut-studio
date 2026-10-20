@@ -526,4 +526,26 @@ describe("Menu", () => {
     expect(item).toHaveAttribute("aria-keyshortcuts", "Meta+Shift+B");
     expect(item.querySelector("kbd")).toHaveAttribute("aria-hidden", "true");
   });
+
+  it("keeps a disabled item focusable, says why and does not select", async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <div role="menu" aria-label="Track">
+        <MenuItem disabledReason="Select a track first." onSelect={onSelect}>
+          Remove track
+        </MenuItem>
+      </div>,
+    );
+    const item = screen.getByRole("menuitem", {
+      name: /Remove track/,
+      description: "Select a track first.",
+    });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    expect(item).not.toBeDisabled();
+    expect(screen.getByText("Select a track first.")).toBeVisible();
+    await user.click(item);
+    expect(onSelect).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+  });
 });
