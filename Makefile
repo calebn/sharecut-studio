@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync docs-sync-table docs-sync-replay decisions-index decisions-index-check golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check schema-check capabilities-check progress-check docs-sync docs-sync-table docs-sync-replay decisions-index decisions-index-check golden-ear
 
 setup:
 	./install.sh
@@ -83,7 +83,7 @@ desktop-linux-appimage-docker:
 ci:
 	@$(MAKE) --no-print-directory ci-body
 
-ci-body: lint-py format-py-check typecheck schema-check capabilities-check progress-check docs-sync decisions-index-check test test-web test-web-e2e
+ci-body: lint-py format-py-check typecheck generated-check docs-sync test test-web test-web-e2e
 
 # Regenerate docs/daw-shortcuts.md + ux/pages/shortcuts.md from KEYMAP_COMMANDS.
 cheatsheet:
@@ -92,15 +92,16 @@ cheatsheet:
 cheatsheet-check:
 	cd gui/web && npx vite-node scripts/generate-keymap-cheatsheet.ts --check
 
-# Capability manifest ↔ COMMANDS / keymap / MCP / skills (+ docs catalog stale check).
-capabilities-check:
-	uv run python scripts/check_capabilities_manifest.py
-	uv run python scripts/export_capabilities_docs.py --check
+# Every generated artifact and contract check: capability manifest, schemas and docs-site
+# contract, extension caps, progress framework compliance (warn by default;
+# PODCAST_PROGRESS_COMPLIANCE=error to hard-fail) and the decision index. The two
+# Biome-formatted exporters need gui/web/node_modules, so CI runs them in the frontend job.
+generated-check:
+	uv run pytest -q --no-cov tests/test_generated_artifacts.py
 	uv run python scripts/export_capabilities_copy.py --check
+	uv run python scripts/export_timeline_zoom.py --check
 
-# Progress framework compliance (warn by default; PODCAST_PROGRESS_COMPLIANCE=error to hard-fail).
-progress-check:
-	uv run python scripts/check_progress.py
+schema-check capabilities-check progress-check decisions-index-check: generated-check
 
 # Docs-sync gate for this branch (the same check CI runs on the PR diff). Judges commits,
 # not uncommitted worktree edits; commit first, then run this before opening a PR.
@@ -114,10 +115,6 @@ docs-sync-table:
 # Regenerate the decision index in docs/decisions/README.md from the decision blocks in docs/.
 decisions-index:
 	uv run python scripts/decisions_index.py
-
-# Fail on an invalid decision block or a stale decision index.
-decisions-index-check:
-	uv run python scripts/decisions_index.py --check
 
 # Replay the working-tree contract over the last LIMIT merged PRs (default and max 100) for
 # triage. Needs gh and full history (`git fetch --unshallow`). The units go through a temp
@@ -138,13 +135,6 @@ schema-export:
 	uv run python scripts/export_capabilities_docs.py
 	uv run python scripts/export_capabilities_copy.py
 	uv run python scripts/export_timeline_zoom.py
-
-schema-check:
-	uv run python scripts/export_document_command_schema.py --check
-	uv run python scripts/export_docs_site_contract.py --check
-	uv run python scripts/export_capabilities_docs.py --check
-	uv run python scripts/export_capabilities_copy.py --check
-	uv run python scripts/export_timeline_zoom.py --check
 
 # Static type checks; timebase-critical modules run strict (see [tool.mypy]).
 typecheck:
