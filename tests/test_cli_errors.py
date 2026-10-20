@@ -131,7 +131,7 @@ def test_suggest_handoff_cut_without_dialogue_prints_clean_error(tmp_path):
     assert result.exit_code == 1
     assert (
         result.stderr.strip()
-        == "Error: at least one dialogue track is required (set PODCAST_DEBUG=1 for the traceback)"
+        == "Error: at least one dialogue track is required (code track_ids_empty) (set PODCAST_DEBUG=1 for the traceback)"
     )
     assert "Traceback" not in result.output
 

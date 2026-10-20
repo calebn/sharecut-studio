@@ -121,7 +121,7 @@ def timeline_floor_hops(
     """
     if not track_ids:
         raise CodedValueError(
-            "at least one dialogue track is required. Pass at least one dialogue track.",
+            "at least one dialogue track is required",
             code="track_ids_empty",
         )
     if timeline_end <= timeline_start:

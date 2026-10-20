@@ -213,7 +213,7 @@ def preview_pending_cut_range(project: EpisodeProject, edit_id: str) -> PendingC
         raise CodedKeyError(f"edit decision not found: {edit_id}", code="edit_not_found")
     if edit.applied:
         raise CodedValueError(
-            "cut suggestions require a pending edit. Pick a pending edit first.",
+            "cut suggestions require a pending edit",
             code="cut_suggestion_unavailable",
         )
     if edit.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
