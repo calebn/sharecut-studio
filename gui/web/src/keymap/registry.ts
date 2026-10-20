@@ -730,7 +730,7 @@ function shortcutParts(cmd: KeymapCommand): string[] {
   if (cmd.requireAlt) {
     parts.push("Alt");
   }
-  if (cmd.requireShift) {
+  if (cmd.requireShift || cmd.shiftKeys?.includes(primary)) {
     parts.push("Shift");
   }
   parts.push(primary);

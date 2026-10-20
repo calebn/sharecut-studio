@@ -267,7 +267,7 @@ export interface HitRouter {
    * Opens the create menu at `origin` on `surface` with no finger down: the
    * right-click and keyboard twin of a long press on empty space (#1793).
    */
-  openCreate: (origin: HitPoint, surface: Element) => void;
+  openCreate: (origin: HitPoint, surface: Element) => boolean;
   /** Closes the chooser or the create menu with no change. */
   close: () => void;
   /**
@@ -695,21 +695,22 @@ export function attachHitRouting(
   const onContextMenu = (event: MouseEvent) => {
     const { target } = event;
     if ((event as PointerEvent).pointerType === "touch") return;
-    if (!(target instanceof Element) || !partOf(target)) return;
+    if (!(target instanceof Element)) return;
+    // A key press carries no pointer position.
+    const keyed = event.clientX === 0 && event.clientY === 0;
     // The key route opens the menu on keydown; the native menu that key press
-    // would raise next must not cover it.
-    if (phase.kind === "create") {
+    // would raise next must not cover it, wherever focus sits.
+    if (phase.kind === "create" && keyed) {
       event.preventDefault();
       return;
     }
-    if (phase.kind !== "idle") return;
+    if (!partOf(target)) return;
+    // A right click on the timeline while a menu is open moves the menu.
+    if (phase.kind !== "idle" && phase.kind !== "create") return;
     if (!closestHitTarget(target) && !closestHitSurface(target)) return;
     event.preventDefault();
-    // A key press carries no pointer position: use the focused target's.
-    const box =
-      event.clientX === 0 && event.clientY === 0
-        ? target.getBoundingClientRect()
-        : null;
+    // A key press has no pointer position: use the focused target's.
+    const box = keyed ? target.getBoundingClientRect() : null;
     router.openCreate(
       box
         ? { x: box.left + box.width / 2, y: box.top + box.height / 2 }
@@ -1124,13 +1125,14 @@ export function attachHitRouting(
       emit(phase.view);
     },
     openCreate(origin, surface) {
-      if (phase.kind !== "idle" && phase.kind !== "create") return;
+      if (phase.kind !== "idle" && phase.kind !== "create") return false;
       setPhase({
         kind: "create",
         pointerId: -1,
         view: { origin, surface, fingerDown: false, over: null },
       });
       emitCreate((phase as Extract<Phase, { kind: "create" }>).view);
+      return true;
     },
     close() {
       if (phase.kind !== "open" && phase.kind !== "create") return;

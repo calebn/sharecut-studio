@@ -312,9 +312,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     );
     const unregisterCreate = registerCreateMenuOpener(() => {
       const anchor = keyboardCreateAnchor(root);
-      if (!anchor) return false;
-      router.openCreate(anchor.origin, anchor.surface);
-      return true;
+      return anchor ? router.openCreate(anchor.origin, anchor.surface) : false;
     });
     setHitRouter(router);
     return () => {

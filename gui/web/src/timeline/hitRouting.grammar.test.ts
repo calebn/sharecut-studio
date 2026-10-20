@@ -441,19 +441,35 @@ describe("context menu (#1793)", () => {
     expect(creates).toEqual([]);
   });
 
-  it("opens nothing on a contextmenu while a press or menu is under way, and keeps the native menu off an open one", () => {
+  it("opens nothing on a contextmenu while a press is under way", () => {
     const el = lane();
     press(el, "pointerdown", 300, 150);
     const whilePressing = contextmenu(el, 400, 150);
-    router.longPress();
-    const open = creates.length;
-    const whileOpen = contextmenu(el, 500, 150);
+
+    expect(whilePressing.defaultPrevented).toBe(false);
+    expect(creates).toEqual([]);
+  });
+
+  it("keeps the native menu off an open create menu when the key press has no target, and moves the menu on a right click", () => {
+    const el = lane();
+    router.openCreate({ x: 300, y: 150 }, el);
+    const keyed = contextmenu(document.body, 0, 0);
+    const moved = contextmenu(el, 500, 150);
 
     expect({
-      pressing: whilePressing.defaultPrevented,
-      open: whileOpen.defaultPrevented,
-      opened: creates.length - open,
-    }).toEqual({ pressing: false, open: true, opened: 0 });
-    expect(creates.at(-1)?.origin).toEqual({ x: 300, y: 150 });
+      keyed: keyed.defaultPrevented,
+      moved: moved.defaultPrevented,
+    }).toEqual({
+      keyed: true,
+      moved: true,
+    });
+    expect(creates.at(-1)?.origin).toEqual({ x: 500, y: 150 });
+  });
+
+  it("reports whether the menu opened", () => {
+    const el = lane();
+    press(el, "pointerdown", 300, 150);
+
+    expect(router.openCreate({ x: 300, y: 150 }, el)).toBe(false);
   });
 });

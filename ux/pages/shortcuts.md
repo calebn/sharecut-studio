@@ -83,7 +83,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `Backspace` | Remove track (`track.remove`) | trackInspectorSelected | Before edit.delete: inspector track selection only |
 | `ArrowUp` | Move track up (`track.moveUp`) | canMoveSelectedTrackUp | Inspector track selected |
 | `ArrowDown` | Move track down (`track.moveDown`) | canMoveSelectedTrackDown | Inspector track selected |
-| `F10` | Create here (`create.menu`) | Timeline focused | Shift+F10: create menu at the focused target or the playhead; the Menu key too |
+| `Shift+F10` | Create here (`create.menu`) | Timeline focused | Shift+F10: create menu at the focused target or the playhead; the Menu key too |
 | `Backspace` | Delete clip (`edit.delete`) | Structural edits allowed |  |
 | `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | Structural edits allowed | Mod+Backspace |
 | `Mod+K` | Blade cut (`edit.bladeCut`) | Structural edits allowed | Mod+K: cut at playhead — Mod+K cuts; K alone stops playback |
