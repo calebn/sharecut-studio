@@ -345,11 +345,11 @@ class McpNotificationProgress(NotificationProgress):
 
     def __init__(self, context: Any) -> None:
         super().__init__()
-        self._context = context
+        self._mcp_context = context
         self._pending_task: Any = None
 
     def _notify(self, progress: float, total: float | None, message: str | None) -> None:
-        ctx = self._context
+        ctx = self._mcp_context
         if ctx is None or not hasattr(ctx, "report_progress"):
             return
         try:

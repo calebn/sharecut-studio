@@ -37,7 +37,7 @@ repos:
         entry: bash -c 'PODCAST_PROGRESS_COMPLIANCE=warn python3 scripts/check_progress.py'
         language: system
         pass_filenames: false
-        files: ^(contracts/progress-exemptions\.json|contracts/progress-richness\.json|schemas/progress-exemptions\.schema\.json|schemas/progress-richness\.schema\.json|scripts/check_progress\.py|src/podcast_mcp/util/progress\.py|src/podcast_mcp/mcp/|src/podcast_mcp/cli/|src/podcast_mcp/pipeline/|src/podcast_mcp/services/remote_mcp/)
+        files: ^(contracts/progress-exemptions\.json|contracts/progress-richness\.json|schemas/progress-exemptions\.schema\.json|schemas/progress-richness\.schema\.json|scripts/check_progress\.py|src/podcast_mcp/util/progress/|src/podcast_mcp/mcp/|src/podcast_mcp/cli/|src/podcast_mcp/pipeline/|src/podcast_mcp/services/remote_mcp/)
       - id: document-command-schema
         name: Document-command JSON Schema + docs-site stay generated
         entry: python3 scripts/export_document_command_schema.py --check
