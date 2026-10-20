@@ -107,3 +107,33 @@ export function wordAtPoint(
   }
   return null;
 }
+
+/** The word `selection` holds when it is a range of exactly one word. */
+export function oneWordOf(selection: Selection): WordTarget | null {
+  if (
+    selection?.kind !== "transcriptRange" ||
+    selection.startWordIndex !== selection.endWordIndex
+  ) {
+    return null;
+  }
+  return {
+    trackId: selection.trackId,
+    sourceId: selection.sourceId ?? null,
+    wordIndex: selection.startWordIndex,
+  };
+}
+
+/** The selection for a tapped word: a range of one. */
+export function wordSelection({
+  trackId,
+  sourceId,
+  wordIndex,
+}: WordTarget): TranscriptRangeSelection {
+  return {
+    kind: "transcriptRange",
+    trackId,
+    sourceId,
+    startWordIndex: wordIndex,
+    endWordIndex: wordIndex,
+  };
+}

@@ -225,6 +225,7 @@ export interface DawState {
   scrollLeft: number;
   /** Visible time column (px) of the mounted timeline, from its observer; the shell estimate before it measures and after it unmounts. */
   timelineViewportWidth: number;
+  /** The one selection: every selected target, one kind. `selection.ts` derives the track and clip sets from it. */
   selection: Selection;
   rangeArmed: boolean;
   rangeBusy: boolean;
@@ -262,9 +263,6 @@ export interface DawState {
   soloTracks: Record<string, boolean>;
   timelineFocused: boolean;
   toolMode: ToolMode;
-  selectedTrackIds: string[];
-  /** Multi-clip body selection (inspector still uses `selection` as primary). */
-  selectedClipIds: string[];
   /** Phone: pending blade cut time awaiting confirm sheet. */
   bladeConfirmSec: number | null;
   /** A ripple the host refused because it would cut other speech, awaiting the person's choice. */
@@ -498,7 +496,8 @@ export interface DawState {
   setCommentDraft: (draft: CommentDraft | null) => void;
   setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
   setToolMode: (mode: ToolMode) => void;
-  setSelectedTrackIds: (ids: string[]) => void;
+  /** Select exactly these tracks (the first is primary); none clears the selection. */
+  selectTracks: (trackIds: readonly string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
   setBladeConfirmSec: (sec: number | null) => void;
   fitToWindow: (viewportWidth: number) => void;

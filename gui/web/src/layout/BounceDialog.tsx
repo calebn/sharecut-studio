@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { startBounceJob } from "../api";
 import { runAnnouncedJob } from "../state/runAnnouncedJob";
+import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { errorMessage, isAbortError } from "../utils/apiError";
 import { BounceDialogView, type BounceSourceMode } from "./BounceDialogView";
@@ -15,7 +16,7 @@ export function BounceDialog() {
     setBounceDialogOpen,
     project,
     projectPath,
-    selectedTrackIds,
+    selection,
     soloTracks,
     sessionRegion,
   } = useDaw((s) => ({
@@ -24,7 +25,7 @@ export function BounceDialog() {
     setBounceDialogOpen: s.setBounceDialogOpen,
     project: s.project,
     projectPath: s.projectPath,
-    selectedTrackIds: s.selectedTrackIds,
+    selection: s.selection,
     soloTracks: s.soloTracks,
     sessionRegion: s.sessionRegion,
   }));
@@ -48,6 +49,7 @@ export function BounceDialog() {
     setBusy(false);
   }, [bounceDialogOpen]);
 
+  const selectedTrackIds = selectedTrackIdsOf(selection);
   const selectedCount = selectedTrackIds.length;
   const soloCount = Object.values(soloTracks).filter(Boolean).length;
   const region = sessionRegion;

@@ -13,6 +13,7 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ProjectView } from "../types/project";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
+import { NO_SELECTION } from "./selectionSlice";
 import { zoomReclampPatch } from "./storeMath";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type { DawStore } from "./types";
@@ -323,7 +324,7 @@ export const createProjectSlice: StateCreator<
             exportDialogOpen: false,
             splitSpeakersReview: null,
             splitSpeakersTrackId: null,
-            selection: null,
+            ...NO_SELECTION,
             // Job-result announcement bookkeeping (#704) is per project: a
             // stale id must not hush a headline on the next project.
             pendingJobResults: {},

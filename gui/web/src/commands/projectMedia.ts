@@ -14,6 +14,7 @@ import { patchTracksOrder } from "../document/projectPatch";
 import { askConfirm, askText } from "../feedback/ask";
 import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { selectedTrackIdsOf } from "../state/selection";
 import { withAbortTimeout } from "../utils/abortTimeout";
 import { errorMessage } from "../utils/apiError";
 import { homeUrl, projectUrl } from "../utils/projectUrl";
@@ -241,6 +242,12 @@ export function registerProjectMediaCommands(): void {
     if (!trackId) {
       return { status: "disabled", reason: "No track selected in inspector" };
     }
+    if (
+      typeof args.trackId !== "string" &&
+      selectedTrackIdsOf(asked.selection).length > 1
+    ) {
+      return { status: "disabled", reason: "Select one track to remove" };
+    }
     const label =
       asked.project?.tracks.find((t) => t.id === trackId)?.label || trackId;
     const confirmed = await askConfirm({
@@ -267,9 +274,6 @@ export function registerProjectMediaCommands(): void {
           undo: replyHistoryHead(reply),
         });
         const next = useDawStore.getState();
-        next.setSelectedTrackIds(
-          next.selectedTrackIds.filter((id) => id !== trackId),
-        );
         next.setSelection(null);
         return { status: "ok" };
       } catch (e) {
@@ -313,8 +317,9 @@ export function registerProjectMediaCommands(): void {
     const trackId =
       typeof args.trackId === "string"
         ? args.trackId
-        : (s.selectedTrackIds[0] ??
-          (s.selection?.kind === "track" ? s.selection.trackId : null));
+        : s.selection?.kind === "track"
+          ? s.selection.trackId
+          : null;
     await ingestFiles(
       files,
       trackId ? { kind: "track", id: trackId } : { kind: "new" },

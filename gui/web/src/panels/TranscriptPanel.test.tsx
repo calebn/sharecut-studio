@@ -7,6 +7,7 @@ import { transcriptWordPresenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import type { ProsodyOverlay } from "../types/prosody";
 import { scrollChildIntoParent } from "../utils/transcript";
 import { TranscriptPanel } from "./TranscriptPanel";
@@ -220,12 +221,11 @@ describe("TranscriptPanel", () => {
         vi.runOnlyPendingTimers();
       });
     };
-    const thereWord = {
-      kind: "transcriptWord",
+    const thereWord = wordSelection({
       trackId: "host",
       sourceId: null,
       wordIndex: 1,
-    } as const;
+    });
 
     it("double-tap seeks on the first tap, then opens correction", () => {
       useDawStore.setState({ playheadSec: 5 });
@@ -754,12 +754,9 @@ describe("TranscriptPanel", () => {
       expect(
         within(container).queryByRole("textbox", { name: /Correct word/ }),
       ).toBeNull();
-      expect(useDawStore.getState().selection).toEqual({
-        kind: "transcriptWord",
-        trackId: "host",
-        sourceId: null,
-        wordIndex: 0,
-      });
+      expect(useDawStore.getState().selection).toEqual(
+        wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
+      );
     });
 
     it("closes the editor when switching to Correct", () => {
@@ -1757,11 +1754,9 @@ describe("TranscriptPanel", () => {
           },
         });
       });
-      expect(useDawStore.getState().selection).toEqual({
-        kind: "transcriptWord",
-        trackId: "host",
-        wordIndex: 1,
-      });
+      expect(useDawStore.getState().selection).toEqual(
+        wordSelection({ trackId: "host", sourceId: null, wordIndex: 1 }),
+      );
     });
 
     it("does not select in navigate mode when the cursor steps", () => {
@@ -2058,7 +2053,11 @@ describe("TranscriptPanel virtualization", () => {
     );
     act(() => {
       useDawStore.setState({
-        selection: { kind: "transcriptWord", trackId: "host", wordIndex: 1100 },
+        selection: wordSelection({
+          trackId: "host",
+          sourceId: null,
+          wordIndex: 1100,
+        }),
       });
     });
     expect(turnEl(container, 1100)).toBeTruthy();

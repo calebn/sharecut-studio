@@ -17,6 +17,7 @@ import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { runPointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
+import { selectedTrackIdsOf } from "../state/selection";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
 import { bladeCutNote } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
@@ -53,7 +54,7 @@ interface Item {
 
 function items(place: CreatePlace): Item[] {
   const ctx = buildCommandContext();
-  const { project, selectedTrackIds, layers } = useDawStore.getState();
+  const { project, selection, layers } = useDawStore.getState();
   return CREATE_ENTRIES.map((entry) => {
     const args = entry.args(place);
     const gate = evaluateWhen(COMMANDS[entry.command].when, ctx);
@@ -71,7 +72,7 @@ function items(place: CreatePlace): Item[] {
             : "Hold on a track to add a point",
       note:
         entry.id === "split"
-          ? bladeCutNote(project?.tracks ?? [], selectedTrackIds)
+          ? bladeCutNote(project?.tracks ?? [], selectedTrackIdsOf(selection))
           : null,
     };
   });

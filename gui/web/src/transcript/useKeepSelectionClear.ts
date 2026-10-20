@@ -37,13 +37,6 @@ function selectedSpan(
       last: selection.endWordIndex,
     };
   }
-  if (selection?.kind === "transcriptWord") {
-    return {
-      trackId: selection.trackId,
-      first: selection.wordIndex,
-      last: selection.wordIndex,
-    };
-  }
   return null;
 }
 

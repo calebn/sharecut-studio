@@ -35,7 +35,11 @@ import {
   prominentWordKey,
   prominentWordKeys,
 } from "../transcript/prominence";
-import { selectedWordsMessage } from "../transcript/rangeSelect";
+import {
+  oneWordOf,
+  selectedWordsMessage,
+  wordSelection,
+} from "../transcript/rangeSelect";
 import { TranscriptFindReplace } from "../transcript/TranscriptFindReplace";
 import { TranscriptSpeakerEditor } from "../transcript/TranscriptSpeakerEditor";
 import {
@@ -106,7 +110,6 @@ function wordInRange(
     kind: string;
     trackId?: string;
     sourceId?: string | null;
-    wordIndex?: number;
     startWordIndex?: number;
     endWordIndex?: number;
   } | null,
@@ -116,13 +119,6 @@ function wordInRange(
 ): boolean {
   if (wordIndex == null || !selection) {
     return false;
-  }
-  if (selection.kind === "transcriptWord") {
-    return (
-      selection.trackId === trackId &&
-      (selection.sourceId ?? null) === sourceId &&
-      selection.wordIndex === wordIndex
-    );
   }
   if (selection.kind === "transcriptRange") {
     if (
@@ -159,6 +155,7 @@ export function TranscriptPanel() {
     showCutAwayUtterances,
     setShowCutAwayUtterances,
     layoutMode,
+    shellBreakpoint,
     followingClientId,
     stopFollow,
     transcriptScrollRequest,
@@ -187,6 +184,7 @@ export function TranscriptPanel() {
     showCutAwayUtterances: s.showCutAwayUtterances,
     setShowCutAwayUtterances: s.setShowCutAwayUtterances,
     layoutMode: s.layoutMode,
+    shellBreakpoint: s.shellBreakpoint,
     followingClientId: s.followingClientId,
     stopFollow: s.stopFollow,
     transcriptScrollRequest: s.transcriptScrollRequest,
@@ -321,12 +319,7 @@ export function TranscriptPanel() {
       };
     }
     setIntent("correct");
-    setSelection({
-      kind: "transcriptWord",
-      trackId,
-      sourceId,
-      wordIndex,
-    });
+    setSelection(wordSelection({ trackId, sourceId, wordIndex }));
     return true;
   };
 
@@ -346,7 +339,7 @@ export function TranscriptPanel() {
 
   useEffect(() => {
     const restore = gestureRestoreRef.current;
-    if (!restore || selection?.kind === "transcriptWord") {
+    if (!restore || oneWordOf(selection)) {
       return;
     }
     gestureRestoreRef.current = null;
@@ -357,19 +350,7 @@ export function TranscriptPanel() {
   }, [selection, setSelection]);
 
   useEffect(() => {
-    if (
-      intent !== "correct" &&
-      (selection?.kind === "transcriptWord" ||
-        selection?.kind === "transcriptRange")
-    ) {
-      if (intent === "navigate") {
-        setSelection(null);
-      }
-    }
-    if (intent === "correct" && selection?.kind === "transcriptRange") {
-      setSelection(null);
-    }
-    if (intent === "select" && selection?.kind === "transcriptWord") {
+    if (intent === "navigate" && selection?.kind === "transcriptRange") {
       setSelection(null);
     }
   }, [intent, selection, setSelection]);
@@ -380,14 +361,13 @@ export function TranscriptPanel() {
     if (transcriptReviewCursor === lastReviewCursorRef.current) return;
     lastReviewCursorRef.current = transcriptReviewCursor;
     if (!transcriptReviewCursor || intent !== "correct" || !canCorrect) return;
-    setSelection({
-      kind: "transcriptWord",
-      trackId: transcriptReviewCursor.trackId,
-      ...(transcriptReviewCursor.sourceId != null
-        ? { sourceId: transcriptReviewCursor.sourceId }
-        : {}),
-      wordIndex: transcriptReviewCursor.wordIndex,
-    });
+    setSelection(
+      wordSelection({
+        trackId: transcriptReviewCursor.trackId,
+        sourceId: transcriptReviewCursor.sourceId ?? null,
+        wordIndex: transcriptReviewCursor.wordIndex,
+      }),
+    );
   }, [transcriptReviewCursor, intent, canCorrect, setSelection]);
 
   useEffect(() => {
@@ -563,7 +543,7 @@ export function TranscriptPanel() {
     onDragStart: () => {
       cancelQueuedSeek();
       const held = selection;
-      if (held?.kind !== "transcriptRange" && held?.kind !== "transcriptWord") {
+      if (held?.kind !== "transcriptRange") {
         return null;
       }
       setSelection(null);
@@ -660,19 +640,13 @@ export function TranscriptPanel() {
     [activeIndex, turns],
   );
   const selectedAnchor =
-    selection?.kind === "transcriptWord"
+    selection?.kind === "transcriptRange"
       ? transcriptWordPresenceAnchor(
           selection.trackId,
           selection.sourceId ?? null,
-          selection.wordIndex,
+          selection.startWordIndex,
         )
-      : selection?.kind === "transcriptRange"
-        ? transcriptWordPresenceAnchor(
-            selection.trackId,
-            selection.sourceId ?? null,
-            selection.startWordIndex,
-          )
-        : null;
+      : null;
   // Pinned turns stay mounted when virtualized: follow and scroll requests
   // always find their element, and focus/selection and an open inline editor
   // survive scrolling away.
@@ -962,10 +936,12 @@ export function TranscriptPanel() {
     toolbarHint = TRANSCRIPT_INLINE_SAVING_STATUS;
   }
 
-  const dockWordEditor =
+  const dockedWord =
     layoutMode === "text" &&
-    selection?.kind === "transcriptWord" &&
-    intent === "correct";
+    shellBreakpoint === "desktop" &&
+    intent === "correct"
+      ? oneWordOf(selection)
+      : null;
 
   const intentLabel =
     intent === "correct"
@@ -1177,17 +1153,17 @@ export function TranscriptPanel() {
           </Button>
         </div>
       ) : null}
-      {dockWordEditor && selection?.kind === "transcriptWord" ? (
+      {dockedWord ? (
         <div className="transcript-docked-editor">
           <TranscriptWordInspector
             key={JSON.stringify([
-              selection.trackId,
-              selection.sourceId ?? null,
-              selection.wordIndex,
+              dockedWord.trackId,
+              dockedWord.sourceId,
+              dockedWord.wordIndex,
             ])}
-            trackId={selection.trackId}
-            sourceId={selection.sourceId}
-            wordIndex={selection.wordIndex}
+            trackId={dockedWord.trackId}
+            sourceId={dockedWord.sourceId}
+            wordIndex={dockedWord.wordIndex}
             embedded
           />
         </div>
@@ -1596,12 +1572,13 @@ export function TranscriptPanel() {
                             }
                             if (intent === "correct" && wordIndex != null) {
                               cancelQueuedSeek();
-                              setSelection({
-                                kind: "transcriptWord",
-                                trackId: u.track_id,
-                                sourceId,
-                                wordIndex,
-                              });
+                              setSelection(
+                                wordSelection({
+                                  trackId: u.track_id,
+                                  sourceId,
+                                  wordIndex,
+                                }),
+                              );
                               return;
                             }
                             if (intent === "select" && wordIndex != null) {

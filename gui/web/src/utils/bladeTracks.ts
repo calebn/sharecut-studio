@@ -9,11 +9,11 @@ export function dialogueTrackIds(tracks: readonly CutTrack[]): string[] {
 
 /** Resolve which tracks a blade cut should target. */
 export function bladeTrackIds(
-  selectedTrackIds: string[],
+  selectedTrackIds: readonly string[],
   dialogueTrackIds: string[],
 ): string[] {
   if (selectedTrackIds.length > 0) {
-    return selectedTrackIds;
+    return [...selectedTrackIds];
   }
   return dialogueTrackIds;
 }
@@ -25,7 +25,7 @@ export function bladeTrackIds(
  */
 export function bladeCutNote(
   tracks: readonly CutTrack[],
-  selectedTrackIds: string[],
+  selectedTrackIds: readonly string[],
 ): string {
   if (selectedTrackIds.length === 0) return "Cuts all dialogue tracks";
   const names = selectedTrackIds.map(

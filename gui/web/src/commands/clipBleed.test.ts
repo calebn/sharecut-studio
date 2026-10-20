@@ -146,7 +146,6 @@ beforeEach(async () => {
     timelineDragging: false,
     rangeBusy: false,
     selection: null,
-    selectedClipIds: [],
     toolMode: "select",
     commentMode: false,
     feedbackToast: null,

@@ -18,8 +18,10 @@ import {
   minimalProject,
   offlineConflict,
   recordSnapshot,
+  sampleComment,
   sampleTrack,
 } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
@@ -983,12 +985,9 @@ describe("MobileShell", () => {
     await user.click(screen.getByRole("button", { name: /Correct:/ }));
     await user.click(screen.getByRole("button", { name: "hello" }));
 
-    expect(useDawStore.getState().selection).toEqual({
-      kind: "transcriptWord",
-      trackId: "host",
-      sourceId: null,
-      wordIndex: 0,
-    });
+    expect(useDawStore.getState().selection).toEqual(
+      wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
+    );
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
   });
 
@@ -1017,6 +1016,27 @@ describe("MobileShell", () => {
       );
     },
   );
+
+  it("selects a comment from its Listen row and opens its sheet there", async () => {
+    const user = userEvent.setup();
+    const project = minimalProject({
+      comments: [sampleComment({ id: "c9", body: "Fix the open" })],
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    useDawStore.getState().setShellBreakpoint("phone");
+    useDawStore.getState().setMobileMode("listen");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /Fix the open/ }));
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "comment",
+      id: "c9",
+    });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
+  });
 
   it("disables labeled Play/Stop while the episode is loading", () => {
     useDawStore.getState().hydrate("/tmp/p.json", null);

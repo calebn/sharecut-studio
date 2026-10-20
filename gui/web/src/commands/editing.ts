@@ -18,6 +18,7 @@ import { clipPlacementIsCurrent } from "../edit/clipPlacement";
 import { payloadFromSelection } from "../edit/selectionClipboard";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { selectedTrackIdsOf } from "../state/selection";
 import {
   SOLO_OFF_ANNOUNCEMENT,
   SOLO_ON_ANNOUNCEMENT,
@@ -64,7 +65,7 @@ async function runSplitAt(
     return { status: "disabled", reason: "Structural edits not allowed" };
   }
   const tids = bladeTrackIds(
-    s.selectedTrackIds,
+    selectedTrackIdsOf(s.selection),
     dialogueTrackIds(s.project.tracks ?? []),
   );
   await splitAtTime(s.projectPath, atTime, tids);
@@ -182,7 +183,7 @@ export function registerPrimaryEditingCommands(): void {
     if (!s.project) {
       return { status: "disabled", reason: "No project" };
     }
-    s.setSelectedTrackIds(s.project.tracks.map((t) => t.id));
+    s.selectTracks(s.project.tracks.map((t) => t.id));
     return { status: "ok" };
   });
 
@@ -191,7 +192,6 @@ export function registerPrimaryEditingCommands(): void {
     if (!s.project) {
       return { status: "disabled", reason: "No project" };
     }
-    s.setSelectedTrackIds([]);
     if (s.selection?.kind === "track") {
       s.setSelection(null);
     }
@@ -267,12 +267,6 @@ export function registerClipboardCommands(): void {
       !s.project
     ) {
       return { status: "disabled", reason: "Cut not allowed" };
-    }
-    if (s.selection?.kind === "transcriptWord") {
-      return {
-        status: "disabled",
-        reason: "Use Select mode for media cut (Correct is ASR-only)",
-      };
     }
     const project = s.projectEditBasis();
     const payload =

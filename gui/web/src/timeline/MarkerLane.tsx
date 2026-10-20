@@ -29,7 +29,10 @@ export function MarkerLane(props: MarkerLaneProps) {
     })();
   };
   const onMoveSocial = (id: string, start: number, end: number) => {
-    void updateSocialClip(projectPath, id, start, end);
+    void (async () => {
+      await updateSocialClip(projectPath, id, start, end);
+      setSelection({ kind: "social", id });
+    })();
   };
   return (
     <MarkerLaneView

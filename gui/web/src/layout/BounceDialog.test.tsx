@@ -48,7 +48,7 @@ describe("BounceDialog", () => {
       bounceRangeTarget: null,
       projectPath: "/tmp/ep.project.json",
       project: projectStub,
-      selectedTrackIds: [],
+      selection: null,
       soloTracks: {},
       sessionRegion: null,
       pendingJobResults: {},
@@ -154,7 +154,7 @@ it("keeps an exact range preset when lane and transport selections change", asyn
     projectPath: "/tmp/ep.project.json",
     bounceDialogOpen: true,
     bounceRangeTarget: target,
-    selectedTrackIds: ["other"],
+    selection: { kind: "track", trackId: "other" },
     sessionRegion: { start_sec: 0, end_sec: 60 },
   });
   vi.mocked(startBounceJob).mockResolvedValue(bounceJobSnapshot);

@@ -56,7 +56,6 @@ describe("track mix commands (#386)", () => {
         tracks: [sampleTrack({ id: "host", gain_db: -2 })],
       }),
       selection: { kind: "track", trackId: "host" },
-      selectedTrackIds: [],
       viewerMute: {},
       statusAnnouncement: "",
     });

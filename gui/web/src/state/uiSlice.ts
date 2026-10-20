@@ -1,6 +1,5 @@
 import type { StateCreator } from "zustand";
 import { cssViewportWidth } from "../hooks/useViewportClass";
-import type { ProjectView, Selection } from "../types/project";
 import {
   readCompactInspectorView,
   writeCompactInspectorView,
@@ -59,16 +58,6 @@ import type {
 /** Most job ids `useJobStatusAnnouncement` remembers as spoken (oldest dropped first, #704). */
 export const SPOKEN_JOB_RESULT_LIMIT = 16;
 
-function clipTrackId(
-  project: ProjectView | null,
-  clipId: string,
-): string | null {
-  if (!project) return null;
-  for (const [trackId, list] of Object.entries(project.clips.tracks)) {
-    if (list.some((c) => c.id === clipId)) return trackId;
-  }
-  return null;
-}
 /** Time-column width guess (px) for a shell whose timeline has not measured. */
 export function estimateTimelineViewportWidth(bp: ShellBreakpoint): number {
   const w = cssViewportWidth();
@@ -102,25 +91,6 @@ function revealTab(
     activeTab,
     layoutMode: "default",
     ...(s.layoutMode === "timeline" ? { timelineFocused: false } : {}),
-  };
-}
-
-/** The state a new primary selection implies, shared by local and remote selection writes. */
-export function selectionPatch(
-  s: Pick<DawStore, "selectedClipIds">,
-  selection: Selection,
-): Pick<DawStore, "selection" | "pendingWireSelection"> &
-  Partial<Pick<DawStore, "selectedClipIds">> {
-  if (selection == null || selection.kind !== "clip") {
-    return { selection, selectedClipIds: [], pendingWireSelection: null };
-  }
-  if (s.selectedClipIds.includes(selection.id)) {
-    return { selection, pendingWireSelection: null };
-  }
-  return {
-    selection,
-    selectedClipIds: [selection.id],
-    pendingWireSelection: null,
   };
 }
 
@@ -171,7 +141,6 @@ type UiSlice = Pick<
   | "rangeBusy"
   | "setRangeArmed"
   | "setRangeBusy"
-  | "selection"
   | "activeTab"
   | "userZoomed"
   | "layers"
@@ -192,8 +161,6 @@ type UiSlice = Pick<
   | "showCutAwayUtterances"
   | "timelineFocused"
   | "toolMode"
-  | "selectedTrackIds"
-  | "selectedClipIds"
   | "bladeConfirmSec"
   | "shellBreakpoint"
   | "pointerKind"
@@ -214,9 +181,7 @@ type UiSlice = Pick<
   | "setWaveformScale"
   | "setWaveformPostFader"
   | "setScrollLeft"
-  | "setSelection"
   | "selectFromInspector"
-  | "selectClip"
   | "setActiveTab"
   | "setTranscriptFollowPlayhead"
   | "toggleTranscriptFollowPlayhead"
@@ -237,8 +202,6 @@ type UiSlice = Pick<
   | "setCommentDraft"
   | "setEnvelopeDraft"
   | "setToolMode"
-  | "setSelectedTrackIds"
-  | "toggleTrackSelected"
   | "setBladeConfirmSec"
   | "setShellBreakpoint"
   | "setPointerKind"
@@ -403,7 +366,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     rangeBusy: false,
     setRangeArmed: (rangeArmed) => set({ rangeArmed }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
-    selection: null as Selection,
     activeTab: "transcript" as DawTab,
     userZoomed: false,
     layers: {
@@ -430,8 +392,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     showCutAwayUtterances: false,
     timelineFocused: true,
     toolMode: "select" as ToolMode,
-    selectedTrackIds: [] as string[],
-    selectedClipIds: [] as string[],
     bladeConfirmSec: null as number | null,
     shellBreakpoint: "desktop" as ShellBreakpoint,
     // Capability baseline; usePointerType() corrects this from matchMedia
@@ -478,56 +438,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       persistWaveformView(get());
     },
     setScrollLeft: (scrollLeft) => set({ scrollLeft }),
-    setSelection: (selection) => set((s) => selectionPatch(s, selection)),
     selectFromInspector: (selection) => {
       set({ inspectorSelection: selection });
       get().setSelection(selection);
     },
-    selectClip: (clipId, trackId, mods) =>
-      set((s) => {
-        const shift = Boolean(mods?.shift);
-        const mod = Boolean(mods?.mod);
-        const has = s.selectedClipIds.includes(clipId);
-        const asClip = {
-          kind: "clip" as const,
-          id: clipId,
-          trackId,
-        };
-        if (shift) {
-          const selectedClipIds = has
-            ? s.selectedClipIds
-            : [...s.selectedClipIds, clipId];
-          return { selectedClipIds, selection: asClip };
-        }
-        if (mod) {
-          const selectedClipIds = has
-            ? s.selectedClipIds.filter((id) => id !== clipId)
-            : [...s.selectedClipIds, clipId];
-          if (selectedClipIds.length === 0) {
-            return { selectedClipIds, selection: null };
-          }
-          if (
-            has &&
-            s.selection?.kind === "clip" &&
-            s.selection.id === clipId
-          ) {
-            const nextId = selectedClipIds[selectedClipIds.length - 1]!;
-            const nextTrack =
-              nextId === clipId
-                ? trackId
-                : (clipTrackId(s.project, nextId) ?? trackId);
-            return {
-              selectedClipIds,
-              selection: { kind: "clip", id: nextId, trackId: nextTrack },
-            };
-          }
-          return {
-            selectedClipIds,
-            selection: has ? s.selection : asClip,
-          };
-        }
-        return { selectedClipIds: [clipId], selection: asClip };
-      }),
     setActiveTab: (activeTab) => set((s) => revealTab(s, activeTab)),
     setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
       set({ transcriptFollowPlayhead }),
@@ -669,20 +583,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         commentMode: false,
         commentDraft: null,
       }),
-    setSelectedTrackIds: (selectedTrackIds: string[]) =>
-      set({ selectedTrackIds }),
-    toggleTrackSelected: (trackId: string, additive: boolean) =>
-      set((s) => {
-        if (!additive) {
-          return { selectedTrackIds: [trackId] };
-        }
-        const has = s.selectedTrackIds.includes(trackId);
-        return {
-          selectedTrackIds: has
-            ? s.selectedTrackIds.filter((id) => id !== trackId)
-            : [...s.selectedTrackIds, trackId],
-        };
-      }),
     setBladeConfirmSec: (bladeConfirmSec: number | null) =>
       set({ bladeConfirmSec }),
     setShellBreakpoint: (shellBreakpoint) => {
@@ -706,10 +606,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         !before.rangeArmed
       ) {
         get().setMobileMode(
-          before.selection.kind === "transcriptRange" ||
-            before.selection.kind === "transcriptWord"
-            ? "text"
-            : "timeline",
+          before.selection.kind === "transcriptRange" ? "text" : "timeline",
         );
       }
       // Re-derive from the live timeline: a registered scrollport that measures

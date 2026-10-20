@@ -34,6 +34,7 @@ import { presenceColorVar } from "../presence/colors";
 import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { selectedClipIdsOf, selectedTrackIdsOf } from "../state/selection";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawState } from "../state/types";
 import { pickDaw, useDaw } from "../state/useDaw";
@@ -147,8 +148,6 @@ const selectTimelineViewFields = pickDaw(
   "setActiveTab",
   "isPlaying",
   "toolMode",
-  "selectedTrackIds",
-  "selectedClipIds",
   "selectClip",
   "guestMode",
   "shareCapabilities",
@@ -202,8 +201,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setActiveTab,
     isPlaying,
     toolMode,
-    selectedTrackIds,
-    selectedClipIds,
     selectClip,
     guestMode,
     shareCapabilities,
@@ -215,6 +212,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     laneHeightPx,
     pointerKind,
   } = useDaw(selectTimelineViewFields);
+  const selectedTrackIds = selectedTrackIdsOf(selection);
+  const selectedClipIds = selectedClipIdsOf(selection);
   const followColorIndex = useDawStore(selectFollowColorIndex);
   const waveformBackend = useSyncExternalStore(
     subscribeRasterBackend,
@@ -375,10 +374,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     phase: "preview" | "commit",
   ): ClipMoveItem[] => {
     if (!moveGestureRef.current) {
-      const selectedNow = useDawStore.getState().selectedClipIds;
+      const selectedNow = selectedClipIdsOf(useDawStore.getState().selection);
       moveGestureRef.current = {
         anchorId,
-        movingIds: selectedNow.includes(anchorId) ? selectedNow : [anchorId],
+        movingIds: selectedNow.includes(anchorId)
+          ? [...selectedNow]
+          : [anchorId],
         clips: allClips,
         trackIds,
       };
@@ -724,9 +725,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       canvasSec,
     );
     void seekTransport(sec);
-    setSelection(null);
     if (bladeMode) {
       runPointerCommand("edit.bladeCut", { atTime: sec });
+    } else {
+      setSelection(null);
     }
   });
   const onSelectClip = useStableCallback(

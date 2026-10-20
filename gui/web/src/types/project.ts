@@ -442,7 +442,8 @@ export interface ProjectView {
 
 export type Selection =
   | { kind: "range"; target: ExactRangeTarget }
-  | { kind: "clip"; id: string; trackId: string }
+  /** `ids` holds every selected clip, `id` included, when more than one is selected. */
+  | { kind: "clip"; id: string; trackId: string; ids?: readonly string[] }
   | {
       kind: "bleedAttenuation";
       id: string;
@@ -452,16 +453,12 @@ export type Selection =
   | { kind: "pending"; id: string; trackId: string }
   /** `trackId` is omitted for a session-wide record (`track_ids: []`). */
   | { kind: "applied"; id: string; trackId?: string }
-  | { kind: "track"; trackId: string }
+  /** `trackIds` holds every selected track, `trackId` included, when more than one is selected. */
+  | { kind: "track"; trackId: string; trackIds?: readonly string[] }
   | { kind: "chapter"; id: string; time: number }
   | { kind: "social"; id: string }
   | { kind: "comment"; id: string }
-  | {
-      kind: "transcriptWord";
-      trackId: string;
-      sourceId?: string | null;
-      wordIndex: number;
-    }
+  /** Words in one track; a tapped word is a range of one. */
   | {
       kind: "transcriptRange";
       trackId: string;

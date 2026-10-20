@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { executePointerCommand } from "../commands/pointer";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { selectedClipIdsOf } from "../state/selection";
 import type { DawState } from "../state/types";
 import {
   allClipsFromTracks,
@@ -52,7 +53,7 @@ function selectionKey(s: DawState): string {
   return JSON.stringify([
     s.selection?.kind,
     s.selection?.kind === "clip" ? s.selection.id : null,
-    s.selectedClipIds,
+    selectedClipIdsOf(s.selection),
   ]);
 }
 export function canPlaceClips(s: DawState): boolean {
@@ -104,8 +105,8 @@ export function beginClipPlacement(anchorId: string): number | null {
     basis,
     selection: selectionKey(s),
     anchorId,
-    movingIds: s.selectedClipIds.includes(anchorId)
-      ? [...s.selectedClipIds]
+    movingIds: selectedClipIdsOf(s.selection).includes(anchorId)
+      ? [...selectedClipIdsOf(s.selection)]
       : [anchorId],
     trackIds: basis.tracks.map((track) => track.id),
   };

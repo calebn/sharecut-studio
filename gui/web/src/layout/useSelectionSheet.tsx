@@ -5,7 +5,12 @@ import {
   useMediaQueryStore,
 } from "../hooks/useMediaQueryStore";
 import { SelectionSheetBody } from "../inspector/SelectionSheetBody";
-import { opensPhoneSheet, sheetScreen } from "../inspector/selectionSurface";
+import {
+  layoutScreen,
+  opensSheet,
+  type SheetScreen,
+  sheetScreen,
+} from "../inspector/selectionSurface";
 import type {
   LayoutMode,
   MobileMode,
@@ -51,23 +56,27 @@ export interface SheetOpenState {
   moreDestination: MoreDestination;
 }
 
-/** Is the selection sheet open? One rule for every shell. */
+/** The screen the shell shows: the phone's mode, the tablet's layout. */
+function shownScreen(s: SheetOpenState): SheetScreen | null {
+  return s.shell === "phone"
+    ? sheetScreen(s.mobileMode, s.moreDestination)
+    : layoutScreen(s.layoutMode);
+}
+
+/**
+ * Is the selection sheet open? One rule for every shell: the selection's kind
+ * lists the screens it opens on (`SELECTION_SURFACES`), and the phone and the
+ * tablet each name the screen they show. Arming a range opens it alone where
+ * the shell has no bar for the In and Out fields. Where it does, the tracks
+ * ticked for the range are its scope, not a request to inspect them.
+ */
 export function selectionSheetOpen(s: SheetOpenState): boolean {
   if (s.shell === "desktop") return false;
-  if (s.shell === "phone") {
-    return (
-      s.rangeArmed ||
-      (s.selection != null &&
-        opensPhoneSheet(
-          s.selection,
-          sheetScreen(s.mobileMode, s.moreDestination),
-        ))
-    );
-  }
-  // Text and review focus expand the bottom band the peek sheet shares.
-  return (
-    s.selection != null && s.layoutMode !== "text" && s.layoutMode !== "review"
-  );
+  const { armedOpens } = SHEET_SHELLS[s.shell];
+  if (s.rangeArmed && armedOpens) return true;
+  if (s.selection == null) return false;
+  if (s.rangeArmed && s.selection.kind === "track") return false;
+  return opensSheet(s.selection, shownScreen(s));
 }
 
 export interface SelectionSheet {

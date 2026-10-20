@@ -295,6 +295,17 @@ describe("MarkerLane", () => {
       expect(start).toBe(1);
       expect(end).toBeCloseTo(3 + 3 / 48000, 12);
     });
+
+    it("selects the social clip it moved, as a chapter drag selects its chapter", async () => {
+      useDawStore.getState().setSelection(null);
+      dragEnd(10, 30);
+      await waitFor(() =>
+        expect(useDawStore.getState().selection).toEqual({
+          kind: "social",
+          id: "s1",
+        }),
+      );
+    });
   });
 
   describe("clipping flags", () => {

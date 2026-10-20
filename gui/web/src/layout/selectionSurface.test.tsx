@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import {
-  opensPhoneSheet,
+  layoutScreen,
+  opensSheet,
   renderSelectionBody,
   SELECTION_SURFACES,
   type SelectionKind,
@@ -21,6 +22,7 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import type { Selection } from "../types/project";
 import { StudioShell } from "./StudioShell";
 
@@ -182,7 +184,6 @@ const SELECTIONS: Record<SelectionKind, NonNullable<Selection>> = {
   chapter: { kind: "chapter", id: "Intro", time: 3 },
   social: { kind: "social", id: "s1" },
   comment: { kind: "comment", id: "k1" },
-  transcriptWord: { kind: "transcriptWord", trackId: "host", wordIndex: 0 },
   envelope: { kind: "envelope", trackId: "host" },
   envelopePoint: { kind: "envelopePoint", trackId: "host", pointId: "e1" },
 };
@@ -234,10 +235,6 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "button", name: "Resolve" },
     { role: "button", name: "Reply" },
   ],
-  transcriptWord: [
-    { role: "button", name: "Suppress" },
-    { role: "button", name: "Copy", related: true },
-  ],
   envelope: [{ role: "button", name: "Add point" }],
   envelopePoint: [
     { role: "button", name: "Edit point" },
@@ -258,7 +255,6 @@ const AGENT_RANGE_ADOPTION: Record<SelectionKind, boolean> = {
   chapter: true,
   social: true,
   comment: true,
-  transcriptWord: true,
   envelope: true,
   envelopePoint: true,
 };
@@ -279,9 +275,7 @@ function mount(shell: ShellBreakpoint) {
 }
 
 function select(selection: NonNullable<Selection>) {
-  const mode = screen.queryByRole("button", {
-    name: selection.kind === "transcriptWord" ? /^Correct:/ : /^Select:/,
-  });
+  const mode = screen.queryByRole("button", { name: /^Select:/ });
   if (mode && selection.kind.startsWith("transcript")) fireEvent.click(mode);
   act(() => useDawStore.getState().setSelection(selection));
 }
@@ -439,27 +433,81 @@ describe("selection surfaces reach every kind on every shell", () => {
   });
 });
 
-describe("the phone sheet opens only on the screens a selection belongs to", () => {
+describe("a tapped word is one kind", () => {
+  const WORD = wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 });
+
+  beforeEach(() => {
+    offlineStore.loadConflicts.mockResolvedValue([]);
+    offlineStore.loadCommandQueue.mockResolvedValue([]);
+    offlineStore.loadHostConflicts.mockResolvedValue([]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(0);
+    clearRegisteredCommands();
+    registerDawCommands();
+  });
+  afterEach(() => clearRegisteredCommands());
+
+  it.each(["phone", "tablet"] as const)(
+    "puts the range actions and the word correction in one sheet on the %s shell",
+    (shell) => {
+      mount(shell);
+      select(WORD);
+      const home = sheet();
+      expect(home).not.toBeNull();
+      for (const name of [
+        "Cut",
+        "Mute",
+        "Add word after",
+        "Suppress",
+        "Copy",
+      ]) {
+        expect(within(home!).getByRole("button", { name })).toBeVisible();
+      }
+    },
+  );
+
+  it("puts the range actions in the bar and the word correction in the inspector on the desktop", () => {
+    const { container } = mount("desktop");
+    select(WORD);
+    const bar = container.querySelector<HTMLElement>(".daw-shell-transport");
+    const rail = container.querySelector<HTMLElement>("aside.inspector");
+    expect(within(bar!).getByRole("button", { name: "Cut" })).toBeVisible();
+    expect(
+      within(rail!).getByRole("button", { name: "Suppress" }),
+    ).toBeVisible();
+    expect(within(rail!).queryByRole("button", { name: "Cut" })).toBeNull();
+  });
+
+  it("keeps the correction out of a longer range", () => {
+    mount("tablet");
+    select({ ...WORD, endWordIndex: 1 });
+    expect(
+      within(sheet()!).queryByRole("button", { name: "Suppress" }),
+    ).toBeNull();
+    expect(within(sheet()!).getByRole("button", { name: "Cut" })).toBeVisible();
+  });
+});
+
+describe("the sheet opens only on the screens a selection belongs to", () => {
   const SCREENS: SheetScreen[] = [
     "timeline",
     "listen",
     "text",
     "comments",
     "impact",
+    "tighten",
   ];
   const ONLY_ON: Partial<Record<SelectionKind, SheetScreen[]>> = {
     range: ["timeline", "listen", "text"],
     transcriptRange: ["timeline", "listen", "text"],
-    transcriptWord: ["timeline", "listen", "text"],
     comment: ["timeline", "listen", "comments"],
-    pending: ["timeline", "listen", "impact"],
+    pending: ["timeline", "listen", "impact", "tighten"],
   };
 
   for (const kind of Object.keys(SELECTION_SURFACES) as SelectionKind[]) {
     it(`${kind} opens it on ${(ONLY_ON[kind] ?? ["timeline", "listen"]).join(", ")}`, () => {
       expect(
         SCREENS.filter((screenName) =>
-          opensPhoneSheet(SELECTIONS[kind], screenName),
+          opensSheet(SELECTIONS[kind], screenName),
         ),
       ).toEqual(ONLY_ON[kind] ?? ["timeline", "listen"]);
     });
@@ -470,6 +518,14 @@ describe("the phone sheet opens only on the screens a selection belongs to", () 
     expect(sheetScreen("more", "history")).toBeNull();
     expect(sheetScreen("more", "comments")).toBe("comments");
     expect(sheetScreen("text", "impact")).toBe("text");
+    expect(sheetScreen("more", "tighten")).toBe("tighten");
+  });
+
+  it("names the tablet's screen from its layout", () => {
+    expect(layoutScreen("default")).toBe("timeline");
+    expect(layoutScreen("timeline")).toBe("timeline");
+    expect(layoutScreen("text")).toBe("text");
+    expect(layoutScreen("review")).toBe("comments");
   });
 });
 
@@ -481,7 +537,12 @@ describe("automatic reduction occurrence lookup", () => {
     render(
       renderSelectionBody(
         { kind: "bleedAttenuation", id, trackId, regionKey: null },
-        { project: project(), projectEpoch: 1, setPlayheadSec: vi.fn() },
+        {
+          project: project(),
+          projectEpoch: 1,
+          setPlayheadSec: vi.fn(),
+          placement: "sheet",
+        },
       ),
     );
     expect(screen.getByText("Clip not found")).toBeVisible();

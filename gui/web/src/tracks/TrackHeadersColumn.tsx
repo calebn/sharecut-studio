@@ -8,6 +8,7 @@ import {
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
+import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { useTimelineMetrics } from "../timeline/timelineMetrics";
 import { RULER_HEIGHT } from "../utils/layout";
@@ -41,7 +42,6 @@ export function TrackHeadersColumn({
     tracks,
     selection,
     setSelection,
-    selectedTrackIds,
     toggleTrackSelected,
     projectPath,
     guestMode,
@@ -50,12 +50,12 @@ export function TrackHeadersColumn({
     tracks: s.project?.tracks ?? null,
     selection: s.selection,
     setSelection: s.setSelection,
-    selectedTrackIds: s.selectedTrackIds,
     toggleTrackSelected: s.toggleTrackSelected,
     projectPath: s.projectPath,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
   }));
+  const selectedTrackIds = selectedTrackIdsOf(selection);
   const mayIngest =
     showAddTrack && canIngestMedia(projectPath, guestMode, shareCapabilities);
   const mayReorder = canIngestMedia(projectPath, guestMode, shareCapabilities);
@@ -154,14 +154,8 @@ export function TrackHeadersColumn({
           key={track.id}
           track={track}
           trackIndex={idx}
-          selected={
-            selectedTrackIds.includes(track.id) ||
-            (selection?.kind === "track" && selection.trackId === track.id)
-          }
-          onSelect={(additive) => {
-            toggleTrackSelected(track.id, additive);
-            setSelection({ kind: "track", trackId: track.id });
-          }}
+          selected={selectedTrackIds.includes(track.id)}
+          onSelect={(additive) => toggleTrackSelected(track.id, additive)}
           reorderEnabled={mayReorder}
           isReorderDragActive={() => dragTrackIdRef.current != null}
           dragging={dragTrackId === track.id}

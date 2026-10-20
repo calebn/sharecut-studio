@@ -77,7 +77,6 @@ function openShare(capabilities: string[]) {
     rangeBusy: false,
     joinMutationInFlight: false,
     sessionRegion: null,
-    selectedTrackIds: [],
     statusAnnouncement: "",
   });
   return render(

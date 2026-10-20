@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { executePointerCommand } from "../commands/pointer";
 import { rangeActionDescriptors } from "../commands/rangeActions";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
+import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
@@ -15,14 +16,14 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
     rangeArmed: s.rangeArmed,
     rangeBusy: s.rangeBusy,
     sessionRegion: s.sessionRegion,
-    selectedTrackIds: s.selectedTrackIds,
+    selectedTrackIds: selectedTrackIdsOf(s.selection),
     projectPath: s.projectPath,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     joinMutationInFlight: s.joinMutationInFlight,
     setSelection: s.setSelection,
     setRangeArmed: s.setRangeArmed,
-    setSelectedTrackIds: s.setSelectedTrackIds,
+    selectTracks: s.selectTracks,
   }));
   const { project, selection, rangeArmed, sessionRegion, selectedTrackIds } =
     state;
@@ -181,7 +182,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                   type="checkbox"
                   checked={selectedTrackIds.includes(track.id)}
                   onChange={(e) =>
-                    state.setSelectedTrackIds(
+                    state.selectTracks(
                       e.target.checked
                         ? [...selectedTrackIds, track.id]
                         : selectedTrackIds.filter((id) => id !== track.id),
@@ -228,7 +229,10 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
           <Button
             type="button"
             className="ui-control--compact"
-            onClick={() => state.setRangeArmed(false)}
+            onClick={() => {
+              state.setRangeArmed(false);
+              if (selection?.kind === "track") state.setSelection(null);
+            }}
           >
             Cancel range selection
           </Button>

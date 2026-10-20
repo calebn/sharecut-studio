@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { splitAtTime } from "../api";
 import { canSuggestStructuralOnProject } from "../shareMode";
+import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
 import { useProjectMutation } from "./useProjectMutation";
@@ -12,7 +13,7 @@ export function useBladeCut() {
     projectPath,
     guestMode,
     shareCapabilities,
-    selectedTrackIds,
+    selection,
     shellBreakpoint,
     setBladeConfirmSec,
     bladeConfirmSec,
@@ -21,11 +22,12 @@ export function useBladeCut() {
     projectPath: s.projectPath,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
-    selectedTrackIds: s.selectedTrackIds,
+    selection: s.selection,
     shellBreakpoint: s.shellBreakpoint,
     setBladeConfirmSec: s.setBladeConfirmSec,
     bladeConfirmSec: s.bladeConfirmSec,
   }));
+  const selectedTrackIds = selectedTrackIdsOf(selection);
   const { busy, error, setError, run } = useProjectMutation();
 
   const allowed = canSuggestStructuralOnProject(
