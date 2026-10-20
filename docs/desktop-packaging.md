@@ -672,14 +672,16 @@ only when the feed's version is higher than the installed one, so each published
 needs a new number, and per-merge bumps would conflict across parallel PRs for nothing a
 tester can see.
 
-[release-please](../.github/workflows/release-please.yml) keeps one open "release" PR on
-`main`. It reads the Conventional Commit subjects merged since the last release
+[release-please](../.github/workflows/release-please.yml) runs only when started by hand
+(`workflow_dispatch`: the Actions tab, or `gh workflow run release-please.yml`), not on pushes
+to `main`, so the release PR does not re-run CI on every merge. A run opens or refreshes one
+"release" PR on `main`. It reads the Conventional Commit subjects merged since the last release
 (`feat`, `fix`, `perf`, `revert`, or a `!` breaking marker), proposes the next version and
 the changelog, and bumps `pyproject.toml`, `src/podcast_mcp/__init__.py`,
 `gui/desktop/package.json` and its lock, `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`
 and `uv.lock` together (CI installs with `uv export --locked`, which fails on a stale project
-version in `uv.lock`). Merging that PR is the decision to cut a build; it tags `vX.Y.Z` and builds
-nothing. The operator then builds from that tag and publishes the feed ([In-app
+version in `uv.lock`). Merging that PR is the decision to cut a build, and a second manual run after the merge
+creates the `vX.Y.Z` tag and GitHub release; it builds nothing. The operator then builds from that tag and publishes the feed ([In-app
 updates](#in-app-updates)).
 
 - **Plain `MAJOR.MINOR.PATCH` only.** No `-beta.1`. The Windows MSI target accepts only
