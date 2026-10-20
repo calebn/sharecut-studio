@@ -13,10 +13,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
+from podcast_mcp.gui.routes.share_common import rate_limit_share
 from podcast_mcp.services.collaboration import share_allows_mcp
 from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
@@ -33,7 +35,8 @@ from podcast_mcp.util.body_limits import (
     read_body_capped,
     remote_mcp_max_body_bytes,
 )
-from podcast_mcp.util.rate_limit_http import rate_limited_error, rate_limited_response
+from podcast_mcp.util.coded_error import AccessDeniedError, UnknownShareError
+from podcast_mcp.util.rate_limit_http import rate_limited_response
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -42,21 +45,15 @@ _MCP_ACCEPT = "application/json"
 
 
 def _require_mcp_capability(token: str) -> None:
-    """Raise HTTP 403/404 if the token is invalid or lacks the ``mcp`` capability."""
+    """Raise ``UnknownShareError`` / ``AccessDeniedError`` if the token is invalid or lacks ``mcp``."""
     try:
         allowed = share_allows_mcp(token)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="share not found") from exc
+        raise UnknownShareError("share not found", code="share_not_found") from exc
     except Exception as exc:
         raise guest_http_error(exc, logger=log, operation="MCP preflight") from exc
     if not allowed:
-        raise HTTPException(status_code=403, detail="share does not allow mcp")
-
-
-def _rate_limit_http(token: str, kind: str) -> None:
-    decision = check_host_bucket(token, kind)
-    if not decision.allowed:
-        raise rate_limited_error(decision)
+        raise AccessDeniedError("share does not allow mcp", code="share_capability_required")
 
 
 def accept_allows_json_rpc(accept: str) -> bool:
@@ -71,7 +68,7 @@ def accept_allows_json_rpc(accept: str) -> bool:
 def mcp_info(token: str) -> dict[str, Any]:
     """Return capability info for the token; 403 if mcp is not granted."""
     _require_mcp_capability(token)
-    _rate_limit_http(token, "read")
+    rate_limit_share(token, "read")
     return {
         "ok": True,
         "token": token,
@@ -105,7 +102,7 @@ async def mcp_bridge(token: str, request: Request) -> Any:
         )
 
     if request.method == "GET":
-        _rate_limit_http(token, "read")
+        rate_limit_share(token, "read")
         return JSONResponse(
             {
                 "ok": True,
@@ -138,10 +135,10 @@ async def mcp_bridge(token: str, request: Request) -> Any:
     except BodyTooLarge:
         return payload_too_large_response(remote_mcp_max_body_bytes())
     except Exception as exc:
-        raise HTTPException(status_code=400, detail="invalid JSON body") from exc
+        raise coded_http_error(400, "invalid JSON body", code="invalid_json_rpc") from exc
 
     if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="JSON-RPC body must be an object")
+        raise coded_http_error(400, "JSON-RPC body must be an object", code="invalid_json_rpc")
 
     params = body.get("params") or {}
     tool_name = None

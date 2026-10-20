@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.routes.guest_errors import guest_http_error
@@ -14,6 +14,7 @@ from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
 )
 from podcast_mcp.services.session_sync import authorize_share_token
+from podcast_mcp.util.coded_error import AccessDeniedError, UnknownShareError
 from podcast_mcp.util.rate_limit_http import rate_limited_error
 
 log = logging.getLogger(__name__)
@@ -33,12 +34,12 @@ def check_share_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str,
     try:
         row = lookup_share(token, kind=kind)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="invalid or revoked share token") from exc
+        raise UnknownShareError("invalid or revoked share token", code="share_not_found") from exc
     except Exception as exc:
         raise guest_http_error(exc, logger=log, operation="share token lookup") from exc
     decision = authorize_share_token(token=token, expected_token=row.get("token"))
     if not decision.allowed:
-        raise HTTPException(status_code=403, detail=decision.reason)
+        raise AccessDeniedError(decision.reason, code="share_token_mismatch")
     return row
 
 

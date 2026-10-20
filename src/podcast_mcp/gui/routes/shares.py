@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
 from podcast_mcp.edits.review_versions import MixUnavailableError
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import coded_http_error, require_host, resolve_project
 from podcast_mcp.gui.schemas import (
     RecordInviteReplaceRequest,
     RecordRoomCreateRequest,
@@ -62,11 +62,7 @@ def create_host_share(
             public_base_url=origin,
         )
     except MixUnavailableError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail=str(exc),
-            headers={"X-Sharecut-Error-Code": exc.code},
-        ) from exc
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except KeyError as exc:

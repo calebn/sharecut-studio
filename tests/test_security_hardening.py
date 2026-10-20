@@ -300,18 +300,17 @@ async def test_gui_middleware_aborts_on_client_disconnect():
 
 
 def test_require_authz_raises(monkeypatch):
-    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    from podcast_mcp.util.coded_error import AccessDeniedError
 
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.delenv("PODCAST_SESSION_TOKEN", raising=False)
-    with pytest.raises(HTTPException) as exc:
-        require_authz(
-            client_id="viewer",
-            role="viewer",
-            peer_host="1.2.3.4",
-            token=None,
-        )
-    assert exc.value.status_code == 403
+    scope = {"type": "http", "headers": [], "client": ("1.2.3.4", 1)}
+    with pytest.raises(AccessDeniedError) as exc:
+        require_authz(Request(scope), client_id="viewer", role="viewer")
+    assert exc.value.code == "authz_denied"
+    assert str(exc.value) == "remote client requires PODCAST_SESSION_TOKEN"
 
 
 def test_is_relayed_request():
@@ -355,8 +354,9 @@ def test_authorize_client_denies_relayed():
 
 
 def test_require_host_raises_for_relayed():
-    from fastapi import HTTPException
     from starlette.requests import Request
+
+    from podcast_mcp.util.coded_error import AccessDeniedError
 
     scope = {
         "type": "http",
@@ -376,9 +376,9 @@ def test_require_host_raises_for_relayed():
         return {"type": "http.request", "body": b"", "more_body": False}
 
     req = Request(scope, receive)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AccessDeniedError) as exc:
         require_host(req)
-    assert exc.value.status_code == 403
+    assert exc.value.code == "authz_denied"
 
 
 @pytest.mark.parametrize(

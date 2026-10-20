@@ -6,7 +6,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from filelock import Timeout
 from pydantic import BaseModel
 
 from podcast_mcp.gui.assembler import (
@@ -22,7 +21,6 @@ from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
 from podcast_mcp.gui.jobs import project_meta
 from podcast_mcp.gui.routes.deps import (
     peer_host,
-    project_busy_error,
     require_host,
     resolve_project,
 )
@@ -32,10 +30,6 @@ from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService, PlayService
 from podcast_mcp.services.session_sync import is_loopback_host
-
-_AUDIO_BUSY_DETAIL = (
-    "project is busy: another render or save is in progress; try again when it finishes"
-)
 
 router = APIRouter()
 
@@ -330,10 +324,6 @@ def get_audio(
     except ProjectMergeConflict as exc:
         # The premix re-render's save collided with a concurrent edit; nothing was saved.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except Timeout as exc:
-        # Another render or a commit holds its lock and nothing is on disk yet. Fixed text:
-        # a plain filelock.Timeout names the lock file's absolute path.
-        raise project_busy_error(_AUDIO_BUSY_DETAIL) from exc
     response = audio_file_response(transport.path, request=request)
     if transport.render_busy:
         # Refresh lost the render-lock race; this is the file already on disk.

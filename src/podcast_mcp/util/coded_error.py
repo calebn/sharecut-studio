@@ -11,7 +11,7 @@ Every adapter reports the same message and code: the MCP tool result's
 ``structured_content.error_code`` (``mcp/tool_errors.py`` and guest remote MCP, both through
 ``util/tool_refusal.py``, which reads ``guest_message()`` instead for a share guest), the CLI's
 ``Error: <message> (code <code>)`` line (``cli/busy.py``) and, on routes that map one, the
-GUI's ``X-Sharecut-Error-Code`` header. ``project_busy`` (a lock timeout) uses the same
+GUI's ``X-Sharecut-Error-Code`` header (set by ``gui.routes.deps.coded_http_error``). ``project_busy`` (a lock timeout) uses the same
 adapters but is not a ``CodedError``; see ``util/project_state.py``.
 
 Raise a refusal through the class matching the builtin the call site always raised
@@ -123,6 +123,29 @@ class HostSetupError(CodedPermissionError):
     JSON-RPC ``-32603``). The host's message names the path and the fix; guest copy is
     selected by code.
     """
+
+
+class GuardRefusal(CodedError):
+    """An auth guard's refusal: who may call, not what was asked.
+
+    Its message is written for any caller, a share guest included, and goes out as written
+    (a refusal from the domain gets guest copy by code instead). The HTTP adapter answers it
+    with ``gui.routes.deps.guard_http_error``.
+    """
+
+
+class AccessDeniedError(GuardRefusal, CodedPermissionError):
+    """The caller is known and not allowed (HTTP 403)."""
+
+
+class SignInRequiredError(AccessDeniedError):
+    """The share needs a signed-in principal and the caller has none (HTTP 401)."""
+
+    code = "authentication_required"
+
+
+class UnknownShareError(GuardRefusal, CodedKeyError):
+    """No live share has this token (HTTP 404)."""
 
 
 def coded_cause(exc: BaseException) -> CodedError | None:

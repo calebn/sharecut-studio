@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
-from podcast_mcp.gui.routes.deps import project_busy_error, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import (
     TranscriptRefineWaiveRequest,
     TranscriptReplacementPreviewRequest,
@@ -15,12 +15,10 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.media import (
-    TranscriptContextBusyError,
     TranscriptPrecorrectService,
     TranscriptRefineService,
     VocabularyConflictError,
 )
-from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
 router = APIRouter()
 
@@ -54,8 +52,6 @@ def transcript_vocabulary_put(
         )
     except VocabularyConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except TranscriptContextBusyError as exc:
-        raise project_busy_error(TRANSCRIPT_CONTEXT_BUSY_MESSAGE) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

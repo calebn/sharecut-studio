@@ -6,10 +6,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 
 from podcast_mcp.services.share_auth.access import access_required
 from podcast_mcp.services.share_auth.store import ShareIdentityStore, get_identity_store
+from podcast_mcp.util.coded_error import AccessDeniedError, SignInRequiredError
 
 SESSION_COOKIE = "podcast_share_session"
 
@@ -96,7 +97,7 @@ def require_share_access(
     """Enforce ACL when the share requires sign-in; allow anonymous otherwise.
 
     Returns the principal when authenticated; ``None`` for anonymous link access.
-    Raises HTTP 401/403 when identity is required but missing or not on the ACL.
+    Raises ``SignInRequiredError`` / ``AccessDeniedError`` when identity is required but missing or not on the ACL.
     """
     if not access_required(share_row):
         return resolve_principal(
@@ -106,17 +107,9 @@ def require_share_access(
     token = str(share_row.get("token") or "")
     principal = resolve_principal(request, share_token=token, store=store)
     if principal is None:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "authentication_required",
-                "message": "This share requires sign-in",
-                "login_path": "/auth/login",
-            },
-        )
+        raise SignInRequiredError("This share requires sign-in")
     if principal.acl_role is None:
-        raise HTTPException(
-            status_code=403,
-            detail="authenticated user is not on this share ACL",
+        raise AccessDeniedError(
+            "authenticated user is not on this share ACL", code="share_acl_denied"
         )
     return principal

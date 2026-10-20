@@ -6,16 +6,14 @@ import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
-from filelock import Timeout
 from pydantic import BaseModel
 
 from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
+    coded_http_error,
     document_conflict_error,
-    peer_host,
-    project_busy_http_error,
     require_authz,
     resolve_project,
 )
@@ -28,7 +26,8 @@ from podcast_mcp.services.document_sync import (
     command_context_for_role,
     document_command_from_body,
 )
-from podcast_mcp.util.proxy_paths import is_relayed_request
+from podcast_mcp.util.project_state import ProjectBusyError
+from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 router = APIRouter()
 
@@ -54,11 +53,7 @@ def get_clip_bleed(
             EditService(ws).inspect_clip_bleed(clip_id, track_id=track_id).model_dump(mode="json")
         )
     except BleedRestoreChangedError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail=str(exc),
-            headers={"X-Sharecut-Error-Code": exc.code},
-        ) from exc
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
 
 
 @router.get("/api/document/comments")
@@ -70,13 +65,7 @@ def get_document_comments(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_authz(
-        client_id=client_id,
-        role=role,
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-        relayed=is_relayed_request(request.headers),
-    )
+    require_authz(request, client_id=client_id, role=role, token=token or x_podcast_token)
     project_path = resolve_project(path, request)
     svc = DocumentSyncService.open(project_path)
     return svc.comments_snapshot()
@@ -90,13 +79,7 @@ def get_document_state(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-        relayed=is_relayed_request(request.headers),
-    )
+    require_authz(request, token=token or x_podcast_token)
     project_path = resolve_project(path, request)
     pin_served_if_allowed(request, project_path)
     return DocumentSyncService.open(project_path).document_snapshot(projection=phase)
@@ -111,11 +94,10 @@ def post_document_command(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     require_authz(
+        request,
         client_id=body.client_id,
         role=body.role,
-        peer_host=peer_host(request),
         token=token or x_podcast_token or body.token,
-        relayed=is_relayed_request(request.headers),
     )
     project_path = resolve_project(path, request)
     svc = DocumentSyncService.open(project_path)
@@ -130,16 +112,11 @@ def post_document_command(
     except DocumentConflictError as exc:
         raise document_conflict_error(exc) from exc
     except TranscriptRefineRequiredError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail=str(exc),
-            headers={"X-Sharecut-Error-Code": exc.code},
-        ) from exc
-    except (Timeout, sqlite3.OperationalError) as exc:
-        busy = project_busy_http_error(exc)
-        if busy is None:
-            raise
-        raise busy from exc
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
+    except sqlite3.OperationalError as exc:
+        if is_sqlite_busy(exc):
+            raise ProjectBusyError(str(project_path)) from exc
+        raise
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     except PermissionError as exc:
@@ -218,11 +195,6 @@ def pending_preview_warm(
             )
     except ValueError as exc:
         raise bad_request_error(exc) from exc
-    except Timeout as exc:
-        busy = project_busy_http_error(exc)
-        if busy is None:
-            raise
-        raise busy from exc
 
 
 @router.get("/api/pending-preview")
@@ -258,8 +230,3 @@ def pending_preview_audio(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise bad_request_error(exc) from exc
-    except Timeout as exc:
-        busy = project_busy_http_error(exc)
-        if busy is None:
-            raise
-        raise busy from exc

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from fastapi import HTTPException, Request, WebSocket
 from fastapi.exception_handlers import http_exception_handler
@@ -10,23 +12,35 @@ from filelock import Timeout
 from starlette.responses import Response
 
 from podcast_mcp.services.document_sync import DocumentConflictError
+from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.services.session_sync import (
     authorize_client,
     authorize_host,
 )
-from podcast_mcp.util.coded_error import CodedError, HostSetupError
-from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
+from podcast_mcp.util.coded_error import (
+    AccessDeniedError,
+    CodedError,
+    GuardRefusal,
+    HostSetupError,
+    SignInRequiredError,
+)
+from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
-from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 from podcast_mcp.util.tool_refusal import tool_refusal
 
+ERROR_CODE_HEADER = "X-Sharecut-Error-Code"
+NO_STORE = {"Cache-Control": "no-store"}
+SHARE_LOGIN_PATH = "/auth/login"
 
-def project_busy_error(detail: str) -> HTTPException:
-    """HTTP 503 with ``X-Sharecut-Error-Code: project_busy`` (a project or render lock stayed busy)."""
+
+def coded_http_error(
+    status_code: int, detail: Any, *, code: str, headers: Mapping[str, str] | None = None
+) -> HTTPException:
+    """The one place an HTTP error gets its ``X-Sharecut-Error-Code`` header (the refusal's *code*)."""
     return HTTPException(
-        status_code=503,
+        status_code=status_code,
         detail=detail,
-        headers={"X-Sharecut-Error-Code": PROJECT_BUSY_CODE},
+        headers={**(headers or {}), ERROR_CODE_HEADER: code},
     )
 
 
@@ -36,50 +50,47 @@ def document_conflict_error(exc: DocumentConflictError) -> HTTPException:
 
     Shared by the host and guest document-command routes.
     """
-    return HTTPException(
-        status_code=409,
-        detail={"detail": str(exc), "conflict": True},
-        headers={"X-Sharecut-Error-Code": exc.code},
-    )
+    return coded_http_error(409, {"detail": str(exc), "conflict": True}, code=exc.code)
 
 
 def bad_request_error(exc: ValueError) -> HTTPException:
-    """HTTP 400 with the refusal's message; a ``CodedError`` also sends its code as
-    ``X-Sharecut-Error-Code``."""
-    headers = {"X-Sharecut-Error-Code": exc.code} if isinstance(exc, CodedError) else None
-    return HTTPException(status_code=400, detail=str(exc), headers=headers)
+    """HTTP 400 with the refusal's message; a ``CodedError`` also sends its code."""
+    if isinstance(exc, CodedError):
+        return coded_http_error(400, str(exc), code=exc.code)
+    return HTTPException(status_code=400, detail=str(exc))
 
 
-def project_busy_from_timeout(exc: Timeout) -> HTTPException:
-    """``project_busy_error`` with the fixed, path-free text for *exc* (``busy_message``)."""
-    return project_busy_error(busy_message(exc))
+def guard_http_error(exc: GuardRefusal) -> HTTPException:
+    """HTTP 401 (sign-in needed), 403 (denied) or 404 (unknown share) for an auth guard's refusal.
 
-
-def project_busy_http_error(exc: BaseException) -> HTTPException | None:
-    """503 ``project_busy`` for a lock ``Timeout`` or a busy ``document.db`` sqlite write lock.
-
-    ``None`` for anything else, so callers fall through to their own mapping. Shared by the
-    host and guest document-command routes so both report contention the same way.
+    The 401 detail is a dict the sign-in page reads; the others are the message as a string.
     """
-    if isinstance(exc, Timeout):
-        return project_busy_from_timeout(exc)
-    if is_sqlite_busy(exc):
-        return project_busy_error(PROJECT_BUSY_MESSAGE)
-    return None
+    if isinstance(exc, SignInRequiredError):
+        detail = {"error": exc.code, "message": str(exc), "login_path": SHARE_LOGIN_PATH}
+        return coded_http_error(401, detail, code=exc.code)
+    status = 404 if isinstance(exc, KeyError) else 403
+    return coded_http_error(status, str(exc), code=exc.code)
+
+
+async def guard_exception_handler(request: Request, exc: Exception) -> Response:
+    """App-wide: an auth guard's refusal leaves as ``guard_http_error``."""
+    assert isinstance(exc, GuardRefusal)
+    return await http_exception_handler(request, guard_http_error(exc))
 
 
 async def project_busy_exception_handler(request: Request, exc: Exception) -> Response:
-    """App-wide fallback: any ``filelock.Timeout`` a route doesn't map itself becomes 503 (#488).
+    """The one busy mapping: a lock ``Timeout`` (or a busy transcript context) becomes 503 ``project_busy``.
 
-    Installed once on the FastAPI app (``app.add_exception_handler(Timeout, ...)``), so
-    routes that do not need their own busy-lock contract (unlike ``document.py``, which
-    maps ``Timeout`` alongside a sqlite-busy check for its own 409/503 responses) still
-    report ``project_busy`` instead of a raw 500. Starlette only ever calls a handler
-    registered on a given exception class with an instance of it; the assert documents
-    that and narrows the type for ``busy_message``.
+    Installed on the FastAPI app (``app.add_exception_handler``), so routes do not catch
+    ``Timeout`` themselves (#488, #1810). The text is fixed and never names the lock path.
+    Starlette only calls a handler registered on a class with an instance of it; the assert
+    documents that and narrows the type. Busy answers are never cached.
     """
-    assert isinstance(exc, Timeout)
-    return await http_exception_handler(request, project_busy_from_timeout(exc))
+    assert isinstance(exc, (Timeout, TranscriptContextBusyError))
+    message = str(exc) if isinstance(exc, TranscriptContextBusyError) else busy_message(exc)
+    return await http_exception_handler(
+        request, coded_http_error(503, message, code=PROJECT_BUSY_CODE, headers=NO_STORE)
+    )
 
 
 async def host_setup_exception_handler(request: Request, exc: Exception) -> Response:
@@ -99,10 +110,7 @@ async def host_setup_exception_handler(request: Request, exc: Exception) -> Resp
     refusal = tool_refusal(exc, for_guest=not host)
     assert refusal is not None
     return await http_exception_handler(
-        request,
-        HTTPException(
-            status_code=500, detail=refusal.message, headers={"X-Sharecut-Error-Code": refusal.code}
-        ),
+        request, coded_http_error(500, refusal.message, code=refusal.code)
     )
 
 
@@ -113,22 +121,22 @@ def peer_host(request: Request) -> str | None:
 
 
 def require_authz(
+    request: Request,
     *,
-    client_id: str | None,
-    role: str,
-    peer_host: str | None,
-    token: str | None,
-    relayed: bool = False,
+    client_id: str | None = None,
+    role: str | None = None,
+    token: str | None = None,
 ) -> None:
+    """Session-sync gate for a viewer, agent or editor client; raises ``AccessDeniedError`` when denied."""
     decision = authorize_client(
         client_id=client_id or "anonymous",
         role=role or "viewer",
-        peer_host=peer_host,
+        peer_host=peer_host(request),
         token=token,
-        relayed=relayed,
+        relayed=is_relayed_request(request.headers),
     )
     if not decision.allowed:
-        raise HTTPException(status_code=403, detail=decision.reason)
+        raise AccessDeniedError(decision.reason, code="authz_denied")
 
 
 def require_host(
@@ -138,7 +146,7 @@ def require_host(
     x_podcast_token: str | None = None,
     client_id: str = "host",
 ) -> None:
-    """Host-role gate for owner GUI routes (#393); raises 403 when denied."""
+    """Host-role gate for owner GUI routes (#393); raises ``AccessDeniedError`` when denied."""
     decision = authorize_host(
         client_id=client_id,
         peer_host=peer_host(request),
@@ -146,7 +154,7 @@ def require_host(
         relayed=is_relayed_request(request.headers),
     )
     if not decision.allowed:
-        raise HTTPException(status_code=403, detail=decision.reason)
+        raise AccessDeniedError(decision.reason, code="authz_denied")
 
 
 def resolve_project(path: str, request: Request | WebSocket | None = None) -> Path:
