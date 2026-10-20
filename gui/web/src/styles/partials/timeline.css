@@ -31,9 +31,21 @@
   opacity: var(--mute-waveform-opacity);
 }
 
+/* The sweep is a transform on a pseudo-element, so the compositor keeps it
+   moving while the main thread parses a large project; animating the
+   background-position froze it for the seconds the load takes (#1750). */
 .timeline-skeleton-lane {
+  position: relative;
+  overflow: clip;
+  background: var(--color-timeline-lane-muted);
+}
+
+.timeline-skeleton-lane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   background: var(--bg-timeline-skeleton);
-  background-size: 200% 100%;
+  transform: translateX(-100%);
 }
 
 .lane-seek {
@@ -1176,14 +1188,14 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .timeline-skeleton-lane {
+  .timeline-skeleton-lane::after {
     animation: timeline-shimmer var(--motion-loop-skeleton) linear infinite;
   }
 }
 
 @keyframes timeline-shimmer {
   to {
-    background-position: -200% 0;
+    transform: translateX(100%);
   }
 }
 

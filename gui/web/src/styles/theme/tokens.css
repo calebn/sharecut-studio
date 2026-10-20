@@ -208,9 +208,9 @@
     bottom / 100% 0.5rem no-repeat;
   --bg-timeline-skeleton: linear-gradient(
     100deg,
-    var(--color-timeline-lane-muted) 25%,
-    var(--color-timeline-lane) 50%,
-    var(--color-timeline-lane-muted) 75%
+    transparent 30%,
+    var(--color-hover) 50%,
+    transparent 70%
   );
   --bg-timeline-clip-sheen: linear-gradient(
     to bottom,
