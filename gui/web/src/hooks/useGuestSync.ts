@@ -25,14 +25,13 @@ import {
 } from "../session/appliedDelta";
 import { newClientId } from "../session/clientId";
 import { createRosterRequester } from "../session/rosterRequest";
-import { bindWsSender, type WsSender } from "../session/wsSend";
+import type { WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { mergeOfflineSnapshot } from "../state/offlineStore";
 import { requestGuestDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
-import { detachSocket } from "../sync/detachSocket";
-import { enqueueInbound } from "../sync/inboundQueue";
+import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";
 import type { SessionState } from "../types/session";
 import { sessionDisplayName } from "../utils/commentAuthor";
@@ -42,15 +41,19 @@ import {
   guestProgressToJob,
 } from "../utils/guestProgress";
 
-function guestWsUrl(token: string, clientId: string, name: string): string {
+function guestWsUrl(token: string, clientId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const q = new URLSearchParams({ client_id: clientId, name });
+  const q = new URLSearchParams({
+    client_id: clientId,
+    name: sessionDisplayName("guest"),
+  });
   return `${proto}://${window.location.host}/api/review/${encodeURIComponent(token)}/daw/ws?${q.toString()}`;
 }
 
 type GuestMsg = PresenceCarryingFrame & {
   type?: string;
   plane?: string;
+  server_time_ns?: number;
   server_seq?: number;
   client_id?: string;
   prev_seq?: number;
@@ -105,9 +108,7 @@ export function useGuestSync(
     if (!enabled || !token) {
       return;
     }
-    let ws: WebSocket | null = null;
     let closed = false;
-    let retry: ReturnType<typeof setTimeout> | null = null;
     const rosterRequester = createRosterRequester((frame) =>
       sendRef.current?.(frame),
     );
@@ -150,174 +151,134 @@ export function useGuestSync(
     };
     const stopPoll = () => fallbackPoll.stop();
 
-    const connect = () => {
-      if (closed) {
+    let sessionSnapshot: SessionState | null = null;
+    let sessionResyncing = false;
+    const handleGuestFrame = (msg: GuestMsg, ctx: PlaneSocketContext) => {
+      if (!isCurrentDocumentScope(scope)) {
         return;
       }
-      ws = new WebSocket(
-        guestWsUrl(token, connectIdRef.current, sessionDisplayName("guest")),
-      );
-      const thisSocket = ws;
-      let retired = false;
-      let sessionSnapshot: SessionState | null = null;
-      let sessionResyncing = false;
-      const current = () =>
-        !closed &&
-        !retired &&
-        ws === thisSocket &&
-        isCurrentDocumentScope(scope);
-      ws.onopen = () => {
-        if (!current()) return;
+      if (handlePresenceWsFrame(msg, rosterRequester)) {
+        return;
+      }
+      if (msg.plane === "progress" || msg.type === "progress") {
+        const job = guestProgressToJob(
+          msg as GuestProgressEvent,
+          useDawStore.getState().activityJob,
+        );
+        useDawStore.getState().setActivityJob(job);
+        return;
+      }
+      if (msg.type !== "Applied" && msg.type !== "Snapshot") {
+        return;
+      }
+      const snap = msg.snapshot;
+      if (!snap) {
+        return;
+      }
+      if (msg.plane === "session") {
+        const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
+        if (msg.type === "Snapshot") {
+          const full = snap as SessionState;
+          sessionSnapshot = full;
+          sessionResyncing = false;
+          const pendingAgent = pendingAgentRecoveryRef.current;
+          const targetSeq = Number(
+            pendingAgent?.server_seq ?? pendingAgent?.snapshot?.server_seq ?? 0,
+          );
+          if (pendingAgent && full.server_seq < targetSeq) {
+            sessionResyncing = true;
+            ctx.close(3000, "session snapshot behind gap");
+            return;
+          }
+          const recovered = pendingAgent?.snapshot
+            ? withAgentAppliedAuthority(
+                full,
+                pendingAgent.snapshot,
+                pendingAgent.command,
+              )
+            : full;
+          pendingAgentRecoveryRef.current = null;
+          ctx.markHealthy();
+          applyRef.current(recovered);
+          return;
+        }
+        if (msg.type !== "Applied") return;
+        if (
+          sessionAppliedHasGap(
+            sessionSnapshot?.server_seq ?? null,
+            msg.prev_seq,
+            seq,
+          )
+        ) {
+          if (!sessionResyncing) {
+            sessionResyncing = true;
+            const role = msg.command?.role ?? snap.last_role ?? snap.origin;
+            if (role === "agent" || snap.origin === "agent") {
+              pendingAgentRecoveryRef.current = msg;
+            }
+            ctx.close(3000, "session sequence gap");
+          }
+          return;
+        }
+        if (!sessionSnapshot || seq < sessionSnapshot.server_seq) return;
+        const merged = mergeSessionAppliedDelta(sessionSnapshot, snap);
+        if (
+          seq === sessionSnapshot.server_seq &&
+          merged.last_command_id === sessionSnapshot.last_command_id
+        ) {
+          return;
+        }
+        sessionSnapshot = merged;
+        applyRef.current(merged);
+        return;
+      }
+      if (msg.plane === "document") {
+        const next = applyDocumentSnapshot(snap as DocumentSnapshot, {
+          scope,
+        });
+        if (next) void mergeOfflineSnapshot(token, { project: next });
+      }
+    };
+
+    const socket = openPlaneSocket<GuestMsg>({
+      url: guestWsUrl(token, connectIdRef.current),
+      onOpen: (ctx) => {
         wsOpenRef.current = true;
-        const sock = ws;
-        sendRef.current = bindWsSender(sock);
+        sendRef.current = ctx.send;
         setWsReady(true);
         stopPoll();
         requestGuestDrainLazy(token);
-      };
-      /**
-       * Presence, progress and Applied/Snapshot handling for both planes.
-       * Runs from the per-frame inbound queue; the clock sample and the
-       * client-id handoff above already happened at receipt.
-       */
-      const handleGuestFrame = (msg: GuestMsg) => {
-        if (!current()) {
-          return;
+      },
+      onReceive: (msg) => {
+        if (msg.server_time_ns || msg.snapshot?.server_time_ns) {
+          applyServerClock(msg.server_time_ns ?? msg.snapshot?.server_time_ns);
         }
-        if (handlePresenceWsFrame(msg, rosterRequester)) {
-          return;
+        if (
+          msg.plane === "session" &&
+          typeof msg.client_id === "string" &&
+          msg.client_id &&
+          clientIdRef.current !== msg.client_id
+        ) {
+          clientIdRef.current = msg.client_id;
+          useDawStore.getState().setLocalClientId(msg.client_id);
         }
-        if (msg.plane === "progress" || msg.type === "progress") {
-          const job = guestProgressToJob(
-            msg as GuestProgressEvent,
-            useDawStore.getState().activityJob,
-          );
-          useDawStore.getState().setActivityJob(job);
-          return;
-        }
-        if (msg.type !== "Applied" && msg.type !== "Snapshot") {
-          return;
-        }
-        const snap = msg.snapshot;
-        if (!snap) {
-          return;
-        }
-        if (msg.plane === "session") {
-          const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
-          if (msg.type === "Snapshot") {
-            const full = snap as SessionState;
-            sessionSnapshot = full;
-            sessionResyncing = false;
-            const pendingAgent = pendingAgentRecoveryRef.current;
-            const targetSeq = Number(
-              pendingAgent?.server_seq ??
-                pendingAgent?.snapshot?.server_seq ??
-                0,
-            );
-            if (pendingAgent && full.server_seq < targetSeq) {
-              sessionResyncing = true;
-              thisSocket.close(3000, "session snapshot behind gap");
-              return;
-            }
-            const recovered = pendingAgent?.snapshot
-              ? withAgentAppliedAuthority(
-                  full,
-                  pendingAgent.snapshot,
-                  pendingAgent.command,
-                )
-              : full;
-            pendingAgentRecoveryRef.current = null;
-            applyRef.current(recovered);
-            return;
-          }
-          if (msg.type !== "Applied") return;
-          if (
-            sessionAppliedHasGap(
-              sessionSnapshot?.server_seq ?? null,
-              msg.prev_seq,
-              seq,
-            )
-          ) {
-            if (!sessionResyncing && current()) {
-              sessionResyncing = true;
-              const role = msg.command?.role ?? snap.last_role ?? snap.origin;
-              if (role === "agent" || snap.origin === "agent") {
-                pendingAgentRecoveryRef.current = msg;
-              }
-              thisSocket.close(3000, "session sequence gap");
-            }
-            return;
-          }
-          if (!sessionSnapshot || seq < sessionSnapshot.server_seq) return;
-          const merged = mergeSessionAppliedDelta(sessionSnapshot, snap);
-          if (
-            seq === sessionSnapshot.server_seq &&
-            merged.last_command_id === sessionSnapshot.last_command_id
-          ) {
-            return;
-          }
-          sessionSnapshot = merged;
-          applyRef.current(merged);
-          return;
-        }
-        if (msg.plane === "document") {
-          const next = applyDocumentSnapshot(snap as DocumentSnapshot, {
-            scope,
-          });
-          if (next) void mergeOfflineSnapshot(token, { project: next });
-        }
-      };
-
-      ws.onmessage = (ev) => {
-        if (!current()) return;
-        try {
-          const msg = JSON.parse(ev.data as string) as GuestMsg & {
-            server_time_ns?: number;
-          };
-          if (msg.server_time_ns || msg.snapshot?.server_time_ns) {
-            applyServerClock(
-              msg.server_time_ns ?? msg.snapshot?.server_time_ns,
-            );
-          }
-          if (
-            msg.plane === "session" &&
-            typeof msg.client_id === "string" &&
-            msg.client_id &&
-            clientIdRef.current !== msg.client_id
-          ) {
-            clientIdRef.current = msg.client_id;
-            useDawStore.getState().setLocalClientId(msg.client_id);
-          }
-          enqueueInbound(() => handleGuestFrame(msg), {
-            coalesceKey:
-              msg.type === "Presence" && Array.isArray(msg.clients)
-                ? "guest:presence"
-                : undefined,
-          });
-        } catch {
-          // ignore malformed
-        }
-      };
-      ws.onclose = () => {
-        if (!current()) {
-          return;
-        }
-        retired = true;
+      },
+      fallback: {
+        handle: handleGuestFrame,
+        coalesceKey: (msg) =>
+          msg.type === "Presence" && Array.isArray(msg.clients)
+            ? "guest:presence"
+            : undefined,
+      },
+      onClose: () => {
+        sessionSnapshot = null;
+        sessionResyncing = false;
         wsOpenRef.current = false;
         sendRef.current = null;
         setWsReady(false);
         startPoll();
-        if (!closed) {
-          retry = setTimeout(connect, 2000);
-        }
-      };
-      ws.onerror = () => {
-        if (ws === thisSocket) {
-          ws?.close();
-        }
-      };
-    };
-    connect();
+      },
+    });
     // Until the socket first opens (onopen stops it), cover the handshake with the
     // fallback poll; no immediate tick, bootstrap just loaded the project (#657).
     startPoll({ immediate: false });
@@ -329,12 +290,7 @@ export function useGuestSync(
       window.removeEventListener("online", drain);
       window.clearInterval(drainTimer);
       stopPoll();
-      if (retry) {
-        clearTimeout(retry);
-      }
-      if (ws) {
-        detachSocket(ws);
-      }
+      socket.stop();
       wsOpenRef.current = false;
       sendRef.current = null;
       rosterRequester.dispose();

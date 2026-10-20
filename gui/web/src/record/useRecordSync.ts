@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyServerClock } from "../presence/clock";
 import { newClientId } from "../session/clientId";
-import { bindWsSender, type WsSender } from "../session/wsSend";
+import type { WsSender } from "../session/wsSend";
 import {
   clearRecordParticipant,
   loadRecordParticipant,
   saveRecordParticipant,
 } from "../state/offlineStore";
+import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
 import type { RecordSnapshot } from "./types";
@@ -35,7 +36,11 @@ function nextRecordClientSeq(token: string): number {
   }
 }
 
+/** A lease or identity hiccup the server expects the client to retry almost at once. */
+const RECORD_QUICK_RETRY_MS = 250;
+
 type RecordMsg = {
+  server_time_ns?: number;
   type?: string;
   plane?: string;
   code?: string;
@@ -111,7 +116,6 @@ export function useRecordSync(
   const sendRef = useRef<WsSender | null>(null);
   const clientIdRef = useRef(newClientId());
   const nameRef = useRef(displayName);
-  const retryMsRef = useRef(1000);
   const skipLeaseRef = useRef(false);
   nameRef.current = displayName;
 
@@ -144,35 +148,36 @@ export function useRecordSync(
     if (!enabled) {
       return;
     }
-    let cancelled = false;
-    let retry: number | null = null;
     let heartbeat: number | null = null;
-    let socket: WebSocket | null = null;
     let joined = false;
     let accessEnded = false;
-    const endAccess = (reason: RecordAccessEndedReason, sock?: WebSocket) => {
+    let cached: Awaited<ReturnType<typeof loadRecordParticipant>>;
+    const endAccess = (
+      reason: RecordAccessEndedReason,
+      ctx?: PlaneSocketContext,
+    ) => {
       accessEnded = true;
       setError(reason);
-      sock?.close();
+      ctx?.close();
+    };
+    const stopHeartbeat = () => {
+      if (heartbeat !== null) {
+        window.clearInterval(heartbeat);
+        heartbeat = null;
+      }
     };
 
-    const connect = async () => {
-      if (cancelled) {
-        return;
-      }
-      const cached = skipLeaseRef.current
-        ? undefined
-        : await loadRecordParticipant(token);
-      if (cancelled || accessEnded) {
-        return;
-      }
-      joined = false;
-      socket = new WebSocket(
-        recordWsUrl(token, clientIdRef.current, nameRef.current),
-      );
-      const thisSocket = socket;
-      socket.onopen = () => {
-        sendRef.current = bindWsSender(thisSocket);
+    const socket = openPlaneSocket<RecordMsg>({
+      url: recordWsUrl(token, clientIdRef.current, nameRef.current),
+      prepare: async () => {
+        cached = skipLeaseRef.current
+          ? undefined
+          : await loadRecordParticipant(token);
+        joined = false;
+        return !accessEnded;
+      },
+      onOpen: (ctx) => {
+        sendRef.current = ctx.send;
         setConnected(true);
         setError(null);
         const payload: Record<string, unknown> = {
@@ -182,15 +187,13 @@ export function useRecordSync(
           payload.participant_id = cached.participant_id;
           payload.lease = cached.lease;
         }
-        sendRef.current?.({
+        ctx.send({
           type: "Record",
           command_type: "Join",
           payload,
           client_seq: nextRecordClientSeq(token),
         });
-        if (heartbeat !== null) {
-          window.clearInterval(heartbeat);
-        }
+        stopHeartbeat();
         heartbeat = window.setInterval(() => {
           sendRef.current?.({
             type: "Record",
@@ -199,32 +202,34 @@ export function useRecordSync(
             client_seq: nextRecordClientSeq(token),
           });
         }, 5000);
-      };
-      socket.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(String(ev.data)) as RecordMsg;
-          applyServerClock(msg.snapshot?.server_time_ns);
+      },
+      onReceive: (msg) => applyServerClock(msg.snapshot?.server_time_ns),
+      onMalformed: () =>
+        setError((current) => keepTerminalRecordError(current, "malformed")),
+      fallback: {
+        immediate: true,
+        handle: (msg, ctx) => {
           if (isRecordSignal(msg)) {
             emitRecordSignal(msg);
             return;
           }
           if (msg.type === "Error") {
             if (msg.code === "lease_in_use") {
-              retryMsRef.current = 250;
-              thisSocket.close();
+              ctx.retryIn(RECORD_QUICK_RETRY_MS);
+              ctx.close();
               return;
             }
             if (msg.code === "invalid_lease" && !joined) {
               skipLeaseRef.current = true;
-              retryMsRef.current = 250;
+              ctx.retryIn(RECORD_QUICK_RETRY_MS);
               void clearRecordParticipant(token).then(
-                () => thisSocket.close(),
-                () => thisSocket.close(),
+                () => ctx.close(),
+                () => ctx.close(),
               );
               return;
             }
             if (msg.code === RECORD_INVITE_CLOSED) {
-              endAccess(RECORD_INVITE_CLOSED, thisSocket);
+              endAccess(RECORD_INVITE_CLOSED, ctx);
               return;
             }
             if (
@@ -232,7 +237,7 @@ export function useRecordSync(
               msg.code === "forbidden"
             ) {
               if (!joined) {
-                endAccess(RECORD_ACCESS_REMOVED, thisSocket);
+                endAccess(RECORD_ACCESS_REMOVED, ctx);
               } else {
                 setError((current) =>
                   keepTerminalRecordError(current, "forbidden"),
@@ -246,6 +251,7 @@ export function useRecordSync(
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
             joined = true;
+            ctx.markHealthy();
             skipLeaseRef.current = false;
             setMeId(msg.participant_id);
             setLease(msg.lease);
@@ -257,37 +263,21 @@ export function useRecordSync(
           if (msg.snapshot) {
             setSnapshot(msg.snapshot);
           }
-        } catch {
-          setError((current) => keepTerminalRecordError(current, "malformed"));
-        }
-      };
-      socket.onclose = (event) => {
+        },
+      },
+      onClose: (event) => {
         setConnected(false);
         sendRef.current = null;
-        if (heartbeat !== null) {
-          window.clearInterval(heartbeat);
-          heartbeat = null;
-        }
+        stopHeartbeat();
         if (isTerminalWsClose(event.code) && !accessEnded) {
           endAccess(RECORD_ACCESS_REMOVED);
         }
-        if (!cancelled && !accessEnded) {
-          const delay = retryMsRef.current;
-          retryMsRef.current = 1000;
-          retry = window.setTimeout(() => void connect(), delay);
-        }
-      };
-    };
-    void connect();
+      },
+      shouldReconnect: () => !accessEnded,
+    });
     return () => {
-      cancelled = true;
-      if (retry !== null) {
-        window.clearTimeout(retry);
-      }
-      if (heartbeat !== null) {
-        window.clearInterval(heartbeat);
-      }
-      socket?.close();
+      socket.stop();
+      stopHeartbeat();
     };
   }, [token, enabled]);
 
