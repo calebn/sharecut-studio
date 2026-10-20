@@ -269,13 +269,19 @@ def _pitchless_independent_runs(
     return pitchless
 
 
+# A ringing room falls at least this fast, frame to frame (0.3 dB over a 10 ms frame, a decay
+# time near 2 s); a remark or a steady sound that follows the owner's word falls slower.
+_TAIL_DECAY_PER_FRAME = 10 ** (-0.03)
+
+
 def _without_bleed_tails(levels: np.ndarray, own: np.ndarray, dominated: np.ndarray) -> np.ndarray:
     """``own`` less the decaying tail of the owner's bleed that runs on past where it dominated.
 
     A room rings on after the owner's word: the peer's frames fall away from the bleed level
     toward the level the run settles at, and none of those frames is the peer's. A remark
     begins with a rise, so a run that starts right after a dominated frame is tail only while
-    its level keeps falling (over a pitch-probe window, so one frame's flicker does not end it),
+    its level keeps falling at the pace of a ringing room (over a pitch-probe window, so one
+    frame's flicker does not end it),
     stays under that bleed, and sits more than :data:`VOICE_FLOOR_OVER_ROOM_DB` over the run's
     own lower quartile. A steady sound that follows the owner's word does not fall, so it is not
     tail.
@@ -290,7 +296,7 @@ def _without_bleed_tails(levels: np.ndarray, own: np.ndarray, dominated: np.ndar
         for frame in range(first, last):
             if (
                 levels[frame] > levels[first - 1]
-                or smooth[frame] > smooth[frame - 1]
+                or smooth[frame] > smooth[frame - 1] * _TAIL_DECAY_PER_FRAME
                 or levels[frame] <= settled + VOICE_FLOOR_OVER_ROOM_DB
             ):
                 break

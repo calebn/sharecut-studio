@@ -1779,7 +1779,15 @@ def _colored_room(kind: str, size: int, rms: float, seed: int) -> np.ndarray:
 
 
 def _owner_words_over_room(
-    kind: str, gap_sec: float, *, remark: str | None, bleed: float, tail: bool, seed: int = 3
+    kind: str,
+    gap_sec: float,
+    *,
+    remark: str | None,
+    bleed: float,
+    tail: bool,
+    lead: float = 0.15,
+    remark_db: float | None = None,
+    seed: int = 3,
 ) -> tuple[np.ndarray, np.ndarray, tuple[float, float]]:
     """A host who talks word after word ``gap_sec`` apart, bleeding into a guest in a steady room.
 
@@ -1809,11 +1817,14 @@ def _owner_words_over_room(
             peer[after] += bleed * 0.15 * ring[after] * 10 ** (-3.0 * (after - end) / (0.3 * _SR))
     peer += np.where(clock < 1.0, _voice(clock, 140.0, 0.1), 0.0)
     if remark == "voiced":
-        said = (clock >= pause_at + 0.15) & (clock < pause_at + 0.35)
+        said = (clock >= pause_at + lead) & (clock < pause_at + lead + 0.2)
         peer[said] += _voice(clock[said], 150.0, 0.04)
     elif remark == "whispered":
-        said = (clock >= pause_at + 0.15) & (clock < pause_at + 0.35)
+        said = (clock >= pause_at + lead) & (clock < pause_at + lead + 0.2)
         peer[said] += rng.normal(0.0, 0.02, int(said.sum()))
+    if remark_db is not None:
+        said = (clock >= pause_at + lead) & (clock < pause_at + lead + 0.1)
+        peer[said] += 10 ** (remark_db / 20) * np.sqrt(2) * np.sin(2 * np.pi * 200 * clock[said])
     return owner, peer, (3.0, pause_at + pause)
 
 
@@ -1856,3 +1867,30 @@ def test_room_between_owner_words_is_clear_and_a_remark_in_it_still_warns(
     assert levels is not None
     assert levels.speaking == expected
     assert levels.unread == {}
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("gain", [-20.0, 0.0, 30.0])
+def test_remark_that_starts_as_the_owner_word_ends_under_its_bleed_still_warns(
+    tmp_path: Path, cached: bool, gain: float
+) -> None:
+    """The ring after an owner word falls away; a remark that follows it does not."""
+    owner, peer, span = _owner_words_over_room(
+        "white", 0.0, remark=None, bleed=0.05, tail=True, lead=0.0, remark_db=-42.0
+    )
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    for track in p.tracks:
+        track.gain_db = gain
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(span[1] - 1.5, span[1])],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == ("guest",)
