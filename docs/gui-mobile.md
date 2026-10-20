@@ -447,7 +447,7 @@ before opening its existing dialog. Other global dialogs, including Bounce, also
 invalidate Mix. Committed writes continue through the shared
 mix queue after closing. A swipe overlay remains deferred.
 
-`e2e-compat/phone-mix.spec.ts` checks pointer opening after Search commands has
+`e2e-compat/phone-mix.spec.ts` checks pointer opening after Commands and shortcuts has
 keyboard focus, the initial Close focus, restoration after Close, Escape, or
 scrim dismissal, and keyboard navigation away from and back to More. These
 focus scenarios run in the existing core flow alongside its native mix edit
@@ -585,7 +585,7 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 | Transcript tab | Text mode |
 | Comments | Listen list, the Listen comment field, and More → Comments |
 | History / Impact / Tighten / Pipeline | More hub |
-| Command palette (`?`) | More hub → **Search commands**, a field-styled row at the top of the hub that opens **Commands and shortcuts** as a bottom sheet with Search focused |
+| Command palette (`?`) | More hub → **Commands and shortcuts**, a field-styled row at the top of the hub that opens the palette as a bottom sheet with Search focused |
 | Status bar | Actionable chips (tap → panel) except **Activity** (`kind=agent`), which is status-only until the activity-history drawer; Listen **Pending** selects first review-required pending and opens Timeline; **Mix out of date** (**No mix yet** when nothing is rendered) uses the shared render-status breakdown, so a new empty project stays fresh; **Pipeline** chip shows truncated headline, elapsed, and pulse (not `●`) and opens Pipeline; **Activity** chip uses the same chrome plus a count badge when more than one job is live |
 
 ### Gestures

@@ -58,7 +58,7 @@ export const Conflicts: Story = {
       }),
     );
     await userEvent.click(
-      canvas.getByLabelText("View attention details and recovery actions"),
+      canvas.getByLabelText("Needs attention details and recovery actions"),
     );
     await userEvent.click(canvas.getByRole("button", { name: "Dismiss all" }));
     await expect(args.onDismissAll).toHaveBeenCalledTimes(1);
@@ -98,7 +98,7 @@ export const PhoneManyConflicts: Story = {
       }),
     );
     await userEvent.click(
-      canvas.getByLabelText("View attention details and recovery actions"),
+      canvas.getByLabelText("Needs attention details and recovery actions"),
     );
     await expect(canvas.getAllByRole("listitem")).toHaveLength(6);
     await expect(canvas.getByText("+2 more")).toHaveClass(

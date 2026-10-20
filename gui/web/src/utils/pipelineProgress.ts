@@ -1,5 +1,6 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { isAnalyzeJob, isPipelineKindJob, isPipelineRunning } from "./pipeline";
+import { plainError } from "./plainError";
 
 /** True when the job has an honest determinate total (no fake %). */
 export function hasDeterminateProgress(
@@ -73,8 +74,8 @@ export function pipelineStatusLabel(status: string): string {
 
 /**
  * One sentence for a job's state: "Pipeline is running", "Activity failed".
- * A failed or cancelled job's own message is never part of it: the message is
- * the server's refusal text, and the Pipeline panel shows it with its fix.
+ * The job's own message is not part of it; callers add it, filtered by
+ * `plainError` for a failed job.
  */
 export function pipelineStateSentence(
   job: Pick<PipelineJobSnapshot, "kind" | "status">,
@@ -110,12 +111,10 @@ export function pipelineChromeLabel(
   options?: { headlineMax?: number },
 ): string {
   const parts = [pipelineStateSentence(job)];
-  if (job.status === "error" || job.status === "cancelled") {
-    return parts[0]!;
-  }
+  if (job.status === "cancelled") return parts[0]!;
   const text = job.message || job.label;
   const headline = truncateHeadline(
-    text,
+    text && job.status === "error" ? plainError(text) : text,
     options?.headlineMax ?? 48,
   );
   if (headline) {

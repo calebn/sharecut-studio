@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { commandLabel } from "../commands/labels";
 import {
   CommentAnchorChip,
   CommentAuthorLine,
@@ -178,7 +179,7 @@ export function CommentsPanel({
             pressed={commentMode}
             onClick={() => setCommentMode(!commentMode)}
           >
-            {commentMode ? "Comment mode on" : "Comment mode"}
+            {commandLabel("review.toggleCommentMode")}
           </ToggleButton>
         ) : null}
       </div>

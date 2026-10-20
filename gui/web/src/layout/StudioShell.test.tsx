@@ -504,13 +504,15 @@ describe("StudioShell tablet peek", () => {
     const alert = await screen.findByRole("region", {
       name: "Needs attention. 1 pending, 1 conflict",
     });
-    expect(within(alert).getByText("Attention", { exact: true })).toBeVisible();
+    expect(
+      within(alert).getByText("Needs attention", { exact: true }),
+    ).toBeVisible();
     const details = within(alert).getByLabelText(
-      "View attention details and recovery actions",
+      "Needs attention details and recovery actions",
     );
     expect(details).toHaveAttribute(
       "aria-label",
-      "View attention details and recovery actions",
+      "Needs attention details and recovery actions",
     );
     await userEvent.click(details);
     expect(alert).toHaveTextContent("Project changed");

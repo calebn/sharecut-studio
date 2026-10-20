@@ -272,7 +272,7 @@ test.describe("Pending inspector layout", () => {
     const attention = page.getByRole("region", { name: /^Needs attention/ });
     const details = attention.locator("details");
     await details
-      .getByLabel("View attention details and recovery actions")
+      .getByLabel("Needs attention details and recovery actions")
       .click();
     await expect(details).toHaveAttribute("open", "");
     await attention.getByRole("button", { name: "Dismiss all" }).click();

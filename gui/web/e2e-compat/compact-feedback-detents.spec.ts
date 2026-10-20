@@ -294,7 +294,7 @@ for (const {
       const details = attention.locator("details");
       const summary = details.locator("summary");
       await expect(summary).toHaveAccessibleName(
-        "View attention details and recovery actions",
+        "Needs attention details and recovery actions",
       );
       await page
         .getByRole("button", { name: "Expand to full height", exact: true })

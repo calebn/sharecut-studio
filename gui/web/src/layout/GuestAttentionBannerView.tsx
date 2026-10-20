@@ -3,7 +3,12 @@ import { createPortal } from "react-dom";
 import type { OfflineConflict } from "../state/offlineStore";
 import { Button } from "../ui/Button";
 import { overflowLabel } from "../utils/format";
-import { attentionCountLabel, attentionRegionLabel } from "./attentionLabel";
+import {
+  ATTENTION_DETAILS_LABEL,
+  attentionCountLabel,
+  attentionRegionLabel,
+  NEEDS_ATTENTION,
+} from "./attentionLabel";
 
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
 export const ATTENTION_LISTED_CONFLICTS = 5;
@@ -140,9 +145,9 @@ export function GuestAttentionBannerView({
           <details className="guest-attention-details">
             <summary
               className="guest-attention-head"
-              aria-label="View attention details and recovery actions"
+              aria-label={ATTENTION_DETAILS_LABEL}
             >
-              <strong>Attention</strong>
+              <strong>{NEEDS_ATTENTION}</strong>
               <span role="img" aria-label={countLabel || regionLabel}>
                 {attentionCount || "!"}
               </span>

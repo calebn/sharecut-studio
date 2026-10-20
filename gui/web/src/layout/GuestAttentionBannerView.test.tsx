@@ -10,7 +10,7 @@ afterEach(() => vi.useRealTimers());
 
 function expandDetails() {
   fireEvent.click(
-    screen.getByLabelText("View attention details and recovery actions"),
+    screen.getByLabelText("Needs attention details and recovery actions"),
   );
 }
 
@@ -38,7 +38,7 @@ describe("GuestAttentionBannerView", () => {
       />,
     );
     const summary = screen.getByLabelText(
-      "View attention details and recovery actions",
+      "Needs attention details and recovery actions",
     );
     await userEvent.click(summary);
     expect(summary.closest("details")).toHaveAttribute("open");
@@ -73,7 +73,7 @@ describe("GuestAttentionBannerView", () => {
       screen.getAllByRole("region", { name: /Needs attention/ }),
     ).toHaveLength(2);
     const summary = screen.getAllByLabelText(
-      "View attention details and recovery actions",
+      "Needs attention details and recovery actions",
     )[0];
     expect(
       summary.compareDocumentPosition(
@@ -113,7 +113,7 @@ describe("GuestAttentionBannerView", () => {
       </StrictMode>,
     );
     const summary = screen.getByLabelText(
-      "View attention details and recovery actions",
+      "Needs attention details and recovery actions",
     );
     await userEvent.click(summary);
     const details = summary.closest("details")!;
@@ -163,19 +163,19 @@ describe("GuestAttentionBannerView", () => {
       <GuestAttentionBannerView key="first-project" {...props} />,
     );
     const summary = screen.getByLabelText(
-      "View attention details and recovery actions",
+      "Needs attention details and recovery actions",
     );
     await userEvent.click(summary);
     summary.focus();
     rerender(<GuestAttentionBannerView key="second-project" {...props} />);
     expect(
       screen
-        .getByLabelText("View attention details and recovery actions")
+        .getByLabelText("Needs attention details and recovery actions")
         .closest("details"),
     ).not.toHaveAttribute("open");
     expect(summary).not.toBeInTheDocument();
     expect(
-      screen.getByLabelText("View attention details and recovery actions"),
+      screen.getByLabelText("Needs attention details and recovery actions"),
     ).not.toHaveFocus();
   });
 
@@ -190,7 +190,7 @@ describe("GuestAttentionBannerView", () => {
     expandDetails();
     expect(
       screen
-        .getByLabelText("View attention details and recovery actions")
+        .getByLabelText("Needs attention details and recovery actions")
         .closest("details"),
     ).toHaveAttribute("open");
     rerender(
@@ -201,7 +201,7 @@ describe("GuestAttentionBannerView", () => {
       />,
     );
     expect(
-      screen.queryByLabelText("View attention details and recovery actions"),
+      screen.queryByLabelText("Needs attention details and recovery actions"),
     ).not.toBeInTheDocument();
     rerender(
       <GuestAttentionBannerView
@@ -212,7 +212,7 @@ describe("GuestAttentionBannerView", () => {
     );
     expect(
       screen
-        .getByLabelText("View attention details and recovery actions")
+        .getByLabelText("Needs attention details and recovery actions")
         .closest("details"),
     ).not.toHaveAttribute("open");
   });
