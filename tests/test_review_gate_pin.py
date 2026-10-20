@@ -16,48 +16,12 @@ from typing import Any
 
 import pytest
 
-from podcast_mcp.edits.align_accept_status import (
-    AlignAcceptRequiredError,
-    align_artifact_path,
-    align_mode_from_defaults,
-    align_status_report,
-    mark_align_done,
-    mark_align_pending,
-    mark_align_waived,
-)
-from podcast_mcp.edits.align_accept_status import (
-    load_status as align_load,
-)
-from podcast_mcp.edits.align_accept_status import (
-    require_or_waive_unattended as align_gate,
-)
-from podcast_mcp.edits.align_accept_status import (
-    status_is_clear as align_clear,
-)
-from podcast_mcp.edits.align_accept_status import (
-    status_path as align_path,
-)
+from podcast_mcp.edits.align_accept_status import ALIGN_GATE, AlignAcceptRequiredError
+from podcast_mcp.edits.conversation_align import align_artifact_path
 from podcast_mcp.edits.transcript_refine_status import (
+    REFINE_GATE,
     TranscriptRefineRequiredError,
-    assert_refine_clear,
-    mark_refine_done,
-    mark_refine_pending,
-    mark_refine_waived,
-    refine_mode_from_defaults,
-    refine_status_report,
     reviewed_transcript_fingerprint,
-)
-from podcast_mcp.edits.transcript_refine_status import (
-    load_status as refine_load,
-)
-from podcast_mcp.edits.transcript_refine_status import (
-    require_or_waive_unattended as refine_gate,
-)
-from podcast_mcp.edits.transcript_refine_status import (
-    status_is_clear as refine_clear,
-)
-from podcast_mcp.edits.transcript_refine_status import (
-    status_path as refine_path,
 )
 from podcast_mcp.models import (
     Clip,
@@ -108,15 +72,15 @@ ALIGN = Ops(
     pending_notes="reset after align_tracks",
     error=AlignAcceptRequiredError,
     off_summary="skipped (align.accept.mode=off)",
-    path=align_path,
-    load=align_load,
-    pending=mark_align_pending,
-    done=mark_align_done,
-    waive=mark_align_waived,
-    clear=align_clear,
-    report=align_status_report,
-    gate=align_gate,
-    mode=align_mode_from_defaults,
+    path=ALIGN_GATE.path,
+    load=ALIGN_GATE.load,
+    pending=ALIGN_GATE.mark_pending,
+    done=ALIGN_GATE.mark_done,
+    waive=ALIGN_GATE.mark_waived,
+    clear=ALIGN_GATE.is_clear,
+    report=ALIGN_GATE.report,
+    gate=ALIGN_GATE.require_or_waive_unattended,
+    mode=ALIGN_GATE.mode,
 )
 REFINE = Ops(
     name="refine",
@@ -127,15 +91,15 @@ REFINE = Ops(
     pending_notes="reset after precorrect apply",
     error=TranscriptRefineRequiredError,
     off_summary="skipped (analysis.transcript_refine.mode=off)",
-    path=refine_path,
-    load=refine_load,
-    pending=mark_refine_pending,
-    done=mark_refine_done,
-    waive=mark_refine_waived,
-    clear=refine_clear,
-    report=refine_status_report,
-    gate=refine_gate,
-    mode=refine_mode_from_defaults,
+    path=REFINE_GATE.path,
+    load=REFINE_GATE.load,
+    pending=REFINE_GATE.mark_pending,
+    done=REFINE_GATE.mark_done,
+    waive=REFINE_GATE.mark_waived,
+    clear=REFINE_GATE.is_clear,
+    report=REFINE_GATE.report,
+    gate=REFINE_GATE.require_or_waive_unattended,
+    mode=REFINE_GATE.mode,
 )
 
 
@@ -495,14 +459,14 @@ def test_gate_unattended_default_mode_is_waive_unattended(ops: Ops, tmp_path: Pa
 @pytest.mark.refine_gate
 def test_refine_assert_clear(tmp_path: Path) -> None:
     p = _project(tmp_path)
-    assert_refine_clear(p, defaults=REFINE.defaults("off"))
+    REFINE_GATE.assert_clear(p, defaults=REFINE.defaults("off"))
     with pytest.raises(TranscriptRefineRequiredError):
-        assert_refine_clear(p, defaults=REFINE.defaults("require"))
-    mark_refine_done(p)
-    assert_refine_clear(p, defaults=REFINE.defaults("require"))
+        REFINE_GATE.assert_clear(p, defaults=REFINE.defaults("require"))
+    REFINE_GATE.mark_done(p)
+    REFINE_GATE.assert_clear(p, defaults=REFINE.defaults("require"))
     _invalidate(REFINE, p)
     with pytest.raises(TranscriptRefineRequiredError):
-        assert_refine_clear(p, defaults=REFINE.defaults("waive_unattended"))
+        REFINE_GATE.assert_clear(p, defaults=REFINE.defaults("waive_unattended"))
 
 
 def test_refine_fingerprint_counts_archived_words_and_ignores_flags(tmp_path: Path) -> None:
@@ -522,20 +486,20 @@ def test_align_done_records_plan_digest_and_goes_stale_with_the_artifact(
         {"track_id": "a", "clip_id": "c1", "method": "bleed", "offset_sec": 0.5}
     ]
     _write_artifact(p, plans)
-    payload = mark_align_done(p)
+    payload = ALIGN_GATE.mark_done(p)
     digest = hashlib.sha256(json.dumps(plans, sort_keys=True, separators=(",", ":")).encode())
     assert payload["accepted_plan_digest"] == digest.hexdigest()
     assert list(payload)[-2:] == ["accepted_drift", "accepted_plan_digest"]
-    assert align_clear(p) is True
+    assert ALIGN_GATE.is_clear(p) is True
     _write_artifact(p, [{**plans[0], "offset_sec": 3.0}])
-    assert align_clear(p) is False
-    report = align_status_report(p, defaults=ALIGN.defaults("require"))
+    assert ALIGN_GATE.is_clear(p) is False
+    report = ALIGN_GATE.report(p, defaults=ALIGN.defaults("require"))
     assert (report["status"], report["stale"], report["clear"]) == ("pending", True, False)
     assert report["fingerprint_match"] is True
     assert report["align_artifact"] == "artifacts/alignment/conversation_align.json"
     assert report["plans"] == [{**plans[0], "offset_sec": 3.0}]
     with pytest.raises(AlignAcceptRequiredError):
-        align_gate(p, defaults=ALIGN.defaults("require"))
+        ALIGN_GATE.require_or_waive_unattended(p, defaults=ALIGN.defaults("require"))
 
 
 def test_align_unattended_waive_omits_drift_and_pending_has_no_plan_digest(
@@ -543,18 +507,18 @@ def test_align_unattended_waive_omits_drift_and_pending_has_no_plan_digest(
 ) -> None:
     p = _project(tmp_path)
     _write_artifact(p, [])
-    assert "accepted_plan_digest" not in mark_align_pending(p)
-    waived = mark_align_waived(p, reason="x", source="unattended")
+    assert "accepted_plan_digest" not in ALIGN_GATE.mark_pending(p)
+    waived = ALIGN_GATE.mark_waived(p, reason="x", source="unattended")
     assert "accepted_drift" not in waived
     assert waived["accepted_plan_digest"] == hashlib.sha256(b"[]").hexdigest()
 
 
 def test_align_accept_without_artifact_goes_stale_when_one_appears(tmp_path: Path) -> None:
     p = _project(tmp_path)
-    mark_align_done(p)
-    assert align_clear(p) is True
+    ALIGN_GATE.mark_done(p)
+    assert ALIGN_GATE.is_clear(p) is True
     _write_artifact(p, [])
-    assert align_clear(p) is False
+    assert ALIGN_GATE.is_clear(p) is False
 
 
 def test_align_unreadable_artifact_blocks_unattended_waive(tmp_path: Path) -> None:
@@ -563,13 +527,17 @@ def test_align_unreadable_artifact_blocks_unattended_waive(tmp_path: Path) -> No
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{broken", encoding="utf-8")
     with pytest.raises(AlignAcceptRequiredError, match="unreadable; re-run align_tracks"):
-        align_gate(p, defaults=ALIGN.defaults("waive_unattended", _pipeline_unattended=True))
-    assert not align_path(p).exists()
+        ALIGN_GATE.require_or_waive_unattended(
+            p, defaults=ALIGN.defaults("waive_unattended", _pipeline_unattended=True)
+        )
+    assert not ALIGN_GATE.path(p).exists()
 
 
 def test_align_large_move_blocks_unattended_waive(tmp_path: Path) -> None:
     p = _project(tmp_path)
     _write_artifact(p, [{"track_id": "a", "clip_id": "c1", "method": "bleed", "offset_sec": 40.0}])
     with pytest.raises(AlignAcceptRequiredError, match=r"a \+40\.00s \(bleed\)"):
-        align_gate(p, defaults=ALIGN.defaults("waive_unattended", _pipeline_unattended=True))
-    assert not align_path(p).exists()
+        ALIGN_GATE.require_or_waive_unattended(
+            p, defaults=ALIGN.defaults("waive_unattended", _pipeline_unattended=True)
+        )
+    assert not ALIGN_GATE.path(p).exists()

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         resolve_gui_static_root,
         viewer_url,
     )
+    from podcast_mcp.services.app.review_gate import ReviewGateService
     from podcast_mcp.services.app.studio_host import (
         DIRECT_ENV_VAR,
         HANDOFF_PROTOCOL,
@@ -45,6 +46,7 @@ __all__ = [
     "HandoffLost",
     "HandoffRefused",
     "ProjectWorkspace",
+    "ReviewGateService",
     "StudioHost",
     "announce_studio_host",
     "drop_oldest_overflow",
@@ -74,6 +76,7 @@ _MODULE_BY_NAME = {
     "packaged_cli_gui_refusal": "gui_launch",
     "resolve_gui_static_root": "gui_launch",
     "viewer_url": "gui_launch",
+    "ReviewGateService": "review_gate",
     "DIRECT_ENV_VAR": "studio_host",
     "HANDOFF_PROTOCOL": "studio_host",
     "HANDOFF_TOKEN_HEADER": "studio_host",

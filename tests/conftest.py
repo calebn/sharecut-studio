@@ -180,9 +180,9 @@ def _transcript_refine_gate_off_by_default(
     """Keep existing edit/pipeline unit tests green; opt in with @pytest.mark.refine_gate."""
     if request.node.get_closest_marker("refine_gate"):
         return
-    import podcast_mcp.edits.transcript_refine_status as refine_mod
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 
-    monkeypatch.setattr(refine_mod, "refine_mode_from_defaults", lambda defaults=None: "off")
+    monkeypatch.setattr(REFINE_GATE, "mode", lambda defaults=None: "off")
 
 
 @pytest.fixture(autouse=True)

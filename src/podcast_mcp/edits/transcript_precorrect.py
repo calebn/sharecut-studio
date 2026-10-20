@@ -572,13 +572,9 @@ def run_precorrect_transcript(
         result.report_path = str(out)
 
         if not dry_run:
-            from podcast_mcp.edits.transcript_refine_status import mark_refine_pending
+            from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 
-            mark_refine_pending(
-                project,
-                source="precorrect",
-                notes="reset after precorrect apply",
-            )
+            REFINE_GATE.mark_pending(project)
 
         task.message("Report written")
 

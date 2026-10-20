@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
@@ -17,7 +17,7 @@ def _open_with_one_held_cut(tmp_path):
     project = _project(tmp_path)
     _hole(project)
     project.edit_decisions = [_cut("ok-a", 3, 3.4), _cut("held", 1.2, 1.6), _cut("ok-b", 4, 4.4)]
-    mark_refine_done(project, notes="Known synthetic transcript fixture; no real-project test")
+    REFINE_GATE.mark_done(project, notes="Known synthetic transcript fixture; no real-project test")
     return ProjectWorkspace.open(save_project(project))
 
 
@@ -80,7 +80,7 @@ def test_a_cut_beside_a_held_one_waits_with_it(tmp_path):
         _cut("held", 1.2, 1.6),
         _cut("far", 4, 4.4),
     ]
-    mark_refine_done(project, notes="Known synthetic transcript fixture; no real-project test")
+    REFINE_GATE.mark_done(project, notes="Known synthetic transcript fixture; no real-project test")
     ws = ProjectWorkspace.open(save_project(project))
     held: list = []
 

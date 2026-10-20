@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -183,7 +183,7 @@ def pause(edit_id="pause", *, start=0.2, end=2, gap=0.25, track_id="host"):
 
 
 def workspace(result: EpisodeProject):
-    mark_refine_done(result, notes="Literal synthetic fixture. No owner audio acceptance.")
+    REFINE_GATE.mark_done(result, notes="Literal synthetic fixture. No owner audio acceptance.")
     return ProjectWorkspace.open(save_project(result))
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-import podcast_mcp.services.media.transcript_refine as transcript_refine
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -21,14 +21,14 @@ def test_waive_does_not_overwrite_interleaved_document_command(
     command_started = threading.Event()
     release_waiver = threading.Event()
     failures: list[Exception] = []
-    original_waive = transcript_refine.mark_refine_waived
+    original_waive = REFINE_GATE.mark_waived
 
     def pause_in_waive(*args, **kwargs):
         reloaded.set()
         assert release_waiver.wait(timeout=2)
         return original_waive(*args, **kwargs)
 
-    monkeypatch.setattr(transcript_refine, "mark_refine_waived", pause_in_waive)
+    monkeypatch.setattr(REFINE_GATE, "mark_waived", pause_in_waive)
 
     original_submit = documents.submit
 

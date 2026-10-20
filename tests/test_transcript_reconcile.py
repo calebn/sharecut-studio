@@ -15,7 +15,7 @@ from podcast_mcp.edits.transcript_reconcile import (
     overlap_duplicate_report,
     run_reconciliation,
 )
-from podcast_mcp.edits.transcript_refine_status import status_is_clear
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     compute_word_audibility_map,
@@ -394,7 +394,7 @@ def test_waiver_stays_clear_after_real_reconciliation(tmp_path: Path):
     host = workspace.project.transcript_for_track("host")
     assert host is not None
     assert host.words[1].suppressed is True
-    assert status_is_clear(workspace.project)
+    assert REFINE_GATE.is_clear(workspace.project)
     assert EditService(workspace).approve([]) == 0
 
 

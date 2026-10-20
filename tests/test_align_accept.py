@@ -7,17 +7,12 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.edits.align_accept_status import (
+    ALIGN_GATE,
     AlignAcceptRequiredError,
-    align_artifact_path,
-    align_status_report,
     alignment_drift_report,
     large_align_moves,
-    mark_align_done,
-    mark_align_pending,
-    mark_align_waived,
-    require_or_waive_unattended,
-    status_is_clear,
 )
+from podcast_mcp.edits.conversation_align import align_artifact_path
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -46,19 +41,23 @@ def _proj(tmp_path: Path) -> EpisodeProject:
 
 def test_gate_blocks_then_done(tmp_path: Path) -> None:
     p = _proj(tmp_path)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     with pytest.raises(AlignAcceptRequiredError):
-        require_or_waive_unattended(p, defaults={"align": {"accept": {"mode": "require"}}})
-    mark_align_done(p, notes="ok")
-    assert status_is_clear(p)
-    summary = require_or_waive_unattended(p, defaults={"align": {"accept": {"mode": "require"}}})
+        ALIGN_GATE.require_or_waive_unattended(
+            p, defaults={"align": {"accept": {"mode": "require"}}}
+        )
+    ALIGN_GATE.mark_done(p, notes="ok")
+    assert ALIGN_GATE.is_clear(p)
+    summary = ALIGN_GATE.require_or_waive_unattended(
+        p, defaults={"align": {"accept": {"mode": "require"}}}
+    )
     assert "done" in summary
 
 
 def test_unattended_waives(tmp_path: Path) -> None:
     p = _proj(tmp_path)
-    mark_align_pending(p)
-    summary = require_or_waive_unattended(
+    ALIGN_GATE.mark_pending(p)
+    summary = ALIGN_GATE.require_or_waive_unattended(
         p,
         defaults={
             "align": {"accept": {"mode": "waive_unattended"}},
@@ -66,17 +65,17 @@ def test_unattended_waives(tmp_path: Path) -> None:
         },
     )
     assert "waived" in summary
-    assert status_is_clear(p)
+    assert ALIGN_GATE.is_clear(p)
 
 
 def test_fingerprint_stale_after_clip_move(tmp_path: Path) -> None:
     p = _proj(tmp_path)
-    mark_align_done(p)
-    assert status_is_clear(p)
+    ALIGN_GATE.mark_done(p)
+    assert ALIGN_GATE.is_clear(p)
     p.clips[0].timeline_start = 5.0
-    assert not status_is_clear(p)
-    mark_align_waived(p, reason="recheck")
-    assert status_is_clear(p)
+    assert not ALIGN_GATE.is_clear(p)
+    ALIGN_GATE.mark_waived(p, reason="recheck")
+    assert ALIGN_GATE.is_clear(p)
 
 
 def test_skip_single_track_clears_require_gate(tmp_path: Path) -> None:
@@ -86,30 +85,30 @@ def test_skip_single_track_clears_require_gate(tmp_path: Path) -> None:
     p.ensure_dirs()
     summary = steps.align_tracks(p, {})
     assert "skipped" in (summary or "")
-    assert status_is_clear(p)
+    assert ALIGN_GATE.is_clear(p)
     out = steps.require_align_accept(p, {"align": {"accept": {"mode": "require"}}})
     assert "done" in out
 
 
 def test_corrupt_status_raises(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import load_status, status_path
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _proj(tmp_path)
     p.ensure_dirs()
-    path = status_path(p)
+    path = ALIGN_GATE.path(p)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{not-json", encoding="utf-8")
     with pytest.raises(ValueError, match="corrupt"):
-        load_status(p)
+        ALIGN_GATE.load(p)
 
 
 def test_status_report_uses_workspace_relative_paths(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import align_status_report, mark_align_pending
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _proj(tmp_path)
     p.ensure_dirs()
-    mark_align_pending(p)
-    report = align_status_report(p)
+    ALIGN_GATE.mark_pending(p)
+    report = ALIGN_GATE.report(p)
     assert not Path(report["path"]).is_absolute()
     assert report["path"].replace("\\", "/").startswith("artifacts/")
 
@@ -127,35 +126,35 @@ def test_align_accept_service_reloads_before_stamp(tmp_path: Path) -> None:
     svc = AlignAcceptService(ws)
     payload = svc.mark_done(notes="ok", source="cli")
     assert payload["status"] == "done"
-    assert status_is_clear(ws.project)
+    assert ALIGN_GATE.is_clear(ws.project)
 
 
 def test_align_mode_off_and_invalid_defaults(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import align_mode_from_defaults, align_status_report
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _proj(tmp_path)
-    assert align_mode_from_defaults({"align": {"accept": {"mode": "nope"}}}) == "waive_unattended"
-    assert require_or_waive_unattended(
+    assert ALIGN_GATE.mode({"align": {"accept": {"mode": "nope"}}}) == "waive_unattended"
+    assert ALIGN_GATE.require_or_waive_unattended(
         p, defaults={"align": {"accept": {"mode": "off"}}}
     ).startswith("skipped")
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     p.clips[0].timeline_start = 3.0
-    report = align_status_report(p)
+    report = ALIGN_GATE.report(p)
     assert report["stale"] is True
     assert report["status"] == "pending"
 
 
 def test_waive_requires_reason_and_corrupt_artifact(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import align_status_report
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _proj(tmp_path)
     p.ensure_dirs()
     with pytest.raises(ValueError, match="reason"):
-        mark_align_waived(p, reason="  ")
+        ALIGN_GATE.mark_waived(p, reason="  ")
     artifact = p.artifacts_dir() / "alignment" / "conversation_align.json"
     artifact.parent.mkdir(parents=True, exist_ok=True)
     artifact.write_text("{bad", encoding="utf-8")
-    report = align_status_report(p)
+    report = ALIGN_GATE.report(p)
     assert report["plans"] == []
 
 
@@ -170,7 +169,7 @@ def test_align_accept_service_status_brief_waive(tmp_path: Path) -> None:
     save_project(p, proj_path)
     ws = ProjectWorkspace.open(proj_path)
     svc = AlignAcceptService(ws)
-    mark_align_pending(ws.project)
+    ALIGN_GATE.mark_pending(ws.project)
     ws.save()
     status = svc.status()
     assert status["status"] == "pending"
@@ -192,7 +191,7 @@ def test_align_cli_and_mcp_tools(tmp_path: Path) -> None:
     p = _proj(tmp_path)
     p.ensure_dirs()
     proj_path = tmp_path / "episode.project.json"
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     save_project(p, proj_path)
 
     runner = CliRunner()
@@ -202,20 +201,20 @@ def test_align_cli_and_mcp_tools(tmp_path: Path) -> None:
     assert done.exit_code == 0
 
     pending = load_project(proj_path)
-    mark_align_pending(pending)
+    ALIGN_GATE.mark_pending(pending)
     save_project(pending, proj_path)
     waived = runner.invoke(app, ["align", "waive", "--project", str(proj_path), "--reason", "skip"])
     assert waived.exit_code == 0
 
     pending = load_project(proj_path)
-    mark_align_pending(pending)
+    ALIGN_GATE.mark_pending(pending)
     save_project(pending, proj_path)
     assert json.loads(mcp_server.align_status_tool(str(proj_path)))["status"] == "pending"
     assert "clips" in json.loads(mcp_server.align_brief_tool(str(proj_path)))
     assert json.loads(mcp_server.align_done_tool(str(proj_path), notes="ok"))["status"] == "done"
 
     pending = load_project(proj_path)
-    mark_align_pending(pending)
+    ALIGN_GATE.mark_pending(pending)
     save_project(pending, proj_path)
     assert (
         json.loads(mcp_server.align_waive_tool(str(proj_path), reason="mcp"))["status"] == "waived"
@@ -281,30 +280,30 @@ def _write_plans(p: EpisodeProject, offset: float, method: str = "bleed") -> Non
 
 
 def test_unattended_refuses_to_waive_large_move(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import load_status
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _proj(tmp_path)
     _write_plans(p, -35.6)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     with pytest.raises(AlignAcceptRequiredError, match="will not auto-waive") as exc:
-        require_or_waive_unattended(p, unattended=True)
+        ALIGN_GATE.require_or_waive_unattended(p, unattended=True)
     assert "guest" in str(exc.value)
-    assert (load_status(p) or {})["status"] == "pending"
+    assert (ALIGN_GATE.load(p) or {})["status"] == "pending"
 
 
 def test_unattended_waives_small_move(tmp_path: Path) -> None:
     p = _proj(tmp_path)
     _write_plans(p, 0.4)
-    mark_align_pending(p)
-    assert require_or_waive_unattended(p, unattended=True) == "waived (unattended)"
+    ALIGN_GATE.mark_pending(p)
+    assert ALIGN_GATE.require_or_waive_unattended(p, unattended=True) == "waived (unattended)"
 
 
 def test_status_report_lists_large_moves(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import align_status_report
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _proj(tmp_path)
     _write_plans(p, 7.0)
-    report = align_status_report(p)
+    report = ALIGN_GATE.report(p)
     assert report["large_move_sec"] == 1.0
     assert [m["track_id"] for m in report["large_moves"]] == ["guest"]
 
@@ -364,11 +363,11 @@ def test_drift_report_unchecked_without_artifact(tmp_path: Path) -> None:
 
 
 def test_drift_report_issue_when_waived_unattended(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import alignment_drift_report, write_status
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE, alignment_drift_report
 
     p = _two_track(tmp_path)
     _write_two_track_plans(p)
-    write_status(p, status="waived", source="unattended")
+    ALIGN_GATE.write(p, status="waived", source="unattended")
     report = alignment_drift_report(p)
     assert report["checked"] is True
     assert len(report["issues"]) == 1
@@ -381,7 +380,7 @@ def test_drift_report_clear_when_done(tmp_path: Path) -> None:
 
     p = _two_track(tmp_path)
     _write_two_track_plans(p)
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     report = alignment_drift_report(p)
     assert report["issues"] == []
     assert report["accepted"] is True
@@ -412,7 +411,7 @@ def test_write_export_qc_reports_alignment_issue(tmp_path: Path) -> None:
 
     p = _two_track(tmp_path)
     _write_two_track_plans(p)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     qc = steps.write_export_qc(p)
     assert qc["alignment"]["checked"] is True
     assert any("off the reference clock" in i for i in qc["issues"])
@@ -446,20 +445,20 @@ def _write_unconfirmed(p: EpisodeProject, candidate: float, *, clip_id: str = "c
 
 
 def test_unattended_refuses_to_waive_unconfirmed_hold(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import load_status
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _proj(tmp_path)
     _write_unconfirmed(p, 40.0)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     with pytest.raises(AlignAcceptRequiredError, match=r"guest \+40\.00s \(unconfirmed_hold\)"):
-        require_or_waive_unattended(p, unattended=True)
-    assert (load_status(p) or {})["status"] == "pending"
+        ALIGN_GATE.require_or_waive_unattended(p, unattended=True)
+    assert (ALIGN_GATE.load(p) or {})["status"] == "pending"
 
 
 def test_status_report_lists_unconfirmed_hold(tmp_path: Path) -> None:
     p = _proj(tmp_path)
     _write_unconfirmed(p, 40.0)
-    assert [m["method"] for m in align_status_report(p)["large_moves"]] == ["unconfirmed_hold"]
+    assert [m["method"] for m in ALIGN_GATE.report(p)["large_moves"]] == ["unconfirmed_hold"]
 
 
 @pytest.mark.parametrize("method", ["hold", "manual"])
@@ -472,9 +471,9 @@ def test_unreadable_artifact_blocks_unattended_and_fails_qc(tmp_path: Path) -> N
     path = align_artifact_path(p)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{bad", encoding="utf-8")
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     with pytest.raises(AlignAcceptRequiredError, match="unreadable"):
-        require_or_waive_unattended(p, unattended=True)
+        ALIGN_GATE.require_or_waive_unattended(p, unattended=True)
     report = alignment_drift_report(p)
     assert report["checked"] is False
     assert any("unreadable" in i for i in report["issues"])
@@ -501,7 +500,7 @@ def test_status_report_uses_artifact_threshold(tmp_path: Path) -> None:
             large_move_sec=3.0,
         ),
     )
-    report = align_status_report(p)
+    report = ALIGN_GATE.report(p)
     assert report["large_move_sec"] == 3.0
     assert report["large_moves"] == []
 
@@ -531,14 +530,14 @@ def test_drift_report_locked_exemption_is_per_clip(tmp_path: Path) -> None:
             reference_track_id="host",
         ),
     )
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     assert len(alignment_drift_report(p)["issues"]) == 1
 
 
 def test_drift_report_flags_held_track_moved_after_align(tmp_path: Path) -> None:
     p = _two_track(tmp_path, guest_start=0.0)
     _write_two_track_plans(p, method="hold", offset=0.0)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 35.6
     assert len(alignment_drift_report(p)["issues"]) == 1
@@ -547,7 +546,7 @@ def test_drift_report_flags_held_track_moved_after_align(tmp_path: Path) -> None
 def test_drift_report_flags_manual_track_moved_after_align(tmp_path: Path) -> None:
     p = _two_track(tmp_path, guest_start=3.0)
     _write_two_track_plans(p, method="manual", offset=3.0)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 20.0
     assert len(alignment_drift_report(p)["issues"]) == 1
@@ -586,7 +585,7 @@ def test_drift_report_ignores_reference_track_local_punch_hole(tmp_path: Path) -
             reference_track_id="host",
         ),
     )
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     report = alignment_drift_report(p)
     assert report["issues"] == []
     assert report["tracks"]["guest"] == pytest.approx(0.0)
@@ -595,7 +594,7 @@ def test_drift_report_ignores_reference_track_local_punch_hole(tmp_path: Path) -
 def test_drift_report_says_accept_is_stale(tmp_path: Path) -> None:
     p = _two_track(tmp_path)
     _write_two_track_plans(p)
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 20.0
     issues = alignment_drift_report(p)["issues"]
@@ -609,28 +608,28 @@ def test_drift_report_flags_unconfirmed_hold_until_done(tmp_path: Path) -> None:
 
     p = _two_track(tmp_path, guest_start=0.0)
     _write_unconfirmed(p, 40.0, clip_id="clip_guest")
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     issues = alignment_drift_report(p)["issues"]
     assert len(issues) == 1
     assert "unconfirmed +40.0s" in issues[0]
     assert steps.write_export_qc(p)["ok"] is False
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     assert alignment_drift_report(p)["issues"] == []
 
 
 def test_unattended_small_moves_pass_export_qc(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import load_status
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _two_track(tmp_path, guest_start=0.4)
     _write_two_track_plans(p, offset=0.4)
-    mark_align_pending(p)
-    assert require_or_waive_unattended(p, unattended=True) == "waived (unattended)"
-    status = load_status(p) or {}
+    ALIGN_GATE.mark_pending(p)
+    assert ALIGN_GATE.require_or_waive_unattended(p, unattended=True) == "waived (unattended)"
+    status = ALIGN_GATE.load(p) or {}
     assert "accepted_drift" not in status
     assert status.get("accepted_plan_digest")
-    assert status_is_clear(p)
-    assert align_status_report(p)["status"] == "waived"
-    assert require_or_waive_unattended(p, unattended=True) == "waived (fingerprint ok)"
+    assert ALIGN_GATE.is_clear(p)
+    assert ALIGN_GATE.report(p)["status"] == "waived"
+    assert ALIGN_GATE.require_or_waive_unattended(p, unattended=True) == "waived (fingerprint ok)"
     assert alignment_drift_report(p)["issues"] == []
 
 
@@ -642,16 +641,16 @@ def test_accepted_artifact_missing_or_unreadable_fails_closed(
 
     p = _two_track(tmp_path, guest_start=0.0)
     _write_two_track_plans(p, method="weak_hold", offset=0.0)
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     artifact = align_artifact_path(p)
     if corrupt:
         artifact.write_text("{invalid", encoding="utf-8")
     else:
         artifact.unlink()
-    assert not status_is_clear(p)
-    assert align_status_report(p)["stale"] is True
+    assert not ALIGN_GATE.is_clear(p)
+    assert ALIGN_GATE.report(p)["stale"] is True
     with pytest.raises(AlignAcceptRequiredError, match="artifact"):
-        require_or_waive_unattended(p, unattended=True)
+        ALIGN_GATE.require_or_waive_unattended(p, unattended=True)
     report = alignment_drift_report(p)
     assert len(report["issues"]) == 1
     assert "artifact" in report["issues"][0]
@@ -661,9 +660,9 @@ def test_accepted_artifact_missing_or_unreadable_fails_closed(
 def test_unattended_gate_stops_on_kept_placement_drift(tmp_path: Path) -> None:
     p = _two_track(tmp_path, guest_start=3.0)
     _write_two_track_plans(p, method="weak_hold", offset=0.0)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     with pytest.raises(AlignAcceptRequiredError, match=r"guest 3\.00s off the reference"):
-        require_or_waive_unattended(p, unattended=True)
+        ALIGN_GATE.require_or_waive_unattended(p, unattended=True)
 
 
 def test_gui_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
@@ -671,9 +670,9 @@ def test_gui_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
 
     p = _proj(tmp_path)
     _write_plans(p, -35.6)
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     with pytest.raises(AlignAcceptRequiredError) as exc:
-        require_or_waive_unattended(p, unattended=True)
+        ALIGN_GATE.require_or_waive_unattended(p, unattended=True)
     shown = _gui_fail_message(str(exc.value)) or ""
     assert "guest -35.60s (bleed)" in shown
     assert shown.startswith("Unattended run will not auto-waive")
@@ -689,7 +688,7 @@ def _split_all(p: EpisodeProject, track_id: str, at: float) -> None:
 def test_drift_report_locked_exemption_survives_split(tmp_path: Path) -> None:
     p = _two_track(tmp_path)
     _write_two_track_plans(p, method="manual")
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     _split_all(p, "guest", 60.0)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start += 10.0
@@ -721,31 +720,31 @@ def test_drift_report_manual_exemption_on_later_reference_clip(tmp_path: Path) -
             reference_track_id="host",
         ),
     )
-    mark_align_pending(p)
+    ALIGN_GATE.mark_pending(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 140.0
     assert len(alignment_drift_report(p)["issues"]) == 1
 
 
 def test_mark_align_done_records_accepted_drift(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import load_status
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
     p = _two_track(tmp_path)
     _write_two_track_plans(p)
-    mark_align_done(p)
-    rows = (load_status(p) or {})["accepted_drift"]
+    ALIGN_GATE.mark_done(p)
+    rows = (ALIGN_GATE.load(p) or {})["accepted_drift"]
     assert [(r["track_id"], r["clip_id"]) for r in rows] == [("guest", "clip_guest")]
     assert rows[0]["rel_drift_sec"] == pytest.approx(-35.6)
-    mark_align_waived(p, reason="listened")
-    assert len((load_status(p) or {})["accepted_drift"]) == 1
-    mark_align_waived(p, reason="unattended pipeline", source="unattended")
-    assert "accepted_drift" not in (load_status(p) or {})
+    ALIGN_GATE.mark_waived(p, reason="listened")
+    assert len((ALIGN_GATE.load(p) or {})["accepted_drift"]) == 1
+    ALIGN_GATE.mark_waived(p, reason="unattended pipeline", source="unattended")
+    assert "accepted_drift" not in (ALIGN_GATE.load(p) or {})
 
 
 def test_drift_report_stale_accept_keeps_unmoved_clips(tmp_path: Path) -> None:
     p = _two_track(tmp_path)
     _write_two_track_plans(p)
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     _split_all(p, "host", 50.0)
     _split_all(p, "guest", 50.0)
     report = alignment_drift_report(p)
@@ -760,7 +759,7 @@ def test_drift_report_stale_accept_keeps_unmoved_clips(tmp_path: Path) -> None:
 def test_drift_report_stale_accept_keeps_accepted_unconfirmed_hold(tmp_path: Path) -> None:
     p = _two_track(tmp_path, guest_start=0.0)
     _write_unconfirmed(p, 40.0, clip_id="clip_guest")
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     _split_all(p, "guest", 50.0)
     assert alignment_drift_report(p)["issues"] == []
 
@@ -770,12 +769,12 @@ def test_new_unconfirmed_candidate_after_stale_accept_blocks_export(tmp_path: Pa
 
     p = _two_track(tmp_path, guest_start=0.0)
     _write_two_track_plans(p, method="weak_hold", offset=0.0)
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     _write_unconfirmed(p, 40.0, clip_id="clip_guest")
-    assert status_is_clear(p) is False
-    assert align_status_report(p)["stale"] is True
+    assert ALIGN_GATE.is_clear(p) is False
+    assert ALIGN_GATE.report(p)["stale"] is True
     with pytest.raises(AlignAcceptRequiredError, match="unconfirmed_hold"):
-        require_or_waive_unattended(p, unattended=True)
+        ALIGN_GATE.require_or_waive_unattended(p, unattended=True)
     issues = alignment_drift_report(p)["issues"]
     assert len(issues) == 1
     assert "unconfirmed +40.0s" in issues[0]
@@ -788,7 +787,7 @@ def test_legacy_clips_do_not_borrow_other_clip_acceptance(tmp_path: Path) -> Non
     first.id = "first"
     first.source_end = 50.0
     _write_two_track_plans(p, method="manual", offset=20.0)
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
     p.clips.append(
         Clip(id="second", track_id="guest", source_start=10.0, source_end=40.0, timeline_start=30.0)
     )
@@ -829,7 +828,7 @@ def test_accepted_many_split_clips_skip_row_matching(
         for i in range(100)
     ]
     _write_two_track_plans(p)
-    mark_align_done(p)
+    ALIGN_GATE.mark_done(p)
 
     def unexpected(*_args: object) -> None:
         raise AssertionError("accepted alignment should not scan placement rows")

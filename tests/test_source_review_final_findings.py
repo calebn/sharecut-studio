@@ -9,7 +9,7 @@ from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.ripple import EditMode
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import (
     Clip,
     CutSpeech,
@@ -44,7 +44,7 @@ def test_new_manual_cut_preserves_disjoint_stale_pending_source_decision(tmp_pat
             next_burst_sec=2.1,
         )
     ]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     ws = ProjectWorkspace.open(save_project(project))
@@ -134,7 +134,7 @@ def _speech_review_workspace(tmp_path):
         tracks=[CutSpeechTrack(track_id="guest", speaker="Guest")],
     )
     project.edit_decisions = [mute, review]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     ws = ProjectWorkspace.open(save_project(project))
@@ -253,7 +253,7 @@ def test_original_music_placement_stays_pending_before_real_inward_optimization(
     edit = _cut("original-seed", 1.5, 2.03, reason="filler:um", review_required=False)
     edit.boundary_mode = None
     project.edit_decisions = [edit]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     original = inspect_source_remove(project, edit)
