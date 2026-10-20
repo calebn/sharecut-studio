@@ -16,6 +16,7 @@ from podcast_mcp.engines.speaker_id import (
     SpeakerProfile,
     WindowScore,
     _bleed_windows,
+    _stem_path,
     classify_track_role,
     compare_window,
     enroll_segment,
@@ -40,6 +41,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.transcript_context import SpeakerIdConfig as CtxSpeakerIdConfig
 from podcast_mcp.transcript_context import TranscriptContext
+from podcast_mcp.util.project_state import file_revision_key
 
 
 def _two_track_project(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
@@ -867,12 +869,12 @@ def test_score_window_loads_dialogue_profiles_when_cache_empty(tmp_path, sample_
     prof = _profiles()["host"]
     cache_dir = proj.artifacts_dir() / "speaker_profiles"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / "host_abc.json").write_text(json.dumps(prof.to_dict()), encoding="utf-8")
+    host_stem = _stem_path(proj, "host")
+    assert host_stem is not None
+    (cache_dir / f"host_{file_revision_key(host_stem)}.json").write_text(
+        json.dumps(prof.to_dict()), encoding="utf-8"
+    )
     with (
-        patch(
-            "podcast_mcp.engines.speaker_id._stem_hash",
-            return_value="abc",
-        ),
         patch(
             "podcast_mcp.engines.speaker_id.load_mono_window",
             return_value=np.ones(8000, dtype=np.float32),
@@ -1064,15 +1066,15 @@ def test_score_window_fallback_loads_track_cache(tmp_path, sample_wav) -> None:
     prof = _profiles()["host"]
     cache_dir = proj.artifacts_dir() / "speaker_profiles"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / "host_abc.json").write_text(json.dumps(prof.to_dict()), encoding="utf-8")
+    host_stem = _stem_path(proj, "host")
+    assert host_stem is not None
+    (cache_dir / f"host_{file_revision_key(host_stem)}.json").write_text(
+        json.dumps(prof.to_dict()), encoding="utf-8"
+    )
     with (
         patch(
             "podcast_mcp.engines.speaker_id.load_all_profiles",
             return_value={},
-        ),
-        patch(
-            "podcast_mcp.engines.speaker_id._stem_hash",
-            return_value="abc",
         ),
         patch(
             "podcast_mcp.engines.speaker_id.load_mono_window",
