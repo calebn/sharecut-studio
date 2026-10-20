@@ -158,7 +158,6 @@ export function ShareDialogView(props: ShareDialogViewProps) {
       onClose={onClose}
       title="Share"
       panelClassName="share-dialog-panel"
-      phoneSheet
       footer={<ShareDialogFooter {...props} />}
     >
       <ShareDialogBody {...props} />

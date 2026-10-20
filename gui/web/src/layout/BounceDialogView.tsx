@@ -53,6 +53,21 @@ export function BounceDialogView(props: BounceDialogViewProps) {
       onClose={onClose}
       title="Bounce…"
       panelClassName="bounce-dialog-panel"
+      footer={
+        <div className="bounce-dialog-footer">
+          <InlineError message={error} />
+          <div className="bounce-dialog-actions">
+            <Button
+              variant="primary"
+              type="button"
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={onBounce}
+            >
+              {busy ? "Bouncing…" : "Bounce"}
+            </Button>
+          </div>
+        </div>
+      }
     >
       <div className="bounce-dialog-body">
         {rangeSummary ? (
@@ -115,19 +130,6 @@ export function BounceDialogView(props: BounceDialogViewProps) {
             />
             <span>Also write MP3</span>
           </label>
-        </div>
-        <div className="bounce-dialog-footer">
-          <InlineError message={error} />
-          <div className="bounce-dialog-actions">
-            <Button
-              variant="primary"
-              type="button"
-              disabledReason={busy ? BUSY_REASON : undefined}
-              onClick={onBounce}
-            >
-              {busy ? "Bouncing…" : "Bounce"}
-            </Button>
-          </div>
         </div>
       </div>
     </Dialog>

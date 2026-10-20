@@ -344,11 +344,41 @@ export function RecordPanel({
   const micFailed =
     micStatus && micStatus !== "lost" ? micGrantFailed(micStatus) : false;
 
+  const takeActions =
+    snapshot && control ? (
+      <div className="cluster">
+        <Button
+          ref={takeControlRef}
+          variant={control.commandId === "record.pause" ? "default" : "primary"}
+          disabledReason={
+            startBlocked
+              ? "Resolve the items listed above to start."
+              : undefined
+          }
+          aria-disabled={transportBusy || undefined}
+          aria-describedby={startBlocked ? blockersId : undefined}
+          onClick={() => runCommand(control.commandId)}
+        >
+          {control.label}
+        </Button>
+        {land ? (
+          <Button
+            disabledReason={land.enabled ? undefined : land.reason}
+            aria-disabled={transportBusy || undefined}
+            onClick={() => runCommand("record.land")}
+          >
+            {land.label}
+          </Button>
+        ) : null}
+      </div>
+    ) : null;
+
   return (
     <Dialog
       open={recordPanelOpen}
       onClose={() => setRecordPanelOpen(false)}
       title="Record room"
+      footer={takeActions}
       shortcuts={RECORD_ROOM_SHORTCUTS}
       closeDisabled={
         uploadBlocking || micLossNeedsAttention || captureUnavailable
@@ -588,33 +618,6 @@ export function RecordPanel({
                 Mute my mic
               </label>
             ) : null}
-            <div className="cluster">
-              <Button
-                ref={takeControlRef}
-                variant={
-                  control.commandId === "record.pause" ? "default" : "primary"
-                }
-                disabledReason={
-                  startBlocked
-                    ? "Resolve the items listed below to start."
-                    : undefined
-                }
-                aria-disabled={transportBusy || undefined}
-                aria-describedby={startBlocked ? blockersId : undefined}
-                onClick={() => runCommand(control.commandId)}
-              >
-                {control.label}
-              </Button>
-              {land ? (
-                <Button
-                  disabledReason={land.enabled ? undefined : land.reason}
-                  aria-disabled={transportBusy || undefined}
-                  onClick={() => runCommand("record.land")}
-                >
-                  {land.label}
-                </Button>
-              ) : null}
-            </div>
             {startBlocked ? (
               <ul id={blockersId} className="record-blockers">
                 {blockers.map((item) => (

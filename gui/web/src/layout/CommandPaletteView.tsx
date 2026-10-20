@@ -122,7 +122,6 @@ export function CommandPaletteView({
       title="Commands and shortcuts"
       panelClassName="command-palette-dialog"
       initialFocusRef={searchRef}
-      phoneSheet
     >
       <input
         ref={searchRef}

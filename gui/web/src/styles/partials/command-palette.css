@@ -72,14 +72,17 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
-/* Dialog `phoneSheet`: on the phone shell the panel rises from the bottom
-   edge, full width, so its footer sits in the thumb zone. */
-html[data-shell="phone"] .ui-dialog-root--phone-sheet {
-  place-items: end stretch;
+/* Phone and tablet raise a Dialog from the bottom edge so its footer sits in
+   the thumb zone. A tablet sheet keeps a readable measure and stays centered. */
+:is(html[data-shell="phone"], html[data-shell="tablet"])
+.ui-dialog-root:not(.ui-dialog-root--centered) {
+  place-items: end center;
 }
 
-html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
-  width: 100%;
+:is(html[data-shell="phone"], html[data-shell="tablet"])
+  .ui-dialog-root:not(.ui-dialog-root--centered)
+  > .command-palette-panel {
+  width: min(100%, 42rem);
   max-height: 92dvh;
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
   border-width: 1px 0 0;
@@ -87,9 +90,15 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   box-shadow: var(--shadow-floating-up);
 }
 
+html[data-shell="phone"]
+  .ui-dialog-root:not(.ui-dialog-root--centered)
+  > .command-palette-panel {
+  width: 100%;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  html[data-shell="phone"]
-    .ui-dialog-root--phone-sheet
+  :is(html[data-shell="phone"], html[data-shell="tablet"])
+    .ui-dialog-root:not(.ui-dialog-root--centered)
     > .command-palette-panel {
     animation: bottom-sheet-up var(--motion-panel) var(--motion-ease-out) both;
   }
@@ -881,4 +890,10 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .split-speakers-sample-range {
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
+}
+
+/* Footer button rows own their spacing; the body-level margins do not apply. */
+.command-palette-footer :is(.share-dialog-actions, .pipeline-whisper-actions) {
+  margin: 0;
+  gap: var(--space-3);
 }

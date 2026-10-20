@@ -163,6 +163,43 @@ export function WhisperDownloadDialog({
       title="Download Whisper model?"
       panelClassName="pipeline-whisper-dialog"
       initialFocusRef={downloadBtnRef}
+      footer={
+        <div className="pipeline-whisper-actions">
+          <Button
+            ref={downloadBtnRef}
+            variant="primary"
+            type="button"
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={() => void startDownload()}
+          >
+            {busy ? "Downloading…" : "Download"}
+          </Button>
+          <Button
+            type="button"
+            disabledReason={
+              busy
+                ? BUSY_REASON
+                : pending == null
+                  ? "Choose a model first."
+                  : undefined
+            }
+            onClick={() => {
+              if (pending) {
+                onDefer(pending.modelId);
+              }
+            }}
+          >
+            Use without downloading
+          </Button>
+          <Button
+            type="button"
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={closeOrRevert}
+          >
+            Cancel
+          </Button>
+        </div>
+      }
     >
       <p>
         {pendingModel
@@ -181,41 +218,6 @@ export function WhisperDownloadDialog({
         </p>
       ) : null}
       <InlineError message={error} />
-      <div className="pipeline-whisper-actions">
-        <Button
-          ref={downloadBtnRef}
-          variant="primary"
-          type="button"
-          disabledReason={busy ? BUSY_REASON : undefined}
-          onClick={() => void startDownload()}
-        >
-          {busy ? "Downloading…" : "Download"}
-        </Button>
-        <Button
-          type="button"
-          disabledReason={
-            busy
-              ? BUSY_REASON
-              : pending == null
-                ? "Choose a model first."
-                : undefined
-          }
-          onClick={() => {
-            if (pending) {
-              onDefer(pending.modelId);
-            }
-          }}
-        >
-          Use without downloading
-        </Button>
-        <Button
-          type="button"
-          disabledReason={busy ? BUSY_REASON : undefined}
-          onClick={closeOrRevert}
-        >
-          Cancel
-        </Button>
-      </div>
     </Dialog>
   );
 }

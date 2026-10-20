@@ -499,12 +499,42 @@ export function PrecisionBoundaryDialog({
   const limits = context ? offsetLimits(context) : null;
   const inputValid = offsetInputValid(inputValue, context);
 
+  const actions =
+    (state.kind === "editing" || state.kind === "saving") &&
+    context &&
+    value != null ? (
+      <div className="precision-boundary-actions">
+        <Button
+          disabledReason={saving ? BUSY_REASON : undefined}
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          disabledReason={
+            !inputValid
+              ? "Enter a valid change in seconds."
+              : saving
+                ? "Saving the boundary."
+                : state.kind !== "editing"
+                  ? "Wait for the boundary to load."
+                  : undefined
+          }
+          onClick={() => void apply()}
+        >
+          {saving ? "Saving boundary…" : "Apply"}
+        </Button>
+      </div>
+    ) : null;
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title={title}
       panelClassName="precision-boundary-dialog"
+      footer={actions}
       closeDisabled={saving}
     >
       {state.kind === "queued" ? (
@@ -732,29 +762,6 @@ export function PrecisionBoundaryDialog({
               onClick={() => void listen("proposed")}
             >
               Listen proposed
-            </Button>
-          </div>
-          <div className="precision-boundary-actions">
-            <Button
-              disabledReason={saving ? BUSY_REASON : undefined}
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              disabledReason={
-                !inputValid
-                  ? "Enter a valid change in seconds."
-                  : saving
-                    ? "Saving the boundary."
-                    : state.kind !== "editing"
-                      ? "Wait for the boundary to load."
-                      : undefined
-              }
-              onClick={() => void apply()}
-            >
-              {saving ? "Saving boundary…" : "Apply"}
             </Button>
           </div>
         </div>
