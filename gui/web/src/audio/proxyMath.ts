@@ -344,7 +344,8 @@ export function buildSchedule(
       timelineStartSec: clip.timeline_start,
       timelineEndSec: clip.timeline_end,
       sourceStartSec: clip.source_start,
-      mute: muteSpansOf(clip.mute_regions),
+      // An occurrence proxy already has its mutes baked in (`source_proxy_audio.py`).
+      mute: binding ? [] : muteSpansOf(clip.mute_regions),
       fadeInSec: isCutJoin(clip) ? 0 : Math.max(0, clip.fade_in_ms) / 1000,
       fadeOutSec: beforeCut.has(clip.id)
         ? 0
