@@ -1,11 +1,11 @@
-from podcast_mcp.history.manager import (
+from podcast_mcp.project.history.manager import (
     EDITABLE_FIELDS,
     HistoryManager,
     HistoryStatus,
     StaleHistoryError,
     record_if_changed,
 )
-from podcast_mcp.history.session import run_mutation
+from podcast_mcp.project.history.session import run_mutation
 
 __all__ = [
     "EDITABLE_FIELDS",

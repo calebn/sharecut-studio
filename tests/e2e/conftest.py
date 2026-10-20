@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.e2e_fixture import (
+from e2e_fixture import (
     AMI_BLEED_PROJECT,
     ASR_GOLD_DIR,
     SYNTHETIC_BLEED_PIPELINE,
     SYNTHETIC_BLEED_PROJECT,
     e2e_project_path,
 )
-from podcast_mcp.project_io import copy_relocated_workspace
+from podcast_mcp.project.io import copy_relocated_workspace
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 _E2E_PIPELINE = _FIXTURES / "e2e_pipeline.yaml"

@@ -28,8 +28,8 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.routes.handoff import set_served_project
-from podcast_mcp.project_io import require_episode_project_file
-from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.project.io import require_episode_project_file
+from podcast_mcp.project.merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService, PlayService
 from podcast_mcp.services.session_sync import is_loopback_host

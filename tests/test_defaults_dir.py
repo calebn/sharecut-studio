@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 
 from podcast_mcp import config
-from podcast_mcp.transcript_context import _GLOBAL_DEFAULTS_PATH
+from podcast_mcp.project.transcript_context import _GLOBAL_DEFAULTS_PATH
 
 ROOT = Path(__file__).resolve().parents[1]
 

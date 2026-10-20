@@ -401,7 +401,7 @@ def test_roll_does_not_transfer_restore_and_trim_retains_hidden_choices(tmp_path
 
 
 def test_history_snapshot_roundtrip_restores_clip_choice(tmp_path: Path) -> None:
-    from podcast_mcp.history.manager import apply_snapshot_to_project, snapshot_from_project
+    from podcast_mcp.project.history.manager import apply_snapshot_to_project, snapshot_from_project
 
     project = _project(tmp_path)
     before = snapshot_from_project(project)

@@ -21,9 +21,9 @@ from podcast_mcp.edits.decisions import PendingEditChangedError
 from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
-from podcast_mcp.history import StaleHistoryError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
-from podcast_mcp.project_store import commit_landed
+from podcast_mcp.project.history import StaleHistoryError
+from podcast_mcp.project.store import commit_landed
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.document_sync.commands import (
@@ -345,7 +345,7 @@ class DocumentSyncService:
 
     @classmethod
     def open(cls, project_path: str | Path) -> DocumentSyncService:
-        from podcast_mcp.project_io import resolve_project_path
+        from podcast_mcp.project.io import resolve_project_path
 
         path = resolve_project_path(project_path)
         before = file_certificate(path)

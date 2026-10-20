@@ -441,7 +441,7 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
 
 
 def test_transcript_service_applies_saved_vocabulary(minimal_project):
-    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+    from podcast_mcp.project.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
 
     ws = ProjectWorkspace.open(minimal_project)
     _host_dialogue(ws)
@@ -461,7 +461,7 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
 
 
 def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_project):
-    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+    from podcast_mcp.project.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
 
     ws = ProjectWorkspace.open(minimal_project)
     _host_dialogue(ws)

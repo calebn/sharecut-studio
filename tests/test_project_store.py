@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import EpisodeProject, save_project
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
-from podcast_mcp.project_store import (
+from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.store import (
     HISTORY_ENTRY_LIMIT,
     ProjectStore,
     history_index_path,
@@ -134,16 +134,16 @@ def test_commit_prunes_history_after_canonical_replace(minimal_project, monkeypa
     project.history = ProjectHistory(cursor=len(entries) - 1, entries=entries)
     pending = snapshots / "pending-before.json"
     pending.write_text("{}")
-    original_save = __import__("podcast_mcp.project_store", fromlist=["save_project"]).save_project
+    original_save = __import__("podcast_mcp.project.store", fromlist=["save_project"]).save_project
 
     def fail_save(*args, **kwargs):
         raise OSError("canonical replace failed")
 
-    monkeypatch.setattr("podcast_mcp.project_store.save_project", fail_save)
+    monkeypatch.setattr("podcast_mcp.project.store.save_project", fail_save)
     with pytest.raises(OSError, match="canonical replace failed"):
         store.commit(project)
     assert len(list(snapshots.glob("*.json"))) == len(entries) + 1
-    monkeypatch.setattr("podcast_mcp.project_store.save_project", original_save)
+    monkeypatch.setattr("podcast_mcp.project.store.save_project", original_save)
     project.history = ProjectHistory(cursor=len(entries) - 1, entries=entries)
     store.commit(project)
     kept = project.history.entries

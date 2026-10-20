@@ -9,7 +9,7 @@ import pytest
 
 from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
 from podcast_mcp.models.episode import PipelineRun
-from podcast_mcp.project_merge import (
+from podcast_mcp.project.merge import (
     RERUN_ADVICE,
     ConflictAdvice,
     ProjectMergeConflict,
@@ -298,7 +298,7 @@ def test_merged_project_validates_disjoint_changes(tmp_path):
 
 
 def test_merged_project_rejects_an_invalid_merge(tmp_path, monkeypatch):
-    from podcast_mcp import project_merge
+    from podcast_mcp.project import merge as project_merge
 
     base = _base(tmp_path)
     monkeypatch.setattr(

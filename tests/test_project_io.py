@@ -4,14 +4,14 @@ import json
 
 import pytest
 
-from podcast_mcp.project_io import (
+from podcast_mcp.project.io import (
     copy_relocated_workspace,
     open_project,
     require_episode_project_file,
     resolve_project_path,
     rewrite_workspace_dir,
 )
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 
 

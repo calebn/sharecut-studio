@@ -29,7 +29,7 @@ from urllib.parse import quote
 
 from podcast_mcp import settings
 from podcast_mcp.models import workspace_artifacts_dir
-from podcast_mcp.project_io import resolve_project_path
+from podcast_mcp.project.io import resolve_project_path
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 
 log = logging.getLogger(__name__)

@@ -9,10 +9,6 @@ import filelock
 import pytest
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.history import HistoryManager, record_if_changed
-from podcast_mcp.history import rollback as rollback_mod
-from podcast_mcp.history.manager import record_and_commit, snapshot_from_project, write_snapshot
-from podcast_mcp.history.session import run_mutation
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
@@ -24,7 +20,15 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_store import (
+from podcast_mcp.project.history import HistoryManager, record_if_changed
+from podcast_mcp.project.history import rollback as rollback_mod
+from podcast_mcp.project.history.manager import (
+    record_and_commit,
+    snapshot_from_project,
+    write_snapshot,
+)
+from podcast_mcp.project.history.session import run_mutation
+from podcast_mcp.project.store import (
     HistoryMatch,
     ProjectStore,
     history_index_path,
@@ -628,7 +632,7 @@ def test_record_if_changed_rolls_back_when_the_commit_fails(minimal_project, mon
     import json
 
     from podcast_mcp.models import load_project
-    from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
+    from podcast_mcp.project.store import ProjectStore, history_index_path, history_snapshot_ids
 
     record_if_changed(minimal_project, "initial", force=True)
     index_path = history_index_path(load_project(minimal_project))
@@ -649,7 +653,7 @@ def test_record_if_changed_rolls_back_when_the_index_write_fails(minimal_project
     import json
 
     from podcast_mcp.models import load_project
-    from podcast_mcp.project_store import history_index_path, history_snapshot_ids
+    from podcast_mcp.project.store import history_index_path, history_snapshot_ids
 
     record_if_changed(minimal_project, "initial", force=True)
     index_path = history_index_path(load_project(minimal_project))

@@ -104,13 +104,13 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("gui/web/**", Scope.GUI),
         ("gui/desktop/**", Scope.OTHER),
         # The Python the browser talks to: routes, services, wire models, MCP
-        # and extension routes, history, the `podcast gui` CLI and project I/O.
+        # and extension routes, project I/O and history, the `podcast gui` CLI.
         ("src/podcast_mcp/gui/**", Scope.GUI),
         ("src/podcast_mcp/services/**", Scope.GUI),
         ("src/podcast_mcp/models/**", Scope.GUI),
         ("src/podcast_mcp/mcp/**", Scope.GUI),
         ("src/podcast_mcp/extensions/**", Scope.GUI),
-        ("src/podcast_mcp/history/**", Scope.GUI),
+        ("src/podcast_mcp/project/**", Scope.GUI),
         ("src/podcast_mcp/cli/**", Scope.GUI),
         ("src/podcast_mcp/*.py", Scope.GUI),
         # Audio and edit algorithms: pytest owns them on PRs; main and nightly

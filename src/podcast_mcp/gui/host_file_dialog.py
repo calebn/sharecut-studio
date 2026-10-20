@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, resolve_project_path
+from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, resolve_project_path
 from podcast_mcp.util import process
 
 _DIALOG_TIMEOUT_SEC = 600.0

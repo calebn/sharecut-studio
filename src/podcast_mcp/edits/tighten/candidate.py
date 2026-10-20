@@ -31,7 +31,7 @@ def _speaker_cut_context(project: EpisodeProject) -> _SpeakerCutContext | None:
     """Take one profile/config snapshot before candidate analysis starts."""
     try:
         from podcast_mcp.engines.speaker_id import load_all_profiles
-        from podcast_mcp.transcript_context import load_transcript_context
+        from podcast_mcp.project.transcript_context import load_transcript_context
 
         profiles = load_all_profiles(project)
         if not profiles:

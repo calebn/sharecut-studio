@@ -62,13 +62,13 @@ from podcast_mcp.edits.transcript_cuts import (
 )
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.history.manager import (
+from podcast_mcp.models import CutIntent, EditDecision, EditMode
+from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.project.history.manager import (
     apply_snapshot_to_project,
     snapshot_from_project,
 )
-from podcast_mcp.history.rollback import RollbackOutcome
-from podcast_mcp.models import CutIntent, EditDecision, EditMode
-from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.project.history.rollback import RollbackOutcome
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.services.document.suggested_actions import revise_suggested_actions
 from podcast_mcp.util.batch_scope import batch_scope

@@ -737,7 +737,7 @@ def _saved_stem_inputs_changed(
     defaults: EffectiveConfig,
 ) -> bool:
     """``_stem_inputs_changed`` against the project another writer saved meanwhile."""
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     try:
         saved = ProjectStore(project.workspace_path()).load()

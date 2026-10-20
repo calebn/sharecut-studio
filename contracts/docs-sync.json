@@ -209,10 +209,10 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/project_store.py",
-          "src/podcast_mcp/project_io.py",
-          "src/podcast_mcp/project_merge.py",
-          "src/podcast_mcp/transcript_context.py",
+          "src/podcast_mcp/project/store.py",
+          "src/podcast_mcp/project/io.py",
+          "src/podcast_mcp/project/merge.py",
+          "src/podcast_mcp/project/transcript_context.py",
           "src/podcast_mcp/whisper_models.py",
           "src/podcast_mcp/util/atomic_json.py",
           "src/podcast_mcp/util/project_state.py",
@@ -256,7 +256,7 @@
       ],
       "gate": {
         "include": [
-          "src/podcast_mcp/history/",
+          "src/podcast_mcp/project/history/",
           "src/podcast_mcp/services/document/history.py",
           "src/podcast_mcp/services/app/workspace.py",
           "src/podcast_mcp/mcp/tools/history.py",
@@ -504,8 +504,8 @@
           "src/podcast_mcp/models/episode.py",
           "src/podcast_mcp/models/project_format.py",
           "src/podcast_mcp/models/words_revision.py",
-          "src/podcast_mcp/project_io.py",
-          "src/podcast_mcp/project_merge.py",
+          "src/podcast_mcp/project/io.py",
+          "src/podcast_mcp/project/merge.py",
           "src/podcast_mcp/edits/edit_log.py"
         ]
       }
@@ -524,7 +524,7 @@
           "src/podcast_mcp/gui/schemas.py",
           "src/podcast_mcp/gui/mapper.py",
           "src/podcast_mcp/gui/routes/project.py",
-          "src/podcast_mcp/history/diff.py",
+          "src/podcast_mcp/project/history/diff.py",
           "src/podcast_mcp/mcp/tools/timeline.py",
           "gui/web/src/inspector/",
           "gui/web/src/types/project.ts",
@@ -1004,7 +1004,7 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/e2e_fixture.py",
+          "tests/e2e_fixture.py",
           "src/podcast_mcp/cli/fixture.py",
           "src/podcast_mcp/cli/play.py",
           "scripts/bootstrap_fixture_5min.sh",

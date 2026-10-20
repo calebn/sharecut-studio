@@ -69,7 +69,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     schedule_pyramid_build,
 )
 from podcast_mcp.models import workspace_artifacts_dir
-from podcast_mcp.project_io import open_project
+from podcast_mcp.project.io import open_project
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock

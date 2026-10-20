@@ -36,7 +36,7 @@ from pydantic import BaseModel, Field
 from podcast_mcp import __version__, settings
 from podcast_mcp.cli.handoff import execute_command, plan_handoff
 from podcast_mcp.gui.routes.deps import peer_host
-from podcast_mcp.project_io import resolve_project_path
+from podcast_mcp.project.io import resolve_project_path
 from podcast_mcp.services.app import (
     HANDOFF_PROTOCOL,
     HANDOFF_TOKEN_HEADER,

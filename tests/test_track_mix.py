@@ -49,7 +49,6 @@ from podcast_mcp.engines.play_audit import (
 )
 from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.history.summary import format_history_group_title
 from podcast_mcp.mcp.server import track_set_mute_tool, track_set_volume_tool
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -67,6 +66,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB
 from podcast_mcp.pipeline import steps
+from podcast_mcp.project.history.summary import format_history_group_title
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import (

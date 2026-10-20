@@ -308,7 +308,7 @@ def test_malformed_input_is_bounded(minimal_project):
 
 
 def test_host_hello_reuses_one_certified_project_load(minimal_project, monkeypatch):
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     original = ProjectStore.load
     reads = []

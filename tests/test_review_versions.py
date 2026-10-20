@@ -23,9 +23,9 @@ from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,
     write_mastered_hash,
 )
-from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import review_versions
 from podcast_mcp.services.collaboration.review import ReviewService
@@ -319,7 +319,9 @@ def test_service_publish_keeps_media_when_history_was_not_rolled_back(
         mp3.write_bytes(b"encoded")
 
     monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", export_mp3)
-    monkeypatch.setattr("podcast_mcp.history.rollback.rollback_own_history", lambda *a, **k: False)
+    monkeypatch.setattr(
+        "podcast_mcp.project.history.rollback.rollback_own_history", lambda *a, **k: False
+    )
 
     def fail_commit(self, project):
         raise RuntimeError("commit failed")
@@ -339,7 +341,7 @@ def test_service_publish_keeps_media_when_history_was_not_rolled_back(
 def test_service_publish_keeps_media_when_commit_landing_is_unknown(
     minimal_project, sample_wav, monkeypatch, caplog
 ):
-    from podcast_mcp.history import rollback as rollback_mod
+    from podcast_mcp.project.history import rollback as rollback_mod
 
     project = load_project(minimal_project)
     art = Path(project.workspace_dir) / "artifacts"
@@ -1965,7 +1967,7 @@ def test_attach_version_appends_and_optionally_activates(minimal_project, sample
 
 @requires_safe_failed_cleanup
 def test_publish_repairs_a_corrupt_history_index(minimal_project, sample_wav, monkeypatch):
-    from podcast_mcp.project_store import history_index_path
+    from podcast_mcp.project.store import history_index_path
 
     project, _art = _premix_project(minimal_project, sample_wav, monkeypatch)
     ws = ProjectWorkspace.open(minimal_project)

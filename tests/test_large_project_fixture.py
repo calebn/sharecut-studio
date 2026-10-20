@@ -12,7 +12,7 @@ import jsonschema
 import pytest
 
 from podcast_mcp.models import load_project
-from podcast_mcp.project_store import (
+from podcast_mcp.project.store import (
     _GENERATED_SNAPSHOT_ID,
     HISTORY_ENTRY_LIMIT,
     history_index_path,
@@ -245,8 +245,8 @@ def test_large_project_fixture_silent_waveforms(tmp_path):
 
 
 def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
-    from podcast_mcp.history.diff import diff_snapshots
-    from podcast_mcp.history.manager import HistoryManager, snapshot_from_project
+    from podcast_mcp.project.history.diff import diff_snapshots
+    from podcast_mcp.project.history.manager import HistoryManager, snapshot_from_project
     from podcast_mcp.services.document.history import _group_history_entries
 
     project_path = _load_fixture_builder().build_project(
@@ -292,7 +292,7 @@ def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
 def test_large_project_fixture_history_prunes_cleanly_past_the_cap(
     tmp_path, caplog, extra_pairs, cursor_back, expected_pruned
 ):
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     builder = _load_fixture_builder()
     project_path = builder.build_project(
@@ -329,7 +329,7 @@ def test_large_project_fixture_history_prunes_cleanly_past_the_cap(
     for entry_id in owned_ids:
         history_snapshot_path(index_path, entry_id).write_bytes(shared)
 
-    with caplog.at_level(logging.WARNING, logger="podcast_mcp.project_store"):
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.project.store"):
         store.commit(project)
     assert not any("Skipping" in record.message for record in caplog.records)
 

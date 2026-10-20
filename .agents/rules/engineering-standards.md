@@ -12,7 +12,7 @@ Do not add business logic to `mcp/server.py` or `cli/main.py`.
 
 ## DRY
 
-- Project paths: `project_io.open_project` / `ProjectStore.commit` (or `save_project`).
+- Project paths: `project.io.open_project` / `ProjectStore.commit` (or `save_project`).
 - Undoable edits: `ProjectWorkspace.mutate()` or `history.session.run_mutation`.
 - Approve/reject lists: `util/review`.
 - Transcript markdown export: `export/transcript`.

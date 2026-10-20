@@ -25,7 +25,7 @@ from podcast_mcp.engines.align import (
 )
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import EpisodeProject, TrackRole
-from podcast_mcp.transcript_context import SpeakerIdConfig, TranscriptContext
+from podcast_mcp.project.transcript_context import SpeakerIdConfig, TranscriptContext
 from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,

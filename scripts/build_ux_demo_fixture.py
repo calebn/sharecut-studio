@@ -228,7 +228,7 @@ Screenshots for the UX site: `make ux-demo-screens`.
     )
 
     sys.path.insert(0, str(ROOT / "src"))
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     proj = ProjectStore(out).load()
     assert proj.meta.name == "Sharecut Studio UX demo"

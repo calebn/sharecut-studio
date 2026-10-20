@@ -10,17 +10,17 @@ from typing import cast
 import filelock
 import pytest
 
-from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.config import load_defaults
-from podcast_mcp.history import HistoryManager
-from podcast_mcp.history import rollback as rollback_mod
-from podcast_mcp.history import session as session_mod
-from podcast_mcp.history.rollback import RollbackOutcome, take_history_checkpoint
-from podcast_mcp.history.session import run_mutation
 from podcast_mcp.models import EditDecision, EditDecisionType, load_project
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_io import open_project
-from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
+from podcast_mcp.project import store as project_store_mod
+from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.history import rollback as rollback_mod
+from podcast_mcp.project.history import session as session_mod
+from podcast_mcp.project.history.rollback import RollbackOutcome, take_history_checkpoint
+from podcast_mcp.project.history.session import run_mutation
+from podcast_mcp.project.io import open_project
+from podcast_mcp.project.store import ProjectStore, history_index_path, history_snapshot_ids
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import (
     project_commit_lock,

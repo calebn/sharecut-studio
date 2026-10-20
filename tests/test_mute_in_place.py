@@ -592,7 +592,7 @@ def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region,
 def test_approve_reject_undo_mute(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
     path = tmp_path / "ws" / "episode.project.json"
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     ProjectStore(path).commit(project)
     ws = ProjectWorkspace.open(path)
@@ -657,7 +657,7 @@ def test_clip_mute_regions_schema_round_trip(tmp_path, sample_wav):
     clip_schema = {**schema["$defs"]["Clip"], "$defs": schema["$defs"]}
     jsonschema.validate(instance=clip, schema=clip_schema)
     assert clip["mute_regions"][0]["start_s"] == pytest.approx(0.2)
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     path = Path(project.workspace_dir) / "episode.project.json"
     store = ProjectStore(path)
@@ -1066,7 +1066,7 @@ def test_track_render_hash_follows_ignored_words(tmp_path, sample_wav):
 def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, sample_wav):
     from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash, write_stem_hash
     from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     project = _project_with_audio(tmp_path, sample_wav)
     artifacts = Path(project.workspace_dir) / "artifacts" / "tracks"
@@ -1359,8 +1359,8 @@ def test_apply_prefix_mutes_before_overlapping_remove(tmp_path, sample_wav):
 
 
 def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
-    from podcast_mcp.history.session import run_mutation
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.history.session import run_mutation
+    from podcast_mcp.project.store import ProjectStore
 
     project = _project_with_audio(tmp_path, sample_wav)
     path = Path(project.workspace_dir) / "episode.project.json"
@@ -1672,7 +1672,7 @@ def _samples(audio: np.ndarray, start: float, end: float) -> np.ndarray:
 
 
 def test_split_inside_a_mute_renders_like_the_unsplit_mute(tmp_path):
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     project, region, whole = _approved_silent_mute(tmp_path)
     silent_start, silent_end = _silent_span(region)
@@ -1745,7 +1745,7 @@ def test_partial_copy_of_a_mute_pastes_silent_up_to_the_cut(tmp_path):
 
 
 def _approved_mute_workspace(tmp_path: Path):
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     project, region, whole = _approved_silent_mute(tmp_path)
     path = Path(project.workspace_dir) / "episode.project.json"

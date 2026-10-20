@@ -3605,7 +3605,7 @@ def test_a_real_word_the_transcript_dropped_is_not_proposed_as_a_filler_decaying
 
     import numpy as np
 
-    from podcast_mcp.e2e_fixture import FIXTURES_DIR
+    from e2e_fixture import FIXTURES_DIR
     from podcast_mcp.models import load_project
 
     workspace = tmp_path / "fx"

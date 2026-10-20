@@ -25,7 +25,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.episode import RangeInterval, SourceRecording
-from podcast_mcp.project_store import history_index_path, history_snapshot_ids
+from podcast_mcp.project.store import history_index_path, history_snapshot_ids
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync.handlers.edits import approve_edits as approve_command
@@ -174,7 +174,7 @@ def test_restored_speech_review_batch_returns_fresh_peer_hold(tmp_path, delivery
 def test_unknown_speech_review_recovery_preserves_primary_error(
     tmp_path, monkeypatch, delivery, restore_error
 ):
-    from podcast_mcp.history import session as session_mod
+    from podcast_mcp.project.history import session as session_mod
     from podcast_mcp.services.document import edit as edit_mod
 
     ws = _speech_review_workspace(tmp_path)

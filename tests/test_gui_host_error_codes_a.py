@@ -116,7 +116,7 @@ def test_audio_unknown_source(local, minimal_project):
 
 def test_audio_missing_file_and_merge_conflict(local, minimal_project, monkeypatch):
     from podcast_mcp.gui.routes import project as mod
-    from podcast_mcp.project_merge import ProjectMergeConflict
+    from podcast_mcp.project.merge import ProjectMergeConflict
 
     def raiser(exc):
         def boom(*_a, **_k):

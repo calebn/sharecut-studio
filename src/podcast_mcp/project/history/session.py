@@ -20,18 +20,18 @@ from podcast_mcp.engines.reconciliation_state import (
     mark_reconciliation_stale,
 )
 from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
-from podcast_mcp.history.manager import (
+from podcast_mcp.models import EpisodeProject, ProjectStateSnapshot, RenderSection
+from podcast_mcp.project.history.manager import (
     HistoryManager,
     apply_snapshot_to_project,
     snapshot_from_project,
 )
-from podcast_mcp.history.rollback import (
+from podcast_mcp.project.history.rollback import (
     RollbackOutcome,
     rolled_back_on_failure,
     take_history_checkpoint,
 )
-from podcast_mcp.models import EpisodeProject, ProjectStateSnapshot, RenderSection
-from podcast_mcp.project_store import (
+from podcast_mcp.project.store import (
     ProjectStore,
 )
 from podcast_mcp.util.project_state import (

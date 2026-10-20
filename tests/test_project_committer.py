@@ -10,8 +10,8 @@ _SAVE_PROJECT = re.compile(r"\bsave_project\(")
 # ProjectWorkspace is the committer. The history modules commit the undo/redo and
 # mutation entries it hands them; each shrinks when the history seam moves behind it.
 _COMMITTERS = {
-    "history/manager.py",
-    "history/session.py",
+    "project/history/manager.py",
+    "project/history/session.py",
     "services/app/workspace.py",
 }
 
@@ -21,7 +21,7 @@ def _sources(pattern: re.Pattern[str]) -> set[str]:
         rel
         for path in _SRC.rglob("*.py")
         if pattern.search(path.read_text(encoding="utf-8"))
-        and (rel := str(path.relative_to(_SRC))) != "project_store.py"
+        and (rel := str(path.relative_to(_SRC))) != "project/store.py"
     }
 
 

@@ -10,11 +10,11 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.history.manager import StaleHistoryError
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import EditDecision, EditDecisionType, HistoryEntry
 from podcast_mcp.models.history import HISTORY_ROOT_ID, ProjectHistory
-from podcast_mcp.project_store import HISTORY_ENTRY_LIMIT, history_index_path, history_snapshot_path
+from podcast_mcp.project.history.manager import StaleHistoryError
+from podcast_mcp.project.store import HISTORY_ENTRY_LIMIT, history_index_path, history_snapshot_path
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import (
     sanitize_guest_document_event,

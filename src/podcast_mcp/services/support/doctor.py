@@ -203,7 +203,7 @@ def _load_project(project: EpisodeProject | Path | None) -> EpisodeProject | Non
         return None
     if isinstance(project, EpisodeProject):
         return project
-    from podcast_mcp.project_io import open_project
+    from podcast_mcp.project.io import open_project
 
     _, ep = open_project(project)
     return ep

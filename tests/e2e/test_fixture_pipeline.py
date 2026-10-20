@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
+from e2e_fixture import DEFAULT_CANNED
 from podcast_mcp.cli.fixture import seed_canned_transcript
 from podcast_mcp.cli.main import app
-from podcast_mcp.e2e_fixture import DEFAULT_CANNED
 from podcast_mcp.models import load_project
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_slow]

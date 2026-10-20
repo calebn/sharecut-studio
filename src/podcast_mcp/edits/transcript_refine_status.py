@@ -48,7 +48,7 @@ def reviewed_transcript_fingerprint(project: EpisodeProject) -> str:
 
 
 def build_refine_brief(project: EpisodeProject, defaults: EffectiveConfig) -> dict[str, Any]:
-    from podcast_mcp.transcript_context import load_transcript_context
+    from podcast_mcp.project.transcript_context import load_transcript_context
 
     report_path = project.artifacts_dir() / "transcript_precorrect_report.json"
     deferred: list[Any] = []

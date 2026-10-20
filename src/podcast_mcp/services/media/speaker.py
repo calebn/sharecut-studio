@@ -30,8 +30,8 @@ from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, attribut
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.engines.waveform_media import schedule_track_waveforms
 from podcast_mcp.models import SpeakerSplitCrosstalk
+from podcast_mcp.project.transcript_context import context_lock, load_transcript_context
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.transcript_context import context_lock, load_transcript_context
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import (
     ProgressReporter,

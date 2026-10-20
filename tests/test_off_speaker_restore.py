@@ -315,7 +315,7 @@ def test_automatic_joint_recovery_matches_bounded_pcm_formula(
 
 
 def test_service_adopts_external_commit_then_reapplies_without_extra_history(tmp_path, monkeypatch):
-    from podcast_mcp.project_store import load_project, save_project
+    from podcast_mcp.project.store import load_project, save_project
     from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.document.analysis import AnalysisService
     from podcast_mcp.services.document.history import HistoryService

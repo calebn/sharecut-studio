@@ -10,7 +10,7 @@ import pytest
 from podcast_mcp.edits.pending_preview import PendingPreviewWindow
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EditDecision, EditDecisionType
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document.golden_ear import (
     LISTEN_DIRNAME,

@@ -27,7 +27,6 @@ from podcast_mcp.engines.waveform_pyramid import (
     ref_slug,
     write_synthetic_pyramid,
 )
-from podcast_mcp.history.manager import snapshot_from_project, write_snapshot
 from podcast_mcp.models import load_project
 from podcast_mcp.models.episode import (
     Clip,
@@ -42,7 +41,8 @@ from podcast_mcp.models.episode import (
     TranscriptWord,
 )
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
-from podcast_mcp.project_store import HISTORY_ENTRY_LIMIT, ProjectStore
+from podcast_mcp.project.history.manager import snapshot_from_project, write_snapshot
+from podcast_mcp.project.store import HISTORY_ENTRY_LIMIT, ProjectStore
 from podcast_mcp.util.wav import (
     MAX_PCM_WAV_DATA_BYTES,
     PCM_SAMPLE_WIDTH_BYTES,

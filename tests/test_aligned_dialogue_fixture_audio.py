@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import yaml
 
-from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
+from e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
 from podcast_mcp.models import load_project
 
 FIXTURE = FIXTURES_DIR / "aligned_dialogue"

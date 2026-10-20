@@ -728,7 +728,7 @@ class AnalysisService(WorkspaceService):
             )
             return {"dry_run": True, **plan.summary()}
 
-        from podcast_mcp.project_merge import adopt_project_state
+        from podcast_mcp.project.merge import adopt_project_state
 
         with render_lock(self.ws.project, timeout=lock_timeout), self.ws.transaction():
             plan = plan_off_speaker_mutes(

@@ -7,17 +7,17 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from podcast_mcp.config import EffectiveConfig
-from podcast_mcp.history import HistoryManager, run_mutation
-from podcast_mcp.history.manager import record_and_commit
-from podcast_mcp.history.rollback import (
+from podcast_mcp.models.episode import EpisodeProject, project_not_found
+from podcast_mcp.project.history import HistoryManager, run_mutation
+from podcast_mcp.project.history.manager import record_and_commit
+from podcast_mcp.project.history.rollback import (
     HistoryRollbackPolicy,
     RollbackOutcome,
     rolled_back_on_failure,
     take_history_checkpoint,
 )
-from podcast_mcp.models.episode import EpisodeProject, project_not_found
-from podcast_mcp.project_io import open_project, resolve_project_path
-from podcast_mcp.project_merge import (
+from podcast_mcp.project.io import open_project, resolve_project_path
+from podcast_mcp.project.merge import (
     HISTORY_LINEAGE_CONFLICT,
     RERUN_ADVICE,
     ConflictAdvice,
@@ -26,7 +26,7 @@ from podcast_mcp.project_merge import (
     merged_project,
     project_merge_data,
 )
-from podcast_mcp.project_store import (
+from podcast_mcp.project.store import (
     ProjectStore,
 )
 from podcast_mcp.util.project_state import (

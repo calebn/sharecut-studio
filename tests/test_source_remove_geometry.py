@@ -1427,8 +1427,8 @@ def test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor(
     ws.mutate(
         "before auto", "after auto", lambda p: setattr(p, "edit_decisions", [_cut(), late, mute])
     )
-    from podcast_mcp import project_merge
     from podcast_mcp.edits import cut_application as decisions
+    from podcast_mcp.project import merge as project_merge
 
     base_model = ws.project.model_dump(mode="json")
     base_files = {
@@ -1569,14 +1569,14 @@ def test_rejected_generated_merged_hole_preserves_retained_manual_row(tmp_path: 
 def test_saved_hold_does_not_promise_batch_restore_when_rollback_is_unknown(
     tmp_path: Path, monkeypatch
 ):
-    from podcast_mcp.history.rollback import RollbackOutcome
+    from podcast_mcp.project.history.rollback import RollbackOutcome
 
     ws = _workspace(tmp_path)
     ws.mutate(
         "before replay", "after replay", lambda p: (_replay(p), p.edit_decisions.append(_cut()))
     )
     monkeypatch.setattr(
-        "podcast_mcp.history.rollback.roll_back_history",
+        "podcast_mcp.project.history.rollback.roll_back_history",
         lambda *_args: RollbackOutcome.UNKNOWN,
     )
     with pytest.raises(ScopeChangedAtApproval) as held:

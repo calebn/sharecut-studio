@@ -773,7 +773,7 @@ def resolve_cut_scope(
             assess_speaker_cut_role,
             load_all_profiles,
         )
-        from podcast_mcp.transcript_context import load_transcript_context
+        from podcast_mcp.project.transcript_context import load_transcript_context
 
         if load_all_profiles(project):
             ctx = load_transcript_context(project.workspace_path())

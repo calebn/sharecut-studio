@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.history import HistoryManager
+from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.util.coded_error import describe_error

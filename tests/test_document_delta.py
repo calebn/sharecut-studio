@@ -102,7 +102,7 @@ def test_ctime_detects_and_adopts_same_inode_restored_mtime_write(minimal_projec
 
 def test_artifact_and_history_certification_include_ctime(minimal_project):
     from podcast_mcp.engines.play_audit import premix_hash_path
-    from podcast_mcp.project_store import history_index_path
+    from podcast_mcp.project.store import history_index_path
 
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(comment())

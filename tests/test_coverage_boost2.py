@@ -1,4 +1,4 @@
-"""More coverage for speaker service, gui_launch, project_store, document sync."""
+"""More coverage for speaker service, gui_launch, project/store, document sync."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 # patch is used throughout
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app.gui_launch import (
     GuiLaunchResult,
     _port_in_use,

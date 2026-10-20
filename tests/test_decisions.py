@@ -26,7 +26,6 @@ from podcast_mcp.edits.timeline_ops import (
     plan_delete_clips,
     split_clips_at,
 )
-from podcast_mcp.history.manager import snapshot_from_project
 from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
@@ -43,6 +42,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.project.history.manager import snapshot_from_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
 from podcast_mcp.util.coded_error import CodedValueError

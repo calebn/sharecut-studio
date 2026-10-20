@@ -6,7 +6,7 @@ from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_
 from podcast_mcp.pipeline import STEP_NAMES, PipelineRunner
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline.runner import _STEP_MAP, ORDERED_STEP_NAMES
-from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.project.merge import ProjectMergeConflict
 
 
 def test_pipeline_step_order():
@@ -132,7 +132,7 @@ def test_runner_keeps_the_step_when_the_file_was_saved_before_the_error(
 def test_runner_unmarks_the_step_when_the_project_file_cannot_be_stated(
     minimal_project, monkeypatch
 ):
-    from podcast_mcp import project_store as project_store_mod
+    from podcast_mcp.project import store as project_store_mod
 
     proj = load_project(minimal_project)
     proj.last_completed_step = "merge_transcript"

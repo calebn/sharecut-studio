@@ -9,8 +9,8 @@ from podcast_mcp.edits.cut_speech import (
     UnconfirmedCutSpeech,
 )
 from podcast_mcp.edits.ripple import RippleRemoval
-from podcast_mcp.history.rollback import RollbackOutcome
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
+from podcast_mcp.project.history.rollback import RollbackOutcome
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.tracks import resolve_track
 

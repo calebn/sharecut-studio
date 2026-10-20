@@ -2262,7 +2262,7 @@ def test_session_meta_does_not_parse_the_project(minimal_project, monkeypatch) -
     svc = SessionSyncService(proj)
     r = svc.submit_control("SetPlayhead", {"playhead_sec": 1.0})
 
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     def _boom(self):
         raise AssertionError("session_meta must not parse the project")

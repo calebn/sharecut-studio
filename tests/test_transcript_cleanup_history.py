@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 
-from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import (
     EpisodeProject,
     Transcript,
@@ -10,6 +9,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
 

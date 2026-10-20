@@ -783,7 +783,7 @@ def test_export_transcript_mcp(tmp_path):
 
 
 def test_history_undo_mcp_surfaces_merge_conflict(minimal_project):
-    from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
+    from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
 
     with patch("podcast_mcp.mcp.tools.history.HistoryService") as svc:
         svc.return_value.undo.side_effect = ProjectMergeConflict(
@@ -794,7 +794,7 @@ def test_history_undo_mcp_surfaces_merge_conflict(minimal_project):
 
 
 def test_render_final_mcp_surfaces_merge_conflict(minimal_project):
-    from podcast_mcp.project_merge import ProjectMergeConflict
+    from podcast_mcp.project.merge import ProjectMergeConflict
 
     with patch("podcast_mcp.mcp.tools.pipeline.PipelineService") as pipe:
         pipe.return_value.render_final.side_effect = ProjectMergeConflict(["tracks[host].gain_db"])
