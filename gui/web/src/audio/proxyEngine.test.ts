@@ -649,6 +649,35 @@ describe("immutable playback snapshots", () => {
     engine.dispose();
   });
 
+  it("holds the level before an envelope step and jumps at it", async () => {
+    const { ctx, created, gains } = makeCtx();
+    const engine = new ProxyEngine(
+      ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+    );
+    engine.setSnapshot({
+      ...snapshot("a".repeat(16), "legacy", 10),
+      volumeByTrack: {
+        host: [
+          { time: 13, value: 1 },
+          { time: 13, value: 0.5 },
+          { time: 15, value: 0.5 },
+        ],
+      },
+    });
+    engine.play(11);
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    const ramps = vi.mocked(gains.at(-1)!.gain.linearRampToValueAtTime).mock
+      .calls;
+    expect(ramps).toContainEqual([1, expect.closeTo(2, 4)]);
+    expect(ramps).toContainEqual([0.5, expect.closeTo(2, 4)]);
+    expect(ramps.findIndex(([value]) => value === 1)).toBeLessThan(
+      ramps.findIndex(([value]) => value === 0.5),
+    );
+    engine.dispose();
+  });
+
   it("continues the absolute fade across chunks and a seek instead of restarting it", async () => {
     const { ctx, created, gains } = makeCtx();
     const engine = new ProxyEngine(
