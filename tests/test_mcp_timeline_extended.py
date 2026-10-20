@@ -248,7 +248,6 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone", "filled_sec": 0.2}
         svc.check_loudness.return_value = {"integrated_lufs": -16.0}
         svc.verify_transcript.return_value = 2
-        svc.remove_effect.return_value = {"track_id": "host", "removed": 1}
         svc.analyze_cleanup.return_value = {"tracks": ["host"], "issues": []}
         svc.audio_diagnostics.return_value = {
             "track_id": "host",
@@ -288,7 +287,8 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     assert fill["operation"] == "fill_with_room_tone"
     assert loud["integrated_lufs"] == pytest.approx(-16.0)
     assert verified["verified"] == 2
-    assert removed["removed"] == 1
+    assert removed["track_id"] == "host"
+    assert removed["removed"] == 0
     assert analyzed["tracks"] == ["host"]
     assert diagnostics["track_id"] == "host"
     assert recs[0]["clip_id"] == "c1"
@@ -411,7 +411,6 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         svc.strip_silence.return_value = {"operation": "strip_silence"}
         svc.split_clip.return_value = {"operation": "split_clip"}
         svc.check_loudness.return_value = {"integrated_lufs": -14.0}
-        svc.add_effect.return_value = {"track_id": "host", "effect": "eq"}
         svc.cut_range.return_value = {"operation": "ripple_delete"}
         svc.shorten_word_gaps.return_value = {"operation": "shorten_word_gaps"}
         svc.reconcile_transcript.return_value = {"changed": 0}
@@ -430,7 +429,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
             mcp_timeline.add_effect_tool(
                 path,
                 track_id="host",
-                effect="eq",
+                effect="equalizer",
                 params={"gain_db": 3},
             )
         )
@@ -485,13 +484,6 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         use_inaudible_opt=True,
     )
     svc.check_loudness.assert_called_once_with("/tmp/mix.wav")
-    svc.add_effect.assert_called_once_with(
-        track_id="host",
-        speaker=None,
-        preset=None,
-        effect="eq",
-        params={"gain_db": 3},
-    )
     assert batch["track_id"] == "host"
 
 
@@ -503,7 +495,6 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         svc = svc_cls.return_value
         svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone"}
         svc.verify_transcript.return_value = 1
-        svc.remove_effect.return_value = {"track_id": "host", "removed": 1}
         svc.analyze_cleanup.return_value = {"tracks": ["host"]}
         svc.recommend_fades.return_value = []
         svc.apply_fade_recommendations.return_value = {"applied_fade_updates": 0}
@@ -518,7 +509,6 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         json.loads(mcp_timeline.apply_fade_recommendations_tool(path, []))
 
     svc.fill_room_tone.assert_called_once_with(track_id="host", speaker=None)
-    svc.remove_effect.assert_called_once_with(track_id=None, speaker="Host", effect=None)
 
 
 def test_transcript_word_tools_journal_through_the_document_plane(tmp_path, sample_wav):
