@@ -69,15 +69,18 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
         if create
         else f"{_with_empty_uri_authority(db_path.resolve().as_uri())}?mode=rw"
     )
-    with _wal_init_lock(db_path):
-        connection = open_sqlite(
-            target,
-            uri=not create,
-            row_factory=sqlite3.Row,
-            wal_timeout_sec=_WAL_INIT_TIMEOUT_SEC,
-            wal_retry_sec=_WAL_INIT_RETRY_SEC,
-        )
-    # WAL now persists on the file, so later opens only read journal_mode; drop
-    # the lock so the registry does not grow with every sync.db this process opens.
-    _WAL_INIT_LOCKS.discard_idle(_wal_init_key(db_path))
+    try:
+        with _wal_init_lock(db_path):
+            connection = open_sqlite(
+                target,
+                uri=not create,
+                row_factory=sqlite3.Row,
+                wal_timeout_sec=_WAL_INIT_TIMEOUT_SEC,
+                wal_retry_sec=_WAL_INIT_RETRY_SEC,
+            )
+    finally:
+        # WAL now persists on the file, so later opens only read journal_mode; drop the
+        # lock so the registry does not grow with every sync.db this process opens, or
+        # keeps failing to open (a deleted or locked one the meta polls keep hitting).
+        _WAL_INIT_LOCKS.discard_idle(_wal_init_key(db_path))
     return connection
