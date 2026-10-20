@@ -78,8 +78,6 @@ Shipped: `state/selectionSlice.ts` is the only writer of `selection`, and
 is the one table for phone, tablet and desktop (#1792).
 The tracks ticked for a range not yet formed live in `rangeScopeTrackIds`; they
 are draft UI state, not a selection.
-The tracks ticked for a range not yet formed live in `rangeScopeTrackIds`; they
-are draft UI state, not a selection.
 
 ## Targets
 
