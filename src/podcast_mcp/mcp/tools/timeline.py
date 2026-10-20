@@ -19,6 +19,7 @@ from podcast_mcp.services.document_sync import (
     submit_paste_segment,
 )
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
+from podcast_mcp.util.tracks import resolve_track
 
 
 def inspect_clip_bleed_tool(project_path: str, clip_id: str, track_id: str) -> str:
@@ -545,7 +546,10 @@ def add_chapter_tool(project_path: str, at_time: float, title: str) -> str:
 def remove_chapter_tool(project_path: str, title: str) -> str:
     """Remove a chapter marker by title."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).remove_chapter(title))
+    times = [c.time for c in ws.project.chapters if c.title == title]
+    for time in times:
+        submit_host_command_result(project_path, "DeleteChapter", {"time": time, "title": title})
+    return to_json({"removed": bool(times), "title": title})
 
 
 def list_chapters_tool(project_path: str) -> str:
@@ -866,11 +870,14 @@ def set_effect_bypass_tool(
     """Toggle bypass on one chain effect by index (TOOL_TIMEBASE: na)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
-        EditService(ws).set_effect_bypass(
-            track_id=track_id,
-            speaker=speaker,
-            effect_index=effect_index,
-            bypass=bypass,
+        submit_host_command_result(
+            project_path,
+            "SetEffectBypass",
+            {
+                "track_id": resolve_track(ws.project, track_id=track_id, speaker=speaker),
+                "effect_index": effect_index,
+                "bypass": bypass,
+            },
         )
     )
 
