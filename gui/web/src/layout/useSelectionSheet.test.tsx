@@ -54,7 +54,7 @@ describe("useSelectionSheet placement", () => {
     },
   );
 
-  it("keeps the phone's compact strip and the tablet's sheet elsewhere", () => {
+  it("opens the phone's and the tablet's timeline selection at the compact strip", () => {
     stubMatchMedia(false);
     const phone = renderHook(() => useSelectionSheet("phone")).result.current;
     expect(phone.placement).toBe("sheet");
@@ -62,7 +62,7 @@ describe("useSelectionSheet placement", () => {
     expect(phone.className).toContain("bottom-sheet--inspector");
     const tablet = renderHook(() => useSelectionSheet("tablet")).result.current;
     expect(tablet.placement).toBe("sheet");
-    expect(tablet.compact).toBeUndefined();
+    expect(tablet.compact?.className).toContain("bottom-sheet--compact");
     expect(tablet.className).toContain("bottom-sheet--inspector");
   });
 

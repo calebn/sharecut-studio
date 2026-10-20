@@ -39,8 +39,9 @@ async function setup(
   rootFont: number,
   receipts: InteractionReceipt[],
 ) {
-  // A phone's timeline selections open the drawer at full, with the inspector.
-  if (page.viewportSize()!.width < 720) {
+  // A phone's or tablet's timeline selections open the drawer at full, with
+  // the inspector.
+  if (page.viewportSize()!.width < 1000) {
     await rememberInspectorDetent(page, "full");
   }
   await openHostShare(page, projectPath);
