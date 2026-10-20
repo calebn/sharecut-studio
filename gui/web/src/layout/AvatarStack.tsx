@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { type ComponentProps, useMemo } from "react";
 import { execute } from "../commands/execute";
 import { disambiguatedNames } from "../presence/colors";
 import { isLocalPresenceClient } from "../presence/followSync";
@@ -8,9 +8,10 @@ import { useDawStore } from "../state/dawStore";
 import type { SessionClient } from "../types/session";
 import { AvatarStackView } from "./AvatarStackView";
 
-type Props = {
-  variant?: "inline" | "menu";
-};
+type Props = Pick<
+  ComponentProps<typeof AvatarStackView>,
+  "variant" | "triggerClassName"
+>;
 
 function localClient(
   clients: SessionClient[],
@@ -23,7 +24,7 @@ function follow(clientId: string): void {
   void execute("presence.follow", { clientId });
 }
 
-export function AvatarStack({ variant = "inline" }: Props) {
+export function AvatarStack({ variant = "inline", triggerClassName }: Props) {
   const sessionClients = useDawStore((s) =>
     sessionClientList(s.sessionClients),
   );
@@ -40,6 +41,7 @@ export function AvatarStack({ variant = "inline" }: Props) {
   return (
     <AvatarStackView
       variant={variant}
+      triggerClassName={triggerClassName}
       others={others}
       self={self}
       names={names}
