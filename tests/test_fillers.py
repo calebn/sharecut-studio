@@ -3504,6 +3504,19 @@ _WOBBLING_HUM = (
 )
 
 
+def _wobbling_hum(dip_db: float):
+    """The hum with a ``dip_db`` dip in the middle of its hold."""
+    return (
+        (0.88, -70.0),
+        (0.91, -21.0),
+        (1.06, -21.0),
+        (1.1, -21.0 - dip_db),
+        (1.14, -21.0 - dip_db),
+        (1.18, -21.0),
+        (1.38, -21.0),
+    )
+
+
 @pytest.mark.parametrize("gain_db", _GAINS_DB)
 @pytest.mark.parametrize(
     ("name", "sound", "proposed"),
@@ -3512,6 +3525,10 @@ _WOBBLING_HUM = (
         # back into it. A wobble of a few dB is still one burst of level.
         ("hum", _HUM, True),
         ("wobble", _WOBBLING_HUM, True),
+        # The burst measure's dip (`BURST_DIP_DB`, 6 dB) is the boundary between a wobble
+        # and a second syllable.
+        ("dip5", _wobbling_hum(5.0), True),
+        ("dip7", _wobbling_hum(7.0), False),
         # Two syllables or a phrase before the valley are speech the transcript missed,
         # not a filler decaying into a word.
         ("syllables", _TWO_SYLLABLES, False),
@@ -3626,29 +3643,52 @@ def test_the_plan_flags_the_valley_when_the_word_time_falls_in_it(tmp_path):
     assert (kept.end, kept.end_in_valley) == (pytest.approx(1.40), True)
 
 
-def test_a_filler_decaying_into_a_word_waits_for_review_as_a_mute_and_is_refused_as_a_ripple(
-    tmp_path,
-):
+def test_a_filler_decaying_into_a_word_waits_for_review_as_a_mute(tmp_path):
     from podcast_mcp.edits import propose_tighten_edits
 
-    def propose(edit_mode: str):
-        project = _decaying_uh_project(tmp_path / edit_mode, 20.0, 0.0)
-        defaults = _acoustic_mute_defaults()
-        defaults["tighten"]["acoustic_gap_filler"]["word_probe"] = False
-        return propose_tighten_edits(project, defaults, edit_mode=edit_mode, intensity="medium")
+    project = _decaying_uh_project(tmp_path, 20.0, 0.0)
+    defaults = _acoustic_mute_defaults()
+    defaults["tighten"]["acoustic_gap_filler"]["word_probe"] = False
 
-    muted = propose("mute")
+    muted = propose_tighten_edits(project, defaults, edit_mode="mute", intensity="medium")
+
     (decision,) = muted.decisions
     assert decision.reason == "filler:acoustic"
     assert (decision.review_required, decision.applied) == (True, False)
     assert muted.to_payload()["edits"][0]["suggested_action"] == "leave"
+    # The mute fades back in before the word's voice rises out of the valley (1.42).
+    assert decision.next_burst_sec == pytest.approx(1.41, abs=0.011)
 
-    # A ripple splices the two sides together at the valley, and the splice checks refuse
-    # an edge there (the breath check, or the join continuity gate where it is installed;
-    # on the lab tape every span the new rule reaches is refused by the breath check).
-    rippled = propose("ripple")
-    assert rippled.decisions == []
-    assert sum(rippled.skip_counts.values()) == 1
+
+@pytest.mark.parametrize(
+    ("gate", "skips", "proposed"),
+    [
+        # A ripple splices the two sides together at the valley. Nothing about the valley
+        # itself refuses that: with the breath check off (`breath_handling`, which refuses
+        # where a breath detector backend confirms an edge in sound) the join continuity
+        # gate is the only guard. With it off too, the span is proposed in ripple, for
+        # review like the mute.
+        (True, {"acoustic:join_continuity": 1}, False),
+        (False, {}, True),
+    ],
+)
+def test_a_filler_decaying_into_a_word_is_refused_as_a_ripple_only_by_the_splice_checks(
+    tmp_path, gate, skips, proposed
+):
+    from podcast_mcp.edits import propose_tighten_edits
+
+    project = _decaying_uh_project(tmp_path, 20.0, 0.0)
+    defaults = _acoustic_mute_defaults()
+    defaults["tighten"]["acoustic_gap_filler"]["word_probe"] = False
+    defaults["tighten"]["join_continuity_gate"] = gate
+    defaults["tighten"]["breath_handling"]["enabled"] = False
+
+    rippled = propose_tighten_edits(project, defaults, edit_mode="ripple", intensity="medium")
+
+    assert rippled.skip_counts == skips
+    assert [(d.reason, d.review_required) for d in rippled.decisions] == (
+        [("filler:acoustic", True)] if proposed else []
+    )
 
 
 def test_a_filler_decaying_into_a_word_is_held_at_approval_by_the_same_rule_that_proposed_it(
