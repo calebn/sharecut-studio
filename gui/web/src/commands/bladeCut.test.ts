@@ -44,7 +44,7 @@ describe("edit.bladeCut", () => {
       expect(asked).toEqual([
         expect.objectContaining({
           kind: "confirm",
-          title: "Cut at 1:23.5?",
+          title: "Cut at 01:23.500?",
           message: "Cuts Blair. Undo brings the clip back.",
           keepLabel: "Don't cut",
           actionLabel: "Cut",

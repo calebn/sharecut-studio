@@ -274,7 +274,7 @@ export function MenuItem({
   const body = caption ? (
     <span className="ui-menu-item-text">
       {label}
-      <span id={reasonId} className="ui-menu-item-reason">
+      <span id={reasonId} className="ui-menu-item-reason" aria-hidden="true">
         {caption}
       </span>
     </span>
