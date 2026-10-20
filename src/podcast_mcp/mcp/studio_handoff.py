@@ -32,6 +32,12 @@ log = logging.getLogger(__name__)
 
 HOST_MCP_PATH = "/mcp"
 
+#: Tool arguments that name a file or folder on the caller's machine. Studio's working
+#: directory is not the caller's, so a relative one is made absolute before it is sent.
+PATH_ARGUMENTS = frozenset(
+    {"file_path", "audio_path", "wav_a", "wav_b", "manifest_path", "diag_dir", "audio_dir"}
+)
+
 
 def _tool_accepts_project_path(server: Any, name: str) -> bool:
     tool = server._tool_manager.get_tool(name)
@@ -92,7 +98,9 @@ def install_studio_handoff(server: Any) -> None:
         if host is None:
             return await call_next(arguments)
         # Studio binds the project it serves; the path is not sent.
-        forwarded = {key: value for key, value in arguments.items() if key != "project_path"}
+        forwarded = {
+            key: _absolute(key, value) for key, value in arguments.items() if key != "project_path"
+        }
         result = await _run_in_studio(host, name, forwarded)
         if result is None:
             return await call_next(arguments)
@@ -108,3 +116,9 @@ def _locate(project: str) -> StudioHost | None:
     except Exception:
         log.debug("could not look for a Studio serving %s", project, exc_info=True)
         return None
+
+
+def _absolute(key: str, value: Any) -> Any:
+    if key in PATH_ARGUMENTS and isinstance(value, str) and value:
+        return str(Path(value).expanduser().absolute())
+    return value
