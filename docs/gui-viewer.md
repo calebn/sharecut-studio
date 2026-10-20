@@ -12,7 +12,7 @@ columns and a `--touch-min` hit target; long labels wrap beside the control.
 Its scoped layout preserves the shared dialog's focus trap and scrolling body.
 The Export deliverables dialog reuses that layout for its Files fieldset and
 footer, and on the phone shell it rises as a bottom sheet (`Dialog`
-`phoneSheet`) with Export, Cancel export or Done pinned in the footer.
+sheet) with Export, Cancel export or Done pinned in the footer.
 
 Sharecut Studio (`gui/web/`) uses plain CSS + React (no Tailwind/shadcn). Semantic theme tokens live in `gui/web/src/styles/theme/` (light/dark via `data-theme` + `prefers-color-scheme`; transport toggle + `localStorage`). Shared chrome is the **Sharecut Studio UI library** under `gui/web/src/ui/` (Button, CommandButton, Dialog, Menu, Field, …) — charter and command-bus bridge: [`gui/web/docs/ui-library.md`](../gui/web/docs/ui-library.md). Comment UI is shared from `gui/web/src/comments/`. Domain CSS is split into `@import` partials from `gui/web/src/styles/daw.css`. See [`gui/web/README.md`](../gui/web/README.md).
 
@@ -264,7 +264,7 @@ and when it closes without a usable return target the sheet's Close takes
 focus. Restore skips a disabled, inert, or hidden return target. A remounted
 inspector does not steal focus from a docked waiver field. A new sheet still
 takes Close after deferred envelope first-entry. The keymap
-does not run Escape commands while any overlay is open (`hasOpenOverlay()`
+does not run Escape commands while any overlay is open (`overlayOpen()`
 skips `edit.clearSelection`). Clip Inspector fade Escape stops
 propagation only while a fade preview is in progress, so cancelling it
 leaves the sheet open. Idle Escape on a fade slider still dismisses the sheet. A host move that detaches a focused
@@ -809,7 +809,7 @@ popover takes neither Escape nor entry focus; it takes entry focus when the
 inner overlay closes without a usable return target. A remounted inspector
 does not steal focus from a docked waiver field. A new sheet still takes
 Close after deferred envelope first-entry. The keymap skips Escape
-commands while any overlay is open (`hasOpenOverlay()` skips
+commands while any overlay is open (`overlayOpen()` skips
 `edit.clearSelection`). Clip Inspector fade Escape stops propagation only
 while a fade preview is in progress, so cancelling it leaves the sheet
 open. Idle Escape on a fade slider still dismisses the sheet. `Toast` re-reads
