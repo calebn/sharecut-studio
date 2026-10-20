@@ -377,8 +377,16 @@ Guests with `play`+`view` prefer **FX source-clock proxy chunks** (64 kbps mono 
 3. Guest Sharecut Studio (`useProxyTransport`) decodes a sliding window via Web Audio and
    schedules clips from the project file. Host lossless WAV remains the only mixdown/export path.
 
-When object storage is unset or proxy ensure fails, guests fall back to the existing HTMLAudio
-WAV transport through the tunnel.
+The host probes the first signed track chunk for the public guest origin. A blocked bucket
+adds `object_store_cors` metadata and replaces signed track URLs with authenticated share URLs
+for the same accepted hash. Occurrence artifacts always use immutable authenticated share URLs.
+
+Every manifest carries its project basis and generation, including projects without occurrence
+artifacts. The guest retains timeline ownership on loading or playback failure so an older WAV
+cannot play in place of the displayed project or its Restore choices. A changed project basis
+invalidates playback until its matching manifest arrives.
+An unknown probe result or a previously allowed origin that later blocks browser fetches can
+still stop guest playback. These failures retain proxy ownership and show an audio error.
 
 **Object-store bucket setup (once):**
 

@@ -202,3 +202,19 @@ This follow-up removes the inert BottomSheet grip while keeping its existing
 Expand/Collapse and Close controls. It does not add sheet drag handling or change
 the bounded #878 counts, cases, or claims above. Physical device checks remain
 pending #301, and named-device profiling remains with #879.
+
+## Automatic reduction inspection
+
+The Clip inspector opens **Automatic reduction** for the current occurrence.
+A selected region uses the same inspector body on desktop and the phone sheet.
+The timeline band uses a compact selector in the lane’s lower gutter. Its visual
+wash lets pointer input through to the clip. The full-size inspector list and
+keyboard button remain available for narrow regions. The selector is an
+activation target registered in the central input contract. It does not start a clip drag or a second touch recognizer. Nearby clip
+handles retain the existing touch selection grammar and cancellation behavior.
+
+Selecting a reduction cancels a local Move clip placement preview first.
+Reduction selection and its inspection target stay local to this tab. Canceling
+a touch selection restores the prior selection. A stale inspection or a clip
+placement preview does not display actionable bands at obsolete geometry.
+Refresh clears the selected region and requires an explicit selection again.

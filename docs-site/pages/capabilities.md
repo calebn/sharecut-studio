@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**119** capabilities · **103** Sharecut Studio commands · **54** keyed · **183** MCP tools · **17** skills on rows (+ **19** hub skills).
+**120** capabilities · **104** Sharecut Studio commands · **54** keyed · **185** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -121,6 +121,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Add chapter at playhead | project | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `long-press-empty` | `transport.menu`, `mobileShell.more`, `timeline.createMenu` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
 | Add envelope point | project | `envelope.addPoint` | — (touch create menu; the envelope inspector's Add point is the keyboard route) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | — | — | — | time · none |
 | Add comment | view | `comment.draftAt` | — (touch create menu; comment mode on the ruler is the pointer route) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · none |
+| Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Bleed reductions inspector; no default shortcut) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | — | — | yes | none · none |
 | Roll clip join | project | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `long-press-arm-drag` | `timeline.clip.joinDiamond`, `transcript.editBoundary` | `roll_clip_join_tool` | `podcast edit roll-join` | — | — | time · none |
 | Set clip fade | project | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | `set_clip_fade_tool` | — | — | — | time · none |
 | Set clip join | project | `edit.setClipJoin` | — (inspector select and join badge popover; no industry-standard key) | — | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
@@ -143,7 +144,7 @@ Host/agent capabilities without a Sharecut Studio `command` id (pipeline, transc
 | Episode / track CRUD | project | `episode_create`, `track_set_meta_tool` | `podcast episode` | `podcast-setup` | yes |
 | Transcript layers | project | `transcribe_track`, `get_transcript`, `get_transcript_vocabulary_tool`, `set_transcript_vocabulary_tool`, `export_transcript`, `precorrect_transcript_tool`, +4 | `podcast transcript` | `podcast-transcript-workflow` | yes |
 | Edit decisions / NL cuts | project | `build_edit_context`, `search_transcript_tool`, `cut_time_range_tool`, `cut_text_match_tool`, `cut_utterance_tool`, `cut_words_tool`, +14 | `podcast edit` | `podcast-edit-natural-language` | yes |
-| Timeline / FX / reconcile | project | `strip_silence_tool`, `ripple_delete_text_tool`, `move_segment_tool`, `move_by_text_tool`, `insert_gap_tool`, `fade_joins_tool`, +43 | `podcast edit` | `podcast-audio-cleanup` | yes |
+| Timeline / FX / reconcile | project | `strip_silence_tool`, `ripple_delete_text_tool`, `move_segment_tool`, `move_by_text_tool`, `insert_gap_tool`, `fade_joins_tool`, +45 | `podcast edit` | `podcast-audio-cleanup` | yes |
 | Social clips | project | `propose_social_clips_tool`, `list_social_clips_tool`, `approve_social_clips_tool`, `reject_social_clips_tool`, `social_clip_report_tool`, `export_social_clips_tool` | `podcast clips` | `podcast-social-clips` | yes |
 | Timeline comments | project | `add_comment_tool`, `list_comments_tool`, `get_comment_tool`, `update_comment_tool`, `resolve_comment_tool`, `add_comment_action_tool`, +3 | `podcast comment` | `podcast-timeline-comments` | — |
 | Review versions / share | project | `publish_review_version_tool`, `list_review_versions_tool`, `set_active_review_version_tool`, `create_review_share_tool`, `revoke_record_room_tool` | `podcast review` | `podcast-timeline-comments` | yes |

@@ -384,6 +384,52 @@ describe("touch input grammar", () => {
     ).toEqual([{ kinds: ["trim-in", "fade-in"], fingerDown: true }]);
   });
 
+  it("explicitly chooses a comment beside a directly hit selected activation band", () => {
+    const pin = button(hitTargetProps("comment", "c1", 2), {
+      left: 181,
+      top: 76,
+      right: 225,
+      bottom: 100,
+    });
+    const farther = button(hitTargetProps("comment", "c2", 2.3), {
+      left: 211,
+      top: 76,
+      right: 255,
+      bottom: 100,
+    });
+    const band = button(hitTargetProps("bleed-attenuation", "region-key", 2), {
+      left: 180,
+      top: 76,
+      right: 400,
+      bottom: 100,
+    });
+    farther.setAttribute("data-hit-selected", "true");
+    band.setAttribute("data-hit-selected", "true");
+    root.append(pin, farther, band);
+    onlyReplays = true;
+    record("pin", pin);
+    record("farther", farther);
+    record("band", band);
+
+    press(band, "pointerdown", 190, 88);
+    router.longPress();
+    expect(views.at(-1)?.hits.map(({ candidate }) => candidate.id)).toEqual([
+      "c1",
+      "c2",
+      "region-key",
+    ]);
+    press(band, "pointerup", 190, 88);
+    router.choose(1, "touch");
+    vi.runAllTimers();
+
+    expect(targets.at(-1)).toEqual({ kind: "comment", id: "c2" });
+    expect(log.map((entry) => entry.split(":")[0])).toEqual([
+      "farther",
+      "farther",
+      "farther",
+    ]);
+  });
+
   it("grabs a lone target on a long press; released in place, it is a tap", () => {
     const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
       left: 200,

@@ -427,19 +427,23 @@ class SourceStack:
 
 
 def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
-    """Seconds of ``[lo, hi)`` where neither clip mutes its audio.
-
-    A lowered span (``gain_db`` set) still plays, so it does not count as muted.
-    """
-    muted = [
-        (region.start_s + shift, region.end_s + shift)
-        for clip in (a, b)
-        for shift in (clip_source_to_timeline_shift(clip),)
-        for region in clip.mute_regions
-        if region.gain_db is None
-    ]
-    if not muted:
+    """Seconds of ``[lo, hi)`` where neither clip mutes its audio."""
+    if not any(
+        (a.mute_regions, b.mute_regions, a.off_speaker_mute_regions, b.off_speaker_mute_regions)
+    ):
         return hi - lo
+    muted: list[tuple[float, float]] = []
+    for clip in (a, b):
+        shift = clip_source_to_timeline_shift(clip)
+        automatic = [(r.start_s, r.end_s) for r in clip.off_speaker_mute_regions]
+        if clip.bleed_restore is not None:
+            automatic = subtract_intervals(
+                automatic, [(r.start_s, r.end_s) for r in clip.bleed_restore.regions]
+            )
+        muted.extend((lo + shift, hi + shift) for lo, hi in automatic)
+        muted.extend(
+            (r.start_s + shift, r.end_s + shift) for r in clip.mute_regions if r.gain_db is None
+        )
     return sum(end - start for start, end in subtract_intervals([(lo, hi)], muted))
 
 
@@ -455,6 +459,9 @@ def same_source_timeline_overlaps(
     play the same audio at the same time. Cross-lane pairs require two dialogue tracks.
     Time either clip mutes does not count, so speaker-split lanes (#1095) flag only
     where two lanes play at once, as ``both`` crosstalk does.
+    Stored Restore windows count as potentially audible through automatic mutes.
+    This geometric report does not hash recording content, so inactive choices may
+    conservatively flag a stack. Full ordinary mutes still exclude their spans.
     Checks ``clips`` (default: every project clip); empty clips are ignored.
     """
     groups: dict[str, list[Clip]] = {}

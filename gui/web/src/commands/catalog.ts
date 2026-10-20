@@ -5,6 +5,14 @@ import type { CommandDef } from "./types";
  * Key strings live in keymap/registry.ts: keep ids aligned.
  */
 export const COMMANDS: Record<string, CommandDef> = {
+  "edit.restoreClipBleed": {
+    id: "edit.restoreClipBleed",
+    category: "edit",
+    label: "Restore original audio",
+    when: "hostProjectLoaded",
+    paletteRunnable: false,
+    notes: "Restore the selected automatic region in this clip. Host only.",
+  },
   "transport.togglePlay": {
     id: "transport.togglePlay",
     category: "transport",

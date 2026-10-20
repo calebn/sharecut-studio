@@ -26,6 +26,42 @@ from podcast_mcp.services.document import EditService, TrimBoundaryTarget
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
 
 
+@edit_app.command("inspect-clip-bleed")
+def inspect_clip_bleed_cmd(
+    project: Path = typer.Option(..., "--project"),
+    clip: str = typer.Option(..., "--clip"),
+    track: str = typer.Option(..., "--track"),
+) -> None:
+    """Inspect automatic attenuation on one clip and return guarded Restore targets."""
+    inspection = EditService(ProjectWorkspace.open(project)).inspect_clip_bleed(
+        clip, track_id=track
+    )
+    typer.echo(inspection.model_dump_json(indent=2))
+
+
+@edit_app.command("restore-clip-bleed")
+def restore_clip_bleed_cmd(
+    project: Path = typer.Option(..., "--project"),
+    target: Path = typer.Option(..., "--target", help="JSON file containing one inspected target."),
+    command_id: str | None = typer.Option(
+        None, "--command-id", help="Reuse this ID to retry the same submitted Restore."
+    ),
+) -> None:
+    """Save Restore for the inspected occurrence without rendering audio."""
+    from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
+    from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
+
+    parsed = BleedRestoreTarget.model_validate_json(target.read_text())
+    reply = submit_host_document_command(
+        project,
+        "RestoreClipBleed",
+        {"target": parsed.model_dump(mode="json")},
+        client_id="cli:host",
+        command_id=command_id,
+    )
+    typer.echo(json.dumps(host_command_result(reply), indent=2))
+
+
 def propose_edits_cmd(
     project: Path = typer.Option(..., "--project"),
     edit_mode: str | None = typer.Option(

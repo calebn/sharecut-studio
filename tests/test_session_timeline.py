@@ -18,7 +18,9 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import (
     Clip,
+    ClipBleedRestore,
     ClipMuteRegion,
+    ClipOffSpeakerMuteRegion,
     EpisodeProject,
     MediaAsset,
     SourceRecording,
@@ -27,6 +29,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.models.episode import SourceSpan
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
 
@@ -766,6 +769,45 @@ def test_same_source_overlaps_count_a_lowered_span_as_audible_but_not_a_mute(tmp
     assert lowered.overlap_sec == pytest.approx(100.0)
     (muted,) = stacked(ClipMuteRegion(start_s=10.0, end_s=40.0))
     assert muted.overlap_sec == pytest.approx(70.0)
+
+
+@pytest.mark.parametrize("selected_id", ["c1", "c2"])
+@pytest.mark.parametrize(
+    ("regular_mask", "expected_overlap"),
+    [(None, 50.0), ((50.0, 60.0), 40.0), ((20.0, 110.0), 0.0)],
+    ids=["lowered", "partial-mute", "full-mute"],
+)
+def test_same_source_overlaps_combine_lower_restore_and_regular_masks(
+    tmp_path, selected_id, regular_mask, expected_overlap
+) -> None:
+    guest = [
+        Clip(id="c1", track_id="guest", source_start=100, source_end=200, timeline_start=10),
+        Clip(id="c2", track_id="guest", source_start=90, source_end=190, timeline_start=20),
+    ]
+    selected = next(clip for clip in guest if clip.id == selected_id)
+    source_origin = selected.source_start - selected.timeline_start
+    selected.mute_regions = [
+        ClipMuteRegion(start_s=30 + source_origin, end_s=80 + source_origin, gain_db=-12)
+    ]
+    selected.off_speaker_mute_regions = [
+        ClipOffSpeakerMuteRegion(start_s=20 + source_origin, end_s=90 + source_origin)
+    ]
+    selected.bleed_restore = ClipBleedRestore(
+        source_sha256="a" * 64,
+        regions=[SourceSpan(start_s=40 + source_origin, end_s=70 + source_origin)],
+    )
+    if regular_mask is not None:
+        start, end = regular_mask
+        selected.mute_regions.append(
+            ClipMuteRegion(start_s=start + source_origin, end_s=end + source_origin)
+        )
+    stacks = same_source_timeline_overlaps(_drift_project(tmp_path, "combined", [], guest))
+    if expected_overlap == 0:
+        assert stacks == []
+    else:
+        (stack,) = stacks
+        assert stack.clip_ids == ("c1", "c2")
+        assert stack.overlap_sec == pytest.approx(expected_overlap)
 
 
 def test_same_source_overlaps_ignores_abutting_and_tolerance(tmp_path) -> None:

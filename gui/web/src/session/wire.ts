@@ -10,7 +10,7 @@ export function selectionToWire(
   sel: Selection,
   envelopes?: AutomationEnvelope[],
 ): ViewerSessionSnapshot["selection"] {
-  if (!sel) {
+  if (!sel || sel.kind === "bleedAttenuation") {
     return null;
   }
   if (sel.kind === "clip") {
@@ -88,6 +88,8 @@ function selectionExists(
   project: ProjectView,
 ): boolean {
   switch (sel.kind) {
+    case "bleedAttenuation":
+      return false;
     case "clip":
       return Object.values(project.clips.tracks).some((clips) =>
         clips.some((c) => c.id === sel.id),
@@ -191,6 +193,7 @@ export function wireSelectionPatch(
   const selection = selectionFromWire(sel, project);
   return {
     selection,
-    pendingWireSelection: sel && !selection ? sel : null,
+    pendingWireSelection:
+      sel && sel.kind !== "bleedAttenuation" && !selection ? sel : null,
   };
 }

@@ -5,9 +5,16 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal, SupportsIndex, TypeVar, cast
+from typing import Annotated, Any, Literal, SupportsIndex, TypeVar, cast
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, require_v2_document
@@ -18,6 +25,7 @@ from podcast_mcp.models.words_revision import (
 )
 from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
@@ -124,6 +132,15 @@ class ClipMuteRegion(SourceSpan):
         return self
 
 
+class ClipOffSpeakerMuteRegion(SourceSpan):
+    """An automatic SOURCE envelope, independent of ordinary mute and fill ownership."""
+
+    model_config = {"extra": "forbid"}
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    fade_out_ms: int = Field(default=MUTE_FADE_MS, ge=0)
+    fade_in_ms: int = Field(default=MUTE_FADE_MS, ge=0)
+
+
 class MediaAsset(BaseModel):
     path: str
     duration_sec: float | None = None
@@ -143,6 +160,48 @@ class TrackProxy(BaseModel):
     bitrate_kbps: int = 64
     object_store_prefix: str | None = None
     object_store_uploaded_at: str | None = None
+
+
+class ProxyClipBasis(BaseModel):
+    track_id: str
+    origin_track_id: str
+    source_id: str | None
+    source_start: float = Field(ge=0, allow_inf_nan=False)
+    source_end: float = Field(gt=0, allow_inf_nan=False)
+    timeline_start: float = Field(ge=0, allow_inf_nan=False)
+    timeline_end: float = Field(gt=0, allow_inf_nan=False)
+
+
+class ProxyProjectBasis(BaseModel):
+    history_head_id: str = Field(min_length=1)
+    render_hashes: dict[str, str]
+    clips: dict[str, ProxyClipBasis]
+
+
+class ProxyOccurrenceBinding(BaseModel):
+    artifact_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    output_track_id: str
+
+
+class ProxyPublishedArtifact(TrackProxy):
+    hash: str = Field(pattern=r"^(?:[0-9a-f]{16}|[0-9a-f]{64})$")
+    context_track_id: str
+    input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    chunk_sha256: list[Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _complete_chunks(self) -> ProxyPublishedArtifact:
+        if len(self.chunk_sha256) != self.chunk_count:
+            raise ValueError("Proxy chunk digests must match the declared chunk count")
+        return self
+
+
+class ProxyManifestGeneration(BaseModel):
+    revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    project_basis: ProxyProjectBasis
+    tracks: dict[str, ProxyPublishedArtifact]
+    artifacts: dict[str, ProxyPublishedArtifact]
+    occurrences: dict[str, ProxyOccurrenceBinding]
 
 
 class BalanceBasis(BaseModel):
@@ -222,6 +281,23 @@ class Track(BaseModel):
         return self.gain_db + self.fader_db
 
 
+class ClipBleedRestore(BaseModel):
+    """Occurrence-owned automatic attenuation choices bound to exact recording bytes."""
+
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    regions: list[SourceSpan]
+
+    @model_validator(mode="after")
+    def _canonical_regions(self) -> ClipBleedRestore:
+        if any(region.start_s < 0 for region in self.regions):
+            raise ValueError("bleed Restore regions require nonnegative source bounds")
+        self.regions = [
+            SourceSpan(start_s=start, end_s=end)
+            for start, end in merge_intervals((r.start_s, r.end_s) for r in self.regions)
+        ]
+        return self
+
+
 class Clip(BaseModel):
     id: str
     track_id: str
@@ -234,6 +310,28 @@ class Clip(BaseModel):
     join_in_mode: ClipJoinMode = ClipJoinMode.FADE
     # Source-media mute holes honoured at render (tighten.edit_mode=mute).
     mute_regions: list[ClipMuteRegion] = Field(default_factory=list)
+    off_speaker_mute_regions: list[ClipOffSpeakerMuteRegion] = Field(default_factory=list)
+    bleed_restore: ClipBleedRestore | None = None
+
+    @field_validator("off_speaker_mute_regions")
+    @classmethod
+    def _canonical_automatic_masks(
+        cls, regions: list[ClipOffSpeakerMuteRegion]
+    ) -> list[ClipOffSpeakerMuteRegion]:
+        keyed = {(r.start_s, r.end_s, r.fade_out_ms, r.fade_in_ms): r for r in regions}
+        return [keyed[key] for key in sorted(keyed)]
+
+    @model_serializer(mode="wrap")
+    def _serialize_automatic_presence(self, handler: SerializerFunctionWrapHandler):
+        data = handler(self)
+        if (
+            "off_speaker_mute_regions" not in self.model_fields_set
+            and not self.off_speaker_mute_regions
+        ):
+            data.pop("off_speaker_mute_regions", None)
+        if "bleed_restore" not in self.model_fields_set and self.bleed_restore is None:
+            data.pop("bleed_restore", None)
+        return data
 
     @property
     def timeline_end(self) -> float:
@@ -843,6 +941,7 @@ class RenderInvalidation(BaseModel):
 
 
 class RenderSection(BaseModel):
+    proxy_manifests: list[ProxyManifestGeneration] = Field(default_factory=list, max_length=2)
     last_completed_step: str | None = None
     pipeline_runs: list[PipelineRun] = Field(default_factory=list)
     artifacts: RenderArtifacts = Field(default_factory=RenderArtifacts)

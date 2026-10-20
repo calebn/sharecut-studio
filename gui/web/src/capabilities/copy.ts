@@ -443,6 +443,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Add comment",
     tooltip: "Start a comment at the held time",
   },
+  "daw.edit.restoreClipBleed": {
+    label: "Restore original audio",
+    tooltip: "Restore one selected automatic reduction in this clip occurrence",
+  },
   "daw.edit.rollClipJoin": {
     label: "Roll clip join",
     tooltip: "Drag join to roll both clip edges · clips stay flush",
@@ -556,6 +560,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",
   "timeline.clip.body": "daw.edit.moveClips",
   "mobileShell.more": "daw.edit.addChapter",
+  restoreClipBleed: "daw.edit.restoreClipBleed",
   "timeline.clip.joinDiamond": "daw.edit.rollClipJoin",
   "transcript.editBoundary": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",

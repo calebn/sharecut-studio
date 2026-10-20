@@ -4,6 +4,7 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import {
   opensPhoneSheet,
+  renderSelectionBody,
   SELECTION_SURFACES,
   type SelectionKind,
   type SheetScreen,
@@ -169,6 +170,12 @@ const SELECTIONS: Record<SelectionKind, NonNullable<Selection>> = {
     endWordIndex: 1,
   },
   clip: { kind: "clip", id: "c1", trackId: "guest" },
+  bleedAttenuation: {
+    kind: "bleedAttenuation",
+    id: "c1",
+    trackId: "guest",
+    regionKey: null,
+  },
   pending: { kind: "pending", id: "p1", trackId: "host" },
   applied: { kind: "applied", id: "a1", trackId: "host" },
   track: { kind: "track", trackId: "host" },
@@ -205,6 +212,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "button", name: "Copy", related: true },
     { role: "button", name: "Cut", related: true },
   ],
+  bleedAttenuation: [{ role: "heading", name: "Automatic reduction" }],
   pending: [
     { role: "button", name: "Approve" },
     { role: "button", name: "Reject" },
@@ -243,6 +251,7 @@ const AGENT_RANGE_ADOPTION: Record<SelectionKind, boolean> = {
   range: false,
   transcriptRange: false,
   clip: true,
+  bleedAttenuation: true,
   pending: true,
   applied: true,
   track: true,
@@ -461,5 +470,23 @@ describe("the phone sheet opens only on the screens a selection belongs to", () 
     expect(sheetScreen("more", "history")).toBeNull();
     expect(sheetScreen("more", "comments")).toBe("comments");
     expect(sheetScreen("text", "impact")).toBe("text");
+  });
+});
+
+describe("automatic reduction occurrence lookup", () => {
+  it.each([
+    { id: "c1", trackId: "host" },
+    { id: "deleted", trackId: "guest" },
+  ])("rejects a missing occurrence $trackId/$id", ({ id, trackId }) => {
+    render(
+      renderSelectionBody(
+        { kind: "bleedAttenuation", id, trackId, regionKey: null },
+        { project: project(), projectEpoch: 1, setPlayheadSec: vi.fn() },
+      ),
+    );
+    expect(screen.getByText("Clip not found")).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Automatic reduction" }),
+    ).toBeNull();
   });
 });

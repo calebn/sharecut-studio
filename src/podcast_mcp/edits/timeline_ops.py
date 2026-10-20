@@ -38,6 +38,7 @@ from podcast_mcp.edits.inaudible_cuts import (
     recommend_micro_fades,
 )
 from podcast_mcp.edits.mute_regions import mute_regions_overlapping, mute_regions_payload
+from podcast_mcp.edits.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.edits.ripple import (
     RippleRemoval,
     TrackExtent,
@@ -675,6 +676,12 @@ def copy_segment(
             "fade_out_ms": clip.fade_out_ms,
             "join_in_mode": clip.join_in_mode.value,
             "mute_regions": mute_regions_payload(clip.mute_regions),
+            **nonempty_off_speaker_regions_payload(clip),
+            **(
+                {"bleed_restore": clip.bleed_restore.model_dump(mode="json")}
+                if clip.bleed_restore is not None
+                else {}
+            ),
         }
         for tid in tracks
         for clip in extract_clips_in_timeline_range(clips_for_track(project, tid), start, end)
@@ -765,6 +772,22 @@ def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str
                     parsed_mutes.append(ClipMuteRegion.model_validate(item))
                 except ValidationError:
                     continue
+        from podcast_mcp.models import ClipBleedRestore, ClipOffSpeakerMuteRegion
+
+        try:
+            automatic = [
+                ClipOffSpeakerMuteRegion.model_validate(item)
+                for item in raw.get("off_speaker_mute_regions", [])
+            ]
+            restore = (
+                ClipBleedRestore.model_validate(raw["bleed_restore"])
+                if raw.get("bleed_restore") is not None
+                else None
+            )
+        except (ValidationError, TypeError) as exc:
+            raise PasteRejectedError(
+                "paste_bad_extract", f"extract {index} has invalid automatic mute or bleed Restore"
+            ) from exc
         by_track[tid].append(
             Clip(
                 id=new_clip_id(),
@@ -777,6 +800,8 @@ def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str
                 fade_out_ms=int(raw.get("fade_out_ms", 0) or 0),
                 join_in_mode=join_mode,
                 mute_regions=mute_regions_overlapping(parsed_mutes, src_start, src_end),
+                off_speaker_mute_regions=automatic,
+                bleed_restore=restore,
             )
         )
     return by_track
@@ -1065,6 +1090,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
                 "recording_key": key,
                 "origin_track_id": origin_track_id_for_clip(project, c),
                 "mute_regions": mute_regions_payload(c.mute_regions),
+                **nonempty_off_speaker_regions_payload(c),
                 "clipping_regions": clip_clipping_payload(src, c.source_start, c.source_end),
                 "clipping_truncated": clip_clipping_truncated(src, c.source_end),
             }

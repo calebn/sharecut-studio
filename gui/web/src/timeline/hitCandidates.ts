@@ -8,6 +8,7 @@ import {
   HIT_KINDS,
   type HitKind,
   type HitKindContract,
+  needsDirectHit,
   outranks,
 } from "./inputContract";
 
@@ -96,7 +97,8 @@ export function corePoint(rect: HitRect, p: HitPoint): HitPoint {
 /**
  * Targets whose box is within `radiusPx` of the pointer (plus `hit`, the one
  * the browser hit, at any reach), ranked: selected first, then nearest core,
- * then kind priority. Each candidate keeps the target it came from. A body
+ * then kind priority. Direct-only activation targets follow editing controls
+ * in the chooser. Each candidate keeps the target it came from. A body
  * (`HIT_KINDS[kind].body`) counts only when it is `hit` and nothing else is
  * in reach, and then it is held where the pointer is.
  *
@@ -114,6 +116,7 @@ export function rankHitTargets<T extends HitTarget>(
   const ranked: { candidate: HitCandidate; target: T }[] = [];
   let body: { candidate: HitCandidate; target: T } | null = null;
   for (const target of targets) {
+    if (needsDirectHit(target.kind) && target !== hit) continue;
     if (HIT_KINDS[target.kind].body) {
       if (target === hit) {
         body = {
@@ -164,9 +167,11 @@ export function rankHitTargets<T extends HitTarget>(
     // Marker pins sit a finger's width apart: the nearer one is the one
     // meant, selected or not. Equal distance (a stack) keeps selected first.
     return (
+      Number(needsDirectHit(a.kind)) - Number(needsDirectHit(b.kind)) ||
       (isRowKind(a.kind) && isRowKind(b.kind)
         ? byDistance || bySelected
-        : bySelected || byDistance) || b.priority - a.priority
+        : bySelected || byDistance) ||
+      b.priority - a.priority
     );
   });
   if (ranked.length === 0 && body) return [body];

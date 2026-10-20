@@ -14,6 +14,7 @@ import {
 import { shallow } from "zustand/shallow";
 import { runPointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
+import { clipBleedSession } from "../edit/clipBleedSession";
 import {
   allClipsFromTracks,
   type ClipMoveItem,
@@ -221,6 +222,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     () => "none",
   );
   const project = useDaw(selectTimelineProject);
+  const bleedInspection = useSyncExternalStore(
+    clipBleedSession.subscribe,
+    clipBleedSession.getSnapshot,
+    clipBleedSession.getSnapshot,
+  );
   // `aligned` draws lane geometry; `latest` feeds the status summary so it does not blank and
   // re-announce after every clip edit.
   const { aligned: prosody, latest: prosodyLatest } = useProsodyOverlayViews(
@@ -293,10 +299,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       precision: precisionHandoff,
       snapshot: () => {
         const { selection, selectionHit } = useDawStore.getState();
+        const bleed = clipBleedSession.getSnapshot();
         return () => {
           const s = useDawStore.getState();
           if (s.selection !== selection) s.setSelection(selection);
           if (s.selectionHit !== selectionHit) s.setSelectionHit(selectionHit);
+          const current = clipBleedSession.getSnapshot();
+          if (bleed && current?.generation === bleed.generation)
+            clipBleedSession.select(bleed.selectedKey);
         };
       },
     });
@@ -728,6 +738,26 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       setSelection({ kind: "clip", id: clipId, trackId });
     },
   );
+  const onSelectBleed = useCallback(
+    (trackId: string, clipId: string, key: string) => {
+      const current = clipBleedSession.getSnapshot();
+      if (
+        current?.read.state !== "ready" ||
+        current.occurrence.trackId !== trackId ||
+        current.occurrence.clipId !== clipId
+      )
+        return;
+      cancelClipPlacement();
+      if (!clipBleedSession.select(key)) return;
+      setSelection({
+        kind: "bleedAttenuation",
+        id: clipId,
+        trackId,
+        regionKey: key,
+      });
+    },
+    [setSelection],
+  );
   const onSelectTrack = useStableCallback((trackId: string) => {
     setSelection({ kind: "track", trackId });
   });
@@ -1101,6 +1131,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             onClipMoveCancel={onClipMoveCancel}
                             onClipBodyStart={onClipBodyStart}
                             onClipBodyEnd={onClipBodyEnd}
+                            bleedInspection={
+                              bleedInspection?.occurrence.trackId === track.id
+                                ? bleedInspection
+                                : null
+                            }
+                            onSelectBleed={onSelectBleed}
                             onSelectClip={onSelectClip}
                             onSelectTrack={onSelectTrack}
                             bladeHighlight={

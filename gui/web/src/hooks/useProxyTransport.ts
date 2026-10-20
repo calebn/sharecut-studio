@@ -1,34 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { loadProxyManifest } from "../api";
 import { cachedFetchArrayBuffer } from "../audio/chunkCache";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
 import { ProxyEngine } from "../audio/proxyEngine";
-import type { ProxyManifest } from "../audio/proxyMath";
+import {
+  chunkRefKey,
+  type ImmutableChunkRef,
+  isQueuedMoveOverlay,
+  type ProxyManifest,
+  parseProxyManifest,
+  projectProxyBasis,
+  proxyBasisKey,
+} from "../audio/proxyMath";
+import { recoverDocument } from "../document/applyDocumentUpdate";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
+  loadCommandQueue,
   loadOfflineSnapshot,
   mergeOfflineSnapshot,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
 import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
-
-async function firstChunkReadable(manifest: ProxyManifest): Promise<boolean> {
-  const url = Object.values(manifest.tracks)[0]?.urls[0];
-  if (!url) {
-    return true;
-  }
-  try {
-    await cachedFetchArrayBuffer(url);
-    return true;
-  } catch (err) {
-    // Only a network or CORS failure (fetch's TypeError) says the bucket is unreadable
-    // for this origin; an HTTP status error keeps the proxy engine and its retries.
-    return !(err instanceof TypeError);
-  }
-}
 
 /**
  * Guest proxy transport: Web Audio clip scheduler over FX source-clock chunks.
@@ -39,6 +42,7 @@ export function useProxyTransport(): boolean {
   const {
     project,
     projectPath,
+    projectEpoch,
     isPlaying,
     sourcePreview,
     playbackRate,
@@ -53,6 +57,7 @@ export function useProxyTransport(): boolean {
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
+    projectEpoch: s.projectEpoch,
     isPlaying: s.isPlaying,
     sourcePreview: s.sourcePreview,
     playbackRate: s.playbackRate,
@@ -66,100 +71,235 @@ export function useProxyTransport(): boolean {
     soloTracks: s.soloTracks,
   }));
 
-  const [active, setActive] = useState(false);
-  const timelineActive = active && sourcePreview === null;
+  const basis = useMemo(
+    () => (project ? projectProxyBasis(project) : null),
+    [project],
+  );
+  const basisKey = basis ? proxyBasisKey(basis) : "";
+  const [accepted, setAccepted] = useState<{
+    path: string;
+    epoch: number;
+    key: string;
+    manifest: ProxyManifest;
+  } | null>(null);
+  const [refresh, setRefresh] = useState(0);
   const engineRef = useRef<ProxyEngine | null>(null);
-  const manifestRef = useRef<ProxyManifest | null>(null);
+  const requestGeneration = useRef(0);
+  const recoveredRefs = useRef(new Set<string>());
+  const pendingManifest = useRef<ProxyManifest | null>(null);
+  const acceptedKeyRef = useRef<string | null>(null);
+  const ownedErrorRef = useRef<string | null>(null);
   const rafRef = useRef<number | null>(null);
   const appliedSeekRevision = useRef(playheadSeekRevision);
   const playheadSecRef = useRef(playheadSec);
-  playheadSecRef.current = playheadSec;
+  useEffect(() => {
+    playheadSecRef.current = playheadSec;
+  }, [playheadSec]);
   const playUntilRef = useRef(playUntilSec);
-  playUntilRef.current = playUntilSec;
+  useEffect(() => {
+    playUntilRef.current = playUntilSec;
+  }, [playUntilSec]);
+  const ownsTimeline =
+    !!projectPath && isShareProjectKey(projectPath) && sourcePreview === null;
+  const active =
+    accepted !== null &&
+    accepted.path === projectPath &&
+    accepted.epoch === projectEpoch &&
+    accepted.key === basisKey;
+  const timelineActive = active && sourcePreview === null;
+
+  const block = useEffectEvent((error: unknown): void => {
+    const state = useDawStore.getState();
+    const engine = engineRef.current;
+    if (
+      engine &&
+      acceptedKeyRef.current !== null &&
+      state.isPlaying &&
+      !state.sourcePreview
+    )
+      state.setPlayheadSec(engine.pause(), "playback");
+    else engine?.pause();
+    if (!state.sourcePreview) state.setIsPlaying(false);
+    const message = errorMessage(
+      error,
+      "Audio is waiting for a matching project snapshot.",
+    );
+    ownedErrorRef.current = message;
+    state.setAudioError(message);
+    acceptedKeyRef.current = null;
+    setAccepted(null);
+  });
+
+  const handleFailure = useEffectEvent(
+    (error: unknown, ref: ImmutableChunkRef | null) => {
+      const state = useDawStore.getState();
+      if (
+        state.projectPath !== projectPath ||
+        state.projectEpoch !== projectEpoch
+      )
+        return;
+      block(error);
+      if (
+        ref &&
+        error instanceof ApiError &&
+        error.code === "proxy_generation_unavailable"
+      ) {
+        const key = chunkRefKey(ref);
+        if (recoveredRefs.current.has(key)) return;
+        recoveredRefs.current.add(key);
+        pendingManifest.current = null;
+        setRefresh((value) => value + 1);
+      }
+    },
+  );
+
+  useLayoutEffect(() => {
+    if (
+      accepted &&
+      accepted.path === projectPath &&
+      accepted.epoch === projectEpoch &&
+      accepted.key !== basisKey
+    )
+      block(new Error("Audio is waiting for a matching project snapshot."));
+  }, [accepted, projectPath, projectEpoch, basisKey]);
 
   useEffect(() => {
-    if (!projectPath || !isShareProjectKey(projectPath)) {
-      setActive(false);
-      return;
+    if (!projectPath || !isShareProjectKey(projectPath)) return;
+    let disposed = false;
+    acceptedKeyRef.current = null;
+    recoveredRefs.current.clear();
+    pendingManifest.current = null;
+    try {
+      const Ctx = audioContextCtor();
+      if (!Ctx) throw new Error("Web Audio unavailable");
+      engineRef.current = new ProxyEngine(
+        new Ctx(),
+        (ref) => cachedFetchArrayBuffer(ref.url),
+        (error, ref) => handleFailure(error, ref),
+      );
+    } catch (error) {
+      queueMicrotask(() => {
+        const state = useDawStore.getState();
+        if (
+          !disposed &&
+          state.projectPath === projectPath &&
+          state.projectEpoch === projectEpoch
+        )
+          block(error);
+      });
     }
-    let cancelled = false;
+    return () => {
+      disposed = true;
+      requestGeneration.current += 1;
+      engineRef.current?.dispose();
+      engineRef.current = null;
+      pendingManifest.current = null;
+    };
+  }, [projectPath, projectEpoch]);
+
+  useEffect(() => {
+    const project = useDawStore.getState().project;
+    if (!projectPath || !isShareProjectKey(projectPath) || !project) return;
+    const basis = projectProxyBasis(project);
+    const generation = ++requestGeneration.current;
+    const current = () => {
+      const state = useDawStore.getState();
+      return (
+        generation === requestGeneration.current &&
+        state.projectPath === projectPath &&
+        state.projectEpoch === projectEpoch &&
+        state.project !== null &&
+        proxyBasisKey(projectProxyBasis(state.project)) === basisKey
+      );
+    };
     void (async () => {
       try {
-        let manifest: ProxyManifest | null = null;
-        try {
-          manifest = await loadProxyManifest(projectPath);
-        } catch {
+        if (!engineRef.current) return;
+        let cachedFallback = false;
+        let manifest = pendingManifest.current;
+        if (!manifest || proxyBasisKey(manifest.project_basis) !== basisKey) {
+          try {
+            const raw = await loadProxyManifest(projectPath);
+            if (!current()) return;
+            if (raw === null) throw new Error("Audio proxy is unavailable.");
+            manifest = parseProxyManifest(raw);
+          } catch (error) {
+            if (!current()) return;
+            const token = shareTokenFromKey(projectPath);
+            const snapshot = token ? await loadOfflineSnapshot(token) : null;
+            if (!current()) return;
+            if (!snapshot?.manifest) throw error;
+            manifest = parseProxyManifest(snapshot.manifest);
+            cachedFallback = true;
+          }
+        }
+        if (!current()) return;
+        let matched = proxyBasisKey(manifest.project_basis) === basisKey;
+        if (!matched && cachedFallback && navigator.onLine === false) {
           const token = shareTokenFromKey(projectPath);
-          if (token) {
-            const snap = await loadOfflineSnapshot(token);
-            if (snap?.manifest) {
-              manifest = snap.manifest as ProxyManifest;
-            }
-          }
+          const queue = token ? await loadCommandQueue(token) : [];
+          if (!current()) return;
+          matched =
+            navigator.onLine === false &&
+            isQueuedMoveOverlay(
+              manifest,
+              basis,
+              queue,
+              project.tracks.map((track) => track.id),
+            );
         }
-        if (cancelled) {
-          return;
+        if (!matched && !cachedFallback) {
+          pendingManifest.current = manifest;
+          await recoverDocument();
+          if (!current()) return;
         }
-        if (!manifest || Object.keys(manifest.tracks).length === 0) {
-          setActive(false);
-          return;
-        }
-        if (!(await firstChunkReadable(manifest))) {
-          // A bucket without CORS for this origin fails every chunk fetch and leaves the
-          // player silent; the WAV transport through the share still plays (#1759).
-          if (!cancelled) {
-            setActive(false);
-          }
-          return;
-        }
-        if (cancelled) {
-          return;
-        }
-        manifestRef.current = manifest;
-        const Ctx = audioContextCtor();
-        if (!Ctx) {
-          throw new Error("Web Audio unavailable");
-        }
-        const ctx = new Ctx();
-        const engine = new ProxyEngine(ctx, async (trackId, idx) => {
-          const url = manifest!.tracks[trackId]?.urls[idx];
-          if (!url) {
-            throw new Error(`missing proxy url ${trackId}/${idx}`);
-          }
-          return cachedFetchArrayBuffer(url);
+        if (!matched)
+          throw new Error("Audio is waiting for a matching project snapshot.");
+        if (!current()) return;
+        const displayed = useDawStore.getState().project;
+        if (!displayed) return;
+        const outputIds = new Set(displayed.tracks.map((track) => track.id));
+        if (
+          Object.values(manifest.occurrences).some(
+            (binding) => !outputIds.has(binding.outputTrackId),
+          )
+        )
+          throw new Error("Invalid proxy output track.");
+        pendingManifest.current = null;
+        acceptedKeyRef.current = basisKey;
+        setAccepted({
+          path: projectPath,
+          epoch: projectEpoch,
+          key: basisKey,
+          manifest,
         });
-        engine.setManifest(manifest);
-        if (cancelled) {
-          engine.dispose();
-          return;
-        }
-        engineRef.current = engine;
+        const state = useDawStore.getState();
+        if (state.audioError === ownedErrorRef.current)
+          state.setAudioError(null);
+        ownedErrorRef.current = null;
         const token = shareTokenFromKey(projectPath);
-        if (token) {
-          void mergeOfflineSnapshot(token, { manifest });
-        }
-        setActive(true);
-      } catch {
-        if (!cancelled) {
-          setActive(false);
-        }
+        if (token && !cachedFallback)
+          void mergeOfflineSnapshot(token, {
+            project: displayed,
+            manifest,
+          }).catch(() => undefined);
+      } catch (error) {
+        if (current()) block(error);
       }
     })();
     return () => {
-      cancelled = true;
-      engineRef.current?.dispose();
-      engineRef.current = null;
-      setActive(false);
+      requestGeneration.current += 1;
     };
-  }, [projectPath]);
+  }, [projectPath, projectEpoch, basisKey, refresh]);
 
   useEffect(() => {
-    const engine = engineRef.current;
-    if (!engine || !project || !active) {
-      return;
-    }
-    engine.setProject(project.clips.tracks, project.tracks);
-  }, [project, active]);
+    if (!active || !project || !accepted) return;
+    engineRef.current?.setSnapshot({
+      manifest: accepted.manifest,
+      clipsByTrack: project.clips.tracks,
+      tracks: project.tracks,
+    });
+  }, [project, accepted, active]);
 
   useEffect(() => {
     engineRef.current?.setPlaybackRate(playbackRate);
@@ -261,5 +401,5 @@ export function useProxyTransport(): boolean {
     });
   }, [timelineActive]);
 
-  return timelineActive;
+  return ownsTimeline;
 }

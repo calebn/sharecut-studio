@@ -1190,8 +1190,92 @@
       "title": "ApproveEditsPayload",
       "type": "object"
     },
+    "BleedRestoreTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "clip": {
+          "$ref": "#/$defs/Clip"
+        },
+        "dependencies_digest": {
+          "title": "Dependencies Digest",
+          "type": "string"
+        },
+        "expected_head_id": {
+          "minLength": 1,
+          "title": "Expected Head Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "late_gate",
+            "bleed_mute:off_speaker"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mapping_revision": {
+          "const": "editorial-source-v1",
+          "default": "editorial-source-v1",
+          "title": "Mapping Revision",
+          "type": "string"
+        },
+        "media_seal": {
+          "title": "Media Seal",
+          "type": "string"
+        },
+        "occurrence_kind": {
+          "enum": [
+            "explicit",
+            "implicit"
+          ],
+          "title": "Occurrence Kind",
+          "type": "string"
+        },
+        "plan_digest": {
+          "title": "Plan Digest",
+          "type": "string"
+        },
+        "region": {
+          "$ref": "#/$defs/SourceSpan"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id",
+        "occurrence_kind",
+        "clip",
+        "kind",
+        "region",
+        "media_seal",
+        "source_sha256",
+        "dependencies_digest",
+        "plan_digest",
+        "expected_head_id"
+      ],
+      "title": "BleedRestoreTarget",
+      "type": "object"
+    },
     "Clip": {
       "properties": {
+        "bleed_restore": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClipBleedRestore"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "fade_in_ms": {
           "default": 0,
           "title": "Fade In Ms",
@@ -1215,6 +1299,13 @@
             "$ref": "#/$defs/ClipMuteRegion"
           },
           "title": "Mute Regions",
+          "type": "array"
+        },
+        "off_speaker_mute_regions": {
+          "items": {
+            "$ref": "#/$defs/ClipOffSpeakerMuteRegion"
+          },
+          "title": "Off Speaker Mute Regions",
           "type": "array"
         },
         "source_end": {
@@ -1254,6 +1345,29 @@
         "timeline_start"
       ],
       "title": "Clip",
+      "type": "object"
+    },
+    "ClipBleedRestore": {
+      "description": "Occurrence-owned automatic attenuation choices bound to exact recording bytes.",
+      "properties": {
+        "regions": {
+          "items": {
+            "$ref": "#/$defs/SourceSpan"
+          },
+          "title": "Regions",
+          "type": "array"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_sha256",
+        "regions"
+      ],
+      "title": "ClipBleedRestore",
       "type": "object"
     },
     "ClipFadeBaseline": {
@@ -1362,6 +1476,39 @@
         "end_s"
       ],
       "title": "ClipMuteRegion",
+      "type": "object"
+    },
+    "ClipOffSpeakerMuteRegion": {
+      "additionalProperties": false,
+      "description": "An automatic SOURCE envelope, independent of ordinary mute and fill ownership.",
+      "properties": {
+        "end_s": {
+          "title": "End S",
+          "type": "number"
+        },
+        "fade_in_ms": {
+          "default": 5,
+          "minimum": 0,
+          "title": "Fade In Ms",
+          "type": "integer"
+        },
+        "fade_out_ms": {
+          "default": 5,
+          "minimum": 0,
+          "title": "Fade Out Ms",
+          "type": "integer"
+        },
+        "start_s": {
+          "minimum": 0,
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start_s",
+        "end_s"
+      ],
+      "title": "ClipOffSpeakerMuteRegion",
       "type": "object"
     },
     "CorrectTranscriptPhraseCommand": {
@@ -3908,6 +4055,114 @@
       "title": "RestoreAppliedEditPayload",
       "type": "object"
     },
+    "RestoreClipBleedCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/RestoreClipBleedPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "RestoreClipBleed",
+          "default": "RestoreClipBleed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "RestoreClipBleedCommand",
+      "type": "object"
+    },
+    "RestoreClipBleedPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/BleedRestoreTarget"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "RestoreClipBleedPayload",
+      "type": "object"
+    },
     "RollClipJoinCommand": {
       "properties": {
         "causation_id": {
@@ -5868,6 +6123,25 @@
       "title": "SetTranscriptWordsIgnoredPayload",
       "type": "object"
     },
+    "SourceSpan": {
+      "description": "``[start_s, end_s)`` in source-media seconds.",
+      "properties": {
+        "end_s": {
+          "title": "End S",
+          "type": "number"
+        },
+        "start_s": {
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start_s",
+        "end_s"
+      ],
+      "title": "SourceSpan",
+      "type": "object"
+    },
     "SplitAtTimeCommand": {
       "properties": {
         "causation_id": {
@@ -7022,6 +7296,7 @@
       "ReplaceTranscriptMatches": "#/$defs/ReplaceTranscriptMatchesCommand",
       "ResolveComment": "#/$defs/ResolveCommentCommand",
       "RestoreAppliedEdit": "#/$defs/RestoreAppliedEditCommand",
+      "RestoreClipBleed": "#/$defs/RestoreClipBleedCommand",
       "RollClipJoin": "#/$defs/RollClipJoinCommand",
       "SetActionDone": "#/$defs/SetActionDoneCommand",
       "SetClipFade": "#/$defs/SetClipFadeCommand",
@@ -7090,6 +7365,9 @@
     },
     {
       "$ref": "#/$defs/RestoreAppliedEditCommand"
+    },
+    {
+      "$ref": "#/$defs/RestoreClipBleedCommand"
     },
     {
       "$ref": "#/$defs/SetClipFadeCommand"

@@ -80,6 +80,240 @@
         "object_store_uploaded_at": { "type": ["string", "null"] }
       }
     },
+    "ProxyClipBasis": {
+      "properties": {
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        },
+        "origin_track_id": {
+          "title": "Origin Track Id",
+          "type": "string"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Id"
+        },
+        "source_start": {
+          "minimum": 0,
+          "title": "Source Start",
+          "type": "number"
+        },
+        "source_end": {
+          "exclusiveMinimum": 0,
+          "title": "Source End",
+          "type": "number"
+        },
+        "timeline_start": {
+          "minimum": 0,
+          "title": "Timeline Start",
+          "type": "number"
+        },
+        "timeline_end": {
+          "exclusiveMinimum": 0,
+          "title": "Timeline End",
+          "type": "number"
+        }
+      },
+      "required": [
+        "track_id",
+        "origin_track_id",
+        "source_id",
+        "source_start",
+        "source_end",
+        "timeline_start",
+        "timeline_end"
+      ],
+      "title": "ProxyClipBasis",
+      "type": "object"
+    },
+    "ProxyProjectBasis": {
+      "properties": {
+        "history_head_id": {
+          "minLength": 1,
+          "title": "History Head Id",
+          "type": "string"
+        },
+        "render_hashes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Render Hashes",
+          "type": "object"
+        },
+        "clips": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProxyClipBasis"
+          },
+          "title": "Clips",
+          "type": "object"
+        }
+      },
+      "required": [
+        "history_head_id",
+        "render_hashes",
+        "clips"
+      ],
+      "title": "ProxyProjectBasis",
+      "type": "object"
+    },
+    "ProxyOccurrenceBinding": {
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "output_track_id": {
+          "title": "Output Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "output_track_id"
+      ],
+      "title": "ProxyOccurrenceBinding",
+      "type": "object"
+    },
+    "ProxyPublishedArtifact": {
+      "properties": {
+        "hash": {
+          "pattern": "^(?:[0-9a-f]{16}|[0-9a-f]{64})$",
+          "title": "Hash",
+          "type": "string"
+        },
+        "chunk_sec": {
+          "default": 60.0,
+          "title": "Chunk Sec",
+          "type": "number"
+        },
+        "overlap_ms": {
+          "default": 200,
+          "title": "Overlap Ms",
+          "type": "integer"
+        },
+        "chunk_count": {
+          "title": "Chunk Count",
+          "type": "integer"
+        },
+        "duration_sec": {
+          "title": "Duration Sec",
+          "type": "number"
+        },
+        "codec": {
+          "default": "mp3",
+          "title": "Codec",
+          "type": "string"
+        },
+        "bitrate_kbps": {
+          "default": 64,
+          "title": "Bitrate Kbps",
+          "type": "integer"
+        },
+        "object_store_prefix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Object Store Prefix"
+        },
+        "object_store_uploaded_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Object Store Uploaded At"
+        },
+        "context_track_id": {
+          "title": "Context Track Id",
+          "type": "string"
+        },
+        "input_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Hash",
+          "type": "string"
+        },
+        "chunk_sha256": {
+          "items": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Chunk Sha256",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hash",
+        "chunk_count",
+        "duration_sec",
+        "context_track_id",
+        "input_hash",
+        "chunk_sha256"
+      ],
+      "title": "ProxyPublishedArtifact",
+      "type": "object"
+    },
+    "ProxyManifestGeneration": {
+      "properties": {
+        "revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Revision",
+          "type": "string"
+        },
+        "project_basis": {
+          "$ref": "#/$defs/ProxyProjectBasis"
+        },
+        "tracks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProxyPublishedArtifact"
+          },
+          "title": "Tracks",
+          "type": "object"
+        },
+        "artifacts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProxyPublishedArtifact"
+          },
+          "title": "Artifacts",
+          "type": "object"
+        },
+        "occurrences": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProxyOccurrenceBinding"
+          },
+          "title": "Occurrences",
+          "type": "object"
+        }
+      },
+      "required": [
+        "revision",
+        "project_basis",
+        "tracks",
+        "artifacts",
+        "occurrences"
+      ],
+      "title": "ProxyManifestGeneration",
+      "type": "object"
+    },
     "BalanceBasis": {
       "type": "object",
       "required": ["digest", "measured_lufs", "speech_gated"],
@@ -199,6 +433,37 @@
         "fade_in_ms": { "type": "integer", "minimum": 0, "default": 5 }
       }
     },
+    "ClipOffSpeakerMuteRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_s", "end_s"],
+      "description": "Occurrence-owned automatic SOURCE envelope. Original bounds and fades survive crops and splits. Ordinary mute, Lower, and fill ownership remain separate.",
+      "properties": {
+        "start_s": { "type": "number", "minimum": 0 },
+        "end_s": { "type": "number" },
+        "fade_out_ms": { "type": "integer", "minimum": 0, "default": 5 },
+        "fade_in_ms": { "type": "integer", "minimum": 0, "default": 5 }
+      }
+    },
+    "ClipBleedRestore": {
+      "type": "object",
+      "required": ["source_sha256", "regions"],
+      "description": "Occurrence-owned automatic attenuation Restore choices. The containing clip selects the recording. Regions are canonical full source intervals and apply only while the selected recording has this exact SHA-256.",
+      "properties": {
+        "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["start_s", "end_s"],
+            "properties": {
+              "start_s": { "type": "number", "minimum": 0 },
+              "end_s": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      }
+    },
     "Clip": {
       "type": "object",
       "required": ["id", "track_id", "source_start", "source_end", "timeline_start"],
@@ -215,6 +480,15 @@
           "type": "string",
           "enum": ["fade", "crossfade", "cut"],
           "default": "fade"
+        },
+        "off_speaker_mute_regions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ClipOffSpeakerMuteRegion" },
+          "default": []
+        },
+        "bleed_restore": {
+          "oneOf": [{ "$ref": "#/$defs/ClipBleedRestore" }, { "type": "null" }],
+          "default": null
         },
         "mute_regions": {
           "type": "array",
@@ -574,6 +848,14 @@
     "RenderSection": {
       "type": "object",
       "properties": {
+        "proxy_manifests": {
+          "items": {
+            "$ref": "#/$defs/ProxyManifestGeneration"
+          },
+          "maxItems": 2,
+          "title": "Proxy Manifests",
+          "type": "array"
+        },
         "last_completed_step": { "type": ["string", "null"] },
         "pipeline_runs": { "type": "array" },
         "artifacts": {

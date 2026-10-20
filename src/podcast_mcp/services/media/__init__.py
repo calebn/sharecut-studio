@@ -34,6 +34,11 @@ if TYPE_CHECKING:
         local_proxy_chunk_path,
         presigned_proxy_urls,
     )
+    from podcast_mcp.services.media.proxy_variants import (
+        accepted_proxy_chunk_path,
+        ensure_proxy_manifest,
+        proxy_manifest_payload,
+    )
     from podcast_mcp.services.media.range_audio import render_range_audio
     from podcast_mcp.services.media.review_media import (
         delete_object_store_object_if_unused,
@@ -81,6 +86,7 @@ __all__ = [
     "TranscriptService",
     "VocabularyConflictError",
     "WaveformBusyError",
+    "accepted_proxy_chunk_path",
     "cached_guest_cors",
     "coerce_enrollment",
     "cors_blocked_message",
@@ -89,6 +95,7 @@ __all__ = [
     "delete_object_store_object_if_unused",
     "ensure_and_upload_all_proxies",
     "ensure_audio_in_workspace",
+    "ensure_proxy_manifest",
     "ensure_track_proxy",
     "gui_media_chunk_max_bytes",
     "gui_media_max_bytes",
@@ -100,6 +107,7 @@ __all__ = [
     "pcm_block",
     "presigned_proxy_urls",
     "presigned_review_audio_url",
+    "proxy_manifest_payload",
     "render_range_audio",
     "review_guest_audio_path",
     "schedule_stem_waveforms",
@@ -116,6 +124,9 @@ __all__ = [
 ]
 
 _MODULE_BY_NAME = {
+    "accepted_proxy_chunk_path": "proxy_variants",
+    "ensure_proxy_manifest": "proxy_variants",
+    "proxy_manifest_payload": "proxy_variants",
     "BounceRequest": "bounce",
     "BounceService": "bounce",
     "IngestService": "ingest",

@@ -1,3 +1,5 @@
+import { readApiFailure } from "../utils/apiError";
+
 const CACHE_NAME = "podcast-proxy-v1";
 
 export async function cachedFetchArrayBuffer(
@@ -6,7 +8,7 @@ export async function cachedFetchArrayBuffer(
   if (typeof caches === "undefined") {
     const res = await fetch(url);
     if (!res.ok) {
-      throw new Error(`fetch ${res.status}`);
+      throw await readApiFailure(res);
     }
     return res.arrayBuffer();
   }
@@ -17,7 +19,7 @@ export async function cachedFetchArrayBuffer(
   }
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`fetch ${res.status}`);
+    throw await readApiFailure(res);
   }
   const clone = res.clone();
   await cache.put(url, clone);

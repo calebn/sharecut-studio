@@ -239,6 +239,14 @@ for (const viewport of viewports) {
       expect(held, "steps whose word was already in the band").toBeGreaterThan(
         0,
       );
+      if (viewport.name === "phone landscape") {
+        const activeWord = list.locator(
+          '.utterance-word.active[data-track-id="reference"]',
+        );
+        await expect(activeWord).toBeInViewport({ ratio: 1 });
+        await page.getByRole("button", { name: "Taller", exact: true }).click();
+        await expect(activeWord).toBeInViewport({ ratio: 1 });
+      }
     });
 
     test("a suppressed word at the playhead never moves the list", async ({

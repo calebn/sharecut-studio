@@ -1005,54 +1005,32 @@ def share_daw_waveform_snap(
 
 def share_proxy_manifest(token: str) -> dict[str, Any]:
     """Per-track proxy chunk URLs for guest Sharecut Studio (object storage or local fallback)."""
-    from podcast_mcp.engines.play_audit import proxy_render_hash
     from podcast_mcp.services.media import (
-        ensure_track_proxy,
+        ensure_proxy_manifest,
         presigned_proxy_urls,
+        proxy_manifest_payload,
     )
-    from podcast_mcp.util.tracks import dialogue_track_ids
 
     row, ws = require_share_cap(token, CAP_VIEW)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
         raise CodedPermissionError("share does not allow play", code="share_capability_required")
-    expires_at = row.get("expires_at")
-    tracks_out: dict[str, Any] = {}
-    store_tracks: dict[str, tuple[str, int]] = {}
-    for tid in dialogue_track_ids(ws.project):
-        track = ws.project.track_by_id(tid)
-        if track is None:
-            continue
-        need = track.proxy is None or track.proxy.hash != proxy_render_hash(ws.project, tid)
-        if need:
-            try:
-                ensure_track_proxy(ws, tid)
-            except Exception:
-                log.warning("Lazy proxy ensure failed for %s", tid, exc_info=True)
-                continue
-            track = ws.project.track_by_id(tid)
-        if track is None or track.proxy is None:
-            continue
-        proxy = track.proxy
-        urls = presigned_proxy_urls(ws.project, tid, expires_at=expires_at)
-        if urls is None:
-            urls = _local_proxy_urls(token, tid, proxy.hash, proxy.chunk_count)
-        else:
-            store_tracks[tid] = (proxy.hash, proxy.chunk_count)
-        tracks_out[tid] = {
-            "hash": proxy.hash,
-            "chunk_sec": proxy.chunk_sec,
-            "overlap_ms": proxy.overlap_ms,
-            "chunk_count": proxy.chunk_count,
-            "duration_sec": proxy.duration_sec,
-            "urls": urls,
-        }
-    out: dict[str, Any] = {"tracks": tracks_out}
-    blocked = _object_store_cors_blocked(tracks_out, store_tracks)
+    generation = ensure_proxy_manifest(ws)
+    urls = {}
+    with ws.transaction() as project:
+        for tid, artifact in generation.tracks.items():
+            track = project.track_by_id(tid)
+            if track is not None and track.proxy is not None and track.proxy.hash == artifact.hash:
+                signed = presigned_proxy_urls(project, tid, expires_at=row.get("expires_at"))
+                if signed is not None:
+                    urls[tid] = signed
+    out = proxy_manifest_payload(generation, token, legacy_urls=urls)
+    store_tracks = {
+        tid: (generation.tracks[tid].hash, generation.tracks[tid].chunk_count) for tid in urls
+    }
+    blocked = _object_store_cors_blocked(out["tracks"], store_tracks)
     if blocked is not None:
-        # Bucket CORS is missing for the guest origin: browsers cannot read the chunks, so serve
-        # them through the share instead of handing the guest a silent player (#1759).
         for tid, (proxy_hash, count) in store_tracks.items():
-            tracks_out[tid]["urls"] = _local_proxy_urls(token, tid, proxy_hash, count)
+            out["tracks"][tid]["urls"] = _local_proxy_urls(token, tid, proxy_hash, count)
         out["object_store_cors"] = {"status": "blocked", "origin": blocked.origin}
     return out
 
@@ -1087,16 +1065,12 @@ def share_proxy_chunk_path(
     *,
     proxy_hash: str | None = None,
 ) -> Path:
-    from podcast_mcp.services.media import (
-        ensure_track_proxy,
-        local_proxy_chunk_path,
-    )
+    from podcast_mcp.services.media import accepted_proxy_chunk_path
 
     row, ws = require_share_cap(token, CAP_VIEW)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
         raise CodedPermissionError("share does not allow play", code="share_capability_required")
-    ensure_track_proxy(ws, track_id)
-    return local_proxy_chunk_path(ws, track_id, chunk_idx, expected_hash=proxy_hash)
+    return accepted_proxy_chunk_path(ws, track_id, chunk_idx, expected_hash=proxy_hash)
 
 
 def share_selected_range_audio(token: str, target: ExactRangeTarget) -> Path:

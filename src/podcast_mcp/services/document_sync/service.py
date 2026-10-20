@@ -14,6 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from podcast_mcp.edits.audio_check_override import OVERRIDE_FLAG, audio_check_override
+from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
 from podcast_mcp.edits.clip_fades import ClipFadeChangedError
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
@@ -73,6 +74,7 @@ EXTERNAL_MUTATE_CLIENT_ID = "server:external"
 # raised before mutation, history, or the command log (#650). They subclass ValueError, so
 # ``_apply`` must catch them before its generic ValueError branch.
 STALE_TARGET_ERRORS: tuple[type[CodedError], ...] = (
+    BleedRestoreChangedError,
     StaleHistoryError,
     RangeChangedError,
     PendingEditChangedError,
@@ -771,6 +773,7 @@ class DocumentSyncService:
         # History moves must name the head they saw; a payload without it is refused here
         # (ValueError), never applied as an unguarded "undo the latest".
         if command.type in {
+            "RestoreClipBleed",
             "ApproveEdits",
             "RejectEdits",
             "ApplySuggestedActions",

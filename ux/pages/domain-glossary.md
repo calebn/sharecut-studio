@@ -319,3 +319,16 @@ Size steps start at the visible panel height and stop at the available bounds.
 A temporary banner or root-text change preserves the saved preference. The next
 size request can clamp by more than 1 rem if that preference exceeds the fresh
 bounds.
+
+## Automatic reduction and occurrence Restore
+
+**Automatic reduction** shows the reductions affecting one occurrence of a
+recording. A region can be listed even when its plan or rendered audio is stale;
+those are separate facts. **Restore original audio** saves a host choice to
+bypass the selected automatic reduction in this occurrence. Ordinary mutes,
+ignored words and other occurrences keep their own choices.
+
+**Refresh regions** checks the current occurrence and clears the previous region
+selection. **Undo Restore** reverses the acknowledged Restore action only while
+its exact History head is current. Replacing recording bytes deactivates the old
+saved choice until the host inspects and chooses the new recording explicitly.
