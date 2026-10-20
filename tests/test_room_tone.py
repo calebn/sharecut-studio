@@ -11,7 +11,7 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
-from podcast_mcp.edits.cut_safety import CutScopeHold
+from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (

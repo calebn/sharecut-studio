@@ -10,8 +10,8 @@ import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits import cut_policy, cut_safety
-from podcast_mcp.edits.cut_safety import CutScopeHold
+from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
+from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
@@ -290,7 +290,7 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
         p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
     } == files
     monkeypatch.setattr(
-        cut_safety,
+        cut_effects if predicate == "receipts" else cut_safety,
         f"complete_effect_{'receipts' if predicate == 'receipts' else 'placement'}",
         lambda *args, **kwargs: [] if predicate == "receipts" else None,
     )
@@ -564,7 +564,7 @@ def test_unrelated_recording_mute_does_not_qualify_an_effect(tmp_path):
     candidate.clips[0].source_start = 1.3
     candidate.clips[0].timeline_start = 6.55
     candidate.clips[0].fade_in_ms = 10
-    effects = cut_safety.completed_audio_effects(
+    effects = cut_effects.completed_audio_effects(
         project, candidate, frozenset({"remove"}), defaults={}
     )
     assert effects
@@ -608,7 +608,7 @@ def test_completed_effects_bind_repeated_physical_occurrences(tmp_path, aliased)
     candidate = project.model_copy(deep=True)
     candidate.clips[1].source_start = 1.3
     candidate.clips[1].fade_in_ms = 10
-    effects = cut_safety.completed_audio_effects(
+    effects = cut_effects.completed_audio_effects(
         project, candidate, frozenset({"remove"}), defaults={}
     )
     assert effects
@@ -629,7 +629,7 @@ def test_completed_effects_bind_repeated_physical_occurrences(tmp_path, aliased)
     if not aliased:
         candidate.clips[1].id = "unattributed-split"
         with pytest.raises(ValueError, match="ambiguous BEFORE"):
-            cut_safety.completed_audio_effects(
+            cut_effects.completed_audio_effects(
                 project, candidate, frozenset({"remove"}), defaults={}
             )
     candidate = project.model_copy(deep=True)
@@ -638,7 +638,7 @@ def test_completed_effects_bind_repeated_physical_occurrences(tmp_path, aliased)
     )
     if aliased:
         with pytest.raises(ValueError, match="duplicated BEFORE"):
-            cut_safety.completed_audio_effects(
+            cut_effects.completed_audio_effects(
                 project, candidate, frozenset({"remove"}), defaults={}
             )
 
@@ -661,7 +661,7 @@ def test_pause_join_quality_uses_selected_physical_recording(tmp_path, monkeypat
         ripple_remove_clips(
             changed, [(1, 2)], ripple_track_ids(selected, ["host"]), defaults=load_defaults()
         )
-        pause_effects = cut_safety.completed_audio_effects(
+        pause_effects = cut_effects.completed_audio_effects(
             selected, changed, frozenset({pause.id}), defaults={}
         )
         calls = []
@@ -953,22 +953,18 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
                 "complete_effect_receipts",
             }
         )
-    assert sorted(definitions) == [
-        (name, "cut_safety.py")
-        for name in sorted(
-            {
-                "inspect_source_remove_placement",
-                "protect_cut_breaths",
-                "assess_cross_track_speech",
-                "assess_proposed_cut",
-                "original_pause_support",
-                "complete_effect_acoustics",
-                "_peer_policy",
-                "complete_effect_placement",
-                "complete_effect_receipts",
-            }
-        )
-    ]
+    owners = {
+        "inspect_source_remove_placement": "cut_placement.py",
+        "original_pause_support": "cut_placement.py",
+        "complete_effect_receipts": "cut_effects.py",
+        "protect_cut_breaths": "cut_safety.py",
+        "assess_cross_track_speech": "cut_safety.py",
+        "assess_proposed_cut": "cut_safety.py",
+        "complete_effect_acoustics": "cut_safety.py",
+        "_peer_policy": "cut_safety.py",
+        "complete_effect_placement": "cut_safety.py",
+    }
+    assert sorted(definitions) == sorted(owners.items())
 
     project = EpisodeProject.create("pure source removal", "/tmp/fix1508-pure")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
@@ -985,8 +981,8 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
     )
     remove = mute.model_copy(update={"id": "remove", "type": EditDecisionType.REMOVE})
 
-    assert cut_safety.inspect_source_remove_placement(project, mute) == (1, 2)
-    assert cut_safety.inspect_source_remove_placement(project, remove) == (1, 2)
+    assert cut_placement.inspect_source_remove_placement(project, mute) == (1, 2)
+    assert cut_placement.inspect_source_remove_placement(project, remove) == (1, 2)
 
 
 def _replay(project: EpisodeProject) -> None:
@@ -1010,7 +1006,7 @@ def test_saved_ordinary_remove_refuses_replayed_source(tmp_path: Path, reason: s
 
     ws.mutate("before replay", "after replay", setup)
     assert isinstance(
-        cut_safety.inspect_source_remove_placement(ws.project, ws.project.edit_decisions[0]),
+        cut_placement.inspect_source_remove_placement(ws.project, ws.project.edit_decisions[0]),
         CutScopeHold,
     )
     before = ws.path.read_bytes()
@@ -1089,7 +1085,8 @@ def test_pause_proposal_after_hole_drops_crossing_span_and_keeps_safe_control(tm
     proposal = propose_tighten_edits(ws.project, cfg, intensity="aggressive")
     assert proposal.decisions == []
     assert proposal.skip_counts.get("no_air") == 1
-    from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
+    from podcast_mcp.edits.cut_placement import CutScopeHold
+    from podcast_mcp.edits.cut_safety import inspect_source_remove
 
     crossing = _cut("crossing", reason="pause:4.80s")
     crossing.start, crossing.end = 0.2, 4.7
@@ -1519,7 +1516,7 @@ def test_auto_restart_excludes_speech_chosen_only_by_freshly_held_punch(
 
     ws.mutate("before auto", "after auto", setup)
     before = [(c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips]
-    assert cut_safety.inspect_source_remove_placement(ws.project, punch) == (1, 2)
+    assert cut_placement.inspect_source_remove_placement(ws.project, punch) == (1, 2)
 
     punch.source_timeline_span = RangeInterval(start=2, end=3)
     ws.mutate(

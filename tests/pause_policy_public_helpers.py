@@ -200,8 +200,8 @@ def primary_spans(result: EpisodeProject, tid="host"):
 
 
 def prepare_pause(result, request, cfg, *, next_word=5):
+    from podcast_mcp.edits.cut_placement import CutRejected
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches
-    from podcast_mcp.edits.cut_safety import CutRejected
     from podcast_mcp.edits.tighten.apply import _decision_for_analyzed
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits.cut_safety import CutScopeHold
+from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import EditDecisionType, load_project, save_project
 from podcast_mcp.project.store import history_index_path, history_snapshot_ids

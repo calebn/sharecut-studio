@@ -8,7 +8,8 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
-from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
+from podcast_mcp.edits.cut_placement import CutRejected
+from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import (
     FillerPacingResult,
     PacedPad,
@@ -285,7 +286,7 @@ def test_room_tone_expand_falls_back_when_gap_huge():
 
 @pytest.mark.parametrize("pad_mode", ["silence", "room_tone"])
 def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_mode):
-    from podcast_mcp.edits import cut_application, cut_safety
+    from podcast_mcp.edits import cut_application, cut_effects
     from podcast_mcp.edits.clips_ops import split_clip_at
     from podcast_mcp.edits.cut_application import apply_auto_edits
     from podcast_mcp.edits.timeline_ops import RoomTonePad
@@ -374,10 +375,10 @@ def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_
         for clip in project.clips:
             if clip.timeline_start >= tile.timeline_start:
                 clip.timeline_start += 0.1
-        effect = cut_safety.PadEffect(
+        effect = cut_effects.PadEffect(
             "f1", RoomTonePad(tile.timeline_start, 0.28, ()), frozenset({tile.id})
         )
-        cut_safety.native_pad_origins()[tile.id] = effect
+        cut_effects.native_pad_origins()[tile.id] = effect
         first, second = split_clip_at(tile, tile.timeline_start + 0.14, defaults=load_defaults())
         project.clips.remove(tile)
         project.clips.extend((first, second))
@@ -401,14 +402,14 @@ def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_
         assert second.fade_in_ms == 10
 
     with batch_scope():
-        assert cut_safety.native_pad_origins() == {}
+        assert cut_effects.native_pad_origins() == {}
         ordinary = _project([], duration=3.0)
         ordinary.clips = [
             Clip(id="left", track_id="host", source_start=0, source_end=1, timeline_start=0),
             Clip(id="right", track_id="host", source_start=2, source_end=3, timeline_start=1),
         ]
         ordinary.edit_decisions = []
-        cut_safety.native_pad_origins()["discarded-pad"] = effect
+        cut_effects.native_pad_origins()["discarded-pad"] = effect
         result = cut_application._write_join_fades(
             ordinary,
             [

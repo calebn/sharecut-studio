@@ -10,7 +10,7 @@ from podcast_mcp.edits.acoustic_gap import (
     AcousticGapConfig,
 )
 from podcast_mcp.edits.audio_cache import build_track_audio_caches
-from podcast_mcp.edits.cut_safety import CutRejected
+from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.filler_pacing import (
     pause_trim_is_imperceptible,
 )
@@ -118,7 +118,8 @@ def _resolve_analyzed_cuts(
             _count_skip(skip_counts, "same_hit")
             result = None
         if result is not None and project is not None and result.decision_type == "remove":
-            from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
+            from podcast_mcp.edits.cut_placement import CutScopeHold
+            from podcast_mcp.edits.cut_safety import inspect_source_remove
 
             assessed = inspect_source_remove(
                 project,

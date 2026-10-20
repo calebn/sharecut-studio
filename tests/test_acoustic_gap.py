@@ -21,7 +21,7 @@ from podcast_mcp.edits.acoustic_laugh import burst_count, has_laugh_bursts
 from podcast_mcp.edits.acoustic_word import flag_possible_words, heard_a_word
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audition_context import _build_hypotheses
-from podcast_mcp.edits.cut_safety import CutRejected
+from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.tighten import (
     acoustic_scan,
     analyze_fillers_and_pauses,

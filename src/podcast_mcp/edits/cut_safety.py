@@ -5,8 +5,6 @@ import math
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from functools import partial
-from itertools import pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
@@ -27,6 +25,18 @@ from podcast_mcp.edits.breath_detect import (
     _read_evidence,
     _UncertainEdge,
 )
+from podcast_mcp.edits.cut_effects import (
+    CutAudioEffect,
+    PadEffect,
+    pause_edge_clips,
+)
+from podcast_mcp.edits.cut_placement import (
+    SOURCE_GEOMETRY_TOLERANCE_SEC,
+    CutRejected,
+    CutScopeHold,
+    inspect_source_remove_placement,
+    original_pause_support,
+)
 from podcast_mcp.edits.cut_policy import (
     CUT_EDGE_CHECKS,
     SAFETY_LABELS,
@@ -40,10 +50,9 @@ from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SourceExtent
 from podcast_mcp.edits.filler_pacing import pause_trim_is_imperceptible
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.join_continuity import JoinContinuityConfig, JoinContinuityReport
-from podcast_mcp.edits.mute_regions import IgnoredWordRegions
 from podcast_mcp.edits.pause_floor import retained_pause_floor_sec
-from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
-from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
+from podcast_mcp.edits.ripple import RippleRemoval
+from podcast_mcp.edits.session_air import GeometricPause
 from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
@@ -56,19 +65,12 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_sec_inside,
 )
 from podcast_mcp.edits.word_onset import edge_decays_into_valley, next_kept_word
-from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC, LevelProfile, level_profile
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    TimelineClipSpan,
-    clip_plays_lane,
-    clip_timeline_overlap_to_source,
-    origin_track_id_for_clip,
 )
 from podcast_mcp.models import (
-    AppliedEditRecord,
-    Clip,
     CutIntent,
     CutSpeech,
     EditDecision,
@@ -77,7 +79,6 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.util.batch_scope import scoped, scoped_by_file
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
@@ -85,14 +86,9 @@ from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
-    from podcast_mcp.edits.timeline_ops import LaneUnavailable, PauseEdgeFade, RoomTonePad
+    from podcast_mcp.edits.timeline_ops import PauseEdgeFade
 
 log = logging.getLogger(__name__)
-_SOURCE_GEOMETRY_TOLERANCE_SEC = 1e-6
-
-
-class DuplicateSourceOccurrence(ValueError):
-    """A completed edit reused or replayed one source occurrence."""
 
 
 def protect_cut_breaths(
@@ -214,457 +210,6 @@ def protect_cut_edges(
         word_index=word_index,
         strict=action is BreathEdgeAction.PROTECT,
     )
-
-
-def pending_pad_source_spans(
-    project: EpisodeProject, besides: EditDecision
-) -> dict[str, list[tuple[float, float]]]:
-    timeline = SessionTimeline(project)
-    spans: dict[str, list[tuple[float, float]]] = {}
-    for other in project.edit_decisions:
-        if (
-            other.id == besides.id
-            or other.applied
-            or other.exact_range is not None
-            or other.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
-            or not timeline.map_source_span(
-                other.track_id, SourceSec(other.start), SourceSec(other.end)
-            )
-        ):
-            continue
-        spans.setdefault(other.track_id, []).append((other.start, other.end))
-    return spans
-
-
-@dataclass(frozen=True)
-class CutScopeHold:
-    edit_id: str
-    peers: tuple[str, ...]
-    reason: Literal[
-        "peer_speech",
-        "source_geometry",
-        "stored_track_pause",
-        "speaker_bleed",
-        "scope_unavailable",
-        "pause_not_shorter",
-        "pause_imperceptible",
-        "media_extent_unavailable",
-        "operation_scope",
-        "pause_air",
-        "pause_join",
-        "acoustic_edge",
-    ] = "peer_speech"
-    unavailable_lanes: tuple[LaneUnavailable, ...] = ()
-    detail: str | None = None
-
-
-def source_remove_lanes(
-    project: EpisodeProject,
-    timeline: SessionTimeline,
-    edit: EditDecision,
-    start: TimelineSec,
-    end: TimelineSec,
-) -> frozenset[str]:
-    if edit.source_timeline_span is not None:
-        source_ids = project.equivalent_source_ids(edit.track_id, edit.source_id)
-        selected = frozenset(
-            clip.track_id
-            for clip in project.clips
-            if clip.source_id in source_ids
-            and clip_plays_lane(project, clip, edit.track_id)
-            and min(float(end), clip.timeline_end) > max(float(start), clip.timeline_start) + 1e-9
-        )
-        if selected:
-            return selected
-    return timeline.origin_placement_lanes(edit.track_id, start, end)
-
-
-def inspect_source_remove_placement(
-    project: EpisodeProject, edit: EditDecision, *, check_witness: bool = True
-) -> tuple[TimelineSec, TimelineSec] | CutScopeHold:
-    if (
-        edit.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
-        or edit.exact_range is not None
-        or edit.timebase != "source"
-    ):
-        raise CodedValueError(
-            "ordinary source remove or mute required. Use a remove or mute edit.",
-            code="edit_type_invalid",
-        )
-    if not (math.isfinite(edit.start) and math.isfinite(edit.end) and 0 <= edit.start < edit.end):
-        return CutScopeHold(edit.id, (), "source_geometry")
-    pause = edit.type == EditDecisionType.REMOVE and (edit.reason or "").startswith("pause:")
-    if pause and edit.scope == "track":
-        return CutScopeHold(edit.id, (), "stored_track_pause")
-    timeline = SessionTimeline(project)
-    span: tuple[TimelineSec, TimelineSec] | None
-    if edit.source_timeline_span is not None:
-        lane_clips = [c for c in project.clips if clip_plays_lane(project, c, edit.track_id)]
-        if lane_clips:
-            spans = timeline.map_placements_source_span(
-                edit.track_id,
-                project.equivalent_source_ids(edit.track_id, edit.source_id),
-                SourceSec(edit.start),
-                SourceSec(edit.end),
-            )
-        elif None in project.equivalent_source_ids(edit.track_id, edit.source_id):
-            spans = timeline.map_source_span(
-                edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
-            )
-        else:
-            spans = []
-        expected = edit.source_timeline_span
-        if (
-            len(spans) != 1
-            or abs(float(spans[0][1] - spans[0][0]) - (edit.end - edit.start)) > 1e-6
-            or (
-                check_witness
-                and expected is not None
-                and (
-                    abs(float(spans[0][0]) - expected.start) > 1e-6
-                    or abs(float(spans[0][1]) - expected.end) > 1e-6
-                )
-            )
-        ):
-            return CutScopeHold(edit.id, (), "source_geometry")
-        span = (
-            (TimelineSec(expected.start), TimelineSec(expected.end))
-            if check_witness and expected is not None
-            else (spans[0][0], spans[0][1])
-        )
-        if _witnessed_source_span_has_unsafe_overlap(project, edit, *span):
-            return CutScopeHold(edit.id, (), "source_geometry")
-    else:
-        if edit.source_id is not None:
-            return CutScopeHold(edit.id, (), "source_geometry")
-        span = timeline.exact_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
-    if span is None:
-        track = project.track_by_id(edit.track_id)
-        if (
-            track
-            and track.media
-            and not track.timeline_empty
-            and not any(
-                c.track_id == edit.track_id or origin_track_id_for_clip(project, c) == edit.track_id
-                for c in project.clips
-            )
-            and (track.media.duration_sec is None or not math.isfinite(track.media.duration_sec))
-        ):
-            return CutScopeHold(edit.id, (), "media_extent_unavailable")
-        return CutScopeHold(edit.id, (), "source_geometry")
-    lanes = source_remove_lanes(project, timeline, edit, *span)
-    allowed = (
-        {edit.track_id}
-        if edit.scope == "track" or edit.type == EditDecisionType.MUTE
-        else set(ripple_track_ids(project, [edit.track_id]))
-    )
-    if not lanes or not lanes <= allowed:
-        return CutScopeHold(
-            edit.id, (), "source_geometry" if edit.scope == "track" else "operation_scope"
-        )
-    return span
-
-
-def _witnessed_source_span_has_unsafe_overlap(
-    project: EpisodeProject,
-    edit: EditDecision,
-    start: TimelineSec,
-    end: TimelineSec,
-) -> bool:
-    source_ids = project.equivalent_source_ids(edit.track_id, edit.source_id)
-    lo_window, hi_window = float(start), float(end)
-    selected_pieces = []
-    for clip in project.clips:
-        lo = max(lo_window, clip.timeline_start)
-        hi = min(hi_window, clip.timeline_end)
-        if (
-            hi <= lo + _SOURCE_GEOMETRY_TOLERANCE_SEC
-            or clip.source_id not in source_ids
-            or not clip_plays_lane(project, clip, edit.track_id)
-        ):
-            continue
-        selected_pieces.append((clip, lo, hi))
-
-    selected_lanes = {clip.track_id for clip, _, _ in selected_pieces}
-    protected_lanes = selected_lanes | {edit.track_id}
-    for clip in project.clips:
-        if clip.track_id not in protected_lanes:
-            continue
-        lo = max(lo_window, clip.timeline_start)
-        hi = min(hi_window, clip.timeline_end)
-        if hi <= lo + _SOURCE_GEOMETRY_TOLERANCE_SEC:
-            continue
-        if clip.source_id not in source_ids or not clip_plays_lane(project, clip, edit.track_id):
-            return True
-        expected_lo = edit.start + (lo - lo_window)
-        expected_hi = edit.start + (hi - lo_window)
-        actual = clip_timeline_overlap_to_source(clip, lo, hi)
-        if actual is None:
-            return True
-        actual_lo, actual_hi = actual
-        if (
-            abs(actual_lo - expected_lo) > _SOURCE_GEOMETRY_TOLERANCE_SEC
-            or abs(actual_hi - expected_hi) > _SOURCE_GEOMETRY_TOLERANCE_SEC
-        ):
-            return True
-
-    if not selected_pieces:
-        return False
-    boundaries = sorted(
-        {
-            lo_window,
-            hi_window,
-            *(lo for _, lo, _ in selected_pieces),
-            *(hi for _, _, hi in selected_pieces),
-        }
-    )
-    for left, right in pairwise(boundaries):
-        if right <= left + _SOURCE_GEOMETRY_TOLERANCE_SEC:
-            continue
-        covering = [
-            clip
-            for clip, lo, hi in selected_pieces
-            if lo <= left + _SOURCE_GEOMETRY_TOLERANCE_SEC
-            and hi >= right - _SOURCE_GEOMETRY_TOLERANCE_SEC
-        ]
-        if len(covering) != 1:
-            return True
-    return False
-
-
-@dataclass(frozen=True)
-class CutRejected:
-    """A candidate analysis refused, counted as ``skip`` in the proposal's skip counts."""
-
-    skip: str
-    unavailable_lanes: tuple[LaneUnavailable, ...] = ()
-
-
-@dataclass(frozen=True)
-class OriginalQuietSupport:
-    pieces: tuple[TimelineClipSpan, ...]
-
-    @property
-    def seconds(self) -> float:
-        return sum(
-            hi - lo
-            for lo, hi in merge_intervals(
-                (float(piece.source_start), float(piece.source_end)) for piece in self.pieces
-            )
-        )
-
-
-def _inside_known_pad(clip: Clip, pads: Sequence[tuple[float, float]]) -> bool:
-    """Whether a clip is a tile cut from a recorded pad's samples, not original audio.
-
-    A copy of samples is not the audio it copies, so the original clip that those samples
-    came from stays original quiet.
-    """
-    return any(
-        lo - _SOURCE_GEOMETRY_TOLERANCE_SEC <= clip.source_start
-        and clip.source_end <= hi + _SOURCE_GEOMETRY_TOLERANCE_SEC
-        for lo, hi in pads
-    )
-
-
-def original_pause_support(
-    project: EpisodeProject,
-    track_id: str,
-    words: tuple[TranscriptWord, TranscriptWord],
-    observation: GeometricPause | MeasuredPause,
-) -> OriginalQuietSupport | CutRejected:
-    from podcast_mcp.edits.clips_ops import uses_crossfade_join
-    from podcast_mcp.edits.ripple import ripple_track_ids
-    from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_media import full_span_clip
-    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
-    from podcast_mcp.util.coded_error import CodedError
-    from podcast_mcp.util.tracks import recording_audio_path
-    from podcast_mcp.util.workspace_paths import resolve_under_workspace
-
-    timeline = SessionTimeline(project)
-    before, after = words
-    before_span = timeline.exact_source_span(
-        track_id, SourceSec(before.start), SourceSec(before.end)
-    )
-    after_span = timeline.exact_source_span(track_id, SourceSec(after.start), SourceSec(after.end))
-    if before_span is None or after_span is None or before_span[1] > after_span[0]:
-        return CutRejected("source_geometry")
-    origin = project.track_by_id(track_id)
-    if origin is None or origin.media is None:
-        return CutRejected("source_geometry")
-    try:
-        media = resolve_under_workspace(project, origin.media.path).resolve()
-    except (CodedError, OSError, ValueError):
-        return CutRejected("source_geometry")
-    images = []
-    for track in project.tracks:
-        lane = timeline.lane_clip_spans(track.id)
-        if not lane and (
-            not track.timeline_empty
-            and track.media is not None
-            and track.media.duration_sec is not None
-            and math.isfinite(track.media.duration_sec)
-        ):
-            clip = full_span_clip(track.id, track.media.duration_sec)
-            lane = [
-                TimelineClipSpan(
-                    TimelineSec(0),
-                    TimelineSec(track.media.duration_sec),
-                    SourceSec(0),
-                    SourceSec(track.media.duration_sec),
-                    clip,
-                )
-            ]
-        images.extend(lane)
-    same_media = []
-    for image in images:
-        clip = image.clip
-        clip_track = project.track_by_id(clip.track_id)
-        if clip_track is None:
-            continue
-        try:
-            if same_recording(resolve_clip_audio_path(project, clip_track, clip), media):
-                same_media.append(image)
-        except (CodedError, OSError, ValueError):
-            continue
-    for track in project.tracks:
-        bed_source = project.source_by_id(room_tone_source_id(track.id))
-        if track.room_tone is not None and bed_source is not None:
-            try:
-                if same_recording(resolve_under_workspace(project, bed_source.path), media):
-                    return OriginalQuietSupport(())
-            except (CodedError, OSError, ValueError):
-                continue
-    known_pads: list[tuple[float, float]] = []
-    for record in project.editorial.edit_log:
-        gap = record.params.get("replace_gap_sec")
-        pad_purpose = record.operation in {"fill_with_room_tone", "insert_room_tone_pad"} or (
-            isinstance(gap, (int, float))
-            and not isinstance(gap, bool)
-            and math.isfinite(gap)
-            and gap > 0
-            and record.params.get("mute") is not True
-        )
-        if "pad_samples" not in record.params:
-            if pad_purpose:
-                return CutRejected("source_geometry")
-            continue
-        samples = record.params["pad_samples"]
-        if not isinstance(samples, (list, tuple)):
-            return CutRejected("source_geometry")
-        for sample in samples:
-            if (
-                not isinstance(sample, dict)
-                or not isinstance(sample.get("track_id"), str)
-                or not sample["track_id"]
-                or "source_id" not in sample
-                or (
-                    sample["source_id"] is not None
-                    and (not isinstance(sample["source_id"], str) or not sample["source_id"])
-                )
-            ):
-                return CutRejected("source_geometry")
-            try:
-                referenced = recording_audio_path(
-                    project, sample["track_id"], sample["source_id"]
-                ).resolve(strict=True)
-            except (CodedError, OSError, ValueError):
-                return CutRejected("source_geometry")
-            if not same_recording(referenced, media):
-                continue
-            lo, hi = sample.get("source_start"), sample.get("source_end")
-            if (
-                not isinstance(lo, (int, float))
-                or isinstance(lo, bool)
-                or not isinstance(hi, (int, float))
-                or isinstance(hi, bool)
-                or not math.isfinite(lo)
-                or not math.isfinite(hi)
-                or lo < 0
-                or hi <= lo
-            ):
-                return CutRejected("source_geometry")
-            known_pads.append((lo, hi))
-    allowed = set(ripple_track_ids(project, [track_id]))
-    ignored = IgnoredWordRegions(project)
-    pieces = []
-    cursor = float(before_span[1])
-    for placement in sorted(
-        timeline.map_timeline_spans(track_id, before_span[1], after_span[0]),
-        key=lambda piece: piece.timeline_start,
-    ):
-        if abs(float(placement.timeline_start) - cursor) > 1e-6:
-            return CutRejected("source_geometry")
-        cursor = float(placement.timeline_end)
-        matches = [
-            image
-            for image in same_media
-            if image.source_start <= placement.source_start + 1e-6
-            and image.source_end >= placement.source_end - 1e-6
-            and image.timeline_start <= placement.timeline_start + 1e-6
-            and image.timeline_end >= placement.timeline_end - 1e-6
-        ]
-        if len(matches) != 1 or matches[0].clip.track_id not in allowed:
-            continue
-        clip = matches[0].clip
-        if _inside_known_pad(clip, known_pads):
-            continue
-        clip_track = project.track_by_id(clip.track_id)
-        lane_clips = sorted(
-            (image.clip for image in images if image.clip.track_id == clip.track_id),
-            key=lambda c: c.timeline_start,
-        )
-        at = lane_clips.index(clip)
-        if (
-            clip_track is None
-            or clip_track.muted
-            or clip_track.transcript_gate
-            or (
-                (at > 0 and uses_crossfade_join(lane_clips[at - 1], clip))
-                or (at + 1 < len(lane_clips) and uses_crossfade_join(clip, lane_clips[at + 1]))
-            )
-        ):
-            continue
-        duplicated = [
-            (float(other.source_start), float(other.source_end))
-            for other in same_media
-            if other.clip is not clip and not _inside_known_pad(other.clip, known_pads)
-        ]
-        excluded = [
-            (region.start_s, region.end_s)
-            for region in [
-                *clip.mute_regions,
-                *clip.off_speaker_mute_regions,
-                *ignored.for_clip(clip),
-            ]
-        ] + duplicated
-        for lo, hi in subtract_intervals(
-            [
-                (
-                    max(before.end, float(placement.source_start)),
-                    min(after.start, float(placement.source_end)),
-                )
-            ],
-            excluded,
-        ):
-            shift = float(placement.timeline_start) - float(placement.source_start)
-            for quiet_lo, quiet_hi in subtract_intervals(
-                [(lo + shift, hi + shift)],
-                [(sound.lo, sound.hi) for sound in observation.activity],
-            ):
-                pieces.append(
-                    TimelineClipSpan(
-                        TimelineSec(quiet_lo),
-                        TimelineSec(quiet_hi),
-                        SourceSec(quiet_lo - shift),
-                        SourceSec(quiet_hi - shift),
-                        clip,
-                    )
-                )
-    if abs(cursor - float(after_span[0])) > 1e-6:
-        return CutRejected("source_geometry")
-    return OriginalQuietSupport(tuple(pieces))
 
 
 def assess_cross_track_speech(
@@ -1002,274 +547,6 @@ class HeldAcoustics:
         return bool(self.flags)
 
 
-@dataclass(frozen=True)
-class CutAudioEffect:
-    track_id: str
-    source_id: str | None
-    recording: Path
-    start: float
-    end: float
-    join: CutJoin
-    contributors: frozenset[str]
-    retained: bool = False
-    envelope: GainRamp | MuteSampleEnvelope | None = None
-    timeline_start: float = 0.0
-    before: PlacedSource | None = None
-
-
-def completed_audio_effects(
-    before: EpisodeProject,
-    candidate: EpisodeProject,
-    contributors: frozenset[str],
-    *,
-    defaults: dict,
-    contributors_by_clip: Mapping[str, frozenset[str]] | None = None,
-    introduced_clips: frozenset[str] = frozenset(),
-) -> tuple[CutAudioEffect, ...]:
-    from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.edits.track_media import full_span_clip
-    from podcast_mcp.engines.audio import placed_sources
-    from podcast_mcp.engines.timeline_render import placed_track_audio
-
-    effects: list[CutAudioEffect] = []
-    curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
-    for track in candidate.tracks:
-        if track == before.track_by_id(track.id) and clips_for_track(
-            before, track.id
-        ) == clips_for_track(candidate, track.id):
-            continue
-        clip_sets = []
-        for project in (before, candidate):
-            clips = clips_for_track(project, track.id)
-            lane = project.track_by_id(track.id)
-            if (
-                not clips
-                and lane
-                and not lane.timeline_empty
-                and lane.media
-                and lane.media.duration_sec
-            ):
-                clips = [full_span_clip(track.id, lane.media.duration_sec)]
-            clip_sets.append(clips)
-        old_clips, new_clips = clip_sets
-        if old_clips == new_clips:
-            continue
-        graphs = []
-        for project, clips in ((before, old_clips), (candidate, new_clips)):
-            graphs.append(
-                placed_sources(
-                    placed_track_audio(project, track, clips).audio,
-                    crossfade_curve=curve,
-                )
-                if clips
-                else []
-            )
-        old, new = graphs
-        bindings = _before_occurrences(old, new, introduced_clips)
-
-        def append(
-            leaf: PlacedSource,
-            start: float,
-            end: float,
-            join: CutJoin,
-            retained: bool = False,
-            envelope: GainRamp | MuteSampleEnvelope | None = None,
-            track_id: str = track.id,
-            before_leaf: PlacedSource | None = None,
-        ) -> None:
-            source = leaf.source
-            ids = (contributors_by_clip or {}).get(source.clip_id or "", contributors)
-            effects.append(
-                CutAudioEffect(
-                    track_id,
-                    source.source_id,
-                    source.path.resolve(),
-                    start,
-                    end,
-                    join,
-                    ids,
-                    retained,
-                    envelope,
-                    leaf.timeline_start + start - source.src_start,
-                    before_leaf
-                    if before_leaf is not None
-                    and before_leaf.source.src_start <= start + _SOURCE_GEOMETRY_TOLERANCE_SEC
-                    and before_leaf.source.src_end >= end - _SOURCE_GEOMETRY_TOLERANCE_SEC
-                    else None,
-                )
-            )
-
-        def envelopes(
-            leaf: PlacedSource,
-        ) -> list[tuple[float, float, CutJoin, bool, GainRamp | MuteSampleEnvelope | None]]:
-            source = leaf.source
-            result: list[
-                tuple[float, float, CutJoin, bool, GainRamp | MuteSampleEnvelope | None]
-            ] = [
-                (source.src_start, source.src_start, CutJoin.SPLICE, False, None),
-                (source.src_end, source.src_end, CutJoin.SPLICE, False, None),
-            ]
-            for ramp in leaf.ramps:
-                local = replace(
-                    ramp,
-                    start=max(
-                        source.src_start, source.src_start + ramp.start - leaf.timeline_start
-                    ),
-                    end=min(source.src_end, source.src_start + ramp.end - leaf.timeline_start),
-                )
-                result.append((local.start, local.end, CutJoin.SPLICE, True, local))
-            if source.mute_spans:
-                from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
-                rate = scoped_by_file(
-                    "complete_effect_probe",
-                    source.path,
-                    None,
-                    partial(FFmpegEngine().probe, source.path),
-                ).sample_rate
-                for mute in source.mute_spans:
-                    samples = mute.samples(rate, source_start=source.src_start)
-                    result.append(
-                        (
-                            max(source.src_start, samples.first / rate),
-                            min(source.src_end, samples.last / rate),
-                            CutJoin.MUTE,
-                            False,
-                            samples,
-                        )
-                    )
-                    if samples.fade_out + samples.fade_in <= samples.last - samples.first:
-                        for first, last in (
-                            (samples.first, samples.first + samples.fade_out),
-                            (samples.last - samples.fade_in, samples.last),
-                        ):
-                            lo, hi = (
-                                max(source.src_start, first / rate),
-                                min(source.src_end, last / rate),
-                            )
-                            if lo < hi:
-                                result.append((lo, hi, CutJoin.MUTE, True, samples))
-            return result
-
-        for leaf, binding in zip(new, bindings, strict=True):
-            previous = envelopes(old[binding]) if binding is not None else []
-            for start, end, join, retained, envelope in envelopes(leaf):
-                if not any(
-                    prior_start <= start
-                    and end <= prior_end
-                    and (join, retained, envelope) == (prior_join, prior_retained, prior_envelope)
-                    for prior_start, prior_end, prior_join, prior_retained, prior_envelope in previous
-                ):
-                    append(
-                        leaf,
-                        start,
-                        end,
-                        join,
-                        retained,
-                        envelope,
-                        before_leaf=old[binding] if binding is not None else None,
-                    )
-        for index, leaf in enumerate(old):
-            surviving = [
-                (n.source.src_start, n.source.src_end)
-                for n, binding in zip(new, bindings, strict=True)
-                if binding == index
-            ]
-            for start, end in subtract_intervals(
-                [(leaf.source.src_start, leaf.source.src_end)], surviving
-            ):
-                append(leaf, start, end, CutJoin.SPLICE, before_leaf=leaf)
-    return tuple(effects)
-
-
-def _before_occurrences(
-    old: Sequence[PlacedSource],
-    new: Sequence[PlacedSource],
-    introduced_clips: frozenset[str],
-) -> list[int | None]:
-    """Bind each surviving renderer leaf without conflating repeated source plays."""
-    from podcast_mcp.edits.clips_ops import clip_split_origin
-
-    before_ids = {leaf.source.clip_id for leaf in old}
-    bindings: list[int | None] = [None] * len(new)
-    for position in sorted(range(len(new)), key=lambda i: new[i].source.is_fill):
-        leaf = new[position]
-        source = leaf.source
-        if source.clip_id in introduced_clips:
-            continue
-        qualified = [
-            index
-            for index, previous in enumerate(old)
-            if previous.source.source_id == source.source_id
-            and previous.source.is_fill == source.is_fill
-            and same_recording(previous.source.path, source.path)
-        ]
-        origin = clip_split_origin(source.clip_id, before_ids)
-        containing = [
-            i
-            for i in qualified
-            if old[i].source.src_start <= source.src_start + _SOURCE_GEOMETRY_TOLERANCE_SEC
-            and old[i].source.src_end >= source.src_end - _SOURCE_GEOMETRY_TOLERANCE_SEC
-        ]
-        if not containing and not source.is_fill:
-            # A trim that extends a clip's edge keeps all of the clip's old audio inside the new
-            # leaf; that old leaf is the one this leaf continues, not a removal.
-            containing = [
-                i
-                for i in qualified
-                if old[i].source.clip_id == source.clip_id
-                and source.src_start <= old[i].source.src_start + _SOURCE_GEOMETRY_TOLERANCE_SEC
-                and source.src_end >= old[i].source.src_end - _SOURCE_GEOMETRY_TOLERANCE_SEC
-            ]
-        matches = (
-            [i for i in containing if old[i].source.clip_id == origin]
-            if origin in before_ids
-            else containing
-        )
-        if source.is_fill:
-            parents = [
-                (n, old[binding])
-                for n, binding in zip(new, bindings, strict=True)
-                if not n.source.is_fill
-                and n.source.clip_id == source.clip_id
-                and binding is not None
-            ]
-            matches = [
-                i
-                for i in matches
-                if any(
-                    old[i].source.clip_id == prior.source.clip_id
-                    and abs(
-                        old[i].timeline_start
-                        - old[i].source.src_start
-                        - leaf.timeline_start
-                        + source.src_start
-                        - prior.timeline_start
-                        + prior.source.src_start
-                        + parent.timeline_start
-                        - parent.source.src_start
-                    )
-                    <= _SOURCE_GEOMETRY_TOLERANCE_SEC
-                    for parent, prior in parents
-                )
-            ]
-        if len(matches) > 1:
-            raise DuplicateSourceOccurrence("ambiguous BEFORE source occurrence")
-        if matches:
-            bindings[position] = matches[0]
-    for i, binding in enumerate(bindings):
-        if binding is None:
-            continue
-        if any(
-            other_binding == binding
-            and min(new[i].source.src_end, other.source.src_end)
-            > max(new[i].source.src_start, other.source.src_start) + _SOURCE_GEOMETRY_TOLERANCE_SEC
-            for other, other_binding in zip(new[:i], bindings[:i], strict=True)
-        ):
-            raise DuplicateSourceOccurrence("duplicated BEFORE source occurrence")
-    return bindings
-
-
 def complete_effect_acoustics(
     project: EpisodeProject,
     effects: Sequence[CutAudioEffect],
@@ -1338,7 +615,7 @@ def complete_effect_acoustics(
                     offset = effect.before.timeline_start - effect.before.source.src_start
                     if not any(
                         track_id == effect.track_id
-                        and abs(existing_offset - offset) <= _SOURCE_GEOMETRY_TOLERANCE_SEC
+                        and abs(existing_offset - offset) <= SOURCE_GEOMETRY_TOLERANCE_SEC
                         for track_id, existing_offset in placements
                     ):
                         placements.append((effect.track_id, offset))
@@ -1414,7 +691,7 @@ def complete_effect_acoustics(
                 if effect.before is None or effect.track_id != subject[0]:
                     continue
                 offset = effect.before.timeline_start - effect.before.source.src_start
-                if abs(offset - subject[1]) > _SOURCE_GEOMETRY_TOLERANCE_SEC:
+                if abs(offset - subject[1]) > SOURCE_GEOMETRY_TOLERANCE_SEC:
                     continue
                 try:
                     matches_recording = same_recording(effect.recording, subject[2])
@@ -1803,18 +1080,6 @@ class SourceCutObservations:
     removal: RippleRemoval | None
 
 
-@dataclass(frozen=True)
-class PadEffect:
-    edit_id: str
-    plan: RoomTonePad
-    clip_ids: frozenset[str]
-
-
-def native_pad_origins() -> dict[str, PadEffect]:
-    """Native tile IDs and original insertion effects, retained only for this batch."""
-    return scoped("cut_pad_origins", dict)
-
-
 def observe_source_cut(
     project: EpisodeProject,
     edit: EditDecision,
@@ -1882,39 +1147,6 @@ def observe_source_cut(
         PeerObservations(mapped, speech),
         removal,
     )
-
-
-def pause_edge_clips(project: EpisodeProject, edge: PauseEdgeFade) -> list[Clip]:
-    from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.util.coded_error import CodedError
-    from podcast_mcp.util.tracks import recording_audio_path
-
-    matched = []
-    for clip in clips_for_track(project, edge.track_id):
-        if clip.source_id != edge.source_id:
-            continue
-        try:
-            media = recording_audio_path(project, clip.track_id, clip.source_id).resolve(
-                strict=True
-            )
-        except (CodedError, OSError, ValueError):
-            continue
-        if (
-            same_recording(media, edge._media)
-            and abs(
-                (clip.source_end if edge.side == "left" else clip.source_start) - edge.source_sec
-            )
-            <= 1e-6
-            and abs(
-                (clip.timeline_end if edge.side == "left" else clip.timeline_start)
-                - edge.timeline_sec
-            )
-            <= 1e-6
-            and clip.source_start <= edge.source_start + 1e-6
-            and clip.source_end >= edge.source_end - 1e-6
-        ):
-            matched.append(clip)
-    return matched
 
 
 def complete_effect_placement(
@@ -2063,179 +1295,6 @@ def complete_effect_placement(
             if abs(cursor - plan.at_time - plan.seconds) > 1e-6:
                 return CutScopeHold(effect.edit_id, (), "source_geometry", detail="pad_coverage")
     return None
-
-
-def _is_recorded_pad(
-    clip: Clip,
-    pad_origins: dict[str, PadEffect],
-    written_by_edit: dict[str, AppliedEditRecord],
-) -> bool:
-    """A native pad clip that the edit which laid it recorded: its window and its samples."""
-    from podcast_mcp.edits.clips_ops import clip_split_origin
-
-    origin = pad_origins.get(clip_split_origin(clip.id, set(pad_origins)) or "")
-    row = written_by_edit.get(origin.edit_id) if origin is not None else None
-    return (
-        origin is not None
-        and row is not None
-        and row.timeline_start is not None
-        and origin.plan.at_time >= row.timeline_start - 1e-6
-        and origin.plan.at_time + origin.plan.seconds
-        <= row.timeline_start + float(row.params.get("replace_gap_sec") or 0) + 1e-6
-        and any(
-            sample["track_id"] == clip.track_id
-            and sample.get("source_id") == clip.source_id
-            and clip.source_start >= sample["source_start"] - 1e-6
-            and clip.source_end <= sample["source_end"] + 1e-6
-            for sample in row.params.get("pad_samples", [])
-        )
-    )
-
-
-def complete_effect_receipts(
-    before: EpisodeProject,
-    candidate: EpisodeProject,
-    accepted: Sequence[EditDecision] = (),
-    *,
-    operation_ids: frozenset[str] = frozenset(),
-    removal: RippleRemoval | None = None,
-    trim: TrimPlan | None = None,
-    clip_ids: tuple[str, ...] = (),
-) -> list[CutScopeHold]:
-    pad_origins = native_pad_origins()
-    old = before.editorial.edit_log
-    rows = candidate.editorial.edit_log
-    bad: set[str] = set()
-    ids = operation_ids | frozenset(edit.id for edit in accepted)
-    if rows[: len(old)] != old or len({row.id for row in rows}) != len(rows):
-        bad.update(ids)
-    for row in rows[len(old) :]:
-        if any(candidate.track_by_id(track_id) is None for track_id in row.track_ids):
-            bad.update(row.decision_ids or ids)
-        for lo, hi in ((row.source_start, row.source_end), (row.timeline_start, row.timeline_end)):
-            if (
-                lo is not None
-                and hi is not None
-                and (not math.isfinite(lo) or not math.isfinite(hi) or lo < 0 or hi < lo)
-            ):
-                bad.update(row.decision_ids or ids)
-    new_rows = rows[len(old) :]
-    if trim is not None:
-        original = next((clip for clip in before.clips if clip.id == trim.clip_id), None)
-        clipped = next((clip for clip in candidate.clips if clip.id == trim.clip_id), None)
-        if original is None or clipped is None or len(new_rows) != 1:
-            bad.update(ids)
-        else:
-            row = new_rows[0]
-            if (
-                (row.source_start, row.source_end, row.timeline_start, row.timeline_end)
-                != (
-                    clipped.source_start,
-                    clipped.source_end,
-                    clipped.timeline_start,
-                    clipped.timeline_end,
-                )
-                or row.params.get("previous_source_start") != original.source_start
-                or row.params.get("previous_source_end") != original.source_end
-                or row.params.get("previous_timeline_start") != original.timeline_start
-                or row.params.get("previous_timeline_end") != original.timeline_end
-                or set(row.track_ids) != set(trim.track_ids)
-                or any(
-                    not any(
-                        clip.id == move.clip_id
-                        and clip.track_id == move.track_id
-                        and abs(
-                            (clip.source_start if trim.edge == "in" else clip.source_end)
-                            - move.source_sec
-                        )
-                        <= 1e-6
-                        for clip in candidate.clips
-                    )
-                    for move in trim.moves
-                )
-            ):
-                bad.update(ids)
-    elif removal is not None and clip_ids:
-        selected = [clip for clip in before.clips if clip.id in clip_ids]
-        if len(selected) != len(set(clip_ids)) or len(new_rows) != 1:
-            bad.update(ids)
-        else:
-            row = new_rows[0]
-            if row.params.get("mode") == "ripple":
-                expected_spans = {
-                    tid: [list(span) for span in removal.spans]
-                    for tid in ripple_track_ids(before, removal.edited_track_ids)
-                }
-            else:
-                expected_spans = {}
-                for clip in sorted(selected, key=lambda c: c.timeline_start, reverse=True):
-                    expected_spans.setdefault(clip.track_id, []).append(
-                        [clip.timeline_start, clip.timeline_end]
-                    )
-            if (
-                row.params.get("cut_spans") != expected_spans
-                or row.params.get("clip_ids") != list(clip_ids)
-                or any(clip.id in clip_ids for clip in candidate.clips)
-            ):
-                bad.update(ids)
-    elif removal is not None:
-        if {(row.timeline_start, row.timeline_end) for row in new_rows} != set(removal.spans):
-            bad.update(ids)
-        from podcast_mcp.edits.clips_ops import clips_for_track
-        from podcast_mcp.edits.edit_log import seam_source_by_track
-
-        for row in new_rows:
-            if row.timeline_start is None or row.timeline_end is None:
-                bad.update(ids)
-                continue
-            expected = seam_source_by_track(
-                {tid: clips_for_track(before, tid) for tid in row.track_ids},
-                row.timeline_start,
-                row.timeline_end,
-            )
-            if row.params.get("per_track_source") != expected:
-                bad.update(ids)
-    written_by_edit = {
-        edit.id: written[0]
-        for edit in accepted
-        if len(written := [row for row in new_rows if edit.id in row.decision_ids]) == 1
-    }
-    for edit in accepted:
-        if edit.exact_range is not None and edit.type not in (
-            EditDecisionType.REMOVE,
-            EditDecisionType.MUTE,
-        ):
-            bad.add(edit.id)
-        previous = [row for row in old if edit.id in row.decision_ids]
-        written = [row for row in rows[len(old) :] if edit.id in row.decision_ids]
-        if previous or len(written) != 1:
-            bad.add(edit.id)
-            continue
-        row = written[0]
-        if edit.exact_range is None and (
-            row.source_start != edit.start or row.source_end != edit.end
-        ):
-            bad.add(edit.id)
-        if edit.source_timeline_span is not None and row.params.get("source_id") != edit.source_id:
-            bad.add(edit.id)
-        if (
-            edit.type is EditDecisionType.REMOVE
-            and edit.exact_range is None
-            and not row.params.get("mute")
-        ):
-            source_ids = before.equivalent_source_ids(edit.track_id, edit.source_id)
-            if any(
-                clip.source_id in source_ids
-                and clip_plays_lane(candidate, clip, edit.track_id)
-                and min(edit.end, clip.source_end) - max(edit.start, clip.source_start) > 1e-6
-                and not _is_recorded_pad(clip, pad_origins, written_by_edit)
-                for clip in candidate.clips
-            ):
-                bad.add(edit.id)
-    return [
-        CutScopeHold(edit_id, (), "source_geometry", detail="source_receipt")
-        for edit_id in sorted(bad)
-    ]
 
 
 def safety_observation_label(hold: CutScopeHold) -> str:

@@ -7,7 +7,8 @@ from array import array
 import pytest
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
+from podcast_mcp.edits.cut_placement import CutScopeHold
+from podcast_mcp.edits.cut_safety import inspect_source_remove
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import (

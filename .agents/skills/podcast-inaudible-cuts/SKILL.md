@@ -35,9 +35,9 @@ timeline window exactly, including after a manual nonsnap resize. Generic apply-
 optimization is skipped for that window. Pause trims prepare and re-prove their own
 optimized final bounds; unwitnessed pending edits keep the configured apply-time path.
 
-The shared implementation owner is `edits/cut_safety.py`. It contains peer
-scope and ripple disposition, proposed-join assessment, source placement, and
-original-recording pad eligibility. Measurement modules retain detector evidence.
+The shared implementation owners are `edits/cut_safety.py` (peer scope and ripple
+disposition, proposed-join assessment) and `edits/cut_placement.py` (source placement and
+original-recording pad eligibility). Measurement modules retain detector evidence.
 The manual-approval override and universal pre-offer assessment are accepted policy
 but remain pending implementation in #1403. A pending proposal or its
 `review_required` flag alone does not prove acoustic assessment. See

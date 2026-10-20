@@ -12,7 +12,8 @@ from podcast_mcp.edits.breath_detect import (
     PauseAirSkip,
     pause_air_span,
 )
-from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
+from podcast_mcp.edits.cut_placement import CutRejected
+from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.session_air import SessionAir
 from podcast_mcp.edits.tighten_reasons import (
