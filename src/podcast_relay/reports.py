@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from podcast_mcp.util.diagnostics_bundle_contract import (
     validate_diagnostics_bundle,
 )
+from podcast_mcp.util.sqlite_open import open_sqlite
 from podcast_mcp.util.sqlite_tx import immediate_transaction
 
 router = APIRouter()
@@ -88,8 +89,7 @@ def _settings() -> tuple[Path, str, str]:
 @contextmanager
 def _db(root: Path) -> Iterator[sqlite3.Connection]:
     root.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(root / "reports.sqlite3", timeout=10, isolation_level=None)
-    db.execute("PRAGMA busy_timeout=10000")
+    db = open_sqlite(root / "reports.sqlite3", busy_timeout_ms=10_000)
     try:
         columns = {row[1] for row in db.execute("PRAGMA table_info(reports)")}
         if not {"claim_token", "post_started"}.issubset(columns):

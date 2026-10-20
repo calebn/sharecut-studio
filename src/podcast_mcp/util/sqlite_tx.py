@@ -13,7 +13,8 @@ SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
 
 # Busy timeout every sqlite store sets on its connection: wait up to 5 s for another
 # connection's write lock before raising SQLITE_BUSY (sqlite3.connect's default).
-DEFAULT_BUSY_TIMEOUT_PRAGMA = "PRAGMA busy_timeout=5000"
+DEFAULT_BUSY_TIMEOUT_MS = 5000
+DEFAULT_BUSY_TIMEOUT_PRAGMA = f"PRAGMA busy_timeout={DEFAULT_BUSY_TIMEOUT_MS}"
 
 
 def is_sqlite_busy(exc: BaseException) -> bool:
