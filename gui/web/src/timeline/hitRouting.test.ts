@@ -102,6 +102,44 @@ describe("attachHitRouting", () => {
     ]);
   });
 
+  it("routes a crowded mouse press on the primary button only (#1793)", () => {
+    const trim = button(hitTargetProps("trim-in", "clip-b", 2), {
+      left: 200,
+      top: 106,
+      right: 208,
+      bottom: 174,
+    });
+    const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
+      left: 200,
+      top: 106,
+      right: 212,
+      bottom: 118,
+    });
+    root.append(trim, fade);
+    record("trim", trim);
+    const mouse = (mouseButton: number) => {
+      const event = new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        button: mouseButton,
+        clientX: 204,
+        clientY: 117,
+      });
+      fade.dispatchEvent(event);
+    };
+
+    mouse(2);
+    const right = [...log];
+    mouse(0);
+
+    expect({ right, left: log }).toEqual({
+      right: [],
+      left: ["trim:pointerdown@204,117"],
+    });
+  });
+
   it("leaves a pen press with one target in reach alone", () => {
     const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
       left: 200,
