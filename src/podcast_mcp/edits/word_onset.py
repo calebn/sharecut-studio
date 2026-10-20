@@ -55,7 +55,7 @@ from enum import Enum
 
 import numpy as np
 
-from podcast_mcp.edits.acoustic_laugh import burst_count
+from podcast_mcp.edits.acoustic_laugh import BURST_DIP_DB, burst_count
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HEARD_APART_DEPTH_DB, HOP_SEC
 from podcast_mcp.util.dsp import frame_band_db, frame_rms_db, is_valley, valley_basins
@@ -196,15 +196,22 @@ def edge_in_valley(cache: TrackAudioCache, start: float, edge: float, word_start
 
 
 def is_one_hum(cache: TrackAudioCache, start: float, end: float) -> bool:
-    """Whether ``[start, end)`` holds one sustained sound: a single burst of level.
+    """Whether ``[start, end)`` holds one sustained sound that decays: one burst, no step up.
 
     The level rises, holds and falls once, as an "uh" does. Syllables, words and
     phrases switch the voice on and off, so their level has several bursts, each
     :data:`~podcast_mcp.edits.acoustic_laugh.BURST_DIP_DB` apart (the burst measure
-    behind ``likely_laugh``). The measure is a dB difference inside the span, so it is
-    the same at every recording level and for every speaker.
+    behind ``likely_laugh``). A quiet plateau followed by a louder syllable is one burst
+    too, since the level only rises, but a decaying hum never steps up: the frames before
+    its peak region (within ``BURST_DIP_DB`` of the loudest frame) are its onset, fewer
+    than the frames it holds there. Both measures are dB differences inside the span, so
+    they are the same at every recording level and for every speaker.
     """
-    return burst_count(_frames(cache, start, end)) == 1
+    levels = _frames(cache, start, end)
+    if burst_count(levels) != 1:
+        return False
+    peak_region = np.flatnonzero(levels >= levels.max() - BURST_DIP_DB)
+    return int(peak_region[0]) <= peak_region.size
 
 
 def _frames_from_word_end(
