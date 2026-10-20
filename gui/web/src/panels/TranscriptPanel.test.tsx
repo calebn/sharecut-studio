@@ -803,6 +803,13 @@ describe("TranscriptPanel", () => {
         within(container).getByRole("button", { name: /^Correct:/i }),
       );
       expect(useDawStore.getState().transcriptCorrecting).toBe(true);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /^Select:/ }),
+      );
+      expect(useDawStore.getState().transcriptCorrecting).toBe(false);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /^Correct:/i }),
+      );
       unmount();
       expect(useDawStore.getState().transcriptCorrecting).toBe(false);
     });

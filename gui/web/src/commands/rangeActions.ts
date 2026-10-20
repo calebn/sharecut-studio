@@ -12,6 +12,7 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { DawState } from "../state/types";
+import { oneWordOf } from "../transcript/rangeSelect";
 import type { ExactRangeTarget } from "../types/project";
 import { errorMessage, readApiError } from "../utils/apiError";
 import { staleRenderBreakdown } from "../utils/staleRender";
@@ -42,7 +43,20 @@ export type RangeActionContext = Pick<
   | "shareCapabilities"
   | "rangeBusy"
   | "joinMutationInFlight"
+  | "selection"
+  | "transcriptCorrecting"
 >;
+
+function correctingWordReason(
+  state: Pick<RangeActionContext, "selection" | "transcriptCorrecting">,
+  action: RangeAction,
+): string | null {
+  if (!state.transcriptCorrecting || oneWordOf(state.selection) === null)
+    return null;
+  return action === "cut"
+    ? "Use Select mode for media cut (Correct is ASR-only)"
+    : "Use Select mode for range actions (Correct is ASR-only)";
+}
 
 export function rangeActionDescriptors(
   state: RangeActionContext,
@@ -63,7 +77,7 @@ export function rangeActionDescriptors(
             ? "Selected audio changed. Select the range again."
             : null;
   return RANGE_ACTIONS.map((action) => {
-    let reason = base;
+    let reason = correctingWordReason(state, action) ?? base;
     if (!reason && (action === "cut" || action === "mute")) {
       if (mode === "none") reason = "This share cannot suggest edits";
       else if (!target?.clips.length) reason = "No audible media in this range";
@@ -118,6 +132,8 @@ export async function runRangeAction(
   action: RangeAction,
 ): Promise<ExecuteResult> {
   const state = useDawStore.getState();
+  const correcting = correctingWordReason(state, action);
+  if (correcting) return { status: "disabled", reason: correcting };
   const resolved = state.project
     ? resolveSelectionRange(state.project, state.selection)
     : { targets: [], reason: "Open a project" };
