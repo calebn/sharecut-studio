@@ -6,7 +6,6 @@ import type {
 } from "react";
 
 type TabListProps = {
-  /** Accessible name of the tab set. */
   label: string;
   className?: string;
   children: ReactNode;
@@ -58,13 +57,11 @@ type TabProps = Omit<
   "role" | "aria-selected" | "tabIndex" | "type"
 > & {
   selected: boolean;
-  /** Id of the panel this tab shows. */
   panelId: string;
   ref?: Ref<HTMLButtonElement>;
   children: ReactNode;
 };
 
-/** One `role="tab"` in a `TabList`; the selected tab is the quiet chip. */
 export function Tab({
   selected,
   panelId,

@@ -18,7 +18,6 @@ export const TRANSCRIPT_GUEST_SELECT_HINT: Record<"edit" | "suggest", string> =
       "Select: pick words, then Suggest cut or Suggest mute sends them to the host for review. Nothing changes until the host approves.",
   };
 
-/** Correct hint on touch: tapping replaces clicking. */
 export const TRANSCRIPT_CORRECT_TOUCH_HINT =
   "Correct: tap a word, then Apply fixes its text or Suppress drops it from the transcript (text only; audio and timing stay as recorded). Ignore strikes it through and mutes its audio at render, without a cut.";
 
