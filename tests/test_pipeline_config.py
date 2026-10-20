@@ -1500,3 +1500,50 @@ def test_component_status_checks_executability_for_explicit_pair(monkeypatch, ex
         lambda **_kwargs: binaries.FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
     )
     assert pc.component_status()["ffmpeg"]["ok"] is executable
+
+
+def _pipeline_params_exporter():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "export_pipeline_params.py"
+    spec = importlib.util.spec_from_file_location("export_pipeline_params", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_every_yaml_leaf_is_exposed_or_listed_unexposed() -> None:
+    from podcast_mcp.config import bundled_defaults
+
+    exporter = _pipeline_params_exporter()
+    leaves = set(exporter._leaves(bundled_defaults()))
+    contract = exporter.contract()
+    exposed = {row["path"] for row in contract["exposed"]}
+    assert exposed == {f.path for f in PARAM_FIELDS}
+    assert leaves == exposed | set(contract["unexposed"])
+    assert exposed.isdisjoint(contract["unexposed"])
+
+
+def test_a_new_yaml_key_changes_the_pinned_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    from podcast_mcp import config
+
+    exporter = _pipeline_params_exporter()
+    before = exporter._dumps(exporter.contract())
+    patched = config.bundled_defaults()
+    patched["performance"]["brand_new_key"] = 1
+    monkeypatch.setattr(config, "bundled_defaults", lambda: patched)
+    assert exporter._dumps(exporter.contract()) != before
+
+
+def test_param_field_types_follow_the_yaml_value() -> None:
+    from podcast_mcp.config import bundled_defaults
+
+    defaults = bundled_defaults()
+    for field in PARAM_FIELDS:
+        value = get_by_path(defaults, field.path)
+        if field.type == "boolean":
+            assert value is None or isinstance(value, bool), field.path
+        if field.type == "integer":
+            assert isinstance(value, int) and not isinstance(value, bool), field.path

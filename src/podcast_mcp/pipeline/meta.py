@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from podcast_mcp.config import DEFAULT_PREMIX_PEAK_CEILING_DB
-from podcast_mcp.edits.tighten_intensity import DEFAULT_TIGHTEN_INTENSITY, TIGHTEN_INTENSITIES
+from podcast_mcp.config import bundled_defaults
+from podcast_mcp.edits.tighten_intensity import TIGHTEN_INTENSITIES
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES
-from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL, WHISPER_SIZE_ENUM
+from podcast_mcp.util.dicts import get_by_path
+from podcast_mcp.whisper_models import WHISPER_SIZE_ENUM
 
 StepKind = Literal["tooling", "gate", "heuristic"]
 ParamType = Literal["number", "integer", "boolean", "string", "enum", "object"]
@@ -42,6 +43,71 @@ class ParamField:
     group: Literal["common", "advanced"] = "common"
     affects: tuple[str, ...] = ()
     section: str = ""
+
+
+@dataclass(frozen=True)
+class _ParamSpec:
+    """The hand-written half of a ``ParamField``: how a setting reads and is bounded in the UI.
+
+    ``type`` and ``default`` come from ``.agents/defaults/pipeline.yaml`` (#1841). Give ``type``
+    only where the YAML value cannot say it (a whole number for a ``number``, or an unset key).
+    """
+
+    path: str
+    label: str
+    description: str
+    type: ParamType | None = None
+    minimum: float | None = None
+    maximum: float | None = None
+    unit: str | None = None
+    enum: tuple[str, ...] | None = None
+    group: Literal["common", "advanced"] = "common"
+    affects: tuple[str, ...] = ()
+    section: str = ""
+
+
+def _inferred_type(spec: _ParamSpec, value: Any) -> ParamType:
+    if spec.type is not None:
+        return spec.type
+    if spec.enum is not None:
+        return "enum"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    return "object"
+
+
+def _resolve_param_fields(
+    specs: tuple[_ParamSpec, ...], defaults: dict[str, Any]
+) -> tuple[ParamField, ...]:
+    fields: list[ParamField] = []
+    for spec in specs:
+        value = get_by_path(defaults, spec.path)
+        kind = _inferred_type(spec, value)
+        if kind == "number" and isinstance(value, int) and not isinstance(value, bool):
+            value = float(value)
+        fields.append(
+            ParamField(
+                path=spec.path,
+                label=spec.label,
+                description=spec.description,
+                type=kind,
+                default=value,
+                minimum=spec.minimum,
+                maximum=spec.maximum,
+                unit=spec.unit,
+                enum=spec.enum,
+                group=spec.group,
+                affects=spec.affects,
+                section=spec.section,
+            )
+        )
+    return tuple(fields)
 
 
 # Linear spine deps: each step depends on the previous unique logical prereq.
@@ -269,13 +335,11 @@ _STEP_DEFS: dict[str, StepMeta] = {
     ),
 }
 
-PARAM_FIELDS: tuple[ParamField, ...] = (
-    ParamField(
+_PARAM_SPECS: tuple[_ParamSpec, ...] = (
+    _ParamSpec(
         path="performance.max_workers",
         label="Max workers",
         description="Parallel workers for stem render, filler analysis, and export (0 = auto).",
-        type="integer",
-        default=0,
         minimum=0,
         maximum=32,
         group="common",
@@ -287,119 +351,101 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "export_deliverables",
         ),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.model",
         label="Whisper model",
         description="faster-whisper model (default large-v3-turbo; smaller sizes at setup).",
-        type="enum",
-        default=DEFAULT_WHISPER_MODEL,
         enum=WHISPER_SIZE_ENUM,
         group="common",
         section="transcribe",
         affects=("transcribe_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.language",
         label="Language",
         description="ASR language code (e.g. en).",
-        type="string",
-        default="en",
         group="common",
         section="transcribe",
         affects=("transcribe_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.overwrite",
         label="Re-transcribe existing",
         description=(
             "Re-run ASR even when a transcript exists. Off reuses stored transcripts and "
             "keeps hand edits; changed audio always re-transcribes."
         ),
-        type="boolean",
-        default=False,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.vad.enabled",
         label="Skip silence (VAD)",
         description="Run Silero VAD before Whisper so silent stretches are not transcribed (stops hallucinated text).",
-        type="boolean",
-        default=True,
         group="common",
         section="transcribe",
         affects=("transcribe_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.vad.threshold",
         label="VAD threshold",
         description="Speech probability above which audio counts as speech.",
-        type="number",
-        default=0.4,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=0.0,
         maximum=1.0,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.vad.min_silence_duration_ms",
         label="VAD min silence (ms)",
         description="Silence shorter than this does not split speech.",
         type="number",
-        default=500,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=0,
         maximum=60000,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.vad.speech_pad_ms",
         label="VAD speech pad (ms)",
         description="Padding kept around detected speech.",
         type="number",
-        default=300,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=0,
         maximum=10000,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.decode.condition_on_previous_text",
         label="Condition on previous text",
         description="Feed earlier text into later windows. Off avoids repetition loops; the vocabulary prompt then goes to hotwords.",
-        type="boolean",
-        default=True,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.decode.hallucination_silence_threshold",
         label="Hallucination silence skip (s)",
         description="Skip silent gaps longer than this when a hallucination is suspected; 0 = off.",
-        type="number",
-        default=2.0,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=0.0,
         maximum=60.0,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.silence_filter.enabled",
         label="Flag words over silence",
         description="Mark words that sit under their own track's voice floor, or over digital silence, as suspect_hallucination (never deleted).",
-        type="boolean",
-        default=True,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.forced_alignment.enabled",
         label="Precise word boundaries",
         description=(
@@ -410,12 +456,11 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "the ASR cache without re-running Whisper."
         ),
         type="boolean",
-        default=None,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.forced_alignment.min_word_score",
         label="Aligner evidence floor",
         description=(
@@ -424,23 +469,19 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "their own track is quiet over the word or another track is louder there. Stored "
             "scores keep flagging after precise word boundaries is turned off. 0 = off."
         ),
-        type="number",
-        default=0.01,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=0.0,
         maximum=1.0,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.forced_alignment.evidence_bleed_margin_db",
         label="Aligner evidence bleed margin",
         description=(
             "A low-scoring aligned word is flagged as bleed when another dialogue track is at "
             "least this much louder over the word."
         ),
-        type="number",
-        default=3.0,
         unit="dB",
         group="advanced",
         section="transcribe",
@@ -448,65 +489,55 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         minimum=0.0,
         maximum=60.0,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.decode.no_speech_threshold",
         label="No-speech threshold",
         description="A window counts as silent when Whisper's no-speech probability is above this and its log probability is low.",
-        type="number",
-        default=0.6,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=0.0,
         maximum=1.0,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.decode.log_prob_threshold",
         label="Log-prob threshold",
         description="Retry a window at a higher temperature when its average log probability is below this.",
-        type="number",
-        default=-1.0,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=-10.0,
         maximum=0.0,
     ),
-    ParamField(
+    _ParamSpec(
         path="transcribe.decode.compression_ratio_threshold",
         label="Compression ratio threshold",
         description="Retry a window whose text compresses better than this (a repetition loop).",
-        type="number",
-        default=2.4,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),
         minimum=0.0,
         maximum=20.0,
     ),
-    ParamField(
+    _ParamSpec(
         path="analysis.transcript_refine.mode",
         label="Refine gate mode",
         description="require = always block; waive_unattended = auto-waive in batch; off = skip gate.",
-        type="enum",
-        default="waive_unattended",
         enum=("require", "waive_unattended", "off"),
         group="common",
         section="analysis",
         affects=("require_transcript_refine",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.accept.mode",
         label="Align accept mode",
         description="require = always block; waive_unattended = auto-waive in batch; off = skip gate.",
-        type="enum",
-        default="waive_unattended",
         enum=("require", "waive_unattended", "off"),
         group="common",
         section="align",
         affects=("require_align_accept",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.max_offset_sec",
         label="Align max offset",
         description=(
@@ -515,189 +546,158 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "full span). Late-join still uses this bound."
         ),
         type="number",
-        default=0.0,
         minimum=0.0,
         maximum=7200.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.bleed_ngram",
         label="Bleed n-gram size",
         description="Phrase length for cross-track bleed clock matches.",
-        type="integer",
-        default=3,
         minimum=2,
         maximum=6,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.realign",
         label="Re-align locked stems",
         description="Re-score equal-length and manifest-pinned stems instead of holding their placement.",
-        type="boolean",
-        default=False,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.large_move_sec",
         label="Large move threshold (s)",
         description=(
             "Moves above this need waveform confirmation, are never auto-waived unattended, "
             "and fail export QC until accepted."
         ),
-        type="number",
-        default=1.0,
         minimum=0.1,
         maximum=30,
         group="common",
         section="align",
         affects=("align_tracks", "require_align_accept", "export_deliverables"),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.large_move_min_peak",
         label="Large move min xcorr peak",
         description="Minimum correlation peak when confirming a large move against the waveform.",
-        type="number",
-        default=0.1,
         minimum=0,
         maximum=1,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.min_bleed_matches",
         label="Min bleed matches",
         description="Agreed bleed n-grams required before trusting the bleed clock.",
-        type="integer",
-        default=5,
         minimum=1,
         maximum=20,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.bleed_min_share",
         label="Bleed agreement share",
         description="Weighted share of matched n-grams that must agree (common filler counts less).",
-        type="number",
-        default=0.3,
         minimum=0.0,
         maximum=1.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.bleed_identity_sec",
         label="Bleed identity threshold",
         description=(
             "When |bleed Δt| is below this, confirm with waveform xcorr before "
             "applying or holding identity. Capped at align.large_move_sec."
         ),
-        type="number",
-        default=1.0,
         minimum=0.0,
         maximum=30.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.acoustic_min_peak",
         label="Acoustic min peak",
         description="Minimum waveform correlation peak to trust acoustic confirm.",
-        type="number",
-        default=0.05,
         minimum=0.0,
         maximum=1.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.coarse_step_sec",
         label="Align coarse step",
         description="Coarse occupancy sweep step in seconds (hierarchical for large bounds).",
-        type="number",
-        default=0.5,
         minimum=0.05,
         maximum=8.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.fine_step_sec",
         label="Align fine step",
         description="Fine occupancy refine step in seconds around the coarse peak.",
-        type="number",
-        default=0.02,
         minimum=0.005,
         maximum=0.5,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.acoustic_floor_sec",
         label="Acoustic floor",
         description="Treat |acoustic lag| below this as already synced (hold identity).",
-        type="number",
-        default=0.05,
         minimum=0.0,
         maximum=1.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.acoustic_agree_sec",
         label="Acoustic agree window",
         description="Max |acoustic - bleed| to apply the acoustic offset.",
-        type="number",
-        default=0.25,
         minimum=0.0,
         maximum=2.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="align.max_word_audibility_sec",
         label="Align max word duration",
         description="Drop stretched ASR words longer than this from occupancy.",
-        type="number",
-        default=2.0,
         minimum=0.2,
         maximum=30.0,
         group="advanced",
         section="align",
         affects=("align_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="prosody.enabled",
         label="Prosody enabled",
         description="Cache a per-track prosody profile (pitch, rate, energy, boundaries).",
-        type="boolean",
-        default=True,
         group="common",
         section="prosody",
         affects=("analyze_prosody",),
     ),
-    ParamField(
+    _ParamSpec(
         path="prosody.pitch_floor_hz",
         label="Pitch floor",
         description="Lower F0 bound for pitch tracking (Praat to_pitch_ac).",
-        type="number",
-        default=75.0,
         minimum=40.0,
         maximum=300.0,
         unit="Hz",
@@ -705,12 +705,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="prosody",
         affects=("analyze_prosody",),
     ),
-    ParamField(
+    _ParamSpec(
         path="prosody.pitch_ceiling_hz",
         label="Pitch ceiling",
         description="Upper F0 bound for pitch tracking (Praat to_pitch_ac).",
-        type="number",
-        default=500.0,
         minimum=150.0,
         maximum=1000.0,
         unit="Hz",
@@ -718,12 +716,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="prosody",
         affects=("analyze_prosody",),
     ),
-    ParamField(
+    _ParamSpec(
         path="prosody.segment_gap_sec",
         label="Prosody segment gap",
         description="Word gaps at or under this merge into one prosody segment.",
-        type="number",
-        default=1.0,
         minimum=0.1,
         maximum=10.0,
         unit="sec",
@@ -731,12 +727,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="prosody",
         affects=("analyze_prosody",),
     ),
-    ParamField(
+    _ParamSpec(
         path="prosody.pause_min_sec",
         label="Prosody pause floor",
         description="Shortest interior sub-floor run counted as a pause.",
-        type="number",
-        default=0.25,
         minimum=0.05,
         maximum=5.0,
         unit="sec",
@@ -744,37 +738,31 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="prosody",
         affects=("analyze_prosody",),
     ),
-    ParamField(
+    _ParamSpec(
         path="focus.enabled",
         label="Focus enabled",
         description="Run focus analyze step (outline). Apply still needs focus.auto_apply.",
-        type="boolean",
-        default=False,
         group="common",
         section="focus",
         affects=("analyze_focus_cuts", "focus_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="focus.auto_apply",
         label="Focus auto-apply",
         description="Apply focus cuts without review when focus.enabled.",
-        type="boolean",
-        default=False,
         group="advanced",
         section="focus",
         affects=("focus_from_transcript",),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.enabled",
         label="Tighten enabled",
         description="Run filler/pause analyze and apply (off until join quality is trusted).",
-        type="boolean",
-        default=False,
         group="common",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.apply_non_speech",
         label="Apply sound actions",
         description=(
@@ -782,24 +770,20 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "under another speaker, unclear sounds left) in one undo step; off leaves them "
             "pending. Independent of Tighten enabled."
         ),
-        type="boolean",
-        default=True,
         group="common",
         section="tighten",
         affects=("apply_sound_actions",),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.edit_mode",
         label="Tighten edit mode",
         description="ripple = cut and close the gap; mute = silence in place (pause hits skipped).",
-        type="enum",
-        default="ripple",
         enum=("ripple", "mute"),
         group="common",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.intensity",
         label="Tighten intensity",
         description=(
@@ -808,19 +792,15 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "discourse markers, 0.3 s solo pauses. light/aggressive override the "
             "tighten keys they name."
         ),
-        type="enum",
-        default=DEFAULT_TIGHTEN_INTENSITY,
         enum=TIGHTEN_INTENSITIES,
         group="common",
         section="tighten",
         affects=("analyze_fillers_pauses",),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.max_pause_sec",
         label="Max pause (sec)",
         description="Long pauses above this are candidates for tightening.",
-        type="number",
-        default=1.2,
         minimum=0.2,
         maximum=5.0,
         unit="sec",
@@ -828,12 +808,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.min_retained_pause_sec",
         label="Min retained pause",
         description="Floor left after trimming a long pause (turn/dead-air).",
-        type="number",
-        default=0.18,
         minimum=0.0,
         maximum=2.0,
         unit="sec",
@@ -841,12 +819,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="tighten",
         affects=("tighten_from_transcript",),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.crossfade_ms",
         label="Tighten crossfade",
         description="Crossfade at tighten joins.",
-        type="integer",
-        default=25,
         minimum=0,
         maximum=200,
         unit="ms",
@@ -854,7 +830,7 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="tighten",
         affects=("tighten_from_transcript",),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.discourse_pause_sec",
         label="Discourse pause (sec)",
         description=(
@@ -862,8 +838,6 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "candidate. Marker tokens (`tighten.discourse_markers`) are YAML-only — "
             "Advanced has no list widget."
         ),
-        type="number",
-        default=0.35,
         minimum=0.0,
         maximum=5.0,
         unit="sec",
@@ -871,7 +845,7 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.discourse_confidence_max",
         label="Discourse ASR max",
         description=(
@@ -879,33 +853,27 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "Marker tokens (`tighten.discourse_markers`) are YAML-only — Advanced has "
             "no list widget."
         ),
-        type="number",
-        default=0.6,
         minimum=0.0,
         maximum=1.0,
         group="advanced",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.acoustic_gap_filler.enabled",
         label="Acoustic gap fillers",
         description=(
             "Propose review-only `filler:acoustic` cuts for voiced audio inside ASR "
             "word gaps (never auto-applied; listen first)."
         ),
-        type="boolean",
-        default=True,
         group="advanced",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.acoustic_gap_filler.min_gap_sec",
         label="Acoustic min gap",
         description="Shortest inter-word gap scanned for voiced audio (floor 0.35 s).",
-        type="number",
-        default=0.35,
         minimum=0.35,
         maximum=10.0,
         unit="sec",
@@ -913,12 +881,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.acoustic_gap_filler.max_run_sec",
         label="Acoustic max run",
         description="Longest voiced run proposed as one acoustic filler (ceiling 1.5 s).",
-        type="number",
-        default=1.5,
         minimum=0.1,
         maximum=1.5,
         unit="sec",
@@ -926,37 +892,31 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.acoustic_gap_filler.max_frames",
         label="Acoustic max frames",
         description=(
             "10 ms analysis frames per scan window (ceiling 600, about 6 s); a longer gap is scanned in overlapping windows."
         ),
-        type="integer",
-        default=600,
         minimum=20,
         maximum=600,
         group="advanced",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="tighten.acoustic_gap_filler.vad_backend",
         label="Acoustic breath VAD",
         description="Breath rejection backend for acoustic gap candidates (Silero is opt-in).",
-        type="enum",
-        default="heuristic",
         enum=("heuristic", "silero"),
         group="advanced",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
-    ParamField(
+    _ParamSpec(
         path="balance.dialogue_lufs",
         label="Dialogue LUFS",
         description="Target integrated loudness for dialogue gain staging.",
-        type="number",
-        default=-20.0,
         minimum=-30.0,
         maximum=-10.0,
         unit="LUFS",
@@ -964,26 +924,22 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="balance",
         affects=("balance_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="gate_fill.mode",
         label="Gate fill",
         description=(
             "auto fills each dialogue track's source-gate holes (digital silence between "
             "words, e.g. Zoom tracks) with its room-tone bed or comfort noise; off clears it."
         ),
-        type="enum",
-        default="auto",
         enum=("auto", "off"),
         group="common",
         section="gate_fill",
         affects=("fill_gate_holes",),
     ),
-    ParamField(
+    _ParamSpec(
         path="gate_fill.fade_ms",
         label="Gate fill fade",
         description="Fade in and out inside each hole, so the gate's edges keep every sample.",
-        type="integer",
-        default=10,
         minimum=0,
         maximum=100,
         unit="ms",
@@ -991,12 +947,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="gate_fill",
         affects=("fill_gate_holes",),
     ),
-    ParamField(
+    _ParamSpec(
         path="compression.threshold_db",
         label="Comp threshold",
         description="acompressor threshold.",
-        type="number",
-        default=-18.0,
         minimum=-40.0,
         maximum=0.0,
         unit="dB",
@@ -1004,24 +958,20 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="compression",
         affects=("compress_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="compression.ratio",
         label="Comp ratio",
         description="acompressor ratio.",
-        type="number",
-        default=3.0,
         minimum=1.0,
         maximum=20.0,
         group="common",
         section="compression",
         affects=("compress_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="compression.attack_ms",
         label="Comp attack",
         description="Attack time in milliseconds.",
-        type="number",
-        default=15.0,
         minimum=0.1,
         maximum=200.0,
         unit="ms",
@@ -1029,12 +979,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="compression",
         affects=("compress_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="compression.release_ms",
         label="Comp release",
         description="Release time in milliseconds.",
-        type="number",
-        default=150.0,
         minimum=1.0,
         maximum=2000.0,
         unit="ms",
@@ -1042,15 +990,13 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="compression",
         affects=("compress_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="compression.makeup_db",
         label="Comp makeup",
         description=(
             "Makeup gain after compression; leave at 0: balance_tracks runs after "
             "compression and stages LUFS on the compressed signal."
         ),
-        type="number",
-        default=0.0,
         minimum=-12.0,
         maximum=12.0,
         unit="dB",
@@ -1058,7 +1004,7 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="compression",
         affects=("compress_tracks",),
     ),
-    ParamField(
+    _ParamSpec(
         path="master.integrated_lufs",
         label="Master LUFS",
         description=(
@@ -1066,8 +1012,6 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "gain into a true-peak limiter when the premix is too peaky to reach it linearly. "
             "Changing it re-masters on the next export."
         ),
-        type="number",
-        default=-16.0,
         minimum=-24.0,
         maximum=-8.0,
         unit="LUFS",
@@ -1075,7 +1019,7 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="master",
         affects=("master_loudness",),
     ),
-    ParamField(
+    _ParamSpec(
         path="master.true_peak_db",
         label="True peak",
         description=(
@@ -1083,8 +1027,6 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
             "gain to the target is limited under it (a 0.5 dB margin) instead of loudnormed. "
             "Changing it re-masters on the next export."
         ),
-        type="number",
-        default=-1.5,
         minimum=-6.0,
         maximum=0.0,
         unit="dBTP",
@@ -1092,12 +1034,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="master",
         affects=("master_loudness",),
     ),
-    ParamField(
+    _ParamSpec(
         path="master.lra",
         label="Loudness range",
         description="loudnorm LRA ceiling.",
-        type="number",
-        default=11.0,
         minimum=1.0,
         maximum=20.0,
         unit="LU",
@@ -1105,12 +1045,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="master",
         affects=("master_loudness",),
     ),
-    ParamField(
+    _ParamSpec(
         path="mix.music_under_vo_db",
         label="Music under VO",
         description="Bed level under dialogue.",
-        type="number",
-        default=-18.0,
         minimum=-40.0,
         maximum=0.0,
         unit="dB",
@@ -1118,12 +1056,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="mix",
         affects=("mix_with_music",),
     ),
-    ParamField(
+    _ParamSpec(
         path="mix.fade_in_sec",
         label="Mix fade in",
         description="Intro fade-in length.",
-        type="number",
-        default=2.0,
         minimum=0.0,
         maximum=30.0,
         unit="sec",
@@ -1131,12 +1067,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="mix",
         affects=("mix_with_music",),
     ),
-    ParamField(
+    _ParamSpec(
         path="mix.fade_out_sec",
         label="Mix fade out",
         description="Outro fade-out length.",
-        type="number",
-        default=3.0,
         minimum=0.0,
         maximum=30.0,
         unit="sec",
@@ -1144,12 +1078,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="mix",
         affects=("mix_with_music",),
     ),
-    ParamField(
+    _ParamSpec(
         path="mix.premix_peak_ceiling_db",
         label="Premix peak ceiling",
         description="True-peak ceiling the unity-sum premix is trimmed under before mastering.",
-        type="number",
-        default=DEFAULT_PREMIX_PEAK_CEILING_DB,
         minimum=-12.0,
         maximum=0.0,
         unit="dBTP",
@@ -1157,27 +1089,28 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         section="mix",
         affects=("mix_with_music",),
     ),
-    ParamField(
+    _ParamSpec(
         path="export.wav",
         label="Export WAV",
         description="Write mastered WAV deliverable.",
-        type="boolean",
-        default=True,
         group="common",
         section="export",
         affects=("export_deliverables",),
     ),
-    ParamField(
+    _ParamSpec(
         path="inaudible_cuts.enabled",
         label="Inaudible cuts",
         description="Snap cut boundaries with waveform heuristics.",
-        type="boolean",
-        default=True,
         group="advanced",
         section="inaudible_cuts",
         affects=("tighten_from_transcript",),
     ),
 )
+
+#: The settings the UI and ``podcast pipeline config`` expose, with each one's type and default read
+#: from the bundled pipeline YAML so the two cannot drift. ``scripts/export_pipeline_params.py``
+#: pins the result, and every YAML key it leaves unexposed, in ``contracts/pipeline-params.json``.
+PARAM_FIELDS: tuple[ParamField, ...] = _resolve_param_fields(_PARAM_SPECS, bundled_defaults())
 
 ALLOWED_CONFIG_TOP_KEYS = frozenset(
     {

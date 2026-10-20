@@ -75,6 +75,11 @@ def _parsed_defaults(path: Path) -> dict[str, Any]:
     return copy.deepcopy(hit[1])
 
 
+def bundled_defaults() -> dict[str, Any]:
+    """The repo's pipeline YAML as shipped, ignoring ``PODCAST_MCP_PIPELINE_DEFAULTS`` and overlays."""
+    return _parsed_defaults(_DEFAULTS_PATH)
+
+
 def load_defaults() -> dict[str, Any]:
     """Pipeline defaults (``PODCAST_MCP_PIPELINE_DEFAULTS`` or the repo YAML) with the Whisper overlay.
 

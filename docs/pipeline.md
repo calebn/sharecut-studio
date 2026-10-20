@@ -197,6 +197,15 @@ Each step returns a short human-readable **summary** (counts of tracks, cuts, su
 
 ## Configurable run (GUI / MCP)
 
+The settings the GUI and `podcast pipeline config` expose are `PARAM_FIELDS` in
+`pipeline/meta.py`. Each one's type and default are read from the bundled
+`.agents/defaults/pipeline.yaml`, so they cannot drift from it; the label, description, bounds,
+group and affected steps are written by hand as a `_ParamSpec` (give `type` only where the YAML
+value cannot say it, such as a whole number for a `number`). `scripts/export_pipeline_params.py`
+writes `contracts/pipeline-params.json`, listing every exposed setting and every YAML key left
+unexposed; `make generated-check` fails when a YAML key is added, removed or retyped without
+regenerating it, so each new key is either given a `_ParamSpec` or visibly left unexposed.
+
 Tighten application uses the run's supplied settings, including
 `tighten.breath_handling.enabled`. It does not reload global defaults between
 proposal and application. Disabled breath handling uses geometric pause checks;

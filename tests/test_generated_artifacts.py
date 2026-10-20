@@ -20,6 +20,7 @@ PYTEST_JOB_CHECKS: tuple[tuple[str, ...], ...] = (
     ("check_extension_contracts.py",),
     ("check_progress.py",),
     ("decisions_index.py", "--check"),
+    ("export_pipeline_params.py", "--check"),
 )
 # These exporters format their output with Biome from gui/web/node_modules, which the
 # pytest job does not install. The frontend job runs them after `npm ci`.
