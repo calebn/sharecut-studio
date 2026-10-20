@@ -347,17 +347,17 @@ describe("selection surfaces reach every kind on every shell", () => {
       ).toBeVisible();
     });
 
-    it(`Select range over nothing puts In and Out ${shell === "phone" ? "in the sheet" : "in the bar"} on the ${shell} shell`, () => {
+    it(`Select range over nothing puts In and Out ${shell === "desktop" ? "in the bar" : "in the sheet"} on the ${shell} shell`, () => {
       const { container } = mount(shell);
       act(() => useDawStore.getState().setRangeArmed(true));
       const regions = rangeRegions();
       expect(regions).toHaveLength(1);
       const home =
-        shell === "phone"
-          ? sheet()
-          : container.querySelector(".daw-shell-transport");
+        shell === "desktop"
+          ? container.querySelector(".daw-shell-transport")
+          : sheet();
       expect(home?.contains(regions[0]!)).toBe(true);
-      if (shell === "phone") {
+      if (shell !== "desktop") {
         expect(
           within(home as HTMLElement).queryByText(/Click a clip/),
         ).toBeNull();

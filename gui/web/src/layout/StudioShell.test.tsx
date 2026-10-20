@@ -74,6 +74,9 @@ const tabletProject = () =>
 
 describe("StudioShell tablet peek", () => {
   beforeEach(() => {
+    // An armed range opens the sheet on the tablet too (#1793); do not carry it over.
+    useDawStore.getState().setRangeArmed(false);
+    useDawStore.getState().setRangeScopeTrackIds(null);
     offlineStore.loadHostAttention.mockReset().mockResolvedValue({
       pending: 0,
       conflicts: [],
@@ -180,7 +183,7 @@ describe("StudioShell tablet peek", () => {
     });
   });
 
-  it("ticking the tracks for an armed range keeps the range bar and opens no sheet", () => {
+  it("ticking the tracks for an armed range keeps the range fields in the sheet and selects nothing", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
         <StudioShell />
@@ -190,11 +193,14 @@ describe("StudioShell tablet peek", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Guest|guest/ }));
     expect(useDawStore.getState().rangeScopeTrackIds).toEqual(["guest"]);
     expect(useDawStore.getState().selection).toBeNull();
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("region", { name: "Range actions" })).toBeVisible();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("region", {
+        name: "Range actions",
+      }),
+    ).toBeVisible();
   });
 
-  it("keeps the range bar when Select range is armed with nothing selected", () => {
+  it("puts In and Out in the sheet, not a card at the top, when Select range is armed with nothing selected (#1793)", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
         <StudioShell />
@@ -202,10 +208,10 @@ describe("StudioShell tablet peek", () => {
     );
     act(() => useDawStore.getState().setRangeArmed(true));
     const region = screen.getByRole("region", { name: "Range actions" });
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("dialog").contains(region)).toBe(true);
     expect(
       container.querySelector(".daw-shell-transport")?.contains(region),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("keeps the transport in every layout with a Restore chip and no Focus buttons", () => {

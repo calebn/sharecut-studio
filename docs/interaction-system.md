@@ -310,9 +310,8 @@ consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
-| Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` hand-roll `role="menu"` and stay outside the top layer (the touch chooser drag specs break in WebKit when the chooser is a popover; the create menu shares that layer markup); desktop has no right-click menu (`hooks/useLongPress.ts` only suppresses the native one). |
+| Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` hand-roll `role="menu"` and stay outside the top layer (the touch chooser drag specs break in WebKit when the chooser is a popover; the create menu shares that layer markup). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); a lane, clip or marker is not focusable, so a keyboard user with no focused target reaches the create actions through the palette and keys only. |
 | Confirms: one primitive | `WhisperDownloadDialog` (`panels/WhisperModelPicker.tsx`) is a hand-built confirm-shaped `Dialog` that also runs the download with progress; it is not `askConfirm`. |
-| Shells: bottom zone for doing | The tablet Select range instruction card with In, Out and Select range sits at the top. |
 | Touch: one grammar across `src/` | The governance scan walks `timeline/` only; comment swipe, splitter, reorder grip, fader and ruler keep their own gestures. |
 | Keys: declared dispatch order | Backspace tries `tighten.skipHit` before `edit.delete`; the listener comment says catalog order. |
 | Capability rows complete | Transport Undo/Redo and zoom buttons are missing from the manifest `gui` column; zoom gates are stricter than the catalog `when`. |
