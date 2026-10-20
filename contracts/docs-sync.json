@@ -633,6 +633,33 @@
       "advisory": null
     },
     {
+      "id": "sharecut-studio-interaction-system",
+      "when": "Sharecut Studio interaction grammar (selection kinds and surfaces, command targets, menus, dialogs and sheets, feedback channel, keyboard and touch equivalents)",
+      "update": "`docs/interaction-system.md` (the rule, the registry row, the checklist line, and the Shipped gaps table when a gap closes)",
+      "docs": [
+        "docs/interaction-system.md"
+      ],
+      "advisory": {
+        "include": [
+          "gui/web/src/inspector/selectionSurface.tsx",
+          "gui/web/src/inspector/peekTarget.ts",
+          "gui/web/src/inspector/relatedCommandDescriptors.ts",
+          "gui/web/src/commands/targets.ts",
+          "gui/web/src/timeline/inputContract.ts",
+          "gui/web/src/timeline/CreateMenu.tsx",
+          "gui/web/src/timeline/TargetChooser.tsx",
+          "gui/web/src/ui/Menu.tsx",
+          "gui/web/src/ui/Dialog.tsx",
+          "gui/web/src/ui/InlineConfirm.tsx",
+          "gui/web/src/ui/Toast.tsx",
+          "gui/web/src/ui/EmptyState.tsx",
+          "gui/web/src/ui/StatusLiveRegion.tsx",
+          "gui/web/src/ui/modalGate.ts",
+          "gui/web/src/feedback/"
+        ]
+      }
+    },
+    {
       "id": "native-ios-android-engine-in-app-byok-agent",
       "when": "Native iOS/Android engine / in-app BYOK agent (deferred)",
       "update": "`docs/cross-platform-byok.md` (interim architecture rules + long-horizon path); do not implement now; keep ffmpeg behind `FFmpegEngine`, guest MCP ≠ owner device",

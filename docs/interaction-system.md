@@ -1,0 +1,308 @@
+# Interaction system
+
+This document is the grammar for how a person acts on Sharecut Studio and how
+the UI answers. It names one path for each kind of interaction, where that path
+is declared, and the checklist a new interaction passes before it ships. It
+governs `gui/web/` on every shell (desktop, tablet, phone) and every input
+(pointer, touch, keyboard, assistive technology).
+
+It sits under three documents and does not repeat them. The
+[UI philosophy](ui-philosophy.md) states the trust requirements and wins on
+conflict. The [communication philosophy](communication-philosophy.md) owns
+voice, the Terminology table, control placement and the mobile checklist. The
+[touch editor decisions](touch-editor-decisions.md) own the touch input grammar
+and the visible-equivalents rule. Styling lives in
+[design tokens](design-tokens.md) and
+[`.agents/rules/gui-styling.md`](../.agents/rules/gui-styling.md).
+
+Each rule below is a **requirement**. Where the code already does it, the rule
+names the file. Where it does not, the rule names the gap under
+[Shipped gaps](#shipped-gaps). Do not read a rule as a claim that the UI does it.
+
+## The path of an intention
+
+Every interaction travels the same path. A rule applies at each step.
+
+```
+input  →  target  →  command  →  mutation  →  feedback
+```
+
+1. **Input** is a key, a pointer press, a touch gesture, a menu item, a palette
+   row or a button. Input never changes the project. It resolves to a target
+   or runs a command.
+2. **Target** is what the command acts on. It comes from an explicit argument,
+   then from the selection, then from focus. A command that needs a target and
+   finds none is disabled with a reason. It never guesses and never runs
+   silently.
+3. **Command** is the one place an action is defined. Buttons, menu items,
+   palette rows, keys, gestures and status chips all call the same command.
+4. **Mutation** goes through the document command path and History. One user
+   gesture is one undoable step.
+5. **Feedback** says what happened, in one channel, with Undo beside it when
+   the step can be undone, and leaves with the surface that raised it.
+
+## Registries
+
+Each thing is declared once. A second map from the same key is a bug.
+
+| Thing | Declared in | Locked by |
+| --- | --- | --- |
+| Command (`id`, `label`, `category`, `when`, `paletteRunnable`, `breaksFollow`) | `gui/web/src/commands/catalog.ts` (`COMMANDS`), types in `commands/types.ts`, predicates in `commands/context.ts` | `commands/governance.test.ts` |
+| Shortcut | `gui/web/src/keymap/registry.ts` (`KEYMAP_COMMANDS`); the only window `keydown` listener is `keymap/listener.ts` | `commands/governance.test.ts` (second listener fails), `make cheatsheet-check` |
+| Touch hit kind and gesture | `gui/web/src/timeline/inputContract.ts` (`HIT_KINDS`, `TOUCH_GESTURES`), routing in `timeline/hitRouting*.ts`, thresholds in `hooks/gestureConstants.ts` | `timeline/gestureGovernance.test.ts`, `inputContract.conformance.test.ts`, `inputContract.manifest.test.ts` |
+| Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body` and `phoneScreens`) | `selectionSurface` tests, `layout/useSelectionSheet.test.tsx` |
+| Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make capabilities-check` |
+| Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
+| Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
+
+## Selection
+
+1. **One store.** The selection is one value with one `kind` and one `id` set.
+   Track focus, clip focus and range are views over it, not sibling stores.
+2. **One kind per target.** A tapped word is one kind. Extending it to a range
+   changes the kind once. Two kinds for one target means two inspectors, two
+   sheets and two sets of Related commands for the same thing.
+3. **One table.** `SELECTION_SURFACES` is the only map from kind to inspector
+   body, sheet screens, peek actions and Related commands. Peek and Related
+   derive from it. Phone and tablet read the same `screens`; a kind that opens
+   on tablet opens the same way on phone.
+4. **Selection survives mode and shell changes.** Switching Timeline to Text or
+   rotating the device keeps the selection. Only an explicit clear or a new
+   selection replaces it.
+5. **Selection is visible.** Every selected target shows its state on the
+   canvas and names itself in the inspector header or sheet title using the
+   Terminology table word.
+
+Shipped: `selectionSurface.tsx` is the table for phone (#1445). `commands/targets.ts`
+reads selection then `selectedTrackIds`. The rest is a gap (see below).
+
+## Targets
+
+1. `resolveTrackId` in `commands/targets.ts` is the pattern: explicit argument,
+   then selection, then focused track, then nothing.
+2. A command whose `when` is false renders disabled with a `disabledReason`
+   that says what to select or open. `Button`, `ToggleButton` and
+   `CommandButton` have no native `disabled` (#1444). A control that cannot
+   say why it is off does not ship.
+3. A target picked by touch is **armed** first (the long press), then acted on.
+   The armed state is announced (`timeline/touchGrammar.ts` `announceArmed`)
+   and cleared when the gesture ends or the surface changes.
+4. Mouse acts on press. That is the current desktop grammar and a decision in
+   `docs/touch-editor-decisions.md` must say so before any change to it.
+
+## Actions and menus
+
+1. **A visible action is a command.** `CommandButton` and `CommandMenuItem`
+   take a command id. A plain `Button` with an inline handler is for local UI
+   state only (open, close, expand) and never for a project change.
+2. **One menu primitive.** `ui/Menu` with `MenuItem` and `MenuSection` is the
+   only `role="menu"`. It lives in the top layer (`ui/topLayerFloor.ts`),
+   supports arrow keys, Home and End (`ui/useMenuKeyboard.ts`), closes on
+   choose and on Escape, and returns focus to its anchor.
+3. **Context menus come from one descriptor.** The create menu a long press
+   opens on touch and the context menu a right click opens on desktop render
+   the same descriptor. A touch gesture that opens a menu has a right-click
+   twin, and both have a keyboard route (Menu key or Shift+F10 on the focused
+   target).
+4. **Menu items name the command.** The item label is `CommandDef.label` and
+   the item shows the shortcut from the keymap. A disabled item carries its
+   reason the same way a button does.
+5. **Menus hold choices, not state.** A menu does not host inputs or
+   long-lived toggles. Those are a sheet or a panel.
+
+## Dialogs, sheets and confirms
+
+There are three overlay primitives. There is no fourth.
+
+| Primitive | Use | Desktop | Phone and tablet |
+| --- | --- | --- | --- |
+| `Menu` | Transient choice | Anchored popover in the top layer | Same, with the touch item height |
+| `Dialog` | A task with inputs and a primary action | Centered modal | Bottom sheet with the primary pinned above the home bar |
+| `InlineConfirm` | A destructive step confirmed beside its control | In place, Keep first, danger last | Same |
+
+1. **One at a time.** A sheet closes before another opens. Stacking is a bug.
+   `askConfirm` and `askText` (`feedback/ask.ts`) render through `Dialog`, so
+   they obey the same rule.
+2. **Sheets have three zones** on phone: a header with the title and Close, a
+   scrolling body, and a footer with the primary and secondary actions
+   ([`docs/gui-mobile.md` § Selection sheet: three zones](gui-mobile.md#selection-sheet-three-zones)).
+   Doing controls never sit in the top zone.
+3. **One gate for shortcuts.** While any overlay is open, the keymap runs only
+   the overlay's handoff list (`ui/modalGate.ts`) and Escape. The listener
+   does not keep its own list of dialogs.
+4. **Dismissal is the same everywhere.** Escape, the Close button and a tap on
+   the scrim all cancel. Focus returns to the control that opened the overlay.
+5. **Confirms say the consequence.** The primary names the outcome ("Remove
+   track"), the secondary is "Keep", and the body names what is lost. A
+   `window.confirm` fails lint (`no-alert`).
+
+## Feedback
+
+1. **One channel.** `announceStatus` (`state/uiSlice.ts`) is the only way to
+   tell the person what happened. It renders the toast
+   (`feedback/FeedbackToast.tsx`) and speaks through the one shell live
+   region (`ui/StatusLiveRegion.tsx`). A panel does not mount its own toast or
+   its own `aria-live` region.
+2. **Undo rides with the result.** Every mutating command passes `undo` to
+   `announceStatus`. The toast's Undo is the same History step the Undo button
+   runs.
+3. **Status and error are two styles of one component.** An error names the
+   failure and the next step. A status names what changed. They never share one
+   look.
+4. **Feedback belongs to its surface.** A message about a gesture, a selection
+   or a panel clears when that gesture ends, that selection changes or that
+   panel closes. Only job progress and save state persist across modes, and
+   they live in the status row.
+5. **Empty states carry the action.** `ui/EmptyState` shows what the area is
+   for and the one control that fills it. It never tells the person to go
+   somewhere else.
+6. **A recovery action does the thing.** A button named "Inspect History"
+   opens History on every shell.
+7. **Internals stay out of copy.** No environment variable names, ids, file
+   paths or stack text in a toast, banner or empty state. A truncated sentence
+   is a bug.
+
+## Keyboard and touch equivalents
+
+1. **Every command reachable by a gesture is reachable by a key or a visible
+   control.** This is `D-touch-visible-equivalents`. The visible control is in
+   the bottom zone on phone and tablet.
+2. **Every key is in the keymap.** No component adds a `keydown` listener on
+   `window` outside the modules `commands/governance.test.ts` allowlists
+   (`ui/useMenuKeyboard.ts` is one). Component-local keys (arrow keys inside a
+   menu, Escape inside a field) stay inside that component.
+3. **Dispatch order is declared.** When two commands share a key, the keymap
+   declares the order and a test pins it. A comment is not a declaration.
+4. **One touch grammar.** `HIT_KINDS` and `TOUCH_GESTURES` cover every
+   draggable in `gui/web/src/`, not only the timeline. A surface that keeps a
+   different gesture carries a waiver in `docs/touch-editor-decisions.md`
+   naming the decision it keeps.
+5. **Focus is visible and ordered.** Tab order follows reading order; the focus
+   ring is never removed; focus returns to the opener after an overlay closes.
+6. **Targets are 44 px** on coarse pointers. The dense-target exceptions are the
+   ones `gui/web/e2e/touch-floor.spec.ts` names and no others.
+
+## Names
+
+1. **One label per command.** `CommandDef.label` is the visible name on the
+   button, the menu item, the palette row and the manifest. A short form for a
+   narrow control is `shortLabel` on the same `CommandDef`, declared once.
+2. **The accessible name is the visible name.** `aria-label` only adds what the
+   visible text omits (an icon-only button says the label; a toggle says its
+   state).
+3. **Nouns come from the Terminology table.** A new noun lands in
+   `docs/communication-philosophy.md` § Terminology in the same PR.
+4. **Status reads as a sentence, not a `Label: value` chip.** "Saved to
+   project", not "Save: ok".
+
+## Shells and placement
+
+1. **Three shells, one command set.** `StudioShell` (desktop and tablet) and
+   `MobileShell` (phone) expose the same commands. A shell may hide a command
+   behind a menu or a mode; it never lacks a route to it.
+2. **Phone modes** are Listen, Timeline, Text and More. A tool or control that
+   exists in one mode has a route in the others (the Menu or More hub).
+3. **Bottom zone for doing, top zone for context.** Transport, tool rail,
+   selection sheet and primary actions sit at the bottom on phone and tablet.
+   Instructions for an armed gesture sit in the sheet, not in a card at the top.
+4. **Icon-only controls are consistent across shells.** If the tablet rail
+   labels an action, the phone rail labels it too or both use the icon with a
+   visible label on long press.
+5. **Panel tabs are a tablist.** `role="tablist"`, `role="tab"`,
+   `aria-selected`, arrow-key movement.
+
+## Where primitives and tokens live
+
+| Need | Use | Not |
+| --- | --- | --- |
+| A button that runs a command | `ui/CommandButton` | `<button onClick={() => store.set…}>` |
+| A toggle with state | `ui/ToggleButton` with `aria-pressed` | two buttons |
+| A menu | `ui/Menu`, `ui/MenuItem`, `ui/MenuSection`, `ui/CommandMenuItem` | a `<div role="menu">` |
+| A dialog or sheet | `ui/Dialog` (sheet on phone and tablet) | `ui/BottomSheet` directly, a custom popover |
+| A destructive confirm | `ui/InlineConfirm` | `askConfirm` for an in-place choice, `window.confirm` |
+| A question with text input | `feedback/ask.ts` `askText` | a bespoke dialog |
+| A disabled control | `disabledReason` | `disabled` |
+| A form field | `ui/Field`, `ui/FieldRow`, `ui/InlineError` | a bare `<input>` with a sibling `<span>` |
+| Feedback | `announceStatus` with `undo` | `ui/Toast` in a panel, a local `role="status"` |
+| An empty area | `ui/EmptyState` with its action | a paragraph |
+| A drag | a hit kind in `timeline/inputContract.ts` and `useLongPress` | an ad-hoc `pointerdown` handler |
+| A color, space, size or z value | `var(--…)` from `styles/theme/` | a literal |
+
+## Checklist
+
+A new interaction, or a change to one, passes every line. A line that does
+not apply is answered "n/a" with the reason in the PR.
+
+- [ ] It is a `CommandDef` in `commands/catalog.ts` with `label`, `category`
+      and a typed `when`.
+- [ ] Its label is the one visible name on every surface; a `shortLabel` is
+      declared on the same entry if a narrow control needs one.
+- [ ] It has a keymap entry, or the PR says why it has none.
+- [ ] It has a touch gesture in `inputContract.ts`, or the PR says why it has
+      none. A gesture has a visible equivalent in the bottom zone.
+- [ ] If it selects, the kind is in `SelectionKind` and `SELECTION_SURFACES`,
+      and peek and Related derive from that row.
+- [ ] If it needs a target, it resolves target → selection → focus and is
+      disabled with a reason otherwise.
+- [ ] If it opens an overlay, it uses `Menu`, `Dialog` or `InlineConfirm`;
+      the overlay is a sheet on phone and tablet; one overlay at a time.
+- [ ] If it opens a menu on touch, the same descriptor opens on right click
+      and on the keyboard.
+- [ ] If it mutates, it goes through the document command path and
+      `announceStatus` with `undo`.
+- [ ] Its feedback clears with its surface. Its error copy names the next
+      step and contains no internals.
+- [ ] Its controls meet 44 px on coarse pointers or are a named dense-target
+      exception.
+- [ ] It has a manifest row with every GUI surface it appears on.
+- [ ] A new noun is in the Terminology table; a new gesture is in
+      `commands/gestures.ts` and the gestures sheet.
+- [ ] Tests lock the command, the key, the gesture, the surface row and the
+      feedback. For UI under `gui/web/`, Vitest with axe; for shells and
+      overlays, Playwright in `gui/web/e2e/`.
+
+## Enforcement
+
+Locked by a test or a check today:
+
+- One `keydown` listener and every command in the catalog
+  (`commands/governance.test.ts`).
+- Every timeline gesture in the contract (`timeline/gestureGovernance.test.ts`).
+- Shared buttons disable only with a reason (`ui/Button.test.tsx`,
+  `ui/disabledReason.tsx`).
+- `no-alert` (oxlint), axe in Vitest and Playwright, the 44 px sweep
+  (`gui/web/e2e/touch-floor.spec.ts`), overlay reachability
+  (`gui/web/e2e/overlayReachability.ts`).
+- Capabilities and shortcut cheatsheet (`make capabilities-check`,
+  `make cheatsheet-check`).
+- Tokens and units (Stylelint, `tests/test_css_policy.py`).
+
+Review checks the rest: one label per command, one live region, feedback
+lifetime, menu descriptors shared between touch and right click, tablet and
+phone reading the same `screens`. Each of those becomes a test as the
+matching phase of the UI consistency epic lands.
+
+## Shipped gaps
+
+The 2026-10-19 audit measured these against the rules above. The UI
+consistency epic tracks them; the list here keeps the doc honest about what
+is a requirement and what the code does.
+
+| Rule | Shipped today |
+| --- | --- |
+| Selection: one store | `selection`, `selectedTrackIds` and `selectedClipIds` are three stores. |
+| Selection: one kind per target | A tapped word is `transcriptWord` and `transcriptRange`. |
+| Selection: one table | `peekTarget.ts` and `relatedCommandDescriptors.ts` are second and third maps; tablet opens every kind where phone reads `phoneScreens`. |
+| Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` are hand-rolled `role="menu"` outside the top layer; desktop has no right-click menu (`hooks/useLongPress.ts` only suppresses the native one). |
+| Dialogs: sheet on phone | `Dialog` sheets only with `phoneSheet`; Bounce, Host MCP, Help, Gestures, Record, Precision, Whisper and pipeline step params center on phone. |
+| Dialogs: one gate | `keymap/listener.ts` early returns, `ui/modalGate.ts` and `competingDialogOpen` cover different dialogs. |
+| Confirms: one primitive | `askConfirm`, `InlineConfirm`, the blade `BottomSheet` and the Whisper `Dialog` are four. |
+| Feedback: one channel | `ui/Toast` in the comments panel speaks itself; the attention banner mounts a second `StatusLiveRegion`. |
+| Feedback: undo rides with the result | Trim, fade, delete, paste, chapter add and envelope add toast without `undo`. |
+| Feedback: belongs to its surface | "Clip armed…" stays docked through two phone mode switches. |
+| Feedback: recovery does the thing | "Inspect History" sets a More destination and does not open History on desktop or from Listen. |
+| Names: one label | Select / Select tool, Search commands / Commands and shortcuts, Zoom − / Zoom out. |
+| Shells: bottom zone for doing | The tablet Select range instruction card with In, Out and Select range sits at the top. |
+| Touch: one grammar across `src/` | The governance scan walks `timeline/` only; comment swipe, splitter, reorder grip, fader and ruler keep their own gestures. |
+| Keys: declared dispatch order | Backspace tries `tighten.skipHit` before `edit.delete`; the listener comment says catalog order. |
+| Capability rows complete | Transport Undo/Redo and zoom buttons are missing from the manifest `gui` column; zoom gates are stricter than the catalog `when`. |
