@@ -57,7 +57,7 @@ def connect_session_db(
     needs to change it. A per-database thread lock (keyed by resolved path)
     serializes that one-time transition inside this process, so a retry on
     one busy database never blocks another. The lock is dropped once the
-    switch succeeds, or when a failed attempt leaves no other thread waiting
+    switch and schema succeed, or when a failed attempt leaves no other thread waiting
     on it, since later opens only read the persisted mode. Another
     process can still hold the database lock, and SQLite may return busy for
     a journal-mode change without invoking the busy handler, so the
