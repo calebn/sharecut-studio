@@ -458,8 +458,9 @@ Recording sessions reuse the share registry (`kind`) and prefixed session-sync
 sqlite tables (`record_*`) rather than a new plane — see [recording-session.md](recording-session.md).
 `EditService.list_clips` acquires the host-local recording-key secret from the
 share registry once per call; `edits.timeline_ops.list_clips` passes it to pure
-HMAC derivation in `edits.clips_ops.recording_key`. Registry and session SQLite owners share
-`util/sqlite_wal.ensure_wal` for the bounded WAL transition; session setup retains
+HMAC derivation in `edits.clips_ops.recording_key`. Every SQLite store (session sync, share identity, share registry, relay reports) opens through
+`util/sqlite_open.open_sqlite`: WAL by way of the bounded `util/sqlite_wal.ensure_wal`
+transition, then a busy timeout (5 s unless the store passes another); session setup retains
 its per-path locks and timing controls. A failed registry secret transaction closes
 its connection. The process-wide getter and each registry operation recover from
 durable state before token lookup, including directly injected registry owners.
@@ -699,6 +700,8 @@ Three idioms cache a value derived from project data; pick by how the input chan
 - **Large in-memory data edited in place** — stamp against a bump-on-mutation revision and memo on the object (`Transcript.memoize_words` over `models/words_revision.py`, #729). Hashing the content would cost as much as the value. A path key is wrong here because loads and deep copies build new words without moving the revision. Memoized values must be immutable.
 
 Never key a cache on object identity (`id()`) of mutable project data.
+
+A process-wide memo that outlives one call and is not one of these three (an admitted binary pair, a parsed defaults file, a probe answer, the waveform index, pyramid header and PCM block LRUs) is a module-level `util.bounded_cache.BoundedCache`: a hard entry bound, its own reentrant lock (hold `cache.lock` across get, compute and put for single flight) and `clear()`. Register it in `tests/process_caches.py` ([testing.md § Host config isolation](testing.md#host-config-isolation)). Registries of live objects stay as they are: the weak-value sync store cache (`session_sync/log.py`, persistence.md) is lifetime management, not a value cache, and `SnapshotCache` bounds by bytes as well as entries.
 
 ### Transcript replacement plans
 
