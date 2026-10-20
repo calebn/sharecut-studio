@@ -8,6 +8,10 @@ on:
       - 'src/podcast_mcp/util/relay_protocol/**'
       - '.github/workflows/relay-ci.yml'
 
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('relay-ci-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'relay-ci-main' || format('relay-ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
+
 jobs:
   smoke:
     runs-on: ubuntu-latest

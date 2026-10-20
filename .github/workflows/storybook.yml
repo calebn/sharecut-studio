@@ -22,8 +22,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: "storybook-${{ github.event_name }}-${{ github.ref }}"
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('storybook-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'storybook-main' || format('storybook-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
   build:
