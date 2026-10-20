@@ -9,14 +9,14 @@ from uuid import uuid4
 import yaml
 from filelock import FileLock
 
-from podcast_mcp.config import repo_root
+from podcast_mcp.config import defaults_dir
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dicts import deep_merge
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.project_state import transcript_context_lock_path
 
-_GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_glossary.yaml"
+_GLOBAL_DEFAULTS_PATH = defaults_dir() / "transcript_glossary.yaml"
 
 # Primes Whisper's first decode window into a punctuated, cased register. A bare
 # comma-joined vocabulary list, or no prompt at all, can decode as an unpunctuated

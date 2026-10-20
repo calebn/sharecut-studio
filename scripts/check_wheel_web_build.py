@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Assert a release wheel ships the Sharecut Studio web build (#1085) and its contracts.
+"""Assert a release wheel ships the Sharecut Studio web build (#1085), its contracts and defaults.
 
 Checks that ``index.html`` and every ``./`` file it references sit under the
-packaged web root, and that the runtime-loaded ``contracts/*.json`` ship as
-``podcast_mcp/contracts``. With ``--podcast``, also loads those contracts from the
-installed package, then starts that installed ``podcast gui`` and requires ``/`` to
-return the wheel's ``index.html`` and each asset to load.
+packaged web root, that the runtime-loaded ``contracts/*.json`` ship as
+``podcast_mcp/contracts`` and the default YAMLs as ``podcast_mcp/defaults`` (#1879).
+With ``--podcast``, also loads those contracts and defaults from the installed package,
+then starts that installed ``podcast gui`` and requires ``/`` to return the wheel's
+``index.html`` and each asset to load.
 
     python scripts/check_wheel_web_build.py dist/podcast_mcp-*.whl
     python scripts/check_wheel_web_build.py dist/podcast_mcp-*.whl --podcast venv/bin/podcast
@@ -28,6 +29,10 @@ _HOOK = tomllib.loads(_PYPROJECT.read_text(encoding="utf-8"))["tool"]["hatch"]["
 WHEEL_WEB_DIST = _HOOK["custom"]["wheel-web-dist"]
 
 PACKAGED_CONTRACTS = "podcast_mcp/contracts"
+PACKAGED_DEFAULTS = "podcast_mcp/defaults"
+# Default YAMLs the runtime reads (config.defaults_dir()): the pipeline defaults and the
+# global transcript glossary.
+RUNTIME_DEFAULTS = ("pipeline.yaml", "transcript_glossary.yaml")
 # Contracts the runtime reads (util/contracts.py): ffmpeg_policy, asset_sources,
 # timeline_zoom and the edit geometry constants.
 RUNTIME_CONTRACTS = (
@@ -40,6 +45,8 @@ RUNTIME_CONTRACTS = (
 )
 _LOAD_CONTRACTS = """
 import sys
+from podcast_mcp import config
+from podcast_mcp.transcript_context import _GLOBAL_DEFAULTS_PATH
 from podcast_mcp.edits import clips_ops, ranges, ripple
 from podcast_mcp.util import contracts
 from podcast_mcp.util.asset_sources import load_manifest
@@ -52,6 +59,8 @@ assert "site-packages" in where.parts, where
 assert load_manifest()["assets"] and ffmpeg_policy()["version"] and min_zoom_px_per_sec() > 0
 assert clips_ops._MIN_CLIP_SPAN_SEC == 0.05 and ranges.SPAN_EPS_S == 1e-9
 assert ripple._EDGE_EPS_SEC == 1e-3 and clips_ops.JOIN_GAP_TOLERANCE_SEC == 0.05
+assert config.defaults_dir().name == "defaults" and "site-packages" in config.defaults_dir().parts
+assert config.load_defaults()["performance"] is not None and _GLOBAL_DEFAULTS_PATH.is_file()
 print(where)
 """
 
@@ -81,6 +90,15 @@ def wheel_contracts(wheel: Path) -> None:
     stray = sorted(n for n in names if n.startswith("podcast_mcp/util/") and n.endswith(".json"))
     if missing or stray:
         raise SystemExit(f"{wheel.name}: contracts missing {missing}, stray util JSON {stray}")
+
+
+def wheel_defaults(wheel: Path) -> None:
+    """Require the default YAMLs under ``podcast_mcp/defaults`` (an install without them reads ``{}``)."""
+    with zipfile.ZipFile(wheel) as archive:
+        names = set(archive.namelist())
+    missing = [n for n in RUNTIME_DEFAULTS if f"{PACKAGED_DEFAULTS}/{n}" not in names]
+    if missing:
+        raise SystemExit(f"{wheel.name}: defaults missing {missing}")
 
 
 def installed_contracts(podcast: Path) -> None:
@@ -152,6 +170,8 @@ def main() -> None:
     print(
         f"{args.wheel.name}: {len(RUNTIME_CONTRACTS)} runtime contracts under {PACKAGED_CONTRACTS}"
     )
+    wheel_defaults(args.wheel)
+    print(f"{args.wheel.name}: {len(RUNTIME_DEFAULTS)} default YAMLs under {PACKAGED_DEFAULTS}")
     if args.podcast:
         installed_contracts(args.podcast)
         serve_check(args.podcast, args.port, index, refs)

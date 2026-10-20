@@ -15,7 +15,15 @@ EffectiveConfig = dict[str, Any]
 """The merged pipeline config one request runs against: the project's staged working set, else shipped defaults."""
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULTS_PATH = _REPO_ROOT / ".agents" / "defaults" / "pipeline.yaml"
+
+
+def defaults_dir() -> Path:
+    """Shipped default YAMLs: ``podcast_mcp/defaults`` in a wheel, ``<repo>/.agents/defaults`` in a checkout."""
+    packaged = Path(__file__).resolve().parent / "defaults"
+    return packaged if packaged.is_dir() else _REPO_ROOT / ".agents" / "defaults"
+
+
+_DEFAULTS_PATH = defaults_dir() / "pipeline.yaml"
 
 
 def repo_root() -> Path:
