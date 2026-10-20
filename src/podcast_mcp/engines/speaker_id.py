@@ -27,6 +27,7 @@ from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
 )
+from podcast_mcp.util.project_state import file_revision_key
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path
 from podcast_mcp.util.wav import open_wav
@@ -291,31 +292,11 @@ def _stem_path(project: EpisodeProject, track_id: str) -> Path | None:
     return path
 
 
-def _stem_hash(path: Path) -> str:
-    import hashlib
-
-    stat = path.stat()
-    h = hashlib.sha256()
-    h.update(str(stat.st_size).encode())
-    h.update(str(stat.st_mtime_ns).encode())
-    with path.open("rb") as f:
-        data = f.read()
-    if len(data) <= 256 * 1024:
-        h.update(data)
-    else:
-        chunk = 65536
-        h.update(data[:chunk])
-        mid = len(data) // 2
-        h.update(data[mid : mid + chunk])
-        h.update(data[-chunk:])
-    return h.hexdigest()[:16]
-
-
 def _profile_stem_valid(project: EpisodeProject, profile: SpeakerProfile) -> bool:
     path, _ = _stem_path_and_source(project, profile.track_id)
     if path is None:
         return False
-    return profile.stem_hash == _stem_hash(path)
+    return profile.stem_hash == file_revision_key(path)
 
 
 def profile_home_track(profile: SpeakerProfile) -> str:
@@ -382,7 +363,7 @@ def load_all_profiles(project: EpisodeProject) -> dict[str, SpeakerProfile]:
 def load_profile(project: EpisodeProject, identity_or_track_id: str) -> SpeakerProfile | None:
     path, _ = _stem_path_and_source(project, identity_or_track_id)
     if path is not None:
-        cache = profile_cache_path(project, identity_or_track_id, _stem_hash(path))
+        cache = profile_cache_path(project, identity_or_track_id, file_revision_key(path))
         if cache.is_file():
             prof = SpeakerProfile.from_dict(json.loads(cache.read_text(encoding="utf-8")))
             if _profile_stem_valid(project, prof):
@@ -478,7 +459,7 @@ def enroll_track(
         return None
 
     mean_emb = np.mean(np.stack(embeddings), axis=0)
-    stem = _stem_hash(path)
+    stem = file_revision_key(path)
     profile = SpeakerProfile(
         speaker_id=track_id,
         track_id=track_id,
@@ -526,7 +507,7 @@ def enroll_segment(
         sample_rate=cfg.sample_rate,
     )
     emb = backend.embed(samples, cfg.sample_rate)
-    stem = _stem_hash(path)
+    stem = file_revision_key(path)
     profile = SpeakerProfile(
         speaker_id=speaker_id,
         track_id=track_id,
