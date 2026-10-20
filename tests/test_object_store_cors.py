@@ -188,3 +188,46 @@ def test_forbidden_without_cors_header_is_blocked_and_with_it_ok(monkeypatch) ->
         "urllib.request.urlopen", _raise_http(403, {"Access-Control-Allow-Origin": ORIGIN})
     )
     assert cors.probe_guest_cors(URL, ORIGIN).status == "ok"
+
+
+def test_cached_probe_keeps_a_failure_for_a_shorter_time_than_a_success() -> None:
+    ok_calls: list[str] = []
+    blocked_calls: list[str] = []
+
+    def ok(url: str, origin: str):
+        ok_calls.append(url)
+        return {"access-control-allow-origin": "*"}
+
+    def blocked(url: str, origin: str):
+        blocked_calls.append(url)
+        return {}
+
+    ok_url = "https://ok.example.test/a"
+    blocked_url = "https://blocked.example.test/a"
+    t = [0.0]
+
+    def now() -> float:
+        return t[0]
+
+    for _ in range(2):
+        cors.cached_guest_cors(ok_url, ORIGIN, fetch=ok, now=now)
+        cors.cached_guest_cors(blocked_url, ORIGIN, fetch=blocked, now=now)
+    assert (len(ok_calls), len(blocked_calls)) == (1, 1)
+
+    t[0] = cors._FAIL_TTL_SEC + 0.1
+    cors.cached_guest_cors(ok_url, ORIGIN, fetch=ok, now=now)
+    cors.cached_guest_cors(blocked_url, ORIGIN, fetch=blocked, now=now)
+    assert (len(ok_calls), len(blocked_calls)) == (1, 2)
+
+
+def test_clear_cors_cache_forces_a_new_probe() -> None:
+    calls: list[str] = []
+
+    def fetch(url: str, origin: str):
+        calls.append(url)
+        return {}
+
+    cors.cached_guest_cors(URL, ORIGIN, fetch=fetch)
+    cors.clear_cors_cache()
+    cors.cached_guest_cors(URL, ORIGIN, fetch=fetch)
+    assert len(calls) == 2

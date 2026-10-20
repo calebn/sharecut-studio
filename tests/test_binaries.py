@@ -317,3 +317,56 @@ def test_inaccessible_optional_directory_reports_actionable_refusal(tmp_path, mo
     monkeypatch.setattr(Path, "is_file", is_file)
     with pytest.raises(FFmpegPairResolutionError, match=r"build_ffmpeg\.py"):
         resolve_ffmpeg_pair()
+
+
+def _counting_run(monkeypatch):
+    calls: list[list[str]] = []
+
+    def version(argv, **kwargs):
+        calls.append(argv)
+        name = Path(argv[0]).stem
+        return subprocess.CompletedProcess(argv, 0, f"{name} version 9.0.2\n", "")
+
+    monkeypatch.setattr("podcast_mcp.util.binaries.run", version)
+    return calls
+
+
+def test_pair_admission_cache_keeps_the_eight_most_recent_pairs(tmp_path, monkeypatch):
+    calls = _counting_run(monkeypatch)
+    pairs = [list(map(str, executable_pair(tmp_path / f"p{i}", "9.0.2"))) for i in range(9)]
+    for pair in pairs:
+        resolve_ffmpeg_pair(*pair)
+    assert len(calls) == 18
+
+    resolve_ffmpeg_pair(*pairs[8])
+    resolve_ffmpeg_pair(*pairs[1])
+    assert len(calls) == 18
+
+    resolve_ffmpeg_pair(*pairs[0])
+    assert len(calls) == 20
+
+
+def test_pair_admission_hit_refreshes_recency(tmp_path, monkeypatch):
+    calls = _counting_run(monkeypatch)
+    pairs = [list(map(str, executable_pair(tmp_path / f"p{i}", "9.0.2"))) for i in range(9)]
+    for pair in pairs[:8]:
+        resolve_ffmpeg_pair(*pair)
+    resolve_ffmpeg_pair(*pairs[0])
+    resolve_ffmpeg_pair(*pairs[8])
+    assert len(calls) == 18
+
+    resolve_ffmpeg_pair(*pairs[0])
+    assert len(calls) == 18
+    resolve_ffmpeg_pair(*pairs[1])
+    assert len(calls) == 20
+
+
+def test_force_refresh_re_admits_a_cached_pair(tmp_path, monkeypatch):
+    calls = _counting_run(monkeypatch)
+    pair = list(map(str, executable_pair(tmp_path / "explicit", "9.0.2")))
+    resolve_ffmpeg_pair(*pair)
+    assert len(calls) == 2
+    resolve_ffmpeg_pair(*pair, force_refresh=True)
+    assert len(calls) == 4
+    resolve_ffmpeg_pair(*pair)
+    assert len(calls) == 4

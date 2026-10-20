@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from podcast_mcp import config
 from podcast_mcp.config import (
     DEFAULT_MICRO_FADE_MS,
     cache_dir,
@@ -115,3 +116,27 @@ def test_join_micro_fade_ms_reads_inaudible_cuts_with_default():
     assert join_micro_fade_ms({}) == DEFAULT_MICRO_FADE_MS == 10
     assert join_micro_fade_ms({"inaudible_cuts": {"micro_fade_ms": 7}}) == 7
     assert join_micro_fade_ms() == int(load_defaults()["inaudible_cuts"]["micro_fade_ms"])
+
+
+def test_load_defaults_parses_once_per_content_and_returns_private_copies(tmp_path, monkeypatch):
+    path = tmp_path / "defaults.yaml"
+    path.write_text("mix:\n  premix_peak_ceiling_db: -2.0\n")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+    parses: list[bytes] = []
+    real_load = config.yaml.safe_load
+
+    def counted(raw):
+        parses.append(raw)
+        return real_load(raw)
+
+    monkeypatch.setattr(config.yaml, "safe_load", counted)
+
+    first = load_defaults()
+    first["mix"]["premix_peak_ceiling_db"] = -9.0
+    second = load_defaults()
+    assert second["mix"]["premix_peak_ceiling_db"] == -2.0
+    assert len(parses) == 1
+
+    path.write_text("mix:\n  premix_peak_ceiling_db: -3.0\n")
+    assert load_defaults()["mix"]["premix_peak_ceiling_db"] == -3.0
+    assert len(parses) == 2
