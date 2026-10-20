@@ -32,6 +32,7 @@ from podcast_mcp.util.body_limits import (
 )
 from podcast_mcp.util.proxy_paths import proxy_path_is_safe
 from podcast_mcp.util.rate_limit import is_review_audio_path
+from podcast_mcp.util.rate_limit_http import rate_limited_response
 from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue, ws_close_details
 from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
@@ -41,7 +42,6 @@ from podcast_relay.limits import (
     check_register,
     get_relay_limiters,
     is_presence_ws_text,
-    rate_limit_detail,
     relay_rate_limit_enabled,
 )
 from podcast_relay.offline import offline_page
@@ -616,11 +616,7 @@ def create_relay_app() -> FastAPI:
         client_ip = request.client.host if request.client else None
         rpm = check_proxy_rpm(token=token, client_ip=client_ip, path_suffix=path_suffix)
         if not rpm.allowed:
-            return JSONResponse(
-                rate_limit_detail(rpm),
-                status_code=429,
-                headers={"Retry-After": rpm.retry_after_header},
-            )
+            return rate_limited_response(rpm)
 
         # Hold concurrency until the proxied response finishes streaming.
         gates: list[tuple[Any, str]] = []
@@ -634,29 +630,17 @@ def create_relay_app() -> FastAPI:
             if is_review_audio_path(path_suffix):
                 d = lim.audio_concurrent.try_enter(token)
                 if not d.allowed:
-                    return JSONResponse(
-                        rate_limit_detail(d),
-                        status_code=429,
-                        headers={"Retry-After": d.retry_after_header},
-                    )
+                    return rate_limited_response(d)
                 gates.append((lim.audio_concurrent, token))
             d = lim.token_concurrent.try_enter(token)
             if not d.allowed:
                 _release_gates()
-                return JSONResponse(
-                    rate_limit_detail(d),
-                    status_code=429,
-                    headers={"Retry-After": d.retry_after_header},
-                )
+                return rate_limited_response(d)
             gates.append((lim.token_concurrent, token))
             d = lim.host_concurrent.try_enter(session.host_id)
             if not d.allowed:
                 _release_gates()
-                return JSONResponse(
-                    rate_limit_detail(d),
-                    status_code=429,
-                    headers={"Retry-After": d.retry_after_header},
-                )
+                return rate_limited_response(d)
             gates.append((lim.host_concurrent, session.host_id))
 
         limit = relay_max_body_bytes()

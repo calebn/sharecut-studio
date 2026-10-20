@@ -10,7 +10,6 @@ from podcast_mcp.util.rate_limit import (
     env_float,
     env_int,
     is_review_audio_path,
-    rate_limit_detail,
 )
 
 # Generous defaults (plan).
@@ -151,7 +150,6 @@ __all__ = [
     "check_register",
     "get_relay_limiters",
     "is_presence_ws_text",
-    "rate_limit_detail",
     "relay_rate_limit_enabled",
     "reset_relay_limiters_for_tests",
 ]

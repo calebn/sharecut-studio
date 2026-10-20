@@ -25,7 +25,6 @@ if TYPE_CHECKING:
         get_host_limiters,
         host_rate_limit_enabled,
         mcp_rate_limit_error,
-        rate_limit_detail,
         ws_roster_request_allowed,
     )
     from podcast_mcp.services.remote_mcp.progress import (
@@ -59,7 +58,6 @@ __all__ = [
     "iter_mcp_sse",
     "list_tool_defs",
     "mcp_rate_limit_error",
-    "rate_limit_detail",
     "resolve_remote_mcp_context",
     "rpc_progress_token",
     "run_guest_mcp_call",
@@ -87,7 +85,6 @@ _MODULE_BY_NAME = {
     "iter_mcp_sse": "progress",
     "list_tool_defs": "tools",
     "mcp_rate_limit_error": "limits",
-    "rate_limit_detail": "limits",
     "resolve_remote_mcp_context": "context",
     "rpc_progress_token": "progress",
     "run_guest_mcp_call": "executor",

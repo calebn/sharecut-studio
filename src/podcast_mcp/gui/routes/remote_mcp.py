@@ -24,7 +24,6 @@ from podcast_mcp.services.remote_mcp import (
     handle_mcp_jsonrpc,
     iter_mcp_sse,
     mcp_rate_limit_error,
-    rate_limit_detail,
     rpc_progress_token,
     run_guest_mcp_call,
 )
@@ -34,6 +33,7 @@ from podcast_mcp.util.body_limits import (
     read_body_capped,
     remote_mcp_max_body_bytes,
 )
+from podcast_mcp.util.rate_limit_http import rate_limited_error, rate_limited_response
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -60,11 +60,7 @@ def _remote_mcp_enabled(request: Request) -> bool:
 def _rate_limit_http(token: str, kind: str) -> None:
     decision = check_host_bucket(token, kind)
     if not decision.allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=rate_limit_detail(decision),
-            headers={"Retry-After": decision.retry_after_header},
-        )
+        raise rate_limited_error(decision)
 
 
 def accept_allows_json_rpc(accept: str) -> bool:
@@ -170,12 +166,7 @@ async def mcp_bridge(token: str, request: Request) -> Any:
     kind = classify_mcp_rpc(body.get("method"), tool_name)
     decision = check_host_bucket(token, kind)
     if not decision.allowed:
-        return JSONResponse(
-            mcp_rate_limit_error(body.get("id"), decision),
-            status_code=429,
-            headers={"Retry-After": decision.retry_after_header},
-            media_type="application/json",
-        )
+        return rate_limited_response(decision, mcp_rate_limit_error(body.get("id"), decision))
 
     if rpc_progress_token(body) is not None:
         return StreamingResponse(

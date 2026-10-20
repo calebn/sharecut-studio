@@ -237,6 +237,5 @@ __all__ = [
     "get_host_limiters",
     "host_rate_limit_enabled",
     "mcp_rate_limit_error",
-    "rate_limit_detail",
     "reset_host_limiters_for_tests",
 ]
