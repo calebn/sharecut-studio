@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type BootstrapJobSnapshot, waitForBootstrapJob } from "./api";
-import { JOB_STREAM_RECHECK_MS } from "./api/pipeline";
+import { JOB_STREAM_RECHECK_MS } from "./api/jobStream";
 
 type Handler = ((ev: MessageEvent) => void) | null;
 type ErrHandler = (() => void) | null;

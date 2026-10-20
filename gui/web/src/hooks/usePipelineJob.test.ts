@@ -16,7 +16,8 @@ const pipelineEventsUrl = vi.fn((id?: string | null) =>
   id ? `/api/pipeline/events?job_id=${id}` : "/api/pipeline/events",
 );
 
-vi.mock("../api", () => ({
+vi.mock("../api", async () => ({
+  openJobStream: (await import("../api/jobStream")).openJobStream,
   loadPipelineStatus: (...args: unknown[]) => loadPipelineStatus(...args),
   pipelineEventsUrl: (...args: unknown[]) =>
     pipelineEventsUrl(...(args as [string | null | undefined])),

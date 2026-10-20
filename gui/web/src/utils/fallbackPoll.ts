@@ -5,7 +5,7 @@
  *
  * Shared by `usePipelineJob` (pipeline SSE) and `useGuestSync` (guest WS) so
  * the "any frame proves liveness, stop the fallback poll" rule lives in one
- * place. `startJobStatusRecheck` in `api/pipeline.ts` is a different shape:
+ * place. `startJobStatusRecheck` in `api/jobStream.ts` is a different shape:
  * a periodic backstop while a one-job waiter's stream is open.
  */
 export type FallbackPoll = {

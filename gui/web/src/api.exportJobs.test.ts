@@ -5,7 +5,7 @@ import {
   followExportJob,
   waitForPipelineJob,
 } from "./api";
-import { JOB_STREAM_RECHECK_MS } from "./api/pipeline";
+import { JOB_STREAM_RECHECK_MS } from "./api/jobStream";
 import type { PipelineJobSnapshot } from "./types/pipeline";
 
 class FakeEventSource {
