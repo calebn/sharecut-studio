@@ -243,7 +243,7 @@ def analyze_fillers_and_pauses(
     skip_counts: dict[str, int] | None = None,
 ) -> list[EditDecision]:
     """Serial, single-transcript entry point (kept for direct/standalone callers
-    and tests). The pipeline's hot path (propose_tighten_edits in edits/tighten.py)
+    and tests). The pipeline's hot path (propose_tighten_edits in edits/tighten/propose.py)
     instead flattens candidates across ALL transcripts and analyzes them in
     parallel before applying decisions serially -- see that module for why.
 
