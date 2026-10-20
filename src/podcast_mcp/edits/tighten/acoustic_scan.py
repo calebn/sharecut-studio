@@ -117,8 +117,8 @@ def _peer_voiced_at(
     own_voice_db = own_cache.waveform.profile.path_reference_db
     for peer_id, cache in peers.caches.items():
         peer_voice_db = cache.waveform.profile.path_reference_db
-        reach = peers.lags.sec(peer_id, track_id)
-        copy = peers.lags.sec(track_id, peer_id)
+        reach = peers.lags.sec(peer_id, track_id, defaults=defaults)
+        copy = peers.lags.sec(track_id, peer_id, defaults=defaults)
         lo, hi = start + reach, end + reach
         for run in voiced_runs(
             cache.waveform,
@@ -248,7 +248,7 @@ def _collect_acoustic_candidates(
     audio_cache: TrackAudioCache,
     occupied: HalfOpenIntervalIndex,
     *,
-    defaults: dict[str, Any] | None = None,
+    defaults: dict[str, Any],
     peers: _AcousticPeers | None = None,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_CutCandidate]:
@@ -287,7 +287,7 @@ def _collect_acoustic_candidates(
         own_runs: list[AcousticGapRun] = []
         for run in runs:
             if peers is not None and _peer_voiced_at(
-                track_id, audio_cache, peers, run.start, run.end, defaults or {}
+                track_id, audio_cache, peers, run.start, run.end, defaults
             ):
                 _count_skip(skip_counts, "acoustic:peer_speaking")
                 continue
