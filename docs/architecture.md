@@ -48,6 +48,10 @@ its per-path locks and timing controls. A failed registry secret transaction clo
 its connection. The process-wide getter and each registry operation recover from
 durable state before token lookup, including directly injected registry owners.
 
+### Progress
+
+Domain code opens `progress_task` from `podcast_mcp.util.progress`; adapters bind the reporter at their choke points and attach only live sinks with `compose_progress`. The package splits by role: `protocol` (the six-method reporter and `ProgressEvent`), `task`, `sinks` (registries and the MCP and guest wraps), `reporters` and `compliance`. `util/` imports no adapter, so the CLI command wrap lives in `cli/progress.py`. Every class that implements the protocol derives from `ElapsedProgressMixin`, which holds the no-op bodies and the one heartbeat; `tests/test_progress_compliance.py` enforces that by AST. Spec and event semantics: [progress.md](progress.md).
+
 ### Service contexts
 
 `services/support/` owns runtime/configuration diagnostics, sanitized bundles,

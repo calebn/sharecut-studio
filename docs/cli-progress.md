@@ -2,7 +2,7 @@
 
 CLI adapter for the shared progress framework. Spec: [progress.md](progress.md).
 
-Long-running CLI operations report progress on **stderr** so stdout stays clean for JSON and piping. The Typer app wraps registered commands after registration (`install_cli_progress`). Registered commands and default `podcast play` use `cli_progress_task` to bind CLI and live adapter sinks for one canonical task. Selected play subcommands open only their own command task.
+Long-running CLI operations report progress on **stderr** so stdout stays clean for JSON and piping. The Typer app wraps registered commands after registration (`install_cli_progress`, in `cli/progress.py` with `cli_progress_task`). Registered commands and default `podcast play` use `cli_progress_task` to bind CLI and live adapter sinks for one canonical task. Selected play subcommands open only their own command task.
 
 ## Flags
 
