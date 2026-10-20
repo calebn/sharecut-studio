@@ -1,8 +1,6 @@
 import { type ReactNode } from "react";
 import type { ToolMode } from "../state/types";
-import { BottomSheet, Button, InlineError } from "../ui";
-import { BUSY_REASON } from "../ui/disabledReason";
-import { formatTime } from "../utils/time";
+import { Button } from "../ui";
 import { HistoryControls } from "./HistoryControls";
 import type { HistoryAvailability } from "./useHistoryControls";
 import type { ZoomAvailability } from "./useZoomControls";
@@ -14,10 +12,6 @@ export interface EditingToolRailViewProps {
   mayIngest: boolean;
   toolMode: ToolMode;
   commentMode: boolean;
-  busy: boolean;
-  error: string | null;
-  bladeConfirmSec: number | null;
-  trackIdsForCut: readonly string[];
   toolToggle: ReactNode;
   /** Undo and Redo for people who can edit; null hides them. */
   history: HistoryAvailability | null;
@@ -29,21 +23,15 @@ export interface EditingToolRailViewProps {
   onAddTrack: () => void;
   onImport: () => void;
   onCutAtPlayhead: () => void;
-  onCancelCut: () => void;
-  onConfirmCut: () => void;
 }
 
-/** Store-free Ferrite-style bottom tool rail + blade confirm sheet (phone/tablet). */
+/** Store-free Ferrite-style bottom tool rail (phone/tablet). */
 export function EditingToolRailView({
   inert = false,
   bladeAllowed,
   mayIngest,
   toolMode,
   commentMode,
-  busy,
-  error,
-  bladeConfirmSec,
-  trackIdsForCut,
   toolToggle,
   history,
   onUndo,
@@ -54,8 +42,6 @@ export function EditingToolRailView({
   onAddTrack,
   onImport,
   onCutAtPlayhead,
-  onCancelCut,
-  onConfirmCut,
 }: EditingToolRailViewProps) {
   return (
     <>
@@ -87,7 +73,6 @@ export function EditingToolRailView({
           ) : null}
           {bladeAllowed && toolMode === "blade" && !commentMode ? (
             <Button
-              disabledReason={busy ? BUSY_REASON : undefined}
               onClick={onCutAtPlayhead}
               title="Cut selected tracks at playhead"
             >
@@ -108,42 +93,6 @@ export function EditingToolRailView({
           </div>
         </div>
       </div>
-      {bladeAllowed ? (
-        <BottomSheet
-          backgroundPolicy="dismiss"
-          open={bladeConfirmSec != null}
-          onClose={onCancelCut}
-          title="Confirm blade cut"
-          size="fit"
-        >
-          {bladeConfirmSec != null ? (
-            <div className="blade-confirm-sheet">
-              <p>
-                Split at <strong>{formatTime(bladeConfirmSec)}</strong> on{" "}
-                {trackIdsForCut.length
-                  ? trackIdsForCut.join(", ")
-                  : "all dialogue tracks"}
-                .
-              </p>
-              <InlineError message={error} />
-              <div className="blade-confirm-actions">
-                <Button
-                  disabledReason={busy ? BUSY_REASON : undefined}
-                  onClick={onCancelCut}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  disabledReason={busy ? BUSY_REASON : undefined}
-                  onClick={onConfirmCut}
-                >
-                  {busy ? "Cutting…" : "Cut"}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </BottomSheet>
-      ) : null}
     </>
   );
 }

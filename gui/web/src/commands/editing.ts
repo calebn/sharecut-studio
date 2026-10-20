@@ -16,6 +16,7 @@ import { patchClipsMove } from "../document/projectPatch";
 import { getClipboard, setClipboard } from "../edit/clipboard";
 import { clipPlacementIsCurrent } from "../edit/clipPlacement";
 import { payloadFromSelection } from "../edit/selectionClipboard";
+import { askConfirm } from "../feedback/ask";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
@@ -25,7 +26,12 @@ import {
 } from "../tracks/trackMuteCopy";
 import { errorMessage } from "../utils/apiError";
 import { anySolo } from "../utils/audio";
-import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
+import {
+  bladeCutNote,
+  bladeTrackIds,
+  dialogueTrackIds,
+} from "../utils/bladeTracks";
+import { formatTime } from "../utils/time";
 import type { CommandContext } from "./context";
 import { registerCommand } from "./execute";
 import { runFocusedClipHandle } from "./focusedClipHandle";
@@ -33,18 +39,6 @@ import { runRangeAction } from "./rangeActions";
 import { resolveTrackId } from "./targets";
 import { enqueueTrackMutate } from "./trackMutation";
 import type { ExecuteResult } from "./types";
-
-type BladeRunner = {
-  requestCut: (atTime: number) => void | Promise<void>;
-  confirmPending: () => void | Promise<void>;
-  cancelPending: () => void;
-};
-
-let bladeRunner: BladeRunner | null = null;
-/** Injected from useBladeCut so execute stays hook-free. */
-export function setBladeCommandRunner(runner: BladeRunner | null): void {
-  bladeRunner = runner;
-}
 
 type DawState = ReturnType<typeof useDawStore.getState>;
 
@@ -69,7 +63,6 @@ async function runSplitAt(
     dialogueTrackIds(s.project.tracks ?? []),
   );
   await splitAtTime(s.projectPath, atTime, tids);
-  s.setBladeConfirmSec(null);
   return { status: "ok" };
 }
 
@@ -127,36 +120,23 @@ export function registerPrimaryEditingCommands(): void {
     if (!Number.isFinite(atTime)) {
       return { status: "disabled", reason: "atTime must be a number" };
     }
-    if (bladeRunner) {
-      await bladeRunner.requestCut(atTime);
-      return { status: "ok" };
-    }
     const s = useDawStore.getState();
-    if (s.shellBreakpoint === "phone" || s.shellBreakpoint === "tablet") {
-      s.setBladeConfirmSec(atTime);
+    if (!s.project || !canSuggestStructuralFor(s)) {
+      return { status: "disabled", reason: "Structural edits not allowed" };
+    }
+    if (
+      (s.shellBreakpoint === "phone" || s.shellBreakpoint === "tablet") &&
+      !(await askConfirm({
+        title: `Cut at ${formatTime(atTime)}?`,
+        message: `${bladeCutNote(s.project.tracks ?? [], s.selectedTrackIds)}. Undo brings the clip back.`,
+        keepLabel: "Don't cut",
+        actionLabel: "Cut",
+        danger: false,
+      }))
+    ) {
       return { status: "ok" };
     }
     return runSplitAt(ctx, atTime);
-  });
-
-  registerCommand("edit.bladeCut.confirm", async (_args, ctx) => {
-    if (bladeRunner) {
-      await bladeRunner.confirmPending();
-      return { status: "ok" };
-    }
-    if (ctx.bladeConfirmSec == null) {
-      return { status: "disabled", reason: "No pending blade cut" };
-    }
-    return runSplitAt(ctx, ctx.bladeConfirmSec);
-  });
-
-  registerCommand("edit.bladeCut.cancel", () => {
-    if (bladeRunner) {
-      bladeRunner.cancelPending();
-      return { status: "ok" };
-    }
-    useDawStore.getState().setBladeConfirmSec(null);
-    return { status: "ok" };
   });
 
   registerCommand("edit.delete", async (args) => {

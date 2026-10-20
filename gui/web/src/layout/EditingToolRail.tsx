@@ -1,6 +1,5 @@
 import { runPointerCommand } from "../commands/pointer";
-import { useBladeCut } from "../hooks/useBladeCut";
-import { canIngestMedia } from "../shareMode";
+import { canIngestMedia, canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { CommandButton } from "../ui/CommandButton";
 import { Icon } from "../ui/Icon";
@@ -9,33 +8,40 @@ import { ToolModeToggle } from "./ToolModeToggle";
 import { useHistoryControls } from "./useHistoryControls";
 import { useZoomControls } from "./useZoomControls";
 
-/** Ferrite-style bottom tool rail + blade confirm sheet (phone/tablet). */
+/** Ferrite-style bottom tool rail (phone/tablet). */
 export function EditingToolRail({ inert = false }: { inert?: boolean }) {
-  const { toolMode, commentMode, projectPath, guestMode, shareCapabilities } =
-    useDaw((s) => ({
-      toolMode: s.toolMode,
-      commentMode: s.commentMode,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-    }));
+  const {
+    toolMode,
+    commentMode,
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    hasProject,
+  } = useDaw((s) => ({
+    toolMode: s.toolMode,
+    commentMode: s.commentMode,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    hasProject: s.project != null,
+  }));
   const { history, onUndo, onRedo } = useHistoryControls();
   const { zoom, onZoomIn, onZoomOut } = useZoomControls();
-  const { allowed, busy, error, bladeConfirmSec, trackIdsForCut } =
-    useBladeCut();
+  const bladeAllowed = canSuggestStructuralOnProject(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    hasProject,
+  );
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
 
   return (
     <EditingToolRailView
       inert={inert}
-      bladeAllowed={allowed}
+      bladeAllowed={bladeAllowed}
       mayIngest={mayIngest}
       toolMode={toolMode}
       commentMode={commentMode}
-      busy={busy}
-      error={error}
-      bladeConfirmSec={bladeConfirmSec}
-      trackIdsForCut={trackIdsForCut}
       toolToggle={
         <>
           <ToolModeToggle compact />
@@ -62,11 +68,6 @@ export function EditingToolRail({ inert = false }: { inert?: boolean }) {
       onAddTrack={() => runPointerCommand("track.add")}
       onImport={() => runPointerCommand("media.import")}
       onCutAtPlayhead={() => runPointerCommand("edit.bladeCut")}
-      onCancelCut={() => runPointerCommand("edit.bladeCut.cancel")}
-      onConfirmCut={() => {
-        runPointerCommand("edit.bladeCut.confirm");
-        runPointerCommand("tool.blade");
-      }}
     />
   );
 }

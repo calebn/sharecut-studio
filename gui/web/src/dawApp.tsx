@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
-import {
-  registerDawCommands,
-  setBladeCommandRunner,
-} from "./commands/register";
+import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { AskDialog } from "./feedback/AskDialog";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpDialog } from "./home/HelpDialog";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
-import { useBladeCut } from "./hooks/useBladeCut";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { useHostSync } from "./hooks/useHostSync";
 import { usePendingMixWarm } from "./hooks/usePendingMixWarm";
@@ -133,16 +129,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   }, []);
 
   useEffect(() => registerDawWebMcpTools(), []);
-
-  const blade = useBladeCut();
-  useEffect(() => {
-    setBladeCommandRunner({
-      requestCut: blade.requestCut,
-      confirmPending: blade.confirmPending,
-      cancelPending: blade.cancelPending,
-    });
-    return () => setBladeCommandRunner(null);
-  }, [blade.requestCut, blade.confirmPending, blade.cancelPending]);
 
   useDawKeymapListener();
   const hostKeeper = useHostKeeperCapture(

@@ -1,16 +1,19 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Profiler } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { splitAtTime } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
-import {
-  registerDawCommands,
-  setBladeCommandRunner,
-} from "../commands/register";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { minimalProject } from "../test/fixtures";
 import { TransportBar } from "./TransportBar";
+
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api")>()),
+  splitAtTime: vi.fn(async () => undefined),
+}));
 
 // Delegates to the real hook, so behavior is unchanged, while letting the
 // test count how many times TransportBar itself calls it (once per render).
@@ -36,10 +39,6 @@ describe("TransportBar renders", () => {
       .hydrate("/tmp/p.json", minimalProject({ timeline_duration_sec: 100 }));
     clearRegisteredCommands();
     registerDawCommands();
-  });
-
-  afterEach(() => {
-    setBladeCommandRunner(null);
   });
 
   it("leaves Solo on to the track headers corner, so the title keeps its room", () => {
@@ -103,12 +102,6 @@ describe("TransportBar renders", () => {
       get: () => 1400,
     });
     try {
-      const requestCut = vi.fn();
-      setBladeCommandRunner({
-        requestCut,
-        confirmPending: vi.fn(),
-        cancelPending: vi.fn(),
-      });
       render(
         <DawProvider
           projectPath="/tmp/p.json"
@@ -123,7 +116,7 @@ describe("TransportBar renders", () => {
       await userEvent.click(
         screen.getByRole("button", { name: "Cut at playhead" }),
       );
-      expect(requestCut).toHaveBeenCalledWith(12);
+      expect(splitAtTime).toHaveBeenCalledWith("/tmp/p.json", 12, []);
     } finally {
       Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     }

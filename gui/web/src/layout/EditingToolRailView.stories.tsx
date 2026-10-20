@@ -9,10 +9,6 @@ import { ToolModeToggleView } from "./ToolModeToggleView";
 function RailPreview({
   bladeAllowed,
   mayIngest,
-  busy,
-  error,
-  trackIdsForCut,
-  initialConfirmSec,
   canUndo,
   canRedo,
   onUndo,
@@ -22,15 +18,9 @@ function RailPreview({
   onAddTrack,
   onImport,
   onCutAtPlayhead,
-  onCancelCut,
-  onConfirmCut,
 }: {
   bladeAllowed: boolean;
   mayIngest: boolean;
-  busy: boolean;
-  error: string | null;
-  trackIdsForCut: readonly string[];
-  initialConfirmSec: number | null;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -40,12 +30,9 @@ function RailPreview({
   onAddTrack: () => void;
   onImport: () => void;
   onCutAtPlayhead: () => void;
-  onCancelCut: () => void;
-  onConfirmCut: () => void;
 }) {
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [commentMode, setCommentMode] = useState(false);
-  const [confirmSec, setConfirmSec] = useState(initialConfirmSec);
   return (
     <>
       <button
@@ -60,10 +47,6 @@ function RailPreview({
         mayIngest={mayIngest}
         toolMode={toolMode}
         commentMode={commentMode}
-        busy={busy}
-        error={error}
-        bladeConfirmSec={confirmSec}
-        trackIdsForCut={trackIdsForCut}
         toolToggle={
           <ToolModeToggleView
             compact
@@ -96,18 +79,7 @@ function RailPreview({
         onZoomOut={onZoomOut}
         onAddTrack={onAddTrack}
         onImport={onImport}
-        onCutAtPlayhead={() => {
-          setConfirmSec(12.5);
-          onCutAtPlayhead();
-        }}
-        onCancelCut={() => {
-          setConfirmSec(null);
-          onCancelCut();
-        }}
-        onConfirmCut={() => {
-          setConfirmSec(null);
-          onConfirmCut();
-        }}
+        onCutAtPlayhead={onCutAtPlayhead}
       />
     </>
   );
@@ -121,10 +93,6 @@ const meta: Meta<typeof RailPreview> = {
   args: {
     bladeAllowed: true,
     mayIngest: true,
-    busy: false,
-    error: null,
-    trackIdsForCut: ["host"],
-    initialConfirmSec: null,
     canUndo: true,
     canRedo: false,
     onUndo: fn(),
@@ -134,8 +102,6 @@ const meta: Meta<typeof RailPreview> = {
     onAddTrack: fn(),
     onImport: fn(),
     onCutAtPlayhead: fn(),
-    onCancelCut: fn(),
-    onConfirmCut: fn(),
   },
   decorators: [
     (Story, context) => (
@@ -201,48 +167,7 @@ export const BladeTool: Story = {
     await userEvent.click(
       canvas.getByRole("button", { name: "Cut at playhead" }),
     );
-    await expect(
-      within(document.body).getByRole("dialog", { name: "Confirm blade cut" }),
-    ).toBeTruthy();
     await expect(args.onCutAtPlayhead).toHaveBeenCalled();
-    await userEvent.click(
-      within(document.body).getByRole("button", { name: "Cancel" }),
-    );
-    await expect(args.onCancelCut).toHaveBeenCalled();
-  },
-};
-
-export const ConfirmCut: Story = {
-  args: { initialConfirmSec: 12.5 },
-  play: async ({ args }) => {
-    const dialog = within(document.body).getByRole("dialog", {
-      name: "Confirm blade cut",
-    });
-    await expect(dialog.textContent).toContain("host");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Cut" }));
-    await expect(args.onConfirmCut).toHaveBeenCalled();
-  },
-};
-
-export const ConfirmAllDialogue: Story = {
-  args: { initialConfirmSec: 12.5, trackIdsForCut: [] },
-  play: async () => {
-    const dialog = within(document.body).getByRole("dialog", {
-      name: "Confirm blade cut",
-    });
-    await expect(dialog.textContent).toContain("all dialogue tracks");
-  },
-};
-
-export const Cutting: Story = {
-  args: { initialConfirmSec: 12.5, busy: true },
-  play: async () => {
-    const dialog = within(document.body).getByRole("dialog", {
-      name: "Confirm blade cut",
-    });
-    await expect(
-      within(dialog).getByRole("button", { name: "Cutting…" }),
-    ).toBeDisabled();
   },
 };
 

@@ -27,7 +27,6 @@ import {
   registerViewCommands,
 } from "./view";
 
-export { setBladeCommandRunner } from "./editing";
 export { _resetProjectOpenInFlightForTests } from "./projectMedia";
 export { _resetSingleFlightsForTests } from "./singleFlight";
 export { _resetTrackMutateChainForTests } from "./trackMutation";

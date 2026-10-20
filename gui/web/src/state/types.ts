@@ -293,7 +293,6 @@ export interface DawState {
   timelineFocused: boolean;
   toolMode: ToolMode;
   /** Phone: pending blade cut time awaiting confirm sheet. */
-  bladeConfirmSec: number | null;
   /** A ripple the host refused because it would cut other speech, awaiting the person's choice. */
   audioError: string | null;
   sessionRegion: SessionRegion | null;
@@ -528,7 +527,6 @@ export interface DawState {
   setToolMode: (mode: ToolMode) => void;
   selectTracks: (trackIds: readonly string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
-  setBladeConfirmSec: (sec: number | null) => void;
   fitToWindow: (viewportWidth: number) => void;
   measureTimelineViewport: () => number;
   /** Also re-stores `timelineViewportWidth` from the live timeline or the new shell's estimate. */

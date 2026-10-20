@@ -37,7 +37,6 @@ export type CommandContext = {
   timelineDurationSec: number;
   projectPath: string;
   guestMode: string | null;
-  bladeConfirmSec: number | null;
   /** Inspector selection is a track (header clicked). */
   trackInspectorSelected: boolean;
   /** Inspector-selected track has a lane above it. */
@@ -104,7 +103,6 @@ export function buildCommandContext(): CommandContext {
     timelineDurationSec: s.project?.timeline_duration_sec ?? Infinity,
     projectPath: s.projectPath,
     guestMode: s.guestMode,
-    bladeConfirmSec: s.bladeConfirmSec,
     trackInspectorSelected: selection?.kind === "track",
     canMoveSelectedTrackUp: selectedTrackIndex > 0,
     canMoveSelectedTrackDown:
