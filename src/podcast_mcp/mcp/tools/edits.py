@@ -4,9 +4,7 @@ from typing import Any
 
 from mcp.server import MCPServer
 
-from podcast_mcp.edits.audio_check_override import audio_check_override
-from podcast_mcp.edits.cut_speech import APPLY_ANYWAY, CutSpeechConfirmation
-from podcast_mcp.edits.decisions import AskedEdits, HeldEdit
+from podcast_mcp.edits.cut_speech import APPLY_ANYWAY
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.args import JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
@@ -373,36 +371,40 @@ def approve_edits_tool(
     ``override_audio_checks=true``: it skips those checks for this call and records the
     override (actor and surface) in History and the edit log.
     """
-    ws = ProjectWorkspace.open(project_path)
-    service = EditService(ws)
     if all_pending == bool(ids):
         raise CodedValueError("pass ids or all_pending=true", code="approve_needs_target")
     edit_ids = (
-        [e.id for e in service.list_decisions(applied=False, review_required=True)]
+        [
+            e.id
+            for e in EditService(ProjectWorkspace.open(project_path)).list_decisions(
+                applied=False, review_required=True
+            )
+        ]
         if all_pending
         else list(ids or [])
     )
-    held: list[HeldEdit] = []
-    asked: list[AskedEdits] = []
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        outcome = service.approve(
-            edit_ids,
-            held_out=held,
-            asked_out=asked,
-        )
-    if isinstance(outcome, CutSpeechConfirmation):
-        return to_json(outcome.result("approve_edits"))
-    agent_mutated(ws)
+    outcome = submit_host_command_result(
+        project_path,
+        "ApproveEdits",
+        {
+            "ids": edit_ids,
+            "hold_blocked": True,
+            "override_audio_checks": override_audio_checks,
+        },
+        client_id="mcp:host",
+    )
+    if outcome.get("unchanged"):
+        return to_json(outcome)
     result: dict[str, Any] = {
         "operation": "approve_edits",
-        "approved_count": outcome,
+        "approved_count": outcome["count"],
         "ids": edit_ids,
+        "held": outcome.get("held", []),
     }
-    result["held"] = [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held]
-    if asked:
-        result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
-        result["confirm_ids"] = list(asked[0].edit_ids)
-    if held or asked:
+    if "needs_confirmation" in outcome:
+        result["needs_confirmation"] = outcome["needs_confirmation"]
+        result["confirm_ids"] = outcome["confirm_ids"]
+    if result["held"] or "needs_confirmation" in outcome:
         result["apply_anyway"] = APPLY_ANYWAY
     return to_json(result)
 

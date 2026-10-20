@@ -37,7 +37,7 @@ def test_host_mcp_approve_all_reports_held_then_override_applies_and_records(tmp
     assert _override_record(ws.path) == {
         "kind": "owner_override",
         "actor": "mcp:host",
-        "surface": "host_mcp",
+        "surface": "agent",
     }
 
 

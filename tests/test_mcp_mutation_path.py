@@ -53,7 +53,6 @@ _DIRECT_MUTATIONS = frozenset(
         "apply_fade_recommendations",
         "apply_plan",
         "apply_transcript_cleanup",
-        "approve",
         "crossfade_joins",
         "cut_range",
         "fade_joins",
@@ -72,7 +71,7 @@ _DIRECT_MUTATIONS = frozenset(
         "verify_transcript",
     }
 )
-_DIRECT_MUTATIONS_SIZE = 23
+_DIRECT_MUTATIONS_SIZE = 22
 # TranscriptService also carries ASR and export entry points that predate the edit services.
 _ASR_AND_EXPORT = frozenset({"transcribe", "seed", "get", "export_markdown", "export_subtitles"})
 _EDIT_SERVICES = frozenset(
