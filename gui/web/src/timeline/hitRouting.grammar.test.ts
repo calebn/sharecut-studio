@@ -404,3 +404,56 @@ describe("create menu", () => {
     expect(restored).toBe(1);
   });
 });
+
+describe("context menu (#1793)", () => {
+  function contextmenu(
+    target: Element,
+    x: number,
+    y: number,
+    init: { pointerType?: string } = {},
+  ): MouseEvent {
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+    });
+    if (init.pointerType) {
+      Object.defineProperty(event, "pointerType", { value: init.pointerType });
+    }
+    target.dispatchEvent(event);
+    return event;
+  }
+
+  it("opens the create menu where a right click lands", () => {
+    const el = lane();
+    const event = contextmenu(el, 400, 150);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(creates.at(-1)?.origin).toEqual({ x: 400, y: 150 });
+  });
+
+  it("leaves a touch contextmenu to the long press", () => {
+    const el = lane();
+    const event = contextmenu(el, 400, 150, { pointerType: "touch" });
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(creates).toEqual([]);
+  });
+
+  it("ignores a contextmenu while a press or menu is under way", () => {
+    const el = lane();
+    press(el, "pointerdown", 300, 150);
+    const whilePressing = contextmenu(el, 400, 150);
+    router.longPress();
+    const open = creates.length;
+    const whileOpen = contextmenu(el, 500, 150);
+
+    expect({
+      pressing: whilePressing.defaultPrevented,
+      open: whileOpen.defaultPrevented,
+      opened: creates.length - open,
+    }).toEqual({ pressing: false, open: false, opened: 0 });
+    expect(creates.at(-1)?.origin).toEqual({ x: 300, y: 150 });
+  });
+});
