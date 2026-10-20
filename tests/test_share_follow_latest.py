@@ -155,7 +155,8 @@ def test_object_cleanup_keeps_the_newest_mix_a_follow_link_serves_without_an_act
         ver.object_store_key = f"mix/{ver.id}.wav"
 
     class FakeStore:
-        deleted: list[str] = []
+        def __init__(self):
+            self.deleted: list[str] = []
 
         def delete_object(self, key):
             self.deleted.append(key)
