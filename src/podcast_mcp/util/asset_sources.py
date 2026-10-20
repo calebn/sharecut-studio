@@ -11,10 +11,10 @@ import urllib.request
 import uuid
 from collections.abc import Iterable
 from functools import lru_cache
-from os import environ
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.contracts import load_contract
 from podcast_mcp.util.hashing import sha256_file
@@ -109,7 +109,7 @@ def bootstrap_cdn_base() -> str | None:
             default = raw_default.strip()
     except AssetSourceError:
         pass
-    value = environ.get(env_name, "").strip()
+    value = settings.text(env_name)
     if value:
         return _sanitize_cdn_base(value)
     return _sanitize_cdn_base(default)

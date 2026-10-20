@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import html
-import os
 from pathlib import Path
 
 from starlette.responses import HTMLResponse, Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
+
+from podcast_mcp import settings
 
 _PACKAGED_GUI_DIST = Path(__file__).resolve().parent / "web_dist"
 _REPO_GUI_DIST = Path(__file__).resolve().parents[3] / "gui" / "web" / "dist"
@@ -35,7 +36,7 @@ def resolve_gui_static_root() -> Path:
     ``web-dist``), then the build packaged in the wheel, then the checkout's
     ``gui/web/dist``. An explicit ``create_app(static_dir=…)`` still wins.
     """
-    raw = os.environ.get("PODCAST_GUI_DIST", "").strip()
+    raw = settings.text("PODCAST_GUI_DIST")
     if raw:
         return Path(raw).expanduser().resolve()
     if static_bundle_ready(packaged_gui_dist()):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
 import urllib.error
@@ -10,6 +9,7 @@ import webbrowser
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from podcast_mcp import settings
 from podcast_mcp.util.process import DEVNULL, popen
 
 PACKAGED_CLI_ENV = "PODCAST_PACKAGED_CLI"
@@ -27,7 +27,7 @@ def packaged_cli_gui_refusal() -> str | None:
     The installed app owns the only packaged host (ephemeral port, boot token);
     a CLI-started ``:8765`` host would race it on the same project files.
     """
-    if os.environ.get(PACKAGED_CLI_ENV, "").strip() == "1":
+    if settings.text(PACKAGED_CLI_ENV) == "1":
         return PACKAGED_CLI_GUI_REFUSAL
     return None
 
@@ -79,7 +79,7 @@ def is_viewer_up(host: str, port: int, *, timeout_sec: float = 0.4) -> bool:
         # Constructed from host/port only; never file: or attacker-controlled schemes.
         health_url = f"http://{host}:{port}/api/health"
         req = urllib.request.Request(health_url, method="GET")
-        token = os.environ.get(BOOT_TOKEN_ENV, "").strip()
+        token = settings.text(BOOT_TOKEN_ENV)
         if token:
             req.add_header(BOOT_TOKEN_HEADER, token)
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:  # nosec B310

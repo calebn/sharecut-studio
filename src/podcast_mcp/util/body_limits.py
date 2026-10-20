@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import os
-
 from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from podcast_mcp import settings
 
 _DEFAULT_RELAY_MAX_BODY = 4 * 1024 * 1024
 _DEFAULT_GUI_MAX_BODY = 4 * 1024 * 1024
@@ -20,13 +20,7 @@ RECORD_UPLOAD_MAX_PART_BYTES = 5 * 1024 * 1024
 
 
 def env_max_bytes(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if raw is None or not str(raw).strip():
-        return int(default)
-    try:
-        return max(1, int(raw))
-    except ValueError:
-        return int(default)
+    return settings.max_bytes(name, default)
 
 
 def relay_max_body_bytes() -> int:

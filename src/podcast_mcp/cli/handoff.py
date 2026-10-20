@@ -27,6 +27,7 @@ from typing import Any
 
 import typer
 
+from podcast_mcp import settings
 from podcast_mcp.cli.cancel import bind_handoff_cancel
 from podcast_mcp.services.app import (
     DIRECT_ENV_VAR,
@@ -229,7 +230,7 @@ def _root_flags(ctx: Any) -> list[str]:
 
 def try_hand_off(root: Command, ctx: Any) -> int | None:
     """Run the invoked command in the Studio serving its project; None means run it here."""
-    if ctx.resilient_parsing or _running_for_caller.get() or os.environ.get(DIRECT_ENV_VAR):
+    if ctx.resilient_parsing or _running_for_caller.get() or settings.raw(DIRECT_ENV_VAR):
         return None
     sub_tokens = [*getattr(ctx, "_protected_args", []), *ctx.args]
     plan = plan_handoff(root, [*_root_flags(ctx), *sub_tokens], Path.cwd())

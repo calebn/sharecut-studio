@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import tempfile
 from pathlib import Path
 
+from podcast_mcp import settings
 from podcast_mcp.config import cache_dir
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
 from podcast_mcp.engines.transcribe import flag_anomalous_asr_durations
@@ -20,7 +20,7 @@ def whisper_cpp_cache_dir() -> Path:
 
 
 def resolve_whisper_cli() -> Path:
-    env = os.environ.get("WHISPER_CPP_BIN")
+    env = settings.raw("WHISPER_CPP_BIN")
     if env:
         path = Path(env).expanduser()
         if path.is_file():
@@ -38,12 +38,12 @@ def resolve_whisper_cli() -> Path:
 
 
 def resolve_model_path(model: str | None = None) -> Path:
-    override = os.environ.get("WHISPER_CPP_MODEL")
+    override = settings.raw("WHISPER_CPP_MODEL")
     if override:
         path = Path(override).expanduser()
         if path.is_file():
             return path
-    name = model or os.environ.get("WHISPER_CPP_MODEL_NAME", "ggml-base.en.bin")
+    name = model or settings.value("WHISPER_CPP_MODEL_NAME", "ggml-base.en.bin")
     path = whisper_cpp_cache_dir() / name
     if path.is_file():
         return path

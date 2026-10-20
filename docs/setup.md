@@ -618,6 +618,152 @@ installed wheel that does not include the contributor development profile. Pass
 `--distribution-profile` to local mode only when you want that explicit profile
 validated.
 
+## Environment variables
+
+Every environment variable the package reads is declared once in `src/podcast_mcp/settings.py`; nothing else under `src/podcast_mcp` touches `os.environ`. Reads are live, so a variable changed after start-up applies on the next call. The `relay.yaml` keys and the `~/.config/podcast_mcp` file names are unchanged; the `PODCAST_RELAY_*` and `PODCAST_OBJECT_STORE_*` rows are the environment overrides of those keys. Regenerate this table with `python -m podcast_mcp.settings`; a test fails when it drifts.
+
+<!-- settings:start -->
+**Paths and caches**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_MCP_CACHE` | `~/.cache/podcast_mcp` | Base for downloaded models, FFmpeg and caches. |
+| `PODCAST_CONFIG_DIR` | `~/.config/podcast_mcp` | Directory for the OAuth client files. |
+| `PODCAST_MCP_PROJECT` |  | Project path the MCP tools use when none is passed. |
+| `PODCAST_MCP_PIPELINE_DEFAULTS` |  | Pipeline defaults YAML replacing the shipped one. |
+| `PODCAST_SHARE_REGISTRY` | `~/.podcast_mcp/share_registry.sqlite` | Share registry database file. |
+| `PODCAST_SHARE_IDENTITY` | `~/.podcast_mcp/share_identity.sqlite` | Share identity database file. |
+| `PODCAST_E2E_PROJECT` |  | Project the end-to-end fixture serves instead of the built-in one. |
+| `PODCAST_EXTENSIONS` |  | Comma-separated extension allowlist; set and blank loads none, unset loads all. |
+| `LOCALAPPDATA` |  | Windows per-user data root (sidecar log lookup). |
+| `XDG_STATE_HOME` |  | XDG state root (sidecar log lookup). |
+| `PATH` |  | Executable search path (FFmpeg lookup). |
+
+**Models and engines**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_WHISPER_MODEL` |  | Whisper model name; overrides preferences and the pipeline default. |
+| `PODCAST_MCP_WORD_ALIGNER_MODEL` |  | Local word-aligner snapshot directory. |
+| `PODCAST_MCP_RNNOISE_MODEL` |  | RNNoise model file. |
+| `PODCAST_MCP_NISQA_MODEL` |  | NISQA weights directory. |
+| `PODCAST_MCP_FFMPEG` |  | Explicit ffmpeg executable (set together with PODCAST_MCP_FFPROBE). |
+| `PODCAST_MCP_FFPROBE` |  | Explicit ffprobe executable. |
+| `PODCAST_MCP_FFMPEG_BUNDLE` |  | Directory holding the desktop app's bundled FFmpeg pair. |
+| `PODCAST_BOOTSTRAP_CDN_BASE` |  | Public HTTPS mirror base for bootstrap assets. |
+| `WHISPER_CPP_BIN` |  | whisper-cli executable. |
+| `WHISPER_CPP_MODEL` |  | whisper.cpp model file. |
+| `WHISPER_CPP_MODEL_NAME` | `ggml-base.en.bin` | whisper.cpp model name inside its cache. |
+
+**Behavior flags**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_BATCH` |  | Treat the run as unattended (1, true, yes). |
+| `PODCAST_DEBUG` |  | Show the original traceback for CLI errors (1, true, yes, on). |
+| `PODCAST_PROGRESS` | `1` | Progress output; 0, false or no turns it off. |
+| `PODCAST_PROGRESS_COMPLIANCE` |  | Progress compliance checks (diagnostics only). |
+| `PODCAST_NO_STUDIO_HANDOFF` |  | Run CLI commands directly instead of through the Studio serving the project. |
+| `PODCAST_PACKAGED_CLI` |  | Set to 1 by the installed app's CLI shim. |
+| `PODCAST_GUEST_RENDER` |  | Allow guest render previews (1, true, yes, on). |
+| `PODCAST_SHARE_ACCOUNTS` |  | Enable restricted shares with sign-in (1, true, yes, on). |
+
+**Studio server**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_GUI_DIST` |  | Built web UI directory (frozen sidecars point it at web-dist). |
+| `PODCAST_GUI_OPENAPI` | `1` | Serve OpenAPI/Swagger; 0, false or no turns it off. |
+| `PODCAST_REVIEW_CORS_ORIGINS` |  | Extra exact CORS origins, comma-separated. |
+| `PODCAST_SESSION_AUTHZ` |  | Session authorization mode; 1, true or strict enforces the token. |
+| `PODCAST_SESSION_TOKEN` |  | Session token for remote clients (generated off-loopback when unset). |
+| `PODCAST_SIDECAR_BOOT_TOKEN` |  | Boot token the desktop host requires on health checks. |
+| `PODCAST_SIDECAR_EPHEMERAL` |  | Bind an ephemeral port (1, true, yes, on). |
+| `PODCAST_SIDECAR_LISTEN_FILE` |  | File the bound port is written to. |
+| `PODCAST_PUBLIC_ORIGIN` |  | Public origin used for OAuth redirect URIs. |
+| `PODCAST_AUTH_COOKIE_SECURE` |  | Mark the sign-in cookie Secure (1, true, yes). |
+| `PODCAST_MAGIC_LINK_PRINT` | `1` | Print magic sign-in links to the log; 1 prints. |
+| `PODCAST_WEBAUTHN_RP_ID` | `localhost` | Passkey relying-party id. |
+| `PODCAST_WEBAUTHN_TEST_MODE` | `1` | Skip WebAuthn signature checks; 1 skips them. |
+| `PODCAST_GOOGLE_OAUTH_CLIENT_ID` |  | Google OAuth client id. |
+| `PODCAST_GOOGLE_OAUTH_CLIENT_SECRET` |  | Google OAuth client secret. |
+| `PODCAST_GOOGLE_OAUTH_CLIENT_FILE` |  | Google OAuth client JSON file. |
+| `PODCAST_GOOGLE_OAUTH_REDIRECT_URI` |  | Google OAuth redirect URI. |
+| `PODCAST_GITHUB_OAUTH_CLIENT_ID` |  | GitHub OAuth client id. |
+| `PODCAST_GITHUB_OAUTH_CLIENT_SECRET` |  | GitHub OAuth client secret. |
+| `PODCAST_GITHUB_OAUTH_CLIENT_FILE` |  | GitHub OAuth client JSON file. |
+| `PODCAST_GITHUB_OAUTH_REDIRECT_URI` |  | GitHub OAuth redirect URI. |
+
+**Relay and object store**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_RELAY_CONFIG` | `~/.config/podcast_mcp/relay.yaml` | relay.yaml path. |
+| `PODCAST_RELAY_URL` |  | Relay tunnel URL. |
+| `PODCAST_RELAY_HOST_TOKEN` |  | Relay host token. |
+| `PODCAST_RELAY_HOST_ID` |  | Relay host id (persisted next to relay.yaml when unset). |
+| `PODCAST_RELAY_PUBLIC_BASE_URL` |  | Public base URL guests open. |
+| `PODCAST_RELAY_LOCAL_GUI_URL` |  | Local Studio URL the tunnel forwards to. |
+| `PODCAST_REPORT_RELAY_URL` |  | Relay origin that accepts diagnostics reports. |
+| `PODCAST_OBJECT_STORE_ENDPOINT_URL` |  | Object store endpoint. |
+| `PODCAST_OBJECT_STORE_REGION` |  | Object store region. |
+| `PODCAST_OBJECT_STORE_BUCKET` |  | Object store bucket. |
+| `PODCAST_OBJECT_STORE_ACCESS_KEY_ID` |  | Object store access key id. |
+| `PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY` |  | Object store secret key. |
+| `PODCAST_OBJECT_STORE_CDN_ENDPOINT` |  | Optional CDN endpoint for object-store media. |
+| `PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID` |  | Admin key id for `podcast relay bucket-setup`. |
+| `PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY` |  | Admin secret for `podcast relay bucket-setup`. |
+| `PODCAST_RELAY_HOST_TOKENS` |  | Relay-side map of host_id:secret entries (relay process). |
+| `PODCAST_RELAY_RATE_LIMIT` |  | Relay-side rate limiting; 0 disables (relay process). |
+
+**Distribution metadata**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_DISTRIBUTION_SUPPORT_URL` |  | Support link injected by the desktop host. |
+| `PODCAST_DISTRIBUTION_PRIVACY_URL` |  | Privacy link injected by the desktop host. |
+| `PODCAST_DISTRIBUTION_REPOSITORY_URL` |  | Repository link injected by the desktop host. |
+| `PODCAST_DISTRIBUTION_RELEASE_MANIFEST_URL` |  | Release manifest URL injected by the desktop host. |
+
+**Limits**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_RATE_LIMIT` | `1` | Host rate limiting; 0, false, no or off disables. |
+| `PODCAST_RATE_LIMIT_AUDIO_CONCURRENT` | `8` | In-flight audio requests allowed. |
+| `PODCAST_GUEST_WS_CONCURRENT` | `8` | Concurrent guest websockets per share token. |
+| `PODCAST_GUI_MAX_BODY_BYTES` |  | Largest Studio request body. |
+| `PODCAST_GUI_MEDIA_MAX_BYTES` |  | Largest media upload. |
+| `PODCAST_GUI_MEDIA_CHUNK_MAX_BYTES` |  | Largest media upload chunk. |
+| `PODCAST_REMOTE_MCP_MAX_BODY_BYTES` |  | Largest remote MCP request body. |
+| `PODCAST_RECORD_UPLOAD_MAX_PART_BYTES` |  | Largest recording upload part. |
+| `PODCAST_RELAY_MAX_BODY_BYTES` |  | Largest relayed request body. |
+| `PODCAST_RELAY_WS_MAX_SIZE` |  | Largest relayed websocket frame. |
+
+**limits**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PODCAST_RATE_LIMIT_READ_RPM` | `300` | Requests per minute allowed for host read requests. |
+| `PODCAST_RATE_LIMIT_READ_BURST` | `60` | Burst allowance for host read requests. |
+| `PODCAST_RATE_LIMIT_MUTATE_RPM` | `60` | Requests per minute allowed for host mutating requests. |
+| `PODCAST_RATE_LIMIT_MUTATE_BURST` | `20` | Burst allowance for host mutating requests. |
+| `PODCAST_GUEST_WS_PRESENCE_RPM` | `900` | Requests per minute allowed for guest presence websocket messages. |
+| `PODCAST_GUEST_WS_PRESENCE_BURST` | `60` | Burst allowance for guest presence websocket messages. |
+| `PODCAST_GUEST_WS_PRESENCE_TOKEN_RPM` | `3600` | Requests per minute allowed for guest presence messages per share token. |
+| `PODCAST_GUEST_WS_PRESENCE_TOKEN_BURST` | `200` | Burst allowance for guest presence messages per share token. |
+| `PODCAST_WS_ROSTER_REQUEST_RPM` | `60` | Requests per minute allowed for roster requests. |
+| `PODCAST_WS_ROSTER_REQUEST_BURST` | `1` | Burst allowance for roster requests. |
+| `PODCAST_GUEST_WS_RECORD_RPM` | `600` | Requests per minute allowed for recording websocket messages. |
+| `PODCAST_GUEST_WS_RECORD_BURST` | `10` | Burst allowance for recording websocket messages. |
+| `PODCAST_GUEST_WS_RECORD_TOKEN_RPM` | `3000` | Requests per minute allowed for recording messages per share token. |
+| `PODCAST_GUEST_WS_RECORD_TOKEN_BURST` | `50` | Burst allowance for recording messages per share token. |
+| `PODCAST_GUEST_WS_RECORD_SIGNAL_RPM` | `1800` | Requests per minute allowed for recording signal messages. |
+| `PODCAST_GUEST_WS_RECORD_SIGNAL_BURST` | `80` | Burst allowance for recording signal messages. |
+| `PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_RPM` | `6000` | Requests per minute allowed for recording signals per share token. |
+| `PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST` | `200` | Burst allowance for recording signals per share token. |
+<!-- settings:end -->
+
 ## Read-only GUI viewer
 
 Sharecut Studio is the full editor, not only a viewer. Install the optional `gui` extra (included in `./install.sh`), build the web UI once, then launch:

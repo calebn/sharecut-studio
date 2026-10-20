@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import os
 from importlib.metadata import entry_points
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.extensions.api_version import HOST_API_VERSION
 from podcast_mcp.extensions.registry import FeatureRegistry
 from podcast_mcp.extensions.spi import ExtensionBackend
@@ -19,7 +19,7 @@ ENV_EXTENSIONS = "PODCAST_EXTENSIONS"
 
 def _allowlist() -> set[str] | None:
     """None = load all; empty set = load none; else name allowlist."""
-    raw = os.environ.get(ENV_EXTENSIONS)
+    raw = settings.raw(ENV_EXTENSIONS)
     if raw is None:
         return None
     if raw.strip() == "":

@@ -32,13 +32,13 @@ unaffected — its except clause runs first and this group never sees the except
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import typer
 from filelock import Timeout
 from typer.core import TyperGroup
 
+from podcast_mcp import settings
 from podcast_mcp.cli.handoff import try_hand_off
 from podcast_mcp.util.coded_error import CodedError, describe_error
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError, busy_message
@@ -65,7 +65,7 @@ _DEBUG_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
 def _debug_enabled() -> bool:
-    return os.environ.get(_DEBUG_ENV_VAR, "").strip().lower() in _DEBUG_TRUE_VALUES
+    return settings.text(_DEBUG_ENV_VAR).lower() in _DEBUG_TRUE_VALUES
 
 
 def _host_busy_message(exc: Timeout) -> str:

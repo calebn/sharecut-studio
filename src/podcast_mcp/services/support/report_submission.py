@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import base64
-import os
 from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
 
+from podcast_mcp import settings
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.diagnostics_bundle_contract import (
     MAX_BUNDLE_BYTES,
@@ -32,7 +32,7 @@ def preview_bundle(path: Path) -> BundlePreview:
 
 
 def report_relay_url() -> str:
-    url = os.environ.get("PODCAST_REPORT_RELAY_URL", "").strip().rstrip("/")
+    url = settings.text("PODCAST_REPORT_RELAY_URL").rstrip("/")
     parsed = urlparse(url)
     if (
         not url

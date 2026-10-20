@@ -6,29 +6,24 @@ enough for a single ``podcast gui`` / relay worker.
 
 from __future__ import annotations
 
-import os
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from podcast_mcp import settings
+
 
 def env_flag(name: str, *, default: bool = True) -> bool:
-    raw = os.environ.get(name)
+    raw = settings.raw(name)
     if raw is None:
         return default
     return raw.strip().lower() not in {"0", "false", "no", "off", ""}
 
 
 def env_float(name: str, default: float) -> float:
-    raw = os.environ.get(name)
-    if raw is None or not str(raw).strip():
-        return float(default)
-    try:
-        return float(raw)
-    except ValueError:
-        return float(default)
+    return settings.number(name, default)
 
 
 def env_int(name: str, default: int) -> int:

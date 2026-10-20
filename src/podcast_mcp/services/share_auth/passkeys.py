@@ -6,10 +6,10 @@ import base64
 import hashlib
 import hmac
 import importlib.util
-import os
 import secrets
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.services.share_auth.store import ShareIdentityStore
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -19,7 +19,7 @@ def _b64url(data: bytes) -> str:
 
 
 def _rp_id() -> str:
-    return os.environ.get("PODCAST_WEBAUTHN_RP_ID", "localhost").strip() or "localhost"
+    return settings.text("PODCAST_WEBAUTHN_RP_ID", "localhost") or "localhost"
 
 
 def begin_registration(store: ShareIdentityStore, user: dict[str, Any]) -> dict[str, Any]:
@@ -72,7 +72,7 @@ def finish_registration(
             "invalid or expired registration challenge",
             code="passkey_registration_challenge_invalid",
         )
-    test_mode = os.environ.get("PODCAST_WEBAUTHN_TEST_MODE", "1") == "1"
+    test_mode = settings.value("PODCAST_WEBAUTHN_TEST_MODE", "1") == "1"
     if not test_mode and attestation_object and client_data_json:
         _verify_registration_webauthn(
             challenge=challenge,
@@ -133,7 +133,7 @@ def finish_authentication(
         raise CodedValueError("unknown passkey", code="passkey_unknown")
     if ch.get("user_id") and ch["user_id"] != pk["user_id"]:
         raise CodedValueError("passkey does not match challenge user", code="passkey_user_mismatch")
-    test_mode = os.environ.get("PODCAST_WEBAUTHN_TEST_MODE", "1") == "1"
+    test_mode = settings.value("PODCAST_WEBAUTHN_TEST_MODE", "1") == "1"
     if not test_mode and authenticator_data and client_data_json and signature:
         _verify_authentication_webauthn(
             challenge=challenge,

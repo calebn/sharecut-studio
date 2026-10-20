@@ -18,9 +18,9 @@ import logging
 import shutil
 import urllib.parse
 import urllib.request
-from os import environ
 from pathlib import Path
 
+from podcast_mcp import settings
 from podcast_mcp.config import models_dir
 from podcast_mcp.util.asset_sources import (
     asset_entry,
@@ -58,7 +58,7 @@ def _download(url: str, dest: Path, *, timeout: float = 60.0) -> None:
 
 
 def rnnoise_model_path() -> Path:
-    if override := environ.get("PODCAST_MCP_RNNOISE_MODEL"):
+    if override := settings.raw("PODCAST_MCP_RNNOISE_MODEL"):
         return Path(override).expanduser()
     return models_dir() / RNNOISE_MODEL_NAME
 
@@ -94,7 +94,7 @@ def bootstrap_rnnoise_model(*, force: bool = False) -> Path:
 
 
 def nisqa_model_path() -> Path:
-    if override := environ.get("PODCAST_MCP_NISQA_MODEL"):
+    if override := settings.raw("PODCAST_MCP_NISQA_MODEL"):
         return Path(override).expanduser()
     return models_dir() / NISQA_MODEL_NAME
 

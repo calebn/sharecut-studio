@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.util.atomic_json import write_json_atomic
 
 BOOT_TOKEN_ENV = "PODCAST_SIDECAR_BOOT_TOKEN"
@@ -31,7 +32,7 @@ def gui_server_deps_available() -> bool:
 
 
 def ephemeral_requested() -> bool:
-    return os.environ.get(EPHEMERAL_ENV, "").strip().lower() in _TRUE
+    return settings.text(EPHEMERAL_ENV).lower() in _TRUE
 
 
 def resolved_bind_port(port: int) -> int:
@@ -43,7 +44,7 @@ def resolved_bind_port(port: int) -> int:
 
 def boot_token_accepted(provided: str | None) -> bool:
     """When ``PODCAST_SIDECAR_BOOT_TOKEN`` is set, require a matching header."""
-    expected = os.environ.get(BOOT_TOKEN_ENV, "").strip()
+    expected = settings.text(BOOT_TOKEN_ENV)
     if not expected:
         return True
     got = (provided or "").strip()
@@ -98,7 +99,7 @@ def run_gui_server(
         state = getattr(app, "state", None)
         if state is not None:
             state.listen_port = bound_port
-        listen = os.environ.get(LISTEN_FILE_ENV, "").strip()
+        listen = settings.text(LISTEN_FILE_ENV)
         if listen:
             dest = Path(listen)
             write_listen_file(dest, port=bound_port, pid=os.getpid())

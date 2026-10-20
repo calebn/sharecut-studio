@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +23,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 
+from podcast_mcp import settings
 from podcast_mcp.mcp.project_default import ENV_VAR as PROJECT_ENV_VAR
 from podcast_mcp.services.app import StudioHost, locate_studio
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
@@ -48,7 +48,7 @@ def _tool_accepts_project_path(server: Any, name: str) -> bool:
 
 
 def _requested_project(arguments: dict[str, Any]) -> str | None:
-    value = arguments.get("project_path") or os.environ.get(PROJECT_ENV_VAR)
+    value = arguments.get("project_path") or settings.raw(PROJECT_ENV_VAR)
     return str(value) if value else None
 
 

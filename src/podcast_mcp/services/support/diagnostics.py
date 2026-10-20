@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import podcast_mcp
+from podcast_mcp import settings
 from podcast_mcp.config import cache_dir, whisper_cache_dir
 from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.models import EpisodeProject
@@ -150,10 +151,10 @@ def resolve_bundle_file(name: str, *, extra_dirs: list[Path] | None = None) -> P
 def sidecar_log_candidates() -> list[Path]:
     """Log locations from the frozen sidecar launcher (macOS / Windows / Linux)."""
     paths: list[Path] = []
-    local = os.environ.get("LOCALAPPDATA", "").strip()
+    local = settings.text("LOCALAPPDATA")
     if local:
         paths.append(Path(local) / "SharecutStudio" / "sidecar.log")
-    xdg = os.environ.get("XDG_STATE_HOME", "").strip()
+    xdg = settings.text("XDG_STATE_HOME")
     if xdg:
         paths.append(Path(xdg) / "SharecutStudio" / "sidecar.log")
     home = Path.home()
@@ -218,8 +219,8 @@ def _env_value(raw: str) -> str:
 def collect_env_flags() -> dict[str, str]:
     out: dict[str, str] = {}
     for name in ENV_ALLOWLIST:
-        if name in os.environ:
-            out[name] = _env_value(os.environ[name])
+        if settings.is_set(name):
+            out[name] = _env_value(settings.value(name))
     return out
 
 
@@ -267,7 +268,7 @@ def _redact_kwargs(*, home: Path, workspace: Path | None) -> dict[str, Any]:
             extra.append((path, token))
         except OSError:
             continue
-    raw = os.environ.get("PODCAST_MCP_CACHE", "").strip()
+    raw = settings.text("PODCAST_MCP_CACHE")
     if raw:
         extra.append((Path(raw).expanduser(), "<cache>"))
     return {"home": home, "workspace": workspace, "extra": extra}

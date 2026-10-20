@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
+
+from podcast_mcp import settings
 
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
 DEFAULT_CANNED = FIXTURES_DIR / "canned_transcript_aligned.json"
@@ -20,7 +21,7 @@ KNOWN_PHRASES = [
 
 
 def e2e_project_path() -> Path:
-    override = os.environ.get("PODCAST_E2E_PROJECT")
+    override = settings.raw("PODCAST_E2E_PROJECT")
     if override:
         p = Path(override).expanduser().resolve()
         if p.is_dir():

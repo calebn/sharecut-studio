@@ -10,13 +10,14 @@ import base64
 import binascii
 import ipaddress
 import json
-import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
+
+from podcast_mcp import settings
 
 _BUNDLE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$")
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*$")
@@ -181,7 +182,7 @@ def runtime_distribution_metadata(
     process. CLI and source runs use the same safe upstream values. Invalid or
     missing optional release metadata is deliberately unavailable.
     """
-    source = environ if environ is not None else os.environ
+    source = environ if environ is not None else settings.environ()
     return DistributionMetadata(
         support_url=_safe_runtime_url(
             source.get(_METADATA_ENV["support_url"]),

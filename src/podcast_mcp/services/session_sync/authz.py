@@ -11,10 +11,11 @@ even from a loopback peer or in non-strict mode.
 
 from __future__ import annotations
 
-import os
 import secrets
 from dataclasses import dataclass
 from typing import Literal, get_args
+
+from podcast_mcp import settings
 
 # The one client-role set. document_sync.commands re-exports it; session_sync.commands
 # TransportRole is this set minus "guest".
@@ -33,7 +34,7 @@ class AuthzDecision:
 
 
 def _strict() -> bool:
-    return os.environ.get("PODCAST_SESSION_AUTHZ", "").lower() in (
+    return settings.value("PODCAST_SESSION_AUTHZ").lower() in (
         "1",
         "true",
         "strict",
@@ -75,7 +76,7 @@ def authorize_host(
         return AuthzDecision(True)
     if is_loopback_host(peer_host):
         return AuthzDecision(True, "loopback")
-    expected = os.environ.get("PODCAST_SESSION_TOKEN", "")
+    expected = settings.value("PODCAST_SESSION_TOKEN")
     if _tokens_match(token, expected):
         return AuthzDecision(True, "token")
     return AuthzDecision(False, "remote client requires PODCAST_SESSION_TOKEN")
@@ -131,10 +132,10 @@ def ensure_non_loopback_session_auth(host: str) -> str | None:
     """Enable strict authz when binding off-loopback; return session token for URL."""
     if is_bind_loopback(host):
         return None
-    if not os.environ.get("PODCAST_SESSION_AUTHZ", "").strip():
-        os.environ["PODCAST_SESSION_AUTHZ"] = "strict"
-    token = os.environ.get("PODCAST_SESSION_TOKEN", "").strip()
+    if not settings.text("PODCAST_SESSION_AUTHZ"):
+        settings.export("PODCAST_SESSION_AUTHZ", "strict")
+    token = settings.text("PODCAST_SESSION_TOKEN")
     if not token:
         token = secrets.token_urlsafe(32)
-        os.environ["PODCAST_SESSION_TOKEN"] = token
+        settings.export("PODCAST_SESSION_TOKEN", token)
     return token
