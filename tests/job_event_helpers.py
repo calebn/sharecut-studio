@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from podcast_mcp.gui.job_events import job_events_hub
+from podcast_mcp.services.jobs import job_events_hub
 
 
 class JobEventTap:

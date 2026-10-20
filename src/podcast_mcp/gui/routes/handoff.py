@@ -35,7 +35,6 @@ from pydantic import BaseModel, Field
 
 from podcast_mcp import __version__
 from podcast_mcp.cli.handoff import execute_command, plan_handoff
-from podcast_mcp.gui.job_events import LIVE_JOB_STATUSES
 from podcast_mcp.gui.routes.deps import peer_host
 from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.services.app import (
@@ -48,6 +47,7 @@ from podcast_mcp.services.app import (
     new_token,
     withdraw_studio_host,
 )
+from podcast_mcp.services.jobs import LIVE_JOB_STATUSES
 from podcast_mcp.services.session_sync import is_loopback_host
 from podcast_mcp.util.proxy_paths import is_relayed_request
 

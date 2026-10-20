@@ -1,8 +1,8 @@
-"""Per-subscriber SSE fan-out for Studio jobs (pipeline slot, agent, bootstrap).
+"""SSE adapter for Studio jobs (pipeline slot, agent, bootstrap).
 
-Each ``/api/*/events`` connection subscribes its own bounded queue on a job-id-keyed
-:class:`FanoutHub`, so concurrent subscribers never compete for events. Publishing never
-blocks the job thread; a slow subscriber drops its own oldest events only.
+Each ``/api/*/events`` connection subscribes its own bounded queue on the job-id-keyed hub
+that ``services/jobs/events.py`` publishes to, so concurrent subscribers never compete for
+events. This module only frames those queues as server-sent events.
 """
 
 from __future__ import annotations
@@ -12,32 +12,15 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
-from podcast_mcp.services.app import FanoutHub
+from podcast_mcp.services.jobs import TERMINAL_JOB_STATUSES, job_events_hub
 
-JOB_EVENT_QUEUE_MAX = 256
 JOB_EVENT_KEEPALIVE_SEC = 1.0
-LIVE_JOB_STATUSES = frozenset({"queued", "running"})
-TERMINAL_JOB_STATUSES = frozenset({"ok", "error", "cancelled"})
-_HUB = FanoutHub(queue_maxsize=JOB_EVENT_QUEUE_MAX)
 
 
 class StreamableJob(Protocol):
     id: str
 
     def snapshot(self) -> dict[str, Any]: ...
-
-
-def job_events_hub() -> FanoutHub:
-    return _HUB
-
-
-def publish_job_event(job_id: str, event: dict[str, Any]) -> None:
-    """Fan *event* out to every live subscriber of *job_id*; no-op without one."""
-    _HUB.publish(job_id, event)
-
-
-def job_listener_count(job_id: str) -> int:
-    return _HUB.listener_count(job_id)
 
 
 def _frame(payload: dict[str, Any]) -> str:
@@ -48,7 +31,8 @@ async def stream_job_events(
     job: StreamableJob, *, keepalive_sec: float = JOB_EVENT_KEEPALIVE_SEC
 ) -> AsyncIterator[str]:
     """SSE frames for one subscriber: connect snapshot, live events, keepalive snapshots, ``done``."""
-    queue = _HUB.subscribe(job.id, asyncio.get_running_loop())
+    hub = job_events_hub()
+    queue = hub.subscribe(job.id, asyncio.get_running_loop())
     try:
         snap = job.snapshot()  # after subscribe: nothing published from here on is missed
         yield _frame({"type": "status", "job": snap})
@@ -69,4 +53,4 @@ async def stream_job_events(
             if item.get("type") == "done":
                 return
     finally:
-        _HUB.unsubscribe(job.id, queue)
+        hub.unsubscribe(job.id, queue)

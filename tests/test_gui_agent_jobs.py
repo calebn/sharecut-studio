@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from job_event_helpers import JobEventTap
-from podcast_mcp.gui.job_events import job_listener_count
 from podcast_mcp.gui.jobs import (
     AgentJobFanInReporter,
     PipelineJob,
@@ -14,6 +13,7 @@ from podcast_mcp.gui.jobs import (
     gui_agent_job_progress_sink,
     shared_job_manager,
 )
+from podcast_mcp.services.jobs import job_listener_count
 from podcast_mcp.util.progress import PROGRESS_UPDATE_MIN_INTERVAL_SEC, bind_progress, progress_task
 from podcast_mcp.util.progress import task as task_mod
 
@@ -500,7 +500,7 @@ def test_agent_live_cap_evicts_oldest() -> None:
 
 
 def test_agent_publish_skips_without_subscriber_and_bounds_queue() -> None:
-    from podcast_mcp.gui.job_events import JOB_EVENT_QUEUE_MAX
+    from podcast_mcp.services.jobs import JOB_EVENT_QUEUE_MAX
 
     mgr = PipelineJobManager()
     job = mgr.adopt_agent_job(tool_id="t", label="T", claim="c")
