@@ -10,12 +10,12 @@ Compatibility alias: ``/r/{token}/mcp`` (share URL + ``/mcp``).
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from podcast_mcp.extensions.features import FEATURE_SHARE_REMOTE_MCP
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
 from podcast_mcp.services.collaboration import share_allows_mcp
 from podcast_mcp.services.remote_mcp import (
@@ -53,8 +53,8 @@ def _require_mcp_capability(token: str) -> None:
         raise HTTPException(status_code=403, detail="share does not allow mcp")
 
 
-def _remote_mcp_enabled() -> bool:
-    return bool(os.environ.get("PODCAST_REMOTE_MCP"))
+def _remote_mcp_enabled(request: Request) -> bool:
+    return bool(request.app.state.feature_registry.has(FEATURE_SHARE_REMOTE_MCP))
 
 
 def _rate_limit_http(token: str, kind: str) -> None:
@@ -76,14 +76,14 @@ def accept_allows_json_rpc(accept: str) -> bool:
 
 
 @router.get("/mcp/{token}")
-def mcp_info(token: str) -> dict[str, Any]:
+def mcp_info(token: str, request: Request) -> dict[str, Any]:
     """Return capability info for the token; 403 if mcp is not granted."""
     _require_mcp_capability(token)
     _rate_limit_http(token, "read")
     return {
         "ok": True,
         "token": token,
-        "remote_mcp_enabled": _remote_mcp_enabled(),
+        "remote_mcp_enabled": _remote_mcp_enabled(request),
         "mcp_path": f"/mcp/{token}/mcp",
         "mcp_alias_path": f"/r/{token}/mcp",
         "transport": "streamable-http-json",
@@ -101,7 +101,7 @@ def mcp_info(token: str) -> dict[str, Any]:
 async def mcp_bridge(token: str, request: Request) -> Any:
     """Capability-scoped guest MCP endpoint (JSON-RPC over Streamable HTTP)."""
     _require_mcp_capability(token)
-    if not _remote_mcp_enabled():
+    if not _remote_mcp_enabled(request):
         return JSONResponse(
             {
                 "detail": (
