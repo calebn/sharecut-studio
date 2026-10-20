@@ -225,3 +225,103 @@ def test_relative_file_arguments_are_made_absolute_before_the_send(
     assert seen["file_path"] == str(tmp_path / "a.wav")
     assert seen["track_id"] == "relative-id"
     assert "project_path" not in seen
+
+
+class _Context:
+    """A stdio request context whose client sent a progressToken."""
+
+    progress_token = "tok"
+
+    def __init__(self, fail: bool = False) -> None:
+        self.reports: list[tuple[float, float | None, str | None]] = []
+        self.fail = fail
+
+    async def report_progress(
+        self, progress: float, total: float | None = None, message: str | None = None
+    ) -> None:
+        if self.fail:
+            raise RuntimeError("client went away")
+        self.reports.append((progress, total, message))
+
+
+def test_studio_progress_reaches_the_client_that_asked_for_it(studio: Path) -> None:
+    context = _Context()
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("list_clips_tool", {"project_path": str(studio)}, context)
+    )
+    assert isinstance(result, CallToolResult)
+    assert not result.is_error
+    assert server.calls == []
+    assert context.reports, "Studio's progress notifications were not forwarded"
+
+
+def _fake_studio_session(monkeypatch: pytest.MonkeyPatch, seen: dict[str, Any], ticks: int) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    class _Session:
+        def __init__(self, *_a: Any) -> None: ...
+
+        async def __aenter__(self) -> _Session:
+            return self
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+        async def initialize(self) -> None:
+            return None
+
+        async def call_tool(self, name: str, arguments: dict[str, Any], **kwargs: Any) -> Any:
+            seen["kwargs"] = kwargs
+            callback = kwargs.get("progress_callback")
+            for step in range(ticks):
+                if callback is not None:
+                    await callback(float(step), float(ticks), f"step {step}")
+            return CallToolResult(content=[])
+
+    class _Streams:
+        async def __aenter__(self) -> tuple[None, None]:
+            return None, None
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+    monkeypatch.setattr(handoff, "ClientSession", _Session)
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+
+
+def test_progress_is_relayed_in_order_with_total_and_message(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+    _fake_studio_session(monkeypatch, seen, ticks=3)
+    context = _Context()
+    server = _wrapped()
+    asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}, context))
+    assert context.reports == [(0.0, 3.0, "step 0"), (1.0, 3.0, "step 1"), (2.0, 3.0, "step 2")]
+
+
+def test_no_progress_is_asked_for_without_a_client_token(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+    _fake_studio_session(monkeypatch, seen, ticks=2)
+    server = _wrapped()
+    asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
+    assert "progress_callback" not in seen["kwargs"]
+    bare = type("Bare", (), {"report_progress": _Context.report_progress})()
+    asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}, bare))
+    assert "progress_callback" not in seen["kwargs"]
+
+
+def test_a_client_that_stops_listening_does_not_fail_the_call(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+    _fake_studio_session(monkeypatch, seen, ticks=2)
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("list_clips_tool", {"project_path": str(studio)}, _Context(fail=True))
+    )
+    assert isinstance(result, CallToolResult)
+    assert not result.is_error
