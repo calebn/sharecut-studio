@@ -148,6 +148,7 @@ held sideways) compact the editor:
   keeps the Inspector mounted: the sheet and the column portal into one host
   element that only changes parent (`ui/sheetHost.tsx`), so a draft, the
   focused field and the dialog's focus restore survive a flip inside one shell,
+  and the compact sheet body keeps its scroll offset with the field revealed,
   and the full Inspector stays the full Inspector (`useCompactInspector`
   treats the column as held). Under 40rem wide (an iPhone SE first generation or
   a 568×320 window) and in portrait the bottom sheet or compact strip stays,
