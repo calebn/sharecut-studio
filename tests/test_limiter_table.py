@@ -6,13 +6,18 @@ breaks an operator's deployment, so the table in the source is never its own ora
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Iterator
+from pathlib import Path
+from typing import get_type_hints
 
 import pytest
 
 from podcast_mcp.services.remote_mcp.limits import HostLimiters
-from podcast_mcp.util.rate_limit import ConcurrencyGate, KeyedLimiter
+from podcast_mcp.util.rate_limit import ConcurrencyGate, KeyedLimiter, LimiterSet, RateSpec
 from podcast_relay.limits import RelayLimiters
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # (attribute, bucket, rpm env, default rpm, burst env, default burst)
 HOST_RATE_ROWS = [
@@ -288,3 +293,68 @@ def test_reset_empties_every_limiter() -> None:
                 assert not lim._buckets
             elif isinstance(lim, ConcurrencyGate):
                 assert not lim._counts
+
+
+def _mismatches(cls: type[LimiterSet]) -> list[str]:
+    """Where a composite's annotated attributes and its ``TABLE`` rows disagree."""
+    hints = {k: v for k, v in get_type_hints(cls).items() if k != "TABLE"}
+    problems = [f"{row.attr}: not annotated" for row in cls.TABLE if row.attr not in hints]
+    for attr, hint in hints.items():
+        rows = [row for row in cls.TABLE if row.attr == attr]
+        if not rows:
+            problems.append(f"{attr}: annotated but not in TABLE")
+        elif hint is not (KeyedLimiter if isinstance(rows[0], RateSpec) else ConcurrencyGate):
+            problems.append(f"{attr}: annotation does not match its row")
+    return problems
+
+
+@pytest.mark.parametrize("cls", [HostLimiters, RelayLimiters])
+def test_each_composite_is_exactly_its_table(cls: type[LimiterSet]) -> None:
+    assert _mismatches(cls) == []
+    assert len({row.attr for row in cls.TABLE}) == len(cls.TABLE)
+    assert len({row.bucket for row in cls.TABLE}) == len(cls.TABLE)
+
+
+def test_a_limiter_outside_the_table_or_a_wrong_annotation_is_caught() -> None:
+    class Hand(HostLimiters):
+        extra: KeyedLimiter
+        audio_concurrent: KeyedLimiter
+
+    assert sorted(_mismatches(Hand)) == [
+        "audio_concurrent: annotation does not match its row",
+        "extra: annotated but not in TABLE",
+    ]
+
+
+def test_an_added_row_is_built_and_reset_without_other_code() -> None:
+    probe = RateSpec("probe", "relay_probe", "PODCAST_RELAY_PROBE", 5.0, 2.0)
+
+    class Wider(RelayLimiters):
+        TABLE = (*RelayLimiters.TABLE, probe)
+
+    wider = Wider()
+    assert _rate(wider.__dict__["probe"]) == ("relay_probe", 5.0, 2.0)
+    wider.__dict__["probe"].allow("k")
+    wider.reset()
+    assert not wider.__dict__["probe"]._buckets
+
+
+def _constructed_names(source: str) -> set[str]:
+    return {
+        node.func.id
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+
+@pytest.mark.parametrize(
+    "path", ["src/podcast_mcp/services/remote_mcp/limits.py", "src/podcast_relay/limits.py"]
+)
+def test_the_limit_modules_construct_no_limiter_by_hand(path: str) -> None:
+    built = _constructed_names((ROOT / path).read_text())
+    assert not built & {"KeyedLimiter", "ConcurrencyGate", "TokenBucket"}
+
+
+def test_a_hand_built_limiter_is_detected_by_the_scan() -> None:
+    planted = "class L:\n    def __init__(self):\n        self.a = KeyedLimiter()\n"
+    assert _constructed_names(planted) == {"KeyedLimiter"}

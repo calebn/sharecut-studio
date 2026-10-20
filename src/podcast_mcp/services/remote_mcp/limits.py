@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.util.rate_limit import (
     ConcurrencyGate,
+    GateSpec,
     KeyedLimiter,
+    LimiterSet,
     RateLimitDecision,
+    RateSpec,
     env_flag,
-    env_float,
-    env_int,
     is_review_audio_path,
     rate_limit_detail,
 )
@@ -30,128 +30,69 @@ _MUTATE_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-_DEFAULT_READ_RPM = 300.0
-_DEFAULT_READ_BURST = 60.0
-_DEFAULT_MUTATE_RPM = 60.0
-_DEFAULT_MUTATE_BURST = 20.0
-_DEFAULT_AUDIO_CONCURRENT = 8
-_DEFAULT_GUEST_WS_CONCURRENT = 8
-_DEFAULT_GUEST_WS_PRESENCE_RPM = 900.0
-_DEFAULT_GUEST_WS_PRESENCE_BURST = 60.0
-_DEFAULT_GUEST_WS_PRESENCE_TOKEN_RPM = 3600.0
-_DEFAULT_GUEST_WS_PRESENCE_TOKEN_BURST = 200.0
-_DEFAULT_GUEST_WS_RECORD_RPM = 600.0
-_DEFAULT_GUEST_WS_RECORD_BURST = 10.0
-_DEFAULT_GUEST_WS_RECORD_TOKEN_RPM = 3000.0
-_DEFAULT_GUEST_WS_RECORD_TOKEN_BURST = 50.0
-_DEFAULT_GUEST_WS_RECORD_SIGNAL_RPM = 1800.0
-_DEFAULT_GUEST_WS_RECORD_SIGNAL_BURST = 80.0
-_DEFAULT_GUEST_WS_RECORD_SIGNAL_TOKEN_RPM = 6000.0
-_DEFAULT_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST = 200.0
-_DEFAULT_WS_ROSTER_REQUEST_RPM = 60.0
-_DEFAULT_WS_ROSTER_REQUEST_BURST = 1.0
-
 
 def host_rate_limit_enabled() -> bool:
     return env_flag("PODCAST_RATE_LIMIT", default=True)
 
 
-class HostLimiters:
-    def __init__(self, *, clock: Callable[[], float] | None = None) -> None:
-        limiter_clock = clock or time.monotonic
-        self.read = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_RATE_LIMIT_READ_RPM", _DEFAULT_READ_RPM),
-            burst=env_float("PODCAST_RATE_LIMIT_READ_BURST", _DEFAULT_READ_BURST),
-            bucket_name="host_read",
-            clock=limiter_clock,
-        )
-        self.mutate = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_RATE_LIMIT_MUTATE_RPM", _DEFAULT_MUTATE_RPM),
-            burst=env_float("PODCAST_RATE_LIMIT_MUTATE_BURST", _DEFAULT_MUTATE_BURST),
-            bucket_name="host_mutate",
-            clock=limiter_clock,
-        )
-        self.audio_concurrent = ConcurrencyGate(
-            limit=env_int("PODCAST_RATE_LIMIT_AUDIO_CONCURRENT", _DEFAULT_AUDIO_CONCURRENT),
-            bucket_name="host_audio_concurrent",
-        )
-        self.guest_ws_concurrent = ConcurrencyGate(
-            limit=env_int("PODCAST_GUEST_WS_CONCURRENT", _DEFAULT_GUEST_WS_CONCURRENT),
-            bucket_name="host_guest_ws_concurrent",
-        )
-        self.guest_ws_presence = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_GUEST_WS_PRESENCE_RPM", _DEFAULT_GUEST_WS_PRESENCE_RPM),
-            burst=env_float("PODCAST_GUEST_WS_PRESENCE_BURST", _DEFAULT_GUEST_WS_PRESENCE_BURST),
-            bucket_name="host_guest_ws_presence",
-        )
-        self.guest_ws_presence_token = KeyedLimiter(
-            rate_per_min=env_float(
-                "PODCAST_GUEST_WS_PRESENCE_TOKEN_RPM",
-                _DEFAULT_GUEST_WS_PRESENCE_TOKEN_RPM,
-            ),
-            burst=env_float(
-                "PODCAST_GUEST_WS_PRESENCE_TOKEN_BURST",
-                _DEFAULT_GUEST_WS_PRESENCE_TOKEN_BURST,
-            ),
-            bucket_name="host_guest_ws_presence_token",
-        )
-        self.ws_roster_request = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_WS_ROSTER_REQUEST_RPM", _DEFAULT_WS_ROSTER_REQUEST_RPM),
-            burst=env_float("PODCAST_WS_ROSTER_REQUEST_BURST", _DEFAULT_WS_ROSTER_REQUEST_BURST),
-            bucket_name="host_ws_roster_request",
-            clock=limiter_clock,
-        )
-        self.guest_ws_record = KeyedLimiter(
-            rate_per_min=env_float("PODCAST_GUEST_WS_RECORD_RPM", _DEFAULT_GUEST_WS_RECORD_RPM),
-            burst=env_float("PODCAST_GUEST_WS_RECORD_BURST", _DEFAULT_GUEST_WS_RECORD_BURST),
-            bucket_name="guest_ws_record",
-        )
-        self.guest_ws_record_token = KeyedLimiter(
-            rate_per_min=env_float(
-                "PODCAST_GUEST_WS_RECORD_TOKEN_RPM",
-                _DEFAULT_GUEST_WS_RECORD_TOKEN_RPM,
-            ),
-            burst=env_float(
-                "PODCAST_GUEST_WS_RECORD_TOKEN_BURST",
-                _DEFAULT_GUEST_WS_RECORD_TOKEN_BURST,
-            ),
-            bucket_name="guest_ws_record_token",
-        )
-        self.guest_ws_record_signal = KeyedLimiter(
-            rate_per_min=env_float(
-                "PODCAST_GUEST_WS_RECORD_SIGNAL_RPM",
-                _DEFAULT_GUEST_WS_RECORD_SIGNAL_RPM,
-            ),
-            burst=env_float(
-                "PODCAST_GUEST_WS_RECORD_SIGNAL_BURST",
-                _DEFAULT_GUEST_WS_RECORD_SIGNAL_BURST,
-            ),
-            bucket_name="guest_ws_record_signal",
-        )
-        self.guest_ws_record_signal_token = KeyedLimiter(
-            rate_per_min=env_float(
-                "PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_RPM",
-                _DEFAULT_GUEST_WS_RECORD_SIGNAL_TOKEN_RPM,
-            ),
-            burst=env_float(
-                "PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST",
-                _DEFAULT_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST,
-            ),
-            bucket_name="guest_ws_record_signal_token",
-        )
+class HostLimiters(LimiterSet):
+    TABLE = (
+        RateSpec("read", "host_read", "PODCAST_RATE_LIMIT_READ", 300.0, 60.0),
+        RateSpec("mutate", "host_mutate", "PODCAST_RATE_LIMIT_MUTATE", 60.0, 20.0),
+        GateSpec(
+            "audio_concurrent", "host_audio_concurrent", "PODCAST_RATE_LIMIT_AUDIO_CONCURRENT", 8
+        ),
+        GateSpec(
+            "guest_ws_concurrent", "host_guest_ws_concurrent", "PODCAST_GUEST_WS_CONCURRENT", 8
+        ),
+        RateSpec(
+            "guest_ws_presence", "host_guest_ws_presence", "PODCAST_GUEST_WS_PRESENCE", 900.0, 60.0
+        ),
+        RateSpec(
+            "guest_ws_presence_token",
+            "host_guest_ws_presence_token",
+            "PODCAST_GUEST_WS_PRESENCE_TOKEN",
+            3600.0,
+            200.0,
+        ),
+        RateSpec(
+            "ws_roster_request", "host_ws_roster_request", "PODCAST_WS_ROSTER_REQUEST", 60.0, 1.0
+        ),
+        RateSpec("guest_ws_record", "guest_ws_record", "PODCAST_GUEST_WS_RECORD", 600.0, 10.0),
+        RateSpec(
+            "guest_ws_record_token",
+            "guest_ws_record_token",
+            "PODCAST_GUEST_WS_RECORD_TOKEN",
+            3000.0,
+            50.0,
+        ),
+        RateSpec(
+            "guest_ws_record_signal",
+            "guest_ws_record_signal",
+            "PODCAST_GUEST_WS_RECORD_SIGNAL",
+            1800.0,
+            80.0,
+        ),
+        RateSpec(
+            "guest_ws_record_signal_token",
+            "guest_ws_record_signal_token",
+            "PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN",
+            6000.0,
+            200.0,
+        ),
+    )
 
-    def reset(self) -> None:
-        self.read.reset()
-        self.mutate.reset()
-        self.audio_concurrent.reset()
-        self.guest_ws_concurrent.reset()
-        self.guest_ws_presence.reset()
-        self.guest_ws_presence_token.reset()
-        self.ws_roster_request.reset()
-        self.guest_ws_record.reset()
-        self.guest_ws_record_token.reset()
-        self.guest_ws_record_signal.reset()
-        self.guest_ws_record_signal_token.reset()
+    read: KeyedLimiter
+    mutate: KeyedLimiter
+    audio_concurrent: ConcurrencyGate
+    guest_ws_concurrent: ConcurrencyGate
+    guest_ws_presence: KeyedLimiter
+    guest_ws_presence_token: KeyedLimiter
+    ws_roster_request: KeyedLimiter
+    guest_ws_record: KeyedLimiter
+    guest_ws_record_token: KeyedLimiter
+    guest_ws_record_signal: KeyedLimiter
+    guest_ws_record_signal_token: KeyedLimiter
 
 
 _LIMITERS: HostLimiters | None = None
