@@ -1,6 +1,6 @@
 [package]
 name = "sharecut"
-version = "0.1.1"
+version = "0.1.2"
 description = "Sharecut Studio native host (Tauri 2 + Python sidecar)"
 authors = ["Podcast MCP"]
 edition = "2021"

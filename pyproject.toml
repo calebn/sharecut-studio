@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "podcast-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "FOSS CLI and MCP toolkit for podcast multitrack editing, transcription, and mastering"
 readme = "README.md"
 license = "MIT"
