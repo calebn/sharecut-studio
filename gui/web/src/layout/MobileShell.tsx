@@ -39,6 +39,7 @@ import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
 import { CommandButton, EmptyState, Icon, Timecode } from "../ui";
+import { useModalOpen } from "../ui/useModalOpen";
 import {
   HOME_SCREEN_HINT,
   offersHomeScreenHint,
@@ -414,7 +415,6 @@ function MobileShellAdapter({
     followingClientId,
     statusAnnouncement,
     statusAnnouncementSeq,
-    competingDialogOpen,
     setGesturesSheetOpen,
     setCommandPaletteOpen,
   } = useDaw((s) => ({
@@ -434,17 +434,10 @@ function MobileShellAdapter({
     followingClientId: s.followingClientId,
     statusAnnouncement: s.statusAnnouncement,
     statusAnnouncementSeq: s.statusAnnouncementSeq,
-    competingDialogOpen:
-      s.gesturesSheetOpen ||
-      s.commandPaletteOpen ||
-      s.bounceDialogOpen ||
-      s.shareDialogOpen ||
-      s.recordPanelOpen ||
-      s.hostMcpDialogOpen ||
-      s.helpDialogOpen,
     setGesturesSheetOpen: s.setGesturesSheetOpen,
     setCommandPaletteOpen: s.setCommandPaletteOpen,
   }));
+  const competingDialogOpen = useModalOpen();
   const [mixRequest, setMixRequest] = useState<{
     projectPath: string | null;
     followingClientId: string | null;

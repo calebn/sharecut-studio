@@ -16,6 +16,7 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { BottomSheet } from "../ui/BottomSheet";
 import { Dialog } from "../ui/Dialog";
+import { Menu, MenuItem } from "../ui/Menu";
 import { useDawKeymapListener } from "./listener";
 
 const actualExecute = (
@@ -329,4 +330,97 @@ it("lets through only the shortcuts the open modal hands on: M drops a marker in
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   expect(vi.mocked(execute)).not.toHaveBeenCalled();
+});
+
+const GATED_DIALOGS = [
+  { title: "Commands and shortcuts", flag: "commandPaletteOpen" },
+  { title: "Bounce", flag: "bounceDialogOpen" },
+  { title: "Share", flag: "shareDialogOpen" },
+] as const;
+
+it.each(GATED_DIALOGS)(
+  "holds the keymap behind the $title dialog through the one gate, with no store flag",
+  async ({ title }) => {
+    vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
+    const { rerender } = render(
+      <>
+        <KeymapHost />
+        <Dialog open title={title} onClose={vi.fn()}>
+          <p>Body</p>
+        </Dialog>
+      </>,
+    );
+    const canvas = screen.getByTestId("canvas");
+    await act(async () => {
+      fireEvent.keyDown(canvas, { key: " ", code: "Space" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(vi.mocked(execute)).not.toHaveBeenCalled();
+
+    rerender(
+      <>
+        <KeymapHost />
+        <Dialog open={false} title={title} onClose={vi.fn()}>
+          <p>Body</p>
+        </Dialog>
+      </>,
+    );
+    fireEvent.keyDown(canvas, { key: " ", code: "Space" });
+    await waitFor(() =>
+      expect(vi.mocked(execute)).toHaveBeenCalledWith(
+        "transport.togglePlay",
+        expect.anything(),
+        expect.anything(),
+      ),
+    );
+  },
+);
+
+it("ignores the dialog open flags in the store: only a mounted overlay holds the keymap", async () => {
+  vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
+  useDawStore.setState({
+    commandPaletteOpen: true,
+    bounceDialogOpen: true,
+    shareDialogOpen: true,
+  });
+  render(<KeymapHost />);
+  fireEvent.keyDown(screen.getByTestId("canvas"), { key: " ", code: "Space" });
+  await waitFor(() => expect(vi.mocked(execute)).toHaveBeenCalled());
+  useDawStore.setState({
+    commandPaletteOpen: false,
+    bounceDialogOpen: false,
+    shareDialogOpen: false,
+  });
+});
+
+it("holds the keymap while a menu is open", async () => {
+  vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
+  const user = userEvent.setup();
+  render(
+    <>
+      <KeymapHost />
+      <Menu
+        open
+        onOpenChange={vi.fn()}
+        label="Test menu"
+        trigger={(t) => (
+          <button type="button" ref={t.ref} onClick={t.onClick}>
+            Open
+          </button>
+        )}
+      >
+        <MenuItem>One</MenuItem>
+      </Menu>
+    </>,
+  );
+  await screen.findByRole("menu", { name: "Test menu" });
+  await act(async () => {
+    fireEvent.keyDown(screen.getByTestId("canvas"), {
+      key: " ",
+      code: "Space",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(vi.mocked(execute)).not.toHaveBeenCalled();
+  await user.keyboard("{Escape}");
 });

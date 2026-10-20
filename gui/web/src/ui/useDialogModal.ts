@@ -2,12 +2,12 @@ import { type RefObject, useEffect, useRef } from "react";
 import { focusHeld } from "./focusHold";
 import { isValidFocusTarget } from "./focusTarget";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
-import { peekMenuOpen } from "./menuGate";
 import {
   claimEscape,
   closeOverlay,
   focusInnermostOverlay,
   isInnermostOverlay,
+  menuOpen,
   openOverlay,
 } from "./modalGate";
 import { openerControl } from "./pressedControl";
@@ -141,7 +141,7 @@ export function useDialogModal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         // Open menus own Escape first (transport Menu over peek BottomSheet).
-        if (peekMenuOpen()) {
+        if (menuOpen()) {
           return;
         }
         // A dialog opened over this one (a confirm over a sheet) owns Escape.

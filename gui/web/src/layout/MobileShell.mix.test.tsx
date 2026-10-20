@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
@@ -9,6 +10,7 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import { Dialog } from "../ui/Dialog";
 import { BounceDialog } from "./BounceDialog";
 import { MobileShell } from "./MobileShell";
 
@@ -40,16 +42,6 @@ function ShellWithDialogs() {
     </>
   );
 }
-
-const dialogFlags = [
-  "gesturesSheetOpen",
-  "commandPaletteOpen",
-  "bounceDialogOpen",
-  "shareDialogOpen",
-  "recordPanelOpen",
-  "hostMcpDialogOpen",
-  "helpDialogOpen",
-] as const;
 
 describe("MobileShell Mix", () => {
   beforeEach(() => {
@@ -207,26 +199,42 @@ describe("MobileShell Mix", () => {
     },
   );
 
-  it.each(dialogFlags)(
-    "permanently invalidates Mix when %s opens",
-    async (flag) => {
-      const user = userEvent.setup();
-      render(
-        <DawProvider
-          projectPath="/tmp/p.json"
-          initialProject={minimalProject({ tracks: [sampleTrack()] })}
-        >
+  it("permanently invalidates Mix when any modal dialog opens", async () => {
+    const user = userEvent.setup();
+    function Stage() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
           <MobileShell />
-        </DawProvider>,
+          <button type="button" onClick={() => setOpen(!open)}>
+            Toggle dialog
+          </button>
+          <Dialog
+            open={open}
+            title="Other dialog"
+            onClose={() => setOpen(false)}
+          >
+            <p>Body</p>
+          </Dialog>
+        </>
       );
-      await user.click(screen.getByRole("button", { name: "More" }));
-      await user.click(screen.getByRole("button", { name: "Mix" }));
-      act(() => useDawStore.setState({ [flag]: true }));
-      expect(screen.queryByRole("dialog", { name: "Mix" })).toBeNull();
-      act(() => useDawStore.setState({ [flag]: false }));
-      expect(screen.queryByRole("dialog", { name: "Mix" })).toBeNull();
-    },
-  );
+    }
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: [sampleTrack()] })}
+      >
+        <Stage />
+      </DawProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Mix" }));
+    expect(screen.getByRole("dialog", { name: "Mix" })).toBeTruthy();
+    act(() => screen.getByRole("button", { name: "Toggle dialog" }).click());
+    expect(screen.queryByRole("dialog", { name: "Mix" })).toBeNull();
+    act(() => screen.getByRole("button", { name: "Toggle dialog" }).click());
+    expect(screen.queryByRole("dialog", { name: "Mix" })).toBeNull();
+  });
 
   it("hands the real Bounce shortcut to one dialog without resurrecting Mix", async () => {
     const user = userEvent.setup();
