@@ -140,7 +140,7 @@ A failed registry write closes its connection before propagating the original
 error. The next registry operation opens a new connection from durable state before token
 lookup or mutation. The process-wide getter also recovers the cached owner before
 returning it; directly injected registry owners use the same recovery boundary.
-Registry and session owners share the bounded WAL transition in `util/sqlite_wal.py`;
+Registry and session owners open through `util/sqlite_open.py`, which uses the bounded WAL transition in `util/sqlite_wal.py`;
 normal registry writes retain the existing 5-second busy timeout.
 
 The registry admits the complete source namespace before SQLite opens it. The
