@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
+import { tracksSelection } from "../state/selection";
 import { answerQuestions } from "../test/ask";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -23,7 +24,7 @@ describe("edit.bladeCut", () => {
           sampleTrack({ id: "guest", label: "Blair" }),
         ],
       }),
-      selectedTrackIds: ["guest"],
+      selection: tracksSelection(["guest"]),
       shellBreakpoint: "desktop",
     });
   });

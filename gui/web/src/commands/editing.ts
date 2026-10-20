@@ -128,7 +128,10 @@ export function registerPrimaryEditingCommands(): void {
       (s.shellBreakpoint === "phone" || s.shellBreakpoint === "tablet") &&
       !(await askConfirm({
         title: `Cut at ${formatTime(atTime)}?`,
-        message: `${bladeCutNote(s.project.tracks ?? [], s.selectedTrackIds)}. Undo brings the clip back.`,
+        message: `${bladeCutNote(
+          s.project.tracks ?? [],
+          selectedTrackIdsOf(s.selection),
+        )}. Undo brings the clip back.`,
         keepLabel: "Don't cut",
         actionLabel: "Cut",
         danger: false,
