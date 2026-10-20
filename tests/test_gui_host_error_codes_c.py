@@ -188,7 +188,7 @@ def test_refine_waive_invalid(minimal_project, monkeypatch, client):
 
 def test_replacement_preview_invalid(minimal_project, monkeypatch, client):
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.transcript.EditService.preview_transcript_replacement",
+        "podcast_mcp.gui.routes.transcript.TranscriptService.preview_transcript_replacement",
         _raise(ValueError("nope")),
     )
     res = client.post(
@@ -209,7 +209,7 @@ def test_replacement_preview_invalid(minimal_project, monkeypatch, client):
 )
 def test_word_timing_context(minimal_project, monkeypatch, client, exc, status, code):
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.transcript.EditService.word_timing_context", _raise(exc)
+        "podcast_mcp.gui.routes.transcript.TranscriptService.word_timing_context", _raise(exc)
     )
     res = client.post(
         "/api/transcript/word-timing-context", json={**TIMING, "path": str(minimal_project)}
