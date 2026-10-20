@@ -65,16 +65,16 @@ profile-seek-trim:
 # CI `desktop` → desktop-scaffold (needs rustup + rustfmt/clippy).
 # Not part of `make ci` — desktop workflow is path-filtered and Rust is optional for Python-only work.
 test-desktop:
-	./scripts/check_desktop.sh
+	./scripts/desktop/check_desktop.sh
 
 # Optional full installer build (needs platform WebView deps). Not CI.
 # macOS signs+notarizes when APPLE_* env vars are set (see docs/desktop-packaging.md).
 desktop-build:
-	./scripts/build_desktop.sh
+	./scripts/desktop/build_desktop.sh
 
 # Unsigned Linux AppImage in Ubuntu 22.04 Docker (iterate before GHA).
 desktop-linux-appimage-docker:
-	./scripts/build_linux_appimage_docker.sh
+	./scripts/desktop/build_linux_appimage_docker.sh
 
 # Optional local mirror of required GitHub CI: Python quality + coverage +
 # Sharecut Studio unit/a11y + Playwright axe. GitHub Actions remains the gate

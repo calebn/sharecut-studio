@@ -1,19 +1,7 @@
 #!/usr/bin/env bash
 # Pack an already-built distribution .app into a UDZO DMG.
 # Retries hdiutil only — does not re-run Tauri or Apple notarization of the .app.
-set -euo pipefail
-
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TAURI_CONF="$ROOT/gui/desktop/src-tauri/tauri.conf.json"
-NOTARY_WAIT_SEC="${NOTARY_WAIT_SEC:-2700}"
-
-default_arch() {
-  case "$(uname -m)" in
-    arm64) echo aarch64 ;;
-    x86_64) echo x64 ;;
-    *) echo "$(uname -m)" ;;
-  esac
-}
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 if [[ $# -ge 1 ]]; then
   APP="$1"
@@ -35,8 +23,8 @@ fi
 if [[ $# -ge 2 ]]; then
   OUT="$2"
 else
-  version="$(python3 -c "import json; print(json.load(open('$TAURI_CONF'))['version'])")"
-  OUT="$ROOT/gui/desktop/src-tauri/target/release/bundle/dmg/${compact_name}_${version}_$(default_arch).dmg"
+  version="$(tauri_version)"
+  OUT="$ROOT/gui/desktop/src-tauri/target/release/bundle/dmg/${compact_name}_${version}_$(desktop_arch).dmg"
 fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -52,20 +40,20 @@ mkdir -p "$(dirname "$OUT")"
 staging="$(mktemp -d "${TMPDIR:-/tmp}/distribution-dmg.XXXXXX")"
 # hdiutil appends .dmg when the dest has no .dmg suffix, so keep the temp path
 # as *.partial.dmg (otherwise codesign looks at *.partial and the image is
-# left as *.partial.dmg). Preserve the original exit status in the EXIT trap;
-# a successful cleanup must not mask a failed codesign/notarytool.
+# left as *.partial.dmg). lib.sh's on_exit keeps the original exit status; a
+# successful cleanup must not mask a failed codesign/notarytool.
 partial="${OUT}.partial.dmg"
 hdiutil_pid=""
 
-cleanup() {
+stop_hdiutil() {
   if [[ -n "${hdiutil_pid:-}" ]] && kill -0 "$hdiutil_pid" 2>/dev/null; then
     kill "$hdiutil_pid" 2>/dev/null || true
     wait "$hdiutil_pid" 2>/dev/null || true
   fi
-  rm -rf "$staging"
-  rm -f "$partial"
 }
-trap 'rc=$?; cleanup; exit "$rc"' EXIT
+on_exit stop_hdiutil
+on_exit 'rm -rf "$staging"'
+on_exit 'rm -f "$partial"'
 
 detach_partial() {
   local path="$1"
@@ -126,10 +114,6 @@ have_apple_id_notarize() {
   [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]
 }
 
-run_notarytool() {
-  perl -e 'alarm shift; exec @ARGV' "$NOTARY_WAIT_SEC" xcrun notarytool submit "$@"
-}
-
 if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
   echo "==> codesign DMG"
   codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$partial"
@@ -154,19 +138,7 @@ if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
     echo "error: signed DMG requires notarization credentials (APPLE_API_KEY+APPLE_API_ISSUER or APPLE_ID+APPLE_PASSWORD+APPLE_TEAM_ID)" >&2
     exit 1
   fi
-  # stapler fetches the ticket from Apple CloudKit, which drops connections on CI runners.
-  staple_attempts="${STAPLE_ATTEMPTS:-8}"
-  staple_delay="${STAPLE_RETRY_DELAY:-20}"
-  staple_try=1
-  until xcrun stapler staple "$partial" && xcrun stapler validate "$partial"; do
-    if ((staple_try >= staple_attempts)); then
-      echo "error: could not staple a notarization ticket to $partial after ${staple_try} attempts" >&2
-      exit 1
-    fi
-    echo "stapling attempt ${staple_try}/${staple_attempts} failed; retrying in ${staple_delay}s" >&2
-    sleep "$staple_delay"
-    staple_try=$((staple_try + 1))
-  done
+  staple_with_retries "$partial"
 fi
 
 mv -f "$partial" "$OUT"

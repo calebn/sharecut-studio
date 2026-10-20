@@ -519,7 +519,7 @@ def test_distribution_profile_input_is_validated_before_build() -> None:
 
 
 def test_windows_authenticode_script_signs_by_thumbprint() -> None:
-    script = ROOT / "scripts/sign_windows_authenticode.sh"
+    script = ROOT / "scripts/desktop/sign_windows_authenticode.sh"
     text = script.read_text(encoding="utf-8")
     assert script.stat().st_mode & 0o111
     assert "Import-PfxCertificate" in text
@@ -531,8 +531,11 @@ def test_windows_authenticode_script_signs_by_thumbprint() -> None:
     assert '/p "$WINDOWS_SIGN_CERT_PASSWORD"' not in text
     assert "Remove-Item" in text
     assert "--verify" in text
-    assert "trap cleanup EXIT" in text
-    assert "trap cleanup EXIT" in text.split("printf '%s' \"$WINDOWS_SIGN_CERT_PFX_B64\"")[0]
+    assert "on_exit remove_imported_cert" in text
+    assert (
+        "on_exit remove_imported_cert"
+        in text.split("printf '%s' \"$WINDOWS_SIGN_CERT_PFX_B64\"")[0]
+    )
 
 
 def test_public_reusable_workflow_has_no_hosted_release_operations() -> None:
@@ -686,7 +689,7 @@ def test_scripts_parse_under_the_system_bash() -> None:
         "build_linux_appimage.sh",
     ):
         done = subprocess.run(
-            ["/bin/bash", "-n", str(ROOT / "scripts" / name)],
+            ["/bin/bash", "-n", str(ROOT / "scripts" / "desktop" / name)],
             capture_output=True,
             text=True,
             check=False,

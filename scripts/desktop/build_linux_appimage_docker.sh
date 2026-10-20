@@ -2,10 +2,9 @@
 # Build the unsigned Linux AppImage inside Ubuntu 22.04 (GHA-shaped).
 # Does not dispatch GitHub Actions. Re-run until linuxdeploy succeeds, then
 # workflow_dispatch release-desktop for the amd64 artifact testers download.
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 CALLER_DIR="$PWD"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE="${SHARECUT_LINUX_APPIMAGE_IMAGE:-sharecut-linux-amd64-appimage:local}"
 DOCKERFILE="$ROOT/gui/desktop/Dockerfile.linux-appimage"
 BASE_IMAGE="${SHARECUT_LINUX_BASE_IMAGE:-}"
@@ -134,4 +133,4 @@ docker run --platform "$PLATFORM" --rm \
   -v sharecut-linux-amd64-desktop-node-modules:/src/gui/desktop/node_modules \
   -w /src \
   "$IMAGE" \
-  ./scripts/build_linux_appimage.sh
+  ./scripts/desktop/build_linux_appimage.sh

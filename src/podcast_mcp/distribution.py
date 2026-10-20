@@ -334,7 +334,7 @@ def tauri_distribution_overlay(profile: DistributionProfile) -> dict[str, Any]:
 
     The overlay carries no updater data: ``build.rs`` bakes the profile's updater
     fields into the host, and updater bundles are signed after the build by
-    ``scripts/sign_updater_artifacts.sh``, so builds never hold the private key.
+    ``scripts/desktop/sign_updater_artifacts.sh``, so builds never hold the private key.
     """
     mobile: list[dict[str, Any]] = []
     for origin in profile.allowed_https_share_origins:

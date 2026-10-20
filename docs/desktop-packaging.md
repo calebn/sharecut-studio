@@ -52,7 +52,7 @@ make desktop-build   # freeze sidecar, then .dmg/.nsis/AppImage; signs+notarizes
 ```
 
 `make test-desktop` matches `.github/workflows/desktop.yml` via
-[`scripts/check_desktop.sh`](../scripts/check_desktop.sh). Needs
+[`scripts/desktop/check_desktop.sh`](../scripts/desktop/check_desktop.sh). Needs
 [rustup](https://rustup.rs/) with `rustfmt` and `clippy`. Runs
 `cargo … --lib --no-default-features` so GTK/WebKit are not required.
 It also checks the standalone sidecar launcher (`scripts/sidecar_launcher.rs`,
@@ -64,6 +64,31 @@ On macOS the same script also `clippy --bin sharecut --features app` so
 `--dev-stub` so Tauri's `externalBin` exists). Ubuntu CI cannot compile those
 adapters. No Rust coverage % gate — host glue stays thin; Python stays on the
 ≥95% gate.
+
+### Desktop shell scripts
+
+Every desktop shell script lives in [`scripts/desktop/`](../scripts/desktop/):
+`build_desktop.sh`, `check_desktop.sh`, `pack_macos_dmg.sh`,
+`stage_updater_bundle.sh`, `sign_updater_bundle.sh`, `sign_updater_artifacts.sh`,
+`sign_windows_authenticode.sh`, `build_linux_appimage.sh`,
+`build_linux_appimage_docker.sh` and `smoke_linux_appimage.sh`. Each one starts
+with `source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"`
+([`lib.sh`](../scripts/desktop/lib.sh)), and
+`tests/test_desktop_scripts_lib.py` fails when one does not. `lib.sh` owns what
+the scripts used to repeat: `set -euo pipefail`, `ROOT`, `on_exit` (cleanup that
+runs in registration order and keeps the script's exit status; scripts no longer
+define their own `cleanup()` or `trap`), `desktop_arch`, `tauri_version`,
+`run_notarytool` (bounded by `NOTARY_WAIT_SEC`, default 2700) and
+`staple_with_retries` (`STAPLE_ATTEMPTS`, `STAPLE_RETRY_DELAY`). Stapler output
+goes to stderr, so `stage_updater_bundle.sh` still prints only the tarball path on
+stdout. `lib.sh` must stay bash 3.2 compatible (macOS runners). Python helpers
+(`build_sidecar.py`, `generate_distribution_config.py`, `tauri_sidecar_hook.py`)
+and the Rust launcher sources stay in `scripts/`; the workflows and the shell
+scripts call them rather than reimplementing them. The one exception is the
+Windows launcher check in `desktop.yml`, which still calls `rustc` directly to
+typecheck and test the `cfg(windows)` arms (it builds with `--test`, which
+`build_sidecar.py` does not do). The bootstrap manifest has a single copy,
+`contracts/bootstrap-assets.json`; the wheel packages it from there.
 
 ## First-run assets
 
@@ -162,7 +187,7 @@ PODCAST_DISTRIBUTION_PROFILE=../<your-overlay>/config/distribution.production.js
   make desktop-linux-appimage-docker
 ```
 
-That builds [`gui/desktop/Dockerfile.linux-appimage`](../gui/desktop/Dockerfile.linux-appimage) (`ubuntu:22.04`) and runs [`scripts/build_linux_appimage.sh`](../scripts/build_linux_appimage.sh): generate a compact product-name overlay from the selected distribution profile, freeze the sidecar, then run with `NO_STRIP=true` and `APPIMAGE_EXTRACT_AND_RUN=1`. Spaces in product names break AppDir names, so the Linux overlay removes them. The freeze and Cargo target live on **Docker volumes** (Linux case-sensitive FS). Bind-mounting the runtime onto macOS APFS drops `terminfo/N` vs `n` and Tauri’s resource walk fails. Freeze output is slimmed (`--slim-only`) so linuxdeploy does not try to deploy Tcl/Tk from uv CPython. Manylinux wheel `*.libs` dirs are prepended to `LD_LIBRARY_PATH` so linuxdeploy/`ldd` can resolve hashed sibling `.so` files (e.g. ctranslate2’s `libgomp-*.so`). AppImages copy to gitignored `gui/desktop/dist-linux/`. Set `REBUILD_SIDECAR=1` on that make target to redo the volume freeze (new `sidecar_launcher` / `PYTHONHOME` / `.python-home`); otherwise a complete freeze is reused. Skipping smoke with `SKIP_APPIMAGE_SMOKE=1` is for local iteration only — a reused freeze can still ship a stale launcher that never rewrites `pyvenv.cfg`.
+That builds [`gui/desktop/Dockerfile.linux-appimage`](../gui/desktop/Dockerfile.linux-appimage) (`ubuntu:22.04`) and runs [`scripts/desktop/build_linux_appimage.sh`](../scripts/desktop/build_linux_appimage.sh): generate a compact product-name overlay from the selected distribution profile, freeze the sidecar, then run with `NO_STRIP=true` and `APPIMAGE_EXTRACT_AND_RUN=1`. Spaces in product names break AppDir names, so the Linux overlay removes them. The freeze and Cargo target live on **Docker volumes** (Linux case-sensitive FS). Bind-mounting the runtime onto macOS APFS drops `terminfo/N` vs `n` and Tauri’s resource walk fails. Freeze output is slimmed (`--slim-only`) so linuxdeploy does not try to deploy Tcl/Tk from uv CPython. Manylinux wheel `*.libs` dirs are prepended to `LD_LIBRARY_PATH` so linuxdeploy/`ldd` can resolve hashed sibling `.so` files (e.g. ctranslate2’s `libgomp-*.so`). AppImages copy to gitignored `gui/desktop/dist-linux/`. Set `REBUILD_SIDECAR=1` on that make target to redo the volume freeze (new `sidecar_launcher` / `PYTHONHOME` / `.python-home`); otherwise a complete freeze is reused. Skipping smoke with `SKIP_APPIMAGE_SMOKE=1` is for local iteration only — a reused freeze can still ship a stale launcher that never rewrites `pyvenv.cfg`.
 
 If `docker pull ubuntu:22.04` hangs, the wrapper imports Ubuntu’s published jammy rootfs via curl and builds `FROM` that local tag.
 
@@ -217,7 +242,7 @@ Windows puts the launcher next to the exe and the runtime under `resources/share
 The splash includes a viewport declaration, token-based page padding, and wrapping
 for long startup error paths. Its status remains an announced live region.
 
-The native window loads a **splash** (`gui/desktop/splash/`) until the packaged sidecar writes a `0600` listen JSON, the OS LISTEN owner of `127.0.0.1:<port>` is that sidecar (or a Windows child), and `GET /api/health` returns HTTP 200 plus `{"ok": true}` with header `X-Sharecut-Boot-Token`. Then the WebView navigates to `http://127.0.0.1:<discovered-port>/` — never a baked `:8765`. Engine navigation is `127.0.0.1` only (`localhost` / `::1` are denied). Packaged **release** does not fall back to PATH `podcast`/`uv` on `:8765` if the bundled sidecar fails to spawn — splash errors instead (`tauri dev` still may). The Tauri host reads that health response across split TCP segments (Windows uvicorn often sends headers, then the tiny JSON body) rather than a single `read()`. Do not set the WebView URL to the engine on first paint — WebView2 (Windows) shows a sticky `ERR_CONNECTION_REFUSED` Edge page if the sidecar is not listening yet. Sidecar stdout/stderr append to `%LOCALAPPDATA%\SharecutStudio\sidecar.log` (Windows), `~/Library/Logs/Sharecut Studio/sidecar.log` (macOS), or `~/.local/state/SharecutStudio/sidecar.log` (Linux); the listen file sits beside the log as `sidecar.listen.<parent-pid>.json`. After `make desktop-linux-appimage-docker` (or a reusable CI build), [`scripts/smoke_linux_appimage.sh`](../scripts/smoke_linux_appimage.sh) extracts the AppImage, runs outer AppImage `--cli --help`, `--mcp --help`, `--cli info --project` against a fixture, and `--cli --no-progress gui` (refused with exit 2), as well as the equivalent sidecar CLI checks, then curls `/api/health` on **:8765** without the parent token env (skip with `SKIP_APPIMAGE_SMOKE=1`). That does not drive WebKit; it catches a dead sidecar, which is the same user-visible failure as connection refused. Packaged CSP includes `frame-ancestors 'none'`; do not add `remote.urls` — the DAW never `invoke`s, and that grant plus `shell:allow-open` is the squat payoff. Edit splash CSP in [`gui/desktop/src-tauri/tauri.conf.json`](../gui/desktop/src-tauri/tauri.conf.json) together with host GUI `GUI_CSP` in [`src/podcast_mcp/gui/middleware_security_headers.py`](../src/podcast_mcp/gui/middleware_security_headers.py) (`frame-ancestors`, `object-src`, `base-uri`). The launcher always passes `--port 8765`; Python `resolved_bind_port` is the only ephemeral-port policy when `PODCAST_SIDECAR_EPHEMERAL` is set.
+The native window loads a **splash** (`gui/desktop/splash/`) until the packaged sidecar writes a `0600` listen JSON, the OS LISTEN owner of `127.0.0.1:<port>` is that sidecar (or a Windows child), and `GET /api/health` returns HTTP 200 plus `{"ok": true}` with header `X-Sharecut-Boot-Token`. Then the WebView navigates to `http://127.0.0.1:<discovered-port>/` — never a baked `:8765`. Engine navigation is `127.0.0.1` only (`localhost` / `::1` are denied). Packaged **release** does not fall back to PATH `podcast`/`uv` on `:8765` if the bundled sidecar fails to spawn — splash errors instead (`tauri dev` still may). The Tauri host reads that health response across split TCP segments (Windows uvicorn often sends headers, then the tiny JSON body) rather than a single `read()`. Do not set the WebView URL to the engine on first paint — WebView2 (Windows) shows a sticky `ERR_CONNECTION_REFUSED` Edge page if the sidecar is not listening yet. Sidecar stdout/stderr append to `%LOCALAPPDATA%\SharecutStudio\sidecar.log` (Windows), `~/Library/Logs/Sharecut Studio/sidecar.log` (macOS), or `~/.local/state/SharecutStudio/sidecar.log` (Linux); the listen file sits beside the log as `sidecar.listen.<parent-pid>.json`. After `make desktop-linux-appimage-docker` (or a reusable CI build), [`scripts/desktop/smoke_linux_appimage.sh`](../scripts/desktop/smoke_linux_appimage.sh) extracts the AppImage, runs outer AppImage `--cli --help`, `--mcp --help`, `--cli info --project` against a fixture, and `--cli --no-progress gui` (refused with exit 2), as well as the equivalent sidecar CLI checks, then curls `/api/health` on **:8765** without the parent token env (skip with `SKIP_APPIMAGE_SMOKE=1`). That does not drive WebKit; it catches a dead sidecar, which is the same user-visible failure as connection refused. Packaged CSP includes `frame-ancestors 'none'`; do not add `remote.urls` — the DAW never `invoke`s, and that grant plus `shell:allow-open` is the squat payoff. Edit splash CSP in [`gui/desktop/src-tauri/tauri.conf.json`](../gui/desktop/src-tauri/tauri.conf.json) together with host GUI `GUI_CSP` in [`src/podcast_mcp/gui/middleware_security_headers.py`](../src/podcast_mcp/gui/middleware_security_headers.py) (`frame-ancestors`, `object-src`, `base-uri`). The launcher always passes `--port 8765`; Python `resolved_bind_port` is the only ephemeral-port policy when `PODCAST_SIDECAR_EPHEMERAL` is set.
 
 `make desktop-build` and reusable CI builds freeze the sidecar **before** `tauri build`. `beforeBuildCommand` is [`scripts/tauri_sidecar_hook.py`](../scripts/tauri_sidecar_hook.py) `--ensure` (walks to the repo root from Tauri’s hook cwd, which is `gui/desktop` — Windows cmd cannot expand POSIX `$(git …)`), which reuses the freeze when `sharecut-runtime/.freeze-complete` exists (so a raw `npm run tauri -- build` still cannot ship an empty runtime) but always recompiles the launchers, so stale or `--dry-run` launchers cannot ship. `rustc` is checked before the freeze starts. `--dry-run` emits GUI-only placeholder launchers (unit tests). `--dev-stub` copies the bash sidecar and writes nonfunctional CLI placeholders to satisfy all three `externalBin` entries during `tauri dev` and `cargo check`; packaged builds compile real binaries. Windows NSIS uses the distribution profile's compact product name so packaging tools do not receive spaces.
 
@@ -232,7 +257,7 @@ Tauri’s macOS DMG step (and our `hdiutil create -srcfolder`) can fail with
 many attached images such as CoreSimulator runtimes).
 
 `make desktop-build` notarizes the **`.app` once** (`tauri build --bundles app`),
-then [`scripts/pack_macos_dmg.sh`](../scripts/pack_macos_dmg.sh) retries **only**
+then [`scripts/desktop/pack_macos_dmg.sh`](../scripts/desktop/pack_macos_dmg.sh) retries **only**
 `hdiutil` and, if `APPLE_API_*` is set, notarizes the DMG. The temp image path
 ends in `.partial.dmg` because `hdiutil create` appends `.dmg` when the dest
 has no suffix. Do **not** retry `tauri build --bundles dmg` — that re-signs
@@ -364,7 +389,7 @@ step. The matrix has a native Apple Silicon leg (`macos-15`, artifact
 FFmpeg payloads and the sidecar freeze already select their target from the
 host triple (`contracts/ffmpeg-artifacts.json` pins `aarch64-apple-darwin`).
 
-**Windows:** [`scripts/sign_windows_authenticode.sh`](../scripts/sign_windows_authenticode.sh)
+**Windows:** [`scripts/desktop/sign_windows_authenticode.sh`](../scripts/desktop/sign_windows_authenticode.sh)
 imports the PFX into the current-user store and signs by thumbprint
 (`signtool sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /sha1`)
 so the PFX password is not on the `signtool` command line. Sidecar
@@ -513,7 +538,7 @@ npm --prefix gui/desktop run tauri -- signer generate -w ~/.tauri/sharecut-updat
 
 **Signing flow.** Builds never see the updater private key. The build runs
 with the ordinary overlay and produces the installers. Then one step,
-[`scripts/sign_updater_artifacts.sh`](../scripts/sign_updater_artifacts.sh), signs
+[`scripts/desktop/sign_updater_artifacts.sh`](../scripts/desktop/sign_updater_artifacts.sh), signs
 the final shipped bytes with `tauri signer sign --app-version <version>`. The
 key and password are in the environment of that one step only. CI and a local
 operator run this same script, so they produce identical artifacts:
@@ -637,7 +662,7 @@ scripts/build_update_feed.py --version 0.2.0 --base-url "$BASE" \
 ```
 
 A Linux AppImage from `make desktop-linux-appimage-docker` is signed afterward
-with `scripts/sign_updater_bundle.sh <file>`.
+with `scripts/desktop/sign_updater_bundle.sh <file>`.
 
 ## Version bumps
 

@@ -776,7 +776,7 @@ jobs:
             exit 1
           fi
           for file in "${files[@]}"; do test -f "$file"; done
-          ./scripts/sign_windows_authenticode.sh "${files[@]}"
+          ./scripts/desktop/sign_windows_authenticode.sh "${files[@]}"
 
       - name: Tauri bundle (Windows NSIS)
         if: matrix.bundle == 'nsis'
@@ -799,7 +799,7 @@ jobs:
             echo "error: no NSIS *_x64-setup.exe to sign" >&2
             exit 1
           fi
-          ./scripts/sign_windows_authenticode.sh "${files[@]}"
+          ./scripts/desktop/sign_windows_authenticode.sh "${files[@]}"
 
       - name: Tauri bundle (macOS app)
         if: matrix.bundle == 'app'
@@ -826,7 +826,7 @@ jobs:
             echo "::error::expected exactly one macOS app bundle, found ${#apps[@]}" >&2
             exit 1
           fi
-          ./scripts/pack_macos_dmg.sh "${apps[0]}"
+          ./scripts/desktop/pack_macos_dmg.sh "${apps[0]}"
 
       - name: Verify Apple signature
         if: ${{ matrix.bundle == 'app' && steps.signing.outputs.apple == 'yes' }}
@@ -842,7 +842,7 @@ jobs:
 
       - name: Linux AppImage
         if: matrix.bundle == 'appimage'
-        run: ./scripts/build_linux_appimage.sh
+        run: ./scripts/desktop/build_linux_appimage.sh
 
       - name: Linux Debian package
         if: matrix.bundle == 'appimage'
@@ -885,7 +885,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set +x
-          ./scripts/sign_updater_artifacts.sh
+          ./scripts/desktop/sign_updater_artifacts.sh
 
       - name: Clean up Apple keychain
         if: ${{ always() && matrix.bundle == 'app' }}

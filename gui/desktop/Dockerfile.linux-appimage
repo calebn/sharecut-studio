@@ -36,4 +36,4 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
     && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 WORKDIR /src
-CMD ["./scripts/build_linux_appimage.sh"]
+CMD ["./scripts/desktop/build_linux_appimage.sh"]
