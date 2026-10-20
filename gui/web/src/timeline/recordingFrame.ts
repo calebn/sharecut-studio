@@ -1,5 +1,4 @@
-import { recordingClockMs } from "../record/clock";
-import type { RecordSnapshot } from "../record/types";
+import { type RecordSnapshot, recordingClockMs } from "../record";
 
 type TimedRecordSnapshot = RecordSnapshot & {
   timeline_start_sec: number;

@@ -1,8 +1,10 @@
 import { hostFetch } from "../api/documentTransport";
+import type { RecordSnapshot } from "../record/types";
 import {
   copyUploadBody,
   recordUploadSearchParams,
 } from "../record/upload/params";
+import type { RecordUploadTransport } from "../record/upload/transport";
 import { isShareProjectKey } from "../shareMode";
 import type {
   HostRecordRoom,
@@ -112,7 +114,7 @@ export async function replaceHostRecordInvite(
 
 export async function loadHostRecordState(
   projectPath: string,
-): Promise<import("../record/types").RecordSnapshot | null> {
+): Promise<RecordSnapshot | null> {
   if (isShareProjectKey(projectPath)) {
     return null;
   }
@@ -125,14 +127,14 @@ export async function loadHostRecordState(
   if (!res.ok) {
     throw await readApiFailure(res);
   }
-  return res.json() as Promise<import("../record/types").RecordSnapshot>;
+  return res.json() as Promise<RecordSnapshot>;
 }
 
 export async function postHostRecordCommand(
   projectPath: string,
   commandType: string,
   payload: Record<string, unknown> = {},
-): Promise<import("../record/types").RecordSnapshot> {
+): Promise<RecordSnapshot> {
   if (isShareProjectKey(projectPath)) {
     throw new Error("Record transport is host-only");
   }
@@ -149,12 +151,12 @@ export async function postHostRecordCommand(
       }),
     },
   );
-  return res.json() as Promise<import("../record/types").RecordSnapshot>;
+  return res.json() as Promise<RecordSnapshot>;
 }
 
 export function hostRecordUploadTransport(
   projectPath: string,
-): import("../record/upload/transport").RecordUploadTransport {
+): RecordUploadTransport {
   return {
     async status(signal) {
       const res = await apiFetch(

@@ -24,10 +24,13 @@ import {
   type PresenceCarryingFrame,
 } from "../presence/presenceFrames";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
-import { useRecordHostStore } from "../record/hostStore";
-import { bindRecordHostSend } from "../record/hostWire";
-import { emitRecordSignal, isRecordSignal } from "../record/monitor/signalBus";
-import type { RecordSnapshot } from "../record/types";
+import {
+  bindRecordHostSend,
+  emitRecordSignal,
+  isRecordSignal,
+  type RecordSnapshot,
+  useRecordHostStore,
+} from "../record";
 import {
   mergeSessionAppliedDelta,
   type SessionAppliedDelta,

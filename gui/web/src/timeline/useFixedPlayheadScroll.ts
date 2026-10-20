@@ -10,7 +10,7 @@ import {
   isProgrammaticScroll,
   withProgrammaticScroll,
 } from "../presence/followSync";
-import { useRecordHostStore } from "../record/hostStore";
+import { useRecordHostStore } from "../record";
 import { useDawStore } from "../state/dawStore";
 import {
   timelineViewportRegistry,

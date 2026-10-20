@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
-import { useRecordHostStore } from "../record/hostStore";
+import { useRecordHostStore } from "../record";
 import { hasRecordingFrame, recordingFrame } from "./recordingFrame";
 
 export function RecordingOverlay({
