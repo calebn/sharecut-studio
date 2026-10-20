@@ -400,3 +400,19 @@ def test_a_sustained_hum_is_one_sound_and_two_syllables_are_not(gain_db):
 
     assert is_one_hum(_cache((0.98, hum), gain_db=gain_db), 0.98, 1.45)
     assert not is_one_hum(_cache((0.98, syllables), gain_db=gain_db), 0.98, 1.45)
+
+
+@pytest.mark.parametrize("gain_db", [-18.0, 0.0, 12.0])
+def test_a_quiet_plateau_then_a_louder_syllable_is_not_a_hum_that_decays(gain_db):
+    # One burst by the burst measure (the level only rises), but a decaying hum never
+    # steps up: the plateau is 16 dB under the syllable and lasts longer than it does.
+    _, step = _voice_envelope(
+        (0.98, -80.0), (1.0, -40.0), (1.5, -40.0), (1.52, -20.0), (1.62, -20.0), (1.7, -45.0)
+    )
+    # The same loudest frame reached by an onset ramp and held is a hum.
+    _, ramp = _voice_envelope(
+        (0.98, -80.0), (1.0, -40.0), (1.06, -20.0), (1.4, -20.0), (1.5, -45.0)
+    )
+
+    assert not is_one_hum(_cache((0.98, step), gain_db=gain_db), 0.98, 1.7)
+    assert is_one_hum(_cache((0.98, ramp), gain_db=gain_db), 0.98, 1.5)
