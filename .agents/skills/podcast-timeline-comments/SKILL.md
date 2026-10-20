@@ -92,7 +92,7 @@ Before inviting guests, freeze a mix: `publish_review_version_tool` / `podcast r
 
 Share: `podcast review share --role commenter --base-url https://host:8765` (the link follows the latest published version; `--version <vid>` or `--pin` freezes it) → `/r/fantastic-acoustic-whale` (coolname slug; see [share-tokens.md](../../docs/share-tokens.md)). Prefer relay + `podcast tunnel` ([host-online-relay.md](../../docs/host-online-relay.md)). Bind with `--host 0.0.0.0` only for LAN-only sharing; revoke with `podcast review revoke-share`. `--role` is Viewer, Commenter (default; comments and Suggest cut) or Editor (also edits and approves suggestions); every role opens Sharecut Studio. Default link shares stay **login-free** for comments. `--kind record` mints studio `/rec/` links; live comments during REC/PAUSED use the record Comment command (not this review share).
 
-To let an **agent** use the same powers as the share recipient, add `--with-mcp` to the role the agent needs. Host must run with `PODCAST_REMOTE_MCP=1`. CLI prints `MCP URL` (`{base}/mcp/{token}/mcp`). See skill **podcast-remote-mcp**.
+To let an **agent** use the same powers as the share recipient, add `--with-mcp` to the role the agent needs. CLI prints `MCP URL` (`{base}/mcp/{token}/mcp`). See skill **podcast-remote-mcp**.
 
 ## Related skills
 

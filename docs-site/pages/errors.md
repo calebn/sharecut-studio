@@ -42,7 +42,6 @@ for a crash and adds the refusal's message only for a refusal.
 | Case | HTTP / MCP |
 |------|------------|
 | Share missing required cap | **403** |
-| Remote MCP disabled on host | **501** |
 | Remote MCP without `mcp` cap | **403** |
 | Guest MCP tool not allowed | JSON-RPC permission error (message-only) |
 
