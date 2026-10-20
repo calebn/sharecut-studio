@@ -1,5 +1,6 @@
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { oneWordOf } from "../transcript/rangeSelect";
 import { findTranscriptWord, wordSeekSec } from "../utils/transcript";
 import { registerCommand } from "./execute";
 
@@ -12,25 +13,17 @@ export function registerTranscriptWordCommands(): void {
       s.project.meta.hydration?.transcript_words === false
     )
       return { status: "disabled", reason: "Hydrated host project required" };
-    const selection = s.selection;
+    const word = oneWordOf(s.selection);
     const trackId =
-      typeof args.trackId === "string"
-        ? args.trackId
-        : selection?.kind === "transcriptWord"
-          ? selection.trackId
-          : null;
+      typeof args.trackId === "string" ? args.trackId : (word?.trackId ?? null);
     const wordIndex =
       typeof args.wordIndex === "number"
         ? args.wordIndex
-        : selection?.kind === "transcriptWord"
-          ? selection.wordIndex
-          : null;
+        : (word?.wordIndex ?? null);
     const sourceId =
       typeof args.sourceId === "string" || args.sourceId === null
         ? args.sourceId
-        : selection?.kind === "transcriptWord"
-          ? (selection.sourceId ?? null)
-          : null;
+        : (word?.sourceId ?? null);
     if (
       trackId == null ||
       wordIndex == null ||

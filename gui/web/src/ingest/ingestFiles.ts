@@ -58,7 +58,6 @@ async function createTrackWithMedia(
 
 function focusImportedTrack(trackId: string): void {
   const s = useDawStore.getState();
-  s.setSelectedTrackIds([trackId]);
   s.setSelection({ kind: "track", trackId });
 }
 

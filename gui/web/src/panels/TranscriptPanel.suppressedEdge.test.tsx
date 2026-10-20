@@ -4,6 +4,7 @@ import { setTranscriptWordSuppressed } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import type { TranscriptWordView } from "../types/project";
 import type { ProsodyOverlay } from "../types/prosody";
 import { TranscriptPanel } from "./TranscriptPanel";
@@ -181,12 +182,13 @@ describe("TranscriptPanel suppressed edge words (#752)", () => {
         within(container).getByRole("button", { name: edgeCase.targetText }),
       );
 
-      expect(useDawStore.getState().selection).toEqual({
-        kind: "transcriptWord",
-        trackId: "host",
-        sourceId: null,
-        wordIndex: edgeCase.targetWordIndex,
-      });
+      expect(useDawStore.getState().selection).toEqual(
+        wordSelection({
+          trackId: "host",
+          sourceId: null,
+          wordIndex: edgeCase.targetWordIndex,
+        }),
+      );
 
       const unsuppress = await within(container).findByRole("button", {
         name: "Unsuppress",

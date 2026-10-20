@@ -82,11 +82,7 @@ describe("keepSelectionClear", () => {
 
   it("does not scroll a selection already above the sheet", () => {
     const list = listWith([{ index: 2, top: 200, bottom: 220 }]);
-    keepSelectionClear(list, {
-      kind: "transcriptWord",
-      trackId: "guest",
-      wordIndex: 2,
-    });
+    keepSelectionClear(list, range(2, 2));
     expect(list.scrollTop).toBe(0);
   });
 

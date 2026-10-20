@@ -1,30 +1,13 @@
-import { COMMANDS } from "../commands/catalog";
-import { type CommandContext, evaluateWhen } from "../commands/context";
+import type { CommandContext } from "../commands/context";
 import type { ProjectView, Selection } from "../types/project";
+import type { RelatedCommandDescriptor } from "./relatedRows";
+import { surfaceOf } from "./selectionSurface";
 
-export type RelatedCommandDescriptor = {
-  /** Related actions always honor the command catalog's availability gate. */
-  respectWhen: true;
-  /** What the person reads when that gate holds the action back. */
-  whenReason: string;
-} & (
-  | { commandId: "edit.copy"; args: Record<string, never> }
-  | { commandId: "edit.cut"; args: { clipId: string } }
-  | {
-      commandId: "track.moveUp" | "track.moveDown";
-      args: { trackId: string };
-    }
-);
-
-const COPY_SELECTION: RelatedCommandDescriptor = {
-  commandId: "edit.copy",
-  args: {},
-  respectWhen: true,
-  whenReason: "Select a clip or word to copy.",
-};
+export type { RelatedCommandDescriptor } from "./relatedRows";
 
 /**
- * Secondary actions for the mobile selection-sheet Related zone.
+ * Secondary actions for the selection-sheet Related zone, read from the
+ * selection's `SELECTION_SURFACES` row.
  *
  * Keep this deliberately small: inspectors own their primary mutations, and
  * every entry here must be a live command-bus action for this exact selection.
@@ -32,13 +15,7 @@ const COPY_SELECTION: RelatedCommandDescriptor = {
 export function relatedCommandsFor(
   selection: Selection | null,
 ): readonly RelatedCommandDescriptor[] {
-  switch (selection?.kind) {
-    case "clip":
-    case "transcriptWord":
-      return [COPY_SELECTION];
-    default:
-      return [];
-  }
+  return selection ? surfaceOf(selection).related(selection) : [];
 }
 
 /** Only expose actions for the selection currently owned by the command bus. */
@@ -62,42 +39,8 @@ export function moreCommandsFor(
   project: ProjectView | null,
   context: CommandContext,
 ): readonly RelatedCommandDescriptor[] {
-  if (!project || !isLiveSelection(selection, liveSelection)) {
+  if (!selection || !project || !isLiveSelection(selection, liveSelection)) {
     return [];
   }
-  if (selection?.kind === "clip") {
-    if (
-      !project.clips.tracks[selection.trackId]?.some(
-        (clip) => clip.id === selection.id,
-      ) ||
-      !evaluateWhen(COMMANDS["edit.cut"].when, context).ok
-    ) {
-      return [];
-    }
-    return [
-      {
-        commandId: "edit.cut",
-        args: { clipId: selection.id },
-        respectWhen: true,
-        whenReason: "Select a clip to cut.",
-      },
-    ];
-  }
-  if (selection?.kind === "track") {
-    if (!project.tracks.some((track) => track.id === selection.trackId)) {
-      return [];
-    }
-    return (["track.moveUp", "track.moveDown"] as const)
-      .filter((commandId) => evaluateWhen(COMMANDS[commandId].when, context).ok)
-      .map((commandId) => ({
-        commandId,
-        args: { trackId: selection.trackId },
-        respectWhen: true as const,
-        whenReason:
-          commandId === "track.moveUp"
-            ? "This track is already first."
-            : "This track is already last.",
-      }));
-  }
-  return [];
+  return surfaceOf(selection).more(selection, project, context);
 }

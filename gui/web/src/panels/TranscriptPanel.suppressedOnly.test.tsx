@@ -4,6 +4,7 @@ import { setTranscriptWordSuppressed } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import { TranscriptPanel } from "./TranscriptPanel";
 
 // Real TranscriptWordInspector renders here (unlike TranscriptPanel.test.tsx, which
@@ -130,12 +131,9 @@ describe("TranscriptPanel suppressed-only rows (#758)", () => {
     );
     fireEvent.click(within(container).getByRole("button", { name: "um" }));
 
-    expect(useDawStore.getState().selection).toEqual({
-      kind: "transcriptWord",
-      trackId: "guest",
-      sourceId: null,
-      wordIndex: 0,
-    });
+    expect(useDawStore.getState().selection).toEqual(
+      wordSelection({ trackId: "guest", sourceId: null, wordIndex: 0 }),
+    );
 
     const unsuppress = await within(container).findByRole("button", {
       name: "Unsuppress",

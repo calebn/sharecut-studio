@@ -361,6 +361,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
                   className="mobile-comment-row"
                   onClick={() => {
                     seekListen(c.timeline_start);
+                    setSelection({ kind: "comment", id: c.id });
                     setActiveTab("comments");
                   }}
                 >

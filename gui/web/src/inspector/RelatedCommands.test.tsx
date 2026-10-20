@@ -26,6 +26,19 @@ describe("relatedCommandsFor", () => {
     ]);
   });
 
+  it("returns Copy for a one-word range and nothing for a longer one", () => {
+    const word = {
+      kind: "transcriptRange" as const,
+      trackId: "t1",
+      startWordIndex: 3,
+      endWordIndex: 3,
+    };
+    expect(relatedCommandsFor(word).map((cmd) => cmd.commandId)).toEqual([
+      "edit.copy",
+    ]);
+    expect(relatedCommandsFor({ ...word, endWordIndex: 4 })).toEqual([]);
+  });
+
   it("returns empty for null selection", () => {
     expect(relatedCommandsFor(null)).toEqual([]);
   });

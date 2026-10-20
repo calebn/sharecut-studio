@@ -112,7 +112,6 @@ describe("phase-2 P0 edit/view/track commands", () => {
       guestMode: null,
       project: sampleProject(),
       selection: { kind: "clip", id: "c1", trackId: "host" },
-      selectedTrackIds: ["host"],
       playheadSec: 8,
       zoomPxPerSec: 40,
       viewerMute: {},
@@ -152,7 +151,6 @@ describe("phase-2 P0 edit/view/track commands", () => {
     useDawStore.setState({
       projectPath: "share:tok",
       shareCapabilities: ["view"],
-      selectedTrackIds: ["host"],
       selection: { kind: "clip", id: "c2", trackId: "guest" },
       viewerMute: {},
     });

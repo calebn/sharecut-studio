@@ -60,7 +60,7 @@ export function rangeClips(project: ProjectView): ClipRow[] {
 export function makeRangeTarget(
   project: ProjectView,
   spans: TimelineSpan[],
-  trackIds: string[],
+  trackIds: readonly string[],
 ): ExactRangeTarget | null {
   const intervals = canonicalIntervals(spans);
   const tracks = [...new Set(trackIds)].filter((id) =>

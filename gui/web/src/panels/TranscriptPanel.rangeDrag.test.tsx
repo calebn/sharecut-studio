@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import { TranscriptPanel } from "./TranscriptPanel";
 
 const WORDS = ["so", "the", "plan", "is", "simple", "really"];
@@ -321,12 +322,9 @@ describe("TranscriptPanel touch range drag", () => {
     act(() => {
       vi.runOnlyPendingTimers();
     });
-    expect(useDawStore.getState().selection).toEqual({
-      kind: "transcriptWord",
-      trackId: "host",
-      sourceId: null,
-      wordIndex: 2,
-    });
+    expect(useDawStore.getState().selection).toEqual(
+      wordSelection({ trackId: "host", sourceId: null, wordIndex: 2 }),
+    );
   });
 
   it("ignores a mouse press, which keeps its own drag", () => {

@@ -1,8 +1,25 @@
 import type { ReactNode } from "react";
+import type { CommandContext } from "../commands/context";
 import { rangeClips } from "../edit/rangeSelection";
-import type { MobileMode, MoreDestination } from "../state/types";
+import type { LayoutMode, MobileMode, MoreDestination } from "../state/types";
+import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeActions } from "../timeline/RangeActions";
 import type { ProjectView, Selection } from "../types/project";
+import { OneWordEditor } from "./OneWordEditor";
+import {
+  type PeekTarget,
+  peekChapter,
+  peekClip,
+  peekEnvelopePoint,
+  peekPending,
+} from "./peekBuilders";
+import {
+  moreCutClip,
+  moreMoveTrack,
+  type RelatedCommandDescriptor,
+  relatedCopy,
+  relatedCopyWord,
+} from "./relatedRows";
 import { AppliedEditInspector } from "./views/AppliedEditInspector";
 import { ChapterInspector } from "./views/ChapterInspector";
 import { ClipBleedHost } from "./views/ClipBleedHost";
@@ -12,7 +29,6 @@ import { EnvelopeWorkspace } from "./views/EnvelopeWorkspace";
 import { PendingEditInspector } from "./views/PendingEditInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
 import { TrackInspector } from "./views/TrackInspector";
-import { TranscriptWordInspector } from "./views/TranscriptWordInspector";
 
 export type SelectionKind = NonNullable<Selection>["kind"];
 type SelectionOf<K extends SelectionKind> = Extract<
@@ -20,13 +36,14 @@ type SelectionOf<K extends SelectionKind> = Extract<
   { kind: K }
 >;
 
-/** The phone-shell screens whose selection sheet can open. */
+/** The screens where a selection sheet can open, on the phone and the tablet. */
 export type SheetScreen =
   | "timeline"
   | "listen"
   | "text"
   | "comments"
-  | "impact";
+  | "impact"
+  | "tighten";
 
 /** The phone screen a mobile mode and More destination put on screen. */
 export function sheetScreen(
@@ -34,45 +51,97 @@ export function sheetScreen(
   destination: MoreDestination,
 ): SheetScreen | null {
   if (mode !== "more") return mode;
-  return destination === "comments" || destination === "impact"
+  return destination === "comments" ||
+    destination === "impact" ||
+    destination === "tighten"
     ? destination
     : null;
+}
+
+/** The tablet screen a layout puts on screen: the timeline, the transcript or the comments. */
+export function layoutScreen(layout: LayoutMode): SheetScreen {
+  switch (layout) {
+    case "text":
+      return "text";
+    case "review":
+      return "comments";
+    case "default":
+    case "timeline":
+      return "timeline";
+  }
 }
 
 export interface SurfaceContext {
   project: ProjectView;
   projectEpoch: number;
   setPlayheadSec: (sec: number) => void;
+  /** The desktop rail, or the touch sheet that also carries the range actions. */
+  placement: "rail" | "sheet";
 }
 
 const notFound = (what: string) => <aside className="inspector">{what}</aside>;
 
 /**
  * What one kind of selection puts on screen. `body` fills the inspector, and
- * the touch sheet, with the selection's fields and actions. `phoneScreens` are
- * the phone screens where the selection opens the sheet: the Timeline and
- * Listen screens always, the rest only where the selection belongs.
+ * the touch sheet, with the selection's fields and actions. `screens` are the
+ * screens, on the phone and the tablet alike, where the selection opens the
+ * sheet: the Timeline and Listen screens always, the rest only where the
+ * selection belongs. `peek` is the compact strip for a timeline target (null
+ * opens the full body). `related` and `more` are the Related and More commands
+ * under the body.
  */
 export interface SelectionSurface<K extends SelectionKind> {
   body: (selection: SelectionOf<K>, ctx: SurfaceContext) => ReactNode;
-  phoneScreens: readonly SheetScreen[];
+  screens: readonly SheetScreen[];
+  peek: (
+    selection: SelectionOf<K>,
+    project: ProjectView,
+    hit: RoutedTarget | null,
+  ) => PeekTarget | null;
+  related: (selection: SelectionOf<K>) => readonly RelatedCommandDescriptor[];
+  more: (
+    selection: SelectionOf<K>,
+    project: ProjectView,
+    context: CommandContext,
+  ) => readonly RelatedCommandDescriptor[];
 }
 
 const ANYWHERE: readonly SheetScreen[] = ["timeline", "listen"];
 const WITH_TEXT: readonly SheetScreen[] = ["timeline", "listen", "text"];
 
+const noPeek = () => null;
+const noRelated = () => [];
+const noMore = () => [];
+/** A kind with no peek strip and no Related or More commands. */
+const plain = { peek: noPeek, related: noRelated, more: noMore } as const;
+
 const rangeSurface = {
+  ...plain,
   body: () => <RangeActions sheet />,
-  phoneScreens: WITH_TEXT,
+  screens: WITH_TEXT,
 } as const;
 
 export const SELECTION_SURFACES: {
   [K in SelectionKind]: SelectionSurface<K>;
 } = {
   range: rangeSurface,
-  transcriptRange: rangeSurface,
+  transcriptRange: {
+    screens: WITH_TEXT,
+    peek: noPeek,
+    related: relatedCopyWord,
+    more: noMore,
+    body: (sel, { placement }) => (
+      <>
+        {placement === "sheet" ? <RangeActions sheet /> : null}
+        <OneWordEditor selection={sel} />
+      </>
+    ),
+  },
   clip: {
-    phoneScreens: ANYWHERE,
+    screens: ANYWHERE,
+    peek: peekClip,
+    related: relatedCopy,
+    more: moreCutClip,
     body: (sel, { project }) => {
       const clip = Object.values(project.clips.tracks)
         .flat()
@@ -81,7 +150,8 @@ export const SELECTION_SURFACES: {
     },
   },
   bleedAttenuation: {
-    phoneScreens: ANYWHERE,
+    ...plain,
+    screens: ANYWHERE,
     body: (sel, { project }) => {
       const clip = rangeClips(project).find(
         (row) => row.id === sel.id && row.track_id === sel.trackId,
@@ -102,7 +172,9 @@ export const SELECTION_SURFACES: {
     },
   },
   pending: {
-    phoneScreens: [...ANYWHERE, "impact"],
+    ...plain,
+    screens: [...ANYWHERE, "impact", "tighten"],
+    peek: peekPending,
     body: (sel, { project }) => {
       const edit = project.pending_edits.find((e) => e.id === sel.id);
       return edit ? (
@@ -113,7 +185,8 @@ export const SELECTION_SURFACES: {
     },
   },
   applied: {
-    phoneScreens: ANYWHERE,
+    ...plain,
+    screens: ANYWHERE,
     body: (sel, { project }) => {
       const rec = project.applied_edits.records.find((r) => r.id === sel.id);
       return rec ? (
@@ -124,7 +197,9 @@ export const SELECTION_SURFACES: {
     },
   },
   track: {
-    phoneScreens: ANYWHERE,
+    ...plain,
+    screens: ANYWHERE,
+    more: moreMoveTrack,
     body: (sel, { project }) => {
       const track = project.tracks.find((t) => t.id === sel.trackId);
       return track ? (
@@ -139,11 +214,14 @@ export const SELECTION_SURFACES: {
     },
   },
   chapter: {
-    phoneScreens: ANYWHERE,
+    ...plain,
+    screens: ANYWHERE,
+    peek: peekChapter,
     body: (sel) => <ChapterInspector title={sel.id} time={sel.time} />,
   },
   social: {
-    phoneScreens: ANYWHERE,
+    ...plain,
+    screens: ANYWHERE,
     body: (sel, { project, setPlayheadSec }) => {
       const clip = (project.social_clips ?? []).find((c) => c.id === sel.id);
       return clip ? (
@@ -154,7 +232,8 @@ export const SELECTION_SURFACES: {
     },
   },
   comment: {
-    phoneScreens: [...ANYWHERE, "comments"],
+    ...plain,
+    screens: [...ANYWHERE, "comments"],
     body: (sel, { project, setPlayheadSec }) => {
       const comment = (project.comments ?? []).find((c) => c.id === sel.id);
       if (!comment) return notFound("Comment not found");
@@ -168,19 +247,9 @@ export const SELECTION_SURFACES: {
       );
     },
   },
-  transcriptWord: {
-    phoneScreens: WITH_TEXT,
-    body: (sel) => (
-      <TranscriptWordInspector
-        key={JSON.stringify([sel.trackId, sel.sourceId ?? null, sel.wordIndex])}
-        trackId={sel.trackId}
-        sourceId={sel.sourceId}
-        wordIndex={sel.wordIndex}
-      />
-    ),
-  },
   envelope: {
-    phoneScreens: ANYWHERE,
+    ...plain,
+    screens: ANYWHERE,
     body: (sel, { projectEpoch }) => (
       <EnvelopeWorkspace
         key={`${projectEpoch}:${sel.trackId}:workspace`}
@@ -190,7 +259,9 @@ export const SELECTION_SURFACES: {
     ),
   },
   envelopePoint: {
-    phoneScreens: ANYWHERE,
+    ...plain,
+    screens: ANYWHERE,
+    peek: peekEnvelopePoint,
     body: (sel, { projectEpoch }) => (
       <EnvelopeWorkspace
         key={`${projectEpoch}:${sel.trackId}:${sel.pointId}`}
@@ -201,7 +272,8 @@ export const SELECTION_SURFACES: {
   },
 };
 
-function surfaceOf<K extends SelectionKind>(
+/** The row of `selection`'s kind. */
+export function surfaceOf<K extends SelectionKind>(
   selection: SelectionOf<K>,
 ): SelectionSurface<K> {
   return SELECTION_SURFACES[selection.kind] as SelectionSurface<K>;
@@ -215,10 +287,10 @@ export function renderSelectionBody(
   return surfaceOf(selection).body(selection, ctx);
 }
 
-/** Does `selection` open the phone sheet on `screen`? */
-export function opensPhoneSheet(
+/** Does `selection` open the sheet on `screen`? One answer for the phone and the tablet. */
+export function opensSheet(
   selection: NonNullable<Selection>,
   screen: SheetScreen | null,
 ): boolean {
-  return screen != null && surfaceOf(selection).phoneScreens.includes(screen);
+  return screen != null && surfaceOf(selection).screens.includes(screen);
 }

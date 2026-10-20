@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import type { ClipRow, TrackView } from "../types/project";
 import { Inspector } from "./Inspector";
 import { SelectionSheetBody } from "./SelectionSheetBody";
@@ -141,24 +142,22 @@ describe("Inspector clip lookup", () => {
         },
       }),
     );
-    useDawStore.getState().setSelection({
-      kind: "transcriptWord",
-      trackId: "host",
-      sourceId: null,
-      wordIndex: 0,
-    });
+    useDawStore
+      .getState()
+      .setSelection(
+        wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
+      );
     render(<Inspector />);
 
     const correction = screen.getByLabelText("Corrected text");
     expect(correction).toHaveValue("primary word");
     fireEvent.change(correction, { target: { value: "primary draft" } });
     act(() => {
-      useDawStore.getState().setSelection({
-        kind: "transcriptWord",
-        trackId: "host",
-        sourceId: "primary",
-        wordIndex: 0,
-      });
+      useDawStore
+        .getState()
+        .setSelection(
+          wordSelection({ trackId: "host", sourceId: "primary", wordIndex: 0 }),
+        );
     });
 
     expect(
@@ -198,7 +197,7 @@ describe("Inspector clip lookup", () => {
     "gives a selected %s its actions as the body",
     (_kind, selection, text) => {
       useDawStore.getState().setSelection(selection);
-      render(<Inspector />);
+      render(<Inspector placement="sheet" />);
       expect(
         screen.getByRole("region", { name: "Range actions" }),
       ).toHaveTextContent(text);

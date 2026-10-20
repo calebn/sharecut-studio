@@ -8,6 +8,7 @@ import { minimalProject, pendingEditView, sampleTrack } from "../test/fixtures";
 import type { SessionState } from "../types/session";
 import { LANE_HEIGHT_STORAGE_KEY } from "../utils/laneHeightPref";
 import { estimateTimelineViewportWidth, useDawStore } from "./dawStore";
+import { selectedClipIdsOf } from "./selection";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import { SPOKEN_JOB_RESULT_LIMIT } from "./uiSlice";
 
@@ -454,7 +455,7 @@ describe("dawStore clip multi-select", () => {
     const s = useDawStore.getState();
     s.selectClip("c1", "host");
     s.selectClip("g1", "guest");
-    expect(useDawStore.getState().selectedClipIds).toEqual(["g1"]);
+    expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual(["g1"]);
     expect(useDawStore.getState().selection).toEqual({
       kind: "clip",
       id: "g1",
@@ -466,7 +467,10 @@ describe("dawStore clip multi-select", () => {
     const s = useDawStore.getState();
     s.selectClip("c1", "host");
     s.selectClip("g1", "guest", { shift: true });
-    expect(useDawStore.getState().selectedClipIds).toEqual(["c1", "g1"]);
+    expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([
+      "c1",
+      "g1",
+    ]);
     expect(useDawStore.getState().selection?.kind).toBe("clip");
     expect(useDawStore.getState().selection).toMatchObject({ id: "g1" });
   });
@@ -476,14 +480,14 @@ describe("dawStore clip multi-select", () => {
     s.selectClip("c1", "host");
     s.selectClip("g1", "guest", { shift: true });
     s.selectClip("c1", "host", { mod: true });
-    expect(useDawStore.getState().selectedClipIds).toEqual(["g1"]);
+    expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual(["g1"]);
     expect(useDawStore.getState().selection).toMatchObject({ id: "g1" });
   });
 
   it("clears the multi-set when selection leaves clips", () => {
     useDawStore.getState().selectClip("c1", "host");
     useDawStore.getState().setSelection({ kind: "track", trackId: "host" });
-    expect(useDawStore.getState().selectedClipIds).toEqual([]);
+    expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([]);
   });
 
   it("keeps the multi-set when the primary clip is already selected", () => {
@@ -494,7 +498,10 @@ describe("dawStore clip multi-select", () => {
       id: "c1",
       trackId: "host",
     });
-    expect(useDawStore.getState().selectedClipIds).toEqual(["c1", "g1"]);
+    expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([
+      "c1",
+      "g1",
+    ]);
   });
 
   it("replaces the old clip highlight when an agent selection is adopted", () => {
@@ -510,7 +517,7 @@ describe("dawStore clip multi-select", () => {
       id: "g1",
       trackId: "guest",
     });
-    expect(useDawStore.getState().selectedClipIds).toEqual(["g1"]);
+    expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual(["g1"]);
   });
 });
 

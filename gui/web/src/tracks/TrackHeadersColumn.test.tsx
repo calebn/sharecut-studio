@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
+import { selectedTrackIdsOf } from "../state/selection";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -45,7 +46,6 @@ describe("track.selectAll / track.deselectAll", () => {
     useDawStore.getState().hydrate("/tmp/p.json", twoTrackProject());
     useDawStore.setState({
       timelineFocused: true,
-      selectedTrackIds: ["host"],
       selection: { kind: "track", trackId: "host" },
     });
   });
@@ -57,13 +57,15 @@ describe("track.selectAll / track.deselectAll", () => {
   it("selects every project track id", async () => {
     const r = await execute("track.selectAll");
     expect(r.status).toBe("ok");
-    expect(useDawStore.getState().selectedTrackIds).toEqual(["host", "guest"]);
+    expect(selectedTrackIdsOf(useDawStore.getState().selection)).toEqual([
+      "host",
+      "guest",
+    ]);
   });
 
   it("clears targeting and track inspector selection", async () => {
     const r = await execute("track.deselectAll");
     expect(r.status).toBe("ok");
-    expect(useDawStore.getState().selectedTrackIds).toEqual([]);
     expect(useDawStore.getState().selection).toBeNull();
   });
 
@@ -85,10 +87,7 @@ describe("TrackHeadersColumn deselect well", () => {
     clearRegisteredCommands();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", twoTrackProject());
-    useDawStore.setState({
-      selectedTrackIds: ["host", "guest"],
-      selection: { kind: "track", trackId: "host" },
-    });
+    useDawStore.getState().selectTracks(["host", "guest"]);
   });
 
   afterEach(() => {
@@ -103,17 +102,14 @@ describe("TrackHeadersColumn deselect well", () => {
         <TrackHeadersColumn />
       </DawProvider>,
     );
-    useDawStore.setState({
-      selectedTrackIds: ["host", "guest"],
-      selection: { kind: "track", trackId: "host" },
-    });
+    useDawStore.getState().selectTracks(["host", "guest"]);
     const wells = screen.getAllByRole("button", {
       name: "Deselect all tracks",
     });
     expect(wells).toHaveLength(1);
     expect(screen.getByRole("group", { name: "Tracks" })).toBeInTheDocument();
     await user.click(wells[wells.length - 1]);
-    expect(useDawStore.getState().selectedTrackIds).toEqual([]);
+    expect(useDawStore.getState().selection).toBeNull();
     await expectNoA11yViolations(container);
   });
 
@@ -125,17 +121,14 @@ describe("TrackHeadersColumn deselect well", () => {
         <TrackHeadersColumn />
       </DawProvider>,
     );
-    useDawStore.setState({
-      selectedTrackIds: ["host", "guest"],
-      selection: { kind: "track", trackId: "host" },
-    });
+    useDawStore.getState().selectTracks(["host", "guest"]);
     const overlay = container.querySelector(".track-headers-deselect");
     expect(overlay?.tagName).toBe("DIV");
     expect(overlay).toHaveAttribute("role", "presentation");
     expect(overlay).not.toHaveAttribute("aria-hidden");
     expect(overlay).not.toHaveAttribute("title");
     await user.click(overlay as HTMLElement);
-    expect(useDawStore.getState().selectedTrackIds).toEqual([]);
+    expect(useDawStore.getState().selection).toBeNull();
   });
 
   it("has no layout control in the ruler corner", async () => {
@@ -160,7 +153,9 @@ describe("TrackHeadersColumn deselect well", () => {
     await user.click(
       screen.getByRole("button", { name: /Open track details, Guest/i }),
     );
-    expect(useDawStore.getState().selectedTrackIds).toEqual(["guest"]);
+    expect(selectedTrackIdsOf(useDawStore.getState().selection)).toEqual([
+      "guest",
+    ]);
   });
 });
 

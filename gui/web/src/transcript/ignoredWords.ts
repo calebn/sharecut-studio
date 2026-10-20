@@ -101,8 +101,8 @@ export function selectionAllIgnored(
 
 /**
  * Resolve the range and desired `ignored` state for `transcript.ignoreWords`.
- * Explicit `args` win; otherwise a `transcriptRange` or `transcriptWord`
- * selection is used and toggled (restore only when every word in it is
+ * Explicit `args` win; otherwise a `transcriptRange` selection is used and
+ * toggled (restore only when every word in it is
  * already ignored).
  */
 export function ignoreTarget(
@@ -118,8 +118,7 @@ export function ignoreTarget(
   const sourceId =
     args.sourceId !== undefined
       ? args.sourceId
-      : selection?.kind === "transcriptWord" ||
-          selection?.kind === "transcriptRange"
+      : selection?.kind === "transcriptRange"
         ? (selection.sourceId ?? null)
         : null;
   if (
@@ -148,13 +147,7 @@ export function ignoreTarget(
 }
 
 function selectionTrackId(selection: Selection): string | undefined {
-  if (
-    selection?.kind === "transcriptRange" ||
-    selection?.kind === "transcriptWord"
-  ) {
-    return selection.trackId;
-  }
-  return undefined;
+  return selection?.kind === "transcriptRange" ? selection.trackId : undefined;
 }
 
 function resolveRange(
@@ -172,9 +165,6 @@ function resolveRange(
       Math.min(selection.startWordIndex, selection.endWordIndex),
       Math.max(selection.startWordIndex, selection.endWordIndex),
     ];
-  }
-  if (selection?.kind === "transcriptWord") {
-    return [selection.wordIndex, selection.wordIndex];
   }
   return [undefined, undefined];
 }

@@ -23,8 +23,8 @@ export function SelectionSheetBody({
       {rangeFields ? <RangeActions sheet /> : null}
       {peek ? (
         <InspectorPeek peek={peek} />
-      ) : selection != null ? (
-        <Inspector />
+      ) : selection != null && !(rangeArmed && selection.kind === "track") ? (
+        <Inspector placement="sheet" />
       ) : null}
       {rangeArmed || peek ? null : <RelatedCommands selection={selection} />}
     </>

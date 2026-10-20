@@ -1,9 +1,18 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  SELECTION_SURFACES,
+  type SelectionKind,
+} from "../inspector/selectionSurface";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { stubMatchMedia } from "../test/matchMedia";
-import { useSelectionSheet } from "./useSelectionSheet";
+import type { Selection } from "../types/project";
+import {
+  type SheetOpenState,
+  selectionSheetOpen,
+  useSelectionSheet,
+} from "./useSelectionSheet";
 
 const clip = clipRow({ id: "c2", track_id: "host", timeline_start: 10 });
 
@@ -136,5 +145,143 @@ describe("useSelectionSheet placement", () => {
     const { result } = renderHook(() => useSelectionSheet("phone"));
     act(() => result.current.onClose());
     expect(useDawStore.getState().selection).toBeNull();
+  });
+});
+
+const EVERY_KIND: Record<SelectionKind, NonNullable<Selection>> = {
+  range: {
+    kind: "range",
+    target: {
+      kind: "exact_range",
+      intervals: [{ start: 1, end: 2 }],
+      track_ids: ["host"],
+      clips: [],
+      media_seals: {},
+    },
+  },
+  transcriptRange: {
+    kind: "transcriptRange",
+    trackId: "host",
+    startWordIndex: 0,
+    endWordIndex: 0,
+  },
+  clip: { kind: "clip", id: "c2", trackId: "host" },
+  bleedAttenuation: {
+    kind: "bleedAttenuation",
+    id: "c2",
+    trackId: "host",
+    regionKey: null,
+  },
+  pending: { kind: "pending", id: "p1", trackId: "host" },
+  applied: { kind: "applied", id: "a1" },
+  track: { kind: "track", trackId: "host" },
+  chapter: { kind: "chapter", id: "Intro", time: 3 },
+  social: { kind: "social", id: "s1" },
+  comment: { kind: "comment", id: "k1" },
+  envelope: { kind: "envelope", trackId: "host" },
+  envelopePoint: { kind: "envelopePoint", trackId: "host", pointId: "e1" },
+};
+
+const KINDS = Object.keys(SELECTION_SURFACES) as SelectionKind[];
+
+/** The same screen as each shell names it: the phone's mode, the tablet's layout. */
+const SCREENS = {
+  timeline: {
+    phone: { mobileMode: "timeline", moreDestination: "hub" },
+    tablet: { layoutMode: "default" },
+  },
+  text: {
+    phone: { mobileMode: "text", moreDestination: "hub" },
+    tablet: { layoutMode: "text" },
+  },
+  comments: {
+    phone: { mobileMode: "more", moreDestination: "comments" },
+    tablet: { layoutMode: "review" },
+  },
+} as const satisfies Record<
+  string,
+  {
+    phone: Pick<SheetOpenState, "mobileMode" | "moreDestination">;
+    tablet: Pick<SheetOpenState, "layoutMode">;
+  }
+>;
+
+function sheetOpen(
+  shell: "phone" | "tablet",
+  screen: keyof typeof SCREENS,
+  selection: Selection,
+  rangeArmed = false,
+): boolean {
+  return selectionSheetOpen({
+    shell,
+    selection,
+    rangeArmed,
+    layoutMode: "default",
+    mobileMode: "listen",
+    moreDestination: "hub",
+    ...SCREENS[screen][shell],
+  });
+}
+
+describe("selectionSheetOpen reads one table on the phone and the tablet", () => {
+  it.each(
+    KINDS.flatMap((kind) =>
+      (Object.keys(SCREENS) as (keyof typeof SCREENS)[]).map(
+        (screen) => [kind, screen] as const,
+      ),
+    ),
+  )("opens %s on the %s screen the same way on both", (kind, screen) => {
+    const selection = EVERY_KIND[kind];
+    expect(sheetOpen("tablet", screen, selection)).toBe(
+      sheetOpen("phone", screen, selection),
+    );
+  });
+
+  it("opens a transcript range in the tablet's Text layout and a clip not", () => {
+    expect(sheetOpen("tablet", "text", EVERY_KIND.transcriptRange)).toBe(true);
+    expect(sheetOpen("tablet", "text", EVERY_KIND.clip)).toBe(false);
+  });
+
+  it("opens a comment in the tablet's Review layout and a pending edit not", () => {
+    expect(sheetOpen("tablet", "comments", EVERY_KIND.comment)).toBe(true);
+    expect(sheetOpen("tablet", "comments", EVERY_KIND.pending)).toBe(false);
+  });
+
+  it("opens every kind in the tablet's default layout", () => {
+    for (const kind of KINDS) {
+      expect(sheetOpen("tablet", "timeline", EVERY_KIND[kind])).toBe(true);
+    }
+  });
+
+  it("opens a pending edit chosen in Tighten on the phone, and a clip not", () => {
+    const state = {
+      shell: "phone",
+      rangeArmed: false,
+      layoutMode: "default",
+      mobileMode: "more",
+      moreDestination: "tighten",
+    } as const;
+    expect(
+      selectionSheetOpen({ ...state, selection: EVERY_KIND.pending }),
+    ).toBe(true);
+    expect(selectionSheetOpen({ ...state, selection: EVERY_KIND.clip })).toBe(
+      false,
+    );
+  });
+
+  it("opens on an armed range alone on the phone, not on the tablet", () => {
+    expect(sheetOpen("phone", "timeline", null, true)).toBe(true);
+    expect(sheetOpen("tablet", "timeline", null, true)).toBe(false);
+  });
+
+  it("keeps the tablet bar while tracks are ticked for an armed range", () => {
+    const ticked: Selection = {
+      kind: "track",
+      trackId: "host",
+      trackIds: ["host", "guest"],
+    };
+    expect(sheetOpen("tablet", "timeline", ticked, true)).toBe(false);
+    expect(sheetOpen("tablet", "timeline", ticked, false)).toBe(true);
+    expect(sheetOpen("phone", "timeline", ticked, true)).toBe(true);
   });
 });

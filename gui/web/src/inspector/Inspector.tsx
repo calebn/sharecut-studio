@@ -4,7 +4,11 @@ import { selectUnmappedPending } from "../utils/edits";
 import { renderSelectionBody } from "./selectionSurface";
 import { EmptyInspector } from "./views/EmptyInspector";
 
-export function Inspector() {
+export function Inspector({
+  placement = "rail",
+}: {
+  placement?: "rail" | "sheet";
+}) {
   const { project, projectEpoch, selection, setSelection, setPlayheadSec } =
     useDaw((s) => ({
       project: s.project,
@@ -46,5 +50,6 @@ export function Inspector() {
     project,
     projectEpoch,
     setPlayheadSec,
+    placement,
   });
 }

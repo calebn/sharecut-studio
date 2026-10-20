@@ -127,7 +127,6 @@ describe("track.remove / nav / Escape fall-through", () => {
       shareCapabilities: null,
       project: sampleProject(),
       selection: null,
-      selectedTrackIds: ["host", "guest"],
       playheadSec: 12,
       commentMode: false,
       timelineFocused: true,
@@ -141,7 +140,6 @@ describe("track.remove / nav / Escape fall-through", () => {
     expect((await execute("track.remove")).status).toBe("ok");
     expect(api.removeTrackCommand).toHaveBeenCalledWith("/tmp/ep", "host");
     expect(useDawStore.getState().selection).toBeNull();
-    expect(useDawStore.getState().selectedTrackIds).toEqual(["guest"]);
   });
 
   it("asks by the track's name, then offers Undo for the entry its reply names", async () => {
@@ -175,13 +173,13 @@ describe("track.remove / nav / Escape fall-through", () => {
     });
   });
 
-  it("does not remove from Mod+A targeting alone", async () => {
-    useDawStore.setState({
-      selection: null,
-      selectedTrackIds: ["host", "guest"],
-    });
+  it("does not remove while several tracks are selected", async () => {
+    useDawStore.getState().selectTracks(["host", "guest"]);
     const r = await execute("track.remove");
-    expect(r.status).toBe("disabled");
+    expect(r).toEqual({
+      status: "disabled",
+      reason: "Select one track to remove",
+    });
     expect(api.removeTrackCommand).not.toHaveBeenCalled();
   });
 
@@ -228,14 +226,12 @@ describe("track.remove / nav / Escape fall-through", () => {
     useDawStore.setState({
       commentMode: false,
       selection: { kind: "clip", id: "c1", trackId: "host" },
-      selectedTrackIds: ["host"],
     });
     expect(
       firstEnabledKeymapId(keyEvent({ key: "Escape", code: "Escape" })),
     ).toBe("edit.clearSelection");
     expect((await execute("edit.clearSelection")).status).toBe("ok");
     expect(useDawStore.getState().selection).toBeNull();
-    expect(useDawStore.getState().selectedTrackIds).toEqual(["host"]);
   });
 
   it("Home / End and Mod+arrows seek session bounds", async () => {

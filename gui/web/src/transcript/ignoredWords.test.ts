@@ -5,6 +5,7 @@ import type {
   TranscriptWordView,
 } from "../types/project";
 import { ignoredRuns, ignoreTarget, selectionAllIgnored } from "./ignoredWords";
+import { wordSelection } from "./rangeSelect";
 
 function words(spec: Array<[number, boolean]>): TranscriptWordView[] {
   return spec.map(([word_index, ignored]) => ({
@@ -117,24 +118,22 @@ describe("selectionAllIgnored", () => {
 
 describe("ignoreTarget", () => {
   it("uses the selected recording when the caller omits source identity", () => {
-    const selection: Selection = {
-      kind: "transcriptWord",
+    const selection: Selection = wordSelection({
       trackId: "host",
       sourceId: "take-b",
       wordIndex: 0,
-    };
+    });
     const target = ignoreTarget(null, selection, { ignored: true });
 
     expect(target?.sourceId).toBe("take-b");
   });
 
   it("keeps explicit primary identity when another recording is selected", () => {
-    const selection: Selection = {
-      kind: "transcriptWord",
+    const selection: Selection = wordSelection({
       trackId: "host",
       sourceId: "take-b",
       wordIndex: 0,
-    };
+    });
     const target = ignoreTarget(null, selection, {
       sourceId: null,
       ignored: true,
@@ -201,12 +200,12 @@ describe("ignoreTarget", () => {
     expect(target?.ignored).toBe(false);
   });
 
-  it("resolves a transcriptWord selection to a single-word range", () => {
-    const selection: Selection = {
-      kind: "transcriptWord",
+  it("resolves a one-word selection to a single-word range", () => {
+    const selection: Selection = wordSelection({
       trackId: "host",
+      sourceId: null,
       wordIndex: 3,
-    };
+    });
     const target = ignoreTarget(null, selection, { ignored: true });
     expect(target).toEqual({
       trackId: "host",

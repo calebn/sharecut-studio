@@ -39,7 +39,6 @@ beforeEach(() =>
     shareCapabilities: null,
     joinMutationInFlight: false,
     sessionRegion: null,
-    selectedTrackIds: [],
   }),
 );
 

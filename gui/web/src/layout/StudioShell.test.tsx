@@ -156,7 +156,9 @@ describe("StudioShell tablet peek", () => {
       </DawProvider>,
     );
     act(() => {
-      useDawStore.getState().setSelection({ kind: "track", trackId: "guest" });
+      useDawStore
+        .getState()
+        .setSelection({ kind: "chapter", id: "Intro", time: 3 });
       useDawStore.getState().setRangeArmed(true);
     });
     const sheet = await screen.findByRole("dialog");
@@ -172,9 +174,26 @@ describe("StudioShell tablet peek", () => {
     );
     expect(screen.queryByRole("region", { name: "Range actions" })).toBeNull();
     expect(useDawStore.getState().selection).toEqual({
+      kind: "chapter",
+      id: "Intro",
+      time: 3,
+    });
+  });
+
+  it("keeps the range bar and the track sheet shut while the tracks for an armed range are ticked", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    act(() => useDawStore.getState().setRangeArmed(true));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Guest|guest/ }));
+    expect(useDawStore.getState().selection).toMatchObject({
       kind: "track",
       trackId: "guest",
     });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("region", { name: "Range actions" })).toBeVisible();
   });
 
   it("keeps the range bar when Select range is armed with nothing selected", () => {

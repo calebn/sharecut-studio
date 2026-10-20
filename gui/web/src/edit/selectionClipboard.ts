@@ -1,5 +1,5 @@
 import type { ClipRow, ProjectView, Selection } from "../types/project";
-import { findTranscriptWord, transcriptWordRange } from "../utils/transcript";
+import { transcriptWordRange } from "../utils/transcript";
 import type { ClipboardExtract, ClipboardPayload } from "./clipboard";
 import { muteRegionsOverlapping } from "./muteRegions";
 
@@ -80,22 +80,6 @@ export function extractClipsInRange(
   return out;
 }
 
-/** Resolve timeline span for a transcript word index on a track. */
-export function wordTimelineSpan(
-  project: ProjectView,
-  trackId: string,
-  wordIndex: number,
-  sourceId?: string | null,
-): { start: number; end: number; text: string } | null {
-  const word = findTranscriptWord(project, trackId, wordIndex, sourceId);
-  if (!word) {
-    return null;
-  }
-  const start = word.timeline_start ?? word.start;
-  const end = word.timeline_end ?? word.end;
-  return end > start ? { start, end, text: word.text } : null;
-}
-
 export function rangeTimelineSpan(
   project: ProjectView,
   trackId: string,
@@ -162,21 +146,6 @@ export function payloadFromSelection(
     return finishPayload(project, clip.timeline_start, clip.timeline_end, {
       mode,
       trackIds: [clip.track_id],
-    });
-  }
-  if (selection.kind === "transcriptWord") {
-    const span = wordTimelineSpan(
-      project,
-      selection.trackId,
-      selection.wordIndex,
-      selection.sourceId,
-    );
-    if (!span) {
-      return null;
-    }
-    return finishPayload(project, span.start, span.end, {
-      mode,
-      plainText: span.text,
     });
   }
   if (selection.kind === "transcriptRange") {

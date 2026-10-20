@@ -301,8 +301,8 @@ describe("MobileShell Mix", () => {
         <ShellWithDialogs />
       </DawProvider>,
     );
-    act(() => useDawStore.getState().setSelectedTrackIds(["host"]));
     await user.click(screen.getByRole("button", { name: "More" }));
+    act(() => useDawStore.getState().selectTracks(["host"]));
     await user.click(screen.getByRole("button", { name: "Mix" }));
     await waitFor(() =>
       expect(
@@ -322,7 +322,6 @@ describe("MobileShell Mix", () => {
     expect(useDawStore.getState().soloTracks.bed).toBe(true);
     expect(useDawStore.getState().soloTracks.host).not.toBe(true);
     expect(useDawStore.getState().selection).toBeNull();
-    expect(useDawStore.getState().selectedTrackIds).toEqual(["host"]);
   });
 
   it("preserves navigation focus and does not reopen Mix after returning", async () => {

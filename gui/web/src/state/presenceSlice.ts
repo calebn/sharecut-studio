@@ -8,9 +8,9 @@ import {
 import { selectionToWire, wireSelectionPatch } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
+import { selectionPatch } from "./selectionSlice";
 import { playStartPatch } from "./transportSlice";
 import type { DawState, DawStore } from "./types";
-import { selectionPatch } from "./uiSlice";
 
 type PresenceSlice = Pick<
   DawStore,
@@ -44,12 +44,12 @@ type PresenceSlice = Pick<
 >;
 
 function remoteSelectionPatch(
-  state: Pick<DawStore, "selectedClipIds">,
+  state: Pick<DawStore, "selection">,
   wire: ReturnType<typeof wireSelectionPatch>,
   revision: number,
 ) {
   return {
-    ...selectionPatch(state, wire.selection),
+    ...selectionPatch(state.selection, wire.selection),
     pendingWireSelection: wire.pendingWireSelection,
     remoteSelectionRevision: revision + 1,
   };
@@ -129,7 +129,7 @@ export const createPresenceSlice: StateCreator<
   remoteSelectionRevision: 0,
   adoptRemoteSelection: (selection, pendingWireSelection = null) =>
     set((s) => ({
-      ...selectionPatch(s, selection),
+      ...selectionPatch(s.selection, selection),
       pendingWireSelection,
       remoteSelectionRevision: s.remoteSelectionRevision + 1,
     })),

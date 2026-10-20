@@ -35,6 +35,7 @@ import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
+import { oneWordOf } from "../transcript/rangeSelect";
 import { writeDrawerCollapsed } from "../utils/drawerCollapsedPref";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import { BottomTabsSplitter } from "./BottomTabsSplitter";
@@ -184,7 +185,9 @@ function StudioShellAdapter({
   }
 
   const showInspector =
-    shell === "desktop" && selection != null && !isRangeSelection(selection);
+    shell === "desktop" &&
+    selection != null &&
+    (!isRangeSelection(selection) || oneWordOf(selection) !== null);
   // Only the ingest drop target keeps headers outside the timeline; any drawn
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;

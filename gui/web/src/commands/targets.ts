@@ -1,4 +1,5 @@
 import { useDawStore } from "../state/dawStore";
+import { selectedTrackIdsOf } from "../state/selection";
 
 /** ``args.trackId``, else the selected clip's or track's, else the first targeted track. */
 export function resolveTrackId(args: Record<string, unknown>): string | null {
@@ -9,8 +10,5 @@ export function resolveTrackId(args: Record<string, unknown>): string | null {
   if (s.selection?.kind === "clip" || s.selection?.kind === "track") {
     return s.selection.trackId;
   }
-  if (s.selectedTrackIds[0]) {
-    return s.selectedTrackIds[0];
-  }
-  return null;
+  return selectedTrackIdsOf(s.selection)[0] ?? null;
 }

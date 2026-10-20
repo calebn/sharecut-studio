@@ -1,3 +1,4 @@
+import { wordSelection } from "../transcript/rangeSelect";
 import type {
   AutomationEnvelope,
   ProjectView,
@@ -36,15 +37,15 @@ export function selectionToWire(
   if (sel.kind === "comment") {
     return { kind: "comment", id: sel.id };
   }
-  if (sel.kind === "transcriptWord") {
-    return {
-      kind: "transcriptWord",
-      track_id: sel.trackId,
-      ...(sel.sourceId != null ? { source_id: sel.sourceId } : {}),
-      word_index: sel.wordIndex,
-    };
-  }
   if (sel.kind === "transcriptRange") {
+    if (sel.startWordIndex === sel.endWordIndex) {
+      return {
+        kind: "transcriptWord",
+        track_id: sel.trackId,
+        ...(sel.sourceId != null ? { source_id: sel.sourceId } : {}),
+        word_index: sel.startWordIndex,
+      };
+    }
     return {
       kind: "transcriptRange",
       track_id: sel.trackId,
@@ -105,7 +106,6 @@ function selectionExists(
     case "track":
     case "envelope":
     case "envelopePoint":
-    case "transcriptWord":
     case "transcriptRange":
       return project.tracks.some((t) => t.id === sel.trackId);
     case "chapter":
@@ -145,12 +145,11 @@ function parseWireSelection(
     return { kind: "comment", id: sel.id };
   }
   if (sel.kind === "transcriptWord" && sel.track_id && sel.word_index != null) {
-    return {
-      kind: "transcriptWord",
+    return wordSelection({
       trackId: sel.track_id,
-      ...(sel.source_id != null ? { sourceId: sel.source_id } : {}),
+      sourceId: sel.source_id ?? null,
       wordIndex: sel.word_index,
-    };
+    });
   }
   if (
     sel.kind === "transcriptRange" &&

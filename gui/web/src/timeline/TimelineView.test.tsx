@@ -18,6 +18,7 @@ import {
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
 import { useRecordHostStore } from "../record/hostStore";
 import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
+import { selectedClipIdsOf } from "../state/selection";
 import { DawProvider } from "../state/store";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -1127,7 +1128,9 @@ describe("TimelineView lane fit", () => {
         clientY: 10,
       });
       expect(first.style.left).toBe(preview);
-      expect(useDawStore.getState().selectedClipIds).toEqual(["c1"]);
+      expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([
+        "c1",
+      ]);
       expect(execute).not.toHaveBeenCalled();
       fireEvent.keyDown(document.body, { key: "Escape" });
       expect(first.style.left).toBe(origin);
@@ -1289,7 +1292,6 @@ describe("TimelineView render isolation", () => {
       followingClientId: null,
       isPlaying: true,
       selection: null,
-      selectedClipIds: [],
     });
   });
 
@@ -1561,7 +1563,8 @@ describe("TimelineView render isolation", () => {
   });
 
   it("draws the blade guide on target lanes at the pointer time", () => {
-    useDawStore.setState({ toolMode: "blade", selectedTrackIds: ["guest"] });
+    useDawStore.setState({ toolMode: "blade" });
+    useDawStore.getState().selectTracks(["guest"]);
     const { container } = mount();
     const lanes = container.querySelector(".lane-row")
       ?.parentElement as HTMLElement;
@@ -1584,11 +1587,11 @@ describe("TimelineView render isolation", () => {
 
     fireEvent.pointerLeave(lanes);
     expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
-    useDawStore.setState({ toolMode: "select", selectedTrackIds: [] });
+    useDawStore.setState({ toolMode: "select", selection: null });
   });
 
   it("draws the blade guide on every lane when no track is selected", () => {
-    useDawStore.setState({ toolMode: "blade", selectedTrackIds: [] });
+    useDawStore.setState({ toolMode: "blade", selection: null });
     const { container } = mount();
     act(() => useDawStore.getState().setBladeHoverSec(1));
     expect(container.querySelectorAll(".blade-cut-guide--lane")).toHaveLength(

@@ -6,6 +6,7 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
+import { wordSelection } from "../transcript/rangeSelect";
 import { selectionFromWire, selectionToWire, wireSelectionPatch } from "./wire";
 
 const envelopes = [
@@ -66,12 +67,12 @@ describe("selection wire", () => {
     expect(selectionFromWire(wire, project)).toStrictEqual(local);
   });
 
-  it("round-trips transcriptWord", () => {
-    const local = {
-      kind: "transcriptWord" as const,
+  it("sends a range of one word as a word and reads it back", () => {
+    const local = wordSelection({
       trackId: "host",
+      sourceId: null,
       wordIndex: 12,
-    };
+    });
     const wire = selectionToWire(local);
     expect(wire).toEqual({
       kind: "transcriptWord",

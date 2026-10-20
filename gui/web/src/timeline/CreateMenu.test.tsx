@@ -45,7 +45,7 @@ function open(
 }
 
 beforeEach(() => {
-  useDawStore.setState({ selectedTrackIds: [] });
+  useDawStore.setState({ selection: null });
   runPointerCommand.mockClear();
   router = {
     dispose: vi.fn(),
@@ -88,7 +88,7 @@ describe("CreateMenu", () => {
   });
 
   it("says Blade cut cuts the selected tracks, not the held lane, and sets it apart from the lane's entry", () => {
-    useDawStore.setState({ selectedTrackIds: ["guest", "host"] });
+    useDawStore.getState().selectTracks(["guest", "host"]);
     const { container } = open("/tmp/ep.project.json", null, [
       sampleTrack({ id: "host" }),
       sampleTrack({ id: "guest", label: "Blair" }),

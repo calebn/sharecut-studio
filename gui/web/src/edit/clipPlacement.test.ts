@@ -88,10 +88,12 @@ beforeEach(() => {
     timelineDragging: false,
     joinMutationInFlight: false,
   });
-  useDawStore
-    .getState()
-    .setSelection({ kind: "clip", id: "a", trackId: "host" });
-  useDawStore.setState({ selectedClipIds: ["a", "b"] });
+  useDawStore.getState().setSelection({
+    kind: "clip",
+    id: "a",
+    trackId: "host",
+    ids: ["a", "b"],
+  });
 });
 
 describe("local clip placement owner", () => {
@@ -146,7 +148,12 @@ describe("local clip placement owner", () => {
     expect(getClipPlacement()).toEqual({ kind: "idle" });
   });
   it("uses existing independent zero and outer-lane clamps", () => {
-    useDawStore.setState({ selectedClipIds: ["a", "c"] });
+    useDawStore.getState().setSelection({
+      kind: "clip",
+      id: "a",
+      trackId: "host",
+      ids: ["a", "c"],
+    });
     const token = begin();
     updateClipPlacement(token, "0", "third");
     expect(getClipPlacement()).toMatchObject({
