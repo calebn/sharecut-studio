@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import glob
 import json
 import logging
+import re
 import sys
 import types
 import wave
@@ -406,7 +408,26 @@ def list_profiles(project: EpisodeProject) -> list[dict[str, Any]]:
 def _save_profile(project: EpisodeProject, profile: SpeakerProfile, stem_hash: str) -> Path:
     cache = profile_cache_path(project, profile.speaker_id, stem_hash)
     cache.write_text(json.dumps(profile.to_dict(), indent=2), encoding="utf-8")
+    _drop_superseded_profiles(cache, profile)
     return cache
+
+
+def _drop_superseded_profiles(current: Path, profile: SpeakerProfile) -> None:
+    """Remove cache files left by earlier stem revisions of the same speaker and track.
+
+    Files for the same speaker enrolled from a different track are kept.
+    """
+    safe = profile.speaker_id.replace("/", "_")
+    sibling = re.compile(rf"^{re.escape(safe)}_[0-9a-f]+\.json$")
+    for f in current.parent.glob(f"{glob.escape(safe)}_*.json"):
+        if f == current or not sibling.match(f.name):
+            continue
+        try:
+            old = SpeakerProfile.from_dict(json.loads(f.read_text(encoding="utf-8")))
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if old.speaker_id == profile.speaker_id and old.track_id == profile.track_id:
+            f.unlink(missing_ok=True)
 
 
 def enroll_track(
