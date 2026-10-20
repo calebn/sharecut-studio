@@ -3774,6 +3774,72 @@ def test_the_plan_flags_the_valley_when_the_run_itself_ends_in_it(tmp_path):
     assert (kept.end, kept.end_in_valley) == (pytest.approx(1.40), True)
 
 
+def test_a_gradual_onset_in_the_decay_does_not_lift_the_valleys_fade_in_cap(tmp_path):
+    from podcast_mcp.edits.fillers import _between_kept_voices, _shrink_to_next_onset
+
+    # The plan caps the mute's fade-in at the frame after the valley bottom (1.41). The
+    # onset scan then finds a gradual rise in the decay (1.37), which carries no burst of
+    # its own: it moves the edge, and the cap stays.
+    project, candidate, plan, cache, defaults = _decaying_uh_plan_inputs(
+        tmp_path, "filler:acoustic", "filler", end=1.40
+    )
+    kept = _between_kept_voices(project, plan, candidate, audio_cache=cache, defaults=defaults)
+
+    shrunk = _shrink_to_next_onset(kept, candidate, audio_cache=cache, defaults=defaults)
+
+    assert (shrunk.end, shrunk.next_burst) == (pytest.approx(1.36), pytest.approx(1.41))
+
+
+def test_a_valley_ended_cut_is_still_checked_when_breath_protection_moves_its_edge(
+    tmp_path, monkeypatch
+):
+    # protect_cut_edges can move a settled edge. The re-check of the moved edge reads the
+    # valley as a break like the first check, or it refuses the proposal as 'voiced_edge'.
+    project = _decaying_uh_project(tmp_path, 20.0, 0.0)
+    defaults = _acoustic_mute_defaults()
+    defaults["tighten"]["acoustic_gap_filler"]["word_probe"] = False
+    monkeypatch.setattr(
+        "podcast_mcp.edits.cut_safety.protect_cut_edges",
+        lambda project, track_id, start, end, **kwargs: (start, end - 0.01),
+    )
+    found: dict[str, int] = {}
+
+    (decision,) = analyze_fillers_and_pauses(
+        project, project.transcripts[0], defaults, skip_counts=found
+    )
+
+    assert (decision.reason, decision.end, found) == (
+        "filler:acoustic",
+        pytest.approx(1.39),
+        {},
+    )
+
+
+def test_a_contributor_ends_in_the_valley_only_when_it_is_an_acoustic_cut_in_the_effect(
+    tmp_path,
+):
+    from types import SimpleNamespace
+
+    from podcast_mcp.edits.audio_cache import build_track_audio_caches
+    from podcast_mcp.edits.cut_safety import _contributor_ends_in_valley
+    from podcast_mcp.models import EditDecision
+
+    project = _decaying_uh_project(tmp_path, 20.0, 0.0)
+    cache = build_track_audio_caches(project, {"host"})["host"]
+    effect = SimpleNamespace(track_id="host", source_id=None)
+
+    def ends_in_valley(reason: str, edit_id: str, ids: set[str]) -> bool:
+        project.edit_decisions = [
+            EditDecision(id=edit_id, track_id="host", start=0.91, end=1.40, reason=reason)
+        ]
+        return _contributor_ends_in_valley(project, frozenset(ids), effect, cache)
+
+    assert ends_in_valley("filler:acoustic", "a", {"a"}) is True
+    # A transcribed filler on the same span, or an acoustic cut the effect does not hold.
+    assert ends_in_valley("filler:uh", "a", {"a"}) is False
+    assert ends_in_valley("filler:acoustic", "a", {"b"}) is False
+
+
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
     from podcast_mcp.config import load_defaults
 

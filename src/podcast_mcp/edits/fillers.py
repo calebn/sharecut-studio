@@ -63,7 +63,7 @@ from podcast_mcp.edits.voiced_runs import (
 from podcast_mcp.edits.word_onset import (
     OnsetKind,
     decay_valley_onset,
-    edge_in_valley,
+    edge_decays_into_valley,
     next_kept_word,
     next_onset,
     voice_end,
@@ -1581,7 +1581,8 @@ def _shrink_to_next_onset(
     if onset is None:
         return plan
     burst = onset.sec if onset.kind is OnsetKind.BURST else None
-    # A cut that ends in a valley already carries the foot of the word's rise (#1358).
+    # A cut that ends in a valley already carries the frame after the valley bottom as the
+    # fade-in cap (#1358); a later onset never raises it.
     burst = min((b for b in (burst, plan.next_burst) if b is not None), default=None)
     if onset.sec >= plan.end + guard:
         return replace(plan, next_burst=burst)
@@ -1751,10 +1752,12 @@ def _between_kept_voices(
         # Only an edge that lies in the valley is read as in it: a run that ends in the
         # decay, well before the valley, keeps the plain voiced-edge check. The valley
         # can end at the word start itself, past the run's end (lab 647.285).
-        in_valley = in_valley or (valley and edge_in_valley(audio_cache, start, end, after.start))
+        in_valley = in_valley or (
+            valley and edge_decays_into_valley(audio_cache, start, end, after.start)
+        )
         if valley and in_valley and onset is not None:
-            # The word's voice rises out of the valley, so a mute's fade-in ends before
-            # that, not over the word's first syllable (the fade-in cap of a plosive burst).
+            # The mute's fade-in ends at the frame after the valley bottom, not over the
+            # word's first syllable (the fade-in cap of a plosive burst).
             next_burst = onset
     if (start, end, in_valley, next_burst) == (
         plan.start,
