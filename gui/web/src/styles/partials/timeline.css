@@ -36,7 +36,7 @@
    background-position froze it for the seconds the load takes (#1750). */
 .timeline-skeleton-lane {
   position: relative;
-  overflow: clip;
+  overflow: hidden;
   background: var(--color-timeline-lane-muted);
 }
 
