@@ -310,7 +310,7 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/edits/fillers.py",
+          "src/podcast_mcp/edits/tighten/",
           "src/podcast_mcp/edits/tighten_intensity.py"
         ]
       }
@@ -1197,7 +1197,7 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/edits/fillers.py",
+          "src/podcast_mcp/edits/tighten/",
           "src/podcast_mcp/edits/word_onset.py",
           "src/podcast_mcp/edits/mute_regions.py"
         ]

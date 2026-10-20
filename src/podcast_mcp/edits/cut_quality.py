@@ -103,7 +103,7 @@ def _measure_join_jump_cached(
     given. assess_cut_risk and recommend_cut_fade_ms are both called for the same
     candidate's boundaries and would otherwise each independently re-measure the
     same join -- callers processing one candidate should pass a fresh dict shared
-    across both calls (see edits/fillers.py::_analyze_candidate).
+    across both calls (see edits/tighten/prepare.py::_analyze_candidate).
     """
     if cache is None:
         return measure_join_jump_db(project, track_id, join_time, audio_cache=audio_cache)

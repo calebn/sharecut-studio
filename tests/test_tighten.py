@@ -169,7 +169,8 @@ def _resolved(project, rows, *, existing=(), rejected=()):
     (``(track_id, start, end)``); ``rejected`` indexes were lost in analysis (the join gate).
     Returns the tracks and spans that stand and the skip counts."""
     from podcast_mcp.edits.cut_safety import CutRejected
-    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.apply import _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate
 
     candidates = [
         _CutCandidate(track_id, start, end, f"pause:{end - start:.2f}s", "pause")
@@ -253,7 +254,8 @@ def test_a_twin_stands_when_the_trim_it_was_dropped_for_overlaps_an_applied_cut(
 def test_a_twin_stands_when_the_trim_it_was_dropped_for_went_to_an_acoustic_cut() -> None:
     # The guest's longer pause trim is replaced by the acoustic cut that overlaps it. The
     # host's trim of the same stretch is not dropped for a trim that is no longer proposed.
-    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.apply import _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate
     from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 
     project = _two_track_project()
@@ -290,7 +292,8 @@ def test_a_twin_stands_when_the_trim_it_was_dropped_for_went_to_an_acoustic_cut(
 
 
 def test_a_track_local_pause_trim_is_never_a_twin() -> None:
-    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.apply import _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate
 
     project = _two_track_project()
     candidates = [
@@ -334,7 +337,7 @@ def test_every_dialogue_track_is_decoded_for_a_pause_trim_a_transcript_or_not() 
         Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.3)])
     ]
 
-    with patch("podcast_mcp.edits.tighten.build_track_audio_caches", return_value={}) as build:
+    with patch("podcast_mcp.edits.tighten.propose.build_track_audio_caches", return_value={}) as build:
         propose_tighten_edits(project, {"tighten": {}})
 
     assert set(build.call_args.args[1]) == {"host", "guest"}

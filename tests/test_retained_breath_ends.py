@@ -7,7 +7,8 @@ import pytest
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import FillerPacingResult
-from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+from podcast_mcp.edits.tighten.candidate import _CutCandidate
+from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from test_breath_detect import (
     _EDGE_TOL,
@@ -71,19 +72,19 @@ def _proposal(
     )
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(cut_start, 5.5), _safe_risk()),
         ),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(cut_start, cut_end),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
         patch(
             "podcast_mcp.engines.vad_silero.get_shared_vad",
             return_value=_BreathFixtureVad(),
@@ -106,19 +107,19 @@ def _splice_proposal(cache: TrackAudioCache, cut_end: float, backend: str):
     )
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(4.9, cut_end), _safe_risk()),
         ),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(4.9, cut_end),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
         patch(
             "podcast_mcp.engines.vad_silero.get_shared_vad",
             return_value=_BreathFixtureVad(),
@@ -198,19 +199,19 @@ def test_final_cut_end_retreats_to_retained_breath_onset(
 
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(start, 5.5), _safe_risk()),
         ),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(start, 5.5 if adjustment == "max_end" else 5.2),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", side_effect=assess),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", side_effect=assess),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(project, candidate, {"tighten": _NO_FLOOR}, audio_cache=cache)
 
@@ -231,19 +232,19 @@ def test_retreat_that_removes_entire_cut_skips_proposal(tmp_path, start: float) 
     project = _project_with_wav(tmp_path, cache)
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(start, 5.2), _safe_risk()),
         ),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(start, 5.2),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(project, candidate, {"tighten": _NO_FLOOR}, audio_cache=cache)
 
@@ -368,19 +369,19 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_and_labels_it(tmp
     candidate = _CutCandidate("host", 4.3, 5.45, "pause:1.15s", "pause", max_end=5.3)
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(4.9, 5.3), _safe_risk()),
         ),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(4.9, 5.3),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(
             project,
@@ -420,13 +421,13 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
             return VoicedEdgeAssessment(walk_start if walk == "voiced" else start, end, None)
 
         with (
-            patch("podcast_mcp.edits.fillers._between_kept_voices", side_effect=between),
+            patch("podcast_mcp.edits.tighten.gate._between_kept_voices", side_effect=between),
             patch(
-                "podcast_mcp.edits.fillers.optimize_and_assess",
+                "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
                 return_value=(_passthrough_opt(4.90, 5.40), _safe_risk()),
             ),
             patch(
-                "podcast_mcp.edits.fillers.apply_filler_pacing",
+                "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
                 return_value=FillerPacingResult(4.90, 5.40),
             ),
             patch("podcast_mcp.edits.cut_safety.assess_voiced_edges", side_effect=voiced_check),
@@ -434,8 +435,8 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
                 "podcast_mcp.edits.cut_safety.resolve_cut_scope",
                 return_value=ResolvedCutScope("session_clear", None),
             ),
-            patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
-            patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+            patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=_safe_risk()),
+            patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
         ):
             result = _analyze_candidate(
                 project,
@@ -484,12 +485,12 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
 
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(4.90, 5.40), _safe_risk()),
         ),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(5.30 if adjustment == "pacing" else 4.90, 5.40),
         ),
         patch(
@@ -500,8 +501,8 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(
             _host_project(_fixture_words()), candidate, {"tighten": _NO_FLOOR}, audio_cache=cache
@@ -642,7 +643,7 @@ def test_completed_quiet_tail_cannot_hide_protected_activity(backend, tail) -> N
 
 def test_proposal_to_exact_approval_preserves_complete_breath_source(tmp_path) -> None:
     from podcast_mcp.edits.cut_application import approve_edits
-    from podcast_mcp.edits.fillers import _apply_analyzed_cut
+    from podcast_mcp.edits.tighten.apply import _apply_analyzed_cut
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
     result = _proposal(tmp_path, cache, 5.15, "heuristic", cut_start=4.3)
@@ -659,8 +660,8 @@ def test_proposal_to_exact_approval_preserves_complete_breath_source(tmp_path) -
 
 
 def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
-    from podcast_mcp.edits.fillers import _apply_analyzed_cut
     from podcast_mcp.edits.tighten import apply_tighten_decisions
+    from podcast_mcp.edits.tighten.apply import _apply_analyzed_cut
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
     result = _proposal(tmp_path, cache, 5.05, "heuristic", cut_start=4.3)
@@ -789,12 +790,12 @@ def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -
     candidate = _CutCandidate("host", 4.3, 5.45, "pause:short", "pause")
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(5.30, 5.38), _safe_risk()),
         ),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(5.30, 5.38),
         ),
         patch(
@@ -876,16 +877,16 @@ def test_a_faded_edge_may_sit_where_no_breath_is_found(evidence) -> None:
 def _mute(cache: TrackAudioCache, candidate: _CutCandidate, paced: tuple[float, float]):
     with (
         patch(
-            "podcast_mcp.edits.fillers.optimize_and_assess",
+            "podcast_mcp.edits.tighten.prepare.optimize_and_assess",
             return_value=(_passthrough_opt(candidate.start, candidate.end), _safe_risk()),
         ),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            "podcast_mcp.edits.tighten.prepare.apply_filler_pacing",
             return_value=FillerPacingResult(*paced),
         ),
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
-        patch("podcast_mcp.edits.fillers.next_onset", return_value=None),
+        patch("podcast_mcp.edits.tighten.prepare.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.tighten.plan.next_onset", return_value=None),
     ):
         return _analyze_candidate(
             _host_project(_fixture_words()),

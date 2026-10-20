@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from podcast_mcp.edits.fillers import _cut_span_is_bleed_not_owner
+from podcast_mcp.edits.tighten.candidate import _cut_span_is_bleed_not_owner
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
     SpeakerIdConfig,
@@ -315,7 +315,7 @@ def test_cut_span_not_bleed_when_speaker_role_own() -> None:
 
 
 def test_shared_speaker_cut_context_loads_profiles_once_for_candidates() -> None:
-    from podcast_mcp.edits.fillers import _speaker_cut_context
+    from podcast_mcp.edits.tighten.candidate import _speaker_cut_context
 
     project = EpisodeProject.create("x", "/tmp/x")
     with (

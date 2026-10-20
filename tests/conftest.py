@@ -165,7 +165,7 @@ def _span_whisper_hears_nothing(
     if request.node.get_closest_marker("e2e_real"):
         return
     monkeypatch.setattr(
-        "podcast_mcp.edits.tighten.whisper_span_transcriber",
+        "podcast_mcp.edits.tighten.propose.whisper_span_transcriber",
         lambda defaults: lambda samples, language: "",
     )
 

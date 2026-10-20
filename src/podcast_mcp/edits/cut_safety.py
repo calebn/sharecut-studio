@@ -1743,9 +1743,9 @@ def assess_held_pause(
 ) -> HeldPause | CutRejected:
     from podcast_mcp.edits.breath_detect import PauseAirSkip
     from podcast_mcp.edits.cut_quality import post_pad_fade_in_bounds_ms
-    from podcast_mcp.edits.fillers import _retained_pause_floor_sec
     from podcast_mcp.edits.ripple import TrackExtent
     from podcast_mcp.edits.session_air import SessionAir
+    from podcast_mcp.edits.tighten.collect import _retained_pause_floor_sec
     from podcast_mcp.edits.timeline_ops import LaneUnavailable, bind_pause_effects
 
     words = pause_words(project, edit.track_id, edit.start, edit.end)

@@ -833,8 +833,8 @@ def _restricted_cut_access(code: str, *, caller: str = "") -> set[str]:
         "podcast_mcp.edits.source_removals.inspect_source_remove_placement",
         "podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl",
         "podcast_mcp.edits.source_removals._witnessed_source_span_has_unsafe_overlap",
-        "podcast_mcp.edits.fillers._original_pause_support",
-        "podcast_mcp.edits.fillers._check_voiced_speech",
+        "podcast_mcp.edits.tighten.prepare._original_pause_support",
+        "podcast_mcp.edits.tighten.prepare._check_voiced_speech",
         "podcast_mcp.edits.sound_actions.sound_label_and_action",
         "podcast_mcp.edits.suggested_actions.suggested_action_for",
         "podcast_mcp.edits.cut_speech.clear_ripple",
@@ -917,8 +917,8 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
         "from podcast_mcp.edits import source_removals as cuts; cuts.inspect_source_remove_placement()",
         "import podcast_mcp.edits.source_removals; podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl()",
         "from podcast_mcp.edits.source_removals import _witnessed_source_span_has_unsafe_overlap",
-        "from podcast_mcp.edits.fillers import _original_pause_support",
-        "from podcast_mcp.edits.fillers import _check_voiced_speech as check",
+        "from podcast_mcp.edits.tighten.prepare import _original_pause_support",
+        "from podcast_mcp.edits.tighten.prepare import _check_voiced_speech as check",
         "from podcast_mcp.edits import sound_actions as sounds; sounds.sound_label_and_action()",
     ):
         assert _restricted_cut_access(code), code

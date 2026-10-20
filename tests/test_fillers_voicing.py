@@ -17,12 +17,13 @@ import pytest
 from pause_policy_public_helpers import room
 from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
-from podcast_mcp.edits.fillers import (
-    _CutCandidate,
-    analyze_fillers_and_pauses,
-)
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
-from podcast_mcp.edits.tighten import apply_tighten_decisions, propose_tighten_edits
+from podcast_mcp.edits.tighten import (
+    analyze_fillers_and_pauses,
+    apply_tighten_decisions,
+    propose_tighten_edits,
+)
+from podcast_mcp.edits.tighten.candidate import _CutCandidate
 from podcast_mcp.edits.voiced_runs import (
     carries_speech_pitch,
     run_straddling,

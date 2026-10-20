@@ -10,7 +10,6 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.edits import fillers
 from podcast_mcp.edits.acoustic_gap import (
     AcousticGapConfig,
     AcousticGapRun,
@@ -22,20 +21,20 @@ from podcast_mcp.edits.acoustic_word import flag_possible_words, heard_a_word
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audition_context import _build_hypotheses
 from podcast_mcp.edits.cut_safety import CutRejected
-from podcast_mcp.edits.fillers import (
-    _add_acoustic_candidates,
-    _AnalyzedCut,
-    _collect_candidates,
-    _CutCandidate,
-    _resolve_analyzed_cuts,
-    analyze_fillers_and_pauses,
-)
 from podcast_mcp.edits.tighten import (
-    _flag_possible_words,
+    acoustic_scan,
+    analyze_fillers_and_pauses,
     apply_tighten_decisions,
     format_tighten_propose_summary,
     propose_tighten_edits,
 )
+from podcast_mcp.edits.tighten import apply as tighten_apply
+from podcast_mcp.edits.tighten import prepare as tighten_prepare
+from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
+from podcast_mcp.edits.tighten.apply import _resolve_analyzed_cuts
+from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate
+from podcast_mcp.edits.tighten.collect import _collect_candidates
+from podcast_mcp.edits.tighten.propose import _flag_possible_words
 from podcast_mcp.edits.tighten_reasons import is_likely_laugh_reason, is_possible_word_reason
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
 from podcast_mcp.engines.audio_audit import TrackRmsCache
@@ -346,11 +345,11 @@ def test_public_proposal_scans_the_track_for_acoustic_fillers(tmp_path: Path) ->
 
     with (
         patch(
-            "podcast_mcp.edits.tighten.build_track_audio_caches",
+            "podcast_mcp.edits.tighten.propose.build_track_audio_caches",
             return_value={"host": _cache(samples)},
         ),
         patch(
-            "podcast_mcp.edits.tighten.analyze_candidates",
+            "podcast_mcp.edits.tighten.propose.analyze_candidates",
             side_effect=lambda project, candidates, *args, **kwargs: [None] * len(candidates),
         ) as analyze,
         patch("podcast_mcp.edits.breath_detect.load_defaults", side_effect=AssertionError),
@@ -426,7 +425,9 @@ def test_disabled_config_adds_no_candidates() -> None:
 
 def test_configured_breath_backend_reaches_acoustic_detector() -> None:
     defaults = {"tighten": {"acoustic_gap_filler": {"vad_backend": "silero"}}}
-    with patch("podcast_mcp.edits.fillers.find_voiced_gap_runs", return_value=[]) as detector:
+    with patch(
+        "podcast_mcp.edits.tighten.acoustic_scan.find_voiced_gap_runs", return_value=[]
+    ) as detector:
         _add_acoustic_candidates([], _two_words(), defaults, audio_cache=_cache(np.zeros(RATE * 3)))
 
     detector.assert_called_once()
@@ -481,7 +482,7 @@ def test_suppressed_bleed_or_other_speaker_anchor_never_creates_candidate() -> N
 
 def test_edge_margin_and_occupied_runs_are_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        fillers,
+        acoustic_scan,
         "find_voiced_gap_runs",
         lambda *_a, **_k: [
             AcousticGapRun(start=0.40, end=0.50, confidence=0.5),  # hugs the left word
@@ -931,7 +932,7 @@ def test_propose_does_not_mutate_decisions_when_analysis_raises(
     def boom(*_a: object, **_k: object) -> None:
         raise RuntimeError("dsp failed")
 
-    monkeypatch.setattr("podcast_mcp.edits.tighten.analyze_candidates", boom)
+    monkeypatch.setattr("podcast_mcp.edits.tighten.propose.analyze_candidates", boom)
     with pytest.raises(RuntimeError):
         propose_tighten_edits(project, _e2e_defaults())
 
@@ -955,7 +956,7 @@ def test_analyze_entry_point_matches_propose_and_skips_decode_when_idle(
         calls.append(args)
         return {}
 
-    monkeypatch.setattr(fillers, "build_track_audio_caches", fake_build)
+    monkeypatch.setattr(tighten_apply, "build_track_audio_caches", fake_build)
     disabled = _e2e_defaults(acoustic_gap_filler={"enabled": False})
     assert analyze_fillers_and_pauses(project, project.transcripts[0], disabled) == []
     assert calls == []
@@ -978,7 +979,9 @@ def test_bounded_candidate_with_empty_window_is_dropped_before_analysis(
         review_only=True,
     )
 
-    assert fillers._analyze_candidate(project, impossible, _e2e_defaults()) == CutRejected("bounds")
+    assert tighten_prepare._analyze_candidate(project, impossible, _e2e_defaults()) == CutRejected(
+        "bounds"
+    )
 
 
 def test_summary_reports_acoustic_proposals_and_skips_separately() -> None:
@@ -1264,7 +1267,7 @@ def _planted_probe(monkeypatch: pytest.MonkeyPatch, heard: str, calls: list[tupl
 
         return transcribe
 
-    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+    monkeypatch.setattr("podcast_mcp.edits.tighten.propose.whisper_span_transcriber", transcriber)
 
 
 def _acoustic_project(tmp_path: Path) -> EpisodeProject:
@@ -1344,7 +1347,7 @@ def test_a_missing_model_leaves_the_proposal_unflagged_and_counts_it(
     def missing(defaults: dict) -> object:
         raise WhisperWeightsMissingError("large-v3-turbo")
 
-    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", missing)
+    monkeypatch.setattr("podcast_mcp.edits.tighten.propose.whisper_span_transcriber", missing)
 
     proposal = propose_tighten_edits(_acoustic_project(tmp_path), _e2e_defaults())
 
@@ -1381,7 +1384,7 @@ def test_a_missing_model_counts_only_the_acoustic_proposals_of_a_mixed_run(
 
         return transcribe
 
-    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+    monkeypatch.setattr("podcast_mcp.edits.tighten.propose.whisper_span_transcriber", transcriber)
     decisions = _mixed_run()
     skip_counts: dict[str, int] = {}
 
@@ -1411,7 +1414,7 @@ def test_a_missing_model_on_first_decode_fails_the_probe_child_short_of_total(
 
         return transcribe
 
-    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+    monkeypatch.setattr("podcast_mcp.edits.tighten.propose.whisper_span_transcriber", transcriber)
     rec = RecordingProgress()
     decisions = _mixed_run()
     skip_counts: dict[str, int] = {}
@@ -1448,7 +1451,7 @@ def test_a_decode_error_on_one_span_keeps_earlier_flags_and_counts_the_failure(
 
         return transcribe
 
-    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+    monkeypatch.setattr("podcast_mcp.edits.tighten.propose.whisper_span_transcriber", transcriber)
     decisions = _mixed_run()
     skip_counts: dict[str, int] = {}
 

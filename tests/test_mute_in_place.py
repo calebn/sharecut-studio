@@ -10,7 +10,6 @@ from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits.clips_ops import split_clip_at
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
 from podcast_mcp.edits.decisions import reject_edits
-from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.mute_regions import (
     IgnoredWordRegions,
     add_source_mute,
@@ -19,7 +18,7 @@ from podcast_mcp.edits.mute_regions import (
     mute_spans_for_source_window,
     subtract_source_mute,
 )
-from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.edits.tighten import analyze_fillers_and_pauses, propose_tighten_edits
 from podcast_mcp.edits.transcript_correct import set_words_ignored
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.engines.align import load_mono_window
@@ -211,8 +210,8 @@ def test_mute_mode_skips_pause_candidates():
     from unittest.mock import patch
 
     from podcast_mcp.edits.cut_quality import CutRisk
-    from podcast_mcp.edits.fillers import _collect_candidates
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+    from podcast_mcp.edits.tighten.collect import _collect_candidates
 
     words = [
         TranscriptWord(text="um", start=0.5, end=0.7),
@@ -262,9 +261,9 @@ def test_mute_mode_skips_pause_candidates():
         )
 
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=5),
         patch(
             "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             side_effect=RuntimeError("scorer down"),
@@ -325,10 +324,10 @@ def test_mute_analyze_join_fail_and_pacing_skip():
         )
 
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
-        patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=None),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=5),
+        patch("podcast_mcp.edits.tighten.prepare.apply_filler_pacing", return_value=None),
     ):
         skips: dict[str, int] = {}
         assert (
@@ -339,9 +338,9 @@ def test_mute_analyze_join_fail_and_pacing_skip():
     # A mute butts nothing together, so the join continuity gate never scores it.
     for verdict in ("fail", "review"):
         with (
-            patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
-            patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-            patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
+            patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=_opt),
+            patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+            patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=5),
             patch(
                 "podcast_mcp.edits.cut_safety.assess_proposed_cut",
                 return_value=SimpleNamespace(verdict=verdict),
@@ -386,9 +385,9 @@ def test_invalid_edit_mode_falls_back_to_ripple(tmp_path):
         )
 
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=15),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=15),
     ):
         proposed = propose_tighten_edits(
             project,
@@ -1518,9 +1517,9 @@ def _propose_with_stubbed_dsp(project: EpisodeProject, defaults: dict, edit_mode
         return range_, CutRisk(score=0.1, reasons=[])
 
     with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
+        patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=_opt),
+        patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=5),
         patch("podcast_mcp.edits.cut_safety.assess_proposed_cut", side_effect=RuntimeError),
     ):
         return propose_tighten_edits(project, defaults, edit_mode=edit_mode)
@@ -1578,7 +1577,8 @@ def test_ripple_mode_ignores_existing_mute_regions(tmp_path):
 
 
 def test_already_muted_covers_acoustic_candidates_and_is_per_track():
-    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.apply import _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate
 
     def _cut(track: str, start: float, end: float) -> _AnalyzedCut:
         return _AnalyzedCut(
