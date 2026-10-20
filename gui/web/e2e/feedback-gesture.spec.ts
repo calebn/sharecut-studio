@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
@@ -66,7 +65,6 @@ for (const theme of ["light", "dark"] as const) {
     const at = clip!;
     const arm = async () => {
       await touch(cdp, "touchStart", [at]);
-      await page.waitForTimeout(LONG_PRESS_MS + 150);
       await expect(card).toBeVisible();
     };
 
