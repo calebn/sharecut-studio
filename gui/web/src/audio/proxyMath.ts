@@ -5,7 +5,7 @@ import {
 } from "../edit/joinRender";
 import type { ClipRow, ProjectView } from "../types/project";
 import { originTrackId } from "../utils/timebase";
-import type { VolumePoint } from "./gainCurve";
+import { type MuteSpan, muteSpansOf, type VolumePoint } from "./gainCurve";
 
 export interface ProxyArtifactManifest {
   readonly hash: string;
@@ -57,6 +57,9 @@ export interface ClipEnvelope {
   readonly volume: readonly VolumePoint[];
   readonly timelineStartSec: number;
   readonly timelineEndSec: number;
+  readonly sourceStartSec: number;
+  /** The clip's mute-in-place spans (source seconds); room-tone fills are not played. */
+  readonly mute: readonly MuteSpan[];
   readonly fadeInSec: number;
   readonly fadeOutSec: number;
   readonly gainCurve: "linear" | "equalPower";
@@ -335,10 +338,13 @@ export function buildSchedule(
       : manifest.tracks[artifactId];
     if (!descriptor) throw new Error("Missing proxy descriptor for occurrence");
     const envelope: ClipEnvelope = {
-      volume:
-        volumeByTrack[binding?.outputTrackId ?? originTrackId(clip)] ?? [],
+      // The render applies the envelope of the lane the clip sits on, not the
+      // lane its audio came from.
+      volume: volumeByTrack[clip.track_id] ?? [],
       timelineStartSec: clip.timeline_start,
       timelineEndSec: clip.timeline_end,
+      sourceStartSec: clip.source_start,
+      mute: muteSpansOf(clip.mute_regions),
       fadeInSec: isCutJoin(clip) ? 0 : Math.max(0, clip.fade_in_ms) / 1000,
       fadeOutSec: beforeCut.has(clip.id)
         ? 0

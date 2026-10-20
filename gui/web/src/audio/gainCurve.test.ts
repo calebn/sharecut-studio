@@ -5,6 +5,8 @@ import {
   envelopeGainAt,
   fadeGainAt,
   gainBreakpoints,
+  muteGainAt,
+  muteSpansOf,
   renderedFadeSec,
 } from "./gainCurve";
 
@@ -100,5 +102,36 @@ describe("gain curve", () => {
     expect(times).toContain(1);
     expect(times).toContain(1.5);
     expect(times.every((t) => t > 0 && t < 2)).toBe(true);
+  });
+});
+
+interface MuteCase {
+  name: string;
+  clip: { source_start: number; source_end: number };
+  regions: {
+    start_s: number;
+    end_s: number;
+    fade_out_ms: number;
+    fade_in_ms: number;
+    gain_db: number | null;
+  }[];
+  samples: [number, number][];
+}
+
+const muteFixture = JSON.parse(
+  readFileSync(
+    `${process.cwd()}/../../tests/fixtures/gain_curve/mute_cases.json`,
+    "utf8",
+  ),
+) as { cases: MuteCase[] };
+
+describe("mute gain", () => {
+  it.each(muteFixture.cases)("$name matches what the render produces", (c) => {
+    const spans = muteSpansOf(c.regions);
+    for (const [at, expected] of c.samples)
+      expect(muteGainAt(spans, at), `${c.name} at ${at}`).toBeCloseTo(
+        expected,
+        2,
+      );
   });
 });

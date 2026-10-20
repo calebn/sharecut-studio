@@ -882,7 +882,7 @@ must fail export/check rather than writing an unformatted artifact. Install the
 
 `test_document_delta.py` checks actual command deltas, fresh-state retry heads, same-inode/restored-mtime reloads, artifact and history certificates, cache bounds, saved-command repair, concurrent writers, guest privacy, and 10,000-clip/long-transcript byte budgets. Compact actual service projections in `tests/fixtures/document_delta/` also run through the TypeScript parser/applier. Frontend `document/authority.test.ts`, `projectionDelta.test.ts`, and `pendingDrafts.test.ts` cover predecessor recovery, HTTP-before-WS races, scope generations, copy-on-write behavior, hostile expansion, and bounded optimistic display.
 
-`test_gain_curve_fixture.py` renders the nine cases in `tests/fixtures/gain_curve/cases.json` through FFmpeg (edge fades, then the track volume envelope) and checks the fixture; `gui/web/src/audio/gainCurve.test.ts` checks the browser preview's evaluator against the same samples, so the two cannot drift (#1649).
+`test_gain_curve_fixture.py` renders the nine cases in `tests/fixtures/gain_curve/cases.json` through FFmpeg (edge fades, then the track volume envelope) and the nine in `mute_cases.json` (mute regions) and checks the fixtures; `gui/web/src/audio/gainCurve.test.ts` checks the browser preview's evaluator against the same samples, so the two cannot drift (#1649).
 
 Handler behavior stays in `test_document_sync.py` (constructs internal `DocumentCommand` dicts after validation).
 

@@ -678,6 +678,37 @@ describe("immutable playback snapshots", () => {
     engine.dispose();
   });
 
+  it("ramps down over a mute region, holds silent, and back up", async () => {
+    const { ctx, created, gains } = makeCtx();
+    const engine = new ProxyEngine(
+      ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+    );
+    const next = snapshot("a".repeat(16), "legacy", 30);
+    Object.assign(next.clipsByTrack.host[0], {
+      mute_regions: [
+        { start_s: 12, end_s: 14, fade_out_ms: 100, fade_in_ms: 100 },
+      ],
+    });
+    engine.setSnapshot(next);
+    engine.play(11);
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    const ramps = vi.mocked(gains.at(-1)!.gain.linearRampToValueAtTime).mock
+      .calls;
+    expect(ramps).toContainEqual([1, expect.closeTo(1, 4)]);
+    expect(ramps).toContainEqual([
+      expect.closeTo(0, 4),
+      expect.closeTo(1.1, 4),
+    ]);
+    expect(ramps).toContainEqual([
+      expect.closeTo(0, 4),
+      expect.closeTo(2.9, 4),
+    ]);
+    expect(ramps).toContainEqual([1, expect.closeTo(3, 4)]);
+    engine.dispose();
+  });
+
   it("continues the absolute fade across chunks and a seek instead of restarting it", async () => {
     const { ctx, created, gains } = makeCtx();
     const engine = new ProxyEngine(

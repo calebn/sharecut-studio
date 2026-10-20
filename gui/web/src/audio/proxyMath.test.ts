@@ -164,6 +164,47 @@ describe("proxyMath", () => {
     expect(slices[1].envelope.fadeOutSec).toBeCloseTo(0.05);
   });
 
+  it("takes the volume envelope of the lane the clip sits on, as render does", () => {
+    const hostLine = [{ time: 0, value: 0.5 }];
+    const guestLine = [{ time: 0, value: 2 }];
+    const [onGuestLane] = buildSchedule(
+      [clip({ id: "c1", track_id: "guest", origin_track_id: "host" })],
+      0,
+      30,
+      manifest(),
+      { host: hostLine, guest: guestLine },
+    );
+    expect(onGuestLane.envelope.volume).toEqual(guestLine);
+  });
+
+  it("carries the clip's mute regions with where its source starts", () => {
+    const [slice] = buildSchedule(
+      [
+        clip({
+          id: "c1",
+          source_start: 4,
+          source_end: 8,
+          timeline_start: 10,
+          timeline_end: 14,
+          mute_regions: [{ start_s: 5, end_s: 6, gain_db: -12 }],
+        }),
+      ],
+      0,
+      30,
+      manifest(),
+    );
+    expect(slice.envelope.sourceStartSec).toBe(4);
+    expect(slice.envelope.mute).toEqual([
+      {
+        start: 5,
+        end: 6,
+        fadeOutSec: 0.005,
+        fadeInSec: 0.005,
+        gain: expect.closeTo(0.2512, 3),
+      },
+    ]);
+  });
+
   it("marks equalPower for crossfade joins", () => {
     const slices = buildSchedule(
       [
