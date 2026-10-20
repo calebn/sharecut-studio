@@ -4,7 +4,12 @@ export function presenceColorVar(index: number | undefined): string {
 }
 
 export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  // A duplicate-name suffix such as "·2" is not a word: skip tokens that do not start with a
+  // letter or digit so the chip text stays inside the accessible name ("Follow Host ·2").
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter((p) => /^[\p{L}\p{N}]/u.test(p));
   if (parts.length === 0) {
     return "?";
   }
