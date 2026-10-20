@@ -7,8 +7,11 @@ API & contracts (document commands, share HTTP, remote MCP): **https://docs.shar
 The beta's trust-first design requirements are in the
 [UI philosophy](../docs/ui-philosophy.md); voice, terminology, control
 placement, and the mobile checklist are in the
-[communication philosophy](../docs/communication-philosophy.md). The pages
-here describe product surfaces and should stay consistent with both.
+[communication philosophy](../docs/communication-philosophy.md); the one
+path an interaction follows (selection, menus, sheets, feedback, keyboard
+and touch twins) is the [interaction system](../docs/interaction-system.md).
+The pages here describe product surfaces and should stay consistent with all
+three.
 
 ## Live site
 

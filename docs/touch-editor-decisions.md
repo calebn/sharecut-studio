@@ -9,7 +9,9 @@ The [#961 follow-up](#responsive-inspector-follow-up-961) records the later
 inspector layout and focus repair. Neither change adds a sheet gesture owner or
 alters controlled `half`/`full` state. Physical mobile and assistive-technology
 acceptance for the repaired envelope workflow remains #960; named-device
-profiling remains #879.
+profiling remains #879. The [interaction system](interaction-system.md) places
+the touch grammar inside the one path every input follows and lists the
+surfaces that still keep their own gesture.
 
 ## Non-drag placement and panel sizing #1033
 
