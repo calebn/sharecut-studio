@@ -239,6 +239,8 @@ export interface DawState {
   envelopeDraft: EnvelopeDraftEntry | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
+  /** The Transcript panel is in Correct intent: a tapped word edits its text, not the audio. */
+  transcriptCorrecting: boolean;
   transcriptTimingRequest: TranscriptInlineEditRequest | null;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
   transcriptFindReplaceOpen: boolean;
@@ -436,6 +438,7 @@ export interface DawState {
   setTranscriptReviewCursor: (cursor: TranscriptReviewCursor | null) => void;
   setChapterAddPending: (pending: boolean) => void;
   setTranscriptAnnotate: (on: boolean) => void;
+  setTranscriptCorrecting: (on: boolean) => void;
   toggleTranscriptAnnotate: () => void;
   setShowCutAwayUtterances: (on: boolean) => void;
   toggleShowCutAwayUtterances: () => void;
@@ -496,7 +499,6 @@ export interface DawState {
   setCommentDraft: (draft: CommentDraft | null) => void;
   setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
   setToolMode: (mode: ToolMode) => void;
-  /** Select exactly these tracks (the first is primary); none clears the selection. */
   selectTracks: (trackIds: readonly string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
   setBladeConfirmSec: (sec: number | null) => void;

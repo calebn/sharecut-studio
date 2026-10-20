@@ -123,7 +123,6 @@ export function oneWordOf(selection: Selection): WordTarget | null {
   };
 }
 
-/** The selection for a tapped word: a range of one. */
 export function wordSelection({
   trackId,
   sourceId,

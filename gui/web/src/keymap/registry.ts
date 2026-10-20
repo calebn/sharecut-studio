@@ -142,7 +142,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Escape"],
     bareKey: true,
     when: "hasInspectorSelection",
-    notes: "After exitCommentMode; does not clear track targeting",
+    notes: "After exitCommentMode; also clears track targeting",
   },
   {
     id: "review.toggleCommentMode",

@@ -11,7 +11,6 @@ function withoutComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
 
-/** The text between the parentheses of the call whose `(` is at `open`. */
 function argumentText(text: string, open: number): string {
   let depth = 0;
   for (let i = open; i < text.length; i++) {
@@ -28,12 +27,29 @@ function argumentText(text: string, open: number): string {
   return text.slice(open + 1);
 }
 
-/** Does `text` hand the store an object with a `selection` key? */
+function braceText(text: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}" && --depth === 0) return text.slice(open, i + 1);
+  }
+  return text.slice(open);
+}
+
 function writesSelectionKey(text: string): boolean {
   const code = withoutComments(text);
   for (const match of code.matchAll(STORE_WRITE)) {
     const open = match.index + match[0].length - 1;
-    if (SELECTION_KEY.test(argumentText(code, open))) return true;
+    const argument = argumentText(code, open);
+    if (SELECTION_KEY.test(argument)) return true;
+    const name = argument.trim();
+    if (/^[A-Za-z_$][\w$]*$/.test(name)) {
+      const declared = new RegExp(`\\b${name}\\b[^=;(]*=\\s*\\{`).exec(code);
+      if (declared) {
+        const brace = declared.index + declared[0].length - 1;
+        if (SELECTION_KEY.test(braceText(code, brace))) return true;
+      }
+    }
   }
   return false;
 }
@@ -47,6 +63,12 @@ describe("selection governance", () => {
     ["useDawStore.setState({ selection })", true],
     ["set((s) => ({ selection: next(s), other: 1 }))", true],
     ["set((s) => ({ other: 1, selection: null }))", true],
+    ["const patch = { selection: null }; set(patch)", true],
+    [
+      "const patch: Partial<S> = { a: 1, selection }; useDawStore.setState(patch)",
+      true,
+    ],
+    ["const patch = { other: 1 }; set(patch)", false],
     ["set({ ...selectionPatch(s.selection, next) })", false],
     ["set({ inspectorSelection: next })", false],
     ["set({ selectionHit: null })", false],

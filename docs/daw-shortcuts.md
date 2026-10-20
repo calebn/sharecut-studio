@@ -72,7 +72,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
 | `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: focused word in Navigate mode |
-| `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | After exitCommentMode; does not clear track targeting |
+| `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | After exitCommentMode; also clears track targeting |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
 | `ArrowLeft` | Trim clip edge (`edit.trimClipEdge`) | focusedTrimHandle | Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels. |
 | `Mod+C` | Copy (`edit.copy`) | Project loaded | Mod+C |

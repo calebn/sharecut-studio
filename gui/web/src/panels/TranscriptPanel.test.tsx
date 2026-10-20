@@ -774,6 +774,39 @@ describe("TranscriptPanel", () => {
       ).toBeNull();
     });
 
+    it("entering Correct clears a multi-word range but keeps a tapped word", () => {
+      const { container } = render(<TranscriptPanel />);
+      const q = within(container);
+      fireEvent.click(q.getByRole("button", { name: /^Select:/ }));
+      act(() => {
+        useDawStore.getState().setSelection({
+          ...wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
+          endWordIndex: 1,
+        } as never);
+      });
+      fireEvent.click(q.getByRole("button", { name: /^Correct:/i }));
+      expect(useDawStore.getState().selection).toBeNull();
+      act(() => {
+        useDawStore
+          .getState()
+          .setSelection(
+            wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
+          );
+      });
+      fireEvent.click(q.getByRole("button", { name: /^Select:/ }));
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("reports Correct intent to the store and drops it on unmount", () => {
+      const { container, unmount } = render(<TranscriptPanel />);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /^Correct:/i }),
+      );
+      expect(useDawStore.getState().transcriptCorrecting).toBe(true);
+      unmount();
+      expect(useDawStore.getState().transcriptCorrecting).toBe(false);
+    });
+
     it("a late close from an unmounted editor does not move focus later", async () => {
       let resolve: () => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
