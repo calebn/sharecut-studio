@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.models import load_project
 from podcast_mcp.pipeline import PipelineRunner
 
@@ -151,9 +152,9 @@ def test_runner_marks_reconciliation_stale_only_for_dialogue_steps(
     )
 
     proj = load_project(minimal_project)
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=load_defaults())
     monkeypatch.setitem(runner_mod._STEP_MAP, step, lambda _p, _d: "stub")
     PipelineRunner(defaults={}).run(proj, only_step=step)
-    assert reconciliation_status(proj)["stale"] is stale
+    assert reconciliation_status(proj, defaults=load_defaults())["stale"] is stale
     assert ("mix_with_music" in runner_mod.AUDIO_AFFECTING_STEPS) is False
     assert ("analyze_prosody" in runner_mod.AUDIO_AFFECTING_STEPS) is False

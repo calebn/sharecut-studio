@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_text_match import overlap_text_match_losers
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import (
@@ -138,6 +139,7 @@ def word_targets(
     policy: AnalysisPolicy,
     audibility_map: list[dict[str, Any]] | None = None,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[WordKey, dict[str, Any]]:
     """One target per word for the whole project.
 
@@ -161,9 +163,11 @@ def word_targets(
     ``audibility_map`` and ``caches`` are this project's ``compute_word_audibility_map``
     and ``build_reconciliation_caches`` when the caller already has them.
     """
-    caches = build_reconciliation_caches(project) if caches is None else caches
+    caches = build_reconciliation_caches(project, defaults=defaults) if caches is None else caches
     rows = (
-        compute_word_audibility_map(project, policy=policy, progress=None, caches=caches)
+        compute_word_audibility_map(
+            project, policy=policy, progress=None, caches=caches, defaults=defaults
+        )
         if audibility_map is None
         else audibility_map
     )
@@ -188,6 +192,7 @@ def word_targets(
         audibility=rows,
         is_suppressed=acoustic_suppressed,
         echo_pairs=caches.echo_pairs(),
+        defaults=defaults,
     ):
         key = word_key(loser)
         by_key[key] = {
@@ -209,6 +214,7 @@ def reconcile_transcript(
     start_sec: float | None = None,
     end_sec: float | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> ReconciliationResult:
     """Converge every word in scope to its ``word_targets`` target and report only what
     changed. ``track_id``, ``start_sec`` and ``end_sec`` bound the write, not the target.
@@ -220,7 +226,7 @@ def reconcile_transcript(
     the status write, so a word is never left suppressed with a stale
     ``audibility_status``/``dominant_track`` behind it.
     """
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     if pol.transcript_mode == "off":
         return ReconciliationResult(applied=False)
 
@@ -231,13 +237,15 @@ def reconcile_transcript(
         progress=progress,
     ) as task:
         task.set_phase("audibility", "Analyzing word audibility…")
-        caches = build_reconciliation_caches(project)
+        caches = build_reconciliation_caches(project, defaults=defaults)
         audibility_map = compute_word_audibility_map(
-            project, policy=pol, progress=None, caches=caches
+            project, policy=pol, progress=None, caches=caches, defaults=defaults
         )
         if pol.bleed_text_match_enabled:
             task.set_phase("text_match", "Matching bleed text…")
-        targets = word_targets(project, policy=pol, audibility_map=audibility_map, caches=caches)
+        targets = word_targets(
+            project, policy=pol, audibility_map=audibility_map, caches=caches, defaults=defaults
+        )
 
         result = ReconciliationResult()
         apply_suppression = not dry_run
@@ -260,8 +268,8 @@ def reconcile_transcript(
                 )
 
         if update_status or apply_suppression:
-            rebuild_combined(project)
-            mark_reconciliation_fresh(project)
+            rebuild_combined(project, defaults=defaults)
+            mark_reconciliation_fresh(project, defaults=defaults)
             result.applied = True
 
         task.message(f"{result.status_updates} status updates")

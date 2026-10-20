@@ -22,6 +22,7 @@ import pytest
 
 from bleed_helpers import DURATION_SEC, delay, spurts, voices
 from bleed_helpers import RATE as BLEED_RATE
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.silence_islands import suggest_handoff_cut
 from podcast_mcp.edits.speech_energy_guard import _voice_refs, measure_peer_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
@@ -330,7 +331,7 @@ def _peer_hint(project: EpisodeProject) -> tuple:
 
 
 def _handoff(project: EpisodeProject) -> tuple:
-    out = suggest_handoff_cut(project, ["host", "guest"], 2.0, 12.0)
+    out = suggest_handoff_cut(project, ["host", "guest"], 2.0, 12.0, defaults=load_defaults())
     islands = [edge for i in out["islands"] for edge in (i["start"], i["end"])]
     return (
         out["ok"],
@@ -363,12 +364,12 @@ def _guard_fallback(project: EpisodeProject) -> tuple[str, ...]:
 
 def _reconcile(project: EpisodeProject) -> dict:
     """How many words of each track get each verdict."""
-    rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+    rows = compute_word_audibility_map(project, policy=AnalysisPolicy(), defaults=load_defaults())
     return dict(Counter((r["track_id"], r["audibility_status"]) for r in rows))
 
 
 def _gate(project: EpisodeProject) -> tuple:
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     return plan.attenuation_spans, plan.reduction, plan.reasons
 
 
@@ -450,20 +451,31 @@ def _guest_reaches_host() -> Any:
 
 def _audibility(project: EpisodeProject) -> list:
     with _guest_reaches_host():
-        rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+        rows = compute_word_audibility_map(
+            project, policy=AnalysisPolicy(), defaults=load_defaults()
+        )
     return [(r["track_id"], r["text"], r["audibility_status"]) for r in rows]
 
 
 def _reconciled(project: EpisodeProject) -> list:
     with _guest_reaches_host():
-        reconcile_transcript(project, policy=AnalysisPolicy(), dry_run=False, update_status=True)
+        reconcile_transcript(
+            project,
+            policy=AnalysisPolicy(),
+            dry_run=False,
+            update_status=True,
+            defaults=load_defaults(),
+        )
     host = project.transcript_for_track("host")
     assert host is not None
     return [(w.text, w.audibility_status, w.suppressed) for w in host.words]
 
 
 def _low_audibility(project: EpisodeProject) -> list:
-    return [(r["track_id"], r["text"]) for r in list_low_audibility_words(project)]
+    return [
+        (r["track_id"], r["text"])
+        for r in list_low_audibility_words(project, defaults=load_defaults())
+    ]
 
 
 def _one_track_scene(kind: str) -> Callable[[Path], EpisodeProject]:
@@ -506,7 +518,7 @@ def _sparse_expected(share: float) -> list:
 
 
 def _solo_audibility(project: EpisodeProject) -> list:
-    rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+    rows = compute_word_audibility_map(project, policy=AnalysisPolicy(), defaults=load_defaults())
     return [(r["text"], r["audibility_status"]) for r in rows]
 
 

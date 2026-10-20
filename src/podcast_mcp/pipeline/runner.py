@@ -5,7 +5,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
 from podcast_mcp.models import (
     EpisodeProject,
@@ -230,8 +230,8 @@ def _complete_step(
 
 
 class PipelineRunner:
-    def __init__(self, defaults: dict | None = None) -> None:
-        self.defaults = defaults if defaults is not None else load_defaults()
+    def __init__(self, defaults: EffectiveConfig) -> None:
+        self.defaults = defaults
 
     def run(
         self,

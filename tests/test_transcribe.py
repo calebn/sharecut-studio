@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
 from podcast_mcp.engines.transcribe import (
     TranscriptionEngine,
@@ -37,7 +38,7 @@ def test_merge_transcripts_ordering(minimal_project):
         ),
     ]
     proj.tracks = []
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     combined = engine.merge_transcripts(proj)
     assert isinstance(combined, CombinedTranscript)
     assert combined.utterances[0].text.startswith("Hello")
@@ -46,12 +47,14 @@ def test_merge_transcripts_ordering(minimal_project):
 
 def test_engine_rejects_unknown_model() -> None:
     with pytest.raises(ValueError, match="Unknown Whisper model"):
-        TranscriptionEngine(model_size="attacker/malicious-faster-whisper")
+        TranscriptionEngine(
+            model_size="attacker/malicious-faster-whisper", defaults=load_defaults()
+        )
 
 
 def test_cache_path_stable(minimal_project, sample_wav, tmp_workspace):
     proj = load_project(minimal_project)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     p1 = engine.cache_path(proj, "host", sample_wav)
     p2 = engine.cache_path(proj, "host", sample_wav)
     assert p1 == p2
@@ -60,7 +63,7 @@ def test_cache_path_stable(minimal_project, sample_wav, tmp_workspace):
 
 def test_cache_path_sanitizes_unsafe_id(minimal_project, sample_wav):
     proj = load_project(minimal_project)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     path = engine.cache_path(proj, "host__/etc/passwd", sample_wav)
     assert path.is_relative_to(proj.transcripts_dir())
     assert "passwd" not in path.name
@@ -79,7 +82,7 @@ def test_merge_transcripts_skips_empty_and_suppressed(minimal_project):
             ],
         ),
     ]
-    combined = TranscriptionEngine().merge_transcripts(proj)
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(proj)
     assert len(combined.utterances) == 1
     assert combined.utterances[0].text == "hi"
 
@@ -93,7 +96,7 @@ def test_transcribe_file_segment_without_words_and_with_prompt(sample_wav):
             MagicMock(word=" hi ", start=0.0, end=0.2, probability=0.9),
         ]
     )
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     mock_model = MagicMock()
     mock_model.transcribe.return_value = ([seg_no_words, seg_with_word], None)
     with patch.object(engine, "_get_model", return_value=mock_model):
@@ -109,7 +112,7 @@ def test_transcribe_file_segment_without_words_and_with_prompt(sample_wav):
 def test_transcribe_file_passes_vad_and_decode_kwargs(sample_wav):
     from unittest.mock import MagicMock, patch
 
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     model = MagicMock()
     model.transcribe.return_value = ([], None)
     with patch.object(engine, "_get_model", return_value=model):
@@ -132,7 +135,9 @@ def test_transcribe_file_sends_prompt_as_hotwords_without_conditioning(sample_wa
 
     from podcast_mcp.engines.asr_options import AsrOptions
 
-    engine = TranscriptionEngine(options=AsrOptions(condition_on_previous_text=False))
+    engine = TranscriptionEngine(
+        options=AsrOptions(condition_on_previous_text=False), defaults=load_defaults()
+    )
     model = MagicMock()
     model.transcribe.return_value = ([], None)
     with patch.object(engine, "_get_model", return_value=model):
@@ -143,7 +148,7 @@ def test_transcribe_file_sends_prompt_as_hotwords_without_conditioning(sample_wa
 
 
 def test_transcribe_track_not_found_raises(minimal_project):
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     proj = load_project(minimal_project)
     with pytest.raises(ValueError, match="not found"):
         engine.transcribe_track(proj, "missing")
@@ -153,7 +158,7 @@ def test_transcribe_file_skips_blank_segment_text(sample_wav):
     from unittest.mock import MagicMock, patch
 
     blank = MagicMock(text="   ", start=0.0, end=0.5, words=None)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     mock_model = MagicMock()
     mock_model.transcribe.return_value = ([blank], None)
     with patch.object(engine, "_get_model", return_value=mock_model):
@@ -167,7 +172,7 @@ def test_get_model_lazy_loads_whisper(tmp_path, monkeypatch):
     blob.write_bytes(b"x")
     monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: tmp_path)
 
-    engine = TranscriptionEngine(model_size="tiny", device="cpu")
+    engine = TranscriptionEngine(model_size="tiny", device="cpu", defaults=load_defaults())
 
     class FakeWM:
         def __init__(self, *a, **k):
@@ -186,7 +191,7 @@ def test_get_model_lazy_loads_whisper(tmp_path, monkeypatch):
     assert model.kwargs.get("local_files_only") is True
     assert engine._get_model() is model
 
-    gpu = TranscriptionEngine(model_size="tiny", device="cuda")
+    gpu = TranscriptionEngine(model_size="tiny", device="cuda", defaults=load_defaults())
     gpu_model = gpu._get_model()
     assert gpu_model.kwargs.get("compute_type") == "float16"
     assert gpu_model.kwargs.get("local_files_only") is True
@@ -210,7 +215,7 @@ def test_transcribe_all_dialogue_reports_progress(minimal_project, sample_wav):
             media=MediaAsset(path=str(dest)),
         )
     ]
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     fake = Transcript(
         track_id="host",
         words=[TranscriptWord(text="hi", start=0.0, end=0.1)],
@@ -254,7 +259,7 @@ def test_transcribe_all_dialogue_extra_source_and_cache(minimal_project, sample_
             source_id="host_b",
         )
     ]
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     primary = Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.1)])
     extra = Transcript(track_id="host", words=[TranscriptWord(text="extra", start=0.0, end=0.1)])
     engine.transcribe_file = MagicMock(side_effect=[primary, extra])  # type: ignore[method-assign]
@@ -296,7 +301,7 @@ def test_transcribe_all_dialogue_skips_missing_extra_source(minimal_project):
             source_id="missing-source",
         )
     ]
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     engine.transcribe_file = MagicMock(  # type: ignore[method-assign]
         return_value=Transcript(track_id="host", words=[])
     )
@@ -430,7 +435,7 @@ def test_transcribe_file_flags_stretched_words(sample_wav) -> None:
     from unittest.mock import MagicMock, patch
 
     stretched = MagicMock(word=" don't ", start=1.0, end=11.0, probability=0.5)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     mock_model = MagicMock()
     mock_model.transcribe.return_value = (
         [MagicMock(words=[stretched], text=None, start=1.0, end=11.0)],
@@ -465,7 +470,7 @@ def test_transcribe_track_rejects_workspace_escape(minimal_project, tmp_path, sa
     assert proj.tracks[0].media is not None
     proj.tracks[0].media.path = str(outside)
     save_project(proj, minimal_project)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     with pytest.raises(ValueError, match="under workspace"):
         engine.transcribe_track(load_project(minimal_project), "host")
 
@@ -517,7 +522,7 @@ def test_transcribe_file_reports_segment_progress(sample_wav):
         SimpleNamespace(text="a", start=0.0, end=4.0, words=None),
         SimpleNamespace(text="b", start=4.0, end=9.0, words=None),
     ]
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     model = MagicMock()
     model.transcribe.return_value = (segs, SimpleNamespace(duration=10.0))
     with patch.object(engine, "_get_model", return_value=model), bind_progress(rec):
@@ -536,7 +541,7 @@ def test_transcribe_all_dialogue_stamps_audio_hash(minimal_project, sample_wav):
     from podcast_mcp.util.hashing import sha256_file
 
     proj = _dialogue_project(minimal_project, sample_wav)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     engine.transcribe_file = MagicMock(  # type: ignore[method-assign]
         return_value=Transcript(track_id="", words=[])
     )
@@ -560,7 +565,7 @@ def _silent_job_engine(minimal_project, tmp_path, options=None):
         f.setframerate(8000)
         f.writeframes(b"\x00\x00" * 16000)
     job = TranscribeJob(track_id="host", source_id=None, audio=wav)
-    engine = TranscriptionEngine(options=options)
+    engine = TranscriptionEngine(options=options, defaults=load_defaults())
     asr = Transcript(track_id="", words=[TranscriptWord(text="thanks", start=0.2, end=0.6)])
     return proj, job, engine, patch.object(engine, "transcribe_file", return_value=asr)
 
@@ -585,7 +590,9 @@ def test_transcribe_job_cache_hit_recomputes_flags_from_current_settings(minimal
     with patcher:
         first = engine.transcribe_job(proj, job, language="en")
     assert first.words[0].suspect_hallucination
-    off = TranscriptionEngine(options=AsrOptions(silence_filter_enabled=False))
+    off = TranscriptionEngine(
+        options=AsrOptions(silence_filter_enabled=False), defaults=load_defaults()
+    )
     with patch.object(off, "transcribe_file") as asr:
         tr = off.transcribe_job(proj, job, language="en")
     asr.assert_not_called()

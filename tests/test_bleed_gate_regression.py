@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.engines.play_audit import write_stem_hash
@@ -106,8 +107,8 @@ def _episode(tmp_path: Path, style: str = "voiced") -> EpisodeProject:
         ),
         Transcript(track_id="guest", words=[TranscriptWord(text="foreign", start=2.0, end=2.6)]),
     ]
-    write_stem_hash(project, "host")
-    write_stem_hash(project, "guest")
+    write_stem_hash(project, "host", defaults=load_defaults())
+    write_stem_hash(project, "guest", defaults=load_defaults())
     return project
 
 
@@ -119,7 +120,9 @@ def test_gate_preserves_own_speech_and_reduces_confirmed_foreign_audio(
     source = tmp_path / "raw" / "host.wav"
     output = tmp_path / "gated.wav"
     shutil.copyfile(source, output)
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
+    apply_track_transcript_gate(
+        project, "host", output, timeline_start=0, timeline_end=4, defaults=load_defaults()
+    )
     before, after = _read_pcm(source), _read_pcm(output)
     np.testing.assert_allclose(
         after[int(0.4 * RATE) : int(1.2 * RATE)], before[int(0.4 * RATE) : int(1.2 * RATE)], atol=1
@@ -139,8 +142,12 @@ def test_midword_segment_matches_full_gate(tmp_path: Path) -> None:
     shutil.copyfile(source, whole)
     raw = _read_pcm(source)
     _write_pcm(segment, raw[int(0.7 * RATE) : int(0.9 * RATE)] / 32767)
-    apply_track_transcript_gate(project, "host", whole, timeline_start=0, timeline_end=4)
-    apply_track_transcript_gate(project, "host", segment, timeline_start=0.7, timeline_end=0.9)
+    apply_track_transcript_gate(
+        project, "host", whole, timeline_start=0, timeline_end=4, defaults=load_defaults()
+    )
+    apply_track_transcript_gate(
+        project, "host", segment, timeline_start=0.7, timeline_end=0.9, defaults=load_defaults()
+    )
     np.testing.assert_allclose(
         _read_pcm(segment), _read_pcm(whole)[int(0.7 * RATE) : int(0.9 * RATE)], atol=1
     )
@@ -149,10 +156,15 @@ def test_midword_segment_matches_full_gate(tmp_path: Path) -> None:
 def test_scoped_apply_survives_reopen_and_render(tmp_path: Path) -> None:
     project = _episode(tmp_path)
     project.track_by_id("host").transcript_gate = False
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     with render_lock(project):
         result = apply_transcript_bleed_mute(
-            project, track_id="host", start_sec=2.05, end_sec=2.35, dry_run=False
+            project,
+            track_id="host",
+            start_sec=2.05,
+            end_sec=2.35,
+            dry_run=False,
+            defaults=load_defaults(),
         )
     assert result["applied_count"] == 1
     reopened = EpisodeProject.model_validate(project.model_dump(by_alias=True))
@@ -169,11 +181,15 @@ def test_scoped_apply_survives_reopen_and_render(tmp_path: Path) -> None:
 def test_reapplying_gate_does_not_multiply_an_existing_fade(tmp_path: Path) -> None:
     project = _episode(tmp_path)
     project.track_by_id("host").transcript_gate = False
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     with render_lock(project):
-        apply_transcript_bleed_mute(project, track_id="host", dry_run=False)
+        apply_transcript_bleed_mute(
+            project, track_id="host", dry_run=False, defaults=load_defaults()
+        )
         first = _read_pcm(project.artifacts_dir() / "tracks" / "host.wav")
-        apply_transcript_bleed_mute(project, track_id="host", dry_run=False)
+        apply_transcript_bleed_mute(
+            project, track_id="host", dry_run=False, defaults=load_defaults()
+        )
     np.testing.assert_array_equal(_read_pcm(project.artifacts_dir() / "tracks" / "host.wav"), first)
 
 
@@ -186,7 +202,9 @@ def test_lane_word_status_does_not_decide_whether_a_verified_copy_is_reduced(
     source = tmp_path / "raw" / "host.wav"
     output = tmp_path / "unknown.wav"
     shutil.copyfile(source, output)
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
+    apply_track_transcript_gate(
+        project, "host", output, timeline_start=0, timeline_end=4, defaults=load_defaults()
+    )
     np.testing.assert_array_equal(_read_pcm(output)[int(2.05 * RATE) : int(2.55 * RATE)], 0)
 
 
@@ -200,7 +218,9 @@ def test_periodic_peer_similarity_is_not_foreign_only_evidence(tmp_path: Path) -
     output = tmp_path / "periodic.wav"
     shutil.copyfile(source, output)
     project.transcript_for_track("host").words = [project.transcript_for_track("host").words[1]]
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
+    apply_track_transcript_gate(
+        project, "host", output, timeline_start=0, timeline_end=4, defaults=load_defaults()
+    )
     assert output.read_bytes() == source.read_bytes()
 
 
@@ -214,7 +234,7 @@ def test_scoped_gate_moves_with_selected_source_audio(tmp_path: Path) -> None:
     for clip in project.clips:
         clip.source_start = 1.5
         clip.timeline_start = 0.0
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.attenuation_spans == ((pytest.approx(0.55), pytest.approx(0.85)),)
 
 
@@ -223,7 +243,7 @@ def test_missing_selected_source_keeps_uncertain_audio(tmp_path: Path) -> None:
 
     project = _episode(tmp_path)
     (tmp_path / "raw" / "guest.wav").unlink()
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("unavailable_peer_source",)
 
@@ -236,7 +256,7 @@ def test_source_proxy_does_not_gate_primary_using_other_selected_media(tmp_path:
     shutil.copyfile(tmp_path / "raw" / "host.wav", alternate)
     project.sources.append(SourceRecording(id="alternate", path="raw/alternate.wav"))
     project.clips[0].source_id = "alternate"
-    plan = build_bleed_gate_plan(project, "host", source_clock=True)
+    plan = build_bleed_gate_plan(project, "host", source_clock=True, defaults=load_defaults())
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("unsupported_source_proxy_layout",)
 
@@ -244,21 +264,28 @@ def test_source_proxy_does_not_gate_primary_using_other_selected_media(tmp_path:
 def test_scoped_preview_and_apply_count_only_effective_attenuation(tmp_path):
     project = _episode(tmp_path)
     project.track_by_id("host").transcript_gate = False
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     preview = apply_transcript_bleed_mute(
-        project, track_id="host", start_sec=0, end_sec=1, dry_run=True
+        project, track_id="host", start_sec=0, end_sec=1, dry_run=True, defaults=load_defaults()
     )
     assert preview["candidates"][0]["attenuation_count"] == 0
     with render_lock(project):
         actual = apply_transcript_bleed_mute(
-            project, track_id="host", start_sec=0, end_sec=1, dry_run=False
+            project,
+            track_id="host",
+            start_sec=0,
+            end_sec=1,
+            dry_run=False,
+            defaults=load_defaults(),
         )
     assert actual["applied"][0]["attenuation_count"] == 0
 
 
 def test_preview_reports_each_lanes_resolved_reduction(tmp_path: Path) -> None:
     project = _episode(tmp_path)
-    preview = apply_transcript_bleed_mute(project, track_id="host", dry_run=True)
+    preview = apply_transcript_bleed_mute(
+        project, track_id="host", dry_run=True, defaults=load_defaults()
+    )
     candidate = preview["candidates"][0]
     assert (candidate["bleed_reduction"], candidate["bleed_bed_db"]) == ("mute", LEVEL_FLOOR_DB)
 
@@ -270,8 +297,12 @@ def test_segment_beginning_inside_attenuation_fade_matches_full_render(tmp_path)
     _write_pcm(whole, raw / 32767)
     start, end = 2.005, 2.018
     _write_pcm(segment, raw[round(start * RATE) : round(end * RATE)] / 32767)
-    apply_track_transcript_gate(project, "host", whole, timeline_start=0, timeline_end=4)
-    apply_track_transcript_gate(project, "host", segment, timeline_start=start, timeline_end=end)
+    apply_track_transcript_gate(
+        project, "host", whole, timeline_start=0, timeline_end=4, defaults=load_defaults()
+    )
+    apply_track_transcript_gate(
+        project, "host", segment, timeline_start=start, timeline_end=end, defaults=load_defaults()
+    )
     np.testing.assert_allclose(
         _read_pcm(segment), _read_pcm(whole)[round(start * RATE) : round(end * RATE)], atol=1
     )
@@ -284,14 +315,19 @@ def test_crossfade_layout_preserves_audio_and_explains_gate_abstention(tmp_path)
     project = _episode(tmp_path)
     project.clips[0].join_in_mode = ClipJoinMode.CROSSFADE
     project.clips[0].fade_in_ms = 500
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("unsupported_crossfade_evidence_clock",)
     before = (project.artifacts_dir() / "tracks" / "host.wav").read_bytes()
     snapshot = project.model_dump(mode="json")
     with render_lock(project):
         result = apply_transcript_bleed_mute(
-            project, track_id="host", start_sec=0.1, end_sec=0.2, dry_run=False
+            project,
+            track_id="host",
+            start_sec=0.1,
+            end_sec=0.2,
+            dry_run=False,
+            defaults=load_defaults(),
         )
     assert result["applied_count"] == 0
     assert result["skipped"][0]["reason"] == "unsupported_crossfade_evidence_clock"
@@ -315,17 +351,17 @@ def test_other_lane_origin_copy_cannot_protect_selected_lane_foreign_audio(tmp_p
         timeline_start=3.1,
     )
     project.clips.append(copy)
-    plan = build_bleed_gate_plan(project, "host")
-    before = track_render_hash(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
+    before = track_render_hash(project, "host", defaults=load_defaults())
     copy.timeline_start = 2
-    after = build_bleed_gate_plan(project, "host")
+    after = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert after == plan
     assert after.attenuation_spans == ((1.7, 2.75),)
     assert not any(start < 2.6 and end > 2.0 for start, end in after.protected_spans)
-    assert track_render_hash(project, "host") == before
+    assert track_render_hash(project, "host", defaults=load_defaults()) == before
     next(clip for clip in project.clips if clip.track_id == "host").timeline_start = 0.1
-    assert build_bleed_gate_plan(project, "host") != after
-    assert track_render_hash(project, "host") != before
+    assert build_bleed_gate_plan(project, "host", defaults=load_defaults()) != after
+    assert track_render_hash(project, "host", defaults=load_defaults()) != before
 
 
 def test_implicit_primary_gate_words_do_not_follow_other_lane_origin_copy(tmp_path: Path) -> None:
@@ -346,7 +382,7 @@ def test_implicit_primary_gate_words_do_not_follow_other_lane_origin_copy(tmp_pa
         )
     )
     before = project.model_dump(mode="json")
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.attenuation_spans == ((1.7, 2.75),)
     assert any(start <= 0.55 and end >= 1.0 for start, end in plan.protected_spans)
     assert project.model_dump(mode="json") == before
@@ -389,7 +425,7 @@ def test_untranscribed_placement_is_preserved_without_blocking_disjoint_bleed(
     output = tmp_path / "summed-lane.wav"
     _write_pcm(output, raw_timeline_samples(project, "host", sample_rate=RATE))
     before = _read_pcm(output).copy()
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     apply_bleed_gate_plan(output, plan, timeline_start=0, timeline_end=len(before) / RATE)
     after = _read_pcm(output)
     unknown_end = timeline_start + source_end - source_start
@@ -425,16 +461,16 @@ def test_empty_source_transcript_enrollment_invalidates_gated_stem(tmp_path: Pat
             timeline_start=0,
         )
     )
-    protected = build_bleed_gate_plan(project, "host")
-    protected_payload = bleed_gate_payload(project, "host")
-    protected_hash = track_render_hash(project, "host")
+    protected = build_bleed_gate_plan(project, "host", defaults=load_defaults())
+    protected_payload = bleed_gate_payload(project, "host", defaults=load_defaults())
+    protected_hash = track_render_hash(project, "host", defaults=load_defaults())
     assert not protected.attenuation_spans
     project.transcripts.append(Transcript(track_id="host", source_id="unknown", words=[]))
-    enrolled = build_bleed_gate_plan(project, "host")
+    enrolled = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert enrolled.attenuation_spans
-    assert bleed_gate_payload(project, "host") != protected_payload
-    assert track_render_hash(project, "host") != protected_hash
+    assert bleed_gate_payload(project, "host", defaults=load_defaults()) != protected_payload
+    assert track_render_hash(project, "host", defaults=load_defaults()) != protected_hash
     project.transcripts.pop()
-    assert build_bleed_gate_plan(project, "host") == protected
-    assert bleed_gate_payload(project, "host") == protected_payload
-    assert track_render_hash(project, "host") == protected_hash
+    assert build_bleed_gate_plan(project, "host", defaults=load_defaults()) == protected
+    assert bleed_gate_payload(project, "host", defaults=load_defaults()) == protected_payload
+    assert track_render_hash(project, "host", defaults=load_defaults()) == protected_hash

@@ -78,7 +78,7 @@ def test_current_peer_placement_selects_literal_original_pause_floor(
     ws = workspace(result)
     if delivery == "suggested":
         edited = ws.project.model_copy(deep=True)
-        apply_for_suggested(edited, resolve_pending_preview(edited, "current-floor"))
+        apply_for_suggested(edited, resolve_pending_preview(edited, "current-floor"), defaults=cfg)
     else:
         service = EditService(ws)
         count = service.approve(["current-floor"]) if delivery == "saved" else service.apply_auto()

@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.bleed_lag_segments import (
     STEP_COSTS,
     BleedPair,
@@ -318,7 +319,7 @@ def test_steps_use_a_mic_other_than_the_reference(tmp_path) -> None:
     audio["audra"] = bh.relatency(audio["audra"], lambda t: 0.12 if t < RESUMES_SEC else 0.2)
     ws = bh.workspace(tmp_path, audio)
 
-    result = plan_conversation_alignment(ws.project)
+    result = plan_conversation_alignment(ws.project, defaults=load_defaults())
 
     assert [
         (p.track_id, p.method, round(p.offset_sec, 3), [(round(a, 4), o) for a, o in p.steps])
@@ -562,7 +563,7 @@ def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:
     audio["audra"] = np.interp(index - late, index, audio["audra"], left=0.0)
     ws = bh.workspace(tmp_path, audio)
 
-    result = plan_conversation_alignment(ws.project)
+    result = plan_conversation_alignment(ws.project, defaults=load_defaults())
 
     audra = [(p.method, p.offset_sec, p.steps) for p in result.plans if p.track_id == "audra"]
     assert audra == [("hold", 0.0, ())]
@@ -581,7 +582,7 @@ def test_a_long_step_is_split_not_read_as_drift_or_scatter(
     audio["audra"] = bh.relatency(audio["audra"], lambda t: 0.12 if t < 120.0 else late)
     ws = bh.workspace(tmp_path, audio)
 
-    result = plan_conversation_alignment(ws.project)
+    result = plan_conversation_alignment(ws.project, defaults=load_defaults())
 
     audra = [
         (p.method, round(p.offset_sec, 3), [(round(at, 2), round(o, 3)) for at, o in p.steps])
@@ -600,7 +601,7 @@ def test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole(
         )
     }
 
-    result = plan_conversation_alignment(stepped.project)
+    result = plan_conversation_alignment(stepped.project, defaults=load_defaults())
 
     audra = [
         (p.method, p.offset_sec, round(p.candidate_offset_sec or 0.0, 2), p.steps)

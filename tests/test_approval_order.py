@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import (
@@ -119,9 +120,9 @@ def test_approving_session_cuts_one_at_a_time_removes_what_approving_them_togeth
     one_by_one = _project(tmp_path / "one")
     one_by_one.edit_decisions = [_trim("a", 5.0, 6.0), _trim("b", 25.0, 26.0)]
 
-    assert approve_edits(together, ["a", "b"]) == 2
-    assert approve_edits(one_by_one, ["a"]) == 1
-    assert approve_edits(one_by_one, ["b"]) == 1
+    assert approve_edits(together, ["a", "b"], defaults=load_defaults()) == 2
+    assert approve_edits(one_by_one, ["a"], defaults=load_defaults()) == 1
+    assert approve_edits(one_by_one, ["b"], defaults=load_defaults()) == 1
 
     assert _lane_ends(together) == {"host": 28.0, "guest": 28.0}
     assert _lane_ends(one_by_one) == _lane_ends(together)
@@ -132,7 +133,7 @@ def _rendered(project: EpisodeProject) -> EpisodeProject:
     from podcast_mcp.engines.play_audit import write_stem_hash
 
     for track in project.tracks:
-        write_stem_hash(project, track.id)
+        write_stem_hash(project, track.id, defaults=load_defaults())
     return project
 
 
@@ -152,11 +153,11 @@ def test_a_long_trim_is_approved_alone_whatever_a_stale_stem_holds(
         return project
 
     together = project_at("together")
-    assert approve_edits(together, ["a", "b"]) == 2
+    assert approve_edits(together, ["a", "b"], defaults=load_defaults()) == 2
 
     one_by_one = project_at("one")
     for edit_id in ("a", "b") if forward else ("b", "a"):
-        assert approve_edits(one_by_one, [edit_id]) == 1
+        assert approve_edits(one_by_one, [edit_id], defaults=load_defaults()) == 1
 
     assert _lane_ends(together) == {"host": 24.5, "guest": 24.5}
     assert _lane_ends(one_by_one) == _lane_ends(together)
@@ -169,7 +170,7 @@ def test_a_cut_a_peer_now_speaks_through_is_held_not_punched(tmp_path: Path) -> 
     project.edit_decisions = [_trim("b", 25.0, 26.0)]
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, ["b"])
+        approve_edits(project, ["b"], defaults=load_defaults())
 
     assert held.value.ids == ("b",)
     assert "guest" in str(held.value)
@@ -182,7 +183,7 @@ def test_applying_auto_edits_leaves_a_cut_a_peer_speaks_through_pending(tmp_path
     project = _project(tmp_path, burst=(25.2, 25.8))
     project.edit_decisions = [_trim("a", 5.0, 6.0), _trim("b", 25.0, 26.0)]
 
-    assert apply_auto_edits(project) == 1
+    assert apply_auto_edits(project, defaults=load_defaults()) == 1
 
     assert [e.id for e in project.edit_decisions] == ["b"]
     assert project.edit_decisions[0].scope == "session"
@@ -286,7 +287,7 @@ def test_the_pipeline_applies_the_same_auto_trims_apply_suggested_actions_does(
 ) -> None:
     project = _original_trims_project(tmp_path)
 
-    assert apply_auto_edits(project) == 2
+    assert apply_auto_edits(project, defaults=load_defaults()) == 2
 
     assert project.edit_decisions == []
     assert _lane_ends(project) == pytest.approx({"host": 28.5, "guest": 28.5})

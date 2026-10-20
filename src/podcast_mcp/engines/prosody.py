@@ -53,7 +53,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import SILENT, profile_from_levels
 from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db, frame_rms_db_stream
@@ -126,8 +126,8 @@ class ProsodyParams:
     boundary_min_strength: float = 0.3
 
     @classmethod
-    def from_defaults(cls, defaults: dict[str, Any] | None = None) -> ProsodyParams:
-        cfg = (defaults if defaults is not None else load_defaults()).get("prosody", {})
+    def from_defaults(cls, defaults: EffectiveConfig) -> ProsodyParams:
+        cfg = defaults.get("prosody", {})
         return cls(
             pitch_floor_hz=float(cfg.get("pitch_floor_hz", 75.0)),
             pitch_ceiling_hz=float(cfg.get("pitch_ceiling_hz", 500.0)),

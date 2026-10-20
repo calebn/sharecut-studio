@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import bounded_float
+from podcast_mcp.config import EffectiveConfig, bounded_float
 from podcast_mcp.edits.acoustic_laugh import has_laugh_bursts
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import classify_breath_samples
@@ -135,7 +135,7 @@ def find_voiced_gap_runs(
     max_run_sec: float = MAX_RUN_SEC_CEIL,
     max_frames: int = MAX_FRAMES_CEIL,
     vad_backend: str = "heuristic",
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     speech_reference_rms: float | None = None,
     on_breath_rejected: Callable[[], None] | None = None,
 ) -> list[AcousticGapRun]:
@@ -210,7 +210,7 @@ def _scan_window(
     min_run_sec: float,
     max_run_sec: float,
     vad_backend: str,
-    defaults: dict[str, Any] | None,
+    defaults: EffectiveConfig,
     speech_reference_rms: float | None,
     on_breath_rejected: Callable[[], None] | None,
 ) -> list[AcousticGapRun]:

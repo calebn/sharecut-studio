@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits import cut_speech, join_continuity, speech_energy_guard
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import (
@@ -151,7 +152,7 @@ def protect_cut_breaths(
     start: float,
     end: float,
     *,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
@@ -205,6 +206,7 @@ def protect_cut_breaths(
             profile=profile,
             cfg=cfg,
             keep_out=keep_out,
+            defaults=defaults,
         )
 
     evidence = [
@@ -231,6 +233,7 @@ def protect_cut_breaths(
         profile=profile,
         cfg=cfg,
         sample_rate=sample_rate,
+        defaults=defaults,
     ):
         return None
     return new_start, new_end
@@ -243,7 +246,7 @@ def protect_cut_edges(
     end: float,
     *,
     join: CutJoin,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
@@ -721,7 +724,7 @@ def assess_cross_track_speech(
     src_start: float,
     src_end: float,
     *,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> SpeechEnergyGuardResult:
@@ -759,7 +762,9 @@ def assess_cross_track_speech(
         tid
         for tid, unread in levels.unread.items()
         if tid not in levels.speaking
-        and speech_energy_guard.speech_words_in(project, tid, unread, min_overlap, voiced=True)
+        and speech_energy_guard.speech_words_in(
+            project, tid, unread, min_overlap, voiced=True, defaults=defaults
+        )
     )
     if not blocking:
         return SpeechEnergyGuardResult(
@@ -807,7 +812,7 @@ def resolve_cut_scope(
     src_end: float,
     *,
     requested_scope: str = "session",
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> CutScopeResolution:
@@ -890,7 +895,7 @@ def assess_proposed_cut(
     *,
     timebase: Literal["source", "timeline"] = "source",
     config: JoinContinuityConfig | None = None,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     audio_caches: dict[str, TrackAudioCache] | None = None,
 ) -> JoinContinuityReport:
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
@@ -1822,7 +1827,12 @@ def assess_held_pause(
             return CutRejected("no_air")
     removal = RippleRemoval.of([TrackExtent(edit.track_id, float(span[0]), float(span[1]))])
     effects = bind_pause_effects(
-        project, float(span[0]), removal, observation=observation, splice_fade_ms=edit.crossfade_ms
+        project,
+        float(span[0]),
+        removal,
+        observation=observation,
+        splice_fade_ms=edit.crossfade_ms,
+        defaults=defaults,
     )
     if isinstance(effects, LaneUnavailable):
         return CutRejected("pause_effects", (effects,))
@@ -1912,7 +1922,7 @@ def observe_source_cut(
     )
     speech = (
         cut_speech.assess_cut_speech(
-            project, removal, also_chosen=batch, timeline_caches=timeline_caches
+            project, removal, also_chosen=batch, timeline_caches=timeline_caches, defaults=defaults
         )
         if removal
         else None

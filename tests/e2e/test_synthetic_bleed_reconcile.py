@@ -26,7 +26,7 @@ def test_synthetic_bleed_detects_and_suppresses(synthetic_bleed_workspace: Path)
     pipeline_steps.reconcile_transcript(project, defaults)
 
     metrics = _expected_metrics(synthetic_bleed_workspace)
-    rows = audibility_map(project)
+    rows = audibility_map(project, defaults=defaults)
     bleed_total = sum(1 for r in rows if r.get("audibility_status") == "bleed")
     bleed_host = sum(
         1 for r in rows if r.get("track_id") == "host" and r.get("audibility_status") == "bleed"
@@ -42,9 +42,11 @@ def test_synthetic_bleed_detects_and_suppresses(synthetic_bleed_workspace: Path)
     assert bleed_host >= metrics["min_bleed_words_host"]
     assert suppressed >= metrics["min_bleed_words_total"]
 
-    overlap = overlap_duplicate_report(project)
+    overlap = overlap_duplicate_report(project, defaults=defaults)
     assert overlap["pair_count"] >= metrics.get("min_overlap_pairs", 1)
     assert overlap["text_match_count"] <= metrics.get("max_text_match_after_reconcile", 0)
 
-    bleed_window = overlap_duplicate_report(project, start_sec=12.0, end_sec=16.0)
+    bleed_window = overlap_duplicate_report(
+        project, start_sec=12.0, end_sec=16.0, defaults=defaults
+    )
     assert bleed_window["text_match_count"] <= metrics.get("max_text_match_after_reconcile", 0)

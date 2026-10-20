@@ -112,7 +112,7 @@ def test_full_editorial_mute_requires_solo_floor_and_partial_voice_keeps_turn_fl
     ws = workspace(result)
     if delivery == "suggested":
         edited = ws.project.model_copy(deep=True)
-        apply_for_suggested(edited, resolve_pending_preview(edited, "current-floor"))
+        apply_for_suggested(edited, resolve_pending_preview(edited, "current-floor"), defaults=cfg)
     else:
         service = EditService(ws)
         count = service.approve(["current-floor"]) if delivery == "saved" else service.apply_auto()

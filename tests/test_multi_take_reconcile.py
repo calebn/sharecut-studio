@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_quality import suppress_bleed_words, suppress_low_audibility_words
 from podcast_mcp.edits.bleed_text_match import EchoTwinPath, _echo_twin_losers
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
@@ -122,7 +123,9 @@ def _statuses(project: EpisodeProject, source_id: str) -> list[str | None]:
 def test_every_word_of_both_takes_gets_its_own_row(tmp_path: Path, measured_session) -> None:
     project = _two_take_project(tmp_path)
 
-    rows = compute_word_audibility_map(project, track_id="vicky", policy=AnalysisPolicy())
+    rows = compute_word_audibility_map(
+        project, track_id="vicky", policy=AnalysisPolicy(), defaults=load_defaults()
+    )
 
     by_take = {
         source: [r["audibility_status"] for r in rows if r["source_id"] == source]
@@ -141,7 +144,9 @@ def test_reconcile_writes_each_take_from_its_own_rows(tmp_path: Path, measured_s
         "podcast_mcp.engines.transcript_reconcile.build_reconciliation_caches",
         return_value=TrackRmsCacheSet(),
     ):
-        result = reconcile_transcript(project, policy=AnalysisPolicy(), dry_run=False)
+        result = reconcile_transcript(
+            project, policy=AnalysisPolicy(), dry_run=False, defaults=load_defaults()
+        )
 
     # Take 3's word 1 is Dani's bleed; take 2's word 1 stays Vicky's own speech.
     assert _statuses(project, "take2") == ["audible", "audible"]
@@ -153,7 +158,7 @@ def test_reconcile_writes_each_take_from_its_own_rows(tmp_path: Path, measured_s
 def test_overlap_pairs_compare_takes_on_the_session_clock(tmp_path: Path) -> None:
     project = _two_take_project(tmp_path)
 
-    report = overlap_duplicate_report(project, audibility=[])
+    report = overlap_duplicate_report(project, audibility=[], defaults=load_defaults())
 
     # Only take 3's word 1 (source 4.5 s, timeline 14.5 s) overlaps Dani's word; take 2's
     # word 1 shares its source time but plays 10 s earlier.
@@ -191,7 +196,7 @@ def test_a_teaser_clip_does_not_move_the_rest_of_its_lane(tmp_path: Path) -> Non
     ]
 
     (host,) = lane_transcripts(project, "host")
-    report = overlap_duplicate_report(project, audibility=[])
+    report = overlap_duplicate_report(project, audibility=[], defaults=load_defaults())
 
     assert [host.session_span(100.0, 100.4)[0], host.session_span(605.0, 605.4)[0]] == [
         110.0,
@@ -218,6 +223,7 @@ def test_explicit_suppression_touches_only_the_named_take(tmp_path: Path) -> Non
         project,
         word_keys=[{"track_id": "vicky", "source_id": "take3", "word_index": 1}],
         dry_run=False,
+        defaults=load_defaults(),
     )
 
     take2 = project.transcript_by_key(("vicky", "take2"))
@@ -254,7 +260,7 @@ def test_a_word_ending_at_a_ripple_cut_keeps_its_length(tmp_path: Path) -> None:
     ]
 
     (host,) = lane_transcripts(project, "host")
-    report = overlap_duplicate_report(project, audibility=[])
+    report = overlap_duplicate_report(project, audibility=[], defaults=load_defaults())
 
     assert host.session_span(10.0, 10.4) == (10.0, 10.4)
     assert [(p["text_match"], p["overlap_sec"]) for p in report["pairs"]] == [(True, 0.38)]
@@ -277,7 +283,7 @@ def test_a_gap_after_a_word_does_not_stretch_it_onto_a_later_peer_word(tmp_path:
         Transcript(track_id="guest", words=[TranscriptWord(text="the", start=13.0, end=13.3)]),
     ]
 
-    assert overlap_duplicate_report(project, audibility=[])["pairs"] == []
+    assert overlap_duplicate_report(project, audibility=[], defaults=load_defaults())["pairs"] == []
 
 
 def test_a_word_no_clip_plays_has_no_session_time(tmp_path: Path) -> None:
@@ -299,7 +305,7 @@ def test_a_word_no_clip_plays_has_no_session_time(tmp_path: Path) -> None:
     (host,) = lane_transcripts(project, "host")
 
     assert host.session_span(20.0, 20.3) is None
-    assert overlap_duplicate_report(project, audibility=[])["pairs"] == []
+    assert overlap_duplicate_report(project, audibility=[], defaults=load_defaults())["pairs"] == []
     losers = _echo_twin_losers(
         project,
         EchoTwinPath("host", "guest", 0.0),
@@ -349,7 +355,7 @@ def test_clips_naming_one_recording_two_ways_all_place_its_transcript(tmp_path: 
     project = _same_recording_project(tmp_path)
 
     (vicky,) = lane_transcripts(project, "vicky")
-    report = overlap_duplicate_report(project, audibility=[])
+    report = overlap_duplicate_report(project, audibility=[], defaults=load_defaults())
 
     assert vicky.session_span(25.0, 25.4) == (105.0, 105.4)
     assert [(p["word_index_a"], p["word_index_b"]) for p in report["pairs"]] == [(0, 0)]
@@ -371,6 +377,7 @@ def test_an_explicit_low_audibility_list_touches_only_the_named_take(tmp_path: P
     suppress_low_audibility_words(
         project,
         word_keys=[{"track_id": "vicky", "source_id": "take2", "word_index": 0}],
+        defaults=load_defaults(),
     )
 
     take2 = project.transcript_by_key(("vicky", "take2"))
@@ -392,7 +399,9 @@ def test_a_word_that_starts_before_its_clip_is_placed_where_it_plays(tmp_path: P
     ]
 
     (host,) = lane_transcripts(project, "host")
-    windowed = overlap_duplicate_report(project, audibility=[], start_sec=0.0)
+    windowed = overlap_duplicate_report(
+        project, audibility=[], start_sec=0.0, defaults=load_defaults()
+    )
 
     assert host.session_span(4.9, 5.3) == pytest.approx((0.0, 0.3))
     assert len(windowed["pairs"]) == 1

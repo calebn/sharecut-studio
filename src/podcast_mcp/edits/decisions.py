@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_check_override import active_override
 from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.edits.cut_speech import (
@@ -40,10 +40,6 @@ from podcast_mcp.util.review import reject_by_id
 def _speaker_name(project: EpisodeProject, track_id: str) -> str:
     track = project.track_by_id(track_id)
     return track_id if track is None else track.speaker or track.label or track_id
-
-
-def _tighten_cfg() -> dict:
-    return dict(load_defaults().get("tighten", {}) or {})
 
 
 def edit_timeline_range(
@@ -133,8 +129,8 @@ def _source_extents(removes: list[EditDecision]) -> dict[str, SourceExtent]:
     }
 
 
-def _pre_pad_fade_out_ms() -> int:
-    return int(_tighten_cfg().get("filler_pre_pad_fade_out_ms", 5))
+def pre_pad_fade_out_ms(defaults: EffectiveConfig) -> int:
+    return int(defaults.get("tighten", {}).get("filler_pre_pad_fade_out_ms", 5))
 
 
 def reject_edits(project: EpisodeProject, ids: list[str]) -> int:
@@ -206,7 +202,9 @@ class PendingCutSuggestion:
     optimized: OptimizedCutRange
 
 
-def preview_pending_cut_range(project: EpisodeProject, edit_id: str) -> PendingCutSuggestion:
+def preview_pending_cut_range(
+    project: EpisodeProject, edit_id: str, *, defaults: EffectiveConfig
+) -> PendingCutSuggestion:
     """Suggest source bounds for one complete pending cut without changing it."""
     edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
     if edit is None:
@@ -231,7 +229,9 @@ def preview_pending_cut_range(project: EpisodeProject, edit_id: str) -> PendingC
         track_id=edit.track_id,
         original_start=edit.start,
         original_end=edit.end,
-        optimized=optimize_source_cut_range(project, edit.track_id, edit.start, edit.end),
+        optimized=optimize_source_cut_range(
+            project, edit.track_id, edit.start, edit.end, defaults=defaults
+        ),
     )
 
 
@@ -244,6 +244,7 @@ def update_pending_edit(
     snap: bool = True,
     track_ids: list[str] | None = None,
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    defaults: EffectiveConfig,
 ) -> EditDecision:
     """Update a pending edit decision's range; optionally inaudible-snap.
 
@@ -294,7 +295,7 @@ def update_pending_edit(
         edit.end = end
     require_source_remove(project, edit)
     if snap:
-        optimizer_kwargs: dict[str, Any] = {}
+        optimizer_kwargs: dict[str, Any] = {"defaults": defaults}
         if edit.source_id is not None:
             selected_transcript = project.transcript_for_source(edit.track_id, edit.source_id)
             optimizer_kwargs["word_index"] = CutWordIndex.from_transcript(
@@ -324,7 +325,7 @@ def update_pending_edit(
     edit.boundary_intent = boundary_intent
     from podcast_mcp.edits.cut_safety import assess_source_offer
 
-    assess_source_offer(project, edit, defaults=load_defaults())
+    assess_source_offer(project, edit, defaults=defaults)
     require_source_remove(project, edit)
     project.edit_decisions = [edit if row is original else row for row in project.edit_decisions]
     return edit

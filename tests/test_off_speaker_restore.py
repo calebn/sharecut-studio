@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.off_speaker_mute import OffSpeakerPlan, apply_off_speaker_mutes
 from podcast_mcp.models import ClipMuteRegion, RoomToneFill
@@ -13,7 +14,7 @@ from test_bleed_restore_core import RATE, _pcm, _project, _render, _restore
 
 def _apply(project):
     plan = OffSpeakerPlan(track_id="host", regions=[{"start": 0.1, "end": 0.9}])
-    return apply_off_speaker_mutes(project, plan)
+    return apply_off_speaker_mutes(project, plan, defaults=load_defaults())
 
 
 @pytest.mark.parametrize("fill", [False, True])
@@ -77,10 +78,17 @@ def test_automatic_full_anchors_survive_split_extract_and_clipboard(tmp_path):
     project.clips = project.clips[:1]
     _apply(project)
     clip = EpisodeProject.model_validate_json(project.model_dump_json()).clips[0]
-    left, right = split_clip_at(clip, 0.5)
+    left, right = split_clip_at(clip, 0.5, defaults=load_defaults())
     extracted = extract_clips_in_timeline_range([clip], 0.3, 0.6)[0]
     clipboard = copy_segment(project, 0.3, 0.6, ["host"])
-    paste_segment(project, 1, clipboard["duration"], clipboard["extracts"], mode=EditMode.GAP)
+    paste_segment(
+        project,
+        1,
+        clipboard["duration"],
+        clipboard["extracts"],
+        mode=EditMode.GAP,
+        defaults=load_defaults(),
+    )
     pasted = next(c for c in project.clips if c.timeline_start == 1)
     for copy in (left, right, extracted, pasted):
         assert copy.off_speaker_mute_regions == clip.off_speaker_mute_regions
@@ -100,14 +108,14 @@ def test_empty_automatic_collection_preserves_legacy_serialized_detector_and_ren
     old = project.model_dump(mode="json")
     for clip in old["timeline"]["clips"]:
         clip.pop("off_speaker_mute_regions", None)
-    identity = track_render_hash(project, "host")
-    detector = bleed_gate_payload(project, "host")
+    identity = track_render_hash(project, "host", defaults=load_defaults())
+    detector = bleed_gate_payload(project, "host", defaults=load_defaults())
     for clip in project.clips:
         clip.off_speaker_mute_regions = []
     assert all(not c.off_speaker_mute_regions for c in project.clips)
     roundtrip = EpisodeProject.model_validate_json(json.dumps(old))
-    assert track_render_hash(roundtrip, "host") == identity
-    assert bleed_gate_payload(roundtrip, "host") == detector
+    assert track_render_hash(roundtrip, "host", defaults=load_defaults()) == identity
+    assert bleed_gate_payload(roundtrip, "host", defaults=load_defaults()) == detector
     assert all(
         "off_speaker_mute_regions" not in clip
         for lane in detector["inputs"]
@@ -191,7 +199,7 @@ def test_automatic_joint_recovery_matches_bounded_pcm_formula(
     if prepared == "gate_fill":
         monkeypatch.setattr(
             "podcast_mcp.engines.timeline_render.current_gate_fill_path",
-            lambda *_: tmp_path / f"{first_rate}-bed.wav",
+            lambda *_, **_kw: tmp_path / f"{first_rate}-bed.wav",
         )
     if effect:
         project.processing_chains = [
@@ -201,7 +209,7 @@ def test_automatic_joint_recovery_matches_bounded_pcm_formula(
         attenuation_spans=((0, 3),), fade_sec=0.02, reduction="attenuate", attenuation_db=20
     )
     monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan", lambda *_: plan
+        "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan", lambda *_, **_kw: plan
     )
     baseline = _render(project, tmp_path / "baseline.wav", window)
     project.clips[1] = _restore(
@@ -417,7 +425,7 @@ def test_automatic_only_restore_uses_two_complete_fx_evaluations(tmp_path, monke
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.3, 0.6)])
     monkeypatch.setattr(
         "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan",
-        lambda *_: BleedGatePlan(),
+        lambda *_, **_kw: BleedGatePlan(),
     )
     engine = FFmpegEngine()
     render = engine.render_timeline
@@ -446,7 +454,7 @@ def test_changed_automatic_restore_dependency_keeps_completed_artifact(
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.3, 0.6)])
     monkeypatch.setattr(
         "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan",
-        lambda *_: BleedGatePlan(attenuation_spans=((0, 1),)),
+        lambda *_, **_kw: BleedGatePlan(attenuation_spans=((0, 1),)),
     )
     target = tmp_path / "completed.wav"
     target.write_bytes(b"previous complete artifact")
@@ -506,8 +514,8 @@ def test_split_retains_original_automatic_fades_and_restore_edges(tmp_path, monk
     ]
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.3, 0.6)])
     whole = _render(project, tmp_path / "whole.wav", None)
-    monkeypatch.setattr("podcast_mcp.edits.clips_ops.join_micro_fade_ms", lambda: 0)
-    project.clips = list(split_clip_at(project.clips[0], 0.45))
+    monkeypatch.setattr("podcast_mcp.edits.clips_ops.join_micro_fade_ms", lambda **_kw: 0)
+    project.clips = list(split_clip_at(project.clips[0], 0.45, defaults=load_defaults()))
     split = _render(project, tmp_path / "split.wav", None)
     np.testing.assert_array_equal(split, whole)
 

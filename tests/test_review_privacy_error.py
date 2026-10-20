@@ -21,6 +21,7 @@ from mcp.client import Client
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.review_versions import publish_version, stage_version
 from podcast_mcp.gui.routes.deps import host_setup_exception_handler
@@ -156,7 +157,10 @@ def test_staging_names_the_folder_and_the_fix(minimal_project, sample_wav, monke
 
     with pytest.raises(ReviewPrivacyError) as raised:
         stage_version(
-            load_project(minimal_project), label="x", on_media_created=lambda path, identity: None
+            load_project(minimal_project),
+            label="x",
+            on_media_created=lambda path, identity: None,
+            defaults=load_defaults(),
         )
 
     assert str(raised.value) == _fix_message(root)
@@ -172,7 +176,12 @@ def test_publication_names_the_folder_and_the_fix(minimal_project, sample_wav, m
         root.chmod(0o777)
 
     with pytest.raises(ReviewPrivacyError) as raised:
-        publish_version(load_project(minimal_project), label="x", on_media_created=loosen)
+        publish_version(
+            load_project(minimal_project),
+            label="x",
+            on_media_created=loosen,
+            defaults=load_defaults(),
+        )
 
     assert str(raised.value) == _fix_message(root)
     assert raised.value.code == REVIEW_NOT_PRIVATE_CODE
@@ -184,11 +193,11 @@ def test_recovery_after_the_suggested_chmod(minimal_project, sample_wav, monkeyp
     root, _ = _loose_review_root(minimal_project, sample_wav, monkeypatch)
     project = load_project(minimal_project)
     with pytest.raises(ReviewPrivacyError):
-        publish_version(project, label="x")
+        publish_version(project, label="x", defaults=load_defaults())
 
     root.chmod(0o755)
 
-    assert publish_version(project, label="x").label == "x"
+    assert publish_version(project, label="x", defaults=load_defaults()).label == "x"
 
 
 @requires_safe_failed_cleanup

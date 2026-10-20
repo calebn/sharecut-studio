@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig, load_defaults
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.speech_energy_guard import validate_speech_energy_on_conflict
 from podcast_mcp.effects.presets import resolve_presets
@@ -470,7 +470,7 @@ def _staged_config(project_path: Path | str) -> dict[str, Any] | None:
 def run_defaults_for(project_path: Path | str) -> dict[str, Any]:
     """Config ``pipeline_run`` would use: the staged working set, else shipped defaults."""
     staged = _staged_config(project_path)
-    return staged if staged is not None else load_defaults()
+    return copy.deepcopy(staged) if staged is not None else load_defaults()
 
 
 def asr_options_for(project_path: Path | str) -> AsrOptions:
@@ -610,6 +610,7 @@ def _measure_analyze_inputs(
     project: Any,
     *,
     policy: Any,
+    defaults: EffectiveConfig,
     cancel_check: Callable[[], bool] | None = None,
 ) -> tuple[dict[str, Any], dict[str, tuple[Path, float]], dict[str, str]]:
     """Run health analysis then digital-silence scanning as named Analyze phases."""
@@ -618,7 +619,9 @@ def _measure_analyze_inputs(
     with resolve_progress_task("pipeline_analyze", "Analyzing audio", prefer_parent=True) as task:
         task.set_phase("health", "Measuring track health…")
         with task.child("analyze_health", "Measuring track health"):
-            report = analyze_cleanup(project, policy=policy, cancel_check=cancel_check)
+            report = analyze_cleanup(
+                project, policy=policy, defaults=defaults, cancel_check=cancel_check
+            )
         task.set_phase("digital_silence", "Scanning dialogue for digital silence…")
         silence, skipped = _dialogue_silence_fractions(project, cancel_check=cancel_check)
     return report, silence, skipped
@@ -645,7 +648,7 @@ def suggest_pipeline_tuning(
     # the proposed value.
     asr = AsrOptions.from_defaults(base)
     report, silence, silence_skipped = _measure_analyze_inputs(
-        project, policy=policy, cancel_check=cancel_check
+        project, policy=policy, defaults=base, cancel_check=cancel_check
     )
     proposed = copy.deepcopy(base)
     reasons: list[dict[str, Any]] = []

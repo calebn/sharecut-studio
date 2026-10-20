@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.util.batch_scope import frozen_state
@@ -26,11 +27,11 @@ def test_shared_timeline_rms_caches_decodes_once_per_proof_block(
     project = SimpleNamespace()
 
     with frozen_state():
-        first = shared_timeline_rms_caches(project)  # type: ignore[arg-type]
-        again = shared_timeline_rms_caches(project)  # type: ignore[arg-type]
+        first = shared_timeline_rms_caches(project, defaults=load_defaults())  # type: ignore[arg-type]
+        again = shared_timeline_rms_caches(project, defaults=load_defaults())  # type: ignore[arg-type]
 
     assert first is again
     assert builds == [1]
 
-    shared_timeline_rms_caches(project)  # type: ignore[arg-type]
+    shared_timeline_rms_caches(project, defaults=load_defaults())  # type: ignore[arg-type]
     assert builds == [1, 2]

@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.gate_fill import detect_gate_holes, fill_gate_holes
 from podcast_mcp.edits.room_tone import room_tone_source_id
 from podcast_mcp.engines.play_audit import track_render_hash
@@ -639,10 +640,18 @@ def test_fill_never_overlaps_speech_in_a_multi_source_render(tmp_path: Path, suf
 def test_guest_proxy_render_carries_the_fill(tmp_path: Path) -> None:
     project = _project(tmp_path, _gated_track())
     track = project.track_by_id("guest")
-    plain, _ = _read_wav(render_source_with_chain(project, track, tmp_path / "proxy_plain.wav"))
+    plain, _ = _read_wav(
+        render_source_with_chain(
+            project, track, tmp_path / "proxy_plain.wav", defaults=load_defaults()
+        )
+    )
 
     fill_gate_holes(project, _defaults())
-    filled, _ = _read_wav(render_source_with_chain(project, track, tmp_path / "proxy_fill.wav"))
+    filled, _ = _read_wav(
+        render_source_with_chain(
+            project, track, tmp_path / "proxy_fill.wav", defaults=load_defaults()
+        )
+    )
 
     outside = np.ones(plain.size, dtype=bool)
     for a, b in HOLES:
@@ -731,14 +740,14 @@ def test_pipeline_step_is_undoable_and_changes_the_render_hash(tmp_path: Path) -
     project = _project(tmp_path, _gated_track())
     project.ensure_dirs()
     project_file = save_project(project)
-    before = track_render_hash(project, "guest")
+    before = track_render_hash(project, "guest", defaults=load_defaults())
     ws = ProjectWorkspace.open(project_file)
 
     result = PipelineService(ws).run(only_step="fill_gate_holes", config=_defaults())
 
     filled = load_project(project_file)
     assert filled.track_by_id("guest").gate_fill is not None
-    assert track_render_hash(filled, "guest") != before
+    assert track_render_hash(filled, "guest", defaults=load_defaults()) != before
     step_log = result.steps[-1]
     assert step_log.step == "fill_gate_holes"
     assert "comfort noise" in (step_log.message or "")
@@ -747,7 +756,7 @@ def test_pipeline_step_is_undoable_and_changes_the_render_hash(tmp_path: Path) -
 
     undone = load_project(project_file)
     assert undone.track_by_id("guest").gate_fill is None
-    assert track_render_hash(undone, "guest") == before
+    assert track_render_hash(undone, "guest", defaults=load_defaults()) == before
 
 
 def _read_wav_any(path: Path) -> tuple[np.ndarray, int]:

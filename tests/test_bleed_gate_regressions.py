@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.audio_audit import analyze_gate_overreach
 from podcast_mcp.engines.play_audit import proxy_render_hash, stem_is_fresh, track_render_hash
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
@@ -25,7 +26,7 @@ def gated_project(tmp_path: Path) -> EpisodeProject:
 
 def test_transcript_gate_without_noise_gate_is_identified(tmp_path: Path) -> None:
     project = gated_project(tmp_path)
-    report = analyze_gate_overreach(project, "host")
+    report = analyze_gate_overreach(project, "host", defaults=load_defaults())
     assert report["gate_present"] is True
     assert report["risk"] == "unknown"
 
@@ -34,18 +35,18 @@ def test_transcript_gate_without_noise_gate_is_identified(tmp_path: Path) -> Non
 @pytest.mark.parametrize("field,value", [("start", 1.2), ("end", 2.2), ("suppressed", True)])
 def test_gated_audio_cache_tracks_word_edits(tmp_path: Path, fingerprint, field, value) -> None:
     project = gated_project(tmp_path)
-    before = fingerprint(project, "host")
+    before = fingerprint(project, "host", defaults=load_defaults())
     setattr(project.transcripts[0].words[0], field, value)
-    assert fingerprint(project, "host") != before
+    assert fingerprint(project, "host", defaults=load_defaults()) != before
 
 
 @pytest.mark.parametrize("fingerprint", [track_render_hash, proxy_render_hash])
 def test_ungated_audio_cache_ignores_caption_timing(tmp_path: Path, fingerprint) -> None:
     project = gated_project(tmp_path)
     project.timeline.tracks[0].transcript_gate = False
-    before = fingerprint(project, "host")
+    before = fingerprint(project, "host", defaults=load_defaults())
     project.transcripts[0].words[0].start = 1.2
-    assert fingerprint(project, "host") == before
+    assert fingerprint(project, "host", defaults=load_defaults()) == before
 
 
 def audio_project(tmp_path: Path) -> EpisodeProject:
@@ -95,7 +96,7 @@ def test_gate_overreach_reports_added_tail_loss(tmp_path: Path) -> None:
     with wave.open(str(stem), "wb") as stream:
         stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
         stream.writeframes(samples.tobytes())
-    report = analyze_gate_overreach(project, "host")
+    report = analyze_gate_overreach(project, "host", defaults=load_defaults())
     assert report["gate_present"] is True
     assert any(issue["kind"] == "processed_offset_chop" for issue in report["issues"])
 
@@ -113,7 +114,7 @@ def test_reconcile_does_not_treat_gate_created_silence_as_source_evidence(
     with wave.open(str(stem), "wb") as stream:
         stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
         stream.writeframes(np.zeros(16000 * 3, dtype="<i2").tobytes())
-    reconcile_transcript(project, dry_run=False)
+    reconcile_transcript(project, dry_run=False, defaults=load_defaults())
     word = project.transcripts[0].words[0]
     assert word.suppressed is False
     assert word.audibility_status == "audible"
@@ -121,20 +122,20 @@ def test_reconcile_does_not_treat_gate_created_silence_as_source_evidence(
 
 def test_refresh_publishes_stem_for_final_gate_driving_transcript(tmp_path: Path) -> None:
     project = audio_project(tmp_path)
-    rerender_preview(project)
-    assert stem_is_fresh(project, "host")
+    rerender_preview(project, defaults=load_defaults())
+    assert stem_is_fresh(project, "host", defaults=load_defaults())
 
 
 def test_reconcile_refuses_gated_fallback_when_ungated_evidence_fails(tmp_path, monkeypatch):
     project = audio_project(tmp_path)
     before = project.transcripts[0].words[0].model_dump()
 
-    def unavailable(*args):
+    def unavailable(*args, **_kw):
         raise ValueError("ungated evidence unavailable")
 
     monkeypatch.setattr("podcast_mcp.engines.audio_audit._pre_transcript_gate_cache", unavailable)
     with pytest.raises(ValueError, match="ungated evidence unavailable"):
-        reconcile_transcript(project, dry_run=False)
+        reconcile_transcript(project, dry_run=False, defaults=load_defaults())
     assert project.transcripts[0].words[0].model_dump() == before
 
 
@@ -146,7 +147,7 @@ def test_refresh_persists_fresh_reconciliation_with_transcript_gate(tmp_path):
     PipelineService(ws).render_preview()
     reloaded = ProjectWorkspace.open(ws.path).project
     assert reloaded.reconciliation_stale is False
-    assert stem_is_fresh(reloaded, "host")
+    assert stem_is_fresh(reloaded, "host", defaults=load_defaults())
 
 
 def test_gate_overreach_detects_a_completely_silenced_retained_word(tmp_path):
@@ -156,7 +157,7 @@ def test_gate_overreach_detects_a_completely_silenced_retained_word(tmp_path):
     with wave.open(str(stem), "wb") as stream:
         stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
         stream.writeframes(np.zeros(16000 * 3, dtype="<i2").tobytes())
-    report = analyze_gate_overreach(project, "host")
+    report = analyze_gate_overreach(project, "host", defaults=load_defaults())
     assert report["risk"] != "none"
     assert any(issue["kind"] == "processed_word_loss" for issue in report["issues"])
 
@@ -177,7 +178,7 @@ def test_refresh_reconciles_current_ungated_peer_not_its_stale_stem(tmp_path):
     with wave.open(str(stem), "wb") as stream:
         stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
         stream.writeframes(np.zeros(16000 * 3, dtype="<i2").tobytes())
-    rerender_preview(project)
+    rerender_preview(project, defaults=load_defaults())
     guest = project.transcript_for_track("guest").words[0]
     assert guest.audibility_status != "inaudible"
 
@@ -199,7 +200,7 @@ def test_refresh_does_not_clear_stale_when_audio_changes_after_reconciliation(
         return result
 
     monkeypatch.setattr(PipelineRunner, "run", change_after_evidence)
-    result = rerender_preview(project)
+    result = rerender_preview(project, defaults=load_defaults())
     assert project.reconciliation_stale is True
     assert result["reconciliation"]["stale"] is True
 
@@ -223,9 +224,9 @@ def test_same_track_noise_and_transcript_gates_keep_separate_attribution(tmp_pat
     before_transcript_gate = TrackRmsCache.from_timeline_stem(stem)
     monkeypatch.setattr(
         "podcast_mcp.engines.audio_audit._pre_transcript_gate_cache",
-        lambda *_: before_transcript_gate,
+        lambda *_, **_kw: before_transcript_gate,
     )
-    report = analyze_gate_overreach(project, "host")
+    report = analyze_gate_overreach(project, "host", defaults=load_defaults())
     assert report["gate_type"] == "combined"
     by_type = {part["gate_type"]: part for part in report["components"]}
     assert by_type["transcript"]["risk"] == "none"

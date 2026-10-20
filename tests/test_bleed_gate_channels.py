@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.align import read_wav_mono_window
 from podcast_mcp.engines.bleed_gate import (
     EVIDENCE_RATE,
@@ -77,7 +78,7 @@ def test_dual_mono_lane_is_judged_once_on_its_mixdown(tmp_path: Path) -> None:
     host = tmp_path / "raw" / "host.wav"
     mono = _read_pcm(host).astype(np.float64) / 32767
     _write_pcm(host, np.column_stack([mono, mono]))
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.attenuation_spans == DUAL_MONO_SPANS
     assert plan.protected_spans == DUAL_MONO_PROTECTED
     assert (plan.reduction, plan.bed_db, plan.reasons) == ("mute", LEVEL_FLOOR_DB, ())
@@ -186,7 +187,9 @@ def test_lossy_dual_mono_is_judged_once_like_wav_dual_mono(
     )
     assert any(
         start <= 5.0 and end >= 5.3
-        for start, end in build_bleed_gate_plan(project, "host").protected_spans
+        for start, end in build_bleed_gate_plan(
+            project, "host", defaults=load_defaults()
+        ).protected_spans
     )
 
 

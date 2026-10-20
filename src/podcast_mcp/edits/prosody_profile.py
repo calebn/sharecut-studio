@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.timeline_span import timeline_span_dicts
 from podcast_mcp.edits.transcript_reuse import audio_identity
 from podcast_mcp.engines.prosody import (
@@ -313,14 +314,14 @@ def _analyze_track(
 
 def run_prosody_analysis(
     project: EpisodeProject,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
 ) -> ProsodyRunResult:
     """Compute (or reuse) each dialogue track's prosody profile.
 
     A no-op (``ProsodyRunResult(unavailable=True)``) when ``praat-parselmouth`` is
     not installed. Reads primary track media only (not per-clip sources).
     """
-    defaults = defaults or {}
+
     params = ProsodyParams.from_defaults(defaults)
     if parselmouth_version() is None:
         return ProsodyRunResult(unavailable=True)

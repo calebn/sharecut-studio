@@ -15,6 +15,7 @@ from typer.testing import CliRunner
 
 from contract_project_helpers import contract_project
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
@@ -122,7 +123,9 @@ def test_trim_clip_edge_in_restores_cutaway(minimal_project):
 def test_document_trim_clip_edge(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_clips_with_cutaway(ws)
-    revision = boundary_context(ws.project, TrimBoundaryTarget(clip_id="c1", edge="out")).token
+    revision = boundary_context(
+        ws.project, TrimBoundaryTarget(clip_id="c1", edge="out"), defaults=load_defaults()
+    ).token
     svc = DocumentSyncService.open(minimal_project)
     out = svc.submit(
         DocumentCommand(
@@ -193,7 +196,7 @@ def test_document_trim_refuses_a_follower_before_zero(minimal_project, lane, edg
     save_project(project)
     ws = ProjectWorkspace.open(minimal_project)
     target = TrimBoundaryTarget(clip_id="anchor", edge=edge, mode=EditMode.RIPPLE)
-    token = boundary_context(ws.project, target).token
+    token = boundary_context(ws.project, target, defaults=load_defaults()).token
     before = ws.project.model_dump()
     saved_before = minimal_project.read_bytes()
     history_before = ws.project.history.model_dump()
@@ -215,7 +218,7 @@ def test_document_trim_refuses_a_follower_before_zero(minimal_project, lane, edg
     assert ws.project.model_dump() == before
     assert minimal_project.read_bytes() == saved_before
     assert ws.project.history.model_dump() == history_before
-    assert boundary_context(ws.project, target).token == token
+    assert boundary_context(ws.project, target, defaults=load_defaults()).token == token
     assert load_project(minimal_project).model_dump() == before
     with pytest.raises(CodedValueError, match="before the timeline starts"):
         PlayService(ws).audition_boundary(
@@ -287,7 +290,11 @@ def test_refused_trim_preserves_rendered_clock_and_source_audio(tmp_path):
     before = project.model_dump()
     sources = {name: (tmp_path / f"{name}.wav").read_bytes() for name in ("host", "alt")}
     with pytest.raises(CodedValueError, match="before the timeline starts"):
-        apply_trim_geometry(project, plan_trim(project, "anchor", "out", 8, EditMode.RIPPLE))
+        apply_trim_geometry(
+            project,
+            plan_trim(project, "anchor", "out", 8, EditMode.RIPPLE),
+            defaults=load_defaults(),
+        )
     assert project.model_dump() == before
     output = tmp_path / "render.wav"
     render_track_from_timeline(project, project.tracks[0], output, {}, engine=FFmpegEngine())
@@ -435,7 +442,9 @@ def test_ripple_trim_moves_the_session_join_on_every_track(
 def test_zero_delta_ripple_trim_does_not_save_or_add_history(minimal_project: Path) -> None:
     path = _session_ripple_project(minimal_project)
     ws = ProjectWorkspace.open(path)
-    revision = boundary_context(ws.project, TrimBoundaryTarget(clip_id="remote_b", edge="in")).token
+    revision = boundary_context(
+        ws.project, TrimBoundaryTarget(clip_id="remote_b", edge="in"), defaults=load_defaults()
+    ).token
     before = path.read_bytes()
     history = len(ws.project.history.entries)
     result = EditService(ws).trim_clip_edge(

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import patch
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_precorrect import (
     PrecorrectResult,
     _audibility_score,
@@ -130,7 +131,7 @@ def test_glossary_pass_finds_phrase_and_word() -> None:
             ],
         )
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=True)
+    report = run_glossary_pass(p, _ctx(), dry_run=True, defaults=load_defaults())
     assert report["count"] == 2
     kinds = {f["kind"] for f in report["fixes"]}
     assert kinds == {"phrase", "word"}
@@ -145,7 +146,7 @@ def test_glossary_ignores_empty_phrase_rule() -> None:
         )
     ]
     ctx = _ctx(replacements=[ReplacementRule("", "ignored", "phrase")])
-    report = run_glossary_pass(p, ctx, dry_run=True)
+    report = run_glossary_pass(p, ctx, dry_run=True, defaults=load_defaults())
     assert report["count"] == 0
 
 
@@ -166,7 +167,7 @@ def test_glossary_homophone_phrase_replacement() -> None:
             ReplacementRule("in sight fear", "inciting fear", "phrase"),
         ]
     )
-    report = run_glossary_pass(p, ctx, dry_run=False)
+    report = run_glossary_pass(p, ctx, dry_run=False, defaults=load_defaults())
     assert report["count"] == 1
     assert p.transcripts[0].words[0].text == "inciting"
     assert p.transcripts[0].words[-1].text == "fear"
@@ -187,7 +188,7 @@ def test_glossary_skips_suppressed_words() -> None:
             ],
         )
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=True)
+    report = run_glossary_pass(p, _ctx(), dry_run=True, defaults=load_defaults())
     assert report["count"] == 0
 
 
@@ -199,7 +200,7 @@ def test_glossary_skip_span_excludes_word() -> None:
             words=[TranscriptWord(text="teh", start=6.5, end=7.0)],
         )
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=True)
+    report = run_glossary_pass(p, _ctx(), dry_run=True, defaults=load_defaults())
     assert report["count"] == 0
 
 
@@ -211,7 +212,7 @@ def test_glossary_apply_mutates_transcript() -> None:
             words=[TranscriptWord(text="teh", start=11.0, end=11.5)],
         )
     ]
-    run_glossary_pass(p, _ctx(), dry_run=False)
+    run_glossary_pass(p, _ctx(), dry_run=False, defaults=load_defaults())
     assert p.transcripts[0].words[0].text == "the"
 
 
@@ -278,7 +279,7 @@ def test_cross_track_sync_rejects_talking_to_i_lab_pair() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=False)
+        report = run_cross_track_sync(p, ctx, dry_run=False, defaults=load_defaults())
 
     assert report["count"] == 0
     assert p.transcripts[1].words[0].text == "talking"
@@ -330,6 +331,7 @@ def test_precorrect_dry_run_emits_progress(tmp_path) -> None:
         dry_run=True,
         context=ctx,
         progress=progress,
+        defaults=load_defaults(),
     )
     task_ids = [e["task_id"] for e in progress.events if e["kind"] == "start"]
     assert "precorrect" in task_ids
@@ -401,7 +403,7 @@ def test_glossary_phrase_homophone_match_type() -> None:
         replacements=[ReplacementRule("logos bible", "Logos Bible", "phrase")],
         preserve_tokens=[],
     )
-    report = run_glossary_pass(p, ctx, dry_run=True)
+    report = run_glossary_pass(p, ctx, dry_run=True, defaults=load_defaults())
     assert report["count"] == 1
     assert report["fixes"][0]["text"] == "Logos Bible"
 
@@ -422,7 +424,7 @@ def test_glossary_preserve_token_blocks_phrase_span() -> None:
         replacements=[ReplacementRule("keep verdad here", "kept", "phrase")],
         preserve_tokens=["verdad"],
     )
-    report = run_glossary_pass(p, ctx, dry_run=True)
+    report = run_glossary_pass(p, ctx, dry_run=True, defaults=load_defaults())
     assert report["count"] == 0
 
 
@@ -437,7 +439,9 @@ def test_glossary_pass_reports_progress_every_50_words() -> None:
         )
     ]
     progress = RecordingProgress()
-    run_glossary_pass(p, _ctx(replacements=[]), dry_run=True, progress=progress)
+    run_glossary_pass(
+        p, _ctx(replacements=[]), dry_run=True, progress=progress, defaults=load_defaults()
+    )
     updates = [
         e
         for e in progress.events
@@ -526,7 +530,7 @@ def test_cross_track_sync_applies_winner_text() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=False)
+        report = run_cross_track_sync(p, ctx, dry_run=False, defaults=load_defaults())
 
     assert report["count"] == 1
     assert p.transcripts[1].words[0].text == "truth"
@@ -558,7 +562,7 @@ def test_cross_track_sync_keeps_loser_evidence() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        run_cross_track_sync(p, ctx, dry_run=False)
+        run_cross_track_sync(p, ctx, dry_run=False, defaults=load_defaults())
 
     w = p.transcripts[1].words[0]
     assert w.text == "truth"
@@ -582,7 +586,7 @@ def test_glossary_apply_keeps_evidence() -> None:
             ],
         )
     ]
-    run_glossary_pass(p, _ctx(), dry_run=False)
+    run_glossary_pass(p, _ctx(), dry_run=False, defaults=load_defaults())
     word = p.transcripts[0].words[0]
     assert word.text == "the"
     assert word.alignment_score == 0.004
@@ -612,7 +616,7 @@ def test_cross_track_sync_defers_low_similarity_bleed() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
     assert len(report["deferred_low_similarity"]) == 1
@@ -645,7 +649,7 @@ def test_cross_track_sync_defers_ambiguous_winner() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
     assert report["deferred_low_similarity"][0]["reason"] == "ambiguous_audibility"
@@ -679,7 +683,7 @@ def test_cross_track_sync_skips_filler_word() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
     assert report["deferred_low_similarity"] == []
@@ -711,7 +715,7 @@ def test_cross_track_sync_skips_skip_span() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
     assert report["deferred_low_similarity"] == []
@@ -796,7 +800,7 @@ def test_precorrect_builds_deferred_queue_and_garble_hits(tmp_path) -> None:
         "podcast_mcp.edits.transcript_precorrect.run_cross_track_sync",
         return_value={"count": 0, "fixes": [], "deferred_low_similarity": [deferred_pair]},
     ):
-        result = run_precorrect_transcript(p, dry_run=True, context=ctx)
+        result = run_precorrect_transcript(p, dry_run=True, context=ctx, defaults=load_defaults())
 
     assert result.report["deferred_queue"]
     assert result.report["deferred_queue"][0]["kind"] == "low_similarity"
@@ -819,7 +823,7 @@ def test_precorrect_enqueues_anomalous_word_duration(tmp_path) -> None:
         "podcast_mcp.edits.transcript_precorrect.run_cross_track_sync",
         return_value={"count": 0, "fixes": [], "deferred_low_similarity": []},
     ):
-        result = run_precorrect_transcript(p, dry_run=True, context=ctx)
+        result = run_precorrect_transcript(p, dry_run=True, context=ctx, defaults=load_defaults())
 
     kinds = [item["kind"] for item in result.report["deferred_queue"]]
     assert "anomalous_word_duration" in kinds
@@ -846,7 +850,7 @@ def test_precorrect_enqueues_an_overlong_word_for_refine(tmp_path) -> None:
         "podcast_mcp.edits.transcript_precorrect.run_cross_track_sync",
         return_value={"count": 0, "fixes": [], "deferred_low_similarity": []},
     ):
-        result = run_precorrect_transcript(p, dry_run=True, context=ctx)
+        result = run_precorrect_transcript(p, dry_run=True, context=ctx, defaults=load_defaults())
 
     assert [
         (x["kind"], x["text"], x["start"], x["end"]) for x in result.report["deferred_queue"]
@@ -869,7 +873,7 @@ def test_precorrect_apply_marks_anomalous_word_duration(tmp_path) -> None:
         "podcast_mcp.edits.transcript_precorrect.run_cross_track_sync",
         return_value={"count": 0, "fixes": [], "deferred_low_similarity": []},
     ):
-        result = run_precorrect_transcript(p, dry_run=False, context=ctx)
+        result = run_precorrect_transcript(p, dry_run=False, context=ctx, defaults=load_defaults())
 
     kinds = [item["kind"] for item in result.report["deferred_queue"]]
     assert "anomalous_word_duration" in kinds
@@ -899,7 +903,7 @@ def test_cross_track_sync_skips_matching_text() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
 
@@ -912,7 +916,7 @@ def test_precorrect_speaker_import_error(tmp_path) -> None:
     ]
     ctx = _ctx(speaker_id=SpeakerIdConfig(mode="always"))
     with patch.dict("sys.modules", {"podcast_mcp.engines.speaker_id": None}):
-        result = run_precorrect_transcript(p, dry_run=True, context=ctx)
+        result = run_precorrect_transcript(p, dry_run=True, context=ctx, defaults=load_defaults())
 
     assert result.speaker_skipped_reason == "speaker extra not installed"
     assert result.report["speaker_attribution"]["skipped_reason"] == "speaker extra not installed"
@@ -930,7 +934,7 @@ def test_precorrect_runs_speaker_attribution_when_available(tmp_path) -> None:
         "podcast_mcp.engines.speaker_id.run_speaker_attribution",
         return_value=speaker_report,
     ):
-        result = run_precorrect_transcript(p, dry_run=True, context=ctx)
+        result = run_precorrect_transcript(p, dry_run=True, context=ctx, defaults=load_defaults())
 
     assert result.speaker_ran is True
     assert result.report["speaker_attribution"]["attributions_changed"] == 2
@@ -942,7 +946,7 @@ def test_precorrect_applied_flag_when_not_dry_run(tmp_path) -> None:
     p.transcripts = [
         Transcript(track_id="host", words=[TranscriptWord(text="teh", start=11.0, end=11.5)])
     ]
-    result = run_precorrect_transcript(p, dry_run=False, context=_ctx())
+    result = run_precorrect_transcript(p, dry_run=False, context=_ctx(), defaults=load_defaults())
     assert result.applied is True
     assert result.glossary_applied >= 1
 
@@ -1046,7 +1050,7 @@ def test_cross_track_sync_low_similarity_without_bleed_not_deferred() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
     assert report["deferred_low_similarity"] == []
@@ -1080,7 +1084,7 @@ def test_cross_track_sync_guest_wins_and_mutates_host() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=False)
+        report = run_cross_track_sync(p, ctx, dry_run=False, defaults=load_defaults())
 
     assert report["count"] == 1
     assert report["fixes"][0]["winner_track"] == "guest"
@@ -1109,7 +1113,7 @@ def test_cross_track_sync_skips_invalid_loser_index() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
 
@@ -1139,7 +1143,7 @@ def test_cross_track_sync_reads_word_confidence_defaults() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 1
     assert report["fixes"][0]["winner_track"] == "host"
@@ -1179,7 +1183,7 @@ def test_cross_track_sync_reports_progress_every_50_pairs() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": pairs},
     ):
-        run_cross_track_sync(p, ctx, dry_run=True, progress=progress)
+        run_cross_track_sync(p, ctx, dry_run=True, progress=progress, defaults=load_defaults())
 
     updates = [
         e
@@ -1198,7 +1202,7 @@ def test_cross_track_sync_progress_on_low_similarity_batch() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": pairs},
     ):
-        run_cross_track_sync(p, ctx, dry_run=True, progress=progress)
+        run_cross_track_sync(p, ctx, dry_run=True, progress=progress, defaults=load_defaults())
 
     updates = [
         e
@@ -1231,7 +1235,7 @@ def test_cross_track_sync_missing_track_skips_confidence() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
 
@@ -1267,7 +1271,9 @@ def test_cross_track_sync_progress_on_ambiguous_batch() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": pairs},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True, progress=progress)
+        report = run_cross_track_sync(
+            p, ctx, dry_run=True, progress=progress, defaults=load_defaults()
+        )
 
     assert report["count"] == 0
     assert len(report["deferred_low_similarity"]) == 50
@@ -1335,7 +1341,7 @@ def test_cross_track_sync_ignores_pairs_with_no_bleed_path() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=False)
+        report = run_cross_track_sync(p, ctx, dry_run=False, defaults=load_defaults())
 
     assert report == {"count": 0, "fixes": [], "deferred_low_similarity": []}
     assert p.transcripts[1].words[0].text == "trooth"
@@ -1359,7 +1365,7 @@ def test_cross_track_sync_queues_a_stretched_word_once() -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [_stretched_pair(), normal]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=True)
+        report = run_cross_track_sync(p, ctx, dry_run=True, defaults=load_defaults())
 
     assert report["count"] == 0
     assert [(d["reason"], d["start_a"]) for d in report["deferred_low_similarity"]] == [
@@ -1385,7 +1391,9 @@ def test_precorrect_queues_the_stretched_word_not_its_pairs(tmp_path) -> None:
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [_stretched_pair()]},
     ):
-        result = run_precorrect_transcript(p, dry_run=True, context=_ctx())
+        result = run_precorrect_transcript(
+            p, dry_run=True, context=_ctx(), defaults=load_defaults()
+        )
 
     assert result.report["deferred_queue"] == [
         {
@@ -1417,7 +1425,7 @@ def test_glossary_pass_fixes_the_take_that_holds_the_match() -> None:
             ],
         ),
     ]
-    report = run_glossary_pass(p, _ctx(), dry_run=False)
+    report = run_glossary_pass(p, _ctx(), dry_run=False, defaults=load_defaults())
     assert report["count"] == 1
     assert [w.text for w in p.transcripts[0].words] == ["hello"]
     assert [w.text for w in p.transcripts[1].words] == ["x", "the"]
@@ -1455,7 +1463,7 @@ def test_cross_track_sync_fixes_first_take_of_a_lane_with_only_explicit_takes() 
         "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
         return_value={"pairs": [pair]},
     ):
-        report = run_cross_track_sync(p, ctx, dry_run=False)
+        report = run_cross_track_sync(p, ctx, dry_run=False, defaults=load_defaults())
 
     assert report["count"] == 1
     assert guest.words[0].text == "truth"

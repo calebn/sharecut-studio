@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project, save_project
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.services.app import ProjectWorkspace
@@ -158,7 +159,9 @@ def _propose_pending_edit(monkeypatch, *, fail_after: bool = False) -> None:
     from podcast_mcp.edits.transcript_cuts import append_remove_decision
 
     def run(self, project, *, on_step_complete=None, **_kwargs):
-        append_remove_decision(project, "host", 1.0, 1.5, reason="find-hits-proof")
+        append_remove_decision(
+            project, "host", 1.0, 1.5, reason="find-hits-proof", defaults=load_defaults()
+        )
         if on_step_complete is not None:
             on_step_complete("analyze_fillers_pauses")
         if fail_after:

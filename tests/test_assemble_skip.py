@@ -57,7 +57,7 @@ def test_render_dialogue_stems_writes_fresh_stem_hash(
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     steps.render_dialogue_stems(proj, load_defaults())
-    assert stem_is_fresh(proj, "host")
+    assert stem_is_fresh(proj, "host", defaults=load_defaults())
     assert (proj.artifacts_dir() / "tracks" / "host.wav").is_file()
     meta = proj.artifacts_dir() / "track_outputs.json"
     assert meta.is_file()
@@ -73,7 +73,7 @@ def test_assemble_writes_fresh_stem_hash(
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     steps.assemble_timeline(proj, load_defaults())
-    assert stem_is_fresh(proj, "host")
+    assert stem_is_fresh(proj, "host", defaults=load_defaults())
     assert (proj.artifacts_dir() / "tracks" / "host.wav").is_file()
 
 
@@ -114,7 +114,7 @@ def test_assemble_rerenders_after_edit(
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     defaults = load_defaults()
     steps.assemble_timeline(proj, defaults)
-    assert stem_is_fresh(proj, "host")
+    assert stem_is_fresh(proj, "host", defaults=defaults)
 
     proj.edit_decisions.append(
         EditDecision(
@@ -128,8 +128,8 @@ def test_assemble_rerenders_after_edit(
     )
     from podcast_mcp.edits.cut_application import approve_edits
 
-    approve_edits(proj, ["cut1"], application_intent=CutIntent.HUMAN_BOUNDARIES)
-    assert not stem_is_fresh(proj, "host")
+    approve_edits(proj, ["cut1"], application_intent=CutIntent.HUMAN_BOUNDARIES, defaults=defaults)
+    assert not stem_is_fresh(proj, "host", defaults=defaults)
 
     render_calls = {"n": 0}
     original = eng.render_dialogue_track
@@ -143,6 +143,6 @@ def test_assemble_rerenders_after_edit(
         steps.assemble_timeline(proj, defaults)
 
     assert render_calls["n"] == 1
-    assert stem_is_fresh(proj, "host")
+    assert stem_is_fresh(proj, "host", defaults=defaults)
     stem = proj.artifacts_dir() / "tracks" / "host.wav"
     assert eng.probe(stem).duration_sec < 1.8

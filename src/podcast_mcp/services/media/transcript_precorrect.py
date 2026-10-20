@@ -8,6 +8,7 @@ from typing import Any
 
 from filelock import Timeout
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.project_io import resolve_project_path
@@ -158,8 +159,9 @@ class TranscriptPrecorrectService:
         *,
         dry_run: bool = True,
         progress: ProgressReporter | None = None,
-        defaults: dict[str, Any] | None = None,
+        defaults: EffectiveConfig | None = None,
     ) -> dict[str, Any]:
+        defaults = defaults if defaults is not None else self.ws.effective_config()
         ctx = self.load_context()
         policy = AnalysisPolicy.from_defaults(defaults)
 
@@ -170,6 +172,7 @@ class TranscriptPrecorrectService:
                 policy=policy,
                 progress=resolve_progress(progress),
                 context=ctx,
+                defaults=defaults,
             )
             return result.to_dict()
 
@@ -180,6 +183,7 @@ class TranscriptPrecorrectService:
                 policy=policy,
                 progress=resolve_progress(progress),
                 context=ctx,
+                defaults=defaults,
             )
             return result.to_dict()
 

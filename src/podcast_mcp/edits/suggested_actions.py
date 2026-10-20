@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.cut_safety import decision_policy
 from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.models import (
@@ -55,7 +56,11 @@ class SuggestedActionsResult:
 
 
 def describe_sounds(
-    project: EpisodeProject, decisions: list[EditDecision], actions: dict[str, str]
+    project: EpisodeProject,
+    decisions: list[EditDecision],
+    actions: dict[str, str],
+    *,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     """What the batch history entry remembers of each sound, so a client can list the batch.
 
@@ -68,7 +73,7 @@ def describe_sounds(
         mapped = edit_timeline_range(project, decision)
         action = actions[decision.id]
         if action == "lower":
-            over = another_speaker_over(project, decision)
+            over = another_speaker_over(project, decision, defaults=defaults)
             if over is False:
                 action = "leave"  # what apply_suggested_to_project will do with it
             elif over is None:
@@ -85,7 +90,9 @@ def describe_sounds(
     return rows
 
 
-def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> bool | None:
+def another_speaker_over(
+    project: EpisodeProject, decision: EditDecision, *, defaults: EffectiveConfig
+) -> bool | None:
     """True when a peer track is speaking over the span, False when none is, None when unknown.
 
     None means the audio could not be read; a caller must not treat it as "nobody talks over
@@ -95,7 +102,7 @@ def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> boo
 
     try:
         return cut_safety.assess_cross_track_speech(
-            project, decision.track_id, decision.start, decision.end
+            project, decision.track_id, decision.start, decision.end, defaults=defaults
         ).blocked
     except (OSError, ValueError):
         log.debug("peer speech check unavailable for %s", decision.id, exc_info=True)

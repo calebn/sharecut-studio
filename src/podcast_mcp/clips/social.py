@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import premix_path
@@ -75,10 +76,10 @@ _PyramidCache = dict[str, tuple[Path, PyramidMeta] | None]
 
 
 def _track_pyramid_or_none(
-    project: EpisodeProject, track_id: str
+    project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
 ) -> tuple[Path, PyramidMeta] | None:
     try:
-        return track_pyramid(project, track_id)
+        return track_pyramid(project, track_id, defaults=defaults)
     except (OSError, ValueError):
         return None
 
@@ -90,6 +91,7 @@ def _utterance_energy(
     end: float,
     *,
     pyramids: _PyramidCache | None = None,
+    defaults: EffectiveConfig,
 ) -> float:
     """Loudness hint in [0, 1] from the track's waveform pyramid; 0.5 when unknown.
 
@@ -98,7 +100,7 @@ def _utterance_energy(
     if pyramids is None:
         pyramids = {}
     if track_id not in pyramids:
-        pyramids[track_id] = _track_pyramid_or_none(project, track_id)
+        pyramids[track_id] = _track_pyramid_or_none(project, track_id, defaults=defaults)
     found = pyramids[track_id]
     if found is None:
         return 0.5
@@ -125,6 +127,7 @@ def _score_utterance(
     min_sec: float,
     max_sec: float,
     pyramids: _PyramidCache | None = None,
+    defaults: EffectiveConfig,
 ) -> tuple[float, list[str]]:
     reasons: list[str] = []
     dur = end - start
@@ -146,7 +149,7 @@ def _score_utterance(
             score += 0.12
             reasons.append("hook_pattern")
             break
-    energy = _utterance_energy(project, track_id, start, end, pyramids=pyramids)
+    energy = _utterance_energy(project, track_id, start, end, pyramids=pyramids, defaults=defaults)
     score += 0.2 * energy
     if energy > 0.6:
         reasons.append("high_energy")
@@ -191,7 +194,7 @@ def propose_social_clips(
     cfg = defaults.get("social_clips", {})
     min_sec, max_sec = _platform_limits(defaults, platform)
     limit = max_clips or int(cfg.get("max_candidates", 12))
-    combined = ensure_combined_transcript(project)
+    combined = ensure_combined_transcript(project, defaults=defaults)
     duration_sec = _episode_duration(project)
     st = SessionTimeline(project)
     pyramids: _PyramidCache = {}
@@ -215,6 +218,7 @@ def propose_social_clips(
             min_sec=min_sec,
             max_sec=max_sec,
             pyramids=pyramids,
+            defaults=defaults,
         )
         if score < 0.4:
             continue

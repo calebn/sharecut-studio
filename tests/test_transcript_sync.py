@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.transcript_sync import (
     apply_batch_transcript_removes,
@@ -52,7 +53,9 @@ def _project_with_clip_and_words() -> EpisodeProject:
 
 def test_drop_words_in_timeline_range_keeps_source_times() -> None:
     p = _project_with_clip_and_words()
-    apply_batch_transcript_removes(p, [(2.0, 4.0)], {"host": list(p.timeline.clips)})
+    apply_batch_transcript_removes(
+        p, [(2.0, 4.0)], {"host": list(p.timeline.clips)}, defaults=load_defaults()
+    )
     words = p.transcripts[0].words
     assert len(words) == 2
     assert words[1].start == 5.0
@@ -62,7 +65,9 @@ def test_apply_batch_transcript_removes_does_not_shift_source_times() -> None:
     p = _project_with_clip_and_words()
     p.transcripts[0].words.append(TranscriptWord(text="late", start=15.0, end=16.0))
     clips_before = {"host": list(p.timeline.clips)}
-    apply_batch_transcript_removes(p, [(2.0, 4.0)], clips_before, rebuild=False)
+    apply_batch_transcript_removes(
+        p, [(2.0, 4.0)], clips_before, rebuild=False, defaults=load_defaults()
+    )
     words = {w.text: w.start for w in p.transcripts[0].words}
     assert words["a"] == 0.0
     assert words["b"] == 5.0
@@ -73,7 +78,7 @@ def test_insert_gap_keeps_word_source_times() -> None:
     from podcast_mcp.edits.timeline_ops import insert_gap
 
     p = _project_with_clip_and_words()
-    insert_gap(p, 4.0, 2.0)
+    insert_gap(p, 4.0, 2.0, defaults=load_defaults())
     words = {w.text: w.start for w in p.transcripts[0].words}
     # Words stay in source coordinates; only clip placement moves.
     assert words == {"a": 0.0, "b": 5.0}
@@ -93,7 +98,7 @@ def test_fill_with_room_tone_keeps_word_source_times() -> None:
         "podcast_mcp.edits.timeline_ops.room_tone_span",
         return_value=OwnQuietSample(Sample(7.0, 7.25, -70.0, None)),
     ):
-        fill_with_room_tone(p, "host")
+        fill_with_room_tone(p, "host", defaults=load_defaults())
     words = {w.text: w.start for w in p.transcripts[0].words}
     assert words == {"a": 0.0, "b": 5.0}
     # Fill clips tile across the 5.0-6.0 timeline gap (0.25s samples → 4 tiles).
@@ -122,7 +127,9 @@ def test_timeline_removes_to_source_merges_overlapping() -> None:
 def test_apply_batch_transcript_removes_empty_is_noop() -> None:
     p = _project_with_clip_and_words()
     before = list(p.transcripts[0].words)
-    apply_batch_transcript_removes(p, [], {"host": list(p.timeline.clips)}, rebuild=False)
+    apply_batch_transcript_removes(
+        p, [], {"host": list(p.timeline.clips)}, rebuild=False, defaults=load_defaults()
+    )
     assert p.transcripts[0].words == before
 
 
@@ -131,7 +138,7 @@ def test_apply_source_transcript_removes_empty_dict() -> None:
 
     p = _project_with_clip_and_words()
     before = list(p.transcripts[0].words)
-    apply_source_transcript_removes(p, {}, rebuild=False)
+    apply_source_transcript_removes(p, {}, rebuild=False, defaults=load_defaults())
     assert p.transcripts[0].words == before
 
 
@@ -141,7 +148,9 @@ def test_strip_silence_transcript_drop_stays_in_source_coords() -> None:
 
     p = _project_with_clip_and_words()
     p.transcripts[0].words.append(TranscriptWord(text="cut", start=2.5, end=3.5))
-    apply_source_transcript_removes(p, {"host": [(2.0, 4.0)]}, rebuild=False)
+    apply_source_transcript_removes(
+        p, {"host": [(2.0, 4.0)]}, rebuild=False, defaults=load_defaults()
+    )
     words = {w.text: w.start for w in p.transcripts[0].words}
     assert words == {"a": 0.0, "b": 5.0}
 
@@ -171,5 +180,7 @@ def test_drop_words_skips_when_no_source_ranges() -> None:
             words=[TranscriptWord(text="keep", start=1.0, end=2.0)],
         )
     ]
-    apply_batch_transcript_removes(p, [(20.0, 25.0)], {"host": list(p.timeline.clips)})
+    apply_batch_transcript_removes(
+        p, [(20.0, 25.0)], {"host": list(p.timeline.clips)}, defaults=load_defaults()
+    )
     assert len(p.transcripts[0].words) == 1

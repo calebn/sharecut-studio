@@ -15,7 +15,9 @@ from podcast_mcp.whisper_models import resolve_whisper_model
 class TranscriptService:
     def __init__(self, workspace: ProjectWorkspace, *, model: str | None = None) -> None:
         self.ws = workspace
-        self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
+        self._engine = TranscriptionEngine(
+            resolve_whisper_model(requested=model), defaults=self.ws.effective_config()
+        )
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
         from podcast_mcp.edits.word_spans import trim_project_word_spans
@@ -72,7 +74,7 @@ class TranscriptService:
     ) -> str:
         p = self.ws.project
         if format == "timestamps":
-            return format_transcript_timestamps(p)
+            return format_transcript_timestamps(p, defaults=self.ws.effective_config())
         if combined:
             transcript = p.combined_transcript or self._engine.merge_transcripts(p)
             return transcript.model_dump_json(indent=2)
@@ -84,7 +86,7 @@ class TranscriptService:
         with self.ws.transaction() as p:
             if not p.combined_transcript:
                 p.combined_transcript = self._engine.merge_transcripts(p)
-            out = write_combined_transcript_markdown(p)
+            out = write_combined_transcript_markdown(p, self.ws.effective_config())
             self.ws.save()
         return out
 

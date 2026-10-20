@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from contract_project_helpers import contract_project
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import update_timeline_duration
 from podcast_mcp.engines.audio import MixAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -124,7 +125,7 @@ def test_saved_ripple_trim_renders_single_source_at_saved_positions(tmp_path: Pa
         "out",
         6,
         mode=EditMode.RIPPLE,
-        expected_token=boundary_context(workspace.project, target).token,
+        expected_token=boundary_context(workspace.project, target, defaults=load_defaults()).token,
         application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
 
@@ -224,7 +225,7 @@ def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
         "out",
         6,
         mode=EditMode.RIPPLE,
-        expected_token=boundary_context(workspace.project, target).token,
+        expected_token=boundary_context(workspace.project, target, defaults=load_defaults()).token,
         application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
 

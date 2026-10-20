@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.history import HistoryManager, run_mutation
 from podcast_mcp.history.manager import record_and_commit
 from podcast_mcp.history.rollback import (
@@ -76,6 +77,12 @@ class ProjectWorkspace:
                 signature if file_revision(self.path) == signature else None
             )
             return self.project
+
+    def effective_config(self) -> EffectiveConfig:
+        """The config one request runs against: this project's staged working set, else shipped defaults."""
+        from podcast_mcp.services.pipeline import run_defaults_for
+
+        return run_defaults_for(self.path)
 
     @property
     def loaded_file_revision(self) -> FileRevision | None:
@@ -296,6 +303,7 @@ class ProjectWorkspace:
                     label_before,
                     label_after,
                     fn,
+                    defaults=self.effective_config(),
                     operation=operation,
                     params=params,
                     on_failure=on_failure,

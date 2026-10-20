@@ -3,11 +3,12 @@ from __future__ import annotations
 import subprocess
 import wave
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import timeline_render
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -49,10 +50,17 @@ def test_default_and_explicit_primary_keep_legacy_command(
     run = Mock(wraps=timeline_render.run)
     monkeypatch.setattr(timeline_render, "run", run)
     target = tmp_path / "baseline.wav"
-    timeline_render.render_source_with_chain(project, track, target, engine=engine)
+    timeline_render.render_source_with_chain(
+        project, track, target, engine=engine, defaults=load_defaults()
+    )
     legacy = run.call_args
     timeline_render.render_source_with_chain(
-        project, track, target, engine=engine, selected_source_path=tmp_path / "primary.wav"
+        project,
+        track,
+        target,
+        engine=engine,
+        selected_source_path=tmp_path / "primary.wav",
+        defaults=load_defaults(),
     )
     assert run.call_args == legacy
     inputs = ["-i", str(tmp_path / "primary.wav")]
@@ -100,7 +108,12 @@ def test_selected_secondary_keeps_origin_fx_gate_and_fill_eligibility(
     engine = FFmpegEngine()
     target = tmp_path / "selected.wav"
     timeline_render.render_source_with_chain(
-        project, track, target, engine=engine, selected_source_path=selected
+        project,
+        track,
+        target,
+        engine=engine,
+        selected_source_path=selected,
+        defaults=load_defaults(),
     )
     expected = tmp_path / "expected.wav"
     subprocess.run(
@@ -121,7 +134,7 @@ def test_selected_secondary_keeps_origin_fx_gate_and_fill_eligibility(
     samples = _read(expected).copy()
     samples[3200:6400] = 0
     np.testing.assert_array_equal(_read(target), samples)
-    gate_builder.assert_called_once_with(project, "origin", source_clock=True)
+    gate_builder.assert_called_once_with(project, "origin", source_clock=True, defaults=ANY)
     assert project.track_by_id("origin") is track
     assert project.model_dump(mode="json") == before
 
@@ -131,11 +144,15 @@ def test_selected_source_can_render_without_primary_media(tmp_path: Path) -> Non
     track.media = None
     target = tmp_path / "selected.wav"
     timeline_render.render_source_with_chain(
-        project, track, target, selected_source_path=tmp_path / "primary.wav"
+        project,
+        track,
+        target,
+        selected_source_path=tmp_path / "primary.wav",
+        defaults=load_defaults(),
     )
     np.testing.assert_array_equal(_read(target), np.full(16000, 1000))
     with pytest.raises(ValueError, match="has no media"):
-        timeline_render.render_source_with_chain(project, track, target)
+        timeline_render.render_source_with_chain(project, track, target, defaults=load_defaults())
 
 
 @pytest.mark.parametrize("outside", [False, True])
@@ -147,6 +164,10 @@ def test_selected_source_still_requires_present_workspace_media(
     error = ValueError if outside else FileNotFoundError
     with pytest.raises(error):
         timeline_render.render_source_with_chain(
-            project, track, tmp_path / "selected.wav", selected_source_path=selected
+            project,
+            track,
+            tmp_path / "selected.wav",
+            selected_source_path=selected,
+            defaults=load_defaults(),
         )
     assert not (tmp_path / "selected.wav").exists()

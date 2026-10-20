@@ -13,6 +13,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.ripple import ripple_remove_clips
 from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
 from podcast_mcp.engines.audio_audit import _played_window, build_track_rms_caches
@@ -75,14 +76,19 @@ def test_raw_projection_and_placed_playback_play_the_samples_the_clips_cover(
     indices = sorted({index for index in indices if index > 0})
     project, spans, amplitudes = _scene(tmp_path, origin, removal, indices)
     before_raw = _played_amplitudes(raw_timeline_samples(project, "guest", sample_rate=RATE))
-    before_placed = _played_amplitudes(_played_window(project, "guest", 0.0, 8.51))
+    before_placed = _played_amplitudes(
+        _played_window(project, "guest", 0.0, 8.51, defaults=load_defaults())
+    )
     assert before_raw == before_placed == _covered(project, indices, amplitudes)
 
     forward = project.model_copy(deep=True)
-    ripple_remove_clips(forward, spans, ["host", "guest"])
+    ripple_remove_clips(forward, spans, ["host", "guest"], defaults=load_defaults())
     expected = _covered(forward, indices, amplitudes)
     assert _played_amplitudes(raw_timeline_samples(forward, "guest", sample_rate=RATE)) == expected
-    assert _played_amplitudes(_played_window(forward, "guest", 0.0, 6.51)) == expected
+    assert (
+        _played_amplitudes(_played_window(forward, "guest", 0.0, 6.51, defaults=load_defaults()))
+        == expected
+    )
 
 
 @pytest.mark.parametrize("origin", [0.0, 0.00004, 0.00008, 0.00011, 0.10008])
@@ -95,7 +101,7 @@ def test_peer_guard_protects_exactly_the_samples_the_removal_deletes(
     for index in probes:
         project, spans, amplitudes = _scene(tmp_path, origin, removal, [index])
         forward = project.model_copy(deep=True)
-        ripple_remove_clips(forward, spans, ["host", "guest"])
+        ripple_remove_clips(forward, spans, ["host", "guest"], defaults=load_defaults())
         removed = not _covered(forward, [index], amplitudes)
         levels = measure_peer_speech(
             project,
@@ -103,7 +109,7 @@ def test_peer_guard_protects_exactly_the_samples_the_removal_deletes(
             owner_track_ids=["host"],
             peer_track_ids=["guest"],
             defaults=_GUARD_ON,
-            caches=build_track_rms_caches(project) if cached else None,
+            caches=build_track_rms_caches(project, defaults=load_defaults()) if cached else None,
             _admissible_spans=spans,
         )
         assert levels is not None
@@ -146,16 +152,18 @@ def test_a_cell_two_recordings_share_keeps_the_removed_one_apart(
 ) -> None:
     project, span = _overlay(tmp_path, a=a, b=b)
     forward = project.model_copy(deep=True)
-    ripple_remove_clips(forward, [span], ["host", "guest"])
+    ripple_remove_clips(forward, [span], ["host", "guest"], defaults=load_defaults())
     assert np.count_nonzero(raw_timeline_samples(forward, "guest", sample_rate=RATE)) == int(a)
-    assert np.count_nonzero(_played_window(forward, "guest", 0.0, 6.6)) == int(a)
+    assert np.count_nonzero(
+        _played_window(forward, "guest", 0.0, 6.6, defaults=load_defaults())
+    ) == int(a)
     levels = measure_peer_speech(
         project,
         [span],
         owner_track_ids=["host"],
         peer_track_ids=["guest"],
         defaults=_GUARD_ON,
-        caches=build_track_rms_caches(project) if cached else None,
+        caches=build_track_rms_caches(project, defaults=load_defaults()) if cached else None,
         _admissible_spans=(span,),
     )
     assert levels is not None
@@ -194,7 +202,7 @@ def test_raw_projection_follows_the_clip_cells_at_any_reader_rate(
     project.clips[1].source_start = 0.00004
     project.clips[1].timeline_start = 0.50008
     forward = project.model_copy(deep=True)
-    ripple_remove_clips(forward, [(1.50304, 3.50304)], ["host", "guest"])
+    ripple_remove_clips(forward, [(1.50304, 3.50304)], ["host", "guest"], defaults=load_defaults())
     played = raw_timeline_samples(forward, "guest", sample_rate=rate)
     clips = [c for c in forward.clips if c.track_id == "guest"]
     covers = [
@@ -211,7 +219,9 @@ def test_a_clip_shorter_than_one_sample_plays_nothing(tmp_path: Path) -> None:
     _write_wav(tmp_path / "guest.wav", np.full(8 * RATE, 0.01), sample_rate=RATE)
     project.clips[1].source_end = project.clips[1].source_start + 0.00003
     assert np.count_nonzero(raw_timeline_samples(project, "guest", sample_rate=RATE)) == 0
-    assert np.count_nonzero(_played_window(project, "guest", 0.0, 1.0)) == 0
+    assert (
+        np.count_nonzero(_played_window(project, "guest", 0.0, 1.0, defaults=load_defaults())) == 0
+    )
 
 
 def test_a_split_that_removed_nothing_lays_out_like_the_unsplit_clip() -> None:

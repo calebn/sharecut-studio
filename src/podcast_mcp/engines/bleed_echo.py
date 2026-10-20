@@ -37,6 +37,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.align import xcorr_lag_window
 from podcast_mcp.engines.bleed_delay import (
     LongDelayConfig,
@@ -570,6 +571,7 @@ def echo_profiles(
     start_sec: float,
     end_sec: float,
     config: EchoConfig | None = None,
+    defaults: EffectiveConfig,
 ) -> tuple[list[EchoPairProfile], list[str]]:
     """Directed bleed profiles for every pair of dialogue tracks with a fresh stem.
 
@@ -582,7 +584,7 @@ def echo_profiles(
     skipped: list[str] = []
     for tid in dialogue_track_ids(project):
         stem = existing_stem_path(project, tid)
-        if stem is None or not stem_is_fresh(project, tid):
+        if stem is None or not stem_is_fresh(project, tid, defaults=defaults):
             skipped.append(tid)
             continue
         fresh.append((tid, str(stem), file_revision(stem)))

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import play_audit
 from podcast_mcp.util.batch_scope import frozen, frozen_state
 
@@ -41,17 +42,17 @@ def test_render_hash_is_read_once_per_track_in_the_block_and_again_after(
     project = SimpleNamespace()
     seen: list[str] = []
 
-    def fake(_project: object, track_id: str) -> str:
+    def fake(_project: object, track_id: str, **_kw) -> str:
         seen.append(track_id)
         return f"hash-{len(seen)}"
 
     monkeypatch.setattr(play_audit, "_track_render_hash", fake)
 
     with frozen_state():
-        first = play_audit.track_render_hash(project, "a")  # type: ignore[arg-type]
-        again = play_audit.track_render_hash(project, "a")  # type: ignore[arg-type]
-        other = play_audit.track_render_hash(project, "b")  # type: ignore[arg-type]
-    after = play_audit.track_render_hash(project, "a")  # type: ignore[arg-type]
+        first = play_audit.track_render_hash(project, "a", defaults=load_defaults())  # type: ignore[arg-type]
+        again = play_audit.track_render_hash(project, "a", defaults=load_defaults())  # type: ignore[arg-type]
+        other = play_audit.track_render_hash(project, "b", defaults=load_defaults())  # type: ignore[arg-type]
+    after = play_audit.track_render_hash(project, "a", defaults=load_defaults())  # type: ignore[arg-type]
 
     assert first == again == "hash-1"
     assert other == "hash-2"

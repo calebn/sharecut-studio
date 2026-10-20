@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_safety import assess_proposed_cut
 from podcast_mcp.edits.join_continuity import (
     JoinContinuityConfig,
@@ -223,12 +224,14 @@ def _tiny_project(minimal_project: Path, sample_wav: Path, *, gated_tail_sec: fl
 def test_assess_proposed_cut_and_project_joins(minimal_project: Path, sample_wav: Path) -> None:
     project = _tiny_project(minimal_project, sample_wav)
     cfg = _cfg(calibrate=False, neural=False)
-    rep = assess_proposed_cut(project, "host", 0.2, 0.4, timebase="source", config=cfg)
+    rep = assess_proposed_cut(
+        project, "host", 0.2, 0.4, timebase="source", config=cfg, defaults=load_defaults()
+    )
     assert rep.mode == "proposed_cut"
     assert rep.verdict in ("pass", "review", "fail")
     assert "cut " in " ".join(rep.reasons)
 
-    sweep = assess_project_joins(project, track_id="host", config=cfg)
+    sweep = assess_project_joins(project, track_id="host", config=cfg, defaults=load_defaults())
     assert sweep["join_count"] == 1
     assert sweep["worst"] is not None
     assert "disclaimer" in sweep
@@ -266,13 +269,15 @@ def test_existing_join_scores_the_splice_sides(minimal_project: Path) -> None:
 
     from podcast_mcp.edits.join_continuity import assess_existing_join
 
-    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=_cfg())
+    rep = assess_existing_join(
+        project, "host", 0.5, timebase="timeline", config=_cfg(), defaults=load_defaults()
+    )
     level = next(h for h in rep.detectors if h.name == "level_jump")
     assert level.detail["pre_db"] > -12.0
     assert level.detail["post_db"] < -100.0
     assert level.score == 1.0
 
-    sweep = assess_project_joins(project, track_id="host", config=_cfg())
+    sweep = assess_project_joins(project, track_id="host", config=_cfg(), defaults=load_defaults())
     assert sweep["join_count"] == 1
     assert sweep["joins"][0]["source_gap_sec"] == 1.0
     (join,) = sweep["joins"]
@@ -328,7 +333,9 @@ def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
 
     from podcast_mcp.edits.join_continuity import assess_existing_join
 
-    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=_cfg())
+    rep = assess_existing_join(
+        project, "host", 0.5, timebase="timeline", config=_cfg(), defaults=load_defaults()
+    )
     assert rep.verdict == "pass"
     assert rep.risk == 0.0
     assert [h.name for h in rep.detectors] == ["inaudible_splice"]
@@ -336,10 +343,12 @@ def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
     assert rep.detectors[0].detail["left_db"] < -65.0
     assert rep.detectors[0].detail["right_db"] == -200.0
     assert "inaudible splice: both sides below -65 dBFS" in rep.reasons
-    proposed = assess_proposed_cut(project, "host", 0.5, 1.5, timebase="source", config=_cfg())
+    proposed = assess_proposed_cut(
+        project, "host", 0.5, 1.5, timebase="source", config=_cfg(), defaults=load_defaults()
+    )
     assert proposed.verdict == "pass"
     assert [h.name for h in proposed.detectors] == ["inaudible_splice"]
-    sweep = assess_project_joins(project, track_id="host", config=_cfg())
+    sweep = assess_project_joins(project, track_id="host", config=_cfg(), defaults=load_defaults())
     assert sweep["pass_count"] == 1 and sweep["fail_count"] == 0
 
 
@@ -354,10 +363,12 @@ def test_sweep_row_with_a_speech_crossing_is_never_a_pass(
 
     project = _tiny_project(minimal_project, sample_wav, gated_tail_sec=0.5)
     cfg = _cfg()
-    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=cfg)
+    rep = assess_existing_join(
+        project, "host", 0.5, timebase="timeline", config=cfg, defaults=load_defaults()
+    )
     assert rep.verdict == "pass"
 
-    sweep = assess_project_joins(project, track_id="host", config=cfg)
+    sweep = assess_project_joins(project, track_id="host", config=cfg, defaults=load_defaults())
     (row,) = sweep["joins"]
     assert [c["direction"] for c in row["speech"]] == ["clipped_tail", "clipped_onset"]
     assert row["verdict"] == "review"
@@ -381,7 +392,8 @@ def test_project_join_sweep_shares_decode_and_baseline(
     )
     cfg = _cfg(calibrate=True, neural=False)
     individual = [
-        jc.assess_existing_join(project, "host", t, config=cfg).to_dict() for t in (0.5, 1.0)
+        jc.assess_existing_join(project, "host", t, config=cfg, defaults=load_defaults()).to_dict()
+        for t in (0.5, 1.0)
     ]
     counts = {"decode": 0, "baseline": 0}
     decode = jc._resolve_source_samples
@@ -397,7 +409,7 @@ def test_project_join_sweep_shares_decode_and_baseline(
 
     monkeypatch.setattr(jc, "_resolve_source_samples", counted_decode)
     monkeypatch.setattr(jc, "_natural_baseline_p95", counted_baseline)
-    sweep = jc.assess_project_joins(project, track_id="host", config=cfg)
+    sweep = jc.assess_project_joins(project, track_id="host", config=cfg, defaults=load_defaults())
     assert counts == {"decode": 1, "baseline": 1}
     for actual, expected in zip(sweep["joins"], individual, strict=True):
         skipped = ("source_gap_sec", "speech", "verdict", "reasons")
@@ -434,7 +446,9 @@ def test_project_join_sweep_keeps_one_bounded_wav_reader(
         "_click_check_hires",
         lambda *_args: pytest.fail("the sweep must reuse its high-rate reader"),
     )
-    sweep = jc.assess_project_joins(project, track_id="host", config=_cfg())
+    sweep = jc.assess_project_joins(
+        project, track_id="host", config=_cfg(), defaults=load_defaults()
+    )
     assert sweep["join_count"] == 2
     assert len(opened) == 1
 
@@ -455,7 +469,9 @@ def test_project_join_sweep_batches_unsupported_container_windows(
     project.tracks[0].media.path = "raw/host.flac"
     cfg = _cfg()
     individual = [
-        jc.assess_existing_join(project, "host", join_t, config=cfg).to_dict()
+        jc.assess_existing_join(
+            project, "host", join_t, config=cfg, defaults=load_defaults()
+        ).to_dict()
         for join_t in (0.5, 1.0)
     ]
     commands = []
@@ -474,7 +490,7 @@ def test_project_join_sweep_batches_unsupported_container_windows(
 
     monkeypatch.setattr(jc, "run", counted_run)
     monkeypatch.setattr(jc.tempfile, "TemporaryDirectory", tracked_temporary_directory)
-    sweep = jc.assess_project_joins(project, track_id="host", config=cfg)
+    sweep = jc.assess_project_joins(project, track_id="host", config=cfg, defaults=load_defaults())
     assert len([cmd for cmd in commands if Path(cmd[0]).name == "ffmpeg"]) == 1
     assert len(temporary_dirs) == 1 and not temporary_dirs[0].exists()
     for actual, expected in zip(sweep["joins"], individual, strict=True):
@@ -642,7 +658,7 @@ def test_click_batch_failure_falls_back_per_join_and_cleans_up(
 def test_assess_proposed_cut_rejects_inverted(minimal_project: Path) -> None:
     project = load_project(minimal_project)
     with pytest.raises(ValueError, match="cut_end"):
-        assess_proposed_cut(project, "host", 1.0, 0.5, config=_cfg())
+        assess_proposed_cut(project, "host", 1.0, 0.5, config=_cfg(), defaults=load_defaults())
 
 
 def _write_tone_with_click(raw: Path, *, click_at_sec: float) -> None:
@@ -673,14 +689,20 @@ def test_verdict_holds_when_an_edge_moves_within_the_tolerance(minimal_project: 
     point = _cfg(edge_tolerance_ms=0.0, force_review_multi_hot=True)
     tolerant = _cfg(edge_tolerance_ms=3.0, force_review_multi_hot=True)
 
-    at_edge = assess_proposed_cut(project, "host", 0.5, 1.0, timebase="source", config=point)
-    moved = assess_proposed_cut(project, "host", 0.5, 1.003, timebase="source", config=point)
+    at_edge = assess_proposed_cut(
+        project, "host", 0.5, 1.0, timebase="source", config=point, defaults=load_defaults()
+    )
+    moved = assess_proposed_cut(
+        project, "host", 0.5, 1.003, timebase="source", config=point, defaults=load_defaults()
+    )
     assert (at_edge.verdict, moved.verdict) == ("review", "fail")
     assert at_edge.risk < 0.48 < moved.risk
 
-    stable = assess_proposed_cut(project, "host", 0.5, 1.0, timebase="source", config=tolerant)
+    stable = assess_proposed_cut(
+        project, "host", 0.5, 1.0, timebase="source", config=tolerant, defaults=load_defaults()
+    )
     stable_moved = assess_proposed_cut(
-        project, "host", 0.5, 1.003, timebase="source", config=tolerant
+        project, "host", 0.5, 1.003, timebase="source", config=tolerant, defaults=load_defaults()
     )
     assert (stable.verdict, stable_moved.verdict) == ("fail", "fail")
     assert "worst edge placement +0/+3 ms within +-3 ms" in stable.reasons
@@ -718,6 +740,7 @@ def test_proposed_cut_reports_the_highest_tolerated_placement_risk(
         1.0,
         timebase="source",
         config=_cfg(edge_tolerance_ms=3.0),
+        defaults=load_defaults(),
     )
 
     assert report.verdict == "fail"
@@ -732,13 +755,13 @@ def test_join_verdicts_and_risks_are_the_same_on_every_run(
 
     project = _tiny_project(minimal_project, sample_wav)
     cfg = _cfg(calibrate=True)
-    first = assess_project_joins(project, track_id="host", config=cfg)
-    second = assess_project_joins(project, track_id="host", config=cfg)
+    first = assess_project_joins(project, track_id="host", config=cfg, defaults=load_defaults())
+    second = assess_project_joins(project, track_id="host", config=cfg, defaults=load_defaults())
     assert first == second
     (row,) = first["joins"]
     assert row["calibrated"] is True
     assert row["natural_p95"] is not None
-    single = assess_existing_join(project, "host", 0.5, config=cfg)
+    single = assess_existing_join(project, "host", 0.5, config=cfg, defaults=load_defaults())
     assert row["natural_p95"] == round(single.natural_p95, 4)
     assert row["risk"] == round(single.risk, 4)
 
@@ -774,7 +797,9 @@ def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path
     project = load_project(save_project(project, minimal_project))
     cfg = _cfg(edge_tolerance_ms=3.0)
 
-    rep = assess_proposed_cut(project, "host", 1.0, 1.5, timebase="source", config=cfg)
+    rep = assess_proposed_cut(
+        project, "host", 1.0, 1.5, timebase="source", config=cfg, defaults=load_defaults()
+    )
     assert rep.verdict == "pass"
     assert rep.risk == 0.0
     assert [h.name for h in rep.detectors] == ["inaudible_splice"]
@@ -784,7 +809,9 @@ def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path
         "inaudible splice: both sides below -60 dBFS",
     ]
 
-    moved = assess_proposed_cut(project, "host", 0.997, 1.5, timebase="source", config=cfg)
+    moved = assess_proposed_cut(
+        project, "host", 0.997, 1.5, timebase="source", config=cfg, defaults=load_defaults()
+    )
     assert moved.verdict == "fail"
     level = next(h for h in moved.detectors if h.name == "level_jump")
     assert -60.0 < level.detail["pre_db"] < -58.0
@@ -822,8 +849,12 @@ def test_a_proposed_cuts_verdict_is_the_same_at_every_recording_level(
     project = load_project(save_project(project, minimal_project))
     cfg = _cfg(edge_tolerance_ms=3.0)
 
-    at_edges = assess_proposed_cut(project, "host", 1.0, 1.5, timebase="source", config=cfg)
-    moved = assess_proposed_cut(project, "host", 0.997, 1.5, timebase="source", config=cfg)
+    at_edges = assess_proposed_cut(
+        project, "host", 1.0, 1.5, timebase="source", config=cfg, defaults=load_defaults()
+    )
+    moved = assess_proposed_cut(
+        project, "host", 0.997, 1.5, timebase="source", config=cfg, defaults=load_defaults()
+    )
 
     assert (at_edges.verdict, [h.name for h in at_edges.detectors]) == (
         "pass",

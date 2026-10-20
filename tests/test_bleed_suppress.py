@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from audibility_floors import floors_at
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_quality import bleed_words, suppress_bleed_words
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
@@ -106,7 +107,9 @@ def _two_track_project(tmp_path: Path) -> EpisodeProject:
             ],
         ),
     ]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     return project
 
 
@@ -129,7 +132,9 @@ def test_suppress_bleed_does_not_touch_inaudible(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_fake_rms,
     ):
-        result = suppress_bleed_words(project, dry_run=False, track_id="host")
+        result = suppress_bleed_words(
+            project, dry_run=False, track_id="host", defaults=load_defaults()
+        )
 
     host = project.transcript_for_track("host")
     assert host is not None
@@ -149,6 +154,7 @@ def test_suppress_bleed_explicit_word_keys_locks(tmp_path: Path):
         project,
         dry_run=False,
         word_keys=[{"track_id": "host", "word_index": 1}],
+        defaults=load_defaults(),
     )
     host = project.transcript_for_track("host")
     assert host is not None
@@ -171,7 +177,9 @@ def test_suppress_bleed_heuristic_respects_existing_lock(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_fake_rms,
     ):
-        result = suppress_bleed_words(project, dry_run=False, track_id="host")
+        result = suppress_bleed_words(
+            project, dry_run=False, track_id="host", defaults=load_defaults()
+        )
 
     host = project.transcript_for_track("host")
     assert host is not None
@@ -197,7 +205,9 @@ def test_suppress_bleed_heuristic_dry_run_excludes_locked_unsuppressed(tmp_path:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_fake_rms,
     ):
-        result = suppress_bleed_words(project, dry_run=True, track_id="host")
+        result = suppress_bleed_words(
+            project, dry_run=True, track_id="host", defaults=load_defaults()
+        )
 
     assert result["dry_run"] is True
     assert result["candidate_count"] == 0
@@ -232,7 +242,12 @@ def test_suppress_bleed_time_range(tmp_path: Path):
         side_effect=rms,
     ):
         dry = suppress_bleed_words(
-            project, dry_run=True, track_id="host", start_sec=4.0, end_sec=6.0
+            project,
+            dry_run=True,
+            track_id="host",
+            start_sec=4.0,
+            end_sec=6.0,
+            defaults=load_defaults(),
         )
 
     assert dry["candidate_count"] == 1
@@ -251,6 +266,7 @@ def test_suppress_bleed_exclude_word_keys(tmp_path: Path):
             dry_run=False,
             track_id="host",
             exclude_word_keys=[{"track_id": "host", "word_index": 1}],
+            defaults=load_defaults(),
         )
 
     host = project.transcript_for_track("host")
@@ -266,15 +282,15 @@ def test_suppress_bleed_rebuilds_combined(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_fake_rms,
     ):
-        suppress_bleed_words(project, dry_run=False, track_id="host")
+        suppress_bleed_words(project, dry_run=False, track_id="host", defaults=load_defaults())
 
     host_text = " ".join(
         u.text for u in project.combined_transcript.utterances if u.track_id == "host"
     )
     assert "bleed" not in host_text
-    matches = search_transcript(project, "bleed", track_id="host")
+    matches = search_transcript(project, "bleed", track_id="host", defaults=load_defaults())
     assert len(matches) == 0
-    guest_matches = search_transcript(project, "bleed", track_id="guest")
+    guest_matches = search_transcript(project, "bleed", track_id="guest", defaults=load_defaults())
     assert len(guest_matches) >= 1
 
 
@@ -295,6 +311,7 @@ def test_reconcile_transcript_time_range_limits_apply(tmp_path: Path):
             track_id="host",
             start_sec=1.5,
             end_sec=3.0,
+            defaults=load_defaults(),
         )
 
     assert host.words[1].suppressed is False
@@ -309,7 +326,9 @@ def test_overlap_duplicate_report_text_match(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_fake_rms,
     ):
-        report = overlap_duplicate_report(project, start_sec=0.5, end_sec=2.0)
+        report = overlap_duplicate_report(
+            project, start_sec=0.5, end_sec=2.0, defaults=load_defaults()
+        )
 
     assert report["pair_count"] >= 1
     assert report["text_match_count"] >= 1
@@ -325,7 +344,7 @@ def test_bleed_words_filters_status(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_fake_rms,
     ):
-        rows = bleed_words(project, track_id="host")
+        rows = bleed_words(project, track_id="host", defaults=load_defaults())
 
     assert len(rows) == 1
     assert rows[0]["audibility_status"] == "bleed"

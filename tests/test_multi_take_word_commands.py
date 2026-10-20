@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_correct import (
     correct_phrase,
     correct_word,
@@ -40,19 +41,19 @@ def _texts(project: EpisodeProject, source_id: str) -> list[str]:
 
 
 def test_correct_word_changes_only_the_named_take(project) -> None:
-    correct_word(project, "v", 1, "fixed", source_id="take2")
+    correct_word(project, "v", 1, "fixed", source_id="take2", defaults=load_defaults())
     assert _texts(project, "take2") == ["b0", "fixed", "b2"]
     assert _texts(project, "take1") == ["a0", "a1", "a2"]
 
 
 def test_correct_phrase_changes_only_the_named_take(project) -> None:
-    correct_phrase(project, "v", 0, 1, "one phrase", source_id="take2")
+    correct_phrase(project, "v", 0, 1, "one phrase", source_id="take2", defaults=load_defaults())
     assert "one" in _texts(project, "take2")
     assert _texts(project, "take1") == ["a0", "a1", "a2"]
 
 
 def test_suppress_automatic_and_ignore_touch_only_the_named_take(project) -> None:
-    result = set_word_suppressed(project, "v", 2, True, source_id="take2")
+    result = set_word_suppressed(project, "v", 2, True, source_id="take2", defaults=load_defaults())
     assert result["source_id"] == "take2"
     assert project.transcript_for_source("v", "take2").words[2].suppressed
     assert not project.transcript_for_source("v", "take1").words[2].suppressed
@@ -67,9 +68,9 @@ def test_suppress_automatic_and_ignore_touch_only_the_named_take(project) -> Non
 @pytest.mark.parametrize(
     "call",
     [
-        lambda p: correct_word(p, "v", 0, "x"),
-        lambda p: correct_phrase(p, "v", 0, 1, "x"),
-        lambda p: set_word_suppressed(p, "v", 0, True),
+        lambda p: correct_word(p, "v", 0, "x", defaults=load_defaults()),
+        lambda p: correct_phrase(p, "v", 0, 1, "x", defaults=load_defaults()),
+        lambda p: set_word_suppressed(p, "v", 0, True, defaults=load_defaults()),
         lambda p: set_word_automatic(p, "v", 0),
         lambda p: set_words_ignored(p, "v", 0, 1, True),
     ],
@@ -84,12 +85,12 @@ def test_bare_index_on_multi_take_lane_is_refused(project, call) -> None:
 
 def test_single_transcript_lane_needs_no_source(project) -> None:
     project.transcripts = [Transcript(track_id="v", words=_words("a"))]
-    correct_word(project, "v", 0, "ok")
+    correct_word(project, "v", 0, "ok", defaults=load_defaults())
     assert project.transcripts[0].words[0].text == "ok"
 
 
 def test_bare_index_addresses_the_primary_transcript(project) -> None:
     project.transcripts.insert(0, Transcript(track_id="v", words=_words("p")))
-    correct_word(project, "v", 0, "primary")
+    correct_word(project, "v", 0, "primary", defaults=load_defaults())
     assert project.transcripts[0].words[0].text == "primary"
     assert _texts(project, "take1") == ["a0", "a1", "a2"]

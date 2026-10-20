@@ -5,6 +5,7 @@ import json
 from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.models import (
     Clip,
     CutIntent,
@@ -147,6 +148,7 @@ def edit_selected_range(
     action_id: str,
     author: str | None = None,
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    defaults: EffectiveConfig,
 ) -> RangeEditResult:
     if propose:
         target = resolve_range(project, target)
@@ -177,10 +179,9 @@ def edit_selected_range(
         boundary_intent=boundary_intent,
     )
     if propose:
-        from podcast_mcp.config import load_defaults
         from podcast_mcp.edits.cut_application import assess_offer
 
-        holds = assess_offer(project, edit, defaults=load_defaults())
+        holds = assess_offer(project, edit, defaults=defaults)
         if holds:
             edit.reason = (
                 f"{edit.reason}:acoustic_review:{','.join(h.detail or h.reason for h in holds)}"
@@ -190,5 +191,5 @@ def edit_selected_range(
     else:
         from podcast_mcp.edits.cut_application import apply_ranges
 
-        apply_ranges(project, [edit])
+        apply_ranges(project, [edit], defaults=defaults)
     return {"action_id": edit.id, "proposed": propose, "edit": edit.model_dump(mode="json")}

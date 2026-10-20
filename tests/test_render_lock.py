@@ -9,6 +9,7 @@ from contextlib import contextmanager
 import pytest
 from filelock import Timeout
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.play_audit import publish_stem
 from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.pipeline.runner import PipelineRunner
@@ -163,6 +164,7 @@ def test_publish_stem_on_a_worker_of_the_holder_never_waits_for_the_render_lock(
             "host",
             lambda tmp: tmp.write_bytes(b"RIFF"),
             clear_invalidations=False,
+            defaults=load_defaults(),
         )
         assert future.result(timeout=5) == stem_path(project, "host")
 

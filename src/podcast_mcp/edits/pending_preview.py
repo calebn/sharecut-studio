@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.timeline_span import map_source_span_fields, source_remove_timeline_spans
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -115,7 +116,9 @@ def _suggest_reason(type_val: str, mappable: bool) -> str | None:
     return None
 
 
-def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -> float:
+def apply_for_suggested(
+    project: EpisodeProject, window: PendingPreviewWindow, *, defaults: EffectiveConfig
+) -> float:
     """Approve ``window``'s edit on ``project`` (a snapshot) and return the Suggested end.
 
     The edit applies through ``approve_edits``, so the snapshot carries the same ripple,
@@ -130,12 +133,12 @@ def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -
     # if approved anyway (the snapshot is discarded), so the person can hear it first.
     try:
         try:
-            approve_edits(project, [window.edit_id])
+            approve_edits(project, [window.edit_id], defaults=defaults)
         except ScopeChangedAtApproval as held:
             if not all(h.reason in _PREVIEWABLE_HOLDS for h in held.held):
                 raise
             with audio_check_override("preview", "preview"):
-                approve_edits(project, [window.edit_id])
+                approve_edits(project, [window.edit_id], defaults=defaults)
     except ScopeChangedAtApproval as held:
         raise held.for_delivery("suggested") from held
     applied = project.editorial.edit_log[logged:]

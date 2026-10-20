@@ -4,6 +4,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.mute_regions import mute_regions_payload
 from podcast_mcp.edits.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.engines.play_audit import dialogue_render_hashes, envelope_audio_payload
@@ -13,7 +14,10 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 
 def audio_state_fingerprint(
-    project: EpisodeProject, render_hashes: Mapping[str, str] | None = None
+    project: EpisodeProject,
+    render_hashes: Mapping[str, str] | None = None,
+    *,
+    defaults: EffectiveConfig,
 ) -> str:
     """Hash of the audio state reconciliation measures: dialogue tracks only.
 
@@ -23,7 +27,11 @@ def audio_state_fingerprint(
     map missing a dialogue track raises ``KeyError``, but a stale hash value would go
     unnoticed.
     """
-    hashes = dialogue_render_hashes(project) if render_hashes is None else render_hashes
+    hashes = (
+        dialogue_render_hashes(project, defaults=defaults)
+        if render_hashes is None
+        else render_hashes
+    )
     parts: list[str] = []
     dialogue = sorted(dialogue_track_ids(project))
     for tid in dialogue:
@@ -54,18 +62,20 @@ def audio_state_fingerprint(
     return short_digest(raw)
 
 
-def reconciliation_is_stale(project: EpisodeProject, fingerprint: str | None = None) -> bool:
+def reconciliation_is_stale(
+    project: EpisodeProject, fingerprint: str | None = None, *, defaults: EffectiveConfig
+) -> bool:
     """``fingerprint`` is this state's ``audio_state_fingerprint`` when the caller has it."""
     stored = project.last_reconciliation_hash
     if project.reconciliation_stale or stored is None:
         return True
-    fp = audio_state_fingerprint(project) if fingerprint is None else fingerprint
+    fp = audio_state_fingerprint(project, defaults=defaults) if fingerprint is None else fingerprint
     return fp != stored
 
 
-def reconciliation_status(project: EpisodeProject) -> dict[str, Any]:
-    fp = audio_state_fingerprint(project)
-    stale = reconciliation_is_stale(project, fp)
+def reconciliation_status(project: EpisodeProject, *, defaults: EffectiveConfig) -> dict[str, Any]:
+    fp = audio_state_fingerprint(project, defaults=defaults)
+    stale = reconciliation_is_stale(project, fp, defaults=defaults)
     return {
         "stale": stale,
         "fingerprint": fp,
@@ -78,6 +88,6 @@ def mark_reconciliation_stale(project: EpisodeProject) -> None:
     project.reconciliation_stale = True
 
 
-def mark_reconciliation_fresh(project: EpisodeProject) -> None:
-    project.last_reconciliation_hash = audio_state_fingerprint(project)
+def mark_reconciliation_fresh(project: EpisodeProject, *, defaults: EffectiveConfig) -> None:
+    project.last_reconciliation_hash = audio_state_fingerprint(project, defaults=defaults)
     project.reconciliation_stale = False

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from podcast_mcp.config import mix_peak_ceiling_db
+from podcast_mcp.config import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
 from podcast_mcp.edits.room_tone import ensure_room_tone_pools
@@ -101,7 +101,7 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
         probed += 1
     ensure_dialogue_clips(project)
     # After clips exist, so each track's clip sources get their pyramids too.
-    waveforms = ensure_project_waveforms(project)
+    waveforms = ensure_project_waveforms(project, defaults=defaults)
     ensure_room_tone_pools(project, [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE])
     dialogue = sum(1 for t in project.tracks if t.role == TrackRole.DIALOGUE)
     return f"{probed} tracks probed, {waveforms} waveforms, {dialogue} dialogue"
@@ -153,6 +153,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
                     model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
                     device="cpu",
                     options=options,
+                    defaults=defaults,
                 )
             )
         return engines[0]
@@ -293,7 +294,7 @@ def precorrect_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> 
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
 
     pol = AnalysisPolicy.from_defaults(defaults)
-    result = run_precorrect_transcript(project, dry_run=False, policy=pol)
+    result = run_precorrect_transcript(project, dry_run=False, policy=pol, defaults=defaults)
     parts = [
         f"{result.glossary_applied} glossary",
         f"{result.cross_track_applied} cross-track",
@@ -333,7 +334,7 @@ def reconcile_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> S
     evidence_skipped, reflagged = refresh_settled_silence_flags(
         project, AsrOptions.from_defaults(defaults)
     )
-    result = run_reconciliation(project, policy=pol, dry_run=None)
+    result = run_reconciliation(project, policy=pol, dry_run=None, defaults=defaults)
     summary = (
         f"{result.get('suppress_count', 0)} suppressed, "
         f"{result.get('unsuppress_count', 0)} unsuppressed, "
@@ -348,7 +349,7 @@ def reconcile_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> S
 
 
 def merge_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=defaults)
     project.combined_transcript = engine.merge_transcripts(project)
     out = project.transcripts_dir() / "combined.json"
     out.write_text(
@@ -410,7 +411,7 @@ def focus_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> 
         prefer_parent=True,
     ) as prog:
         prog.set_phase("apply", "Applying focus cuts…")
-        applied = apply_focus_decisions(project)
+        applied = apply_focus_decisions(project, defaults=defaults)
     return f"{applied} focus cuts applied"
 
 
@@ -524,7 +525,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
         if not actions:
             return "no non-speech sounds to act on"
         result = SuggestedActionsResult()
-        apply_suggested_to_project(project, actions, result)
+        apply_suggested_to_project(project, actions, result, defaults=defaults)
     return result.summary()
 
 
@@ -713,6 +714,7 @@ def _stem_inputs_changed(
     project: EpisodeProject,
     expected: Mapping[str, str],
     render_roles: set[TrackRole],
+    defaults: EffectiveConfig,
 ) -> bool:
     """Whether ``project`` would render other stems than ``expected`` describes.
 
@@ -724,7 +726,7 @@ def _stem_inputs_changed(
 
     live = {t.id for t in project.tracks if t.role in render_roles and t.media}
     return live != expected.keys() or any(
-        track_render_hash(project, tid) != h for tid, h in expected.items()
+        track_render_hash(project, tid, defaults=defaults) != h for tid, h in expected.items()
     )
 
 
@@ -732,6 +734,7 @@ def _saved_stem_inputs_changed(
     project: EpisodeProject,
     expected: Mapping[str, str],
     render_roles: set[TrackRole],
+    defaults: EffectiveConfig,
 ) -> bool:
     """``_stem_inputs_changed`` against the project another writer saved meanwhile."""
     from podcast_mcp.project_store import ProjectStore
@@ -742,7 +745,7 @@ def _saved_stem_inputs_changed(
         # Gone, unreadable or half-written (pydantic and JSON errors are ValueErrors).
         log.warning("saved project unreadable after stem render; treating stems as stale: %s", exc)
         return True
-    return _stem_inputs_changed(saved, expected, render_roles)
+    return _stem_inputs_changed(saved, expected, render_roles, defaults)
 
 
 @with_render_lock
@@ -789,7 +792,7 @@ def _render_track_stems(
     with project_state_lock(project):
         initial_revision = project_file_revision(project)
         fingerprints = {
-            t.id: stem_fingerprint(project, t.id)
+            t.id: stem_fingerprint(project, t.id, defaults=defaults)
             for t in project.tracks
             if t.role in render_roles and t.media
         }
@@ -812,7 +815,7 @@ def _render_track_stems(
         t for t in render_project.tracks if t.id in stale and t.role in render_roles and t.media
     ]
     for track in to_render:
-        expected[track.id] = track_render_hash(render_project, track.id)
+        expected[track.id] = track_render_hash(render_project, track.id, defaults=defaults)
 
     def render_one(track: Track) -> tuple[str, Path]:
         # Runs on a run_parallel worker: never call anything that takes render_lock here (the
@@ -823,6 +826,7 @@ def _render_track_stems(
             track.id,
             lambda tmp: eng.render_dialogue_track(render_project, track, tmp, defaults),
             clear_invalidations=False,
+            defaults=defaults,
         )
         return track.id, out
 
@@ -845,15 +849,17 @@ def _render_track_stems(
             rendered[track_id] = out
             # A mutation during rendering must keep its new cause journal.
             with project_state_lock(project):
-                clear_invalidations_if_current(project, render_project, track_id, current=live)
+                clear_invalidations_if_current(
+                    project, render_project, track_id, current=live, defaults=defaults
+                )
             if to_render:
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 
     # This gate also covers the stems counted fresh without the lock above; keep it.
     with project_state_lock(project):
-        if _stem_inputs_changed(live, expected, render_roles) or (
+        if _stem_inputs_changed(live, expected, render_roles, defaults) or (
             project_file_revision(project) != initial_revision
-            and _saved_stem_inputs_changed(project, expected, render_roles)
+            and _saved_stem_inputs_changed(project, expected, render_roles, defaults)
         ):
             raise RuntimeError("project changed during stem rendering; retry the render")
         meta = artifact(project, "track_outputs.json")
@@ -862,7 +868,7 @@ def _render_track_stems(
             encoding="utf-8",
         )
     if waveforms:
-        schedule_stem_waveforms(project, list(rendered))
+        schedule_stem_waveforms(project, list(rendered), defaults=defaults)
     cached = len(rendered) - len(to_render)
     return f"{len(to_render)} rendered, {cached} cached ({len(rendered)} total)"
 
@@ -937,6 +943,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
                 track.id,
                 functools.partial(eng.render_dialogue_track, project, track, defaults=defaults),
                 clear_invalidations=False,
+                defaults=defaults,
             )
             rendered[track.id] = str(out)
             music_envelopes += 1
@@ -961,7 +968,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             before_replace=functools.partial(clear_premix_hash, project),
             reap_partials=True,
         )
-        write_premix_hash(project, mixed, trim_db=trim, peak_ceiling_db=ceiling)
+        write_premix_hash(project, mixed, trim_db=trim, peak_ceiling_db=ceiling, defaults=defaults)
         prog.message(f"{len(mixed)} tracks mixed")
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
 
@@ -996,7 +1003,8 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
         stuck = [
             tid
             for tid in mix_gains(project)
-            if stem_path(project, tid).is_file() and not stem_is_fresh(project, tid)
+            if stem_path(project, tid).is_file()
+            and not stem_is_fresh(project, tid, defaults=defaults)
         ]
         log.warning(
             "premix.wav is still out of date after a rebuild; stems that stay stale: %s "
@@ -1225,7 +1233,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             )
 
             prog.set_phase("transcript", "Writing transcript exports…")
-            write_combined_transcript_markdown(project)
+            write_combined_transcript_markdown(project, defaults)
             srt = project.export_dir() / f"{sanitize_export_stem(project.name)}.srt"
             srt.write_text(
                 utterances_to_srt(project, limits=caption_limits),
@@ -1259,9 +1267,7 @@ def read_export_qc(project: EpisodeProject) -> dict[str, Any] | None:
     return load_json_object(export_qc_path(project))
 
 
-def write_export_qc(
-    project: EpisodeProject, *, defaults: dict[str, Any] | None = None
-) -> dict[str, Any]:
+def write_export_qc(project: EpisodeProject, *, defaults: EffectiveConfig) -> dict[str, Any]:
     """Roll up pre-ship QC (reconciliation, mastering, alignment drift) into export_qc.json.
 
     Non-blocking by design (matches master_loudness's QC pattern): always writes the
@@ -1272,7 +1278,7 @@ def write_export_qc(
     from podcast_mcp.engines.reconciliation_state import reconciliation_status
     from podcast_mcp.engines.session_timeline import timebase_qc_report
 
-    recon = reconciliation_status(project)
+    recon = reconciliation_status(project, defaults=defaults)
     timebase = timebase_qc_report(project)
     issues: list[str] = []
     if recon["stale"]:

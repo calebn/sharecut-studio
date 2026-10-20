@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.transcript_cuts import (
     append_remove_decision,
     coalesce_edits,
@@ -85,7 +86,7 @@ def build_focus_outline(
 ) -> dict[str, Any]:
     """Whole-episode segment map for narrative editing (agent or pipeline)."""
     cfg = defaults.get("focus", {})
-    combined = ensure_combined_transcript(project)
+    combined = ensure_combined_transcript(project, defaults=defaults)
     segments = macro_focus_segments(
         combined.utterances,
         merge_gap_sec=float(cfg.get("segment_merge_gap_sec", 2.5)),
@@ -190,7 +191,7 @@ def propose_focus_cuts(
             e for e in project.edit_decisions if not (e.reason or "").startswith("focus:")
         ]
 
-    combined = ensure_combined_transcript(project)
+    combined = ensure_combined_transcript(project, defaults=defaults)
     segments = macro_focus_segments(
         combined.utterances,
         merge_gap_sec=float(cfg.get("segment_merge_gap_sec", 2.5)),
@@ -238,6 +239,7 @@ def propose_focus_cuts(
                 reason=reason,
                 review_required=review_required,
                 crossfade_ms=crossfade,
+                defaults=defaults,
             )
         except ScopeChangedAtApproval as held:
             for hold in held.held:
@@ -284,14 +286,18 @@ def propose_focus_cuts(
 
     for track_id in {s.track_id for s in segments}:
         coalesce_edits(
-            project, track_id=track_id, skip_counts=skip_counts, merge_ids={d.id for d in decisions}
+            project,
+            track_id=track_id,
+            skip_counts=skip_counts,
+            merge_ids={d.id for d in decisions},
+            defaults=defaults,
         )
 
     original.edit_decisions = project.edit_decisions
     return [e for e in project.edit_decisions if e.id in {d.id for d in decisions}]
 
 
-def apply_focus_decisions(project: EpisodeProject) -> int:
+def apply_focus_decisions(project: EpisodeProject, *, defaults: EffectiveConfig) -> int:
     from podcast_mcp.edits.cut_application import apply_prefix_edits
 
-    return apply_prefix_edits(project, "focus:", config_key="focus")
+    return apply_prefix_edits(project, "focus:", config_key="focus", defaults=defaults)

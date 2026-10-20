@@ -26,7 +26,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_cache import (
     WAVEFORM_SAMPLE_RATE,
     TrackAudioCache,
@@ -134,8 +134,8 @@ class JoinContinuityConfig:
         return replace(self, voice_floor_db=profile.voice_floor_db, voice_db=profile.voice_db)
 
     @classmethod
-    def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
-        cfg = (defaults or load_defaults()).get("join_continuity") or {}
+    def from_defaults(cls, defaults: EffectiveConfig) -> JoinContinuityConfig:
+        cfg = defaults.get("join_continuity") or {}
         return cls(
             side_sec=float(cfg.get("side_sec", _DEFAULT_SIDE_SEC)),
             edge_tolerance_ms=float(cfg.get("edge_tolerance_ms", _DEFAULT_EDGE_TOLERANCE_MS)),
@@ -942,7 +942,7 @@ def assess_existing_join(
     *,
     timebase: Literal["source", "timeline"] = "timeline",
     config: JoinContinuityConfig | None = None,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
 ) -> JoinContinuityReport:
     return _assess_existing_join(
         project, track_id, join_sec, timebase=timebase, config=config, defaults=defaults
@@ -956,7 +956,7 @@ def _assess_existing_join(
     *,
     timebase: Literal["source", "timeline"],
     config: JoinContinuityConfig | None,
-    defaults: dict[str, Any] | None,
+    defaults: EffectiveConfig,
     samples: np.ndarray | None = None,
     natural_p95: float | None = None,
     baseline_ready: bool = False,
@@ -1032,7 +1032,7 @@ def assess_project_joins(
     *,
     track_id: str | None = None,
     config: JoinContinuityConfig | None = None,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     tids = [track_id] if track_id else dialogue_track_ids(project)

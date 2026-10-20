@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pause_policy_public_helpers import workspace
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.models import CutIntent, load_project
@@ -16,7 +17,14 @@ from test_approve_guard_blocked_ripple import _blocked_filler
 def _with_plain_cut(tmp_path, monkeypatch):
     result, asked = _blocked_filler(tmp_path, monkeypatch)
     append_remove_decision(
-        result, "host", 3, 3.3, decision_id="plain", reason="nl:range", review_required=False
+        result,
+        "host",
+        3,
+        3.3,
+        decision_id="plain",
+        reason="nl:range",
+        review_required=False,
+        defaults=load_defaults(),
     )
     return result, asked
 
@@ -66,7 +74,13 @@ def test_a_cut_beside_the_asked_one_waits_with_it(tmp_path, monkeypatch):
     near = next(e for e in result.edit_decisions if e.id == "plain")
     result.edit_decisions.remove(near)
     append_remove_decision(
-        result, "host", asked.end + 0.1, asked.end + 0.3, decision_id="plain", reason="nl:range"
+        result,
+        "host",
+        asked.end + 0.1,
+        asked.end + 0.3,
+        decision_id="plain",
+        reason="nl:range",
+        defaults=load_defaults(),
     )
     ws = workspace(result)
 
@@ -95,7 +109,15 @@ def test_a_cut_overlapping_the_asked_one_on_the_timeline_waits_with_it(tmp_path,
 def test_approving_several_cuts_at_once_leaves_one_history_entry(tmp_path, monkeypatch):
     result, _asked = _with_plain_cut(tmp_path, monkeypatch)
     for edit_id, start, end in (("plain2", 4.0, 4.2), ("plain3", 5.4, 5.7)):
-        append_remove_decision(result, "host", start, end, decision_id=edit_id, reason="nl:range")
+        append_remove_decision(
+            result,
+            "host",
+            start,
+            end,
+            decision_id=edit_id,
+            reason="nl:range",
+            defaults=load_defaults(),
+        )
     ws = workspace(result)
     approve_edits(ws, {"ids": ["plain"]})  # the first mutation also writes the baseline entry
     before = len(load_project(ws.path).history.entries)

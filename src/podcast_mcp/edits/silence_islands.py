@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
@@ -109,6 +110,7 @@ def timeline_floor_hops(
     timeline_end: float,
     *,
     hop_ms: int = 20,
+    defaults: EffectiveConfig,
 ) -> list[tuple[float, float]]:
     """Measure, on shared ``hop_ms`` timeline hops, how far the loudest lane is over its floor.
 
@@ -131,7 +133,7 @@ def timeline_floor_hops(
         )
     hop = max(0.005, hop_ms / 1000.0)
     track_ids = list(dict.fromkeys(track_ids))
-    caches = build_track_rms_caches(project, track_ids=track_ids)
+    caches = build_track_rms_caches(project, track_ids=track_ids, defaults=defaults)
     out: list[tuple[float, float]] = []
     t = float(timeline_start)
     while t < timeline_end - 1e-9:
@@ -165,6 +167,7 @@ def suggest_handoff_cut(
     min_island_sec: float = 0.12,
     hop_ms: int = 20,
     retain_sec: float = 1.0,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Propose silence→silence ripple bounds between two keep anchors.
 
@@ -193,6 +196,7 @@ def suggest_handoff_cut(
         float(keep_left_end),
         float(keep_right_start),
         hop_ms=hop_ms,
+        defaults=defaults,
     )
     islands = silence_islands_from_hops(hops, min_duration_sec=min_island_sec)
 

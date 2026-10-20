@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.focus import (
     _episode_duration,
     _has_hook,
@@ -254,5 +255,5 @@ def test_apply_focus_skips_review_required():
             review_required=True,
         )
     ]
-    assert apply_focus_decisions(project) == 0
+    assert apply_focus_decisions(project, defaults=load_defaults()) == 0
     assert len(project.edit_decisions) == 1

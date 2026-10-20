@@ -76,6 +76,13 @@ def _project(tmp_path: Path) -> EpisodeProject:
     return project
 
 
+def load_defaults() -> dict:
+    """The config ``configure`` staged for this test, not the shipped one."""
+    from podcast_mcp.services.pipeline import config
+
+    return config.load_defaults()
+
+
 @pytest.fixture
 def proposed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     cfg = defaults()
@@ -103,11 +110,19 @@ def test_one_batch_applies_both_and_matches_approving_the_later_cut_first(
 ) -> None:
     project, filler, pause = proposed
     batch = project.model_copy(deep=True)
-    assert approve_edits(batch, [filler, pause], application_intent=intent) == 2
+    assert (
+        approve_edits(batch, [filler, pause], application_intent=intent, defaults=load_defaults())
+        == 2
+    )
 
     sequential = project.model_copy(deep=True)
     for edit_id in (pause, filler):
-        assert approve_edits(sequential, [edit_id], application_intent=intent) == 1
+        assert (
+            approve_edits(
+                sequential, [edit_id], application_intent=intent, defaults=load_defaults()
+            )
+            == 1
+        )
 
     assert _lane(batch, "host") == _lane(sequential, "host")
     assert [r.reason for r in batch.editorial.edit_log].count("filler:um") == 1
@@ -119,21 +134,32 @@ def test_sequential_approvals_apply_in_either_order(proposed, order: tuple[int, 
     ids = (filler, pause)
     for index in order:
         assert (
-            approve_edits(project, [ids[index]], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+            approve_edits(
+                project,
+                [ids[index]],
+                application_intent=CutIntent.HUMAN_BOUNDARIES,
+                defaults=load_defaults(),
+            )
+            == 1
         )
 
 
 def test_auto_apply_takes_the_filler_and_the_pause_together(proposed) -> None:
     project, _, _ = proposed
     pending = len(project.edit_decisions)
-    assert apply_auto_edits(project) == pending
+    assert apply_auto_edits(project, defaults=load_defaults()) == pending
     assert [d for d in project.edit_decisions if not d.review_required] == []
 
 
 def _batch_receipts(project, filler, pause, *, accepted_ids, widen_pad=0.0, shift_window=0.0):
     after = project.model_copy(deep=True)
     with batch_scope():
-        approve_edits(after, [filler, pause], application_intent=CutIntent.HUMAN_BOUNDARIES)
+        approve_edits(
+            after,
+            [filler, pause],
+            application_intent=CutIntent.HUMAN_BOUNDARIES,
+            defaults=load_defaults(),
+        )
         if widen_pad:
             pad = next(c for c in after.clips if c.id in cut_safety.native_pad_origins())
             pad.source_end += widen_pad

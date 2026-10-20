@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.breath_detect import (
     LevelBand,
     PauseAirSkip,
@@ -60,7 +61,7 @@ def test_detect_adjacent_breath_missing_track():
     from podcast_mcp.models import EpisodeProject
 
     project = EpisodeProject.create("empty", "/tmp/ws")
-    assert detect_adjacent_breath(project, "host", 1.0, 1.2) == []
+    assert detect_adjacent_breath(project, "host", 1.0, 1.2, defaults=load_defaults()) == []
 
 
 def test_extend_cut_reverts_when_extension_invalid():
@@ -136,7 +137,7 @@ def test_detect_adjacent_breath_finds_before_and_after():
             before=_shaped_noise(2560, 0.026), after=_shaped_noise(2560, 0.026)
         ),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
 
     assert spans == [
         BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.86), side="before"),
@@ -304,6 +305,7 @@ def test_sample_classifier_falls_back_when_shared_silero_model_fails() -> None:
             vad_backend="silero",
             speech_reference_rms=0.1,
             noise_floor_rms=0.001,
+            defaults=load_defaults(),
         )
 
     silero.assert_not_called()
@@ -320,7 +322,11 @@ def test_sample_classifier_does_not_fallback_after_valid_silero_no_breath() -> N
         patch("podcast_mcp.edits.breath_detect._find_breath_in_window") as heuristic,
     ):
         result = classify_breath_samples(
-            np.zeros(1600, dtype=np.float32), 1.0, sample_rate=16000, vad_backend="silero"
+            np.zeros(1600, dtype=np.float32),
+            1.0,
+            sample_rate=16000,
+            vad_backend="silero",
+            defaults=load_defaults(),
         )
 
     assert result is None
@@ -345,6 +351,7 @@ def test_adjacent_silero_abstains_when_level_band_cannot_be_formed() -> None:
             speech_reference_rms=0.001,
             noise_floor_rms=0.001,
             cut_edge="end",
+            defaults=load_defaults(),
         )
 
     assert result is None
@@ -367,19 +374,11 @@ def test_sample_classifier_looks_up_silero_once_and_falls_back_on_inference_erro
             vad_backend="silero",
             speech_reference_rms=0.1,
             noise_floor_rms=0.001,
+            defaults=load_defaults(),
         )
 
     lookup.assert_called_once()
     heuristic.assert_called_once()
-
-
-def test_explicit_empty_defaults_do_not_reload_configuration() -> None:
-    from podcast_mcp.edits.breath_detect import classify_breath_samples
-
-    with patch("podcast_mcp.edits.breath_detect.load_defaults", side_effect=AssertionError):
-        classify_breath_samples(
-            np.zeros(1600, dtype=np.float32), 1.0, sample_rate=16000, defaults={}
-        )
 
 
 def test_detect_adjacent_breath_falls_back_to_heuristic_when_silero_unavailable():
@@ -605,7 +604,10 @@ def test_voiced_tone_after_cut_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(after=_harmonic_tone(2560, 0.026)),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
 
 
 def test_sibilant_noise_after_cut_is_not_a_breath():
@@ -615,7 +617,10 @@ def test_sibilant_noise_after_cut_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(after=_sibilant_noise(2560, 0.026)),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
 
 
 def test_breath_before_cut_needs_unvoiced_audio_up_to_the_cut():
@@ -626,12 +631,15 @@ def test_breath_before_cut_needs_unvoiced_audio_up_to_the_cut():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=breath, before_tail=_harmonic_tone(1600, 0.026)),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=breath),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
 
@@ -644,12 +652,15 @@ def test_breath_before_cut_is_not_extended_across_a_sibilant():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=breath, before_tail=_sibilant_noise(1600, 0.026)),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=breath, before_tail=_shaped_noise(1600, 0.026)),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
 
@@ -687,7 +698,7 @@ def test_quiet_breath_relative_to_the_track_floor_is_found():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=_shaped_noise(2560, _dbfs(-48.0))),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.86), side="before")]
 
@@ -699,7 +710,7 @@ def test_loud_breath_below_the_speech_level_is_found():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(after=_shaped_noise(2560, _dbfs(-26.0))),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
 
     assert spans == [BreathSpan(start=pytest.approx(5.23), end=pytest.approx(5.39), side="after")]
 
@@ -711,7 +722,10 @@ def test_noise_at_speech_level_next_to_the_cut_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(after=_shaped_noise(2560, _dbfs(-18.0))),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
 
 
 def test_gated_digital_silence_around_the_cut_is_not_a_breath():
@@ -721,7 +735,10 @@ def test_gated_digital_silence_around_the_cut_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(gap_floor=0.0),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
 
 
 def test_no_breath_without_live_audio_around_the_cut():
@@ -731,7 +748,10 @@ def test_no_breath_without_live_audio_around_the_cut():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         return_value=np.zeros(16000, dtype=np.float32),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
 
 
 def test_kept_word_next_to_the_cut_is_not_a_breath():
@@ -742,8 +762,13 @@ def test_kept_word_next_to_the_cut_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before_tail=tail),
     ):
-        assert detect_adjacent_breath(_host_project([("she", 4.7, 5.0)]), "host", 5.0, 5.2) == []
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        assert (
+            detect_adjacent_breath(
+                _host_project([("she", 4.7, 5.0)]), "host", 5.0, 5.2, defaults=load_defaults()
+            )
+            == []
+        )
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(5.0), side="before")]
 
@@ -755,7 +780,9 @@ def test_word_the_cut_removes_does_not_block_its_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=_shaped_noise(2560, 0.026)),
     ):
-        spans = detect_adjacent_breath(_host_project([("um", 4.98, 5.2)]), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(
+            _host_project([("um", 4.98, 5.2)]), "host", 5.0, 5.2, defaults=load_defaults()
+        )
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.86), side="before")]
 
@@ -769,12 +796,15 @@ def test_vocal_fry_between_breath_and_cut_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=breath, before_tail=fry),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(before=breath),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
 
@@ -788,12 +818,19 @@ def test_kept_word_decay_tail_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(placed=((word, 4.5), (decay, 4.7))),
     ):
-        assert detect_adjacent_breath(_host_project([("she", 4.5, 4.7)]), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(
+                _host_project([("she", 4.5, 4.7)]), "host", 5.0, 5.2, defaults=load_defaults()
+            )
+            == []
+        )
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(placed=((word[:1600], 4.5), (decay, 4.7))),
     ):
-        spans = detect_adjacent_breath(_host_project([("she", 4.5, 4.6)]), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(
+            _host_project([("she", 4.5, 4.6)]), "host", 5.0, 5.2, defaults=load_defaults()
+        )
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.85), side="before")]
 
@@ -807,12 +844,19 @@ def test_fricative_onset_of_the_next_kept_word_is_not_a_breath():
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(placed=((onset, 5.23), (word, 5.37))),
     ):
-        assert detect_adjacent_breath(_host_project([("she", 5.37, 5.57)]), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(
+                _host_project([("she", 5.37, 5.57)]), "host", 5.0, 5.2, defaults=load_defaults()
+            )
+            == []
+        )
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(placed=((onset, 5.23), (word, 5.57))),
     ):
-        spans = detect_adjacent_breath(_host_project([("she", 5.57, 5.77)]), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(
+            _host_project([("she", 5.57, 5.77)]), "host", 5.0, 5.2, defaults=load_defaults()
+        )
 
     assert spans == [BreathSpan(start=pytest.approx(5.23), end=pytest.approx(5.37), side="after")]
 
@@ -944,14 +988,17 @@ def test_voicing_is_assessed_only_where_the_level_could_be_speech():
             before=breath, before_tail=_harmonic_tone(3200, _dbfs(-60.0), hz=120.0)
         ),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(
             before=breath, before_tail=_harmonic_tone(3200, _dbfs(-30.0), hz=120.0)
         ),
     ):
-        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+        assert (
+            detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
+            == []
+        )
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
 
@@ -973,6 +1020,7 @@ def test_complete_breath_crossing_cut_end_keeps_its_onset(backend: str) -> None:
             noise_floor_rms=_FLOOR_RMS,
             cut_edge="start",
             search_sec=(5.15, 5.3),
+            defaults=load_defaults(),
         )
 
     assert hit is not None
@@ -987,7 +1035,7 @@ def test_final_end_protection_reads_before_boundary() -> None:
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(placed=((_shaped_noise(3840, 0.026), 5.1),)),
     ):
-        protected = protect_cut_breaths(_host_project(), "host", 5.0, 5.2)
+        protected = protect_cut_breaths(_host_project(), "host", 5.0, 5.2, defaults=load_defaults())
     assert protected == pytest.approx((5.0, 5.1))
 
 
@@ -1028,6 +1076,7 @@ def test_crossing_breath_keeps_speech_protection(backend: str, protected: str) -
             search_sec=(4.8, 5.3),
             crossing_sec=5.2,
             keep_out=keep_out,
+            defaults=load_defaults(),
         )
 
     assert hit is None
@@ -1047,6 +1096,7 @@ def test_crossing_breath_keeps_speech_protection(backend: str, protected: str) -
             cut_edge="start",
             search_sec=(4.8, 5.3),
             crossing_sec=5.2,
+            defaults=load_defaults(),
         )
     assert valid is not None
     assert valid.start == pytest.approx(5.0, abs=0.01)
@@ -1118,6 +1168,7 @@ def test_crossing_breath_refines_only_a_safe_quiet_onset(backend: str, protectio
                 keep_out=keep_out,
                 search_sec=search,
                 crossing_sec=crossing,
+                defaults=load_defaults(),
             )
 
     seed = classify(None)
@@ -1152,7 +1203,7 @@ def _protect(cut: tuple[float, float], *, placed=(), gap_floor=_FLOOR_RMS, **kw)
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(placed=placed, gap_floor=gap_floor),
     ):
-        return protect_cut_breaths(_host_project(), "host", *cut, **kw)
+        return protect_cut_breaths(_host_project(), "host", *cut, **kw, defaults=load_defaults())
 
 
 def _with_guest(project):
@@ -1205,7 +1256,7 @@ def _air(cut, *, placed=(), gap_floor=_FLOOR_RMS, guest=None, words=None, guest_
         return reader(path, start_sec, duration_sec, sample_rate)
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=windows):
-        return _span(pause_air_span(project, "host", *cut))
+        return _span(pause_air_span(project, "host", *cut, defaults=load_defaults()))
 
 
 def _frames_at(levels_db, *, voiced: bool = False) -> np.ndarray:
@@ -1521,7 +1572,10 @@ def test_a_track_that_sounds_all_through_the_window_has_no_room_to_read() -> Non
     project = _host_project(words)
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=host):
-        assert _span(pause_air_span(project, "host", 4.4, 5.3)) == PauseAirSkip.NO_ROOM
+        assert (
+            _span(pause_air_span(project, "host", 4.4, 5.3, defaults=load_defaults()))
+            == PauseAirSkip.NO_ROOM
+        )
 
 
 def test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim() -> None:
@@ -1819,7 +1873,7 @@ def _sparse_after(fluent_until: float, seconds: float, seed: int = 21):
 def _air_over(words, signal, cut):
     project = _host_project(words)
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=_reader_of(signal)):
-        return _span(pause_air_span(project, "host", *cut))
+        return _span(pause_air_span(project, "host", *cut, defaults=load_defaults()))
 
 
 def test_a_fluent_stretch_around_the_pause_does_not_take_the_recordings_room_from_it() -> None:
@@ -1908,7 +1962,10 @@ def test_disabled_breath_handling_returns_the_trim_without_reading_audio() -> No
 
 @pytest.mark.parametrize("cut", [(5.3, 5.3), (5.3, 4.4), (4.4, float("nan")), (float("inf"), 5.3)])
 def test_an_empty_or_non_finite_span_has_no_air(cut) -> None:
-    assert _span(pause_air_span(_host_project(), "host", *cut)) == PauseAirSkip.NO_AIR
+    assert (
+        _span(pause_air_span(_host_project(), "host", *cut, defaults=load_defaults()))
+        == PauseAirSkip.NO_AIR
+    )
 
 
 def _failing_for(name: str):
@@ -1932,6 +1989,6 @@ def test_audio_that_cannot_be_read_is_no_room_on_any_track_the_ripple_cuts(unrea
     with patch(
         "podcast_mcp.edits.session_air.load_mono_window", side_effect=_failing_for(unreadable)
     ):
-        got = pause_air_span(project, "host", 4.4, 5.3)
+        got = pause_air_span(project, "host", 4.4, 5.3, defaults=load_defaults())
 
     assert got == PauseAirSkip.NO_ROOM

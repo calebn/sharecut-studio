@@ -180,8 +180,11 @@ def test_engine_default_options_follow_pipeline_yaml(monkeypatch, tmp_path):
     cfg = tmp_path / "pipeline.yaml"
     cfg.write_text("transcribe:\n  vad:\n    enabled: false\n", encoding="utf-8")
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(cfg))
-    assert TranscriptionEngine().options.vad_enabled is False
-    assert TranscriptionEngine(options=AsrOptions()).options.vad_enabled is True
+    assert TranscriptionEngine(defaults=load_defaults()).options.vad_enabled is False
+    assert (
+        TranscriptionEngine(options=AsrOptions(), defaults=load_defaults()).options.vad_enabled
+        is True
+    )
 
 
 def test_transcribe_kwargs_are_accepted_by_installed_faster_whisper():

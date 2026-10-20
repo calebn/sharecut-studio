@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.fixture import seed_canned_transcript
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.e2e_fixture import DEFAULT_CANNED
 from podcast_mcp.models import load_project
 
@@ -13,7 +14,7 @@ runner = CliRunner()
 
 
 def test_social_clip_export(e2e_workspace) -> None:
-    seed_canned_transcript(e2e_workspace, DEFAULT_CANNED)
+    seed_canned_transcript(e2e_workspace, DEFAULT_CANNED, defaults=load_defaults())
     runner.invoke(app, ["render-preview", "--project", str(e2e_workspace)])
 
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance

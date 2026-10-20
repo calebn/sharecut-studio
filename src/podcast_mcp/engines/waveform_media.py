@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh
 from podcast_mcp.engines.waveform_pyramid import (
@@ -143,7 +144,11 @@ def _project_candidates(project: EpisodeProject) -> list[_Candidate | None]:
 
 
 def _resolve(
-    project: EpisodeProject, candidates: list[_Candidate | None], *, fresh_only: bool
+    project: EpisodeProject,
+    candidates: list[_Candidate | None],
+    *,
+    fresh_only: bool,
+    defaults: EffectiveConfig,
 ) -> MediaRefs:
     """Check each candidate on disk: drawable refs, or refs that exist but cannot be drawn."""
     out = MediaRefs(refs={}, unavailable={})
@@ -154,7 +159,11 @@ def _resolve(
             out.unavailable[cand.ref] = cand.reason
             continue
         _, _, ref_id = cand.ref.partition(":")
-        if cand.kind == "stem" and fresh_only and not stem_is_fresh(project, ref_id):
+        if (
+            cand.kind == "stem"
+            and fresh_only
+            and not stem_is_fresh(project, ref_id, defaults=defaults)
+        ):
             continue
         if not cand.path.is_file():
             if cand.kind == "raw":
@@ -166,9 +175,9 @@ def _resolve(
     return out
 
 
-def collect_media_refs(project: EpisodeProject) -> MediaRefs:
+def collect_media_refs(project: EpisodeProject, *, defaults: EffectiveConfig) -> MediaRefs:
     """Every raw and (fresh) stem ref of *project*."""
-    return _resolve(project, _project_candidates(project), fresh_only=True)
+    return _resolve(project, _project_candidates(project), fresh_only=True, defaults=defaults)
 
 
 def media_watch_paths(project: EpisodeProject) -> tuple[Path, ...]:
@@ -187,14 +196,16 @@ def media_watch_paths(project: EpisodeProject) -> tuple[Path, ...]:
     return tuple(paths)
 
 
-def track_media_refs(project: EpisodeProject, track: Track, *, sources: bool = True) -> MediaRefs:
+def track_media_refs(
+    project: EpisodeProject, track: Track, *, sources: bool = True, defaults: EffectiveConfig
+) -> MediaRefs:
     """The track ref plus, unless ``sources=False``, the retained source refs of *track*'s lane."""
     candidates = [_track_candidate(project, track)]
     if sources:
         candidates += [
             _source_candidate(project, s) for s in _retained_source_ids(project, track.id)
         ]
-    return _resolve(project, candidates, fresh_only=False)
+    return _resolve(project, candidates, fresh_only=False, defaults=defaults)
 
 
 def current_key(entry: MediaEntry) -> str:
@@ -207,9 +218,9 @@ def current_key(entry: MediaEntry) -> str:
     return media_key(entry.rel_path, st.st_size, st.st_mtime_ns)
 
 
-def current_ref_key(project_path: Path, ref: str) -> str | None:
+def current_ref_key(project_path: Path, ref: str, *, defaults: EffectiveConfig) -> str | None:
     """Current key for *ref* in the saved project, including a replaced media path."""
-    entry = collect_media_refs(load_project(project_path)).refs.get(ref)
+    entry = collect_media_refs(load_project(project_path), defaults=defaults).refs.get(ref)
     return current_key(entry) if entry is not None else None
 
 
@@ -221,7 +232,9 @@ def pyramid_target(artifacts_dir: Path, ref: str, entry: MediaEntry) -> PyramidT
     return PyramidTarget(slug=slug, key=key, out=pyramid_path(artifacts_dir / "peaks", slug, key))
 
 
-def schedule_media_ref(artifacts_dir: Path, ref: str, entry: MediaEntry) -> bool:
+def schedule_media_ref(
+    artifacts_dir: Path, ref: str, entry: MediaEntry, *, defaults: EffectiveConfig
+) -> bool:
     """Queue a background build unless the pyramid exists; ``True`` when ready or queued."""
     try:
         target = pyramid_target(artifacts_dir, ref, entry)
@@ -235,33 +248,43 @@ def schedule_media_ref(artifacts_dir: Path, ref: str, entry: MediaEntry) -> bool
         entry.abs_path,
         target.out,
         current_key=functools.partial(
-            current_ref_key, project_file_path(artifacts_dir.parent), ref
+            current_ref_key, project_file_path(artifacts_dir.parent), ref, defaults=defaults
         ),
     )
 
 
-def schedule_track_waveforms(project: EpisodeProject, track: Track) -> int:
+def schedule_track_waveforms(
+    project: EpisodeProject, track: Track, *, defaults: EffectiveConfig
+) -> int:
     """Queue pyramids for *track* and its clips' sources; returns refs ready or queued."""
-    refs = track_media_refs(project, track).refs
+    refs = track_media_refs(project, track, defaults=defaults).refs
     artifacts = project.artifacts_dir()
-    return sum(schedule_media_ref(artifacts, ref, entry) for ref, entry in refs.items())
+    return sum(
+        schedule_media_ref(artifacts, ref, entry, defaults=defaults) for ref, entry in refs.items()
+    )
 
 
-def schedule_stem_waveforms(project: EpisodeProject, track_ids: list[str]) -> int:
+def schedule_stem_waveforms(
+    project: EpisodeProject, track_ids: list[str], *, defaults: EffectiveConfig
+) -> int:
     """Queue pyramids for just-rendered stems (safe ids with a stem file)."""
     candidates = [_stem_candidate(project, track_id) for track_id in track_ids]
-    refs = _resolve(project, candidates, fresh_only=False).refs
+    refs = _resolve(project, candidates, fresh_only=False, defaults=defaults).refs
     artifacts = project.artifacts_dir()
-    return sum(schedule_media_ref(artifacts, ref, entry) for ref, entry in refs.items())
+    return sum(
+        schedule_media_ref(artifacts, ref, entry, defaults=defaults) for ref, entry in refs.items()
+    )
 
 
-def ensure_track_waveforms(project: EpisodeProject, track: Track, *, sources: bool = True) -> int:
+def ensure_track_waveforms(
+    project: EpisodeProject, track: Track, *, sources: bool = True, defaults: EffectiveConfig
+) -> int:
     """Build *track*'s pyramids inline; returns how many are on disk after.
 
     ``sources=False`` builds only the ``track:<id>`` ref (what social-clip energy
     reads) and skips the source refs of the clips on the lane.
     """
-    refs = track_media_refs(project, track, sources=sources).refs
+    refs = track_media_refs(project, track, sources=sources, defaults=defaults).refs
     ready = 0
     artifacts = project.artifacts_dir()
     for ref, entry in refs.items():
@@ -274,7 +297,10 @@ def ensure_track_waveforms(project: EpisodeProject, track: Track, *, sources: bo
                     entry.abs_path,
                     target.out,
                     current_key=functools.partial(
-                        current_ref_key, project_file_path(artifacts.parent), ref
+                        current_ref_key,
+                        project_file_path(artifacts.parent),
+                        ref,
+                        defaults=defaults,
                     ),
                 )
         except Exception as exc:
@@ -284,14 +310,20 @@ def ensure_track_waveforms(project: EpisodeProject, track: Track, *, sources: bo
     return ready
 
 
-def ensure_project_waveforms(project: EpisodeProject, *, sources: bool = True) -> int:
+def ensure_project_waveforms(
+    project: EpisodeProject, *, sources: bool = True, defaults: EffectiveConfig
+) -> int:
     """``ensure_track_waveforms`` for every track with media; returns the total on disk."""
     return sum(
-        ensure_track_waveforms(project, t, sources=sources) for t in project.tracks if t.media
+        ensure_track_waveforms(project, t, sources=sources, defaults=defaults)
+        for t in project.tracks
+        if t.media
     )
 
 
-def track_pyramid(project: EpisodeProject, track_id: str) -> tuple[Path, PyramidMeta] | None:
+def track_pyramid(
+    project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
+) -> tuple[Path, PyramidMeta] | None:
     """The ready ``track:<id>`` pyramid for the track's current media, if one is on disk.
 
     Never builds. Raises ``ValueError`` when the file is corrupt and ``OSError``
@@ -300,7 +332,9 @@ def track_pyramid(project: EpisodeProject, track_id: str) -> tuple[Path, Pyramid
     track = project.track_by_id(track_id)
     if track is None:
         return None
-    resolved = track_media_refs(project, track, sources=False).refs.get(f"track:{track_id}")
+    resolved = track_media_refs(project, track, sources=False, defaults=defaults).refs.get(
+        f"track:{track_id}"
+    )
     if resolved is None:
         return None
     target = pyramid_target(project.artifacts_dir(), f"track:{track_id}", resolved)

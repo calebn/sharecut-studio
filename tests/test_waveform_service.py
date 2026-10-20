@@ -13,6 +13,7 @@ import pytest
 from filelock import Timeout as FileLockTimeout
 
 import podcast_mcp.services.media.waveform as svc
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import waveform_media as wm
 from podcast_mcp.engines import waveform_pyramid as wm_pyramid
 from podcast_mcp.engines.waveform_pyramid import (
@@ -88,7 +89,7 @@ def test_media_watch_paths_follow_the_ref_walk(tmp_path):
     assert {stems / "host.wav", stems / "host.hash"} <= watched
     assert stems / "empty.wav" not in watched  # no media, no stem ref
     assert (ws.parent / "outside.wav").resolve() not in watched  # escaping media is skipped
-    refs = wm.collect_media_refs(project).refs
+    refs = wm.collect_media_refs(project, defaults=load_defaults()).refs
     assert {e.abs_path.resolve() for e in refs.values()} <= watched
 
 
@@ -102,7 +103,7 @@ def test_media_index_stems_fresh_only_and_unsafe_ids(tmp_path):
     stems = project_path.parent / "artifacts" / "tracks"
     write_wav(stems / "host.wav", 640)
     write_wav(stems / "guest.wav", 640)
-    with patch.object(wm, "stem_is_fresh", lambda _p, tid: tid in {"host", "gone"}):
+    with patch.object(wm, "stem_is_fresh", lambda _p, tid, **_kw: tid in {"host", "gone"}):
         index = media_index(project_path)
     assert index.refs["stem:host"].kind == "stem"
     assert index.refs["stem:host"].rel_path == "artifacts/tracks/host.wav"
@@ -266,14 +267,18 @@ def test_old_job_does_not_prune_new_media_path_for_the_same_ref(tmp_path):
 
     with patch.object(wm_pyramid, "decode_media", side_effect=blocked):
         try:
-            assert wm.schedule_media_ref(artifacts, "track:host", old_entry)
+            assert wm.schedule_media_ref(
+                artifacts, "track:host", old_entry, defaults=load_defaults()
+            )
             assert entered.wait(5)
             project = load_project(project_path)
             host = project.track_by_id("host")
             assert host is not None and host.media is not None
             host.media.path = "raw/guest.wav"
             save_project(project, project_path)
-            new_entry = wm.collect_media_refs(load_project(project_path)).refs["track:host"]
+            new_entry = wm.collect_media_refs(
+                load_project(project_path), defaults=load_defaults()
+            ).refs["track:host"]
             live_key = current_key(new_entry)
             peaks = artifacts / "peaks"
             live = pyramid_path(peaks, "track-host", live_key)
@@ -423,7 +428,7 @@ def test_status_schedule_refused_and_vanished_media(tmp_path):
 def test_status_stem_kind(tmp_path):
     project_path = waveform_project(tmp_path)
     write_wav(project_path.parent / "artifacts" / "tracks" / "host.wav", 640)
-    with patch.object(wm, "stem_is_fresh", lambda _p, tid: tid == "host"):
+    with patch.object(wm, "stem_is_fresh", lambda _p, tid, **_kw: tid == "host"):
         media = waveform_status(project_path, "stem")["media"]
     assert media == {"stem:host": {"status": "generating"}}
 
@@ -506,29 +511,36 @@ def test_schedule_track_waveforms_covers_lane_sources(tmp_path):
     project = load_project(project_path)
     guest = project.track_by_id("guest")
     assert guest is not None
-    assert schedule_track_waveforms(project, guest) == 2  # track:guest + source:s_host
+    assert (
+        schedule_track_waveforms(project, guest, defaults=load_defaults()) == 2
+    )  # track:guest + source:s_host
     wait_pyramid_jobs()
     peaks = project.artifacts_dir() / "peaks"
     assert sorted(p.name.split(".")[0] for p in peaks.glob("*.wfpk")) == [
         "source-s_host",
         "track-guest",
     ]
-    assert schedule_track_waveforms(project, guest) == 2  # already on disk
+    assert (
+        schedule_track_waveforms(project, guest, defaults=load_defaults()) == 2
+    )  # already on disk
     gone = project.track_by_id("gone")
     assert gone is not None
-    assert schedule_track_waveforms(project, gone) == 0
+    assert schedule_track_waveforms(project, gone, defaults=load_defaults()) == 0
 
 
 def test_schedule_media_ref_missing_file_is_false(tmp_path):
     entry = wm.MediaEntry(kind="raw", abs_path=tmp_path / "missing.wav", rel_path="missing.wav")
-    assert wm.schedule_media_ref(tmp_path, "track:x", entry) is False
+    assert wm.schedule_media_ref(tmp_path, "track:x", entry, defaults=load_defaults()) is False
 
 
 def test_schedule_stem_waveforms(tmp_path):
     project_path = waveform_project(tmp_path)
     project = load_project(project_path)
     write_wav(project.artifacts_dir() / "tracks" / "host.wav", 640)
-    assert schedule_stem_waveforms(project, ["host", "guest", "../evil"]) == 1
+    assert (
+        schedule_stem_waveforms(project, ["host", "guest", "../evil"], defaults=load_defaults())
+        == 1
+    )
     wait_pyramid_jobs()
     assert [p.name.split(".")[0] for p in (project.artifacts_dir() / "peaks").glob("*.wfpk")] == [
         "stem-host"
@@ -540,15 +552,17 @@ def test_ensure_track_waveforms_builds_inline(tmp_path):
     project = load_project(project_path)
     host = project.track_by_id("host")
     assert host is not None
-    assert ensure_track_waveforms(project, host) == 1
+    assert ensure_track_waveforms(project, host, defaults=load_defaults()) == 1
     assert list((project.artifacts_dir() / "peaks").glob("track-host.*.wfpk"))
     with patch.object(wm, "build_pyramid") as build:
-        assert ensure_track_waveforms(project, host) == 1  # already there
+        assert ensure_track_waveforms(project, host, defaults=load_defaults()) == 1  # already there
     build.assert_not_called()
     guest = project.track_by_id("guest")
     assert guest is not None
     with patch.object(wm, "build_pyramid", side_effect=RuntimeError("boom")):
-        assert ensure_track_waveforms(project, guest) == 0  # both guest-lane builds fail
+        assert (
+            ensure_track_waveforms(project, guest, defaults=load_defaults()) == 0
+        )  # both guest-lane builds fail
     assert not list((project.artifacts_dir() / "peaks").glob("track-guest.*.wfpk"))
 
 
@@ -556,12 +570,12 @@ def test_ensure_project_waveforms_track_refs_only_then_all(tmp_path):
     project = load_project(waveform_project(tmp_path))
     peaks = project.artifacts_dir() / "peaks"
     # host + guest track refs; gone/escape have no drawable media
-    assert ensure_project_waveforms(project, sources=False) == 2
+    assert ensure_project_waveforms(project, sources=False, defaults=load_defaults()) == 2
     assert list(peaks.glob("track-host.*.wfpk"))
     assert list(peaks.glob("track-guest.*.wfpk"))
     assert not list(peaks.glob("source-*.wfpk"))
     # default also builds the guest lane's clip source (s_host)
-    assert ensure_project_waveforms(project) == 3
+    assert ensure_project_waveforms(project, defaults=load_defaults()) == 3
     assert list(peaks.glob("source-s_host.*.wfpk"))
 
 
@@ -572,8 +586,13 @@ def test_track_media_refs_sources_flag(tmp_path):
     project = load_project(waveform_project(tmp_path))
     guest = project.track_by_id("guest")
     assert guest is not None
-    assert set(wm.track_media_refs(project, guest, sources=False).refs) == {"track:guest"}
-    assert set(wm.track_media_refs(project, guest).refs) == {"track:guest", "source:s_host"}
+    assert set(
+        wm.track_media_refs(project, guest, sources=False, defaults=load_defaults()).refs
+    ) == {"track:guest"}
+    assert set(wm.track_media_refs(project, guest, defaults=load_defaults()).refs) == {
+        "track:guest",
+        "source:s_host",
+    }
 
 
 def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
@@ -603,7 +622,7 @@ def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
 def test_gc_refreshes_live_refs_after_waiting_for_publication(tmp_path, monkeypatch):
     project_path = waveform_project(tmp_path)
     project = load_project(project_path)
-    ensure_project_waveforms(project)
+    ensure_project_waveforms(project, defaults=load_defaults())
     stale_index = media_index(project_path)
     audio = project_path.parent / "raw" / "new.wav"
     write_wav(audio, 8000)
@@ -676,7 +695,7 @@ def test_stem_symlinked_outside_workspace_is_skipped(tmp_path):
     stems = project.artifacts_dir() / "tracks"
     stems.mkdir(parents=True)
     (stems / "host.wav").symlink_to(outside)
-    assert schedule_stem_waveforms(project, ["host"]) == 0
+    assert schedule_stem_waveforms(project, ["host"], defaults=load_defaults()) == 0
 
 
 def test_meta_cache_is_bounded(tmp_path, monkeypatch):
@@ -1084,7 +1103,7 @@ def test_media_index_sees_stem_hash_rewritten_in_place(tmp_path):
     write_wav(stems / "host.wav", 640)
     (stems / "host.hash").write_text("old")
 
-    def fresh(_p, tid):
+    def fresh(_p, tid, **_kw):
         h = stems / f"{tid}.hash"
         return h.read_text() == "new" if h.is_file() else False
 
@@ -1101,9 +1120,9 @@ def test_media_index_stem_written_during_parse_is_not_kept(tmp_path, monkeypatch
     stems = project_path.parent / "artifacts" / "tracks"
     real = svc.collect_media_refs
 
-    def racing(project):
+    def racing(project, **_kw):
         write_wav(stems / "host.wav", 640)
-        return real(project)
+        return real(project, **_kw)
 
     monkeypatch.setattr(svc, "collect_media_refs", racing)
     first = media_index(project_path)
@@ -1144,7 +1163,7 @@ def test_source_ref_resolves_like_clip_render(tmp_path):
     project = load_project(waveform_project(tmp_path))
     clip = next(c for c in project.clips if c.source_id == "s_host")
     track = project.track_by_id(clip.track_id)
-    entry = wm.collect_media_refs(project).refs["source:s_host"]
+    entry = wm.collect_media_refs(project, defaults=load_defaults()).refs["source:s_host"]
     assert entry.abs_path == resolve_clip_audio_path(project, track, clip)
 
 

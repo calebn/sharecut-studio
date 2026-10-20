@@ -5,11 +5,12 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from filelock import Timeout
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch
 from podcast_mcp.engines.mastering import MasterTarget
@@ -198,12 +199,12 @@ def test_play_invalid_time_range_raises(minimal_project, sample_wav) -> None:
 def test_play_premix_rerender(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     premix = ws.project.artifacts_dir() / "premix.wav"
-    mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
+    mock_extract = MagicMock(side_effect=lambda _src, out, *_a, **_kw: out.touch() or out)
     with (
         patch("podcast_mcp.services.document.play.rerender_preview") as rerender,
         patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
     ):
-        rerender.side_effect = lambda _p: premix.write_bytes(sample_wav.read_bytes())
+        rerender.side_effect = lambda _p, **_k: premix.write_bytes(sample_wav.read_bytes())
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(source="premix", start_sec=0.0, end_sec=0.5, rerender=True),
@@ -591,7 +592,7 @@ def test_play_processed_stem_fresh_path(minimal_project, sample_wav) -> None:
     stem.write_bytes(sample_wav.read_bytes())
     from podcast_mcp.engines.play_audit import write_stem_hash
 
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
 
     def _extract(_src, out, *_a):
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -623,7 +624,7 @@ def test_play_silent_stem_extract_falls_back_to_segment(minimal_project, sample_
     stem.write_bytes(sample_wav.read_bytes())
     from podcast_mcp.engines.play_audit import write_stem_hash
 
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
 
     def _silent_extract(_src, out, *_a):
         import wave
@@ -665,7 +666,7 @@ def test_play_stem_cache_invalidates_on_stem_mtime(minimal_project, sample_wav) 
     stem.write_bytes(sample_wav.read_bytes())
     from podcast_mcp.engines.play_audit import write_stem_hash
 
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
     svc = PlayService(ws)
     first = svc._cache_path("stem_host_hash", 0.0, 0.5, stem)
     first.parent.mkdir(parents=True, exist_ok=True)
@@ -687,7 +688,7 @@ def test_play_processed_segment_cache_hit(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     from podcast_mcp.engines.play_audit import track_render_hash
 
-    edit_hash = track_render_hash(ws.project, "host")
+    edit_hash = track_render_hash(ws.project, "host", defaults=load_defaults())
     cache = ws.project.artifacts_dir() / "play_cache" / f"processed_host_0.00_0.50_{edit_hash}.wav"
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_bytes(sample_wav.read_bytes())
@@ -709,7 +710,7 @@ def test_play_segment_cache_key_matches_the_rendered_snapshot_after_a_mid_decisi
     from podcast_mcp.engines.play_audit import track_render_hash
 
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    before_hash = track_render_hash(ws.project, "host")
+    before_hash = track_render_hash(ws.project, "host", defaults=load_defaults())
     rendered = []
 
     def change_live_project(_project, _track_id, _fingerprint):
@@ -721,7 +722,12 @@ def test_play_segment_cache_key_matches_the_rendered_snapshot_after_a_mid_decisi
         return False
 
     def render(snapshot, _track_id, _start, _end, cache, _defaults):
-        rendered.append((snapshot.clips[0].source_end, track_render_hash(snapshot, "host")))
+        rendered.append(
+            (
+                snapshot.clips[0].source_end,
+                track_render_hash(snapshot, "host", defaults=load_defaults()),
+            )
+        )
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_bytes(sample_wav.read_bytes())
         return cache
@@ -734,7 +740,7 @@ def test_play_segment_cache_key_matches_the_rendered_snapshot_after_a_mid_decisi
 
     # The mid-decision edit lands during the freshness check; the miss path re-snapshots
     # and keys the cache from that (rendered) snapshot, not the pre-edit fingerprint (#220).
-    after_hash = track_render_hash(ws.project, "host")
+    after_hash = track_render_hash(ws.project, "host", defaults=load_defaults())
     assert rendered == [(1.0, after_hash)]
     assert after_hash in result[0].name
     assert before_hash not in result[0].name
@@ -753,7 +759,7 @@ def test_play_segment_render_reuses_the_cache_of_the_snapshot_hash(
     # independent reload, so the setup does not touch ``ws.project`` itself).
     scratch = load_project(minimal_project)
     scratch.clips[0].source_end = 1.0
-    edited_hash = track_render_hash(scratch, "host")
+    edited_hash = track_render_hash(scratch, "host", defaults=load_defaults())
 
     cache = svc._segment_cache_path("host", 0.0, 0.5, edited_hash)
     cache.parent.mkdir(parents=True, exist_ok=True)
@@ -828,7 +834,7 @@ def test_play_processed_rerender_invalidates_cache(minimal_project, sample_wav) 
     stem.write_bytes(sample_wav.read_bytes())
     from podcast_mcp.engines.play_audit import write_stem_hash
 
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
     cache_dir = ws.project.artifacts_dir() / "play_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     stale = cache_dir / "stem_host_abc.wav"
@@ -867,7 +873,7 @@ def test_play_long_rerender_rebuilds_stem(minimal_project, sample_wav) -> None:
     stem.write_bytes(sample_wav.read_bytes())
     from podcast_mcp.engines.play_audit import write_stem_hash
 
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
 
     def _rebuild(_track_id):
         # The real ensure_stem republishes the stem the rerender just invalidated.
@@ -988,7 +994,7 @@ def test_premix_rerender_failure_drops_its_partial_state(minimal_project, sample
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
 
-    def boom(project):
+    def boom(project, **_kw):
         project.name = "partial"
         raise Timeout("lock")
 
@@ -1428,7 +1434,7 @@ def test_edit_add_unsupported_custom_preset_refuses_before_mutation(
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
         patch(
-            "podcast_mcp.effects.presets.load_defaults",
+            "podcast_mcp.services.pipeline.config.load_defaults",
             return_value={"effects": {"legacy_custom": [{"effect": "alimiter", "params": {}}]}},
         ),
         patch.object(ws, "mutate", wraps=ws.mutate) as mutate,
@@ -1573,7 +1579,7 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
     with patch("podcast_mcp.services.document.edit.check_loudness", return_value=measured.copy()):
         service = EditService(ws)
         assert service.check_loudness()["stale_reason"] == "premix_unverified"
-        write_premix_hash(project, mix_gains(project), trim_db=0.0)
+        write_premix_hash(project, mix_gains(project), trim_db=0.0, defaults=load_defaults())
         assert service.check_loudness(str(premix))["stale"] is False
         assert service.check_loudness()["stale_reason"] == "master_missing"
 
@@ -1595,7 +1601,7 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
         project.track_by_id("host").fader_db = -3.0
         assert service.check_loudness()["stale_reason"] == "premix_stale"
         project.track_by_id("host").fader_db = 0.0
-        write_premix_hash(project, mix_gains(project), trim_db=0.0)
+        write_premix_hash(project, mix_gains(project), trim_db=0.0, defaults=load_defaults())
         premix.unlink()
         assert service.check_loudness()["stale_reason"] == "premix_missing"
 
@@ -1713,7 +1719,7 @@ def test_edit_apply_bleed_mute_apply(minimal_project, sample_wav) -> None:
     stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
 
     def _copy_gate(src, intervals, dest, **kwargs) -> None:
         Path(dest).write_bytes(Path(src).read_bytes())
@@ -1866,7 +1872,7 @@ def test_edit_check_loudness_prefers_mastered_export(minimal_project, sample_wav
     loud = {"integrated_lufs": -14.0}
     with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
         out = EditService(ws).check_loudness()
-    chk.assert_called_once_with(mastered)
+    chk.assert_called_once_with(mastered, defaults=ANY)
     assert out["integrated_lufs"] == pytest.approx(-14.0)
 
 
@@ -1894,13 +1900,13 @@ def test_edit_optional_track_filters_without_speaker(minimal_project, sample_wav
         return_value=[],
     ) as fades:
         assert EditService(ws).recommend_fades() == []
-    fades.assert_called_once_with(ws.project, track_id=None)
+    fades.assert_called_once_with(ws.project, track_id=None, defaults=ANY)
     with patch(
         "podcast_mcp.services.document.edit.audit_low_audibility_words",
         return_value=[],
     ) as low:
         assert EditService(ws).low_audibility_words() == []
-    low.assert_called_once_with(ws.project, track_id=None, progress=None)
+    low.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
     with patch(
         "podcast_mcp.services.document.edit.bleed_words",
         return_value=[],
@@ -1912,13 +1918,13 @@ def test_edit_optional_track_filters_without_speaker(minimal_project, sample_wav
         return_value=[],
     ) as aud:
         assert EditService(ws).audibility_map() == []
-    aud.assert_called_once_with(ws.project, track_id=None, progress=None)
+    aud.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
     with patch(
         "podcast_mcp.services.document.edit.list_flagged_transcript_words",
         return_value=[],
     ) as flagged:
         assert EditService(ws).flagged_words() == []
-    flagged.assert_called_once_with(ws.project, track_id=None, progress=None)
+    flagged.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
 
 
 def test_edit_suppress_low_audibility_mutates(minimal_project, sample_wav) -> None:
@@ -1965,7 +1971,7 @@ def test_edit_check_loudness_explicit_path(minimal_project, sample_wav) -> None:
     loud = {"integrated_lufs": -18.0}
     with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
         out = EditService(ws).check_loudness(str(audio))
-    chk.assert_called_once_with(audio)
+    chk.assert_called_once_with(audio, defaults=ANY)
     assert out["integrated_lufs"] == pytest.approx(-18.0)
 
 
@@ -2018,29 +2024,33 @@ def test_publish_stem_keeps_the_old_pair_until_the_new_bytes_land(
     stem = stem_path(ws.project, "host")
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(b"old")
-    write_stem_hash(ws.project, "host")
-    old_hash = track_render_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
+    old_hash = track_render_hash(ws.project, "host", defaults=load_defaults())
     other = ws.project.model_copy(deep=True)
     other.clips[0].source_end = 1.0
-    assert track_render_hash(other, "host") != old_hash
+    assert track_render_hash(other, "host", defaults=load_defaults()) != old_hash
 
     def render(tmp: Path) -> None:
         assert read_stem_hash(ws.project, "host") == old_hash
         assert stem.read_bytes() == b"old"
         tmp.write_bytes(b"new")
 
-    publish_stem(other, "host", render)
+    publish_stem(other, "host", render, defaults=load_defaults())
     assert stem.read_bytes() == b"new"
-    assert read_stem_hash(ws.project, "host") == track_render_hash(other, "host")
+    assert read_stem_hash(ws.project, "host") == track_render_hash(
+        other, "host", defaults=load_defaults()
+    )
 
     def boom(tmp: Path) -> None:
         tmp.write_bytes(b"half")
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError):
-        publish_stem(ws.project, "host", boom)
+        publish_stem(ws.project, "host", boom, defaults=load_defaults())
     assert stem.read_bytes() == b"new"
-    assert read_stem_hash(ws.project, "host") == track_render_hash(other, "host")
+    assert read_stem_hash(ws.project, "host") == track_render_hash(
+        other, "host", defaults=load_defaults()
+    )
     assert list(stem.parent.glob("*.partial*")) == []
 
 
@@ -2109,7 +2119,9 @@ def test_overlapping_stem_renders_publish_one_at_a_time(minimal_project, sample_
     assert errors == []
     stem = ws_b.project.artifacts_dir() / "tracks" / "host.wav"
     assert stem.read_bytes() == b"1.0"
-    assert read_stem_hash(ws_b.project, "host") == track_render_hash(ws_b.project, "host")
+    assert read_stem_hash(ws_b.project, "host") == track_render_hash(
+        ws_b.project, "host", defaults=load_defaults()
+    )
 
 
 def test_processed_play_skips_a_stem_published_during_the_extract(
@@ -2122,12 +2134,17 @@ def test_processed_play_skips_a_stem_published_during_the_extract(
     stem = stem_path(ws.project, "host")
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
     other = ws.project.model_copy(deep=True)
 
     def extract(_src, out, *_a):
         out.write_bytes(sample_wav.read_bytes())
-        publish_stem(other, "host", lambda tmp: tmp.write_bytes(sample_wav.read_bytes()))
+        publish_stem(
+            other,
+            "host",
+            lambda tmp: tmp.write_bytes(sample_wav.read_bytes()),
+            defaults=load_defaults(),
+        )
         return out
 
     def render_segment(_snapshot, _track_id, _start, _end, cache, _defaults):

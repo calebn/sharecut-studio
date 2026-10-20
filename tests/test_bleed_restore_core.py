@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import extract_clips_in_timeline_range, split_clip_at
 from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, bleed_gate_payload
@@ -143,7 +144,7 @@ def test_restore_roundtrip_canonical_intervals_and_independent_lifecycle(tmp_pat
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.4, 0.7), (0.2, 0.4)])
     restored = EpisodeProject.model_validate_json(project.model_dump_json()).clips[0]
     assert restored.model_dump()["bleed_restore"]["regions"] == [{"start_s": 0.2, "end_s": 0.7}]
-    left, right = split_clip_at(restored, 0.5)
+    left, right = split_clip_at(restored, 0.5, defaults=load_defaults())
     assert (
         left.bleed_restore.regions == right.bleed_restore.regions == restored.bleed_restore.regions
     )
@@ -152,7 +153,14 @@ def test_restore_roundtrip_canonical_intervals_and_independent_lifecycle(tmp_pat
     assert extracted.bleed_restore == restored.bleed_restore
     assert extracted.bleed_restore is not restored.bleed_restore
     clipboard = copy_segment(project, 0.3, 0.6, ["host"])
-    paste_segment(project, 1, clipboard["duration"], clipboard["extracts"], mode=EditMode.GAP)
+    paste_segment(
+        project,
+        1,
+        clipboard["duration"],
+        clipboard["extracts"],
+        mode=EditMode.GAP,
+        defaults=load_defaults(),
+    )
     pasted = next(c for c in project.clips if c.timeline_start == 1 and c.bleed_restore)
     assert pasted.bleed_restore == restored.bleed_restore
     assert pasted.bleed_restore is not project.clips[0].bleed_restore
@@ -162,11 +170,11 @@ def test_restoration_changes_render_identity_without_changing_detector_inputs(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
-    acoustic = bleed_gate_payload(project, "host")
-    render_hash = track_render_hash(project, "host")
+    acoustic = bleed_gate_payload(project, "host", defaults=load_defaults())
+    render_hash = track_render_hash(project, "host", defaults=load_defaults())
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.6)])
-    assert track_render_hash(project, "host") != render_hash
-    assert bleed_gate_payload(project, "host") == acoustic
+    assert track_render_hash(project, "host", defaults=load_defaults()) != render_hash
+    assert bleed_gate_payload(project, "host", defaults=load_defaults()) == acoustic
 
 
 @pytest.mark.parametrize("case", ["disabled", "empty", "outside", "changed_bytes"])
@@ -272,9 +280,9 @@ def test_split_preserves_original_restore_ramps_with_only_authored_microfades(
         lambda *_args, **_kwargs: plan,
     )
     unsplit = _render(project, tmp_path / "unsplit.wav", None)
-    project.clips = list(split_clip_at(project.clips[0], 0.5))
+    project.clips = list(split_clip_at(project.clips[0], 0.5, defaults=load_defaults()))
     split = _render(project, tmp_path / "split.wav", None)
-    radius = round(join_micro_fade_ms() / 1000 * RATE) + 1
+    radius = round(join_micro_fade_ms(defaults=load_defaults()) / 1000 * RATE) + 1
     np.testing.assert_array_equal(split[: RATE // 2 - radius], unsplit[: RATE // 2 - radius])
     np.testing.assert_array_equal(split[RATE // 2 + radius :], unsplit[RATE // 2 + radius :])
     assert np.any(split != unsplit)
@@ -358,9 +366,9 @@ def test_restore_keeps_cached_automatic_plan_identity(tmp_path: Path) -> None:
     from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 
     project = _project(tmp_path)
-    before = build_bleed_gate_plan(project, "host")
+    before = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.6)])
-    after = build_bleed_gate_plan(project, "host")
+    after = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert after is before
 
 
@@ -370,7 +378,9 @@ def test_roll_does_not_transfer_restore_and_trim_retains_hidden_choices(tmp_path
 
     project = _project(tmp_path)
     left, right = split_clip_at(
-        _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.8)]), 0.5
+        _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.8)]),
+        0.5,
+        defaults=load_defaults(),
     )
     right.bleed_restore = None
     project.clips = [left, right]
@@ -378,10 +388,14 @@ def test_roll_does_not_transfer_restore_and_trim_retains_hidden_choices(tmp_path
     assert left.bleed_restore is not None
     assert right.bleed_restore is None
     project.clips = [left]
-    apply_trim_geometry(project, plan_trim(project, left.id, "out", 0.15, EditMode.GAP))
+    apply_trim_geometry(
+        project, plan_trim(project, left.id, "out", 0.15, EditMode.GAP), defaults=load_defaults()
+    )
     assert project.clips[0].source_end == 0.15
     assert project.clips[0].bleed_restore.regions[0].end_s == 0.8
-    apply_trim_geometry(project, plan_trim(project, left.id, "out", 0.9, EditMode.GAP))
+    apply_trim_geometry(
+        project, plan_trim(project, left.id, "out", 0.9, EditMode.GAP), defaults=load_defaults()
+    )
     assert project.clips[0].source_end == 0.9
     assert project.clips[0].bleed_restore.regions[0].end_s == 0.8
 
@@ -503,7 +517,14 @@ def test_invalid_restore_clipboard_refuses_without_mutating_project(tmp_path: Pa
     clipboard["extracts"][0]["bleed_restore"] = {"source_sha256": "invalid", "regions": []}
     before = project.model_dump_json()
     with pytest.raises(PasteRejectedError):
-        paste_segment(project, 1, clipboard["duration"], clipboard["extracts"], mode=EditMode.GAP)
+        paste_segment(
+            project,
+            1,
+            clipboard["duration"],
+            clipboard["extracts"],
+            mode=EditMode.GAP,
+            defaults=load_defaults(),
+        )
     assert project.model_dump_json() == before
 
 
@@ -592,6 +613,7 @@ def test_media_change_refuses_restore_publication_preserving_prior_artifacts(
             project,
             "host",
             lambda target: render_track_from_timeline(project, project.tracks[0], target, {}),
+            defaults=load_defaults(),
         )
     project.clips[0] = _restore(project.clips[0], source, [(0.2, 0.6)])
     target = stem_path(project, "host") if destination == "stem" else tmp_path / "segment.wav"
@@ -646,6 +668,7 @@ def test_media_change_refuses_restore_publication_preserving_prior_artifacts(
                     lambda output: render_track_from_timeline(
                         project, project.tracks[0], output, {}, engine=engine
                     ),
+                    defaults=load_defaults(),
                 )
             else:
                 render_track_segment(project, "host", 0.23, 0.73, target, {}, engine=engine)
@@ -711,15 +734,15 @@ def test_restore_policy_revision_changes_only_restore_render_identities(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project(tmp_path)
-    ordinary_hash = track_render_hash(project, "host")
+    ordinary_hash = track_render_hash(project, "host", defaults=load_defaults())
     monkeypatch.setattr("podcast_mcp.engines.play_audit.RESTORE_RENDER_REV", 9)
-    assert track_render_hash(project, "host") == ordinary_hash
+    assert track_render_hash(project, "host", defaults=load_defaults()) == ordinary_hash
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.6)])
-    restored_hash = track_render_hash(project, "host")
+    restored_hash = track_render_hash(project, "host", defaults=load_defaults())
     monkeypatch.setattr("podcast_mcp.engines.play_audit.RESTORE_RENDER_REV", 10)
-    assert track_render_hash(project, "host") != restored_hash
+    assert track_render_hash(project, "host", defaults=load_defaults()) != restored_hash
     project.clips[0].bleed_restore = None
-    assert track_render_hash(project, "host") == ordinary_hash
+    assert track_render_hash(project, "host", defaults=load_defaults()) == ordinary_hash
 
 
 @pytest.mark.parametrize("dependency", ["unselected", "fill", "peer"])
@@ -764,6 +787,7 @@ def test_restore_revalidates_all_bus_fill_and_gate_inputs(
             project,
             "host",
             lambda target: render_track_from_timeline(project, project.tracks[0], target, {}),
+            defaults=load_defaults(),
         )
     previous_audio = stem_path(project, "host").read_bytes()
     previous_hash = stem_hash_path(project, "host").read_bytes()
@@ -788,6 +812,7 @@ def test_restore_revalidates_all_bus_fill_and_gate_inputs(
                 lambda target: render_track_from_timeline(
                     project, project.tracks[0], target, {}, engine=engine
                 ),
+                defaults=load_defaults(),
             )
     assert stem_path(project, "host").read_bytes() == previous_audio
     assert stem_hash_path(project, "host").read_bytes() == previous_hash
@@ -812,6 +837,7 @@ def test_stem_publisher_refuses_media_change_after_renderer_returns(
             project,
             "host",
             lambda target: render_track_from_timeline(project, project.tracks[0], target, {}),
+            defaults=load_defaults(),
         )
     previous = (
         stem_path(project, "host").read_bytes(),
@@ -828,7 +854,7 @@ def test_stem_publisher_refuses_media_change_after_renderer_returns(
 
     with pytest.raises(CodedValueError, match="changed"):
         with render_lock(project):
-            publish_stem(project, "host", render_then_change)
+            publish_stem(project, "host", render_then_change, defaults=load_defaults())
     assert (
         stem_path(project, "host").read_bytes(),
         stem_hash_path(project, "host").read_bytes(),
@@ -934,7 +960,7 @@ def test_stem_hash_uses_validated_fingerprint_if_media_changes_after_publication
 
     project = _project(tmp_path)
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.6)])
-    expected_hash = track_render_hash(project, "host")
+    expected_hash = track_render_hash(project, "host", defaults=load_defaults())
     plan = BleedGatePlan(attenuation_spans=((0, 1),))
     monkeypatch.setattr(
         "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan",
@@ -955,10 +981,11 @@ def test_stem_hash_uses_validated_fingerprint_if_media_changes_after_publication
             project,
             "host",
             lambda target: render_track_from_timeline(project, project.tracks[0], target, {}),
+            defaults=load_defaults(),
         )
     assert play_audit.read_stem_hash(project, "host") == expected_hash
-    assert track_render_hash(project, "host") != expected_hash
-    assert not play_audit.stem_is_fresh(project, "host")
+    assert track_render_hash(project, "host", defaults=load_defaults()) != expected_hash
+    assert not play_audit.stem_is_fresh(project, "host", defaults=load_defaults())
 
 
 def test_mixed_rate_zero_prepared_contribution_keeps_shared_compressor_baseline(

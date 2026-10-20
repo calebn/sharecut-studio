@@ -14,6 +14,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.breath_detect import PauseAir, PauseAirSkip, pause_air_span
 from podcast_mcp.edits.session_air import SessionAir, lane_placements
 from podcast_mcp.models import (
@@ -102,7 +103,7 @@ def _air(project, own: str, cut, *, host, guest):
         "podcast_mcp.edits.session_air.load_mono_window",
         side_effect=_reader(host=host, guest=guest),
     ):
-        got = pause_air_span(project, own, *cut)
+        got = pause_air_span(project, own, *cut, defaults=load_defaults())
     return got.span if isinstance(got, PauseAir) else got
 
 
@@ -256,7 +257,7 @@ def test_a_quiet_sound_is_removed_whole_whichever_pause_asks_about_it(cut) -> No
     project.clips[0].source_end = 40.0
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=window):
-        got = pause_air_span(project, "host", *cut)
+        got = pause_air_span(project, "host", *cut, defaults=load_defaults())
 
     assert isinstance(got, PauseAir) and got.span == pytest.approx(cut)
 
@@ -270,7 +271,7 @@ def test_a_blip_30_db_under_the_speech_splits_the_air_whichever_pause_asks(cut) 
     project.clips[0].source_end = 40.0
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=window):
-        got = pause_air_span(project, "host", *cut)
+        got = pause_air_span(project, "host", *cut, defaults=load_defaults())
 
     assert isinstance(got, PauseAir)
     assert got.end < 26.0 or got.start > 26.13
@@ -291,7 +292,7 @@ def test_a_peer_sound_just_before_the_span_still_moves_the_edge() -> None:
         "podcast_mcp.edits.session_air.load_mono_window",
         side_effect=_reader(host=host, guest=guest),
     ):
-        got = pause_air_span(project, "host", 19.9, 24.0)
+        got = pause_air_span(project, "host", 19.9, 24.0, defaults=load_defaults())
 
     assert isinstance(got, PauseAir) and got.span == pytest.approx((19.96, 24.0))
 
@@ -387,7 +388,7 @@ def test_a_clip_from_an_extra_source_recording_is_read_from_that_recording(tmp_p
     reader = _reader(host=_fake_windows(), guest=_gated(), take2=_gated((word, 3.9)))
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=reader):
-        got = pause_air_span(project, "host", *_CUT)
+        got = pause_air_span(project, "host", *_CUT, defaults=load_defaults())
 
     assert isinstance(got, PauseAir)
     assert got.start == pytest.approx(_CUT[0]) and 4.8 < got.end < 4.9
@@ -411,7 +412,9 @@ def test_an_extra_source_is_read_from_its_own_file_not_the_decode_the_run_holds_
     reader = _reader(host=_fake_windows(), guest=_gated(), take2=_gated((word, 3.9)))
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=reader):
-        got = pause_air_span(project, "host", *_CUT, audio_caches={"guest": guest_decode})
+        got = pause_air_span(
+            project, "host", *_CUT, audio_caches={"guest": guest_decode}, defaults=load_defaults()
+        )
 
     assert isinstance(got, PauseAir)
     assert 4.8 < got.end < 4.9
@@ -440,7 +443,7 @@ def test_an_extra_source_has_the_speech_level_of_its_own_transcript(tmp_path) ->
     reader = _reader(host=_fake_windows(), guest=_gated(), take2=take2)
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=reader):
-        got = pause_air_span(project, "host", *_CUT)
+        got = pause_air_span(project, "host", *_CUT, defaults=load_defaults())
 
     assert isinstance(got, PauseAir)
     assert got.span == pytest.approx(_CUT, abs=0.02)
@@ -452,7 +455,7 @@ def test_an_extra_source_that_cannot_be_found_is_no_room(tmp_path) -> None:
     reader = _reader(host=_fake_windows(), guest=_gated(), take2=_gated())
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=reader):
-        got = pause_air_span(project, "host", *_CUT)
+        got = pause_air_span(project, "host", *_CUT, defaults=load_defaults())
 
     assert got == PauseAirSkip.NO_ROOM
 
@@ -491,7 +494,7 @@ def test_the_same_decay_gets_the_same_air_whichever_pause_asks_about_it(seed) ->
     starts = {}
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=read):
         for name, end in {"short": 11.7, "mid": 14.0, "long": 20.0}.items():
-            got = pause_air_span(project, "host", 10.2, end)
+            got = pause_air_span(project, "host", 10.2, end, defaults=load_defaults())
             assert isinstance(got, PauseAir)
             starts[name] = got.start
 
@@ -567,7 +570,7 @@ def test_a_track_whose_gaps_are_its_peers_bleed_still_hears_a_murmur_in_the_quie
         "podcast_mcp.edits.session_air.load_mono_window",
         side_effect=_reader(host=host, guest=guest),
     ):
-        got = pause_air_span(project, "host", 13.4, 15.9)
+        got = pause_air_span(project, "host", 13.4, 15.9, defaults=load_defaults())
 
     assert isinstance(got, PauseAir)
     assert not (14.8 < got.start < 15.2) and not (14.8 < got.end < 15.2)
@@ -619,8 +622,8 @@ def test_a_trim_says_how_long_nobody_speaks_around_it_and_that_moves_nothing() -
         "podcast_mcp.edits.session_air.load_mono_window",
         side_effect=_reader(host=_fake_windows(), guest=guest),
     ):
-        heard = pause_air_span(said, "host", 4.4, 4.8)
-        alone = pause_air_span(unsaid, "host", 4.4, 4.8)
+        heard = pause_air_span(said, "host", 4.4, 4.8, defaults=load_defaults())
+        alone = pause_air_span(unsaid, "host", 4.4, 4.8, defaults=load_defaults())
 
     assert isinstance(heard, PauseAir) and isinstance(alone, PauseAir)
     assert heard.span == alone.span == pytest.approx((4.4, 4.8))

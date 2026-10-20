@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_correct import (
     TranscriptTextChangedError,
     apply_transcript_corrections,
@@ -44,7 +45,7 @@ def test_correct_word_and_low_confidence() -> None:
     assert low[0]["text"] == "teh"
     assert low[0]["source_id"] is None
     assert low[0]["word_index"] == 0
-    correct_word(p, "host", 0, "the")
+    correct_word(p, "host", 0, "the", defaults=load_defaults())
     assert p.transcripts[0].words[0].text == "the"
     assert p.transcripts[0].words[0].confidence == 1.0
 
@@ -72,7 +73,7 @@ def test_correct_word_drops_stale_aligner_evidence() -> None:
             ],
         )
     ]
-    correct_word(p, "host", 0, "Caleb")
+    correct_word(p, "host", 0, "Caleb", defaults=load_defaults())
     fixed = p.transcripts[0].words[0]
     assert fixed.alignment_score is None and fixed.suspect_hallucination is False
     # The evidence signal cannot bring the flag back on the corrected word.
@@ -83,7 +84,7 @@ def test_correct_word_drops_stale_aligner_evidence() -> None:
         == 0
     )
     # Same text: nothing to invalidate.
-    correct_word(p, "host", 1, "same")
+    correct_word(p, "host", 1, "same", defaults=load_defaults())
     kept = p.transcripts[0].words[1]
     assert kept.alignment_score == 0.004 and kept.suspect_hallucination is True
 
@@ -104,7 +105,7 @@ def test_correct_phrase_words_have_no_aligner_evidence() -> None:
             ],
         )
     ]
-    correct_phrase(p, "host", 0, 0, "Caleb")
+    correct_phrase(p, "host", 0, 0, "Caleb", defaults=load_defaults())
     words = p.transcripts[0].words
     assert words[0].alignment_score is None and not words[0].suspect_hallucination
     assert (
@@ -126,7 +127,7 @@ def test_set_word_suppressed_toggles_and_rebuilds() -> None:
             ],
         )
     ]
-    out = set_word_suppressed(p, "host", 1, True)
+    out = set_word_suppressed(p, "host", 1, True, defaults=load_defaults())
     assert out["suppressed"] is True
     assert p.transcripts[0].words[1].suppressed is True
     assert p.transcripts[0].words[1].audibility_locked is True
@@ -134,7 +135,7 @@ def test_set_word_suppressed_toggles_and_rebuilds() -> None:
     combined_text = " ".join(u.text for u in p.combined_transcript.utterances)
     assert "world" not in combined_text
 
-    out2 = set_word_suppressed(p, "host", 1, False)
+    out2 = set_word_suppressed(p, "host", 1, False, defaults=load_defaults())
     assert out2["suppressed"] is False
     assert p.transcripts[0].words[1].suppressed is False
     assert p.transcripts[0].words[1].audibility_locked is True
@@ -153,7 +154,7 @@ def test_set_word_automatic_clears_lock_leaves_suppressed() -> None:
             ],
         )
     ]
-    set_word_suppressed(p, "host", 1, True)
+    set_word_suppressed(p, "host", 1, True, defaults=load_defaults())
     assert p.transcripts[0].words[1].audibility_locked is True
 
     out = set_word_automatic(p, "host", 1)
@@ -242,7 +243,7 @@ def test_set_words_ignored_does_not_touch_text_or_combined() -> None:
     p = _ignore_project()
     from podcast_mcp.edits.transcript_sync import rebuild_combined
 
-    rebuild_combined(p)
+    rebuild_combined(p, defaults=load_defaults())
     before_text = " ".join(
         u.text for u in (p.combined_transcript.utterances if p.combined_transcript else [])
     )
@@ -270,6 +271,7 @@ def test_apply_transcript_corrections_word_and_phrase() -> None:
         "host",
         words=[{"word_index": 1, "text": "done."}],
         phrases=[{"start_word_index": 0, "end_word_index": 0, "text": "Shot of Truth"}],
+        defaults=load_defaults(),
     )
     assert n == 2
     words = p.transcripts[0].words
@@ -294,9 +296,9 @@ def test_apply_transcript_corrections_rebuilds_combined_once(monkeypatch) -> Non
     original = transcript_correct.rebuild_combined
     calls = []
 
-    def rebuild(project):
+    def rebuild(project, **_kw):
         calls.append(project)
-        original(project)
+        original(project, **_kw)
 
     monkeypatch.setattr(transcript_correct, "rebuild_combined", rebuild)
     assert (
@@ -304,6 +306,7 @@ def test_apply_transcript_corrections_rebuilds_combined_once(monkeypatch) -> Non
             p,
             "host",
             words=[{"word_index": 0, "text": "first"}, {"word_index": 1, "text": "second"}],
+            defaults=load_defaults(),
         )
         == 2
     )
@@ -334,6 +337,7 @@ def test_apply_corrections_keep_evidence_carries_phrase_evidence() -> None:
         "host",
         phrases=[{"start_word_index": 0, "end_word_index": 1, "text": "x y"}],
         keep_evidence=True,
+        defaults=load_defaults(),
     )
     words = p.transcripts[0].words
     assert [w.text for w in words[:2]] == ["x", "y"]
@@ -349,6 +353,7 @@ def test_apply_corrections_keep_evidence_carries_phrase_evidence() -> None:
         "host",
         words=[{"word_index": 0, "text": "z"}],
         keep_evidence=True,
+        defaults=load_defaults(),
     )
     assert p.transcripts[0].words[0].text == "z"
     assert p.transcripts[0].words[0].alignment_score == 0.004
@@ -358,6 +363,7 @@ def test_apply_corrections_keep_evidence_carries_phrase_evidence() -> None:
         p,
         "host",
         words=[{"word_index": 0, "text": "zz"}],
+        defaults=load_defaults(),
     )
     assert p.transcripts[0].words[0].text == "zz"
     assert p.transcripts[0].words[0].alignment_score is None
@@ -388,7 +394,7 @@ def test_correct_word_rejects_empty_or_invisible_text(text: str) -> None:
         )
     ]
     with pytest.raises(ValueError, match="must not be empty"):
-        correct_word(p, "host", 0, text)
+        correct_word(p, "host", 0, text, defaults=load_defaults())
     # word left untouched
     assert p.transcripts[0].words[0].text == "hello"
 
@@ -402,7 +408,7 @@ def test_correct_word_allows_visible_text_with_format_characters() -> None:
         )
     ]
 
-    correct_word(p, "host", 0, "\u200bhello\ufeff")
+    correct_word(p, "host", 0, "\u200bhello\ufeff", defaults=load_defaults())
 
     assert p.transcripts[0].words[0].text == "\u200bhello\ufeff"
 
@@ -412,7 +418,9 @@ def test_edits_layer_corrections_do_not_flag_user_edited() -> None:
     p.transcripts = [
         Transcript(track_id="host", words=[TranscriptWord(text="teh", start=0.0, end=0.5)])
     ]
-    apply_transcript_corrections(p, "host", words=[{"word_index": 0, "text": "the"}])
+    apply_transcript_corrections(
+        p, "host", words=[{"word_index": 0, "text": "the"}], defaults=load_defaults()
+    )
     assert p.transcripts[0].words[0].text == "the"
     assert p.transcripts[0].user_edited is False
 
@@ -427,7 +435,9 @@ def test_user_edit_flags_only_the_resolved_transcript() -> None:
             words=[TranscriptWord(text="x", start=0.0, end=0.5)],
         ),
     ]
-    run_user_transcript_edit(p, "host", lambda q: correct_word(q, "host", 0, "the"))
+    run_user_transcript_edit(
+        p, "host", lambda q: correct_word(q, "host", 0, "the", defaults=load_defaults())
+    )
     assert p.transcripts[0].user_edited is True
     assert p.transcripts[1].user_edited is False
 
@@ -437,7 +447,12 @@ def test_user_edit_noop_does_not_flag() -> None:
     p.transcripts = [
         Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.5)])
     ]
-    assert run_user_transcript_edit(p, "host", lambda q: verify_words(q, "host", [])) == 0
+    assert (
+        run_user_transcript_edit(
+            p, "host", lambda q: verify_words(q, "host", [], defaults=load_defaults())
+        )
+        == 0
+    )
     assert p.transcripts[0].user_edited is False
 
 

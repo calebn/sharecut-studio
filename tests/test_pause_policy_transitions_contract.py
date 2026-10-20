@@ -56,12 +56,7 @@ def _enabled(monkeypatch, *, optimize=False, mode="room_tone"):
     )
     cfg["join_continuity"] = {"neural": False, "calibrate": False}
     configure(monkeypatch, cfg)
-    for target in (
-        "podcast_mcp.edits.inaudible_cuts.load_defaults",
-        "podcast_mcp.edits.cut_quality.load_defaults",
-        "podcast_mcp.edits.join_continuity.load_defaults",
-        "podcast_mcp.config.load_defaults",
-    ):
+    for target in ("podcast_mcp.config.load_defaults",):
         monkeypatch.setattr(target, lambda: copy.deepcopy(cfg))
     return cfg
 
@@ -344,7 +339,7 @@ def test_known_gated_pad_lane_and_structurally_empty_lane_keep_distinct_receipts
         Track(id="empty", label="Empty", role=TrackRole.DIALOGUE, timeline_empty=True)
     )
     add_bed(result, tmp_path)
-    planned = room_tone_pad(result, 0.4, 0.25)
+    planned = room_tone_pad(result, 0.4, 0.25, defaults=cfg)
     host, guest, empty = planned.lanes
     assert isinstance(host, LaneSample)
     assert isinstance(host.selection, RecordedBedSample)

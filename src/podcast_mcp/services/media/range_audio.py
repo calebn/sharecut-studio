@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.range_edits import resolve_range
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
@@ -31,14 +32,14 @@ def render_range_audio(
     output_path: Path,
     *,
     full_mix_path: Path | None = None,
+    defaults: EffectiveConfig,
 ) -> Path:
     from tempfile import TemporaryDirectory
 
-    from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+    from podcast_mcp.config import mix_peak_ceiling_db
     from podcast_mcp.engines.timeline_render import render_track_segment
 
     target = resolve_range(project, target)
-    defaults = load_defaults()
     engine = FFmpegEngine()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=output_path.parent) as directory:

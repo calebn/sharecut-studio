@@ -12,6 +12,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.clips_ops import (
     clips_for_track,
     punch_timeline_range_from_clips,
@@ -87,11 +88,13 @@ class AlignmentPlan:
     skipped: tuple[dict[str, str], ...] = ()
 
 
-def _fingerprint(project: EpisodeProject) -> str:
+def _fingerprint(project: EpisodeProject, *, defaults: EffectiveConfig) -> str:
     state = {
         "revision": EVIDENCE_REVISION,
         "editable": snapshot_editable_state(project),
-        "sources": [bleed_gate_payload(project, track.id) for track in project.tracks],
+        "sources": [
+            bleed_gate_payload(project, track.id, defaults=defaults) for track in project.tracks
+        ],
     }
     return hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
 
@@ -219,7 +222,7 @@ def _quiet_fringe(start: float, end: float, offset: float) -> tuple[float, float
 
 
 def _retained_words_survive_trim(
-    project: EpisodeProject, track_id: str, start: float, end: float
+    project: EpisodeProject, track_id: str, start: float, end: float, *, defaults: EffectiveConfig
 ) -> bool:
     transcripts = project.selected_source_transcripts(track_id)
     if not transcripts or any(
@@ -232,7 +235,9 @@ def _retained_words_survive_trim(
     future.timeline = project.timeline.model_copy(
         update={
             "clips": [clip for clip in project.clips if clip.track_id != track_id]
-            + punch_timeline_range_from_clips(clips_for_track(project, track_id), start, end)
+            + punch_timeline_range_from_clips(
+                clips_for_track(project, track_id), start, end, defaults=defaults
+            )
         }
     )
     before, after = SessionTimeline(project), SessionTimeline(future)
@@ -352,6 +357,8 @@ def _retained_peers(
     start: float,
     end: float,
     hard_plans: dict[str, tuple[tuple[float, float], ...]] | None,
+    *,
+    defaults: EffectiveConfig,
 ) -> set[str]:
     timeline = SessionTimeline(project)
     peers: set[str] = set()
@@ -377,7 +384,7 @@ def _retained_peers(
                         continue
                     if peer_track.id not in hard_plans:
                         hard_plans[peer_track.id] = build_bleed_gate_plan(
-                            project, peer_track.id
+                            project, peer_track.id, defaults=defaults
                         ).attenuation_spans
                     if not any(a <= lo and b >= hi for a, b in hard_plans[peer_track.id]):
                         peers.add(peer_track.id)
@@ -391,6 +398,7 @@ def plan_retained_bleed_alignment(
     end_sec: float | None = None,
     track_id: str | None = None,
     override_placement_lock: bool = False,
+    defaults: EffectiveConfig,
 ) -> AlignmentPlan:
     """Propose only complete direct phrases with quiet slack and independently stable lag.
 
@@ -428,7 +436,7 @@ def plan_retained_bleed_alignment(
         )
     if not project.clips:
         return AlignmentPlan(
-            _fingerprint(project),
+            _fingerprint(project, defaults=defaults),
             skipped=tuple(
                 {"track_id": track.id, "reason": "unsupported_implicit_timeline_alignment"}
                 for track in project.tracks
@@ -455,7 +463,7 @@ def plan_retained_bleed_alignment(
         safe, conflicts = _safe_batch_proposals(tuple(proposals))
         for tid, reason in conflicts:
             skip(tid, reason)
-        return AlignmentPlan(_fingerprint(project), safe, tuple(skipped))
+        return AlignmentPlan(_fingerprint(project, defaults=defaults), safe, tuple(skipped))
 
     def phrases_for(direct_id: str) -> tuple[list[_OwnPhrase], HalfOpenIntervalIndex]:
         if direct_id not in phrase_indexes:
@@ -469,7 +477,9 @@ def plan_retained_bleed_alignment(
     def candidates_for(bleed_id: str) -> Iterator[_PhraseCandidate]:
         transcripts = project.selected_source_transcripts(bleed_id)
         if not bounded:
-            hard_plans[bleed_id] = build_bleed_gate_plan(project, bleed_id).attenuation_spans
+            hard_plans[bleed_id] = build_bleed_gate_plan(
+                project, bleed_id, defaults=defaults
+            ).attenuation_spans
         has_candidate = False
         for source_id, transcript in transcripts:
             for word in transcript.words:
@@ -637,7 +647,12 @@ def plan_retained_bleed_alignment(
             offset = delay.offset_sec
             peer_conflict = False
             reference_peers = _retained_peers(
-                project, direct_id, phrase_start, phrase_end, None if bounded else hard_plans
+                project,
+                direct_id,
+                phrase_start,
+                phrase_end,
+                None if bounded else hard_plans,
+                defaults=defaults,
             ) | {bleed_track.id}
             unknown_peers: set[str] = set()
             if bounded:
@@ -716,7 +731,9 @@ def plan_retained_bleed_alignment(
             skip(direct_id, "correction_outside_scope")
             return None
         fringe_start, fringe_end = _quiet_fringe(old_start, old_end, offset)
-        if not _retained_words_survive_trim(project, direct_id, fringe_start, fringe_end):
+        if not _retained_words_survive_trim(
+            project, direct_id, fringe_start, fringe_end, defaults=defaults
+        ):
             skip(direct_id, "quiet_trim_would_remove_retained_word")
             return None
         source = clip_timeline_overlap_to_source(clip, old_start, old_end)
@@ -813,9 +830,11 @@ def _safe_batch_proposals(
     )
 
 
-def apply_retained_bleed_alignment(project: EpisodeProject, plan: AlignmentPlan) -> dict[str, Any]:
+def apply_retained_bleed_alignment(
+    project: EpisodeProject, plan: AlignmentPlan, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
     """Apply a checked plan atomically in memory; caller owns workspace history/publication."""
-    if _fingerprint(project) != plan.fingerprint:
+    if _fingerprint(project, defaults=defaults) != plan.fingerprint:
         raise CodedValueError(
             "retained-bleed alignment plan is stale. Plan the alignment again.",
             code="retained_bleed_plan_stale",
@@ -839,7 +858,7 @@ def apply_retained_bleed_alignment(project: EpisodeProject, plan: AlignmentPlan)
                     clip.track_id == proposal.direct_track_id
                     and clip.timeline_start < boundary < clip.timeline_end
                 ):
-                    before, after = split_clip_at(clip, boundary)
+                    before, after = split_clip_at(clip, boundary, defaults=defaults)
                     before.fade_out_ms = after.fade_in_ms = _INTERNAL_FADE_MS
                     lane = [
                         part
@@ -857,7 +876,7 @@ def apply_retained_bleed_alignment(project: EpisodeProject, plan: AlignmentPlan)
             for clip in lane
             if (span := clip_timeline_overlap_to_source(clip, fringe_start, fringe_end)) is not None
         ]
-        trimmed = punch_timeline_range_from_clips(lane, fringe_start, fringe_end)
+        trimmed = punch_timeline_range_from_clips(lane, fringe_start, fringe_end, defaults=defaults)
         for clip in trimmed:
             if abs(clip.timeline_end - fringe_start) < 1e-9:
                 clip.fade_out_ms = _INTERNAL_FADE_MS
@@ -882,6 +901,7 @@ def apply_retained_bleed_alignment(project: EpisodeProject, plan: AlignmentPlan)
                     "timeline_start": proposal.timeline_start,
                 }
             ],
+            defaults=defaults,
         )
         working.editorial.edit_log[-1].params["quiet_trim"] = {
             "reason": "verified_quiet_destination_overlap",

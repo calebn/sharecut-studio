@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_speech import _own_sound
 from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
@@ -43,6 +44,8 @@ def test_own_sound_batch_builds_unprocessed_rms_caches() -> None:
         return TrackRmsCacheSet()
 
     with patch("podcast_mcp.edits.cut_speech.build_track_rms_caches", side_effect=capture):
-        _own_sound(project, removal, [("guest", parts)], ["host", "guest"], cfg)
+        _own_sound(
+            project, removal, [("guest", parts)], ["host", "guest"], cfg, defaults=load_defaults()
+        )
 
     assert unprocessed_flags == [True]

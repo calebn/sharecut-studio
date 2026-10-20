@@ -2,7 +2,7 @@
 
 ``medium`` is the shipped ``tighten`` block unchanged. ``light`` and ``aggressive``
 override only the keys they name (nested dicts merge), and only where the config
-still holds the ``load_defaults()`` value, so a key the working set tuned wins (edits to
+still holds the shipped value, so a key the working set tuned wins (edits to
 the defaults file itself move the baseline). A preset is plain config: no model calls, same proposals for the same transcript. See
 docs/filler-cut-quality.md § Intensity presets.
 """
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import shipped_tighten_defaults
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dicts import deep_merge
 
@@ -95,7 +95,7 @@ def apply_tighten_intensity(
 
     ``intensity`` (explicit caller choice) wins over ``tighten["intensity"]``; both
     unset means medium. The preset only sets keys that still hold the shipped
-    ``tighten`` value (``shipped``, default ``load_defaults()["tighten"]``), so a key
+    ``tighten`` value (``shipped``, default the repo YAML's ``tighten`` block), so a key
     the user tuned (or Pipeline Analyze applied) wins over the tier. The result
     records the resolved name under ``intensity``.
     """
@@ -104,7 +104,7 @@ def apply_tighten_intensity(
     )
     preset = TIGHTEN_INTENSITY_PRESETS[name]
     if preset:
-        base = shipped if shipped is not None else (load_defaults().get("tighten") or {})
+        base = shipped if shipped is not None else shipped_tighten_defaults()
         preset = _unchanged_preset_keys(tighten, preset, base)
     out = deep_merge(tighten, preset)
     out["intensity"] = name

@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from optional_projects import cleanup_test_project
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio_audit import (
     TrackRmsCache,
@@ -72,7 +73,7 @@ def _stem_project(tmp_path: Path) -> tuple[EpisodeProject, Path]:
         for i in range(20)
     ]
     project.transcripts = [Transcript(track_id="host", words=words)]
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     return project, stem
 
 
@@ -123,7 +124,7 @@ def test_track_rms_cache_matches_ffmpeg_windows(tmp_path: Path):
 
 def test_build_track_rms_caches_uses_stems(tmp_path: Path):
     project, _ = _stem_project(tmp_path)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     assert "host" in caches.caches
 
 
@@ -138,7 +139,7 @@ def test_compute_word_audibility_map_reuses_processed_stem_cache(tmp_path: Path)
         ) as full_decode,
         patch("podcast_mcp.engines.audio_audit.load_mono_window") as window_decode,
     ):
-        rows = compute_word_audibility_map(project, track_id="host")
+        rows = compute_word_audibility_map(project, track_id="host", defaults=load_defaults())
 
     full_decode.assert_called_once_with(stem, sample_rate=8_000)
     window_decode.assert_not_called()
@@ -189,7 +190,7 @@ def test_profile_cleanup_test_sample():
         "podcast_mcp.engines.audio_audit.load_mono_window",
         wraps=load_mono_window,
     ) as mocked:
-        compute_word_audibility_map(limited, track_id="olga")
+        compute_word_audibility_map(limited, track_id="olga", defaults=load_defaults())
         ffmpeg_calls = mocked.call_count
     profiler.disable()
     stats = pstats.Stats(profiler)

@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_safety import ResolvedCutScope, resolve_cut_scope
 from podcast_mcp.edits.transcript_precorrect import _should_run_speaker
 from podcast_mcp.engines.speaker_id import (
@@ -269,7 +270,7 @@ def test_resolve_cut_scope_bleed_forces_track_scope(tmp_path, sample_wav) -> Non
             return_value={"role": "bleed", "match_home_track": "guest"},
         ),
     ):
-        resolved = resolve_cut_scope(proj, "host", 1.0, 1.5)
+        resolved = resolve_cut_scope(proj, "host", 1.0, 1.5, defaults=load_defaults())
         assert isinstance(resolved, ResolvedCutScope)
         scope, guard = resolved.scope, resolved.guard
     assert scope == "track"
@@ -301,7 +302,9 @@ def test_run_speaker_attribution_dry_run(tmp_path, sample_wav) -> None:
             ),
         ),
     ):
-        report = run_speaker_attribution(proj, ctx, dry_run=True, backend=MockSpeakerBackend())
+        report = run_speaker_attribution(
+            proj, ctx, dry_run=True, backend=MockSpeakerBackend(), defaults=load_defaults()
+        )
     assert report["attributions_would_change"] == 1
     assert report["attributions_changed"] == 0
     assert report["windows_scored"] == 1
@@ -338,7 +341,9 @@ def test_run_speaker_attribution_apply_respects_lock(tmp_path, sample_wav) -> No
         ),
         patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
     ):
-        report = run_speaker_attribution(proj, ctx, dry_run=False, backend=MockSpeakerBackend())
+        report = run_speaker_attribution(
+            proj, ctx, dry_run=False, backend=MockSpeakerBackend(), defaults=load_defaults()
+        )
     assert report["attributions_would_change"] == 1
     word = proj.transcript_for_track("host").words[0]
     assert word.suppressed is False
@@ -394,7 +399,16 @@ def test_label_window_dry_run(tmp_path, sample_wav) -> None:
     ):
         from podcast_mcp.engines.speaker_id import label_window
 
-        out = label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), dry_run=True)
+        out = label_window(
+            proj,
+            "host",
+            1.0,
+            1.5,
+            cfg,
+            MockSpeakerBackend(),
+            dry_run=True,
+            defaults=load_defaults(),
+        )
     assert out["labeled"] == 1
     assert out["role"] == "bleed"
 
@@ -499,7 +513,16 @@ def test_assess_speaker_cut_role_and_label_apply(tmp_path, sample_wav) -> None:
         ),
         patch("podcast_mcp.edits.transcript_sync.rebuild_combined") as rebuild,
     ):
-        out = label_window(proj, "guest", 1.0, 1.5, cfg, MockSpeakerBackend(), dry_run=False)
+        out = label_window(
+            proj,
+            "guest",
+            1.0,
+            1.5,
+            cfg,
+            MockSpeakerBackend(),
+            dry_run=False,
+            defaults=load_defaults(),
+        )
     assert out["labeled"] == 1
     rebuild.assert_called_once()
 
@@ -690,12 +713,23 @@ def test_label_window_errors_and_uncertain(tmp_path, sample_wav) -> None:
         margin=0.01,
     )
     with patch("podcast_mcp.engines.speaker_id.score_window", return_value=None):
-        assert "error" in label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend())
+        assert "error" in label_window(
+            proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), defaults=load_defaults()
+        )
     with patch(
         "podcast_mcp.engines.speaker_id.score_window",
         return_value=uncertain,
     ):
-        out = label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), dry_run=True)
+        out = label_window(
+            proj,
+            "host",
+            1.0,
+            1.5,
+            cfg,
+            MockSpeakerBackend(),
+            dry_run=True,
+            defaults=load_defaults(),
+        )
     assert out["labeled"] == 0
     assert out["role"] == "uncertain"
 
@@ -713,7 +747,9 @@ def test_label_window_errors_and_uncertain(tmp_path, sample_wav) -> None:
         "podcast_mcp.engines.speaker_id.score_window",
         return_value=own,
     ):
-        bad = label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend())
+        bad = label_window(
+            proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), defaults=load_defaults()
+        )
     assert bad.get("error") == "no transcript"
 
 
@@ -786,7 +822,9 @@ def test_run_speaker_skips_enroll_when_profile_exists(tmp_path, sample_wav) -> N
             return_value=[],
         ),
     ):
-        report = run_speaker_attribution(proj, ctx, dry_run=True, backend=MockSpeakerBackend())
+        report = run_speaker_attribution(
+            proj, ctx, dry_run=True, backend=MockSpeakerBackend(), defaults=load_defaults()
+        )
     enroll.assert_not_called()
     assert report["profiles"]
 
@@ -823,7 +861,16 @@ def test_label_window_bleed_apply(tmp_path, sample_wav) -> None:
         ),
         patch("podcast_mcp.edits.transcript_sync.rebuild_combined") as rebuild,
     ):
-        out = label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), dry_run=False)
+        out = label_window(
+            proj,
+            "host",
+            1.0,
+            1.5,
+            cfg,
+            MockSpeakerBackend(),
+            dry_run=False,
+            defaults=load_defaults(),
+        )
     assert out["role"] == "bleed"
     assert out["labeled"] == 1
     rebuild.assert_called_once()
@@ -855,7 +902,16 @@ def test_label_window_bleed_apply_respects_lock(tmp_path, sample_wav) -> None:
         patch("podcast_mcp.engines.speaker_id.score_window", return_value=bleed),
         patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
     ):
-        label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), dry_run=False)
+        label_window(
+            proj,
+            "host",
+            1.0,
+            1.5,
+            cfg,
+            MockSpeakerBackend(),
+            dry_run=False,
+            defaults=load_defaults(),
+        )
     word = proj.transcript_for_track("host").words[0]
     assert word.suppressed is False
     assert word.audibility_locked is True
@@ -1114,7 +1170,16 @@ def test_label_window_own_apply(tmp_path, sample_wav) -> None:
         ),
         patch("podcast_mcp.edits.transcript_sync.rebuild_combined") as rebuild,
     ):
-        out = label_window(proj, "guest", 1.0, 1.5, cfg, MockSpeakerBackend(), dry_run=False)
+        out = label_window(
+            proj,
+            "guest",
+            1.0,
+            1.5,
+            cfg,
+            MockSpeakerBackend(),
+            dry_run=False,
+            defaults=load_defaults(),
+        )
     assert out["role"] == "own"
     assert out["labeled"] == 1
     rebuild.assert_called_once()
@@ -1264,7 +1329,9 @@ def test_home_speaker_gate_snapshots_stem_once(tmp_path, sample_wav) -> None:
         patch.object(_WavWindowReader, "open", wraps=_WavWindowReader.open) as open_snapshot,
         patch("podcast_mcp.engines.speaker_id.load_mono_window") as bounded_decode,
     ):
-        label_track_home_speaker(project, cfg, MockSpeakerBackend(), track_ids=["host"])
+        label_track_home_speaker(
+            project, cfg, MockSpeakerBackend(), track_ids=["host"], defaults=load_defaults()
+        )
     open_snapshot.assert_called_once()
     bounded_decode.assert_not_called()
 
@@ -1296,7 +1363,12 @@ def test_home_speaker_gate_apply_respects_lock(tmp_path, sample_wav) -> None:
         patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
     ):
         report = label_track_home_speaker(
-            project, cfg, MockSpeakerBackend(), track_ids=["host"], dry_run=False
+            project,
+            cfg,
+            MockSpeakerBackend(),
+            track_ids=["host"],
+            dry_run=False,
+            defaults=load_defaults(),
         )
     word = project.transcript_for_track("host").words[0]
     assert word.suppressed is False

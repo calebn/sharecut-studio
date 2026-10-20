@@ -8,7 +8,6 @@ import typer
 import yaml
 
 from podcast_mcp.cli.context import get_progress
-from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.services.app import ProjectWorkspace
@@ -27,6 +26,7 @@ transcript_app.add_typer(context_app, name="context")
 
 
 def _caption_limits(
+    ws: ProjectWorkspace,
     *,
     max_duration_sec: float | None,
     max_chars_per_line: int | None,
@@ -42,7 +42,7 @@ def _caption_limits(
         raise typer.BadParameter("must be > 0", param_hint="'--max-duration-sec'")
     if max_lines is not None and max_lines < 1:
         raise typer.BadParameter("must be >= 1", param_hint="'--max-lines'")
-    base = resolve_caption_limits(load_defaults().get("export", {}))
+    base = resolve_caption_limits(ws.effective_config().get("export", {}))
     if max_duration_sec is not None and max_duration_sec < base.min_duration_sec:
         # Caught here, against the flag, rather than left to CaptionLimits below: that
         # raises a domain ValueError naming min_duration_sec, a yaml key this user never
@@ -305,6 +305,7 @@ def transcript_export_srt_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     limits = _caption_limits(
+        ws,
         max_duration_sec=max_duration_sec,
         max_chars_per_line=max_chars_per_line,
         max_lines=max_lines,
@@ -328,6 +329,7 @@ def transcript_export_vtt_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     limits = _caption_limits(
+        ws,
         max_duration_sec=max_duration_sec,
         max_chars_per_line=max_chars_per_line,
         max_lines=max_lines,

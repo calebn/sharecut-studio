@@ -364,7 +364,7 @@ def test_land_late_join_clip_skips_ingest_suggest(
     waveforms: list[str] = []
     monkeypatch.setattr(
         "podcast_mcp.services.record.landing.schedule_track_waveforms",
-        lambda _project, track: waveforms.append(track.id),
+        lambda _project, track, **_kw: waveforms.append(track.id),
     )
     result = RecordLandingService(ws).land(align=lambda _p: aligns.append(1))
     assert waveforms == [result["clips"][0]["track_id"]]

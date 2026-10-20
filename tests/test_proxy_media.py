@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.play_audit import proxy_render_hash
 from podcast_mcp.models import (
     EditDecision,
@@ -74,7 +75,7 @@ def test_chunk_count_for():
 def test_proxy_render_hash_stable_across_edits(minimal_project):
     ws = _seed_track(minimal_project)
     track_id = "host"
-    h1 = proxy_render_hash(ws.project, track_id)
+    h1 = proxy_render_hash(ws.project, track_id, defaults=load_defaults())
 
     def mutate(p):
         p.edit_decisions.append(
@@ -90,13 +91,13 @@ def test_proxy_render_hash_stable_across_edits(minimal_project):
         return {}
 
     ws.mutate("before", "after", mutate)
-    assert proxy_render_hash(ws.project, track_id) == h1
+    assert proxy_render_hash(ws.project, track_id, defaults=load_defaults()) == h1
 
 
 def test_proxy_render_hash_changes_with_chain(minimal_project):
     ws = _seed_track(minimal_project)
     track_id = "host"
-    h1 = proxy_render_hash(ws.project, track_id)
+    h1 = proxy_render_hash(ws.project, track_id, defaults=load_defaults())
 
     def mutate(p):
         p.processing_chains.append(
@@ -110,7 +111,7 @@ def test_proxy_render_hash_changes_with_chain(minimal_project):
         return {}
 
     ws.mutate("before chain", "after chain", mutate)
-    assert proxy_render_hash(ws.project, track_id) != h1
+    assert proxy_render_hash(ws.project, track_id, defaults=load_defaults()) != h1
 
 
 def test_ensure_track_proxy_creates_chunks(minimal_project, monkeypatch):

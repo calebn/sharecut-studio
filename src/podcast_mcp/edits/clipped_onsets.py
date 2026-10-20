@@ -70,10 +70,10 @@ import subprocess
 import wave
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_latency import (
     DOMINANCE_DB,
     FRAME_SEC,
@@ -580,18 +580,14 @@ def timeline_levels(project: EpisodeProject, lanes: list[str]) -> Levels:
     return Levels(grid, attack, references)
 
 
-def flag_clipped_word_starts(
-    project: EpisodeProject, defaults: dict[str, Any] | None = None
-) -> OnsetReport:
+def flag_clipped_word_starts(project: EpisodeProject, defaults: EffectiveConfig) -> OnsetReport:
     """Flag, snap and comment every clipped word start.
 
     Everything is judged before anything changes. Undecodable audio reports nothing and
     leaves existing comments and moved starts alone. With fewer than two dialogue lanes
     no start can be missing, so open comments are withdrawn and moved starts restored.
     """
-    tolerance = float(
-        (defaults or {}).get("align", {}).get("bleed_lag_tolerance_sec", TOLERANCE_SEC)
-    )
+    tolerance = float(defaults.get("align", {}).get("bleed_lag_tolerance_sec", TOLERANCE_SEC))
     lane_ids = [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE]
     lanes = _Lanes(project, lane_ids)
     leads: list[CopyLead] = []

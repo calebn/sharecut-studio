@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import set_track_clips
 from podcast_mcp.edits.ripple import ripple_remove_clips
 from podcast_mcp.edits.timeline_ops import _write_punch_delete
@@ -53,7 +54,7 @@ def _project(directory: Path, signal: np.ndarray) -> EpisodeProject:
 
 def _counts(project: EpisodeProject) -> tuple[int, int]:
     return (
-        int(np.count_nonzero(_played_window(project, "guest", 0, 9))),
+        int(np.count_nonzero(_played_window(project, "guest", 0, 9, defaults=load_defaults()))),
         int(np.count_nonzero(raw_timeline_samples(project, "guest", sample_rate=RATE))),
     )
 
@@ -89,7 +90,7 @@ def test_ripple_final_placement_removal_silences_played_and_raw_samples(tmp_path
     )
     assert _counts(project) == (1, 1)
 
-    ripple_remove_clips(project, spans, ["host", "guest"])
+    ripple_remove_clips(project, spans, ["host", "guest"], defaults=load_defaults())
 
     assert [clip.id for clip in project.clips if clip.track_id == "guest"] == []
     assert _counts(project) == (0, 0)
@@ -137,7 +138,7 @@ def test_empty_replacement_on_unclipped_ingest_preserves_implicit_audio(tmp_path
     assert _counts(project) == (8000, 8000)
 
     set_track_clips(project, "guest", [])
-    ripple_remove_clips(project, [(2, 3)], ["guest"])
+    ripple_remove_clips(project, [(2, 3)], ["guest"], defaults=load_defaults())
 
     assert _counts(project) == (8000, 8000)
     assert project.tracks[0].timeline_empty is False
@@ -242,12 +243,16 @@ def test_partial_suffix_and_unaffected_lanes_keep_audio_then_readding_restores(
         "guest",
         1,
         2,
+        defaults=load_defaults(),
     )
     assert _counts(project) == (16000, 16000)
     assert project.tracks[0].timeline_empty is False
-    ripple_remove_clips(project, [(2, 3)], ["guest", "peer"])
+    ripple_remove_clips(project, [(2, 3)], ["guest", "peer"], defaults=load_defaults())
     assert _counts(project) == (8000, 8000)
-    assert int(np.count_nonzero(_played_window(project, "peer", 0, 9))) == 24000
+    assert (
+        int(np.count_nonzero(_played_window(project, "peer", 0, 9, defaults=load_defaults())))
+        == 24000
+    )
     assert [
         (c.source_start, c.source_end, c.timeline_start)
         for c in project.clips

@@ -6,6 +6,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.transcript_correct import build_phrase_replacement, correct_transcript_word
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
@@ -121,7 +122,9 @@ def plan_transcript_replacement(
     return TranscriptReplacementPlan(tuple(matches), skipped, token)
 
 
-def apply_transcript_replacement(project: EpisodeProject, plan: TranscriptReplacementPlan) -> int:
+def apply_transcript_replacement(
+    project: EpisodeProject, plan: TranscriptReplacementPlan, *, defaults: EffectiveConfig
+) -> int:
     grouped: dict[tuple[str, str | None], list[TranscriptReplacement]] = {}
     for match in plan.matches:
         grouped.setdefault(match.transcript.key, []).append(match)
@@ -148,5 +151,5 @@ def apply_transcript_replacement(project: EpisodeProject, plan: TranscriptReplac
             transcript.words = words
         transcript.user_edited = True
     if plan.matches:
-        rebuild_combined(project)
+        rebuild_combined(project, defaults=defaults)
     return len(plan.matches)

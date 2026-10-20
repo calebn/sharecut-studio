@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.util.wer import tokens_from_text, word_error_rate
 
@@ -22,7 +23,7 @@ def test_asr_gold_wer_ceiling(asr_gold_fixture_dir: Path) -> None:
     manifest = json.loads((asr_gold_fixture_dir / "manifest.json").read_text(encoding="utf-8"))
     by_id = {entry["id"]: entry for entry in manifest["utterances"]}
     utterances = [by_id[uid] for uid in SAMPLE_IDS]
-    engine = TranscriptionEngine(model_size="base", device="cpu")
+    engine = TranscriptionEngine(model_size="base", device="cpu", defaults=load_defaults())
 
     for entry in utterances:
         audio = asr_gold_fixture_dir / entry["audio"]

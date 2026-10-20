@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
@@ -108,7 +109,7 @@ def test_publish_version_and_stamp_comment(minimal_project, sample_wav, tmp_work
 def test_publish_requires_mix(minimal_project):
     proj = load_project(minimal_project)
     with pytest.raises(NoMixError, match="no mix yet") as exc_info:
-        publish_version(proj, label="x")
+        publish_version(proj, label="x", defaults=load_defaults())
     assert exc_info.value.code == "no_mix"
     assert "Refresh" in str(exc_info.value)
 
@@ -118,7 +119,7 @@ def test_publish_reports_a_missing_mix_before_the_platform_refusal(minimal_proje
     monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", False)
     proj = load_project(minimal_project)
     with pytest.raises(NoMixError):
-        publish_version(proj, label="x")
+        publish_version(proj, label="x", defaults=load_defaults())
 
 
 def test_resolve_source_mix_ships_hashless_master_without_premix(minimal_project, sample_wav):
@@ -128,7 +129,7 @@ def test_resolve_source_mix_ships_hashless_master_without_premix(minimal_project
     art.mkdir(parents=True, exist_ok=True)
     (art / "mastered.wav").write_bytes(sample_wav.read_bytes())
 
-    path, source = resolve_source_mix(proj, prefer="mastered")
+    path, source = resolve_source_mix(proj, prefer="mastered", defaults=load_defaults())
 
     assert source == "mastered"
     assert path == (art / "mastered.wav").resolve()
@@ -164,6 +165,7 @@ def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav
             label="new",
             eng=FailingEngine(),
             on_media_created=lambda path, identity: created.append(identity),
+            defaults=load_defaults(),
         )
 
     assert not (review_root / "failed-pub").exists()
@@ -188,7 +190,7 @@ def test_interrupted_publish_removes_new_version(minimal_project, sample_wav, mo
             raise KeyboardInterrupt
 
     with pytest.raises(KeyboardInterrupt):
-        publish_version(proj, label="new", eng=InterruptedEngine())
+        publish_version(proj, label="new", eng=InterruptedEngine(), defaults=load_defaults())
 
     assert not (art / "review" / "interrupted").exists()
     assert proj.review.versions == []
@@ -220,7 +222,7 @@ def test_failed_publish_after_review_root_retarget_preserves_new_target(
             raise RuntimeError("encode failed")
 
     with pytest.raises(RuntimeError, match="encode failed"):
-        publish_version(proj, label="new", eng=RetargetingEngine())
+        publish_version(proj, label="new", eng=RetargetingEngine(), defaults=load_defaults())
 
     assert not (old_target / "retargeted").exists()
     assert sentinel.read_bytes() == b"unrelated review mix"
@@ -477,7 +479,7 @@ def _fail_publication(stage, project, project_path, monkeypatch):
                 raise RuntimeError("encode failed")
 
         with pytest.raises(RuntimeError, match="encode failed"):
-            publish_version(project, label="new", eng=FailingEngine())
+            publish_version(project, label="new", eng=FailingEngine(), defaults=load_defaults())
         return
     monkeypatch.setattr(
         review_versions.FFmpegEngine,
@@ -540,7 +542,7 @@ def test_publication_rejects_writable_root_before_media_write(
             pytest.fail("encoding must not start in an untrusted review root")
 
     with pytest.raises(ReviewPrivacyError, match="chmod go-w"):
-        publish_version(project, label="new", eng=UnexpectedEngine())
+        publish_version(project, label="new", eng=UnexpectedEngine(), defaults=load_defaults())
     assert not list(root.glob(".staging-review-*"))
 
 
@@ -555,7 +557,7 @@ def test_staging_rejects_planted_output_symlink(minimal_project, sample_wav, mon
         (path / name).symlink_to(outside)
 
     with pytest.raises(FileExistsError):
-        publish_version(project, label="new", on_media_created=plant)
+        publish_version(project, label="new", on_media_created=plant, defaults=load_defaults())
     assert outside.read_bytes() == b"sentinel"
     assert not project.review.versions
 
@@ -728,6 +730,7 @@ def test_public_directory_invisible_during_encode(minimal_project, sample_wav, m
         label="ready",
         eng=InspectingEngine(),
         on_media_created=lambda path, identity: created.append(identity),
+        defaults=load_defaults(),
     )
     assert (art / "review" / "invisible" / "mix.mp3").read_bytes() == b"encoded"
     assert created[0] not in review_versions._active_stage_leases
@@ -756,7 +759,7 @@ def test_other_process_claims_public_name_before_promotion(
 
     monkeypatch.setattr(review_versions, "rename_noreplace", claim_then_promote)
     with pytest.raises(FileExistsError):
-        publish_version(project, label="race")
+        publish_version(project, label="race", defaults=load_defaults())
     assert (art / "review" / "claimed" / "mix.wav").read_bytes() == b"other process"
     assert not list((art / "review").glob(".staging-review-*"))
 
@@ -801,7 +804,7 @@ def test_staging_identity_failure_never_exposes_public_version(
         lambda path: (_ for _ in ()).throw(OSError("identity read failed")),
     )
     with pytest.raises(OSError, match="identity read failed"):
-        publish_version(project, label="new")
+        publish_version(project, label="new", defaults=load_defaults())
     assert not (art / "review" / "identity-failed").exists()
     assert not list((art / "review").glob(".staging-review-*"))
 
@@ -832,7 +835,7 @@ def test_initial_stage_stat_failure_uses_pinned_identity_for_cleanup(
         lambda path: (_ for _ in ()).throw(OSError("identity read failed")),
     )
     with pytest.raises(OSError, match="identity read failed"):
-        publish_version(project, label="new")
+        publish_version(project, label="new", defaults=load_defaults())
     assert failed
     assert not list((art / "review").glob(".staging-review-*"))
 
@@ -852,7 +855,7 @@ def test_staging_replacement_during_identity_read_is_rejected(
 
     monkeypatch.setattr(review_versions, "_created_dir_identity", replace_stage)
     with pytest.raises(RuntimeError, match="changed during creation"):
-        publish_version(project, label="new")
+        publish_version(project, label="new", defaults=load_defaults())
     assert (art / "review" / "saved-stage").exists()
     assert not project.review.versions
 
@@ -893,6 +896,7 @@ def test_active_stage_lease_prevents_aged_sweep(minimal_project, sample_wav, mon
         label="active",
         eng=SimpleEngine(),
         on_media_created=lambda path, identity: created.append((path, identity)),
+        defaults=load_defaults(),
     )
     stage, identity = created[0]
     assert (stage / "mix.mp3").read_bytes() == b"encoded"
@@ -950,7 +954,7 @@ def test_direct_publish_cleans_stage_when_commit_lock_fails(
         lambda project: (_ for _ in ()).throw(OSError("lock failed")),
     )
     with pytest.raises(OSError, match="lock failed"):
-        publish_version(project, label="new")
+        publish_version(project, label="new", defaults=load_defaults())
     assert not list((art / "review").glob(".staging-review-*"))
 
 
@@ -965,7 +969,7 @@ def test_direct_publish_cleans_promoted_media_after_attach_failure(
         lambda *args, **kwargs: (_ for _ in ()).throw(OSError("attach failed")),
     )
     with pytest.raises(OSError, match="attach failed"):
-        publish_version(project, label="new")
+        publish_version(project, label="new", defaults=load_defaults())
     assert not list((art / "review").glob("[!.]*"))
 
 
@@ -983,7 +987,7 @@ def test_promotion_detects_replaced_staging_directory(minimal_project, sample_wa
 
     monkeypatch.setattr(review_versions, "rename_noreplace", replace_source)
     with pytest.raises(RuntimeError, match="changed during publication"):
-        publish_version(project, label="new")
+        publish_version(project, label="new", defaults=load_defaults())
     assert not project.review.versions
 
 
@@ -998,7 +1002,7 @@ def test_promotion_rejects_changed_wav_bytes(minimal_project, sample_wav, monkey
 
     monkeypatch.setattr(review_versions, "rename_noreplace", alter_after_rename)
     with pytest.raises(RuntimeError, match="mix changed during publication"):
-        publish_version(project, label="new")
+        publish_version(project, label="new", defaults=load_defaults())
     assert not project.review.versions
     assert not list((art / "review").glob("[!.]*"))
 
@@ -1137,7 +1141,7 @@ def test_publish_id_collision_preserves_existing_directory(
     monkeypatch.setattr(review_versions, "_new_id", lambda: "same-id")
 
     with pytest.raises(FileExistsError):
-        publish_version(proj, label="new")
+        publish_version(proj, label="new", defaults=load_defaults())
 
     assert sentinel.read_bytes() == b"existing review mix"
     assert proj.review.versions == []
@@ -1544,7 +1548,7 @@ def test_mp3_retry_retargeted_review_root_preserves_other_media(
     new_root.mkdir()
     review_root = artifacts / "review"
     review_root.symlink_to(old_root, target_is_directory=True)
-    version = publish_version(project, label="retry")
+    version = publish_version(project, label="retry", defaults=load_defaults())
     mp3 = old_root / version.id / "mix.mp3"
     mp3.unlink()
     original_metadata = version.model_dump()
@@ -1587,7 +1591,7 @@ def test_mp3_retry_rechecks_review_root_after_file_sync(
     new_root.mkdir()
     review_root = artifacts / "review"
     review_root.symlink_to(old_root, target_is_directory=True)
-    version = publish_version(project, label="retry")
+    version = publish_version(project, label="retry", defaults=load_defaults())
     mp3 = old_root / version.id / "mix.mp3"
     mp3.unlink()
     (new_root / version.id).mkdir()
@@ -1921,7 +1925,10 @@ def test_stage_version_creates_media_without_touching_project(
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     created = []
     ver = stage_version(
-        project, label="staged", on_media_created=lambda p, i: created.append((p, i))
+        project,
+        label="staged",
+        on_media_created=lambda p, i: created.append((p, i)),
+        defaults=load_defaults(),
     )
     assert created[0][0].name.startswith(review_versions._STAGING_PREFIX)
     assert (created[0][0] / "mix.wav").is_file()
@@ -1947,10 +1954,10 @@ def test_stage_version_requires_lease_owner_callback_before_creating_media(
 @requires_safe_failed_cleanup
 def test_attach_version_appends_and_optionally_activates(minimal_project, sample_wav, monkeypatch):
     project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
-    first = publish_version(project, label="a", set_active=False)
+    first = publish_version(project, label="a", set_active=False, defaults=load_defaults())
     assert [v.id for v in project.review.versions] == [first.id]
     assert project.review.active_version_id is None
-    second = publish_version(project, label="b")
+    second = publish_version(project, label="b", defaults=load_defaults())
     assert project.review.active_version_id == second.id
 
 
@@ -1987,9 +1994,9 @@ def test_attach_version_leaves_audio_fingerprint_unchanged(
     from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
 
     project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
-    before = audio_state_fingerprint(project)
-    publish_version(project, label="a")
-    assert audio_state_fingerprint(project) == before
+    before = audio_state_fingerprint(project, defaults=load_defaults())
+    publish_version(project, label="a", defaults=load_defaults())
+    assert audio_state_fingerprint(project, defaults=load_defaults()) == before
 
 
 @requires_safe_failed_cleanup

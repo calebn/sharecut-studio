@@ -16,8 +16,8 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
-from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.room_tone import RecordedBedSample, SampleAbsent
 from podcast_mcp.edits.tighten import propose_tighten_edits
@@ -146,12 +146,13 @@ def test_saved_oversized_pause_holds_without_changing_its_final_bounds(
 def test_original_pause_does_not_consume_an_unavailable_manual_pad_lane(
     tmp_path, monkeypatch, kind, cause
 ):
-    configure(monkeypatch, defaults())
+    # One effective config: the rejected lane needs the speech-energy guard on.
+    configure(monkeypatch, defaults(acoustic=kind == "rejected"))
     result = project(tmp_path, topology="deleted")
     prepared = _prepared_pause(result, defaults())
     add_guest(result, tmp_path, kind)
     add_bed(result, tmp_path)
-    planned = room_tone_pad(result, 0.2, 0.25)
+    planned = room_tone_pad(result, 0.2, 0.25, defaults=load_defaults())
     host, guest = planned.lanes
     assert isinstance(host, LaneSample)
     assert isinstance(host.selection, RecordedBedSample)
@@ -177,13 +178,9 @@ def test_original_pause_does_not_consume_an_unavailable_manual_pad_lane(
     if kind == "rejected":
         before_model = ws.project.model_dump(mode="json")
         before_files = files(tmp_path)
-        asked = service.approve(["pause"])
-        assert isinstance(asked, CutSpeechConfirmation)
-        assert (asked.status, asked.reason) == ("needs_confirmation", "cuts_other_speech")
-        assert [track.track_id for track in asked.speech.tracks] == ["guest"]
-        assert [(span.start, span.end) for span in asked.speech.tracks[0].sound_spans] == [
-            pytest.approx((0.975, 1.3625))
-        ]
+        with pytest.raises(CodedError) as held:
+            service.approve(["pause"])
+        assert held.value.code == "cut_scope_changed"
         assert ws.project.model_dump(mode="json") == before_model
         assert files(tmp_path) == before_files
         assert service.approve(["pause"], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
@@ -361,7 +358,7 @@ def test_suggested_hold_changes_neither_snapshot_nor_canonical_saved_bytes(tmp_p
     before_files = files(tmp_path)
 
     with pytest.raises(CodedError) as held:
-        apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "pause"))
+        apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "pause"), defaults=cfg)
 
     assert held.value.ids == ("pause",)
     assert held.value.code == "cut_scope_changed"
@@ -371,7 +368,7 @@ def test_suggested_hold_changes_neither_snapshot_nor_canonical_saved_bytes(tmp_p
     assert snapshot.model_dump(mode="json") == before_model
     assert files(tmp_path) == before_files
     cfg["tighten"].update(min_retained_solo_pause_sec=0.55, min_retained_pause_sec=0.18)
-    apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "pause"))
+    apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "pause"), defaults=cfg)
     assert snapshot.editorial.edit_log[0].decision_ids == ["pause"]
     assert snapshot.editorial.edit_log[0].source_end == pytest.approx(1.8)
     assert snapshot.editorial.edit_log[0].params["replace_gap_sec"] is None

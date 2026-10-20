@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from filelock import Timeout
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.tighten_hits import is_tighten_reason, join_risk_from_decision
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import (
@@ -547,7 +548,7 @@ def test_map_transcript_edge_suppressed_first_word_kept() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert len(combined["utterances"]) == 1
     assert combined["utterances"][0]["start"] == pytest.approx(0.5)
     mapped = map_transcript_utterances_to_timeline(p, combined)
@@ -571,7 +572,7 @@ def test_map_transcript_edge_suppressed_last_word_kept() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert len(combined["utterances"]) == 1
     mapped = map_transcript_utterances_to_timeline(p, combined)
     assert mapped is not None
@@ -597,7 +598,7 @@ def test_map_transcript_edge_suppressed_gap_run_nearest_utterance() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert len(combined["utterances"]) == 2
     mapped = map_transcript_utterances_to_timeline(p, combined)
     assert mapped is not None
@@ -631,7 +632,7 @@ def test_map_transcript_edge_suppressed_uneven_gap_run() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert len(combined["utterances"]) == 2
     mapped = map_transcript_utterances_to_timeline(p, combined)
     assert mapped is not None
@@ -657,7 +658,7 @@ def test_map_transcript_edge_suppressed_word_next_to_cut_away_utterance() -> Non
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert len(combined["utterances"]) == 2
     mapped = map_transcript_utterances_to_timeline(p, combined)
     assert mapped is not None
@@ -745,7 +746,7 @@ def test_map_transcript_zero_length_utterance_lists_straddling_suppressed_word()
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert [(u["start"], u["end"]) for u in combined["utterances"]] == [
         (0.0, 0.3),
         (2.0, 2.0),
@@ -783,7 +784,7 @@ def test_map_transcript_zero_length_utterance_on_cut_audio_stays_unmappable() ->
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     mapped = map_transcript_utterances_to_timeline(p, combined)
     assert mapped is not None
     zero = next(u for u in mapped["utterances"] if u["start"] == u["end"] == 2.0)
@@ -833,7 +834,11 @@ def test_indexed_word_paths_match_brute_force_on_random_layouts() -> None:
         project = _minimal()
         words = _random_track_words(rng)
         project.transcripts = [Transcript(track_id="host", words=words)]
-        rows = TranscriptionEngine().merge_transcripts(project).model_dump()["utterances"]
+        rows = (
+            TranscriptionEngine(defaults=load_defaults())
+            .merge_transcripts(project)
+            .model_dump()["utterances"]
+        )
         intervals = _raw_word_intervals(words)
         covered: set[int] = set()
         for row in rows:
@@ -884,7 +889,7 @@ def test_map_transcript_edge_suppressed_ignored_word_in_ignored_indices() -> Non
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
     assert mapped is not None
     u = mapped["utterances"][0]
@@ -927,7 +932,7 @@ def _guest_all_suppressed_project() -> EpisodeProject:
 def test_map_transcript_all_suppressed_track_gets_suppressed_only_row() -> None:
     """A track whose words are all suppressed gets a view-only suppressed_only row (#758)."""
     p = _guest_all_suppressed_project()
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert [u["track_id"] for u in combined["utterances"]] == ["host"]
 
     mapped = map_transcript_utterances_to_timeline(p, combined)
@@ -986,7 +991,7 @@ def test_map_transcript_suppressed_only_rows_split_on_gaps() -> None:
             ],
         ),
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert [u["track_id"] for u in combined["utterances"]] == ["host"]
 
     mapped = map_transcript_utterances_to_timeline(p, combined)
@@ -1031,7 +1036,7 @@ def test_map_transcript_suppressed_only_rows_sorted_across_tracks() -> None:
             ],
         ),
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert combined["utterances"] == []
 
     for include_words in (True, False):
@@ -1074,7 +1079,7 @@ def test_map_transcript_input_row_wins_start_tie_with_suppressed_only_row() -> N
             ],
         ),
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert [u["track_id"] for u in combined["utterances"]] == ["host"]
 
     for include_words in (True, False):
@@ -1185,7 +1190,7 @@ def test_map_transcript_no_suppressed_only_row_when_track_has_rows() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
     assert mapped is not None
     assert len(mapped["utterances"]) == 1
@@ -1206,7 +1211,7 @@ def test_map_transcript_rows_list_edge_suppressed_indices() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert len(combined["utterances"]) == 1
     for include_words in (True, False):
         mapped = map_transcript_utterances_to_timeline(p, combined, include_words=include_words)
@@ -1215,7 +1220,7 @@ def test_map_transcript_rows_list_edge_suppressed_indices() -> None:
     words = p.transcripts[0].words
     words[0] = words[0].model_copy(update={"suppressed": False})
     words[1] = words[1].model_copy(update={"suppressed": False})
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     assert len(combined["utterances"]) == 2
     mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
     assert mapped is not None
@@ -1240,7 +1245,7 @@ def test_map_transcript_rows_list_locked_word_indices() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     for include_words in (True, False):
         mapped = map_transcript_utterances_to_timeline(p, combined, include_words=include_words)
         assert mapped is not None
@@ -1249,7 +1254,7 @@ def test_map_transcript_rows_list_locked_word_indices() -> None:
     p.transcripts[0].words[1] = (
         p.transcripts[0].words[1].model_copy(update={"audibility_locked": False})
     )
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
     assert mapped is not None
     assert "locked_word_indices" not in mapped["utterances"][0]
@@ -1304,7 +1309,7 @@ def test_map_transcript_ignored_zero_length_word_in_ignored_indices() -> None:
             ],
         )
     ]
-    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    combined = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(p).model_dump()
     mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
     assert mapped is not None
     assert mapped["utterances"][0]["ignored_word_indices"] == [1]
@@ -2369,7 +2374,9 @@ def test_api_pipeline_run_job_pushes_proposed_edits_to_open_tabs(
     from source_review_helpers import finite_primary_recording
 
     def run(self, project, *, on_step_complete=None, **_kwargs):
-        append_remove_decision(project, "host", 1.0, 1.5, reason="find-hits-proof")
+        append_remove_decision(
+            project, "host", 1.0, 1.5, reason="find-hits-proof", defaults=load_defaults()
+        )
         if on_step_complete is not None:
             on_step_complete("analyze_fillers_pauses")
         return PipelineRun(

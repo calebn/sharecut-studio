@@ -9,6 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_safety import (
@@ -124,7 +125,7 @@ def test_punch_timeline_range_leaves_hole_without_shift():
             timeline_start=0.0,
         )
     ]
-    out = punch_timeline_range_from_clips(clips, 2.0, 2.5)
+    out = punch_timeline_range_from_clips(clips, 2.0, 2.5, defaults=load_defaults())
     assert len(out) == 2
     assert out[0].timeline_end == pytest.approx(2.0)
     assert out[1].timeline_start == pytest.approx(2.5)
@@ -137,7 +138,7 @@ def test_punch_timeline_range_leaves_hole_without_shift():
 def test_assess_blocks_when_other_track_hot():
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         return -30.0 if track_id == "guest" else -55.0
 
     with patch(
@@ -191,7 +192,7 @@ def test_voice_refs_keep_a_quiet_contrast_mic_on_path_reference() -> None:
 def test_assess_allows_when_cut_track_dominates():
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         return -25.0 if track_id == "host" else -40.0
 
     with patch(
@@ -224,7 +225,7 @@ def test_a_balance_gain_on_the_peer_does_not_make_it_dominate(guest_gain_db: flo
     p = _two_track()
     p.tracks[1].gain_db = guest_gain_db
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         return -25.0 if track_id == "host" else -40.0 + guest_gain_db
 
     with patch(
@@ -261,7 +262,14 @@ def test_owner_dominance_over_peer_frames_reads_the_recordings(peer_gain_db: flo
         "podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=frames
     ):
         got = _owned_peer_frames(
-            p, "guest", 2.0, 2.2, owner_track_ids=["host"], dominance_db=3.0, caches=None
+            p,
+            "guest",
+            2.0,
+            2.2,
+            owner_track_ids=["host"],
+            dominance_db=3.0,
+            caches=None,
+            defaults=load_defaults(),
         )
     assert got is not None
     assert not got.own.any()
@@ -283,7 +291,14 @@ def test_owner_balance_gain_does_not_make_it_dominate_frames(owner_gain_db: floa
         "podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=frames
     ):
         got = _owned_peer_frames(
-            p, "guest", 2.0, 2.2, owner_track_ids=["host"], dominance_db=3.0, caches=None
+            p,
+            "guest",
+            2.0,
+            2.2,
+            owner_track_ids=["host"],
+            dominance_db=3.0,
+            caches=None,
+            defaults=load_defaults(),
         )
     assert got is not None
     assert got.own.all()
@@ -297,7 +312,7 @@ def test_an_owner_balance_gain_does_not_hide_a_dominant_peer(owner_gain_db: floa
     p = _two_track()
     p.tracks[0].gain_db = owner_gain_db
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         return -20.0 if track_id == "guest" else -35.0 + owner_gain_db
 
     with patch(
@@ -346,7 +361,14 @@ def test_dominance_reads_each_mic_against_its_own_voice(
         "podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=frames
     ):
         got = _owned_peer_frames(
-            p, "guest", 2.0, 2.2, owner_track_ids=["host"], dominance_db=3.0, caches=None
+            p,
+            "guest",
+            2.0,
+            2.2,
+            owner_track_ids=["host"],
+            dominance_db=3.0,
+            caches=None,
+            defaults=load_defaults(),
         )
     assert got is not None
     assert bool(got.own.all()) is owns
@@ -363,7 +385,7 @@ def test_span_mean_reads_each_mic_against_its_own_voice(monkeypatch: pytest.Monk
         lambda _p, tid, _c: LevelProfile(room_db=-80.0, speech_db=voices[tid], loud_db=voices[tid]),
     )
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         return -23.0 if track_id == "host" else -35.0
 
     with patch(
@@ -436,10 +458,10 @@ def test_add_remove_decision_over_peer_speech_waits_for_review(monkeypatch):
         "analysis": {"heuristics": {}},
     }
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         return -30.0 if track_id == "guest" else -55.0
 
-    def passthrough(project, track_id, start, end, force_enabled=None):
+    def passthrough(project, track_id, start, end, force_enabled=None, **_kw):
         from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
         return OptimizedCutRange(
@@ -495,7 +517,7 @@ def test_approve_an_explicit_gap_keeps_peer_clips(tmp_path):
             confidence=1.0,
             details={},
         )
-        n = approve_edits(p, ["cut1"])
+        n = approve_edits(p, ["cut1"], defaults=load_defaults())
     assert n == 1
     host = clips_for_track(p, "host")
     guest = clips_for_track(p, "guest")
@@ -527,6 +549,7 @@ def test_punch_delete_updates_one_track():
             "host",
             1.0,
             1.5,
+            defaults=load_defaults(),
         )
     assert len(clips_for_track(p, "host")) == 2
     assert len(clips_for_track(p, "guest")) == 1
@@ -544,7 +567,7 @@ def test_resolve_cut_scope_speaker_bleed_short_circuits():
             return_value={"role": "bleed"},
         ),
     ):
-        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=load_defaults())
         assert isinstance(resolved, ResolvedCutScope)
         scope, guard = resolved.scope, resolved.guard
     assert scope == "track"
@@ -564,7 +587,7 @@ def test_resolve_cut_scope_speaker_exception_falls_through():
             return_value=-60.0,
         ),
     ):
-        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=load_defaults())
         assert isinstance(resolved, ResolvedCutScope)
         scope, guard = resolved.scope, resolved.guard
     assert scope == "session"
@@ -605,7 +628,7 @@ def test_resolve_cut_scope_speaker_none_continues_to_rms():
             return_value=-60.0,
         ),
     ):
-        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=load_defaults())
         assert isinstance(resolved, ResolvedCutScope)
         scope, guard = resolved.scope, resolved.guard
     assert scope == "session"
@@ -637,7 +660,7 @@ def test_assess_empty_span_returns_safe() -> None:
 def test_assess_skips_quiet_other_tracks() -> None:
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         return -55.0 if track_id == "guest" else -30.0
 
     with patch(
@@ -679,7 +702,7 @@ def test_resolve_cut_scope_speaker_own_continues_to_rms():
             return_value=-60.0,
         ),
     ):
-        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=load_defaults())
         assert isinstance(resolved, ResolvedCutScope)
         scope, guard = resolved.scope, resolved.guard
     assert scope == "session"
@@ -689,7 +712,9 @@ def test_resolve_cut_scope_speaker_own_continues_to_rms():
 
 def test_resolve_cut_scope_track_scope_short_circuits() -> None:
     p = _two_track()
-    resolved = resolve_cut_scope(p, "host", 2.0, 2.5, requested_scope="track")
+    resolved = resolve_cut_scope(
+        p, "host", 2.0, 2.5, requested_scope="track", defaults=load_defaults()
+    )
     assert isinstance(resolved, ResolvedCutScope)
     scope, guard = resolved.scope, resolved.guard
     assert scope == "track"
@@ -720,7 +745,7 @@ def test_assess_short_overlap_is_safe() -> None:
 
 def test_assess_invalid_source_range() -> None:
     p = _two_track()
-    g = assess_cross_track_speech(p, "host", 2.5, 2.0)
+    g = assess_cross_track_speech(p, "host", 2.5, 2.0, defaults=load_defaults())
     assert not g.blocked
     assert g.action is None
 
@@ -729,7 +754,7 @@ def test_assess_invalid_source_range() -> None:
 def test_assess_blocks_when_cut_rms_unknown_but_guest_hot() -> None:
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         if track_id == "guest":
             return -30.0
         return None
@@ -789,7 +814,7 @@ def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
     # Proposed gap 2.8-3.6 straddles the hole: mapped spans are (2.8, 3.0)
     # (len 0.2, the largest) and (3.5, 3.6) (len 0.1, the smaller). Guest
     # speaks only in the smaller span.
-    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0, **_kw):
         if track_id == "guest":
             return -20.0 if t0 >= 3.5 else -60.0
         return -55.0
@@ -875,8 +900,8 @@ def test_assess_blocks_brief_untranscribed_peer_in_long_pause(
     peer[reference | brief] = amplitude * carrier[reference | brief]
     p = _project_with_peer_audio(tmp_path, peer)
 
-    reference_rms = measure_timeline_rms_db(p, "guest", 0.1, 0.8)
-    brief_rms = measure_timeline_rms_db(p, "guest", 3.0, 3.1)
+    reference_rms = measure_timeline_rms_db(p, "guest", 0.1, 0.8, defaults=load_defaults())
+    brief_rms = measure_timeline_rms_db(p, "guest", 3.0, 3.1, defaults=load_defaults())
     assert reference_rms is not None
     assert brief_rms == pytest.approx(reference_rms, abs=0.1)
 
@@ -900,8 +925,8 @@ def test_assess_blocks_peer_attack_at_end_of_long_pause(tmp_path: Path, amplitud
     peer[speech] = amplitude * attack * carrier[speech]
     p = _project_with_peer_audio(tmp_path, peer)
 
-    attack_rms = measure_timeline_rms_db(p, "guest", 5.98, 6.0)
-    following_rms = measure_timeline_rms_db(p, "guest", 6.04, 6.08)
+    attack_rms = measure_timeline_rms_db(p, "guest", 5.98, 6.0, defaults=load_defaults())
+    following_rms = measure_timeline_rms_db(p, "guest", 6.04, 6.08, defaults=load_defaults())
     assert attack_rms is not None
     assert following_rms is not None
     assert attack_rms < -42.0
@@ -942,7 +967,7 @@ def test_peer_frames_discount_only_concurrent_owner_bleed(
             peer[elsewhere] = 0.3 * carrier[elsewhere]
     p = _project_with_peer_audio(tmp_path, peer)
     _write_wav(tmp_path / "host.wav", owner)
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -956,7 +981,7 @@ def test_peer_frames_discount_only_concurrent_owner_bleed(
     assert levels.speaking == expected
     assert levels.unread == {}
     assert levels.peer_rms_db["guest"] == pytest.approx(
-        measure_timeline_rms_db(p, "guest", 1.0, 6.0, caches=caches)
+        measure_timeline_rms_db(p, "guest", 1.0, 6.0, caches=caches, defaults=load_defaults())
     )
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == expected
@@ -980,7 +1005,7 @@ def test_dense_owner_bleed_cannot_hide_brief_independent_peer(
         peer[brief] = 0.0045 * carrier[brief] if peer_case == "brief" else 0.0
     p = _project_with_peer_audio(tmp_path, peer)
     _write_wav(tmp_path / "host.wav", owner)
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1012,7 +1037,7 @@ def test_stationary_quiet_room_with_sparse_owner_activity_stays_clear(
     peer = np.random.default_rng(14).normal(0.0, 0.0004, clock.size)
     p = _project_with_peer_audio(tmp_path, peer)
     _write_wav(tmp_path / "host.wav", owner)
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1106,7 +1131,7 @@ def test_dense_owner_bleed_room_is_told_from_independent_peer_by_the_peers_own_s
     _write_wav(tmp_path / "host.wav", owner)
     for track in p.tracks:
         track.gain_db = gain
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1139,7 +1164,7 @@ def test_dense_owner_bleed_warns_on_quiet_backchannel_near_bleed_floor(
     _write_wav(tmp_path / "host.wav", owner)
     for track in p.tracks:
         track.gain_db = gain
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1168,7 +1193,7 @@ def test_dense_owner_bleed_room_reference_ignores_a_single_quieter_stretch(
     _write_wav(tmp_path / "host.wav", owner)
     for track in p.tracks:
         track.gain_db = gain
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == ()
@@ -1182,7 +1207,7 @@ def test_dense_owner_bleed_room_warns_when_the_peers_samples_cannot_be_read(
     owner, peer = _dense_bleed_with_independent_gap(clock, (3.0, 3.1), "room_noise")
     p = _project_with_peer_audio(tmp_path, peer)
     _write_wav(tmp_path / "host.wav", owner)
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
     with patch("podcast_mcp.edits.speech_energy_guard.timeline_window_samples", return_value=None):
         levels = measure_peer_speech(
             p,
@@ -1208,7 +1233,7 @@ def test_noise_without_contrast_uses_mean_while_digital_zero_stays_clear(
     p.transcripts = [
         Transcript(track_id="guest", words=[TranscriptWord(text="right", start=3.0, end=3.1)])
     ]
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1233,7 +1258,7 @@ def test_continuous_hot_peer_without_quiet_context_still_blocks(
 ) -> None:
     clock = np.arange(8 * _SR) / _SR
     p = _project_with_peer_audio(tmp_path, 0.1 * np.sin(2 * np.pi * 220 * clock))
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1284,7 +1309,7 @@ def test_peer_detection_stops_at_exact_outward_pad_boundary(
     active = (clock >= sound_start) & (clock < sound_end)
     peer[active] = 0.045 * np.sin(2 * np.pi * 220 * clock[active])
     p = _project_with_peer_audio(tmp_path, peer)
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1316,11 +1341,14 @@ def test_sealed_peer_detection_contains_exact_half_open_samples(
         p = _project_with_peer_audio(tmp_path, peer)
         _write_wav(tmp_path / "guest.wav", peer[::2], sample_rate=8000)
         forward = p.model_copy(deep=True)
-        ripple_remove_clips(forward, [(start, end)], ["host", "guest"])
+        ripple_remove_clips(forward, [(start, end)], ["host", "guest"], defaults=load_defaults())
         remaining = 0 if edge in ("first_inside", "last_inside") else 1
-        assert np.count_nonzero(_played_window(forward, "guest", 0.0, 8.0)) == remaining
+        assert (
+            np.count_nonzero(_played_window(forward, "guest", 0.0, 8.0, defaults=load_defaults()))
+            == remaining
+        )
         assert np.count_nonzero(raw_timeline_samples(forward, "guest")) == remaining
-        caches = build_track_rms_caches(p) if cached else None
+        caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
         kwargs = {
             "owner_track_ids": ["host"],
             "peer_track_ids": ["guest"],
@@ -1357,13 +1385,18 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
                 "host", SourceSec(1.003), SourceSec(3.003)
             )
         )
-        before = _played_window(p, "guest", 0.0, 8.50004)
+        before = _played_window(p, "guest", 0.0, 8.50004, defaults=load_defaults())
         before_cache = raw_timeline_samples(p, "guest")
         assert np.count_nonzero(before) == np.count_nonzero(before_cache) == 1
         forward = p.model_copy(deep=True)
-        ripple_remove_clips(forward, spans, ["host", "guest"])
+        ripple_remove_clips(forward, spans, ["host", "guest"], defaults=load_defaults())
         expected_count = 0 if removed else 1
-        assert np.count_nonzero(_played_window(forward, "guest", 0.0, 6.50004)) == expected_count
+        assert (
+            np.count_nonzero(
+                _played_window(forward, "guest", 0.0, 6.50004, defaults=load_defaults())
+            )
+            == expected_count
+        )
         assert np.count_nonzero(raw_timeline_samples(forward, "guest")) == expected_count
         levels = measure_peer_speech(
             p,
@@ -1371,7 +1404,7 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
             owner_track_ids=["host"],
             peer_track_ids=["guest"],
             defaults=_GUARD_ON,
-            caches=build_track_rms_caches(p) if cached else None,
+            caches=build_track_rms_caches(p, defaults=load_defaults()) if cached else None,
             _admissible_spans=spans,
         )
         assert levels is not None
@@ -1396,23 +1429,46 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
         snapshot = p.model_dump(mode="json")
         if removed:
             with pytest.raises(ScopeChangedAtApproval) as held:
-                approve_edits(p, [edit.id])
+                approve_edits(p, [edit.id], defaults=load_defaults())
             assert held.value.held[0].reason == "peer_speech"
-            assert np.array_equal(_played_window(p, "guest", 0.0, 8.50004), before)
+            assert np.array_equal(
+                _played_window(p, "guest", 0.0, 8.50004, defaults=load_defaults()), before
+            )
             assert clearance is not None
-            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
-            assert np.count_nonzero(_played_window(p, "guest", 0.0, 6.50004)) == 0
+            assert (
+                approve_edits(
+                    p,
+                    [edit.id],
+                    application_intent=CutIntent.HUMAN_BOUNDARIES,
+                    defaults=load_defaults(),
+                )
+                == 1
+            )
+            assert (
+                np.count_nonzero(_played_window(p, "guest", 0.0, 6.50004, defaults=load_defaults()))
+                == 0
+            )
             assert np.count_nonzero(raw_timeline_samples(p, "guest")) == 0
         else:
             with pytest.raises(ScopeChangedAtApproval) as held:
-                approve_edits(p, [edit.id])
+                approve_edits(p, [edit.id], defaults=load_defaults())
             assert held.value.held[0].reason == "acoustic_edge"
             assert held.value.held[0].detail == "breath_edge"
             assert p.model_dump(mode="json") == snapshot
-            assert np.array_equal(_played_window(p, "guest", 0.0, 8.50004), before)
+            assert np.array_equal(
+                _played_window(p, "guest", 0.0, 8.50004, defaults=load_defaults()), before
+            )
             assert np.array_equal(raw_timeline_samples(p, "guest"), before_cache)
-            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
-            after = _played_window(p, "guest", 0.0, 6.50004)
+            assert (
+                approve_edits(
+                    p,
+                    [edit.id],
+                    application_intent=CutIntent.HUMAN_BOUNDARIES,
+                    defaults=load_defaults(),
+                )
+                == 1
+            )
+            after = _played_window(p, "guest", 0.0, 6.50004, defaults=load_defaults())
             assert np.count_nonzero(after) == 1
             assert after[after != 0].tolist() == before[before != 0].tolist()
 
@@ -1436,14 +1492,14 @@ def test_source_removal_preserves_nearest_even_split_endpoint(tmp_path: Path, ca
                 "host", SourceSec(1.0030625), SourceSec(3.0070625)
             )
         )
-        before = _played_window(p, "guest", 0.0, 8.7001)
+        before = _played_window(p, "guest", 0.0, 8.7001, defaults=load_defaults())
         before_cache = raw_timeline_samples(p, "guest")
         assert np.count_nonzero(before) == np.count_nonzero(before_cache) == 1
         forward = p.model_copy(deep=True)
-        ripple_remove_clips(forward, spans, ["host", "guest"])
+        ripple_remove_clips(forward, spans, ["host", "guest"], defaults=load_defaults())
         expected_count = 0 if removed else 1
         for samples in (
-            _played_window(forward, "guest", 0.0, 8.7001),
+            _played_window(forward, "guest", 0.0, 8.7001, defaults=load_defaults()),
             raw_timeline_samples(forward, "guest"),
         ):
             assert np.count_nonzero(samples) == expected_count
@@ -1455,7 +1511,7 @@ def test_source_removal_preserves_nearest_even_split_endpoint(tmp_path: Path, ca
             owner_track_ids=["host"],
             peer_track_ids=["guest"],
             defaults=_GUARD_ON,
-            caches=build_track_rms_caches(p) if cached else None,
+            caches=build_track_rms_caches(p, defaults=load_defaults()) if cached else None,
             _admissible_spans=spans,
         )
         assert levels is not None
@@ -1483,22 +1539,40 @@ def test_source_removal_preserves_nearest_even_split_endpoint(tmp_path: Path, ca
         snapshot = p.model_dump(mode="json")
         if removed:
             with pytest.raises(ScopeChangedAtApproval) as held:
-                approve_edits(p, [edit.id])
+                approve_edits(p, [edit.id], defaults=load_defaults())
             assert held.value.held[0].reason == "peer_speech"
             assert p.model_dump(mode="json") == snapshot
             assert clearance is not None
-            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+            assert (
+                approve_edits(
+                    p,
+                    [edit.id],
+                    application_intent=CutIntent.HUMAN_BOUNDARIES,
+                    defaults=load_defaults(),
+                )
+                == 1
+            )
         else:
             with pytest.raises(ScopeChangedAtApproval) as held:
-                approve_edits(p, [edit.id])
+                approve_edits(p, [edit.id], defaults=load_defaults())
             assert held.value.held[0].reason == "acoustic_edge"
             assert held.value.held[0].detail == "breath_edge"
             assert p.model_dump(mode="json") == snapshot
-            assert np.array_equal(_played_window(p, "guest", 0.0, 8.7001), before)
+            assert np.array_equal(
+                _played_window(p, "guest", 0.0, 8.7001, defaults=load_defaults()), before
+            )
             assert np.array_equal(raw_timeline_samples(p, "guest"), before_cache)
-            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+            assert (
+                approve_edits(
+                    p,
+                    [edit.id],
+                    application_intent=CutIntent.HUMAN_BOUNDARIES,
+                    defaults=load_defaults(),
+                )
+                == 1
+            )
         for samples in (
-            _played_window(p, "guest", 0.0, 8.7001),
+            _played_window(p, "guest", 0.0, 8.7001, defaults=load_defaults()),
             raw_timeline_samples(p, "guest"),
         ):
             assert np.count_nonzero(samples) == expected_count
@@ -1539,9 +1613,9 @@ def test_sealed_cached_samples_use_the_cache_timeline_origin(tmp_path: Path) -> 
             clip.timeline_start = 0.50004
         span = (1.50304, 3.50304)
         forward = p.model_copy(deep=True)
-        ripple_remove_clips(forward, [span], ["host", "guest"])
+        ripple_remove_clips(forward, [span], ["host", "guest"], defaults=load_defaults())
         assert np.count_nonzero(raw_timeline_samples(forward, "guest")) == (0 if removed else 1)
-        caches = build_track_rms_caches(p)
+        caches = build_track_rms_caches(p, defaults=load_defaults())
         for cache in caches.caches.values():
             cache.samples = cache.samples[4000:]
             cache.timeline_offset_sec = 0.50004
@@ -1575,7 +1649,7 @@ def test_peer_room_calibration_uses_played_context_and_core_coverage(
         p.clips.append(
             Clip(id="g2", track_id="guest", source_start=4.89, source_end=6.0, timeline_start=4.89)
         )
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
     levels = measure_peer_speech(
         p,
         [(4.625, 4.9)],
@@ -1635,7 +1709,7 @@ def test_separate_spans_keep_independent_peer_calibration(tmp_path: Path, cached
         1,
         Clip(id="h2", track_id="host", source_start=16.0, source_end=20.0, timeline_start=16.0),
     )
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1649,7 +1723,7 @@ def test_separate_spans_keep_independent_peer_calibration(tmp_path: Path, cached
     assert levels.speaking == ("guest",)
     assert levels.unread == {}
     assert levels.peer_rms_db["guest"] == pytest.approx(
-        measure_timeline_rms_db(p, "guest", 1.0, 2.0, caches=caches)
+        measure_timeline_rms_db(p, "guest", 1.0, 2.0, caches=caches, defaults=load_defaults())
     )
     guard = assess_cross_track_speech(p, "host", 1.0, 17.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == ("guest",)
@@ -1663,13 +1737,20 @@ def test_bounded_core_frames_survive_unreadable_optional_context(tmp_path: Path)
     p = _project_with_peer_audio(tmp_path, peer)
     requests: list[tuple[str, float, float]] = []
 
-    def read(project, track_id, start, end, *, frame_sec, hop_sec, caches):
+    def read(project, track_id, start, end, *, frame_sec, hop_sec, caches, **_kw):
         requests.append((track_id, start, end))
         if start < 0.94 or end > 15.06:
             return None
         assert frame_sec == hop_sec == 0.01
         return timeline_frame_levels_db(
-            project, track_id, start, end, frame_sec=frame_sec, hop_sec=hop_sec, caches=caches
+            project,
+            track_id,
+            start,
+            end,
+            frame_sec=frame_sec,
+            hop_sec=hop_sec,
+            caches=caches,
+            defaults=load_defaults(),
         )
 
     with patch("podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=read):
@@ -1854,7 +1935,7 @@ def test_room_between_owner_words_is_clear_and_a_remark_in_it_still_warns(
     _write_wav(tmp_path / "host.wav", owner)
     for track in p.tracks:
         track.gain_db = gain
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,
@@ -1882,7 +1963,7 @@ def test_remark_that_starts_as_the_owner_word_ends_under_its_bleed_still_warns(
     _write_wav(tmp_path / "host.wav", owner)
     for track in p.tracks:
         track.gain_db = gain
-    caches = build_track_rms_caches(p) if cached else None
+    caches = build_track_rms_caches(p, defaults=load_defaults()) if cached else None
 
     levels = measure_peer_speech(
         p,

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
@@ -114,7 +115,9 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
         def apply():
             ws.reload()
             token = boundary_context(
-                ws.project, TrimBoundaryTarget(clip_id="host", edge="out", mode=EditMode.GAP)
+                ws.project,
+                TrimBoundaryTarget(clip_id="host", edge="out", mode=EditMode.GAP),
+                defaults=load_defaults(),
             ).token
             return EditService(ws).trim_clip_edge(
                 "host", "out", 2, mode=EditMode.GAP, expected_token=token
@@ -182,7 +185,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
             if operation == "late_pad_fade":
                 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 
-                monkeypatch.setattr(decisions, "filler_pad_mode", lambda *args: "room_tone")
+                monkeypatch.setattr(decisions, "filler_pad_mode", lambda *args, **kw: "room_tone")
                 monkeypatch.setattr(
                     "podcast_mcp.edits.timeline_ops.room_tone_span",
                     lambda *args, **kwargs: OwnQuietSample(Sample(3.0, 3.25, -70.0, None)),
@@ -241,8 +244,8 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
         edit.replace_gap_sec = 0.25
         original = cut_application.insert_bound_room_tone_pad
 
-        def displace_tile(project, plan):
-            result = original(project, plan)
+        def displace_tile(project, plan, **_kw):
+            result = original(project, plan, **_kw)
             tile = next(c for c in project.clips if c.source_id == "room-tone-host")
             tile.timeline_start += 0.05
             return result
@@ -260,7 +263,7 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
             monkeypatch.setattr(cut_application, "insert_bound_room_tone_pad", displace_tile)
     else:
         ws.project.edit_decisions = [edit.model_copy(deep=True)]
-        assert cut_application.approve_edits(ws.project, [edit.id]) == 1
+        assert cut_application.approve_edits(ws.project, [edit.id], defaults=load_defaults()) == 1
         # The same recording is placed again after the first receipt; it is now
         # mechanically removable, so placement cannot mask a duplicate consumption.
         ws.project.clips = [
@@ -272,7 +275,7 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
     before = ws.project.model_dump(mode="json")
     files = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     with pytest.raises(ScopeChangedAtApproval) as held:
-        cut_application.approve_edits(ws.project, [edit.id])
+        cut_application.approve_edits(ws.project, [edit.id], defaults=load_defaults())
     assert held.value.ids == (edit.id,)
     assert (
         held.value.held[0].detail
@@ -291,7 +294,7 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
         f"complete_effect_{'receipts' if predicate == 'receipts' else 'placement'}",
         lambda *args, **kwargs: [] if predicate == "receipts" else None,
     )
-    assert cut_application.approve_edits(ws.project, [edit.id]) == 1
+    assert cut_application.approve_edits(ws.project, [edit.id], defaults=load_defaults()) == 1
     if predicate == "hull":
         assert len(ws.project.editorial.edit_log) == 1
     elif predicate == "placement":
@@ -333,7 +336,7 @@ def test_new_id_cannot_remove_a_source_span_consumed_by_an_earlier_cut(tmp_path,
     monkeypatch.setattr(
         cut_application.cut_safety, "complete_effect_placement", lambda *a, **k: None
     )
-    assert approve_edits(ws.project, [previously_offered.id]) == 1
+    assert approve_edits(ws.project, [previously_offered.id], defaults=load_defaults()) == 1
     rows = ws.project.editorial.edit_log
     assert [(row.source_start, row.source_end) for row in rows] == [(1.1, 1.2), (1.0, 1.3)]
     assert [row.decision_ids for row in rows] == [[first_id], [previously_offered.id]]
@@ -355,7 +358,7 @@ def test_record_suggested_cut_speech_ignores_mute_without_remove_placement():
         applied=False,
     )
 
-    record_suggested_cut_speech(project, mute)
+    record_suggested_cut_speech(project, mute, defaults=load_defaults())
 
     assert mute.cut_speech is None
 
@@ -434,7 +437,7 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
         crossfade_ms=10,
     )
     project.edit_decisions = [mute]
-    assert approve_edits(project, [mute.id]) == 1
+    assert approve_edits(project, [mute.id], defaults=load_defaults()) == 1
     accepted = project.model_dump(mode="json")
     remove = EditDecision(
         id="remove",
@@ -450,7 +453,7 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
     )
     project.edit_decisions.append(remove)
 
-    assert approve_edits(project, [remove.id]) == 1
+    assert approve_edits(project, [remove.id], defaults=load_defaults()) == 1
     archives = project.editorial.edit_log
     assert [record.decision_ids for record in archives] == [["mute"], ["remove"]]
     assert (archives[1].source_start, archives[1].source_end) == (1.3, 1.5)
@@ -480,7 +483,13 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
     manual_mute = mute.model_copy(update={"id": "manual-mute", "start": 2.5, "end": 2.7})
     project.edit_decisions.append(manual_mute)
     assert (
-        approve_edits(project, [manual_mute.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+        approve_edits(
+            project,
+            [manual_mute.id],
+            application_intent=CutIntent.HUMAN_BOUNDARIES,
+            defaults=load_defaults(),
+        )
+        == 1
     )
     quiet_cut = remove.model_copy(update={"id": "quiet-cut", "start": 2.25, "end": 2.35})
     word_start = 2.65 if scope == "track" else 2.45
@@ -488,7 +497,7 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
         before_path, after_path = Path(folder) / "before.wav", Path(folder) / "after.wav"
         render(project, project.tracks[0], before_path, {})
         project.edit_decisions.append(quiet_cut)
-        assert approve_edits(project, [quiet_cut.id]) == 1
+        assert approve_edits(project, [quiet_cut.id], defaults=load_defaults()) == 1
         render(project, project.tracks[0], after_path, {})
         engine = FFmpegEngine()
         before_audio = engine.decode_window_f32(before_path, 0, 84000, 16000, 1)
@@ -514,7 +523,7 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
     assert sha256((tmp_path / "raw/host.wav").read_bytes()).hexdigest() == source_hash
     inside_cut = remove.model_copy(update={"id": "inside-cut", "start": 2.55, "end": 2.6})
     project.edit_decisions.append(inside_cut)
-    assert approve_edits(project, [inside_cut.id]) == 1
+    assert approve_edits(project, [inside_cut.id], defaults=load_defaults()) == 1
     assert len(project.editorial.edit_log) == 5
     assert project.editorial.edit_log[-1].decision_ids == ["inside-cut"]
     assert (
@@ -649,7 +658,9 @@ def test_pause_join_quality_uses_selected_physical_recording(tmp_path, monkeypat
     from podcast_mcp.util.batch_scope import batch_scope
 
     with batch_scope():
-        ripple_remove_clips(changed, [(1, 2)], ripple_track_ids(selected, ["host"]))
+        ripple_remove_clips(
+            changed, [(1, 2)], ripple_track_ids(selected, ["host"]), defaults=load_defaults()
+        )
         pause_effects = cut_safety.completed_audio_effects(
             selected, changed, frozenset({pause.id}), defaults={}
         )
@@ -812,13 +823,13 @@ def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
     )
     observed: list[tuple[EpisodeProject, tuple[tuple[float, float], ...], frozenset[str]]] = []
 
-    def assess(project_arg: EpisodeProject, removal: RippleRemoval) -> CutSpeech:
+    def assess(project_arg: EpisodeProject, removal: RippleRemoval, **_kw) -> CutSpeech:
         observed.append((project_arg, removal.spans, removal.edited_track_ids))
         return expected
 
     monkeypatch.setattr("podcast_mcp.edits.source_removals.assess_cut_speech", assess)
 
-    record_suggested_cut_speech(project, decision)
+    record_suggested_cut_speech(project, decision, defaults=load_defaults())
 
     assert observed == [(project, ((1.0, 2.0),), frozenset({"host"}))]
     assert decision.cut_speech == expected
@@ -1548,7 +1559,9 @@ def test_rejected_generated_merged_hole_preserves_retained_manual_row(tmp_path: 
     project.edit_decisions = [manual, first, second]
     expected = manual.model_dump()
     skips: dict[str, int] = {}
-    coalesce_edits(project, skip_counts=skips, merge_ids={"first", "second"})
+    coalesce_edits(
+        project, skip_counts=skips, merge_ids={"first", "second"}, defaults=load_defaults()
+    )
     assert [e.model_dump() for e in project.edit_decisions] == [expected]
     assert skips == {"source_geometry": 1}
 
@@ -1629,6 +1642,8 @@ def test_a_witnessed_cut_of_a_source_played_twice_is_refused_and_applies_nothing
     before = project.model_dump(mode="json")
     for intent in (CutIntent.PROGRAMMATIC, CutIntent.HUMAN_BOUNDARIES):
         with pytest.raises(ScopeChangedAtApproval) as held:
-            cut_application.approve_edits(project, [edit.id], application_intent=intent)
+            cut_application.approve_edits(
+                project, [edit.id], application_intent=intent, defaults=load_defaults()
+            )
         assert held.value.held[0].reason == "source_geometry"
         assert project.model_dump(mode="json") == before

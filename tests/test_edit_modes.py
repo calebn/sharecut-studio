@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 from history_helpers import history_move
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import apply_auto_edits
 from podcast_mcp.edits.cut_speech import LaneSourceExtent, assess_cut_speech
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
@@ -168,7 +169,9 @@ def _trim(
 ) -> dict:
     ws = ProjectWorkspace.open(path)
     token = boundary_context(
-        ws.project, TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=mode)
+        ws.project,
+        TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=mode),
+        defaults=load_defaults(),
     ).token
     return EditService(ws).trim_clip_edge(
         clip_id,
@@ -380,13 +383,14 @@ def test_speech_another_edit_in_the_same_approval_cuts_does_not_ask(episode, cut
     """Guest's "so the plan" (words) and untranscribed remark (sound) are cut by a
     Guest decision in the same batch, so Host's ripple over them is not unasked."""
     project = load_project(episode)
-    removal = plan_ripple_delete(project, *cut, edited_track_ids=["host"])
+    removal = plan_ripple_delete(project, *cut, edited_track_ids=["host"], defaults=load_defaults())
 
-    alone = assess_cut_speech(project, removal)
+    alone = assess_cut_speech(project, removal, defaults=load_defaults())
     batched = assess_cut_speech(
         project,
         removal,
         also_chosen=[LaneSourceExtent("guest", *chosen)],
+        defaults=load_defaults(),
     )
 
     assert alone is not None
@@ -410,7 +414,7 @@ def test_auto_apply_leaves_a_remove_over_other_words_pending(episode):
     ]
     before = _geometry(episode)
 
-    assert apply_auto_edits(project) == 0
+    assert apply_auto_edits(project, defaults=load_defaults()) == 0
     assert [e.id for e in project.edit_decisions] == ["um"]
     save_project(project)
     assert _geometry(episode) == before
@@ -445,7 +449,7 @@ def test_auto_apply_does_not_count_a_held_back_edit_as_chosen(episode):
     ]
     before = _geometry(episode)
 
-    assert apply_auto_edits(project) == 0
+    assert apply_auto_edits(project, defaults=load_defaults()) == 0
     assert sorted(e.id for e in project.edit_decisions) == ["guest-pause", "host-um"]
     save_project(project)
     assert _geometry(episode) == before
@@ -495,10 +499,15 @@ def test_a_word_counts_only_where_its_own_track_sounds_inside_the_cut(
     _word_at_the_cut_end(episode, guest_in_cut, host_until)
     project = load_project(episode)
     removal = plan_ripple_delete(
-        project, 11.0, 11.7, edited_track_ids=["host"], use_inaudible_opt=False
+        project,
+        11.0,
+        11.7,
+        edited_track_ids=["host"],
+        use_inaudible_opt=False,
+        defaults=load_defaults(),
     )
 
-    cleared = assess_cut_speech(project, removal)
+    cleared = assess_cut_speech(project, removal, defaults=load_defaults())
 
     if asks:
         assert cleared is not None
@@ -549,10 +558,15 @@ def test_a_soft_word_edge_in_the_cut_asks_while_the_cutting_speaker_talks(
     _word_with_a_soft_edge(episode, edge, below_peak_db)
     project = load_project(episode)
     removal = plan_ripple_delete(
-        project, 11.0, 11.7, edited_track_ids=["host"], use_inaudible_opt=False
+        project,
+        11.0,
+        11.7,
+        edited_track_ids=["host"],
+        use_inaudible_opt=False,
+        defaults=load_defaults(),
     )
 
-    cleared = assess_cut_speech(project, removal)
+    cleared = assess_cut_speech(project, removal, defaults=load_defaults())
 
     assert cleared is not None
     (track,) = cleared.tracks
@@ -757,7 +771,9 @@ def _undo(path: Path) -> None:
 
 def _trim_payload(path: Path, mode: EditMode, **extra) -> dict:
     token = boundary_context(
-        load_project(path), TrimBoundaryTarget(clip_id="h2", edge="out", mode=mode)
+        load_project(path),
+        TrimBoundaryTarget(clip_id="h2", edge="out", mode=mode),
+        defaults=load_defaults(),
     ).token
     return {
         "clip_id": "h2",

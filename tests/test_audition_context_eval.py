@@ -12,6 +12,7 @@ from audition_eval import (
     precision_recall,
     score_labeled_windows,
 )
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
 
@@ -31,7 +32,9 @@ def test_score_labeled_windows_rejects_unknown_code(tmp_path: Path) -> None:
     project = EpisodeProject.create("eval", str(tmp_path))
     with pytest.raises(ValueError, match="unknown hypothesis"):
         score_labeled_windows(
-            project, [{"code": "not_a_code", "start": 0.0, "end": 1.0, "expect": True}]
+            project,
+            [{"code": "not_a_code", "start": 0.0, "end": 1.0, "expect": True}],
+            defaults=load_defaults(),
         )
 
 
@@ -52,6 +55,7 @@ def test_score_labeled_windows_caches_context_per_float_window(
             {"code": "hum_in_window", "start": 1, "end": 2, "expect": False},
             {"code": "clipping_in_window", "start": 1.0, "end": 2.0, "expect": False},
         ],
+        defaults=load_defaults(),
     )
     assert calls == [(1.0, 2.0)]
 
@@ -63,7 +67,9 @@ def test_defect_injection_hypothesis_gates(tmp_path: Path) -> None:
 
     project = build_defect_project(tmp_path / "ws")
     thresholds = json.loads(THRESHOLDS.read_text(encoding="utf-8"))
-    report = score_labeled_windows(project, DEFAULT_CASES, detail="summary")
+    report = score_labeled_windows(
+        project, DEFAULT_CASES, detail="summary", defaults=load_defaults()
+    )
     for code, stats in report["per_code"].items():
         gate = thresholds[code]
         assert stats["precision"] >= gate["min_precision"], (
@@ -105,6 +111,8 @@ def test_score_labeled_windows_skips_prosody(
 
     monkeypatch.setattr(evaluation, "build_audition_context", context)
     evaluation.score_labeled_windows(
-        project, [{"code": "hum_in_window", "start": 1, "end": 2, "expect": False}]
+        project,
+        [{"code": "hum_in_window", "start": 1, "end": 2, "expect": False}],
+        defaults=load_defaults(),
     )
     assert seen and seen[0]["include_prosody"] is False

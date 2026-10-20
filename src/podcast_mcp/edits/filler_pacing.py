@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -54,7 +54,7 @@ class PacedPad:
     max_sec: float
 
     @classmethod
-    def from_defaults(cls, gap_sec: float, defaults: dict[str, Any] | None) -> PacedPad:
+    def from_defaults(cls, gap_sec: float, defaults: EffectiveConfig) -> PacedPad:
         cfg = _tighten(defaults)
         return cls(
             gap_sec=gap_sec,
@@ -87,9 +87,8 @@ class FillerPacingResult:
     allow_trailing_past_end: bool = False
 
 
-def _tighten(defaults: dict[str, Any] | None) -> dict[str, Any]:
-    cfg = defaults if defaults is not None else load_defaults()
-    return dict(cfg.get("tighten", {}) or {})
+def _tighten(defaults: EffectiveConfig) -> dict[str, Any]:
+    return dict(defaults.get("tighten", {}) or {})
 
 
 def _takes_whole_gap(window_sec: float, span_sec: float, cfg: dict[str, Any]) -> bool:
@@ -107,7 +106,7 @@ def paced_pad_for_span(
     track_id: str,
     start: float,
     end: float,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     *,
     transcript: Transcript | None = None,
 ) -> PacedPad:
@@ -122,7 +121,7 @@ def paced_pad_for_span(
     return PacedPad.from_defaults(gap_sec, defaults)
 
 
-def filler_pad_mode(defaults: dict[str, Any] | None = None) -> FillerPadMode:
+def filler_pad_mode(defaults: EffectiveConfig) -> FillerPadMode:
     """How to fill ``replace_gap_sec`` after ripple: room tone (default) or silence.
 
     An unknown ``tighten.filler_pad_mode`` raises ``ValueError`` naming the valid values,
@@ -231,7 +230,7 @@ def apply_filler_pacing(
     cut_start: float,
     cut_end: float,
     *,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     cut_kind: str = "filler",
     allow_gap_expand: bool = True,
     keeps_time: bool = False,
@@ -275,9 +274,7 @@ def apply_filler_pacing(
         return FillerPacingResult(start=cut_start, end=cut_end)
 
     replace = allow_gap_expand and bool(cfg.get("filler_room_tone_replace", True))
-    margin_ms = float(
-        (defaults or load_defaults()).get("inaudible_cuts", {}).get("min_word_margin_ms", 5)
-    )
+    margin_ms = float(defaults.get("inaudible_cuts", {}).get("min_word_margin_ms", 5))
     word_margin = max(0.0, margin_ms / 1000.0)
     lead_in = float(cfg.get("filler_next_word_lead_in_ms", 80)) / 1000.0
     inter_word = max(0.0, nxt.start - prev.end)

@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_restore import RestoreSupport, active_restore_regions
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
@@ -159,7 +160,7 @@ def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool) -> float:
     return clip.fade_out_ms / 1000.0
 
 
-def _restore_dependencies(project: EpisodeProject, track: Track):
+def _restore_dependencies(project: EpisodeProject, track: Track, *, defaults: EffectiveConfig):
     if any(
         clip.track_id == track.id
         and (track.transcript_gate or clip.off_speaker_mute_regions)
@@ -169,7 +170,7 @@ def _restore_dependencies(project: EpisodeProject, track: Track):
     ):
         from podcast_mcp.engines.play_audit import RenderDependencies
 
-        return RenderDependencies.capture(project, track.id)
+        return RenderDependencies.capture(project, track.id, defaults=defaults)
     return None
 
 
@@ -187,7 +188,7 @@ def render_track_from_timeline(
             code="track_has_no_media",
         )
 
-    dependencies = _restore_dependencies(project, track)
+    dependencies = _restore_dependencies(project, track, defaults=defaults)
     eng = engine or FFmpegEngine()
     primary = resolve_under_workspace(project, track.media.path)
 
@@ -222,6 +223,7 @@ def render_track_from_timeline(
         af=af,
         crossfade_curve=crossfade_curve,
         dependencies=dependencies,
+        defaults=defaults,
     )
 
 
@@ -409,6 +411,7 @@ def _render_placed_track(
     window: tuple[float, float] | None = None,
     staging_gain_db: float = 0.0,
     dependencies=None,
+    defaults: EffectiveConfig,
 ) -> Path:
     placed = placed_track_audio(
         project,
@@ -427,7 +430,7 @@ def _render_placed_track(
                 regions = active_restore_regions(clips[source.clip_id], source.path)
                 if any(lo < source.src_end and hi > source.src_start for lo, hi in regions):
                     removed[source.clip_id] = regions
-        dependencies.validate(project, track.id)
+        dependencies.validate(project, track.id, defaults=defaults)
 
     from podcast_mcp.engines.transcript_gated_play import (
         apply_bleed_gate_plan,
@@ -440,7 +443,7 @@ def _render_placed_track(
         clips[clip_id].off_speaker_mute_regions for clip_id in removed
     )
     if removed and track.transcript_gate:
-        plan = build_bleed_gate_plan(project, track.id)
+        plan = build_bleed_gate_plan(project, track.id, defaults=defaults)
     elif automatic:
         from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
@@ -474,10 +477,10 @@ def _render_placed_track(
             without = Path(directory) / "without.wav"
             whole_clock_path = Path(directory) / "whole-clock.json"
             without_clock_path = Path(directory) / "without-clock.json"
-            dependencies.validate(project, track.id)
+            dependencies.validate(project, track.id, defaults=defaults)
             render(placed.audio, authored if automatic else whole, whole_clock_path)
             if automatic:
-                dependencies.validate(project, track.id)
+                dependencies.validate(project, track.id, defaults=defaults)
                 bypassed = placed_track_audio(
                     project, track, sorted_clips, window=window, bypass_regions=removed
                 )
@@ -487,7 +490,7 @@ def _render_placed_track(
                     raise CodedValueError(
                         "Bleed Restore automatic clocks differ", code="bleed_restore_clock_invalid"
                     )
-            dependencies.validate(project, track.id)
+            dependencies.validate(project, track.id, defaults=defaults)
             clock = read_render_clock(whole_clock_path)
             rendered = rendered_sources(placed.audio, clock)
             supports: list[RestoreSupport] = []
@@ -586,7 +589,7 @@ def _render_placed_track(
                     bypass_regions=removed if automatic else None,
                 )
                 render(counterfactual.audio, without, without_clock_path)
-                dependencies.validate(project, track.id)
+                dependencies.validate(project, track.id, defaults=defaults)
                 if read_render_clock(without_clock_path) != clock:
                     raise CodedValueError(
                         "Bleed Restore render clocks differ", code="bleed_restore_clock_invalid"
@@ -605,28 +608,38 @@ def _render_placed_track(
                 apply_bleed_gate_plan(whole, plan, timeline_start=start, timeline_end=end)
             from podcast_mcp.util.atomic_file import publish_completed_file
 
-            dependencies.validate(project, track.id)
+            dependencies.validate(project, track.id, defaults=defaults)
             publish_completed_file(whole, output_path)
     else:
         if dependencies is None:
             render(placed.audio, output_path)
             if track.transcript_gate:
                 apply_track_transcript_gate(
-                    project, track.id, output_path, timeline_start=start, timeline_end=end
+                    project,
+                    track.id,
+                    output_path,
+                    timeline_start=start,
+                    timeline_end=end,
+                    defaults=defaults,
                 )
         else:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with TemporaryDirectory(prefix=".bleed-restore-", dir=output_path.parent) as directory:
                 baseline = Path(directory) / "baseline.wav"
-                dependencies.validate(project, track.id)
+                dependencies.validate(project, track.id, defaults=defaults)
                 render(placed.audio, baseline)
                 if track.transcript_gate:
                     apply_track_transcript_gate(
-                        project, track.id, baseline, timeline_start=start, timeline_end=end
+                        project,
+                        track.id,
+                        baseline,
+                        timeline_start=start,
+                        timeline_end=end,
+                        defaults=defaults,
                     )
                 from podcast_mcp.util.atomic_file import publish_completed_file
 
-                dependencies.validate(project, track.id)
+                dependencies.validate(project, track.id, defaults=defaults)
                 publish_completed_file(baseline, output_path)
     return output_path
 
@@ -654,6 +667,7 @@ def render_source_with_chain(
     engine: FFmpegEngine | None = None,
     selected_source_path: Path | None = None,
     processing: SourceChainProcessing | None = None,
+    defaults: EffectiveConfig,
 ) -> Path:
     """Render FX + optional transcript gate on the full raw source (no timeline edits).
 
@@ -696,7 +710,7 @@ def render_source_with_chain(
         )
 
         plan = (
-            build_bleed_gate_plan(project, track.id, source_clock=True)
+            build_bleed_gate_plan(project, track.id, source_clock=True, defaults=defaults)
             if processing is None
             else processing.gate
         )
@@ -735,7 +749,7 @@ def render_track_segment(
         raise CodedValueError(
             f"track {track_id!r} not found or has no media", code="track_not_found"
         )
-    dependencies = _restore_dependencies(project, track)
+    dependencies = _restore_dependencies(project, track, defaults=defaults)
     track_clips = clips_for_track(project, track.id)
     if not track_clips and track.timeline_empty:
         return (engine or FFmpegEngine()).silence(output_path, timeline_end - timeline_start)
@@ -781,5 +795,6 @@ def render_track_segment(
         window=(timeline_start, timeline_end),
         staging_gain_db=track.gain_db,
         dependencies=dependencies,
+        defaults=defaults,
     )
     return output_path

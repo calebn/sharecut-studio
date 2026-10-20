@@ -237,7 +237,7 @@ def test_suggest_preserves_working_set_knobs() -> None:
     base = merge_pipeline_config({"balance": {"dialogue_lufs": -18.0}})
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
 
-    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None, **_kw):
         return {"tracks": []}
 
     real = audio_audit.analyze_cleanup
@@ -555,7 +555,7 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     )
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
 
-    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None, **_kw):
         return {
             "tracks": [
                 {
@@ -618,7 +618,7 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     from podcast_mcp.effects.presets import get_preset
 
     default_fx = result_defaults["proposed_config"].get("effects") or {}
-    assert default_fx["noise_reduction"] == get_preset("noise_reduction")
+    assert default_fx["noise_reduction"] == get_preset("noise_reduction", defaults=load_defaults())
     assert default_fx["gate"][0]["params"]["threshold_db"] == -36.0
     assert "effects" in result_defaults["patches"]
     assert result_defaults["report_summary"]["track_count"] == 2
@@ -636,7 +636,7 @@ def test_suggest_pipeline_tuning_seeds_gate_when_base_effects_omit_it(monkeypatc
     assert "gate" not in base["effects"]
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
 
-    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None, **_kw):
         return {
             "tracks": [
                 {
@@ -647,11 +647,7 @@ def test_suggest_pipeline_tuning_seeds_gate_when_base_effects_omit_it(monkeypatc
             ]
         }
 
-    def no_reload():
-        raise AssertionError("presets must resolve from the defaults already loaded")
-
     monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
-    monkeypatch.setattr(presets_mod, "load_defaults", no_reload)
 
     result = suggest_pipeline_tuning(project, base_config=base)
 
@@ -683,7 +679,7 @@ def test_suggest_pipeline_tuning_shifts_gate_once_for_multiple_tracks(monkeypatc
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
     track_ids = ["host", "guest1", "guest2"]
 
-    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None, **_kw):
         return {
             "tracks": [
                 {"track_id": tid, "health": {}, "gate_analysis": {"risk": "high", "issues": []}}
@@ -820,7 +816,7 @@ def test_suggest_flags_equal_duration_dialogue(monkeypatch) -> None:
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None, **_kw: {"tracks": []},
     )
 
     def build(second: float) -> EpisodeProject:
@@ -854,7 +850,7 @@ def test_suggest_reports_track_evidence_without_reasons(monkeypatch) -> None:
     from podcast_mcp.engines import audio_audit
     from podcast_mcp.models import EpisodeProject
 
-    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None, **_kw):
         return {
             "tracks": [
                 {
@@ -887,7 +883,7 @@ def test_suggest_flags_digital_silence_and_vad(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None, **_kw: {"tracks": []},
     )
 
     host_wav = tmp_path / "host.wav"
@@ -961,7 +957,7 @@ def test_suggest_reports_undecodable_dialogue_track(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None, **_kw: {"tracks": []},
     )
 
     host_wav = tmp_path / "host.wav"
@@ -979,7 +975,7 @@ def test_suggest_reports_undecodable_dialogue_track(monkeypatch, tmp_path) -> No
 
     monkeypatch.setattr(
         "podcast_mcp.engines.asr_silence.digital_silence_fraction",
-        lambda path: None,
+        lambda path, **_kw: None,
     )
 
     result = suggest_pipeline_tuning(p)
@@ -999,7 +995,7 @@ def test_suggest_reports_health_then_silence_progress(monkeypatch, tmp_path) -> 
         resolve_progress_task,
     )
 
-    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None, **_kw):
         task = current_progress_task()
         assert task is not None
         assert task.task_id == "analyze_health"
@@ -1076,7 +1072,7 @@ def test_suggest_progress_standalone_without_parent(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None, **_kw: {"tracks": []},
     )
     project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
 
@@ -1431,7 +1427,7 @@ def test_analyze_cleanup_cancels_before_track_work(monkeypatch) -> None:
 
     calls: list[str] = []
 
-    monkeypatch.setattr(audio_audit, "build_track_rms_caches", lambda project: {})
+    monkeypatch.setattr(audio_audit, "build_track_rms_caches", lambda project, **_kw: {})
     monkeypatch.setattr(
         audio_audit,
         "analyze_gate_overreach",
@@ -1439,7 +1435,7 @@ def test_analyze_cleanup_cancels_before_track_work(monkeypatch) -> None:
     )
 
     with pytest.raises(CancelledProgress):
-        audio_audit.analyze_cleanup(project, cancel_check=lambda: True)
+        audio_audit.analyze_cleanup(project, cancel_check=lambda: True, defaults=load_defaults())
     assert calls == []
 
 
@@ -1478,7 +1474,7 @@ def test_suggest_pipeline_tuning_forwards_cancel_check(monkeypatch, tmp_path) ->
     def sentinel() -> bool:
         return False
 
-    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None, **_kw):
         recorded["cancel_check"] = cancel_check
         return {"tracks": []}
 

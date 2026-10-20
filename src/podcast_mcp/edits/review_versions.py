@@ -23,6 +23,7 @@ from threading import Lock
 if os.name == "posix":
     import fcntl
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,
@@ -244,6 +245,7 @@ def resolve_source_mix(
     project: EpisodeProject,
     *,
     prefer: str = "premix",
+    defaults: EffectiveConfig,
 ) -> tuple[Path, str]:
     """Return (absolute wav path, source label). Prefer premix, else mastered.
 
@@ -255,7 +257,7 @@ def resolve_source_mix(
     With no premix (an imported or legacy episode that only has ``mastered.wav``)
     there is nothing to compare against, so that master publishes as-is.
     """
-    if premix_is_stale(project):
+    if premix_is_stale(project, defaults=defaults):
         raise StaleMixError(
             "premix.wav is out of date (edits, volume or mute changed since the last "
             "Refresh), and so is any master built from it; Refresh (render-preview) "
@@ -696,6 +698,7 @@ def stage_version(
     eng: FFmpegEngine | None = None,
     on_media_created: Callable[[Path, DirectoryIdentity], None],
     on_media_ready: Callable[[MediaIdentity], None] | None = None,
+    defaults: EffectiveConfig,
 ) -> ReviewMixVersion:
     """Copy current premix/mastered into private staging (+ mix.mp3).
 
@@ -707,7 +710,7 @@ def stage_version(
     text = (label or "").strip()
     if not text:
         raise CodedValueError("label is required. Name the review version.", code="empty_text")
-    src, source = resolve_source_mix(project, prefer=prefer)
+    src, source = resolve_source_mix(project, prefer=prefer, defaults=defaults)
     if not _SAFE_FAILED_CLEANUP_SUPPORTED:
         raise OSError(errno.ENOTSUP, "safe review publication requires directory descriptors")
     vid = _new_id()
@@ -831,6 +834,7 @@ def publish_version(
     set_active: bool = True,
     eng: FFmpegEngine | None = None,
     on_media_created: Callable[[Path, DirectoryIdentity], None] | None = None,
+    defaults: EffectiveConfig,
 ) -> ReviewMixVersion:
     """Stage media, then attach it to the project in one call.
 
@@ -859,6 +863,7 @@ def publish_version(
         eng=eng,
         on_media_created=remember,
         on_media_ready=remember_media,
+        defaults=defaults,
     )
     assert created is not None
     assert media_identity is not None

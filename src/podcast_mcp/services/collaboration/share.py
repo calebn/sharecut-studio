@@ -1117,9 +1117,10 @@ def share_selected_range_audio(token: str, target: ExactRangeTarget) -> Path:
 
     _row, ws = require_share_cap(token, CAP_VIEW)
     mix = share_daw_audio_path(token, kind="premix")
+    defaults = ws.effective_config()
     with ws.transaction() as project:
-        if premix_is_stale(project) or any(
-            not stem_is_fresh(project, tid) for tid in mix_gains(project)
+        if premix_is_stale(project, defaults) or any(
+            not stem_is_fresh(project, tid, defaults=defaults) for tid in mix_gains(project)
         ):
             raise CodedValueError(
                 "Mix out of date. Ask the host to Refresh before playing this range.",
@@ -1431,7 +1432,12 @@ def share_audition_context_info(
 
     _, ws = _require_pending_preview_caps(token)
     ctx = build_audition_context(
-        ws.project, start, end, detail="summary", prosody_params=prosody_params_for(ws.path)
+        ws.project,
+        start,
+        end,
+        detail="summary",
+        prosody_params=prosody_params_for(ws.path),
+        defaults=ws.effective_config(),
     )
     out: dict[str, Any] = {
         "timeline_start": ctx.get("timeline_start"),

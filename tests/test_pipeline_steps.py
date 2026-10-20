@@ -149,7 +149,7 @@ def test_compress_tracks_overwrites_preset_compressor_and_warns(
     minimal_project, sample_wav, tmp_workspace, caplog
 ):
     proj = _project_with_host(minimal_project, sample_wav, tmp_workspace)
-    apply_preset_to_chain(proj, "host", "podcast_standard")
+    apply_preset_to_chain(proj, "host", "podcast_standard", defaults=load_defaults())
     d = load_defaults()
     d = {**d, "compression": {**d["compression"], "ratio": 5.0}}
     with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"):

@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -176,9 +177,9 @@ def _count_rebuild_combined(result: TightenBenchmarkResult) -> Iterator[None]:
 
     original_rebuild = rebuild_combined
 
-    def counting_rebuild(proj: EpisodeProject) -> None:
+    def counting_rebuild(proj: EpisodeProject, **kwargs: Any) -> None:
         result.rebuild_combined_calls += 1
-        original_rebuild(proj)
+        original_rebuild(proj, **kwargs)
 
     with patch.object(transcript_sync, "rebuild_combined", counting_rebuild):
         yield
@@ -226,8 +227,9 @@ def run_tighten_benchmark(
                 project,
                 approved,
                 application_intent=CutIntent.HUMAN_BOUNDARIES,
+                defaults=defaults,
             )
-        result.decisions_applied += apply_tighten_decisions(project)
+        result.decisions_applied += apply_tighten_decisions(project, defaults=defaults)
         result.apply_sec = time.perf_counter() - t1
 
         for tid in {t.id for t in project.tracks if t.role == TrackRole.DIALOGUE}:

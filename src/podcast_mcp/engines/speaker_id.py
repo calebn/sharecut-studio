@@ -14,6 +14,7 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.align import (
     _MAX_WAV_CHANNELS,
     _MAX_WAV_RATE,
@@ -731,6 +732,7 @@ def label_window(
     backend: SpeakerBackend,
     *,
     dry_run: bool = True,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     ws = score_window(project, track_id, start_sec, end_sec, cfg, backend)
     if ws is None:
@@ -772,7 +774,7 @@ def label_window(
     if not dry_run and changed:
         from podcast_mcp.edits.transcript_sync import rebuild_combined
 
-        rebuild_combined(project)
+        rebuild_combined(project, defaults=defaults)
 
     return {
         "labeled": changed,
@@ -930,6 +932,7 @@ def label_track_home_speaker(
     track_ids: list[str] | None = None,
     dry_run: bool = True,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Slide windows over speech regions and suppress non-home speaker spans."""
     profiles = load_all_profiles(project)
@@ -1037,7 +1040,7 @@ def label_track_home_speaker(
     if not dry_run and suppressed:
         from podcast_mcp.edits.transcript_sync import rebuild_combined
 
-        rebuild_combined(project)
+        rebuild_combined(project, defaults=defaults)
 
     return {
         "dry_run": dry_run,
@@ -1059,6 +1062,7 @@ def run_speaker_attribution(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     backend: SpeakerBackend | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     cfg = ctx.speaker_id
     eng = backend or resolve_speaker_backend()
@@ -1137,7 +1141,7 @@ def run_speaker_attribution(
     if not dry_run and changed:
         from podcast_mcp.edits.transcript_sync import rebuild_combined
 
-        rebuild_combined(project)
+        rebuild_combined(project, defaults=defaults)
 
     return {
         "ran": True,

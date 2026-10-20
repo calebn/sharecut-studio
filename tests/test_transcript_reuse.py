@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_correct import correct_word
 from podcast_mcp.edits.transcript_reuse import (
     TranscribePlan,
@@ -548,7 +549,7 @@ def test_corrected_silence_flag_is_rechecked_via_fingerprint(job):
         transcript.words, plan.audio_hashes[job.key], options
     )
 
-    correct_word(p, "host", 0, "hello")
+    correct_word(p, "host", 0, "hello", defaults=load_defaults())
     word = p.transcripts[0].words[0]
     assert word.suspect_hallucination is False and word.alignment_score is None
     assert transcript.silence_filter_fingerprint != silence_filter_fingerprint(

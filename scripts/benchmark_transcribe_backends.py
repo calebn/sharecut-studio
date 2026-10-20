@@ -16,6 +16,7 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.whisper_cpp import (
     resolve_model_path,
@@ -128,7 +129,7 @@ def benchmark_faster_whisper(
     warmup: bool,
     ground_truth: dict[str, list] | None,
 ) -> TrackResult:
-    engine = TranscriptionEngine(model_size=model_size, device="cpu")
+    engine = TranscriptionEngine(model_size=model_size, device="cpu", defaults=load_defaults())
     label = f"faster-whisper/{model_size}"
     try:
         if warmup:

@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.clips_ops import (
     clips_for_track,
     update_timeline_duration,
@@ -188,7 +189,9 @@ def _require_restore_spans(record: AppliedEditRecord) -> tuple[tuple[str, float,
     return tuple((tid, *per_track.get(tid, fallback)) for tid in record.track_ids)
 
 
-def _revert_mute_archive(project: EpisodeProject, record: AppliedEditRecord) -> dict[str, Any]:
+def _revert_mute_archive(
+    project: EpisodeProject, record: AppliedEditRecord, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
     """Subtract mute spans in place; never ripple or re-insert clips."""
     spans = _require_restore_spans(record)
     restore_tracks = [tid for tid, _, _ in spans]
@@ -196,7 +199,7 @@ def _revert_mute_archive(project: EpisodeProject, record: AppliedEditRecord) -> 
         for clip in clips_for_track(project, tid):
             subtract_source_mute(clip, start, end)
     project.editorial.edit_log = [r for r in project.editorial.edit_log if r.id != record.id]
-    rebuild_combined(project)
+    rebuild_combined(project, defaults=defaults)
     update_timeline_duration(project)
     return change_summary(
         project,
@@ -215,7 +218,9 @@ def require_applied_edit_restore(project: EpisodeProject, record_id: str) -> App
     return record
 
 
-def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, Any]:
+def revert_applied_edit(
+    project: EpisodeProject, record_id: str, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
     """Restore a source MUTE archive. Removed clips require whole-action History Undo."""
     record = require_applied_edit_restore(project, record_id)
-    return _revert_mute_archive(project, record)
+    return _revert_mute_archive(project, record, defaults=defaults)

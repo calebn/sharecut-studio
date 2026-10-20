@@ -26,11 +26,11 @@ def test_ami_bleed_reconcile(ami_bleed_workspace: Path) -> None:
     pipeline_steps.reconcile_transcript(project, defaults)
 
     metrics = _expected_metrics(ami_bleed_workspace)
-    rows = audibility_map(project)
+    rows = audibility_map(project, defaults=defaults)
     bleed_total = sum(1 for r in rows if r.get("audibility_status") == "bleed")
 
     assert bleed_total >= metrics["min_bleed_words_total"]
 
-    overlap = overlap_duplicate_report(project)
+    overlap = overlap_duplicate_report(project, defaults=defaults)
     assert overlap["pair_count"] >= 1
     assert metrics.get("overlap_windows", 0) >= 1

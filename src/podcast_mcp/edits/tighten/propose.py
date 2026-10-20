@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig
 from podcast_mcp.edits.acoustic_word import (
     WHISPER_SAMPLE_RATE,
@@ -252,7 +253,9 @@ def propose_tighten_edits(
         working.edit_decisions = retained
     # Apply serially, in the same order the candidates were gathered, so decision
     # ordering/coalescing behavior is identical to the fully-serial path.
-    proposed: list[EditDecision] = [_apply_analyzed_cut(working, result) for result in resolved]
+    proposed: list[EditDecision] = [
+        _apply_analyzed_cut(working, result, defaults=defaults) for result in resolved
+    ]
     proposed_ids = {decision.id for decision in proposed}
     # Transcript order, not a set: coalescing moves each track's decisions to the
     # end, so the proposal's order must not depend on string hashing.
@@ -302,7 +305,7 @@ def _flag_possible_words(
         skip_counts["word_probe:unavailable"] = acoustic
 
 
-def apply_tighten_decisions(project: EpisodeProject, defaults: dict | None = None) -> int:
+def apply_tighten_decisions(project: EpisodeProject, defaults: EffectiveConfig) -> int:
     from podcast_mcp.edits.cut_application import apply_auto_edits
 
     return apply_auto_edits(project, defaults)

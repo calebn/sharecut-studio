@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.models import (
     Clip,
@@ -495,7 +496,7 @@ def test_the_lane_is_turned_down_from_200_ms_before_the_peers_track_opens(
     is turned down from the end of the host's hold, not 40 ms later. On the lab tape
     that later start left level frames that hear the copy's onset at full level."""
     project = _episode(tmp_path, own_words=((0.2, 0.7), (31.5, 32.7)))
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.protected_spans[0] == pytest.approx((0.16, 0.74))
     assert plan.attenuation_spans[0] == pytest.approx((0.82, 30.79))
 

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.tighten.candidate import _cut_span_is_bleed_not_owner
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
@@ -212,6 +213,7 @@ def test_label_window_skips_out_of_window_words(tmp_path, sample_wav) -> None:
             SpeakerIdConfig(min_margin=0.1),
             MockSpeakerBackend(),
             dry_run=True,
+            defaults=load_defaults(),
         )
 
 
@@ -409,7 +411,9 @@ def test_label_track_home_speaker_short_region_breaks(tmp_path, sample_wav) -> N
         "podcast_mcp.engines.speaker_id.load_all_profiles",
         return_value=profiles,
     ):
-        report = label_track_home_speaker(proj, cfg, MockSpeakerBackend(), dry_run=True)
+        report = label_track_home_speaker(
+            proj, cfg, MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
+        )
     assert report["words_would_suppress"] == 0
 
 
@@ -530,6 +534,7 @@ def test_label_track_home_speaker_skips_missing_transcript(tmp_path, sample_wav)
             MockSpeakerBackend(),
             track_ids=["host", "guest"],
             dry_run=True,
+            defaults=load_defaults(),
         )
     assert report["tracks"]
 
@@ -538,7 +543,9 @@ def test_label_track_home_speaker_no_profiles(tmp_path) -> None:
     from podcast_mcp.engines.speaker_id import label_track_home_speaker
 
     proj = EpisodeProject.create("x", str(tmp_path))
-    out = label_track_home_speaker(proj, SpeakerIdConfig(), MockSpeakerBackend(), dry_run=True)
+    out = label_track_home_speaker(
+        proj, SpeakerIdConfig(), MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
+    )
     assert out["error"] == "no profiles"
 
 
@@ -620,7 +627,9 @@ def test_label_track_home_speaker_count_warning(tmp_path, sample_wav) -> None:
             side_effect=_score,
         ),
     ):
-        out = label_track_home_speaker(proj, cfg, MockSpeakerBackend(), dry_run=True)
+        out = label_track_home_speaker(
+            proj, cfg, MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
+        )
     assert out["speaker_count_warning"] is not None
 
 
@@ -675,7 +684,9 @@ def test_label_track_home_speaker_ignores_uncertain_windows(tmp_path, sample_wav
             return_value=uncertain,
         ),
     ):
-        report = label_track_home_speaker(proj, cfg, MockSpeakerBackend(), dry_run=True)
+        report = label_track_home_speaker(
+            proj, cfg, MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
+        )
     assert report["words_would_suppress"] == 0
 
 

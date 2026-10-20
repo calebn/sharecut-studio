@@ -13,6 +13,7 @@ import pytest
 import podcast_mcp.services.document.history as history_service_mod
 from podcast_mcp import project_merge as project_merge_mod
 from podcast_mcp import project_store as project_store_mod
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
 from podcast_mcp.gui.jobs import _gui_fail_message
 from podcast_mcp.history import HistoryManager
@@ -216,7 +217,7 @@ def test_pipeline_mix_keeps_a_mid_mix_volume_and_reports_the_premix_stale(minima
     (ws.project.artifacts_dir() / "track_outputs.json").write_text(json.dumps(rendered))
     for track_id, path in rendered.items():
         Path(path).write_bytes(b"RIFF")
-        write_stem_hash(ws.project, track_id)
+        write_stem_hash(ws.project, track_id, defaults=load_defaults())
     ws.save()
 
     def mix(_inputs, out, **_kw):
@@ -231,7 +232,7 @@ def test_pipeline_mix_keeps_a_mid_mix_volume_and_reports_the_premix_stale(minima
         PipelineService(ws).run(only_step="mix_with_music")
     saved = load_project(minimal_project)
     assert saved.track_by_id("host").fader_db == -6.0
-    assert premix_is_stale(saved) is True
+    assert premix_is_stale(saved, defaults=load_defaults()) is True
 
 
 def test_render_preview_renders_the_saved_project(minimal_project):
@@ -239,7 +240,7 @@ def test_render_preview_renders_the_saved_project(minimal_project):
     EpisodeService(ProjectWorkspace.open(minimal_project)).set_track_mute("guest", True)
     seen: list[bool] = []
 
-    def fake(project, progress=None):
+    def fake(project, progress=None, **_kw):
         seen.append(project.track_by_id("guest").muted)
         return {"ok": True, "path": None, "edit_count": 0}
 
@@ -255,7 +256,7 @@ def test_play_premix_rerender_keeps_an_edit_saved_mid_render(minimal_project):
     ws = _two_tracks(minimal_project)
     svc = PlayService(ws)
 
-    def fake(project, progress=None):
+    def fake(project, progress=None, **_kw):
         _other_sets_volume(minimal_project)
         premix = project.artifacts_dir() / "premix.wav"
         premix.parent.mkdir(parents=True, exist_ok=True)
@@ -659,7 +660,7 @@ def _move_history_with_rerender(ws: ProjectWorkspace, move: str) -> dict:
 def test_history_move_rerender_keeps_an_edit_saved_mid_render(minimal_project, move, guest_gain):
     ws = _with_undoable_gain(minimal_project)
 
-    def fake_render(project):
+    def fake_render(project, **_):
         project.track_by_id("guest").fader_db = -2.0  # the render's own change
         _other_sets_volume(minimal_project)
 
@@ -683,7 +684,7 @@ def test_history_move_rerender_conflict_keeps_the_move_and_says_not_to_repeat_it
 ):
     ws = _with_undoable_gain(minimal_project)
 
-    def fake_render(project):
+    def fake_render(project, **_):
         project.track_by_id("host").fader_db = -3.0
         _other_sets_volume(minimal_project)
 
@@ -707,7 +708,7 @@ def test_history_move_render_failure_keeps_the_move_and_says_not_to_repeat_it(
 ):
     ws = _with_undoable_gain(minimal_project)
 
-    def failing_render(_project):
+    def failing_render(_project, **_):
         raise OSError("ffmpeg failed reading /Users/host/private/raw/host.wav")
 
     with (
@@ -772,7 +773,7 @@ def test_history_move_rerender_cursor_clash_says_to_check_history_status(
 
     monkeypatch.setattr(project_merge_mod, "merge_project_data", cursor_clash)
 
-    def fake_render(_project):
+    def fake_render(_project, **_):
         _other_sets_volume(minimal_project)  # the file moves, so save_merged merges
 
     with patch("podcast_mcp.services.document.history.rerender_preview", fake_render):
@@ -788,11 +789,11 @@ def test_history_move_saves_its_stale_marks_before_another_commit(minimal_projec
     other = threading.Thread(target=_other_sets_volume, args=(minimal_project,))
     real_mark = history_service_mod.mark_history_move_stale
 
-    def mark_while_another_request_commits(project, before):
+    def mark_while_another_request_commits(project, before, **_kw):
         other.start()
         other.join(timeout=0.2)
         assert other.is_alive(), "the other commit must wait until the move is saved"
-        real_mark(project, before)
+        real_mark(project, before, **_kw)
 
     with patch.object(
         history_service_mod, "mark_history_move_stale", mark_while_another_request_commits

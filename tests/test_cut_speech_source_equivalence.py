@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_speech import (
     LaneSourceExtent,
     RecordingSourceExtent,
@@ -156,11 +157,12 @@ def test_assess_cut_speech_ignores_words_covered_by_equivalent_batch_extent(
     monkeypatch.setattr(
         "podcast_mcp.edits.cut_speech.speech_energy_guard_enabled", lambda _cfg: False
     )
-    without_batch = assess_cut_speech(project, removal)
+    without_batch = assess_cut_speech(project, removal, defaults=load_defaults())
     assert without_batch is not None
     with_batch = assess_cut_speech(
         project,
         removal,
         also_chosen=[RecordingSourceExtent("guest", 5.0, 5.5, source_id=None)],
+        defaults=load_defaults(),
     )
     assert with_batch is None

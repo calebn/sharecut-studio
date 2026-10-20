@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash
 from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs
@@ -75,7 +76,7 @@ def _choice(ws, *, clip_id="selected", source_id=None, track_id="host", valid=Tr
 def _bootstrap(ws, monkeypatch):
     original = pm.ensure_track_proxy(ws, "host")
     old = pm.proxy_dir(ws, "host", original.hash)
-    hash_ = proxy_render_hash(ws.project, "host")
+    hash_ = proxy_render_hash(ws.project, "host", defaults=load_defaults())
     imported = original.model_copy(update={"hash": hash_})
     old.rename(pm.proxy_dir(ws, "host", hash_))
     ws.project.tracks[0].proxy = imported
@@ -112,7 +113,7 @@ def _assert_prepared_read_unchanged(ws, monkeypatch):
     reopened = ProjectWorkspace.open(ws.path)
     assert len(reopened.project.render.proxy_manifests) == 1
     generation = reopened.project.render.proxy_manifests[0]
-    assert generation.project_basis == pv.project_basis(reopened.project)
+    assert generation.project_basis == pv.project_basis(reopened.project, defaults=load_defaults())
     saved = reopened.path.read_bytes()
     history = reopened.project.history.model_dump()
     root = reopened.project.workspace_path()
@@ -253,7 +254,9 @@ def test_host_manifest_failure_retains_authority_and_retry_recovers(
     pm.ensure_and_upload_all_proxies(reopened)
     recovered = ProjectWorkspace.open(ws.path).project.render.proxy_manifests
     assert len(recovered) == 2
-    assert recovered[0].project_basis == pv.project_basis(reopened.project)
+    assert recovered[0].project_basis == pv.project_basis(
+        reopened.project, defaults=load_defaults()
+    )
     assert set(recovered[0].occurrences) == {"selected"}
     assert recovered[1] == previous
 
@@ -374,10 +377,12 @@ def test_selected_move_uses_origin_context_and_preserves_plain_refs(workspace, f
     assert {
         tid: _chunk(ws, artifact).read_bytes() for tid, artifact in second.tracks.items()
     } == legacy_bytes
-    expected = SourceProxyInputs.capture_occurrence(ws.project, "selected", FFmpegEngine())
+    expected = SourceProxyInputs.capture_occurrence(
+        ws.project, "selected", FFmpegEngine(), defaults=load_defaults()
+    )
     actual = second.artifacts[second.occurrences["selected"].artifact_id]
     assert actual.context_track_id == expected.context_track_id == "host"
-    assert actual.input_hash == pv._input_hash(ws.project, expected)
+    assert actual.input_hash == pv._input_hash(ws.project, expected, defaults=load_defaults())
 
 
 def test_unmatched_secondary_uses_destination_and_secondary_bytes(
@@ -669,20 +674,22 @@ def test_basis_explicit_geometry_and_registry_free(workspace, monkeypatch):
         "podcast_mcp.edits.share_registry.get_share_registry",
         lambda: pytest.fail("Registry was opened"),
     )
-    assert pv.project_basis(ws.project).clips == {}
+    assert pv.project_basis(ws.project, defaults=load_defaults()).clips == {}
     ws.project.clips = [
         Clip(id="a", track_id="host", source_start=0, source_end=1, timeline_start=1),
         Clip(id="b", track_id="host", source_start=0, source_end=1, timeline_start=1),
     ]
-    basis = pv.project_basis(ws.project)
+    basis = pv.project_basis(ws.project, defaults=load_defaults())
     assert set(basis.clips) == {"a", "b"}
     assert basis.history_head_id == "root"
     ws.project.clips[0].timeline_start = 2
-    moved = pv.project_basis(ws.project)
+    moved = pv.project_basis(ws.project, defaults=load_defaults())
     assert moved != basis
     assert moved.clips["a"].timeline_end == 3
     ws.project.tracks[0].gain_db = 3
-    assert pv.project_basis(ws.project).render_hashes != moved.render_hashes
+    assert (
+        pv.project_basis(ws.project, defaults=load_defaults()).render_hashes != moved.render_hashes
+    )
 
 
 def test_actual_ffmpeg_long_source_complete_chunks_and_boundary(workspace, monkeypatch):
@@ -707,7 +714,9 @@ def test_actual_ffmpeg_long_source_complete_chunks_and_boundary(workspace, monke
     def verify_pcm(project, inputs, out, **kwargs):
         result = render(project, inputs, out, **kwargs)
         baseline = out.with_name("long-baseline.wav")
-        render_source_with_chain(project, project.tracks[0], baseline, engine=kwargs["engine"])
+        render_source_with_chain(
+            project, project.tracks[0], baseline, engine=kwargs["engine"], defaults=load_defaults()
+        )
         with open_wav(out) as actual, open_wav(baseline) as expected:
             assert actual.getparams() == expected.getparams()
             assert actual.readframes(actual.getnframes()) == expected.readframes(
@@ -836,7 +845,9 @@ def test_guest_document_certificate_recovery_after_derived_save(
     assert after["server_seq"] == before["server_seq"]
     assert after["state_token"] != before["state_token"]
     assert after["history"] == before["history"]
-    assert pv.project_basis(service.ws.project) == generation.project_basis
+    assert (
+        pv.project_basis(service.ws.project, defaults=load_defaults()) == generation.project_basis
+    )
     saved = ws.path.read_bytes()
     monkeypatch.setattr(ws, "save", lambda: pytest.fail("Noop manifest saved again"))
     assert pv.ensure_proxy_manifest(ws) == generation

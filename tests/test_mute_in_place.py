@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import split_clip_at
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
 from podcast_mcp.edits.decisions import reject_edits
@@ -201,6 +202,7 @@ def test_mute_region_fill_travels_with_its_span():
                 "mute_regions": mute_regions_payload(clip.mute_regions),
             }
         ],
+        defaults=load_defaults(),
     )
     pasted = next(c for c in project.clips if abs(c.timeline_start - 5.0) < 1e-6)
     assert spans(pasted.mute_regions) == spans(clip.mute_regions)
@@ -421,7 +423,7 @@ def test_apply_mute_keeps_timeline_and_peer_offsets(tmp_path, sample_wav):
             applied=False,
         )
     ]
-    n = apply_auto_edits(project)
+    n = apply_auto_edits(project, defaults=load_defaults())
     assert n == 1
     assert project.timeline.duration_sec == pytest.approx(duration)
     guest = next(c for c in project.clips if c.track_id == "guest")
@@ -520,7 +522,7 @@ def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, i
 
     project = _noise_floor_project(tmp_path)
     with patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value=pad_mode):
-        assert approve_edits(project, ["m1"]) == 1
+        assert approve_edits(project, ["m1"], defaults=load_defaults()) == 1
     (region,) = project.clips[0].mute_regions
     assert (None if region.fill is None else (region.fill.start_s, region.fill.end_s)) == fill
     out = Path(project.workspace_dir) / "artifacts" / "host.wav"
@@ -558,9 +560,17 @@ def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region,
 
         before = project.model_dump(mode="json")
         with pytest.raises(ScopeChangedAtApproval):
-            approve_edits(project, ["m1"])
+            approve_edits(project, ["m1"], defaults=load_defaults())
         assert project.model_dump(mode="json") == before
-        assert approve_edits(project, ["m1"], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+        assert (
+            approve_edits(
+                project,
+                ["m1"],
+                application_intent=CutIntent.HUMAN_BOUNDARIES,
+                defaults=load_defaults(),
+            )
+            == 1
+        )
 
     (muted,) = project.clips[0].mute_regions
     assert (muted.start_s, muted.end_s, muted.fade_out_ms, muted.fade_in_ms) == (
@@ -600,7 +610,7 @@ def test_approve_reject_undo_mute(tmp_path, sample_wav):
     ]
 
     def _approve(p):
-        return approve_edits(p, ["m1"])
+        return approve_edits(p, ["m1"], defaults=load_defaults())
 
     ws.mutate("before approve mute", "after approve mute", _approve)
     assert "source_id" not in ws.project.editorial.edit_log[0].params
@@ -691,6 +701,7 @@ def test_suggest_pending_edit_accepts_mute(minimal_project):
             0.1,
             0.2,
             decision_type=EditDecisionType.SPLIT,
+            defaults=load_defaults(),
         )
 
 
@@ -703,7 +714,7 @@ def test_split_clip_keeps_a_cut_mute_region_whole():
         timeline_start=0.0,
         mute_regions=[ClipMuteRegion(start_s=0.2, end_s=0.8)],
     )
-    before, after = split_clip_at(clip, 0.5)
+    before, after = split_clip_at(clip, 0.5, defaults=load_defaults())
     assert [(r.start_s, r.end_s) for r in before.mute_regions] == [(0.2, 0.8)]
     assert [(r.start_s, r.end_s) for r in after.mute_regions] == [(0.2, 0.8)]
 
@@ -810,7 +821,9 @@ def test_update_pending_mute_and_split_at_bounds(minimal_project):
         applied=False,
     )
     ws.project.edit_decisions = [decision]
-    updated = update_pending_edit(ws.project, "m1", start=0.3, end=0.6, snap=False)
+    updated = update_pending_edit(
+        ws.project, "m1", start=0.3, end=0.6, snap=False, defaults=load_defaults()
+    )
     assert updated.start == pytest.approx(0.3)
     assert updated.end == pytest.approx(0.6)
     clip = Clip(
@@ -822,7 +835,7 @@ def test_update_pending_mute_and_split_at_bounds(minimal_project):
         mute_regions=[ClipMuteRegion(start_s=0.2, end_s=0.8)],
     )
     with pytest.raises(ValueError, match="strictly inside"):
-        split_clip_at(clip, 0.0)
+        split_clip_at(clip, 0.0, defaults=load_defaults())
 
 
 def test_extract_and_rebuild_clips_keep_mute_regions():
@@ -843,7 +856,7 @@ def test_extract_and_rebuild_clips_keep_mute_regions():
     assert extracted
     assert [(r.start_s, r.end_s) for r in extracted[0].mute_regions] == [(0.2, 0.8)]
 
-    rebuilt = remove_timeline_range_from_clips([clip], 0.4, 0.5)
+    rebuilt = remove_timeline_range_from_clips([clip], 0.4, 0.5, defaults=load_defaults())
     mutes = [(r.start_s, r.end_s) for c in rebuilt for r in c.mute_regions]
     assert mutes == [(0.2, 0.8), (0.2, 0.8)]
 
@@ -855,12 +868,20 @@ def test_update_pending_split_track_ids():
     project = EpisodeProject.create("p", "/tmp/ws")
     split = append_split_decision(project, 1.0, ["host", "guest"])
     updated = update_pending_edit(
-        project, split.id, start=1.2, end=1.2, snap=False, track_ids=["guest", "host"]
+        project,
+        split.id,
+        start=1.2,
+        end=1.2,
+        snap=False,
+        track_ids=["guest", "host"],
+        defaults=load_defaults(),
     )
     assert updated.type == EditDecisionType.SPLIT
     assert updated.track_id == "guest"
     assert updated.track_ids == ["guest", "host"]
-    empty = update_pending_edit(project, split.id, start=1.3, end=1.3, snap=False, track_ids=[])
+    empty = update_pending_edit(
+        project, split.id, start=1.3, end=1.3, snap=False, track_ids=[], defaults=load_defaults()
+    )
     assert empty.track_ids == []
     assert empty.track_id == "guest"
 
@@ -879,7 +900,7 @@ def test_apply_prefix_skips_zero_length_mute(tmp_path, sample_wav):
             applied=False,
         )
     ]
-    assert apply_auto_edits(project) == 0
+    assert apply_auto_edits(project, defaults=load_defaults()) == 0
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions == []
 
@@ -1027,9 +1048,9 @@ def test_track_render_hash_follows_ignored_words(tmp_path, sample_wav):
     artifacts.mkdir(parents=True)
     stem = artifacts / "host.wav"
     stem.write_bytes(sample_wav.read_bytes())
-    h1 = track_render_hash(project, "host")
-    write_stem_hash(project, "host")
-    assert stem_is_fresh(project, "host")
+    h1 = track_render_hash(project, "host", defaults=load_defaults())
+    write_stem_hash(project, "host", defaults=load_defaults())
+    assert stem_is_fresh(project, "host", defaults=load_defaults())
 
     project.transcripts = [
         Transcript(
@@ -1037,9 +1058,9 @@ def test_track_render_hash_follows_ignored_words(tmp_path, sample_wav):
             words=[TranscriptWord(text="skip", start=0.4, end=0.7, confidence=0.9, ignored=True)],
         )
     ]
-    h2 = track_render_hash(project, "host")
+    h2 = track_render_hash(project, "host", defaults=load_defaults())
     assert h2 != h1
-    assert not stem_is_fresh(project, "host")
+    assert not stem_is_fresh(project, "host", defaults=load_defaults())
 
 
 def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, sample_wav):
@@ -1052,14 +1073,14 @@ def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, samp
     artifacts.mkdir(parents=True)
     stem = artifacts / "host.wav"
     stem.write_bytes(sample_wav.read_bytes())
-    h1 = track_render_hash(project, "host")
-    fp1 = audio_state_fingerprint(project)
-    write_stem_hash(project, "host")
-    assert stem_is_fresh(project, "host")
+    h1 = track_render_hash(project, "host", defaults=load_defaults())
+    fp1 = audio_state_fingerprint(project, defaults=load_defaults())
+    write_stem_hash(project, "host", defaults=load_defaults())
+    assert stem_is_fresh(project, "host", defaults=load_defaults())
     add_source_mute(project.clips[0], ClipMuteRegion(start_s=0.2, end_s=0.4))
-    assert track_render_hash(project, "host") != h1
-    assert audio_state_fingerprint(project) != fp1
-    assert not stem_is_fresh(project, "host")
+    assert track_render_hash(project, "host", defaults=load_defaults()) != h1
+    assert audio_state_fingerprint(project, defaults=load_defaults()) != fp1
+    assert not stem_is_fresh(project, "host", defaults=load_defaults())
     path = Path(project.workspace_dir) / "episode.project.json"
     store = ProjectStore(path)
     store.commit(project)
@@ -1086,7 +1107,7 @@ def test_approving_an_unplayed_mute_is_refused_and_writes_nothing(tmp_path, samp
         )
     ]
     with pytest.raises(CodedValueError) as refused:
-        approve_edits(project, ["miss"])
+        approve_edits(project, ["miss"], defaults=load_defaults())
     assert refused.value.code == "edit_span_not_played"
     assert [decision.id for decision in project.edit_decisions] == ["miss"]
     assert project.editorial.edit_log == []
@@ -1113,7 +1134,7 @@ def test_revert_mute_subtracts_regions_without_ripple(tmp_path, sample_wav):
             applied=False,
         )
     ]
-    assert approve_edits(project, ["m1"]) == 1
+    assert approve_edits(project, ["m1"], defaults=load_defaults()) == 1
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions
     record = project.editorial.edit_log[0]
@@ -1172,6 +1193,7 @@ def test_paste_trim_and_roll_keep_overlapping_mute_regions_whole():
                 "mute_regions": [{"start_s": 1.0, "end_s": 3.0}],
             }
         ],
+        defaults=load_defaults(),
     )
     pasted = [c for c in project.clips if abs(c.timeline_start - 10.0) < 1e-6]
     assert pasted
@@ -1221,7 +1243,7 @@ def test_coalesce_merges_same_track_mute():
             end=1.5,
         ),
     ]
-    assert coalesce_edits(project) == 1
+    assert coalesce_edits(project, defaults=load_defaults()) == 1
     mutes = [e for e in project.edit_decisions if e.type == EditDecisionType.MUTE]
     assert len(mutes) == 1
     assert mutes[0].end == pytest.approx(1.8)
@@ -1329,12 +1351,7 @@ def test_apply_prefix_mutes_before_overlapping_remove(tmp_path, sample_wav):
             applied=False,
         ),
     ]
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(
-            "podcast_mcp.edits.decisions.load_defaults",
-            lambda: {"tighten": {"inaudible_opt": False}},
-        )
-        n = apply_auto_edits(project)
+    n = apply_auto_edits(project, defaults={"tighten": {"inaudible_opt": False}})
     assert n == 2
     mute_logs = [r for r in project.editorial.edit_log if (r.params or {}).get("mute")]
     assert mute_logs
@@ -1357,7 +1374,7 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
         raise RuntimeError("mutate failed")
 
     with pytest.raises(RuntimeError, match="mutate failed"):
-        run_mutation(path, project, "before", "after", boom)
+        run_mutation(path, project, "before", "after", boom, defaults=load_defaults())
     after = [(c.id, [(r.start_s, r.end_s) for r in c.mute_regions]) for c in project.clips]
     assert after == before
 
@@ -1383,7 +1400,7 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path):
     ]
     before = project.model_dump(mode="json")
     with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "bad")
+        revert_applied_edit(project, "bad", defaults=load_defaults())
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == (
         "This edit cannot be restored individually. Use History Undo to restore the whole action. "
@@ -1396,7 +1413,7 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path):
     rec.source_end = 0.5
     before = project.model_dump(mode="json")
     with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "bad")
+        revert_applied_edit(project, "bad", defaults=load_defaults())
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == (
         "This edit cannot be restored individually. Use History Undo to restore the whole action. "
@@ -1409,7 +1426,7 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path):
     rec.params = {"mute": True, "per_track_source": {"host": [0.9, 0.8]}}
     before = project.model_dump_json()
     with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "bad")
+        revert_applied_edit(project, "bad", defaults=load_defaults())
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert project.model_dump_json() == before
     host = next(c for c in project.clips if c.track_id == "host")
@@ -1428,11 +1445,11 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path):
     ]
     before = project.model_dump_json()
     with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "ok")
+        revert_applied_edit(project, "ok", defaults=load_defaults())
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert project.model_dump_json() == before
     project.editorial.edit_log[0].params["per_track_source"].pop("x")
-    revert_applied_edit(project, "ok")
+    revert_applied_edit(project, "ok", defaults=load_defaults())
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions == []
 
@@ -1464,6 +1481,7 @@ def test_paste_skips_invalid_mute_region_entries():
                 ],
             }
         ],
+        defaults=load_defaults(),
     )
     pasted = [c for c in project.clips if abs(c.timeline_start - 3.0) < 1e-6]
     assert pasted
@@ -1531,7 +1549,7 @@ def test_mute_mode_does_not_repropose_an_approved_mute(tmp_path):
     assert [d.type for d in first.decisions] == [EditDecisionType.MUTE]
     assert "already_muted" not in first.skip_counts
 
-    assert approve_edits(project, [d.id for d in first.decisions]) == 1
+    assert approve_edits(project, [d.id for d in first.decisions], defaults=load_defaults()) == 1
     assert project.clips[0].mute_regions
 
     again = _propose_with_stubbed_dsp(project, defaults, "mute")
@@ -1640,7 +1658,7 @@ def _approved_silent_mute(tmp_path: Path) -> tuple[EpisodeProject, ClipMuteRegio
 
     project = _noise_floor_project(tmp_path)
     with patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="silence"):
-        assert approve_edits(project, ["m1"]) == 1
+        assert approve_edits(project, ["m1"], defaults=load_defaults()) == 1
     (region,) = project.clips[0].mute_regions
     return project, region, _render_samples(project)
 
@@ -1718,6 +1736,7 @@ def test_partial_copy_of_a_mute_pastes_silent_up_to_the_cut(tmp_path):
                 "mute_regions": mute_regions_payload(copied.mute_regions),
             }
         ],
+        defaults=load_defaults(),
     )
 
     rendered = _render_samples(project)
@@ -1737,7 +1756,9 @@ def _approved_mute_workspace(tmp_path: Path):
 def _trim(ws: ProjectWorkspace, edge: str, source_sec: float) -> None:
     from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
 
-    token = boundary_context(ws.project, TrimBoundaryTarget(clip_id="c1", edge=edge)).token
+    token = boundary_context(
+        ws.project, TrimBoundaryTarget(clip_id="c1", edge=edge), defaults=load_defaults()
+    ).token
     EditService(ws).trim_clip_edge(
         "c1",
         edge,
@@ -1805,7 +1826,7 @@ def _roll(ws: ProjectWorkspace, delta_sec: float) -> None:
 
     left, right = ws.project.clips[:2]
     target = RollBoundaryTarget(left_clip_id=left.id, right_clip_id=right.id)
-    token = boundary_context(ws.project, target).token
+    token = boundary_context(ws.project, target, defaults=load_defaults()).token
     EditService(ws).roll_clip_join(left.id, right.id, delta_sec, expected_token=token)
 
 

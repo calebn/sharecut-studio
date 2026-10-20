@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
     dialogue_render_hashes,
@@ -28,12 +29,14 @@ class AudioStateBefore:
     render_hashes: dict[str, str]
 
     @classmethod
-    def capture(cls, project: EpisodeProject) -> AudioStateBefore:
-        hashes = dialogue_render_hashes(project)
-        return cls(audio_state_fingerprint(project, hashes), hashes)
+    def capture(cls, project: EpisodeProject, *, defaults: EffectiveConfig) -> AudioStateBefore:
+        hashes = dialogue_render_hashes(project, defaults=defaults)
+        return cls(audio_state_fingerprint(project, hashes, defaults=defaults), hashes)
 
 
-def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -> None:
+def mark_history_move_stale(
+    project: EpisodeProject, before: AudioStateBefore, *, defaults: EffectiveConfig
+) -> None:
     """Mark stale what the move changed, and nothing else.
 
     Stem hash sidecars stay: ``track_render_hash`` is content-addressed and every reader
@@ -51,8 +54,8 @@ def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -
     ``publish_stem`` drops the old hash, swaps the WAV in, and only then writes the new
     hash, so a sidecar only ever names the bytes beside it. Keep that order.
     """
-    after = dialogue_render_hashes(project)
-    if audio_state_fingerprint(project, after) != before.fingerprint:
+    after = dialogue_render_hashes(project, defaults=defaults)
+    if audio_state_fingerprint(project, after, defaults=defaults) != before.fingerprint:
         mark_reconciliation_stale(project)
     changed = changed_render_hashes(before.render_hashes, after)
     rendered = [tid for tid in changed if stem_hash_matches(project, tid, after[tid])]

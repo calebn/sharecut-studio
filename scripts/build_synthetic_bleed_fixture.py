@@ -15,6 +15,7 @@ import yaml
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models.episode import (
@@ -366,7 +367,9 @@ def _write_project(
         Transcript(track_id="host", language="en", words=host_words),
         Transcript(track_id="guest", language="en", words=guest_words),
     ]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
 
     project_path = out_root / "episode.project.json"
     store = ProjectStore(project_path)

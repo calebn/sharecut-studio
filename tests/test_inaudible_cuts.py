@@ -6,6 +6,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
     InaudibleCutConfig,
@@ -123,7 +124,7 @@ def test_optimize_source_prefers_word_boundary_for_dialogue(tmp_path):
     # Synthetic window with minimum around mid-samples.
     fake = np.array([0.5, 0.4, 0.3, 0.1, 0.02, 0.1, 0.3, 0.5], dtype=np.float32)
     with patch("podcast_mcp.edits.inaudible_cuts.load_mono_window", return_value=fake):
-        opt = optimize_source_cut_range(p, "host", 2.15, 4.1)
+        opt = optimize_source_cut_range(p, "host", 2.15, 4.1, defaults=load_defaults())
     # Should stay close to transcript boundaries (2.0/4.0-4.5 neighborhood) with shifts bounded.
     assert abs(opt.shifted_start_ms) <= 80
     assert abs(opt.shifted_end_ms) <= 80
@@ -134,7 +135,7 @@ def test_optimize_source_waveform_only_for_music(tmp_path):
     p = _project(tmp_path)
     fake = np.array([0.8, 0.5, 0.3, 0.1, 0.0, 0.1, 0.3, 0.8], dtype=np.float32)
     with patch("podcast_mcp.edits.inaudible_cuts.load_mono_window", return_value=fake):
-        opt = optimize_source_cut_range(p, "bed", 5.0, 6.0)
+        opt = optimize_source_cut_range(p, "bed", 5.0, 6.0, defaults=load_defaults())
     assert opt.mode == "waveform_only"
     assert abs(opt.shifted_start_ms) <= 80
     assert abs(opt.shifted_end_ms) <= 80
@@ -211,7 +212,7 @@ def test_trailing_energy_extends_short_cut_end(tmp_path: Path) -> None:
     assert new_end > 0.50  # past the burst into quiet
     assert new_end <= 0.70
 
-    opt = optimize_source_cut_range(p, "host", 0.30, 0.45, config=cfg)
+    opt = optimize_source_cut_range(p, "host", 0.30, 0.45, config=cfg, defaults=load_defaults())
     assert opt.details.get("trailing_energy_extended") is True
     assert opt.end > 0.50
 
@@ -356,12 +357,12 @@ def test_optimize_timeline_cut_range(tmp_path):
     p = _project(tmp_path)
     fake = np.array([0.6, 0.4, 0.2, 0.05, 0.01, 0.1, 0.4], dtype=np.float32)
     with patch("podcast_mcp.edits.inaudible_cuts.load_mono_window", return_value=fake):
-        opt = optimize_timeline_cut_range(p, "host", 2.0, 4.0)
+        opt = optimize_timeline_cut_range(p, "host", 2.0, 4.0, defaults=load_defaults())
     assert opt.end > opt.start
 
 
 def test_recommend_micro_fades_positive():
-    rec = recommend_micro_fades()
+    rec = recommend_micro_fades(defaults=load_defaults())
     assert rec["fade_in_ms"] > 0
     assert rec["fade_out_ms"] > 0
 
@@ -379,7 +380,7 @@ def test_cut_time_range_calls_optimizer(tmp_path):
                 "confidence": 0.9,
             },
         )()
-        cut_time_range(p, "host", 1.0, 2.0)
+        cut_time_range(p, "host", 1.0, 2.0, defaults=load_defaults())
     assert opt.called
 
 
@@ -413,9 +414,9 @@ def test_strip_silence_ignores_inaudible_opt_flag(tmp_path):
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
     ):
         eng_cls.return_value.probe.return_value = type("Probe", (), {"duration_sec": 2.0})()
-        out_default = strip_silence(p, "host")
-        out_false = strip_silence(p, "host", use_inaudible_opt=False)
-        out_true = strip_silence(p, "host", use_inaudible_opt=True)
+        out_default = strip_silence(p, "host", defaults=load_defaults())
+        out_false = strip_silence(p, "host", use_inaudible_opt=False, defaults=load_defaults())
+        out_true = strip_silence(p, "host", use_inaudible_opt=True, defaults=load_defaults())
     assert out_default["clips_created"] == 1
     assert out_false["clips_created"] == out_default["clips_created"]
     assert out_true["clips_created"] == out_default["clips_created"]
@@ -428,9 +429,11 @@ def test_word_only_boundaries_within_tolerance(tmp_path):
         "podcast_mcp.edits.inaudible_cuts._snap_boundary_to_waveform",
         side_effect=lambda _path, center, **kwargs: center,
     ):
-        word_only = optimize_source_cut_range(p, "host", 2.15, 4.1, config=cfg, force_enabled=True)
+        word_only = optimize_source_cut_range(
+            p, "host", 2.15, 4.1, config=cfg, force_enabled=True, defaults=load_defaults()
+        )
         passthrough = optimize_source_cut_range(
-            p, "host", 2.15, 4.1, config=cfg, force_enabled=False
+            p, "host", 2.15, 4.1, config=cfg, force_enabled=False, defaults=load_defaults()
         )
     assert abs(word_only.shifted_start_ms) <= cfg.max_shift_ms
     assert abs(word_only.shifted_end_ms) <= cfg.max_shift_ms
@@ -447,7 +450,9 @@ def test_full_mode_matches_subprocess_snap(sample_wav, tmp_path):
     with patch("podcast_mcp.edits.inaudible_cuts.load_mono_window") as mocked:
         fake = np.array([0.6, 0.4, 0.2, 0.05, 0.01, 0.1, 0.4], dtype=np.float32)
         mocked.return_value = fake
-        optimized = optimize_source_cut_range(p, "host", 1.0, 1.5, config=cfg, force_enabled=True)
+        optimized = optimize_source_cut_range(
+            p, "host", 1.0, 1.5, config=cfg, force_enabled=True, defaults=load_defaults()
+        )
 
     assert optimized.end > optimized.start
     assert abs(optimized.shifted_start_ms) <= cfg.max_shift_ms
@@ -466,19 +471,19 @@ def test_track_audio_path_raises(tmp_path):
 def test_optimize_source_end_before_start_raises(tmp_path):
     p = _project(tmp_path)
     with pytest.raises(ValueError, match="end must be after start"):
-        optimize_source_cut_range(p, "host", 2.0, 2.0)
+        optimize_source_cut_range(p, "host", 2.0, 2.0, defaults=load_defaults())
 
 
 def test_optimize_source_clamps_when_end_too_close(tmp_path):
     p = _project(tmp_path)
     cfg = InaudibleCutConfig(max_shift_ms=80, enabled=False)
-    opt = optimize_source_cut_range(p, "host", 2.0, 2.00001, config=cfg)
+    opt = optimize_source_cut_range(p, "host", 2.0, 2.00001, config=cfg, defaults=load_defaults())
     assert opt.end > opt.start
 
 
 def test_optimize_source_no_track_passthrough(tmp_path):
     p = _project(tmp_path)
-    opt = optimize_source_cut_range(p, "missing", 1.0, 2.0)
+    opt = optimize_source_cut_range(p, "missing", 1.0, 2.0, defaults=load_defaults())
     assert opt.start == 1.0
     assert opt.details["strategy"] == "passthrough:no-track"
 
@@ -486,12 +491,12 @@ def test_optimize_source_no_track_passthrough(tmp_path):
 def test_optimize_timeline_invalid_range_raises(tmp_path):
     p = _project(tmp_path)
     with pytest.raises(ValueError, match="timeline_end must be after"):
-        optimize_timeline_cut_range(p, "host", 3.0, 3.0)
+        optimize_timeline_cut_range(p, "host", 3.0, 3.0, defaults=load_defaults())
 
 
 def test_optimize_timeline_passthrough_without_clip_match(tmp_path):
     p = _project(tmp_path)
-    opt = optimize_timeline_cut_range(p, "host", 50.0, 55.0)
+    opt = optimize_timeline_cut_range(p, "host", 50.0, 55.0, defaults=load_defaults())
     assert opt.start == 50.0
     assert opt.details["strategy"] == "passthrough"
 
@@ -550,7 +555,9 @@ def test_enforce_word_margin_clamps_near_neighbor(tmp_path):
     cfg = InaudibleCutConfig(max_shift_ms=80, min_word_margin_ms=20)
     fake = np.linspace(0.5, 0.0, 80, dtype=np.float32)
     with patch("podcast_mcp.edits.inaudible_cuts.load_mono_window", return_value=fake):
-        opt = optimize_source_cut_range(p, "host", 1.42, 1.5, config=cfg, force_enabled=True)
+        opt = optimize_source_cut_range(
+            p, "host", 1.42, 1.5, config=cfg, force_enabled=True, defaults=load_defaults()
+        )
     assert opt.end - opt.start >= 0.01
     assert opt.end <= 1.52 - (cfg.min_word_margin_ms / 1000.0) + 0.05
 
@@ -605,7 +612,9 @@ def test_absorb_trailing_silence_extends_to_breath_floor(tmp_path: Path) -> None
     assert absorbed is True
     assert new_end == pytest.approx(2.4, abs=0.02)
 
-    opt = optimize_source_cut_range(p, "host", 1.0, 1.5, config=cfg, force_enabled=True)
+    opt = optimize_source_cut_range(
+        p, "host", 1.0, 1.5, config=cfg, force_enabled=True, defaults=load_defaults()
+    )
     assert opt.details.get("absorb_trailing_silence") is True
     assert opt.end == pytest.approx(2.4, abs=0.05)
 
@@ -797,5 +806,7 @@ def test_absorb_trailing_silence_disabled_and_no_next_word(tmp_path: Path) -> No
             return_value=np.zeros(80, dtype=np.float32),
         ),
     ):
-        opt = optimize_source_cut_range(p, "host", 0.2, 0.5, config=enabled, force_enabled=True)
+        opt = optimize_source_cut_range(
+            p, "host", 0.2, 0.5, config=enabled, force_enabled=True, defaults=load_defaults()
+        )
     assert opt.end >= opt.start

@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
 from podcast_mcp.engines.ctc_forced_align import RetimeStats
 from podcast_mcp.engines.transcribe import (
@@ -94,7 +95,9 @@ def _setup(
     wav = tmp_path / "clip.wav"
     _write_wav(wav, duration_sec=duration_sec)
     job = TranscribeJob(track_id="host", source_id=None, audio=wav)
-    engine = TranscriptionEngine(options=_options(forced_alignment_enabled))
+    engine = TranscriptionEngine(
+        options=_options(forced_alignment_enabled), defaults=load_defaults()
+    )
 
     def _fresh_asr(*args, **kwargs):
         return Transcript(
@@ -112,7 +115,9 @@ HI_BYE_WORDS = [("hi", 0.0, 0.5), ("bye", 0.5, 1.0)]
 
 def test_fresh_alignment_keeps_own_speech_under_a_wrong_track_placement(tmp_workspace):
     project = two_mic_project(tmp_workspace, host_timeline_start=1.0)
-    engine = TranscriptionEngine(options=_options(silence_filter_enabled=False))
+    engine = TranscriptionEngine(
+        options=_options(silence_filter_enabled=False), defaults=load_defaults()
+    )
     engine._word_aligner = StubAligner([(0.70, 0.72)], n_aligned=1, n_unaligned=0, scores=[0.0])
     job = TranscribeJob(track_id="host", source_id=None, audio=tmp_workspace / "raw/host.wav")
     transcript = Transcript(
@@ -299,7 +304,7 @@ def test_missing_model_keeps_whisper_times_and_loads_once_per_engine(
         assert load.call_count == 1
         assert engine.forced_alignment_jobs[1]["status"] == "failed"
 
-        fresh = TranscriptionEngine(options=_options())
+        fresh = TranscriptionEngine(options=_options(), defaults=load_defaults())
         with patch.object(
             fresh,
             "transcribe_file",
@@ -389,7 +394,9 @@ def test_min_word_score_zero_never_flags_or_counts(minimal_project, tmp_path):
     wav = tmp_path / "clip.wav"
     _write_wav(wav)
     job = TranscribeJob(track_id="host", source_id=None, audio=wav)
-    engine = TranscriptionEngine(options=_options(forced_alignment_min_word_score=0.0))
+    engine = TranscriptionEngine(
+        options=_options(forced_alignment_min_word_score=0.0), defaults=load_defaults()
+    )
 
     def _fresh_asr(*args, **kwargs):
         return Transcript(
@@ -531,7 +538,7 @@ def test_read_asr_cache_hits_current_name_and_misses(minimal_project, tmp_path):
     wav = tmp_path / "clip.wav"
     _write_wav(wav)
     job = TranscribeJob(track_id="host", source_id=None, audio=wav)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
 
     def _fresh_asr(*args, **kwargs):
         return Transcript(
@@ -591,7 +598,7 @@ def test_alignment_finishing_after_asr_eviction_keeps_result_without_orphan_cach
     stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0)
     engine._word_aligner = stub
     original_align = stub.align
-    newer = TranscriptionEngine(options=_options(False))
+    newer = TranscriptionEngine(options=_options(False), defaults=load_defaults())
 
     def align(audio, words):
         with patch.object(newer, "transcribe_file", return_value=Transcript(track_id="", words=[])):

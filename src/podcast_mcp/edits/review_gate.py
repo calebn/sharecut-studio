@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
@@ -31,7 +32,7 @@ ReviewSource = Literal["agent", "user", "cli", "mcp", "unattended", "align", "pr
 _MODES: tuple[ReviewMode, ...] = ("require", "waive_unattended", "off")
 _CLEARING: tuple[ReviewStatus, ...] = ("done", "waived")
 
-Defaults = dict[str, Any] | None
+Defaults = EffectiveConfig
 
 
 class ReviewRequiredError(CodedError, RuntimeError):
@@ -89,7 +90,7 @@ class ReviewGate:
 
     def mode(self, defaults: Defaults) -> ReviewMode:
         *parents, leaf = self.mode_key.split(".")
-        cfg: Any = defaults or {}
+        cfg: Any = defaults
         for key in parents:
             cfg = cfg.get(key, {})
         value = str((cfg.get(leaf) or {}).get("mode", "waive_unattended")).strip().lower()
@@ -165,7 +166,7 @@ class ReviewGate:
             return False
         return data.get(self.fingerprint_key) == fingerprint
 
-    def report(self, project: EpisodeProject, defaults: Defaults = None) -> dict[str, Any]:
+    def report(self, project: EpisodeProject, defaults: Defaults) -> dict[str, Any]:
         mode = self.mode(defaults)
         fp = self.fingerprint(project)
         data = self.load(project)
@@ -190,7 +191,7 @@ class ReviewGate:
             "hint": None if clear or mode == "off" else self.hint,
         }
 
-    def assert_clear(self, project: EpisodeProject, *, defaults: Defaults = None) -> None:
+    def assert_clear(self, project: EpisodeProject, *, defaults: Defaults) -> None:
         if self.mode(defaults) == "off" or self.is_clear(project):
             return
         raise self.error(self.hint)
@@ -199,7 +200,7 @@ class ReviewGate:
         self,
         project: EpisodeProject,
         *,
-        defaults: Defaults = None,
+        defaults: Defaults,
         unattended: bool | None = None,
     ) -> str:
         """Pipeline gate: return a summary, or raise when interactive and not clear.

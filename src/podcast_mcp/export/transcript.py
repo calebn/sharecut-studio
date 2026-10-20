@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.engines.utterance_runs import transcript_word_runs
@@ -84,14 +85,16 @@ class _TimelineUtterance:
     end: float
 
 
-def _timeline_utterances(project: EpisodeProject) -> list[_TimelineUtterance]:
+def _timeline_utterances(
+    project: EpisodeProject, defaults: EffectiveConfig
+) -> list[_TimelineUtterance]:
     """Combined utterances mapped from source to timeline, sorted, gaps dropped.
 
     Exports ship alongside the mastered (timeline-clock) audio, but utterance
     times are stored in source coordinates. Each is projected through
     ``SessionTimeline``; utterances entirely inside removed material are omitted.
     """
-    combined = ensure_combined_transcript(project)
+    combined = ensure_combined_transcript(project, defaults=defaults)
     st = SessionTimeline(project)
     out: list[_TimelineUtterance] = []
     for u in combined.utterances:
@@ -117,17 +120,17 @@ def _timeline_utterances(project: EpisodeProject) -> list[_TimelineUtterance]:
     return out
 
 
-def combined_transcript_markdown(project: EpisodeProject) -> str:
+def combined_transcript_markdown(project: EpisodeProject, defaults: EffectiveConfig) -> str:
     lines = [f"# {project.name}\n"]
-    for u in _timeline_utterances(project):
+    for u in _timeline_utterances(project, defaults):
         lines.append(f"**{u.speaker}** [{u.start:.1f}s]: {u.text}\n")
     return "\n".join(lines)
 
 
-def write_combined_transcript_markdown(project: EpisodeProject) -> Path:
+def write_combined_transcript_markdown(project: EpisodeProject, defaults: EffectiveConfig) -> Path:
     project.export_dir().mkdir(parents=True, exist_ok=True)
     out = project.export_dir() / f"{sanitize_export_stem(project.name)}.md"
-    out.write_text(combined_transcript_markdown(project), encoding="utf-8")
+    out.write_text(combined_transcript_markdown(project, defaults), encoding="utf-8")
     return out
 
 

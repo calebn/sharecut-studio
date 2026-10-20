@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_review import (
     MAX_REVIEW_CANDIDATES,
     MAX_REVIEW_EXCLUSIONS,
@@ -92,6 +92,7 @@ def apply_transcript_bleed_mute(
     end_sec: float | None = None,
     dry_run: bool = True,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """
     Attenuate verified foreign copies while protecting owner and uncertain audio.
@@ -167,7 +168,7 @@ def apply_transcript_bleed_mute(
 
                 expected = expected_stem_duration_sec(project, tid)
                 actual = probe_stem_duration_sec(project, tid)
-                if not stem_is_fresh(project, tid):
+                if not stem_is_fresh(project, tid, defaults=defaults):
                     for row in track_review:
                         row["automatic_refusal_reasons"] = ["stem_not_fresh"]
                     skipped.append(
@@ -203,7 +204,7 @@ def apply_transcript_bleed_mute(
                 assert proposed_track is not None
                 proposed_track.transcript_gate = True
                 proposed_track.transcript_gate_scope = effective_scope
-                plan = build_bleed_gate_plan(proposed, tid)
+                plan = build_bleed_gate_plan(proposed, tid, defaults=defaults)
                 for row in track_review:
                     row["automatic_refusal_reasons"] = list(plan.reasons)
                 intervals = word_intervals(project, tid, win_start, win_end)
@@ -238,7 +239,7 @@ def apply_transcript_bleed_mute(
                             ungated_track.transcript_gate = False
                             ungated = Path(temporary) / "ungated.wav"
                             render_track_from_timeline(
-                                ungated_project, ungated_track, ungated, load_defaults()
+                                ungated_project, ungated_track, ungated, defaults
                             )
                             scoped_plan = plan
                             publish_stem(
@@ -253,6 +254,7 @@ def apply_transcript_bleed_mute(
                                     win_end=dur,
                                     plan=scoped_plan,
                                 ),
+                                defaults=defaults,
                             )
                     except _GateGrewStemError as exc:
                         track.transcript_gate = was_gated

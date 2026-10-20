@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
 from podcast_mcp.engines.session_timeline import origin_resolver
@@ -80,11 +81,14 @@ def artifact_directory(project: EpisodeProject, context: str, hash_: str) -> Pat
     return directory
 
 
-def project_basis(project: EpisodeProject) -> ProxyProjectBasis:
+def project_basis(project: EpisodeProject, defaults: EffectiveConfig) -> ProxyProjectBasis:
     origin = origin_resolver(project)
     return ProxyProjectBasis(
         history_head_id=project.history.head_id(),
-        render_hashes={tid: track_render_hash(project, tid) for tid in dialogue_track_ids(project)},
+        render_hashes={
+            tid: track_render_hash(project, tid, defaults=defaults)
+            for tid in dialogue_track_ids(project)
+        },
         clips={
             clip.id: ProxyClipBasis(
                 track_id=clip.track_id,
@@ -117,7 +121,9 @@ def _content_hash(input_hash: str, proxy: TrackProxy, digests: list[str]) -> str
     )
 
 
-def _input_hash(project: EpisodeProject, inputs: SourceProxyInputs) -> str:
+def _input_hash(
+    project: EpisodeProject, inputs: SourceProxyInputs, defaults: EffectiveConfig
+) -> str:
     identity = inputs.identity_payload
     policy = {
         "revision": _SERVICE_REVISION,
@@ -130,7 +136,7 @@ def _input_hash(project: EpisodeProject, inputs: SourceProxyInputs) -> str:
         "overlap_ms": proxy_media.OVERLAP_MS,
     }
     if inputs.selector == "legacy":
-        policy["legacy"] = proxy_render_hash(project, inputs.context_track_id)
+        policy["legacy"] = proxy_render_hash(project, inputs.context_track_id, defaults=defaults)
     else:
         policy["source"] = inputs.input_hash
     return _digest(policy)
@@ -245,8 +251,9 @@ def _prepare(
     temporary: Path,
     *,
     legacy: bool,
+    defaults: EffectiveConfig,
 ) -> _PreparedArtifact:
-    input_hash = _input_hash(project, inputs)
+    input_hash = _input_hash(project, inputs, defaults)
     accepted = _accepted(project)
     for artifact in accepted:
         if (
@@ -269,7 +276,7 @@ def _prepare(
         if exact is not None:
             _verify(project, exact)
         bootstrap = not project.render.proxy_manifests and current.hash == proxy_render_hash(
-            project, inputs.context_track_id
+            project, inputs.context_track_id, defaults=defaults
         )
         if bootstrap or len(current.hash) == 64:
             try:
@@ -293,7 +300,7 @@ def _prepare(
                     ),
                 )
     wav = temporary / f"{len(list(temporary.iterdir()))}.wav"
-    render_source_proxy_inputs(project, inputs, wav, engine=engine)
+    render_source_proxy_inputs(project, inputs, wav, engine=engine, defaults=defaults)
     duration = float(engine.probe(wav).duration_sec)
     count = proxy_media.chunk_count_for(duration, chunk_sec=proxy_media.CHUNK_SEC)
     descriptor = TrackProxy(
@@ -365,21 +372,33 @@ def _save_confirmed(ws: ProjectWorkspace, expected: EpisodeProject) -> None:
 def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGeneration | TrackProxy:
     with render_lock(ws.project):
         engine = FFmpegEngine()
+        defaults = ws.effective_config()
         prepared: list[_PreparedArtifact] = []
         try:
             with ws.transaction() as current:
                 snapshot = current.model_copy(deep=True)
-                basis = project_basis(snapshot)
+                basis = project_basis(snapshot, defaults)
                 ids = dialogue_track_ids(snapshot) if track_id is None else [track_id]
                 for tid in ids:
                     _safe_id(tid)
                     if snapshot.track_by_id(tid) is None:
                         raise CodedKeyError("Track is not available", code="track_not_found")
                 captures = [
-                    (tid, SourceProxyInputs.capture_legacy(snapshot, tid, engine)) for tid in ids
+                    (
+                        tid,
+                        SourceProxyInputs.capture_legacy(
+                            snapshot, tid, engine, defaults=ws.effective_config()
+                        ),
+                    )
+                    for tid in ids
                 ]
                 choices = [
-                    (clip.id, SourceProxyInputs.capture_occurrence(snapshot, clip.id, engine))
+                    (
+                        clip.id,
+                        SourceProxyInputs.capture_occurrence(
+                            snapshot, clip.id, engine, defaults=ws.effective_config()
+                        ),
+                    )
                     for clip in snapshot.clips
                     if track_id is None
                     and clip.bleed_restore is not None
@@ -390,11 +409,13 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                 artifacts = {}
                 occurrences = {}
                 for tid, inputs in captures:
-                    item = _prepare(snapshot, inputs, engine, Path(temporary), legacy=True)
+                    item = _prepare(
+                        snapshot, inputs, engine, Path(temporary), legacy=True, defaults=defaults
+                    )
                     prepared.append(item)
                     tracks[tid] = item.artifact
                 for clip_id, inputs in choices:
-                    input_hash = _input_hash(snapshot, inputs)
+                    input_hash = _input_hash(snapshot, inputs, defaults)
                     candidate = next(
                         (
                             p
@@ -406,7 +427,12 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     )
                     if candidate is None:
                         candidate = _prepare(
-                            snapshot, inputs, engine, Path(temporary), legacy=False
+                            snapshot,
+                            inputs,
+                            engine,
+                            Path(temporary),
+                            legacy=False,
+                            defaults=defaults,
                         )
                         prepared.append(candidate)
                     artifacts[candidate.artifact.hash] = candidate.artifact
@@ -427,12 +453,12 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     occurrences=occurrences,
                 )
                 with ws.transaction() as current:
-                    if project_basis(current) != basis:
+                    if project_basis(current, defaults) != basis:
                         raise CodedValueError(
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )
                     for _, inputs in [*captures, *choices]:
-                        inputs.validate(current, engine)
+                        inputs.validate(current, engine, defaults=ws.effective_config())
                     for item in prepared:
                         item.publish(current)
                     before = current.model_dump(mode="json")

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
 from podcast_mcp.history import HistoryManager
@@ -88,7 +89,7 @@ def test_real_unity_plan_has_no_late_restore_target(tmp_path, monkeypatch):
     project = _talking_over(tmp_path)
     project.clips[0].off_speaker_mute_regions = [ClipOffSpeakerMuteRegion(start_s=3, end_s=5)]
     ws = ProjectWorkspace.open(save_project(project))
-    plan = build_bleed_gate_plan(ws.project, "host")
+    plan = build_bleed_gate_plan(ws.project, "host", defaults=load_defaults())
     assert plan.attenuation_spans and plan.floor_gain == 1.0
     inspection = inspect_clip_bleed(ws, "clip-host", track_id="host")
     assert inspection.plan_state == "ready"
@@ -109,7 +110,8 @@ def test_authored_targets_do_not_depend_on_late_plan_evidence(workspace, monkeyp
     ]
     workspace.save()
     monkeypatch.setattr(
-        "podcast_mcp.services.document.bleed_inspection.build_bleed_gate_plan", lambda *_: plan
+        "podcast_mcp.services.document.bleed_inspection.build_bleed_gate_plan",
+        lambda *_, **_kw: plan,
     )
     inspection = inspect_clip_bleed(workspace, "selected", track_id="host")
     authored = [r for r in inspection.regions if r.kind == "bleed_mute:off_speaker"]
@@ -125,7 +127,7 @@ def test_valid_empty_plan_and_ordinary_masks_do_not_invent_automatic_regions(
 
     monkeypatch.setattr(
         "podcast_mcp.services.document.bleed_inspection.build_bleed_gate_plan",
-        lambda *_: BleedGatePlan(),
+        lambda *_, **_kw: BleedGatePlan(),
     )
     workspace.project.clips[0].mute_regions = [
         ClipMuteRegion(start_s=3, end_s=6),
@@ -228,12 +230,12 @@ def test_changed_inputs_refuse_before_any_mutation(workspace, monkeypatch, chang
         monkeypatch.setattr(
             service,
             "bleed_gate_payload",
-            lambda *args: {**original(*args), "policy": {"changed": True}},
+            lambda *args, **_kw: {**original(*args, **_kw), "policy": {"changed": True}},
         )
     elif change == "plan":
         monkeypatch.setattr(
             "podcast_mcp.services.document.bleed_inspection.build_bleed_gate_plan",
-            lambda *_: BleedGatePlan(attenuation_spans=((11, 14),)),
+            lambda *_, **_kw: BleedGatePlan(attenuation_spans=((11, 14),)),
         )
     else:
         path = workspace.path.parent / "host.wav"
@@ -305,7 +307,7 @@ def test_implicit_inspection_is_read_only_and_restore_materializes_selected_lane
     workspace.save()
     monkeypatch.setattr(
         "podcast_mcp.services.document.bleed_inspection.build_bleed_gate_plan",
-        lambda *_: BleedGatePlan(attenuation_spans=((1, 5),)),
+        lambda *_, **_kw: BleedGatePlan(attenuation_spans=((1, 5),)),
     )
     before = workspace.path.read_bytes()
     inspection = inspect_clip_bleed(workspace, "clip_host_full", track_id="host")
@@ -369,7 +371,7 @@ def test_media_replaced_during_inspection_is_refused(workspace, monkeypatch, dur
         monkeypatch.setattr(service, "sha256_file", changed_hash)
     else:
 
-        def changed_plan(*_args):
+        def changed_plan(*_args, **_kw):
             replace()
             return BleedGatePlan(attenuation_spans=((11, 15),))
 
@@ -519,7 +521,7 @@ def test_artifact_freshness_is_independent_from_plan_and_saved_choice(workspace)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes((workspace.path.parent / "host.wav").read_bytes())
     assert inspect_clip_bleed(workspace, "selected", track_id="host").artifact_state == "stale"
-    write_stem_hash(workspace.project, "host")
+    write_stem_hash(workspace.project, "host", defaults=load_defaults())
     assert inspect_clip_bleed(workspace, "selected", track_id="host").artifact_state == "current"
     target = inspect_clip_bleed(workspace, "selected", track_id="host").regions[0].target
     restore_clip_bleed(workspace, target)

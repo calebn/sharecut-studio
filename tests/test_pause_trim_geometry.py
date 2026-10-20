@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from pause_policy_public_helpers import room, voice, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.gui.server import create_app
@@ -196,7 +197,7 @@ def test_suggested_preview_refuses_a_pause_with_repeated_source(tmp_path: Path) 
     window = resolve_pending_preview(snapshot, "pause")
 
     with pytest.raises(CodedError) as held:
-        apply_for_suggested(snapshot, window)
+        apply_for_suggested(snapshot, window, defaults=load_defaults())
 
     assert held.value.code == "cut_scope_changed"
     assert held.value.ids == ("pause",)
@@ -236,7 +237,9 @@ def test_a_pause_over_unselected_source_is_held(tmp_path: Path, suggested: bool)
     before = snapshot.model_dump(mode="json")
 
     with pytest.raises(CodedError) as held:
-        apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "pause"))
+        apply_for_suggested(
+            snapshot, resolve_pending_preview(snapshot, "pause"), defaults=load_defaults()
+        )
 
     assert held.value.code == "cut_scope_changed"
     assert held.value.ids == ("pause",)

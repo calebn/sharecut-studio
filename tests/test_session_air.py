@@ -8,6 +8,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import PauseAir, pause_air_span
 from podcast_mcp.edits.session_air import (
@@ -158,7 +159,7 @@ def test_a_quiet_sound_far_from_the_tracks_speech_is_still_removed_whole() -> No
     project.tracks[0].media.duration_sec = 100.0
     project.clips[0].source_end = 100.0
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=window):
-        got = pause_air_span(project, "host", 62.2, 70.8)
+        got = pause_air_span(project, "host", 62.2, 70.8, defaults=load_defaults())
 
     assert isinstance(got, PauseAir) and got.span == pytest.approx((62.2, 70.8))
 
@@ -188,7 +189,7 @@ def test_a_recording_with_no_duration_in_its_media_is_read_to_where_its_audio_en
             "podcast_mcp.edits.session_air.load_mono_window",
             side_effect=_reader(host=host, guest=guest),
         ):
-            return pause_air_span(project, "host", 25.2, 30.8)
+            return pause_air_span(project, "host", 25.2, 30.8, defaults=load_defaults())
 
     assert run(quiet_guest).span == pytest.approx((25.2, 30.8))
     assert run(loud_guest).start >= 26.13
@@ -212,7 +213,9 @@ def test_a_track_is_read_through_the_decode_the_run_already_holds() -> None:
         raise AssertionError("a file was opened")
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=unreadable):
-        got = pause_air_span(project, "host", 3.0, 8.0, audio_caches={"host": cache})
+        got = pause_air_span(
+            project, "host", 3.0, 8.0, audio_caches={"host": cache}, defaults=load_defaults()
+        )
 
     assert got == PauseAir(3.0, 8.0)
 

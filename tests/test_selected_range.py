@@ -5,6 +5,7 @@ from copy import deepcopy
 import pytest
 from pydantic import ValidationError
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.range_edits import (
@@ -74,6 +75,7 @@ def apply(project, selection, action="cut", propose=False):
         reason="host:range",
         action_id="range_action",
         boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        defaults=load_defaults(),
     )
 
 
@@ -120,6 +122,7 @@ def test_bulk_exact_approval_composes_same_clip_baseline_and_one_undo(
             propose=True,
             reason="guest:range",
             action_id=action_id,
+            defaults=load_defaults(),
         )
     save_project(ws.project)
     sync = DocumentSyncService.open(minimal_project)
@@ -169,7 +172,7 @@ def test_exact_cut_uses_canonical_microfades_and_preserves_outer_edges(tmp_path)
     right = next(c for c in project.clips if c.timeline_start == 12 and c.source_start == 2)
     assert left.fade_in_ms == 3
     assert right.fade_out_ms == 4
-    assert left.fade_out_ms == right.fade_in_ms == join_micro_fade_ms()
+    assert left.fade_out_ms == right.fade_in_ms == join_micro_fade_ms(defaults=load_defaults())
 
 
 @pytest.mark.parametrize("action", ["cut", "mute"])
@@ -196,7 +199,7 @@ def test_all_gap_selected_lane_is_unchanged_at_exact_approval(minimal_project, a
     selection = target(ws.project, ((6, 7),), ("a", "c"))
     gap_lane = deepcopy([c for c in ws.project.clips if c.track_id == "a"])
     apply(ws.project, selection, action, propose=True)
-    approve_edits(ws.project, ["range_action"])
+    approve_edits(ws.project, ["range_action"], defaults=load_defaults())
     assert [c for c in ws.project.clips if c.track_id == "a"] == gap_lane
     assert ws.project.track_by_id("a").timeline_empty is False
 
@@ -239,7 +242,7 @@ def test_stale_group_rejects_atomically_and_stays_pending(tmp_path, change):
         project.clips[1].fade_in_ms = 25
     before = deepcopy(project.clips)
     with pytest.raises(RangeChangedError, match="again"):
-        approve_edits(project, ["range_action"])
+        approve_edits(project, ["range_action"], defaults=load_defaults())
     assert project.clips == before
     assert len(project.edit_decisions) == 1
 
@@ -250,7 +253,9 @@ def test_exact_proposal_rejects_legacy_timing(tmp_path, snap):
     apply(project, target(project), propose=True)
     before = deepcopy(project.edit_decisions)
     with pytest.raises(ValueError, match="cannot change source timing"):
-        update_pending_edit(project, "range_action", start=0, end=1, snap=snap)
+        update_pending_edit(
+            project, "range_action", start=0, end=1, snap=snap, defaults=load_defaults()
+        )
     assert project.edit_decisions == before
 
 

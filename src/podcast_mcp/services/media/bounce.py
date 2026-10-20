@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits.range_edits import resolve_range
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.export.audio import specs_from_extensions, write_audio_formats
@@ -162,7 +162,7 @@ class BounceService:
         mixed = out_dir / f".{stem_label}.mix.wav"
         trimmed: Path | None = None
 
-        defaults = load_defaults()
+        defaults = self.ws.effective_config()
         eng = ffmpeg()
         formats = list(req.formats or ["wav"])
         with resolve_progress_task(

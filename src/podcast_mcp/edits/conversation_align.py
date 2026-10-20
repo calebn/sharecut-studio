@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits import bleed_lag_segments, bleed_latency
 from podcast_mcp.edits.clips_ops import clips_for_track, set_track_clips, split_clip_at
 from podcast_mcp.edits.ranges import merge_timeline_ranges
@@ -112,13 +113,13 @@ SILENCE_REFINE_STEP_SEC = 0.05
 SILENCE_REFINE_MAX_DRIFT_SEC = 0.3  # keep candidate when silence-mid wanders farther
 
 
-def large_move_sec_from_defaults(defaults: dict[str, Any] | None) -> float:
+def large_move_sec_from_defaults(defaults: EffectiveConfig) -> float:
     """``align.large_move_sec`` (moves above it are confirmed, gated and QC-checked).
 
     Only knobs read outside the scorer get an accessor; scorer-only knobs are read
     inline at the top of :func:`plan_conversation_alignment`.
     """
-    cfg = (defaults or {}).get("align") or {}
+    cfg = defaults.get("align") or {}
     return float(cfg.get("large_move_sec", LARGE_MOVE_SEC))
 
 
@@ -1458,10 +1459,10 @@ def _score_one_clip(
 def plan_conversation_alignment(
     project: EpisodeProject,
     *,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
 ) -> AlignResult:
     # Scorer-only knobs are read inline; shared ones use *_from_defaults accessors.
-    cfg = (defaults or {}).get("align") or {}
+    cfg = defaults.get("align") or {}
     coarse_step = float(cfg.get("coarse_step_sec", 0.5))
     fine_step = float(cfg.get("fine_step_sec", 0.02))
     ngram_n = int(cfg.get("bleed_ngram", NGRAM_N))
@@ -1470,7 +1471,7 @@ def plan_conversation_alignment(
     min_bleed_share = float(cfg.get("bleed_min_share", BLEED_MIN_SHARE))
     large_move_sec = large_move_sec_from_defaults(defaults)
     large_min_peak = float(cfg.get("large_move_min_peak", LARGE_MOVE_MIN_PEAK))
-    confirm_fn = (defaults or {}).get("_align_acoustic_confirm_fn")
+    confirm_fn = defaults.get("_align_acoustic_confirm_fn")
     # Near-identity bleed skips the stricter large-move confirmation; never above it.
     bleed_identity_sec = min(
         float(cfg.get("bleed_identity_sec", BLEED_IDENTITY_SEC)), large_move_sec
@@ -1479,12 +1480,12 @@ def plan_conversation_alignment(
     acoustic_floor_sec = float(cfg.get("acoustic_floor_sec", ACOUSTIC_FLOOR_SEC))
     acoustic_agree_sec = float(cfg.get("acoustic_agree_sec", ACOUSTIC_AGREE_SEC))
     max_word_sec = float(cfg.get("max_word_audibility_sec", MAX_WORD_AUDIBILITY_SEC))
-    acoustic_fn = (defaults or {}).get("_align_acoustic_fn")
+    acoustic_fn = defaults.get("_align_acoustic_fn")
     latency_settings = bleed_latency.LatencySettings(
         tolerance_sec=float(cfg.get("bleed_lag_tolerance_sec", bleed_latency.TOLERANCE_SEC)),
         deadband_sec=float(cfg.get("bleed_lag_deadband_sec", bleed_latency.DEADBAND_SEC)),
     )
-    cancel_check = (defaults or {}).get("_pipeline_cancel_check")
+    cancel_check = defaults.get("_pipeline_cancel_check")
     if cancel_check is not None and not callable(cancel_check):
         cancel_check = None
 
@@ -2086,7 +2087,11 @@ def _piecewise_plan(
 
 
 def _split_at_steps(
-    track_id: str, clips: list[Clip], by_key: dict[tuple[str, str], ClipAlignPlan]
+    track_id: str,
+    clips: list[Clip],
+    by_key: dict[tuple[str, str], ClipAlignPlan],
+    *,
+    defaults: EffectiveConfig,
 ) -> tuple[list[Clip], dict[str, list[ClipAlignPlan]]]:
     """Split each clip whose plan has steps; the pieces' plans by the split clip's id."""
     lane: list[Clip] = []
@@ -2099,7 +2104,7 @@ def _split_at_steps(
         split = [clip]
         plans = [replace(plan, steps=())]
         for timeline_sec, offset_sec in plan.steps:
-            before, after = split_clip_at(split[-1], timeline_sec)
+            before, after = split_clip_at(split[-1], timeline_sec, defaults=defaults)
             split[-1:] = [before, after]
             plans[-1] = replace(plans[-1], clip_id=before.id)
             plans.append(replace(plan, clip_id=after.id, offset_sec=offset_sec, steps=()))
@@ -2108,7 +2113,9 @@ def _split_at_steps(
     return lane, pieces
 
 
-def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
+def apply_alignment_plans(
+    project: EpisodeProject, result: AlignResult, *, defaults: EffectiveConfig
+) -> int:
     """Mutate clips + meta.ingest_alignment. Returns number of clips updated."""
     if result.skipped_reason or not result.plans:
         return 0
@@ -2139,7 +2146,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             project.clips.append(clip)
             clips = [clip]
         whole = clips
-        clips, pieces = _split_at_steps(track.id, whole, by_key)
+        clips, pieces = _split_at_steps(track.id, whole, by_key, defaults=defaults)
         if pieces:
             set_track_clips(project, track.id, clips)
             by_key.update({(track.id, p.clip_id): p for plans in pieces.values() for p in plans})
@@ -2332,7 +2339,7 @@ def restore_clip_geometry(
 def run_conversation_align(
     project: EpisodeProject,
     *,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
 ) -> AlignResult:
     result = plan_conversation_alignment(project, defaults=defaults)
     if result.skipped_reason:
@@ -2340,7 +2347,7 @@ def run_conversation_align(
         return result
     clips = [clip.model_copy(deep=True) for clip in project.clips]
     try:
-        apply_alignment_plans(project, result)
+        apply_alignment_plans(project, result, defaults=defaults)
         write_alignment_artifact(project, result)
     except Exception:
         project.clips = clips

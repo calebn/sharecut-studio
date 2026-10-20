@@ -18,6 +18,7 @@ from podcast_mcp.clips.social import (
     propose_social_clips,
     reject_social_clips,
 )
+from podcast_mcp.config import load_defaults
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,
@@ -197,30 +198,36 @@ def _host_with_pyramid(tmp_path: Path) -> EpisodeProject:
     proj.timeline.tracks = [
         Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=4.0))
     ]
-    assert ensure_track_waveforms(proj, proj.timeline.tracks[0]) == 1
+    assert ensure_track_waveforms(proj, proj.timeline.tracks[0], defaults=load_defaults()) == 1
     return proj
 
 
 def test_utterance_energy_from_pyramid(tmp_path):
     proj = _host_with_pyramid(tmp_path)
-    assert _utterance_energy(proj, "host", 0.0, 2.0) == 1.0
-    assert _utterance_energy(proj, "host", 2.0, 3.0) == pytest.approx(0.2, abs=1e-3)
-    assert _utterance_energy(proj, "host", 3.0, 4.0) == 0.0
-    assert _utterance_energy(proj, "host", 10.0, 10.0) == 0.5  # past the end
-    assert _utterance_energy(proj, "missing", 0.0, 2.0) == 0.5
+    assert _utterance_energy(proj, "host", 0.0, 2.0, defaults=load_defaults()) == 1.0
+    assert _utterance_energy(proj, "host", 2.0, 3.0, defaults=load_defaults()) == pytest.approx(
+        0.2, abs=1e-3
+    )
+    assert _utterance_energy(proj, "host", 3.0, 4.0, defaults=load_defaults()) == 0.0
+    assert (
+        _utterance_energy(proj, "host", 10.0, 10.0, defaults=load_defaults()) == 0.5
+    )  # past the end
+    assert _utterance_energy(proj, "missing", 0.0, 2.0, defaults=load_defaults()) == 0.5
     (pyramid,) = (proj.artifacts_dir() / "peaks").glob("track-host.*.wfpk")
     pyramid.write_bytes(b"corrupt")
-    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
+    assert _utterance_energy(proj, "host", 0.0, 2.0, defaults=load_defaults()) == 0.5
     pyramid.unlink()
-    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5  # never builds on read
+    assert (
+        _utterance_energy(proj, "host", 0.0, 2.0, defaults=load_defaults()) == 0.5
+    )  # never builds on read
 
 
 def test_utterance_energy_without_media_or_vanished_file(tmp_path):
     proj = _host_with_pyramid(tmp_path)
     (tmp_path / "raw" / "host.wav").unlink()
-    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
+    assert _utterance_energy(proj, "host", 0.0, 2.0, defaults=load_defaults()) == 0.5
     proj.timeline.tracks[0].media = None
-    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
+    assert _utterance_energy(proj, "host", 0.0, 2.0, defaults=load_defaults()) == 0.5
 
 
 def test_propose_resolves_each_track_pyramid_once(tmp_path, monkeypatch):
@@ -238,9 +245,9 @@ def test_propose_resolves_each_track_pyramid_once(tmp_path, monkeypatch):
     calls: list[str] = []
     real = social.track_pyramid
 
-    def counting(project, track_id):
+    def counting(project, track_id, **_kw):
         calls.append(track_id)
-        return real(project, track_id)
+        return real(project, track_id, **_kw)
 
     monkeypatch.setattr(social, "track_pyramid", counting)
     propose_social_clips(proj, {"social_clips": {"min_sec": 0.5, "max_candidates": 5}})
@@ -251,10 +258,15 @@ def test_utterance_energy_cached_pyramid_that_vanished(tmp_path):
     from podcast_mcp.engines.waveform_media import track_pyramid
 
     proj = _host_with_pyramid(tmp_path)
-    found = track_pyramid(proj, "host")
+    found = track_pyramid(proj, "host", defaults=load_defaults())
     assert found is not None
     found[0].unlink()
-    assert _utterance_energy(proj, "host", 0.0, 2.0, pyramids={"host": found}) == 0.5
+    assert (
+        _utterance_energy(
+            proj, "host", 0.0, 2.0, pyramids={"host": found}, defaults=load_defaults()
+        )
+        == 0.5
+    )
 
 
 def test_propose_skips_low_score_and_truncates_title(tmp_path):

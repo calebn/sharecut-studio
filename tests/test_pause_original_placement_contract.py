@@ -6,6 +6,7 @@ from array import array
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
@@ -48,7 +49,14 @@ def test_real_planner_expansion_cannot_approve_unqualified_original_pause(tmp_pa
     original = inspect_source_remove(project, pause)
     assert isinstance(original, CutScopeHold)
     assert original.reason == "pause_not_shorter"
-    plan = plan_ripple_delete(project, 1.5, 2.03, edited_track_ids=["host"], use_inaudible_opt=True)
+    plan = plan_ripple_delete(
+        project,
+        1.5,
+        2.03,
+        edited_track_ids=["host"],
+        use_inaudible_opt=True,
+        defaults=load_defaults(),
+    )
     assert plan.spans[0] == pytest.approx((1.46, 2.8))
     final = pause.model_copy(update={"start": plan.spans[0][0], "end": plan.spans[0][1]})
     assert inspect_source_remove(project, final) == pytest.approx((1.46, 2.8))
@@ -118,7 +126,14 @@ def test_original_pause_on_music_stays_pending_before_real_inward_planning(tmp_p
     original = inspect_source_remove(project, pause)
     assert isinstance(original, CutScopeHold)
     assert original.reason == "operation_scope"
-    plan = plan_ripple_delete(project, 1.5, 2.03, edited_track_ids=["host"], use_inaudible_opt=True)
+    plan = plan_ripple_delete(
+        project,
+        1.5,
+        2.03,
+        edited_track_ids=["host"],
+        use_inaudible_opt=True,
+        defaults=load_defaults(),
+    )
     assert plan.spans[0] == pytest.approx((1.46, 1.99))
     final = pause.model_copy(update={"start": plan.spans[0][0], "end": plan.spans[0][1]})
     assert inspect_source_remove(project, final) == pytest.approx((1.46, 1.99))

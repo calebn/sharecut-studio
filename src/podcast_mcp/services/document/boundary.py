@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+from podcast_mcp.config import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits.clips_ops import neighbour_clips, roll_join_limits, trim_edge_limits
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.play_audit import track_render_hash
@@ -104,6 +104,7 @@ def boundary_context(
     project: EpisodeProject,
     target: TrimBoundaryTarget | RollBoundaryTarget,
     *,
+    defaults: EffectiveConfig,
     expected_geometry: list[ClipGeometry] | None = None,
 ) -> BoundaryContext:
     """Return legal bounds and an opaque digest for the exact heard track state.
@@ -147,7 +148,6 @@ def boundary_context(
     track = project.track_by_id(clips[0].track_id)
     if track is None:
         raise CodedValueError("boundary track is missing", code="track_not_found")
-    defaults = load_defaults()
     selected_media = []
     for source_id in dict.fromkeys(c.source_id for c in project.clips if c.track_id == track.id):
         path = recording_audio_path(project, track.id, source_id)
@@ -169,7 +169,7 @@ def boundary_context(
         "target": target.model_dump(),
         "geometry": [item.model_dump() for item in geometry],
         "limits": [lo, hi],
-        "track_render": track_render_hash(project, track.id),
+        "track_render": track_render_hash(project, track.id, defaults=defaults),
         "selected_media": selected_media,
         "selected_transcripts": [
             {
@@ -199,11 +199,12 @@ def assert_boundary_token(
     project: EpisodeProject,
     target: TrimBoundaryTarget | RollBoundaryTarget,
     expected_token: str,
+    defaults: EffectiveConfig,
 ) -> BoundaryContext:
     """Validate inside the saved-project mutation transaction before history is recorded."""
     from podcast_mcp.services.document_sync import DocumentConflictError
 
-    context = boundary_context(project, target)
+    context = boundary_context(project, target, defaults=defaults)
     if context.token != expected_token:
         raise DocumentConflictError("boundary preview is stale; reload and listen again")
     return context

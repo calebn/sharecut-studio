@@ -7,6 +7,7 @@ import json
 import pytest
 
 from pause_policy_public_helpers import workspace
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.mcp.tools.edits import approve_edits_tool
 from podcast_mcp.models import load_project
@@ -102,7 +103,9 @@ def test_suggested_preview_plays_a_held_cut_as_approving_it_anyway_would(tmp_pat
     saved = ws.path.read_bytes()
     snapshot = ws.project.model_copy(deep=True)
 
-    end = apply_for_suggested(snapshot, resolve_pending_preview(snapshot, decision.id))
+    end = apply_for_suggested(
+        snapshot, resolve_pending_preview(snapshot, decision.id), defaults=load_defaults()
+    )
 
     assert end > 0
     assert len(snapshot.editorial.edit_log) == 1

@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import source_proxy_audio as proxy
 from podcast_mcp.engines import timeline_render, transcript_gated_play
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
@@ -121,7 +122,7 @@ def _project(tmp_path, monkeypatch, effect="raw", ordinary="none", unity=False):
 def test_continuous_prepared_proxy_is_bounded(tmp_path, monkeypatch, effect, ordinary):
     p, track, clip, plan = _project(tmp_path, monkeypatch, effect, ordinary)
     legacy = tmp_path / "legacy.wav"
-    timeline_render.render_source_with_chain(p, track, legacy)
+    timeline_render.render_source_with_chain(p, track, legacy, defaults=load_defaults())
     baseline_hash = sha256_file(legacy)
     pair = {}
     real = proxy._render_pair
@@ -133,7 +134,7 @@ def test_continuous_prepared_proxy_is_bounded(tmp_path, monkeypatch, effect, ord
 
     monkeypatch.setattr(proxy, "_render_pair", capture)
     target = tmp_path / "variant.wav"
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     rate, y = _read(target)
     b = _read(legacy)[1]
     clock = pair["clock"]
@@ -180,24 +181,24 @@ def test_secondary_before_unity_and_inactive_choice(tmp_path, monkeypatch):
     clip.source_id = "secondary"
     expected = tmp_path / "expected.wav"
     timeline_render.render_source_with_chain(
-        p, track, expected, selected_source_path=tmp_path / "source.wav"
+        p, track, expected, selected_source_path=tmp_path / "source.wav", defaults=load_defaults()
     )
     target = tmp_path / "variant.wav"
     monkeypatch.setattr(
         proxy, "_render_pair", lambda *_a, **_k: pytest.fail("Unity retains selected B0")
     )
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == expected.read_bytes()
     assert track.media.path == "wrong.wav"
     _write(tmp_path / "source.wav", hz=997)
     timeline_render.render_source_with_chain(
-        p, track, expected, selected_source_path=tmp_path / "source.wav"
+        p, track, expected, selected_source_path=tmp_path / "source.wav", defaults=load_defaults()
     )
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == expected.read_bytes()
     clip.bleed_restore = None
-    timeline_render.render_source_with_chain(p, track, expected)
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    timeline_render.render_source_with_chain(p, track, expected, defaults=load_defaults())
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == expected.read_bytes()
 
 
@@ -207,12 +208,12 @@ def test_nonempty_zero_db_gate_is_exact_noop(tmp_path, monkeypatch):
     monkeypatch.setattr(proxy, "build_bleed_gate_plan", lambda *_a, **_k: plan)
     monkeypatch.setattr(transcript_gated_play, "build_bleed_gate_plan", lambda *_a, **_k: plan)
     expected = tmp_path / "expected.wav"
-    timeline_render.render_source_with_chain(p, track, expected)
+    timeline_render.render_source_with_chain(p, track, expected, defaults=load_defaults())
     monkeypatch.setattr(
         proxy, "_render_pair", lambda *_a, **_k: pytest.fail("Unity plan needs no private FX")
     )
     target = tmp_path / "variant.wav"
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == expected.read_bytes()
 
 
@@ -230,7 +231,7 @@ def test_malformed_real_clock_retains_output(tmp_path, monkeypatch):
 
     monkeypatch.setattr(proxy, "_observations", damage)
     with pytest.raises(CodedValueError):
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"complete old artifact"
 
 
@@ -256,7 +257,7 @@ def test_failure_keeps_previous_output(tmp_path, monkeypatch, failure):
 
     monkeypatch.setattr(proxy, "_render_pair", damage)
     with pytest.raises(CodedValueError):
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"previous complete artifact"
     assert not list(tmp_path.glob(".source-proxy-*"))
 
@@ -285,9 +286,11 @@ def test_aac_actual_decoder_extent(tmp_path, monkeypatch):
     shutil.copyfile(encoded, tmp_path / "source.wav")
     clip.bleed_restore.source_sha256 = sha256_file(tmp_path / "source.wav")
     target = tmp_path / "variant.wav"
-    proxy.render_source_proxy_restore(p, clip.id, target, engine=engine)
+    proxy.render_source_proxy_restore(p, clip.id, target, engine=engine, defaults=load_defaults())
     legacy = tmp_path / "legacy.wav"
-    timeline_render.render_source_with_chain(p, track, legacy, engine=engine)
+    timeline_render.render_source_with_chain(
+        p, track, legacy, engine=engine, defaults=load_defaults()
+    )
     assert _read(target)[1].shape == _read(legacy)[1].shape
 
 
@@ -312,7 +315,7 @@ def test_saved_joint_anchors_with_filled_fades(tmp_path, monkeypatch, effect, ra
         SourceSpan(start_s=0.6, end_s=0.9),
     ]
     legacy = tmp_path / "legacy.wav"
-    timeline_render.render_source_with_chain(p, track, legacy)
+    timeline_render.render_source_with_chain(p, track, legacy, defaults=load_defaults())
     target = tmp_path / "variant.wav"
     captured = {}
     real = proxy._combine
@@ -322,7 +325,7 @@ def test_saved_joint_anchors_with_filled_fades(tmp_path, monkeypatch, effect, ra
         return real(b, w, v, spec, clock)
 
     monkeypatch.setattr(proxy, "_combine", combine)
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     output_rate, y = _read(target)
     clock = captured["clock"]
     native = clock.native.audio.sample_rate
@@ -378,7 +381,7 @@ def test_peer_recording_change_refuses_publication(tmp_path, monkeypatch):
     target = tmp_path / "variant.wav"
     target.write_bytes(b"old complete variant")
     with pytest.raises(CodedValueError):
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"old complete variant"
 
 
@@ -389,7 +392,7 @@ def test_peer_recording_cannot_be_output(tmp_path, monkeypatch):
     p.tracks.append(Track(id="peer", label="Peer", media=MediaAsset(path="peer.wav")))
     before = peer.read_bytes()
     with pytest.raises(ValueError, match="must not replace"):
-        proxy.render_source_proxy_restore(p, clip.id, peer)
+        proxy.render_source_proxy_restore(p, clip.id, peer, defaults=load_defaults())
     assert peer.read_bytes() == before
 
 
@@ -408,9 +411,9 @@ def test_zero_raw_source_retains_prepared_fill(tmp_path, monkeypatch, ordinary):
             timeline_render, "current_gate_fill_path", lambda *_a: tmp_path / "gate.wav"
         )
     target = tmp_path / "variant.wav"
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     baseline = tmp_path / "baseline.wav"
-    timeline_render.render_source_with_chain(p, track, baseline)
+    timeline_render.render_source_with_chain(p, track, baseline, defaults=load_defaults())
     assert np.any(_read(target)[1] != _read(baseline)[1])
 
 
@@ -429,7 +432,7 @@ def test_final_commit_boundary_revalidates(tmp_path, monkeypatch):
 
     monkeypatch.setattr(proxy, "publish_completed_file", publish)
     with pytest.raises(CodedValueError):
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"old complete variant"
 
 
@@ -483,7 +486,7 @@ def test_grouped_room_seek_matches_decode_from_zero(tmp_path, monkeypatch, effec
 
     monkeypatch.setattr(proxy, "_execute", capture)
     target = tmp_path / "variant.wav"
-    proxy.render_source_proxy_restore(p, clip.id, target)
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     grouped = target.read_bytes()
     assert len(commands) == 2
     for command in commands:
@@ -500,7 +503,7 @@ def test_grouped_room_seek_matches_decode_from_zero(tmp_path, monkeypatch, effec
 
     monkeypatch.setattr(proxy.MediaSeek, "at", from_zero)
     reference = tmp_path / "reference.wav"
-    proxy.render_source_proxy_restore(p, clip.id, reference)
+    proxy.render_source_proxy_restore(p, clip.id, reference, defaults=load_defaults())
     assert reference.read_bytes() == grouped
 
 
@@ -532,12 +535,12 @@ def test_real_rate_changing_chain_seals_model(tmp_path, monkeypatch, changed):
     monkeypatch.setattr(proxy, "_render_pair", render)
     if changed:
         with pytest.raises(CodedValueError):
-            proxy.render_source_proxy_restore(p, clip.id, target)
+            proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
         assert target.read_bytes() == b"old complete variant"
     else:
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
         expected = tmp_path / "legacy.wav"
-        timeline_render.render_source_with_chain(p, track, expected)
+        timeline_render.render_source_with_chain(p, track, expected, defaults=load_defaults())
         assert _read(target)[1].shape == _read(expected)[1].shape
 
 
@@ -562,7 +565,7 @@ def test_default_model_binding_cannot_change_between_passes(tmp_path, monkeypatc
     target = tmp_path / "variant.wav"
     target.write_bytes(b"old complete artifact")
     with pytest.raises(CodedValueError):
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"old complete artifact"
 
 
@@ -615,7 +618,7 @@ def test_logical_input_alias_is_sealed_before_capture(tmp_path, monkeypatch, bin
     target.write_bytes(b"old complete artifact")
     first_bytes, second_bytes = first.read_bytes(), second.read_bytes()
     with pytest.raises(CodedValueError):
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"old complete artifact"
     assert first.read_bytes() == first_bytes and second.read_bytes() == second_bytes
 
@@ -641,5 +644,5 @@ def test_fill_eligibility_is_sealed_before_capture(tmp_path, monkeypatch):
     target = tmp_path / "variant.wav"
     target.write_bytes(b"old complete artifact")
     with pytest.raises(CodedValueError):
-        proxy.render_source_proxy_restore(p, clip.id, target)
+        proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"old complete artifact"

@@ -96,7 +96,7 @@ def test_editorial_ignore_requires_solo_floor_and_mix_mute_keeps_turn_floor(
     ws = workspace(result)
     if delivery == "suggested":
         edited = ws.project.model_copy(deep=True)
-        apply_for_suggested(edited, resolve_pending_preview(edited, "current-floor"))
+        apply_for_suggested(edited, resolve_pending_preview(edited, "current-floor"), defaults=cfg)
     else:
         service = EditService(ws)
         count = service.approve(["current-floor"]) if delivery == "saved" else service.apply_auto()

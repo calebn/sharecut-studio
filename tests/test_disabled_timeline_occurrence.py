@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.inaudible_cuts import InaudibleCutConfig, optimize_timeline_cut_range
 from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
 
@@ -39,6 +40,7 @@ def test_disable_configuration_and_overrides_preserve_the_selected_occurrence(
         4,
         config=InaudibleCutConfig(enabled=enabled),
         force_enabled=override,
+        defaults=load_defaults(),
     )
     assert (result.start, result.end) == expected
     assert (result.shifted_start_ms, result.shifted_end_ms, result.confidence) == (0, 0, 1)
@@ -56,6 +58,7 @@ def test_disabled_tiny_span_retains_exact_timeline_bounds_and_source_normalizati
         3,
         3.00001,
         config=InaudibleCutConfig(enabled=False),
+        defaults=load_defaults(),
     )
     assert (result.start, result.end) == (3, 3.00001)
     assert result.shifted_start_ms == 0

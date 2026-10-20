@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.align_accept_status import (
     ALIGN_GATE,
     AlignAcceptRequiredError,
@@ -357,7 +358,7 @@ def _write_two_track_plans(p: EpisodeProject, method: str = "bleed", offset: flo
 def test_drift_report_unchecked_without_artifact(tmp_path: Path) -> None:
     from podcast_mcp.edits.align_accept_status import alignment_drift_report
 
-    report = alignment_drift_report(_two_track(tmp_path))
+    report = alignment_drift_report(_two_track(tmp_path), defaults=load_defaults())
     assert report["checked"] is False
     assert report["issues"] == []
 
@@ -393,7 +394,7 @@ def test_drift_report_skips_locked_tracks(tmp_path: Path, method: str) -> None:
 
     p = _two_track(tmp_path)
     _write_two_track_plans(p, method=method)
-    assert alignment_drift_report(p)["issues"] == []
+    assert alignment_drift_report(p, defaults=load_defaults())["issues"] == []
 
 
 def test_drift_report_warning_when_mode_off(tmp_path: Path) -> None:
@@ -540,7 +541,7 @@ def test_drift_report_flags_held_track_moved_after_align(tmp_path: Path) -> None
     ALIGN_GATE.mark_pending(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 35.6
-    assert len(alignment_drift_report(p)["issues"]) == 1
+    assert len(alignment_drift_report(p, defaults=load_defaults())["issues"]) == 1
 
 
 def test_drift_report_flags_manual_track_moved_after_align(tmp_path: Path) -> None:
@@ -549,7 +550,7 @@ def test_drift_report_flags_manual_track_moved_after_align(tmp_path: Path) -> No
     ALIGN_GATE.mark_pending(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 20.0
-    assert len(alignment_drift_report(p)["issues"]) == 1
+    assert len(alignment_drift_report(p, defaults=load_defaults())["issues"]) == 1
 
 
 def test_drift_report_ignores_reference_track_local_punch_hole(tmp_path: Path) -> None:
@@ -597,7 +598,7 @@ def test_drift_report_says_accept_is_stale(tmp_path: Path) -> None:
     ALIGN_GATE.mark_done(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 20.0
-    issues = alignment_drift_report(p)["issues"]
+    issues = alignment_drift_report(p, defaults=load_defaults())["issues"]
     assert len(issues) == 1
     assert "accept is stale" in issues[0]
     assert "not accepted by a person" not in issues[0]
@@ -654,7 +655,7 @@ def test_accepted_artifact_missing_or_unreadable_fails_closed(
     report = alignment_drift_report(p)
     assert len(report["issues"]) == 1
     assert "artifact" in report["issues"][0]
-    assert steps.write_export_qc(p)["ok"] is False
+    assert steps.write_export_qc(p, defaults=load_defaults())["ok"] is False
 
 
 def test_unattended_gate_stops_on_kept_placement_drift(tmp_path: Path) -> None:
@@ -682,7 +683,9 @@ def _split_all(p: EpisodeProject, track_id: str, at: float) -> None:
     from podcast_mcp.edits.clips_ops import split_clip_at
 
     clip = next(c for c in p.clips if c.track_id == track_id)
-    p.clips = [c for c in p.clips if c.id != clip.id] + list(split_clip_at(clip, at))
+    p.clips = [c for c in p.clips if c.id != clip.id] + list(
+        split_clip_at(clip, at, defaults=load_defaults())
+    )
 
 
 def test_drift_report_locked_exemption_survives_split(tmp_path: Path) -> None:
@@ -690,9 +693,9 @@ def test_drift_report_locked_exemption_survives_split(tmp_path: Path) -> None:
     _write_two_track_plans(p, method="manual")
     ALIGN_GATE.mark_pending(p)
     _split_all(p, "guest", 60.0)
-    assert alignment_drift_report(p)["issues"] == []
+    assert alignment_drift_report(p, defaults=load_defaults())["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start += 10.0
-    assert len(alignment_drift_report(p)["issues"]) == 1
+    assert len(alignment_drift_report(p, defaults=load_defaults())["issues"]) == 1
 
 
 def test_drift_report_manual_exemption_on_later_reference_clip(tmp_path: Path) -> None:
@@ -723,7 +726,7 @@ def test_drift_report_manual_exemption_on_later_reference_clip(tmp_path: Path) -
     ALIGN_GATE.mark_pending(p)
     assert alignment_drift_report(p)["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 140.0
-    assert len(alignment_drift_report(p)["issues"]) == 1
+    assert len(alignment_drift_report(p, defaults=load_defaults())["issues"]) == 1
 
 
 def test_mark_align_done_records_accepted_drift(tmp_path: Path) -> None:
@@ -747,11 +750,11 @@ def test_drift_report_stale_accept_keeps_unmoved_clips(tmp_path: Path) -> None:
     ALIGN_GATE.mark_done(p)
     _split_all(p, "host", 50.0)
     _split_all(p, "guest", 50.0)
-    report = alignment_drift_report(p)
+    report = alignment_drift_report(p, defaults=load_defaults())
     assert report["accepted"] is False
     assert report["issues"] == []
     next(c for c in p.clips if c.track_id == "guest").timeline_start += 10.0
-    issues = alignment_drift_report(p)["issues"]
+    issues = alignment_drift_report(p, defaults=load_defaults())["issues"]
     assert len(issues) == 1
     assert "accept is stale" in issues[0]
 
@@ -761,7 +764,7 @@ def test_drift_report_stale_accept_keeps_accepted_unconfirmed_hold(tmp_path: Pat
     _write_unconfirmed(p, 40.0, clip_id="clip_guest")
     ALIGN_GATE.mark_done(p)
     _split_all(p, "guest", 50.0)
-    assert alignment_drift_report(p)["issues"] == []
+    assert alignment_drift_report(p, defaults=load_defaults())["issues"] == []
 
 
 def test_new_unconfirmed_candidate_after_stale_accept_blocks_export(tmp_path: Path) -> None:
@@ -778,7 +781,7 @@ def test_new_unconfirmed_candidate_after_stale_accept_blocks_export(tmp_path: Pa
     issues = alignment_drift_report(p)["issues"]
     assert len(issues) == 1
     assert "unconfirmed +40.0s" in issues[0]
-    assert steps.write_export_qc(p)["ok"] is False
+    assert steps.write_export_qc(p, defaults=load_defaults())["ok"] is False
 
 
 def test_legacy_clips_do_not_borrow_other_clip_acceptance(tmp_path: Path) -> None:
@@ -791,7 +794,7 @@ def test_legacy_clips_do_not_borrow_other_clip_acceptance(tmp_path: Path) -> Non
     p.clips.append(
         Clip(id="second", track_id="guest", source_start=10.0, source_end=40.0, timeline_start=30.0)
     )
-    issues = alignment_drift_report(p)["issues"]
+    issues = alignment_drift_report(p, defaults=load_defaults())["issues"]
     assert len(issues) == 1
     assert "accept is stale" in issues[0]
 
@@ -834,4 +837,4 @@ def test_accepted_many_split_clips_skip_row_matching(
         raise AssertionError("accepted alignment should not scan placement rows")
 
     monkeypatch.setattr(status, "_placement_rows", unexpected)
-    assert alignment_drift_report(p)["issues"] == []
+    assert alignment_drift_report(p, defaults=load_defaults())["issues"] == []

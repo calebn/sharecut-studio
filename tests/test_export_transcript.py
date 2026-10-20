@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.export.transcript import (
     CaptionLimits,
     combined_transcript_markdown,
@@ -47,7 +48,7 @@ def _project_with_combined() -> EpisodeProject:
 
 
 def test_combined_transcript_markdown():
-    md = combined_transcript_markdown(_project_with_combined())
+    md = combined_transcript_markdown(_project_with_combined(), defaults=load_defaults())
     assert "# export-test" in md
     assert "**Host** [0.0s]: Hello world" in md
     assert "**Guest** [2.0s]: Thanks for listening" in md
@@ -56,7 +57,7 @@ def test_combined_transcript_markdown():
 def test_write_combined_transcript_markdown(tmp_path):
     project = EpisodeProject.create("export-test", str(tmp_path))
     project.combined_transcript = _project_with_combined().combined_transcript
-    out = write_combined_transcript_markdown(project)
+    out = write_combined_transcript_markdown(project, defaults=load_defaults())
     assert out.is_file()
     assert out.name == "export-test.md"
     assert "Hello world" in out.read_text(encoding="utf-8")

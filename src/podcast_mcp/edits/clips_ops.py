@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import Any, Literal
 
-from podcast_mcp.config import join_micro_fade_ms
+from podcast_mcp.config import EffectiveConfig, join_micro_fade_ms
 from podcast_mcp.edits.mute_regions import merge_mute_regions, mute_regions_overlapping
 from podcast_mcp.edits.ranges import SPAN_EPS_S
 from podcast_mcp.engines.session_timeline import (
@@ -156,7 +156,9 @@ def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -
     project.clips = [c for c in project.clips if c.track_id != track_id] + clips
 
 
-def split_clip_at(clip: Clip, timeline_time: float) -> tuple[Clip, Clip]:
+def split_clip_at(
+    clip: Clip, timeline_time: float, *, defaults: EffectiveConfig
+) -> tuple[Clip, Clip]:
     """Split clip at session timeline position."""
     tl_end = clip.timeline_end
     if timeline_time <= clip.timeline_start + 1e-9 or timeline_time >= tl_end - 1e-9:
@@ -165,7 +167,7 @@ def split_clip_at(clip: Clip, timeline_time: float) -> tuple[Clip, Clip]:
             code="split_outside_clip",
         )
     source_split = clip_timeline_point_to_source(clip, timeline_time)
-    fade = join_micro_fade_ms()
+    fade = join_micro_fade_ms(defaults=defaults)
     before = clip.model_copy(
         deep=True,
         update={
@@ -204,6 +206,8 @@ def remove_timeline_range_from_clips(
     clips: list[Clip],
     timeline_start: float,
     timeline_end: float,
+    *,
+    defaults: EffectiveConfig,
 ) -> list[Clip]:
     """Remove [timeline_start, timeline_end) from clip list; ripple subsequent clips."""
     if timeline_end <= timeline_start:
@@ -228,12 +232,12 @@ def remove_timeline_range_from_clips(
 
         working = clip
         if working.timeline_start < timeline_start - SPAN_EPS_S:
-            before, working = split_clip_at(working, timeline_start)
+            before, working = split_clip_at(working, timeline_start, defaults=defaults)
             out.append(before)
 
         tl_end = working.timeline_end
         if tl_end > timeline_end + 1e-9:
-            _, after = split_clip_at(working, timeline_end)
+            _, after = split_clip_at(working, timeline_end, defaults=defaults)
             out.append(
                 after.model_copy(
                     deep=True, update={"timeline_start": after.timeline_start - duration}
@@ -246,6 +250,8 @@ def punch_timeline_range_from_clips(
     clips: list[Clip],
     timeline_start: float,
     timeline_end: float,
+    *,
+    defaults: EffectiveConfig,
 ) -> list[Clip]:
     """Remove audio in [timeline_start, timeline_end) but keep timeline length.
 
@@ -266,12 +272,12 @@ def punch_timeline_range_from_clips(
 
         working = clip
         if working.timeline_start < timeline_start:
-            before, working = split_clip_at(working, timeline_start)
+            before, working = split_clip_at(working, timeline_start, defaults=defaults)
             out.append(before)
 
         tl_end = working.timeline_end
         if tl_end > timeline_end + 1e-9:
-            _, after = split_clip_at(working, timeline_end)
+            _, after = split_clip_at(working, timeline_end, defaults=defaults)
             # Keep after at timeline_end (no shift) so the hole duration is preserved.
             out.append(after)
     return sorted(out, key=lambda c: c.timeline_start)

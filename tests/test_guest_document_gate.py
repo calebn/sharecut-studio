@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from history_helpers import history_move
 from pause_policy_public_helpers import room, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.share_capabilities import capabilities_for_role, share_author
 from podcast_mcp.edits.share_registry import SHARE_COOLDOWN_DAYS, get_share_registry
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
@@ -146,10 +147,14 @@ def pending_project(minimal_project) -> DocumentSyncService:
     ws = ProjectWorkspace.open(minimal_project)
     project = fixture(ws.project)
     for edit_id, reason, start in (("host", None, 1.0), ("agent", "nl:range", 2.0)):
-        decision = append_remove_decision(project, "c", start, start + 0.5, reason=reason or "")
+        decision = append_remove_decision(
+            project, "c", start, start + 0.5, reason=reason or "", defaults=load_defaults()
+        )
         decision.id = edit_id
         decision.reason = reason
-    guest = append_remove_decision(project, "c", 3.0, 3.5, reason="guest:suggest")
+    guest = append_remove_decision(
+        project, "c", 3.0, 3.5, reason="guest:suggest", defaults=load_defaults()
+    )
     guest.id = "guest"
     save_project(project)
     return DocumentSyncService.open(minimal_project)
@@ -567,7 +572,9 @@ def saved_state(minimal_project):
 def test_host_undoes_each_editor_mcp_change(minimal_project, change):
     svc = range_project(minimal_project)
     ids = suggest_both_kinds(svc)
-    host = append_remove_decision(svc.ws.project, "c", 1.0, 1.5, reason="")
+    host = append_remove_decision(
+        svc.ws.project, "c", 1.0, 1.5, reason="", defaults=load_defaults()
+    )
     host.reason = None
     save_project(svc.ws.project)
     svc = DocumentSyncService.open(minimal_project)

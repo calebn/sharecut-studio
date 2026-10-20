@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import join_neural
 from podcast_mcp.edits.join_continuity import (
     DetectorHit,
@@ -320,7 +321,9 @@ def test_maybe_ranker_applies(tmp_path: Path, minimal_project: Path, sample_wav:
     )
     save_ranker(model, project.artifacts_dir() / "join_ranker.json")
     cfg = JoinContinuityConfig(neural=False, calibrate=False)
-    rep = assess_proposed_cut(project, "host", 0.2, 0.5, timebase="source", config=cfg)
+    rep = assess_proposed_cut(
+        project, "host", 0.2, 0.5, timebase="source", config=cfg, defaults=load_defaults()
+    )
     assert rep.ranker is None or "available" in (rep.ranker or {})
 
 
@@ -604,5 +607,7 @@ def test_assess_existing_click_hires_path(minimal_project: Path, sample_wav: Pat
         "podcast_mcp.edits.join_continuity._click_check_hires",
         return_value=30.0,
     ):
-        rep = assess_existing_join(project, "host", 0.8, timebase="timeline", config=cfg)
+        rep = assess_existing_join(
+            project, "host", 0.8, timebase="timeline", config=cfg, defaults=load_defaults()
+        )
     assert any(h.name == "click_hires" for h in rep.detectors)

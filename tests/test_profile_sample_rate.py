@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import (
     JUMP_SAMPLE_RATE,
     WAVEFORM_SAMPLE_RATE,
@@ -82,7 +83,7 @@ def test_cut_quality_floor_is_the_8_khz_one_with_or_without_a_cache(tmp_path: Pa
 
 def test_guard_voice_reach_agrees_cached_and_uncached(tmp_path: Path) -> None:
     project = _white_room_project(tmp_path)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     assert _voice_reach_db(project, "host", caches) == pytest.approx(
         _voice_reach_db(project, "host", None), abs=0.01
     )
@@ -118,8 +119,12 @@ def test_uncached_timeline_rms_matches_the_decoded_track_on_room_tone(
 ) -> None:
     """#1547: the timeline window readers low-pass too, so room tone reads the same either way."""
     project = _white_room_project(tmp_path)
-    caches = build_track_rms_caches(project)
-    uncached = measure_timeline_rms_db(project, "host", start, start + 0.5)
-    cached = measure_timeline_rms_db(project, "host", start, start + 0.5, caches=caches)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
+    uncached = measure_timeline_rms_db(
+        project, "host", start, start + 0.5, defaults=load_defaults()
+    )
+    cached = measure_timeline_rms_db(
+        project, "host", start, start + 0.5, caches=caches, defaults=load_defaults()
+    )
     assert uncached is not None and cached is not None
     assert uncached == pytest.approx(cached, abs=0.5)

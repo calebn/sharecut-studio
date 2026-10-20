@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.models import (
@@ -135,8 +136,8 @@ def test_previous_envelope_render_revision_cannot_reuse_stem(
     stem.parent.mkdir(parents=True)
     render_track_from_timeline(project, project.tracks[0], stem, {})
     monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", previous_revision)
-    play_audit.write_stem_hash(project, "host")
-    assert play_audit.stem_is_fresh(project, "host")
+    play_audit.write_stem_hash(project, "host", defaults=load_defaults())
+    assert play_audit.stem_is_fresh(project, "host", defaults=load_defaults())
     monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", RENDER_SEMANTICS_REV)
     assert RENDER_SEMANTICS_REV > 10
-    assert not play_audit.stem_is_fresh(project, "host")
+    assert not play_audit.stem_is_fresh(project, "host", defaults=load_defaults())

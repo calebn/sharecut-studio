@@ -79,6 +79,7 @@ class ReviewService:
                 prefer=prefer,
                 on_media_created=remember_media,
                 on_media_ready=remember_ready,
+                defaults=self.ws.effective_config(),
             )
             recorded = created
 

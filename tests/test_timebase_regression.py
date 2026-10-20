@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcript_gated_play import word_intervals
 from podcast_mcp.models import (
@@ -78,16 +79,17 @@ def test_audibility_uses_timeline_not_source(monkeypatch, tmp_path):
         *,
         caches=None,
         recorded_gain=True,
+        **_kw,
     ):
         seen.append((t_start, t_end))
         return -30.0
 
     monkeypatch.setattr(audio_audit, "_rms_for_track_at_timeline", fake_rms)
     monkeypatch.setattr(
-        audio_audit, "build_track_rms_caches", lambda _p: audio_audit.TrackRmsCacheSet()
+        audio_audit, "build_track_rms_caches", lambda _p, **_kw: audio_audit.TrackRmsCacheSet()
     )
 
-    rows = audio_audit.compute_word_audibility_map(p)
+    rows = audio_audit.compute_word_audibility_map(p, defaults=load_defaults())
     assert len(rows) == 2
     assert (10.0, 12.0) in seen
     assert (70.0, 72.0) in seen

@@ -22,7 +22,7 @@ from typing import Any
 
 from filelock import Timeout
 
-from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits.cut_application import apply_trim
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
@@ -298,7 +298,7 @@ class PlayService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
         self.project = workspace.project
-        self._defaults = load_defaults()
+        self._defaults = workspace.effective_config()
 
     @staticmethod
     def issued_boundary_project(opaque_id: str) -> Path:
@@ -401,7 +401,7 @@ class PlayService:
             "project": str(self.ws.path.resolve()),
             "token": token,
             "state": state,
-            "track": track_render_hash(project, track_id),
+            "track": track_render_hash(project, track_id, defaults=self._defaults),
             "fader_db": track.fader_db,
             "start": start,
             "end": end,
@@ -470,13 +470,20 @@ class PlayService:
             )
 
         with self.ws.transaction() as saved:
-            current_context = assert_boundary_token(saved, target, expected_token)
+            current_context = assert_boundary_token(
+                saved, target, expected_token, defaults=self._defaults
+            )
             current = snapshot_project(saved)
         proposed = current.model_copy(deep=True)
         if isinstance(edit, TrimBoundaryEdit):
             plan = plan_trim(proposed, edit.clip_id, edit.edge, edit.source_sec, edit.mode)
             if not plan.unchanged:
-                apply_trim(proposed, plan, application_intent=CutIntent.HUMAN_BOUNDARIES)
+                apply_trim(
+                    proposed,
+                    plan,
+                    application_intent=CutIntent.HUMAN_BOUNDARIES,
+                    defaults=self._defaults,
+                )
             actual_sec = next(c for c in proposed.clips if c.id == edit.clip_id)
             actual_edit: TrimBoundaryEdit | RollBoundaryEdit = edit.model_copy(
                 update={
@@ -487,12 +494,18 @@ class PlayService:
             )
         else:
             left_before = next(c for c in current.clips if c.id == edit.left_clip_id)
-            roll_clip_join(proposed, edit.left_clip_id, edit.right_clip_id, edit.delta_sec)
+            roll_clip_join(
+                proposed,
+                edit.left_clip_id,
+                edit.right_clip_id,
+                edit.delta_sec,
+                defaults=self._defaults,
+            )
             left_after = next(c for c in proposed.clips if c.id == edit.left_clip_id)
             actual_edit = edit.model_copy(
                 update={"delta_sec": left_after.source_end - left_before.source_end}
             )
-        proposed_context = boundary_context(proposed, target)
+        proposed_context = boundary_context(proposed, target, defaults=self._defaults)
         track_id = current_context.track_id
         current_seam = current_context.current.timeline_sec
         proposed_seam = proposed_context.current.timeline_sec
@@ -508,7 +521,7 @@ class PlayService:
                 proposed, track_id, expected_token, "proposed", proposed_start, proposed_end
             )
         with self.ws.transaction() as saved:
-            assert_boundary_token(saved, target, expected_token)
+            assert_boundary_token(saved, target, expected_token, defaults=self._defaults)
             opaque_id = secrets.token_urlsafe(18)
             entry = _BoundaryAudioEntry(
                 project_path=self.ws.path.resolve(),
@@ -555,7 +568,7 @@ class PlayService:
         if entry.project_path != self.ws.path.resolve() or entry.token != expected_token:
             raise FileNotFoundError("boundary audition is unavailable")
         with self.ws.transaction() as saved:
-            assert_boundary_token(saved, entry.target, expected_token)
+            assert_boundary_token(saved, entry.target, expected_token, defaults=self._defaults)
         path = entry.current_path if side == "current" else entry.proposed_path
         cache = (self.project.artifacts_dir() / "play_cache").resolve()
         if path.is_symlink() or path.parent.resolve() != cache or not path.is_file():
@@ -662,7 +675,7 @@ class PlayService:
                 path=path.resolve(),
                 source=f"processed:{track_id}",
                 tier="stem",
-                stem_is_fresh=stem_is_fresh(self.project, track_id),
+                stem_is_fresh=stem_is_fresh(self.project, track_id, defaults=self._defaults),
                 render_busy=busy,
             )
 
@@ -764,7 +777,7 @@ class PlayService:
 
     def _resolve_source_and_times(self, req: PlayRequest) -> tuple[str, float, float]:
         if req.query:
-            matches = search_transcript(self.project, req.query)
+            matches = search_transcript(self.project, req.query, defaults=self._defaults)
             if not matches:
                 raise CodedValueError(
                     f"no transcript match for {req.query!r}", code="no_transcript_match"
@@ -843,7 +856,7 @@ class PlayService:
     ) -> tuple[Path, str, float, float]:
         # Decide from a bounded fingerprint read under the state lock; deep-copy the
         # project only when a segment must render (#358).
-        fingerprint = stem_fingerprint(self.project, track_id)
+        fingerprint = stem_fingerprint(self.project, track_id, defaults=self._defaults)
         edit_hash = fingerprint.render_hash
         stem = stem_path(self.project, track_id)
         window = max(0.0, timeline_end - timeline_start)
@@ -897,7 +910,7 @@ class PlayService:
         # Miss: render one snapshot and key the cache by that snapshot's hash, so the key
         # names the rendered bytes even if an edit landed after the fingerprint (#220).
         render_project = snapshot_project(self.project)
-        render_hash = track_render_hash(render_project, track_id)
+        render_hash = track_render_hash(render_project, track_id, defaults=self._defaults)
         if render_hash != edit_hash:
             cache = self._segment_cache_path(track_id, timeline_start, timeline_end, render_hash)
             if cache.is_file() and not rerender:
@@ -923,7 +936,7 @@ class PlayService:
                     # A render takes seconds: merge the save so an edit committed meanwhile survives.
                     self.project = self.ws.checkpoint()
                     try:
-                        rerender_preview(self.project)
+                        rerender_preview(self.project, defaults=self._defaults)
                         self.ws.save_merged()
                     except BaseException:
                         # Drop the failed render's partial in-memory state and the checkpoint
@@ -985,13 +998,16 @@ class PlayService:
                     render_project, track, tmp, self._defaults
                 ),
                 clear_invalidations=False,
+                defaults=self._defaults,
             )
             # The transaction takes project_state_lock first, so the clear is serialized
             # with snapshots and pipeline step publishes.
             with self.ws.transaction() as project:
-                if clear_invalidations_if_current(project, render_project, track_id):
+                if clear_invalidations_if_current(
+                    project, render_project, track_id, defaults=self._defaults
+                ):
                     self.ws.save()
-        schedule_stem_waveforms(self.project, [track_id])
+        schedule_stem_waveforms(self.project, [track_id], defaults=self._defaults)
         return out
 
     def _segment_cache_path(
@@ -1081,7 +1097,7 @@ class PlayService:
         assert render_track is not None
         render_track.transcript_gate = True
         render_track.transcript_gate_scope = None
-        fingerprint = track_render_hash(render_project, track_id)
+        fingerprint = track_render_hash(render_project, track_id, defaults=self._defaults)
         cache = self._segment_cache_path(track_id, start, end, fingerprint)
         if not cache.is_file() or rerender:
             render_atomic(
@@ -1378,6 +1394,7 @@ class PlayService:
             detail=detail,  # type: ignore[arg-type]
             include_dsp=include_dsp,
             prosody_params=prosody_params_for(self.ws.path),
+            defaults=self._defaults,
         )
 
     def prosody_overlay(self) -> dict:
@@ -1592,7 +1609,11 @@ class PlayService:
         render_atomic(
             output,
             lambda temporary: render_range_audio(
-                current, target, temporary, full_mix_path=full_mix_path
+                current,
+                target,
+                temporary,
+                full_mix_path=full_mix_path,
+                defaults=self._defaults,
             ),
         )
         self._mark_play_cache_used(output)
@@ -1699,9 +1720,12 @@ class PlayService:
         gains = mix_gains(self.project)
         return json.dumps(
             {
-                "mix": mix_render_hash(gains, mix_peak_ceiling_db(self._defaults)),
+                "mix": mix_render_hash(
+                    gains, mix_peak_ceiling_db(self._defaults), defaults=self._defaults
+                ),
                 "stems": {
-                    track_id: track_render_hash(self.project, track_id) for track_id in gains
+                    track_id: track_render_hash(self.project, track_id, defaults=self._defaults)
+                    for track_id in gains
                 },
             },
             sort_keys=True,
@@ -1733,10 +1757,14 @@ class PlayService:
         if cached is not None:
             return cached
         for track_id in gains:
-            if not stem_is_fresh(self.project, track_id):
+            if not stem_is_fresh(self.project, track_id, defaults=self._defaults):
                 self.ensure_stem(track_id, lock_timeout=lock_timeout)
         stems = tuple(
-            (stem_path(self.project, track_id), gain, track_render_hash(self.project, track_id))
+            (
+                stem_path(self.project, track_id),
+                gain,
+                track_render_hash(self.project, track_id, defaults=self._defaults),
+            )
             for track_id, gain in gains.items()
         )
         before = _stem_revisions(stems)
@@ -1809,7 +1837,10 @@ class PlayService:
                 "ceiling": ceiling,
                 "rev": MIX_SEMANTICS_REV,
                 "stems": {
-                    track_id: [gain, track_render_hash(self.project, track_id)]
+                    track_id: [
+                        gain,
+                        track_render_hash(self.project, track_id, defaults=self._defaults),
+                    ]
                     for track_id, gain in gains.items()
                 },
             },
@@ -1868,7 +1899,7 @@ class PlayService:
     ) -> Path:
         if side == "suggested":
             project = snapshot_project(self.project)
-            play_end = apply_for_suggested(project, window)
+            play_end = apply_for_suggested(project, window, defaults=self._defaults)
         else:
             project, play_end = self.project, window.play_end
         trim = self.mix_trim_db(lock_timeout=lock_timeout)
