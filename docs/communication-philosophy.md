@@ -26,7 +26,11 @@ feedback for an action, the answers are here. It is binding for new
 and changed work: the PR checklist enforces it (see Governance below).
 
 Scope: all user-facing copy and control placement in `gui/web`,
-CLI help text, and user docs. Out of scope: marketing copy.
+CLI help text, and user docs. Out of scope: marketing copy. How an
+interaction is wired (one command, one selection table, one menu
+primitive, one feedback channel, keyboard and touch twins) is the
+[interaction system](interaction-system.md); this document owns what
+the controls say and where they sit.
 
 ## Voice and tone
 
@@ -688,4 +692,5 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-14 — Save state distinguishes rejected from uncertain command outcomes (#1478): refusal explains that the editor must correct and resubmit, while an unknown result gives the safe recovery for retryable edits or Undo/Redo History inspection.
 - 2026-10-15 — A coarse-pointer sweep of the shell pins the 44 px floor (#1422): the More tab's overlay toggles (Pending edits, Markers, Comments and the rest) were 19 px tall and now hold the floor as whole rows, and the remaining sub-44 controls are the named dense-target exceptions.
 
+- 2026-10-19 — Scope split with the new [interaction system](interaction-system.md): this guide keeps what controls say and where they sit; the interaction system owns how an interaction is wired (one command, one selection table, one menu primitive, one feedback channel, keyboard and touch twins) and the checklist a new interaction passes.
 - 2026-10-16 — Explicit interactive Approve and manual cut gestures carry acoustic override authority (#1403). Removed the second Cut anyway dialog; programmatic holds still explain the observed speech, and structural refusals remain mandatory.

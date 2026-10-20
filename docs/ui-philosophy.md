@@ -10,7 +10,9 @@ The companion [communication philosophy](communication-philosophy.md) covers
 voice, copy, terminology, placement, and ergonomics. This document wins where
 the two overlap. If a change to either creates a conflict, call it out in the
 PR for a decision and record the outcome in the communication philosophy's
-§ Reconciled with ui-philosophy.
+§ Reconciled with ui-philosophy. The [interaction system](interaction-system.md)
+turns these principles into one path per interaction and the checklist a new
+interaction passes; it sits under this document.
 
 ## 1. Show and undo every automated change
 
