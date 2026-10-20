@@ -493,7 +493,7 @@ def test_host_http_routes_raise_429_with_the_detail_dict_and_retry_after(monkeyp
             call()
         assert caught.value.status_code == 429
         assert caught.value.detail == _DENIED_BODY
-        assert caught.value.headers == {"Retry-After": "2"}
+        assert caught.value.headers == {"Retry-After": "2", "X-Sharecut-Error-Code": "rate_limited"}
 
 
 def test_a_full_guest_audio_gate_raises_429_and_the_slot_is_released(monkeypatch):
@@ -514,7 +514,7 @@ def test_a_full_guest_audio_gate_raises_429_and_the_slot_is_released(monkeypatch
         "bucket": "host_audio_concurrent",
         "retry_after_sec": 1.0,
     }
-    assert caught.value.headers == {"Retry-After": "1"}
+    assert caught.value.headers == {"Retry-After": "1", "X-Sharecut-Error-Code": "rate_limited"}
     release()
     assert _audio_slot("tok") is not None
     reset_host_limiters_for_tests()
