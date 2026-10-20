@@ -52,10 +52,10 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "timeline/TimeRulerView.tsx",
   "timeline/MarkerLaneView.tsx",
   "timeline/EnvelopeOverlayView.tsx",
+  // The ARIA tablist pattern: arrows, Home and End move among the tabs.
+  "ui/Tabs.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",
-  // Clip range keys update a local paired preview; Escape cancels that preview.
-  "inspector/views/ClipInspector.tsx",
   "inspector/views/EnvelopeWorkspaceView.tsx",
   // Focused clip handles route key edits locally; Escape cancels their preview.
   "timeline/ClipBlockView.tsx",
