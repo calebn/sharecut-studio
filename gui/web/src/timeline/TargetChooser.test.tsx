@@ -104,7 +104,7 @@ function show(overrides: Partial<ChooserView> = {}) {
 }
 
 describe("TargetChooser", () => {
-  it("enters the top layer as a popover and leaves it on close", () => {
+  it("stays out of the top layer: no popover attribute and no showPopover call", () => {
     const show = vi.spyOn(HTMLElement.prototype, "showPopover");
     const hide = vi.spyOn(HTMLElement.prototype, "hidePopover");
     const { unmount } = render(
@@ -118,9 +118,10 @@ describe("TargetChooser", () => {
     );
     const layer = document.body.querySelector(".target-chooser");
     expect(layer).not.toBeNull();
-    expect(show.mock.contexts).toContain(layer);
+    expect(layer).not.toHaveAttribute("popover");
+    expect(show.mock.contexts).not.toContain(layer);
     unmount();
-    expect(hide.mock.contexts).toContain(layer);
+    expect(hide.mock.contexts).not.toContain(layer);
     show.mockRestore();
     hide.mockRestore();
   });
