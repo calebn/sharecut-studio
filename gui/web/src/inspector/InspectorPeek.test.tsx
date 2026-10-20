@@ -12,6 +12,7 @@ import {
   mergeReturnedComment,
 } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
+import type { AnnounceOptions } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { expectNoA11yViolations } from "../test/a11y";
 import { deferred } from "../test/deferred";
@@ -22,7 +23,11 @@ import {
   sampleTrack,
 } from "../test/fixtures";
 import { replayPointer } from "../timeline/hitRouting";
-import type { ProjectView, Selection } from "../types/project";
+import {
+  type ProjectView,
+  parseHistoryEntryId,
+  type Selection,
+} from "../types/project";
 import { InspectorPeek } from "./InspectorPeek";
 import { peekTarget } from "./peekTarget";
 
@@ -75,7 +80,8 @@ const project = minimalProject({
     },
   ],
 });
-const announce = vi.fn<(message: string) => void>();
+const announce = vi.fn<(message: string, options?: AnnounceOptions) => void>();
+const FADE_HEAD = parseHistoryEntryId("h-fade");
 
 /** The strip as the shell renders it: its peek follows the store's project. */
 function Strip({
@@ -129,8 +135,8 @@ const advance = (ms: number) => {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  api.setClipFade.mockReset().mockResolvedValue(undefined);
-  api.setEnvelope.mockReset().mockResolvedValue(undefined);
+  api.setClipFade.mockReset().mockResolvedValue(FADE_HEAD);
+  api.setEnvelope.mockReset().mockResolvedValue(null);
   announce.mockReset();
 });
 
@@ -161,7 +167,9 @@ describe("InspectorPeek nudges", () => {
     expect(api.setClipFade.mock.calls).toEqual([
       ["/tmp/p.json", "c2", 310, 0, { fade_in_ms: 300, fade_out_ms: 0 }],
     ]);
-    expect(announce).toHaveBeenLastCalledWith("Fade saved");
+    expect(announce).toHaveBeenLastCalledWith("Fade saved", {
+      undo: FADE_HEAD,
+    });
     vi.useRealTimers();
     await expectNoA11yViolations(group);
   });
@@ -205,6 +213,7 @@ describe("InspectorPeek nudges", () => {
     expect(fadeIn()).toBe(0);
     expect(announce).toHaveBeenLastCalledWith(
       "Fade in not saved: This clip changed. Nothing was saved. Adjust the fade again.",
+      { tone: "error" },
     );
     advance(500);
     fireEvent.pointerDown(button("Fade in 1 ms longer"), { button: 0 });
@@ -326,11 +335,13 @@ describe("InspectorPeek nudges", () => {
     expect(row?.querySelector("output")).toHaveTextContent("0:10.000");
     expect(announce).toHaveBeenLastCalledWith(
       "Envelope point stopped at a clip edge",
+      { gesture: true },
     );
     fireEvent.pointerUp(later);
     await flush();
     expect(announce).toHaveBeenLastCalledWith(
       "Envelope point saved at a clip edge",
+      { undo: null },
     );
     expect(api.setEnvelope.mock.calls).toEqual([
       [
@@ -375,6 +386,7 @@ describe("InspectorPeek nudges", () => {
     ]);
     expect(announce).toHaveBeenCalledWith(
       "Envelope point level is at its limit",
+      { gesture: true },
     );
   });
 
@@ -693,7 +705,7 @@ describe("InspectorPeek nudges", () => {
     const state = useDawStore.getState();
     expect(state.project?.clips.tracks.host[1].source_end).toBe(39.9);
     expect(host.submit).toHaveBeenCalledTimes(1);
-    expect(announce).toHaveBeenCalledWith("Trim saved");
+    expect(announce).toHaveBeenCalledWith("Trim saved", { undo: null });
   });
 
   it("offers envelope nudges to editors only (D-touch-input-grammar), and fade nudges from a guest without edit", () => {

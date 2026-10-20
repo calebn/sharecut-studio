@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerDawCommands } from "../commands/register";
 import { commentTimeLabel } from "../comments";
 import { FeedbackToast } from "../feedback/FeedbackToast";
@@ -37,7 +37,28 @@ function renderPanel(props: { guestShare?: boolean } = {}) {
 }
 
 describe("CommentsPanel", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   beforeEach(() => {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        callback: (
+          entries: { isIntersecting: boolean; intersectionRatio: number }[],
+        ) => void;
+        constructor(
+          callback: (
+            entries: { isIntersecting: boolean; intersectionRatio: number }[],
+          ) => void,
+        ) {
+          this.callback = callback;
+        }
+        observe() {
+          this.callback([{ isIntersecting: true, intersectionRatio: 1 }]);
+        }
+        disconnect() {}
+      },
+    );
     localStorage.clear();
     registerDawCommands();
     patchComment.mockReset().mockResolvedValue(null);

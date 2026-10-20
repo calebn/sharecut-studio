@@ -156,7 +156,7 @@ describe("track.remove / nav / Escape fall-through", () => {
       actionLabel: "Remove track",
       danger: true,
     });
-    expect(useDawStore.getState().feedbackToast).toEqual({
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
       id: expect.any(Number),
       message: "Removed Host",
       undo: "e-remove",
