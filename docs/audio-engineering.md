@@ -911,7 +911,14 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   `mode=ripple` at a session join (every track's edge moves with it) and `mode=gap` on a
   track-local edge (only that edge moves). A ripple trim always moves every dialogue
   track, so no trim leaves one track out of step (see `clip_skew`). The other fix is
-  `suggest_handoff_cut_tool` to move the cut to a silence.
+  `suggest_handoff_cut_tool` to move the cut to a silence. The suggestion is proven
+  before it is offered (#1746): `edits/trim_suggestion.py` runs the same audio checks
+  that `trim_clip_edge_tool` runs, on the edge as suggested and then with a little more
+  air (up to 160 ms) when the check holds it, and `evidence.fix` carries the first edge
+  that passes. `evidence.fix_check` says `passes` (with `nudged_ms` when the edge moved),
+  `held` (no edge passes; `held` lists the check's reasons, and the meaning text says to
+  listen, then apply with `override_audio_checks=true` or move the cut) or `unchecked`
+  (the audio could not be read; the suggestion is the unproven voice edge).
 - **`echo_risk`** — `engines/bleed_echo.py` profiles every directed pair of dialogue
   mics over up to 600 s of **fresh** timeline stems centred on the window (the audio
   the listener hears, one clock for every track). Each stem is read at its own voice

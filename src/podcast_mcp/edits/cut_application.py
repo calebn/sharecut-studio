@@ -182,13 +182,10 @@ def _completed_holds(
     )
 
 
-@batch_scope()
-def apply_trim(
-    project: EpisodeProject,
-    plan: TrimPlan,
-    *,
-    application_intent: CutIntent,
-) -> dict:
+def _checked_trim(
+    project: EpisodeProject, plan: TrimPlan, *, application_intent: CutIntent
+) -> tuple[EpisodeProject, dict, list[CutScopeHold]]:
+    """The project with ``plan`` applied, the change report, and what the audio checks hold."""
     candidate = project.model_copy(deep=True)
     speech = assess_cut_speech(project, plan.removal) if plan.removal else None
     report = _write_trim_clip_edge(candidate, plan, cut_speech=speech)
@@ -204,10 +201,32 @@ def apply_trim(
         mode="ripple" if plan.mode is EditMode.RIPPLE else "mute",
     )
     if held:
-        raise ScopeChangedAtApproval(held, {})
+        return candidate, report, held
     receipts = cut_safety.complete_effect_receipts(project, candidate, operation_ids=ids, trim=plan)
-    if receipts:
-        raise ScopeChangedAtApproval(receipts, {})
+    return candidate, report, list(receipts)
+
+
+@batch_scope()
+def trim_holds(
+    project: EpisodeProject,
+    plan: TrimPlan,
+    *,
+    application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+) -> list[CutScopeHold]:
+    """What ``apply_trim`` would refuse ``plan`` for; the project is not changed."""
+    return _checked_trim(project, plan, application_intent=application_intent)[2]
+
+
+@batch_scope()
+def apply_trim(
+    project: EpisodeProject,
+    plan: TrimPlan,
+    *,
+    application_intent: CutIntent,
+) -> dict:
+    candidate, report, held = _checked_trim(project, plan, application_intent=application_intent)
+    if held:
+        raise ScopeChangedAtApproval(held, {})
     adopt_project_state(project, candidate)
     return report
 

@@ -1232,6 +1232,16 @@ def _before_occurrences(
             if old[i].source.src_start <= source.src_start + _SOURCE_GEOMETRY_TOLERANCE_SEC
             and old[i].source.src_end >= source.src_end - _SOURCE_GEOMETRY_TOLERANCE_SEC
         ]
+        if not containing and not source.is_fill:
+            # A trim that extends a clip's edge keeps all of the clip's old audio inside the new
+            # leaf; that old leaf is the one this leaf continues, not a removal.
+            containing = [
+                i
+                for i in qualified
+                if old[i].source.clip_id == source.clip_id
+                and source.src_start <= old[i].source.src_start + _SOURCE_GEOMETRY_TOLERANCE_SEC
+                and source.src_end >= old[i].source.src_end - _SOURCE_GEOMETRY_TOLERANCE_SEC
+            ]
         matches = (
             [i for i in containing if old[i].source.clip_id == origin]
             if origin in before_ids
