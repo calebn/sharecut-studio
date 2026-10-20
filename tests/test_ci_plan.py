@@ -40,6 +40,8 @@ GUI_PATTERNS = [
     "tests/fixtures/document_delta/**",
     "scripts/ci_plan.py",
     "scripts/docs_sync.py",
+    "scripts/path_vocab.py",
+    "scripts/export_capabilities_copy.py",
     "scripts/export_timeline_zoom.py",
     "scripts/build_large_project_fixture.py",
     "scripts/ux_demo_prepare_shares.py",
@@ -358,3 +360,48 @@ def test_playwright_summary_reads_the_report_configured_for_its_matrix_job() -> 
 
     assert '--report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"' in summary["run"]
     assert "--report gui/web/playwright-report/main.json" not in summary["run"]
+
+
+def _ci_body_targets() -> set[str]:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    body = re.search(r"^ci-body:(.*)$", makefile, re.M)
+    assert body is not None
+    return set(body.group(1).split())
+
+
+def test_required_checks_table_in_docs_is_current() -> None:
+    assert cp.sync_required_checks_docs(ROOT, write=False) == []
+
+
+def test_required_checks_table_rewrites_a_stale_embed(tmp_path: Path) -> None:
+    for relative in cp.REQUIRED_CHECKS_DOCS:
+        doc = tmp_path / relative
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text(f"intro\n{cp.REQUIRED_CHECKS_BEGIN}\nold\n{cp.REQUIRED_CHECKS_END}\ntail\n")
+    assert cp.sync_required_checks_docs(tmp_path, write=True) == list(cp.REQUIRED_CHECKS_DOCS)
+    assert cp.sync_required_checks_docs(tmp_path, write=False) == []
+    text = (tmp_path / cp.REQUIRED_CHECKS_DOCS[0]).read_text()
+    assert text.startswith("intro\n") and text.endswith("tail\n")
+    assert "| `gitleaks-history` | `secret-scan.yml` |" in text
+
+
+def test_required_checks_embed_needs_both_markers() -> None:
+    with pytest.raises(ValueError, match="missing"):
+        cp.embed_required_checks("no markers here")
+
+
+def test_make_ci_body_is_the_union_of_the_local_mirrors() -> None:
+    mirrored = {target for check in cp.REQUIRED_CHECKS for target in check.local}
+    assert mirrored == _ci_body_targets()
+
+
+def test_every_required_check_is_a_job_in_its_workflow() -> None:
+    for check in cp.REQUIRED_CHECKS:
+        workflow = load_github_yaml(ROOT / ".github" / "workflows" / check.workflow)
+        job = workflow["jobs"][check.job]
+        assert job.get("name", check.job) == check.name
+
+
+def test_the_merge_gate_reads_the_same_required_checks() -> None:
+    gate = load_script("poteto_issue_gate")
+    assert gate.REQUIRED_CHECKS == tuple(check.name for check in cp.REQUIRED_CHECKS)
