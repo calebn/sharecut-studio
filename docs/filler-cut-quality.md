@@ -62,7 +62,7 @@ their existing mutation. Exact-range and ordinary source proposals are measured 
 publication; uncertain edges retain their selected bounds and an `acoustic_review`
 reason. These annotations are observations, never application clearance.
 
-`cut_safety.CUT_ACTION_TABLE` maps each sound or safety-observation label and the
+`cut_policy.CUT_ACTION_TABLE` maps each sound or safety-observation label and the
 time-behavior mode to an action. Ripple maps to `ripple`; time-preserving `GAP` trims
 and `MUTE` edits map to `mute`. Sound rows keep the current default actions and their
 proposal review metadata. Fresh breath, peer, join and source-placement observations

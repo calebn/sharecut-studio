@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.config import join_micro_fade_ms
-from podcast_mcp.edits import cut_safety
+from podcast_mcp.edits import cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.cut_quality import (
     post_pad_fade_in_bounds_ms,
@@ -73,7 +73,7 @@ class _CutPlan:
 
     start: float
     end: float
-    join: cut_safety.CutJoin
+    join: cut_policy.CutJoin
     pad: PacedPad | None = None
     # Where a plosive burst begins, once the right edge has been fitted to the next
     # word's onset; the decision carries it so the fade-in after the cut ends before it.
@@ -90,13 +90,13 @@ class _CutPlan:
         cls, start: float, end: float, *, mute: bool, pad: PacedPad | None, reason: str
     ) -> _CutPlan:
         """The plan for a ripple (``pad`` from pacing) or a mute."""
-        policy = cut_safety.sound_policy(reason, "mute" if mute else "ripple")
+        policy = cut_policy.sound_policy(reason, "mute" if mute else "ripple")
         assert policy is not None
-        if policy.join is cut_safety.CutJoin.MUTE:
+        if policy.join is cut_policy.CutJoin.MUTE:
             return cls(start, end, policy.join)
         if pad is None or pad.seconds(start, end) <= 0:
-            return cls(start, end, cut_safety.CutJoin.SPLICE)
-        return cls(start, end, cut_safety.CutJoin.PADDED, pad)
+            return cls(start, end, cut_policy.CutJoin.SPLICE)
+        return cls(start, end, cut_policy.CutJoin.PADDED, pad)
 
     @property
     def replace_gap_sec(self) -> float | None:
@@ -105,8 +105,8 @@ class _CutPlan:
         return self.pad.seconds(self.start, self.end)
 
     @property
-    def checks(self) -> cut_safety.CutEdgeChecks:
-        return cut_safety.CUT_EDGE_CHECKS[self.join]
+    def checks(self) -> cut_policy.CutEdgeChecks:
+        return cut_policy.CUT_EDGE_CHECKS[self.join]
 
 
 # The right edge of a padded cut or a mute stops this far before the next word's

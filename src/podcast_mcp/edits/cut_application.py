@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config import EffectiveConfig
-from podcast_mcp.edits import cut_safety
+from podcast_mcp.edits import cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.clips_ops import (
@@ -104,13 +104,13 @@ def _completed_holds(
     manual_ids: frozenset[str] = frozenset(),
     pauses: Mapping[str, cut_safety.HeldPause | cut_safety.CutRejected | None] | None = None,
     contributors_by_clip: Mapping[str, frozenset[str]] | None = None,
-    join: cut_safety.CutJoin | None = None,
+    join: cut_policy.CutJoin | None = None,
     observation: cut_safety.SourceCutObservations | None = None,
     pads: Sequence[cut_safety.PadEffect] = (),
     peers: cut_safety.PeerObservations | None = None,
     owned: bool = True,
     exact_ranges: Mapping[str, ExactRangeTarget] | None = None,
-    mode: cut_safety.CutMode | None = None,
+    mode: cut_policy.CutMode | None = None,
 ) -> list[cut_safety.CutScopeHold]:
     placement = [
         hold
@@ -133,9 +133,9 @@ def _completed_holds(
             peers, edit_id=next(iter(ids)), manual=ids <= manual_ids, owned=owned
         )
         edit = next((item for item in before.edit_decisions if item.id in ids), None)
-        peer_mode = mode or (cut_safety.edit_time_behavior(edit) if edit is not None else "ripple")
+        peer_mode = mode or (cut_policy.edit_time_behavior(edit) if edit is not None else "ripple")
         if isinstance(peer, CutSpeechConfirmation):
-            policy = cut_safety.action_for_safety_observation("peer_speech", peer_mode)
+            policy = cut_policy.action_for_safety_observation("peer_speech", peer_mode)
             if policy.action == "review":
                 raise UnconfirmedCutSpeech(peer)
         elif peer is not None:
@@ -456,7 +456,7 @@ def _apply_source_remove(
             defaults=defaults,
             manual_ids=ids if manual else frozenset(),
             pauses={edit.id: observation.pause},
-            join=cut_safety.CutJoin.PADDED if actual.replace_gap_sec else cut_safety.CutJoin.SPLICE,
+            join=cut_policy.CutJoin.PADDED if actual.replace_gap_sec else cut_policy.CutJoin.SPLICE,
             observation=observation,
             pads=pads,
             peers=observation.peers,

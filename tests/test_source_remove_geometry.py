@@ -10,7 +10,7 @@ import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits import cut_safety
+from podcast_mcp.edits import cut_policy, cut_safety
 from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
@@ -200,15 +200,15 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
     files = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     if operation == "extension":
         key = ("breath_edge", "mute")
-        policy = cut_safety.CUT_ACTION_TABLE[key]
-        monkeypatch.delitem(cut_safety.CUT_ACTION_TABLE, key)
+        policy = cut_policy.CUT_ACTION_TABLE[key]
+        monkeypatch.delitem(cut_policy.CUT_ACTION_TABLE, key)
         with pytest.raises(KeyError, match="breath_edge"):
             apply()
         assert ws.project.model_dump(mode="json") == before
         assert {
             p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
         } == files
-        monkeypatch.setitem(cut_safety.CUT_ACTION_TABLE, key, policy)
+        monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, key, policy)
     if operation in {"extension", "live_plan"}:
         with pytest.raises(ScopeChangedAtApproval, match="held edges"):
             apply()
@@ -1275,13 +1275,13 @@ def test_apply_reassesses_real_sabotage_after_offer(
     }
     if sabotage == "placement":
         key = ("source_geometry", "mute")
-        policy = cut_safety.CUT_ACTION_TABLE[key]
-        monkeypatch.delitem(cut_safety.CUT_ACTION_TABLE, key)
+        policy = cut_policy.CUT_ACTION_TABLE[key]
+        monkeypatch.delitem(cut_policy.CUT_ACTION_TABLE, key)
         with pytest.raises(KeyError, match="source_geometry"):
             EditService(ws).approve([proposal.id])
         assert ws.path.read_bytes() == before
         assert ws.project.model_dump(mode="json") == before_model
-        monkeypatch.setitem(cut_safety.CUT_ACTION_TABLE, key, policy)
+        monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, key, policy)
     with pytest.raises(ScopeChangedAtApproval) as held:
         EditService(ws).approve([proposal.id])
     assert held.value.held[0].reason == reason

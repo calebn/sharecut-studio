@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits.cut_safety import (
+from podcast_mcp.edits.cut_policy import (
     CUT_ACTION_TABLE,
     SUGGESTED_ACTIONS,
     sound_kind,

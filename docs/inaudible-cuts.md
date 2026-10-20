@@ -338,7 +338,7 @@ peer tracks' voiced runs from the shared audio caches instead.
 
 ### Cut-policy ownership
 
-`edits/cut_safety.py` owns proposed-join assessment, breath protection, peer-speech
+`edits/cut_policy.py` owns the pure action table (join kinds, edge checks, which sound labels cut, shorten, lower or leave). `edits/cut_safety.py` owns proposed-join assessment, breath protection, peer-speech
 disposition, current source-placement validation, and original-recording pad eligibility.
 The detector modules supply measurements. Held application measures fixed edges without
 another optimizer. The current checked-geometry implementation is transitional. It does

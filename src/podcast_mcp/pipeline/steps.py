@@ -482,7 +482,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
     on).  Cuts the speech guard would hold apply as the session ripple and the summary
     counts them, so a pipeline run and Studio's Apply suggested actions agree.
     """
-    from podcast_mcp.edits.cut_safety import decision_policy, is_non_speech_sound
+    from podcast_mcp.edits.cut_policy import decision_policy, is_non_speech_sound
     from podcast_mcp.edits.suggested_actions import (
         SuggestedActionsResult,
         drop_decided_sounds,

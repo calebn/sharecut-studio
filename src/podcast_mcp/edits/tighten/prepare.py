@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from podcast_mcp.edits import cut_safety
+from podcast_mcp.edits import cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import (
     PauseAirSkip,
@@ -435,7 +435,7 @@ def _prepare_candidate(
     # ("very very"), a phrase restart can change meaning if the repair is
     # mistaken for the reparandum, and voiced energy in an ASR gap may be a
     # breath, laugh, or missed word rather than a filler.
-    policy = cut_safety.sound_policy(candidate.reason, "mute" if mute_mode else "ripple")
+    policy = cut_policy.sound_policy(candidate.reason, "mute" if mute_mode else "ripple")
     assert policy is not None
     review_required = candidate.review_only or policy.proposal_review
     if (gated.guard and gated.guard.blocked) or (not mute_mode and resolved.scope == "track"):
@@ -512,7 +512,7 @@ def _finish_candidate(
             if candidate.cut_kind == "pause":
                 return CutRejected("join_continuity")
 
-    mute = plan.join is cut_safety.CutJoin.MUTE
+    mute = plan.join is cut_policy.CutJoin.MUTE
     if mute:
         # Approval fades the clip into the hole as a padded cut fades into its pad.
         fade_ms = int(tighten.get("filler_pre_pad_fade_out_ms", 5))
