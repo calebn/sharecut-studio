@@ -405,6 +405,14 @@ z-index. Without the Popover API (see [gui-mobile.md](gui-mobile.md#menu-popover
 the body-level toast stays above the body-level menu because `--z-toast` is
 above `--z-menu`.
 
+A `Dialog` that sits beside its trigger (the join editor, `CreateMenu`,
+`TargetChooser`) is also a manual `popover` in the top layer, placed by
+`ui/useAnchoredPanel.ts` through `ui/useTopLayerPanel.ts`, so it draws above the
+timeline and the sheet host without a z-index and goes through
+`ui/topLayerFloor.ts` like a Menu panel. Every top-layer panel registers with
+`ui/modalGate.ts`, which is why one `overlayOpen()` predicate answers for menus
+and dialogs alike.
+
 ### Menu placement
 
 `--menu-edge-margin` is the clear space a Menu panel keeps from every edge of

@@ -130,12 +130,19 @@ There are three overlay primitives.
    scrolling body, and a footer with the primary and secondary actions
    ([`docs/gui-mobile.md` § Selection sheet: three zones](gui-mobile.md#selection-sheet-three-zones)).
    Doing controls never sit in the top zone.
-3. **One gate for shortcuts.** While any overlay is open, the keymap runs only
-   the overlay's handoff list (`ui/modalGate.ts`) and Escape. The listener
+3. **One gate for shortcuts.** `overlayOpen()` in `ui/modalGate.ts` is the
+   only predicate. While a menu is open the keymap runs nothing; while a
+   dialog is open it runs only the handoff list the dialog declared with
+   `modalGate` (`shortcuts`), and Escape belongs to the overlay. The listener
    does not keep its own list of dialogs.
 4. **Dismissal is the same everywhere.** Escape, the Close button and a tap on
    the scrim all cancel. Focus returns to the control that opened the overlay.
-5. **Confirms say the consequence.** The primary names the outcome ("Remove
+5. **One confirm primitive each.** `askConfirm` is the only confirm dialog
+   and `InlineConfirm` the only in-place confirm. The blade cut confirms
+   through `askConfirm` on phone and tablet. A dialog that must stay centered
+   passes `centeredReason`; a dialog anchored beside its control (the join
+   editor) passes `anchor` with a reason.
+6. **Confirms say the consequence.** The primary names the outcome ("Remove
    track"), the secondary is "Keep", and the body names what is lost. A
    `window.confirm` fails lint (`no-alert`).
 
@@ -293,10 +300,6 @@ consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
-| Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` are hand-rolled `role="menu"` outside the top layer; desktop has no right-click menu (`hooks/useLongPress.ts` only suppresses the native one). |
-| Dialogs: sheet on phone | `Dialog` sheets only with `phoneSheet`; Bounce, Host MCP, Help, Gestures, Record, Precision, Whisper and pipeline step params center on phone. |
-| Dialogs: one gate | `keymap/listener.ts` early returns, `ui/modalGate.ts` and `competingDialogOpen` cover different dialogs. |
-| Confirms: one primitive | `askConfirm`, `InlineConfirm`, the blade `BottomSheet` and the Whisper `Dialog` are four. |
 | Names: one label | Select / Select tool, Search commands / Commands and shortcuts, Zoom − / Zoom out. |
 | Shells: bottom zone for doing | The tablet Select range instruction card with In, Out and Select range sits at the top. |
 | Touch: one grammar across `src/` | The governance scan walks `timeline/` only; comment swipe, splitter, reorder grip, fader and ruler keep their own gestures. |
