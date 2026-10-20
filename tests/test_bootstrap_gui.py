@@ -175,7 +175,7 @@ def test_run_bootstrap_default_never_pulls_word_aligner(monkeypatch) -> None:
 
 def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import shared_bootstrap_job_manager
+    from podcast_mcp.services.jobs import shared_job_manager
 
     def fake_run(components=None, *, whisper_model=None, force=False, progress=None):
         if progress is not None:
@@ -191,8 +191,8 @@ def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
             "optional_components": ["rnnoise"],
         }
 
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", fake_run)
-    shared_bootstrap_job_manager(reset=True)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
+    shared_job_manager(reset=True)
     client = TestClient(create_app())
 
     started = client.post("/api/bootstrap/run", json={"components": ["word-aligner"]})
@@ -251,7 +251,7 @@ def test_gui_bootstrap_status_reports_cdn_base(
 
 def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import shared_bootstrap_job_manager
+    from podcast_mcp.services.jobs import shared_job_manager
 
     def fake_status(whisper_model: str | None = None):
         return {
@@ -282,8 +282,8 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
         }
 
     monkeypatch.setattr("podcast_mcp.gui.routes.bootstrap.component_status", fake_status)
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", fake_run)
-    shared_bootstrap_job_manager(reset=True)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
+    shared_job_manager(reset=True)
     client = TestClient(create_app())
 
     status = client.get("/api/bootstrap/status")
@@ -314,10 +314,10 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
 
 def test_gui_bootstrap_rejects_unknown_whisper_model(tmp_path, monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import shared_bootstrap_job_manager
+    from podcast_mcp.services.jobs import shared_job_manager
 
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    shared_bootstrap_job_manager(reset=True)
+    shared_job_manager(reset=True)
     client = TestClient(create_app())
     bad = client.post(
         "/api/bootstrap/run",
@@ -330,7 +330,7 @@ def test_gui_bootstrap_rejects_unknown_whisper_model(tmp_path, monkeypatch) -> N
 
 def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import shared_bootstrap_job_manager
+    from podcast_mcp.services.jobs import shared_job_manager
 
     gate = __import__("threading").Event()
 
@@ -350,8 +350,8 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
         "podcast_mcp.gui.routes.bootstrap.component_status",
         lambda whisper_model=None: {"ready": False, "components": {}, "default_components": []},
     )
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", slow_run)
-    shared_bootstrap_job_manager(reset=True)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", slow_run)
+    shared_job_manager(reset=True)
     client = TestClient(create_app())
 
     started = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
@@ -388,7 +388,7 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
     import json
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import shared_bootstrap_job_manager
+    from podcast_mcp.services.jobs import shared_job_manager
 
     def fake_run(components=None, *, whisper_model=None, force=False, progress=None):
         if progress is not None:
@@ -410,8 +410,8 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
         "podcast_mcp.gui.routes.bootstrap.component_status",
         lambda whisper_model=None: {"ready": False, "components": {}, "default_components": []},
     )
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", fake_run)
-    shared_bootstrap_job_manager(reset=True)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
+    shared_job_manager(reset=True)
     client = TestClient(create_app())
 
     missing = client.get("/api/bootstrap/events?job_id=nope")
@@ -432,16 +432,16 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
 
 def test_gui_bootstrap_run_value_error(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import BootstrapJobManager
+    from podcast_mcp.services.jobs import JobManager
 
-    mgr = BootstrapJobManager()
+    mgr = JobManager()
 
     def boom(**_kwargs):
         raise ValueError("bad components")
 
-    monkeypatch.setattr(mgr, "start", boom)
+    monkeypatch.setattr(mgr, "start_bootstrap", boom)
     app = create_app()
-    app.state.bootstrap_jobs = mgr
+    app.state.jobs = mgr
     client = TestClient(app)
     res = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert res.status_code == 400
@@ -450,7 +450,7 @@ def test_gui_bootstrap_run_value_error(monkeypatch) -> None:
 
 def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import shared_bootstrap_job_manager
+    from podcast_mcp.services.jobs import shared_job_manager
 
     def fail_run(components=None, *, whisper_model=None, force=False, progress=None):
         return {
@@ -467,8 +467,8 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
         "podcast_mcp.gui.routes.bootstrap.component_status",
         lambda whisper_model=None: {"ready": False, "components": {}, "default_components": []},
     )
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", fail_run)
-    shared_bootstrap_job_manager(reset=True)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fail_run)
+    shared_job_manager(reset=True)
     client = TestClient(create_app())
 
     started = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
@@ -509,7 +509,7 @@ def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
 
 def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.jobs import shared_bootstrap_job_manager
+    from podcast_mcp.services.jobs import shared_job_manager
 
     recorded: dict[str, object] = {}
 
@@ -544,8 +544,8 @@ def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
         }
 
     monkeypatch.setattr("podcast_mcp.gui.routes.bootstrap.component_status", fake_status)
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", fake_run)
-    shared_bootstrap_job_manager(reset=True)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
+    shared_job_manager(reset=True)
     client = TestClient(create_app())
 
     started = client.post(

@@ -30,8 +30,9 @@ from podcast_mcp.services.media import (
     SpeakerService,
     coerce_enrollment,
 )
-from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.pipeline import PipelineService, run_bootstrap
 from podcast_mcp.util.progress import bind_progress
+from podcast_mcp.whisper_models import resolve_whisper_model
 
 
 class JobManager:
@@ -251,6 +252,99 @@ class JobManager:
             job.cancel_requested = True
             job.message = "Cancel requested…"
             return job
+
+    def start_bootstrap(
+        self,
+        *,
+        components: list[str] | None = None,
+        whisper_model: str | None = None,
+        force: bool = False,
+    ) -> Job:
+        """First-run model download in the second slot: at most one, independent of ``_spawn``."""
+        model = resolve_whisper_model(requested=whisper_model)
+        with self._catalog._lock:
+            current = self._catalog._bootstrap_job
+            if current is not None and current.status in LIVE_JOB_STATUSES:
+                running = ", ".join(current.components) or "setup"
+                raise JobSlotBusyError(
+                    f"Another download is already running ({running}); try again when it finishes"
+                )
+            if current is not None and current.status in TERMINAL_JOB_STATUSES:
+                self._catalog._bootstrap_finished[current.id] = current
+            job = Job.bootstrap(
+                uuid.uuid4().hex[:12],
+                list(components) if components else [],
+                whisper_model=model,
+                force=force,
+            )
+            self._catalog._bootstrap_job = job
+
+        thread = threading.Thread(
+            target=self._run_bootstrap_job,
+            args=(job,),
+            daemon=True,
+            name=f"bootstrap-job-{job.id}",
+        )
+        thread.start()
+        return job
+
+    def get_bootstrap_job(self, job_id: str | None = None) -> Job | None:
+        return self._catalog.get_bootstrap_job(job_id)
+
+    def cancel_bootstrap(self, job_id: str | None = None) -> Job | None:
+        with self._catalog._lock:
+            job = self._catalog._bootstrap_job
+            if job is None:
+                return None
+            if job_id is not None and job.id != job_id:
+                return None
+            if job.status not in LIVE_JOB_STATUSES:
+                return job
+            job.cancel_requested = True
+            job.message = "Cancel requested…"
+            return job
+
+    def _run_bootstrap_job(self, job: Job) -> None:
+        job.status = "running"
+        job.started_at = time.monotonic()
+        job.publish({"type": "status", "job": job.snapshot()})
+        reporter = JobProgressReporter(job)
+        try:
+            if job.cancel_requested:
+                raise RuntimeError("cancelled")
+            result = run_bootstrap(
+                job.components or None,
+                whisper_model=job.whisper_model,
+                force=job.force,
+                progress=reporter,
+            )
+            with job._lock:
+                if job.cancel_requested:
+                    job.status = "cancelled"
+                    job.message = cancelled_copy(job.kind)
+                elif not result.get("ok", False):
+                    job.status = "error"
+                    failed = [
+                        f"{name}: {info.get('error')}"
+                        for name, info in (result.get("results") or {}).items()
+                        if isinstance(info, dict) and not info.get("ok", True)
+                    ]
+                    job.error = "; ".join(failed) or "Bootstrap failed"
+                    job.message = job.error
+                else:
+                    job.status = "ok"
+                    job.message = "Bootstrap complete"
+                job.result = result
+                job.finished_at = time.monotonic()
+        except Exception as exc:
+            with job._lock:
+                job.status = "cancelled" if job.cancel_requested else "error"
+                job.error = str(exc)
+                job.message = str(exc)
+                job.finished_at = time.monotonic()
+        finally:
+            reporter.close()
+        job.publish({"type": "done", "job": job.snapshot()})
 
     def _spawn(
         self,

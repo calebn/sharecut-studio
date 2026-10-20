@@ -332,7 +332,7 @@ def test_bootstrap_run_refusals(bootstrap_client, monkeypatch):
     def busy(*_a, **_k):
         raise RuntimeError("already running")
 
-    monkeypatch.setattr(mod.BootstrapJobManager, "start", busy)
+    monkeypatch.setattr(mod.JobManager, "start_bootstrap", busy)
     _assert(bootstrap_client.post("/api/bootstrap/run", json={}), 409, "bootstrap_job_running")
 
 

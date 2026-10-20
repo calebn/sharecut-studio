@@ -7,7 +7,6 @@ import pytest
 from job_event_helpers import JobEventTap
 from podcast_mcp.services.jobs import Job, JobManager, StepTiming
 from podcast_mcp.services.jobs.reporter import (
-    BootstrapProgressReporter,
     JobProgressReporter,
     SsePublishReporter,
 )
@@ -93,7 +92,7 @@ def test_job_progress_reporter_child_fail_does_not_mark_pipeline_step() -> None:
 
 def test_bootstrap_progress_reporter_fail_and_cancel() -> None:
     job = Job.bootstrap("b1", ["whisper"])
-    reporter = BootstrapProgressReporter(job)
+    reporter = JobProgressReporter(job)
     reporter.start("bootstrap", "Bootstrap", total=3)
     reporter.update("bootstrap", 1, message="downloading", phase="fetch")
     reporter.message("bootstrap", "still going", phase="fetch")
@@ -476,38 +475,38 @@ def test_register_task_moves_reregistered_id_innermost() -> None:
 
 
 def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
-    from podcast_mcp.services.jobs import BootstrapJobManager
+    from podcast_mcp.services.jobs import JobManager
 
-    mgr = BootstrapJobManager()
-    assert mgr.cancel() is None
-    assert mgr.get_job() is None
+    mgr = JobManager()
+    assert mgr.cancel_bootstrap() is None
+    assert mgr.get_bootstrap_job() is None
 
     job = Job.bootstrap("b2", ["whisper"])
     job.status = "running"
-    mgr._job = job
-    assert mgr.get_job() is job
-    assert mgr.get_job("b2") is job
-    assert mgr.cancel("nope") is None
-    assert mgr.cancel("b2") is job
+    mgr._catalog._bootstrap_job = job
+    assert mgr.get_bootstrap_job() is job
+    assert mgr.get_bootstrap_job("b2") is job
+    assert mgr.cancel_bootstrap("nope") is None
+    assert mgr.cancel_bootstrap("b2") is job
     assert job.cancel_requested is True
 
     done = Job.bootstrap("b3", ["whisper"])
     done.status = "ok"
-    mgr._job = done
-    assert mgr.cancel("b3") is done
-    assert mgr.get_job("missing") is None
+    mgr._catalog._bootstrap_job = done
+    assert mgr.cancel_bootstrap("b3") is done
+    assert mgr.get_bootstrap_job("missing") is None
 
     pre = Job.bootstrap("b-pre", ["whisper"])
     pre.cancel_requested = True
-    mgr._run_job(pre)
+    mgr._run_bootstrap_job(pre)
     assert pre.status == "cancelled"
 
     def boom(*_a, **_k):
         raise RuntimeError("bootstrap exploded")
 
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", boom)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", boom)
     err_job = Job.bootstrap("b4", ["whisper"])
-    mgr._run_job(err_job)
+    mgr._run_bootstrap_job(err_job)
     assert err_job.status == "error"
     assert "exploded" in (err_job.error or "")
 
@@ -587,17 +586,17 @@ def test_gui_sse_progress_sink_skips_without_listener() -> None:
 
 
 def test_bootstrap_result_not_ok(monkeypatch) -> None:
-    from podcast_mcp.services.jobs import BootstrapJobManager
+    from podcast_mcp.services.jobs import JobManager
 
     monkeypatch.setattr(
-        "podcast_mcp.services.jobs.bootstrap.run_bootstrap",
+        "podcast_mcp.services.jobs.manager.run_bootstrap",
         lambda *_a, **_k: {
             "ok": False,
             "results": {"whisper": {"ok": False, "error": "model download failed"}},
         },
     )
     job = Job.bootstrap("b-fail", ["whisper"])
-    BootstrapJobManager()._run_job(job)
+    JobManager()._run_bootstrap_job(job)
     assert job.status == "error"
     assert "model download failed" in (job.error or "")
 
