@@ -3,6 +3,9 @@
  * router and its contract, not in each timeline component. These scans fail
  * when a component under `timeline/` grows its own touch handling, a pointer
  * handler on an element the router cannot see, or its own arrow-key edits.
+ * The last scan walks all of `gui/web/src/` (#1795): any other file that owns
+ * a pointer press, touch, slider or drag handle must be a surface that keeps
+ * its own gesture, with the decision it keeps written beside it.
  * Follows `commands/governance.test.ts`; an allowlist entry needs a reason.
  */
 import { readFileSync } from "node:fs";
@@ -182,6 +185,121 @@ describe("gesture package governance", () => {
     expect(denied).toEqual([]);
     expect(pressUsers).toEqual(PRESS_LIBRARY_USERS);
   }, 30_000);
+});
+
+/**
+ * Surfaces outside `timeline/` that keep their own gesture, and the decision
+ * each keeps. A gesture here is not in the hit router's grammar on purpose:
+ * it moves a control, not a timeline target. A new surface with its own
+ * gesture adds a line here, or routes through `commands/gestures.ts`.
+ */
+const SURFACE_GESTURES: Record<string, string> = {
+  "comments/CommentCard.tsx":
+    "comment swipe: a left swipe resolves an open comment for hosts (the Swipe left on comment row in commands/gestures.ts); long-press opens the inspector",
+  "hooks/useSwipeLeft.ts":
+    "comment swipe: the horizontal-intent and distance thresholds for the comment card's swipe",
+  "hooks/useLongPress.ts":
+    "one long-press timing for comment cards, track headers and transcript words (gestureConstants)",
+  "hooks/useTwoFingerTap.ts":
+    "two-finger tap is Undo (the Two-finger tap row in commands/gestures.ts), read from window pointers",
+  "hooks/useHoldRepeat.ts":
+    "a held step button repeats with the nudge timing; a keyboard click steps once",
+  "hooks/usePointerType.ts":
+    "reads the last pointer kind to pick touch or mouse copy; it starts no gesture",
+  "hooks/useUserScrollIntent.ts":
+    "tells a wheel or press scroll from the follow-playhead scroll; it starts no gesture",
+  "hooks/useTimelineFocusRegion.ts":
+    "a mousedown inside the timeline or a panel sets which one keys address; it starts no gesture",
+  "hooks/useCommitRange.ts":
+    "slider commit: a drag previews locally and saves one value on release",
+  "feedback/FeedbackToast.tsx":
+    "a press outside a toast dismisses it; it starts no gesture",
+  "ui/useOutsidePointerDown.ts":
+    "a press outside an open popover closes it; it starts no gesture",
+  "ui/Menu.tsx":
+    "a press on an open menu's trigger keeps focus there instead of closing and reopening it; menu items take presses as plain buttons",
+  "ui/useDrawerSwipe.ts":
+    "sheet drag: the grabber drags a bottom sheet between detents; a range input under it keeps the keyboard and screen reader path",
+  "ui/BottomSheet.tsx":
+    "the detent slider under the grabber is the keyboard and screen reader path to the same detents",
+  "layout/CollapsedDrawerHandle.tsx":
+    "reopen swipe: a drag up on the collapsed drawer handle reopens the drawer, and a press does the same",
+  "layout/BottomTabsSplitterView.tsx":
+    "splitter: a drag resizes the bottom tabs; arrow keys and the size buttons do the same by key",
+  "layout/ListenPlayhead.tsx":
+    "Listen scrub: a native range input seeks the playhead; it is not a timeline target",
+  "tracks/TrackFaderView.tsx":
+    "fader: a native range input previews its gain and saves one track volume on release (useCommitRange)",
+  "tracks/TrackHeaderView.tsx":
+    "reorder grip: the draggable handle moves a track by HTML drag, and the Move up and Move down commands do the same by key",
+  "inspector/useNudgeRun.ts":
+    "a held nudge button steps the selected clip and saves one run edit on release",
+  "inspector/views/ClipInspector.tsx":
+    "a press on the nudge buttons cancels a pending clip placement first; the nudge itself runs through useNudgeRun",
+  "panels/TranscriptPanel.tsx":
+    "transcript words: long-press and drag select a range in Select mode (the Hold a word, then drag row in commands/gestures.ts)",
+  "transcript/useWordRangeDrag.ts":
+    "transcript words: the hold-then-drag range gesture, armed by the long-press timing",
+  "transcript/EditBoundaryMarkView.tsx":
+    "the transcript edit-boundary mark drags a cut's gap with pointer capture, the same roll as edit.rollClipJoin",
+  "transcript/TranscriptWordbar.tsx":
+    "the word-boundary sliders preview a word's timing and save one adjustment on release",
+  "presence/usePresenceCursorSource.ts":
+    "reads the pointer to publish a presence cursor; it starts no gesture",
+};
+
+/** A file that owns a pointer press, touch, slider, drag handle or capture. */
+const OWNS_GESTURE =
+  /\bon(Touch(Start|Move|End|Cancel)|Pointer(Down|Move|Up|Cancel)(Capture)?)\b\s*[=:(]|\bonDragStart\s*=|\bdraggable\b|type="range"|setPointerCapture|addEventListener\(\s*["'](touch|pointer|mouse)(start|down|move|up|end|cancel)|pointerType\s*[!=]==\s*["']touch["']|pointerType:\s*["']touch["']/;
+
+/** Arrow keys outside `timeline/`, and why they are not a timeline edit. */
+const SRC_ARROW_ALLOWLIST: Record<string, string> = {
+  "commands/focusedClipHandle.ts":
+    "the focused-handle registry the timeline's arrow edits run through",
+  "keymap/registry.ts": "the keymap rows that bind the arrows",
+  "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",
+  "ui/useMenuKeyboard.ts": "arrows step through the items of an open menu",
+};
+
+function srcSources() {
+  return [...sourceFiles()].filter(
+    ({ rel }) =>
+      !/\.(test|stories)\./.test(rel) &&
+      !rel.startsWith("test/") &&
+      !rel.startsWith("timeline/"),
+  );
+}
+
+describe("gesture governance across src", () => {
+  it("lists every surface outside timeline/ that keeps its own gesture", () => {
+    const owners = srcSources()
+      .filter(({ text }) => OWNS_GESTURE.test(text))
+      .map(({ rel }) => rel)
+      .sort();
+    expect(owners).toEqual(Object.keys(SURFACE_GESTURES).sort());
+  });
+
+  it("states a decision for each surface", () => {
+    for (const [rel, decision] of Object.entries(SURFACE_GESTURES)) {
+      expect(decision.length, rel).toBeGreaterThan(30);
+    }
+  });
+
+  it("keeps arrow-key edits out of src files that are not widgets or the keymap", () => {
+    const offenders = srcSources()
+      .filter(({ text }) => /["']Arrow(Left|Right)["']/.test(text))
+      .map(({ rel }) => rel)
+      .filter((rel) => !(rel in SRC_ARROW_ALLOWLIST));
+    expect(offenders).toEqual([]);
+    const stale = Object.keys(SRC_ARROW_ALLOWLIST).filter(
+      (rel) =>
+        !srcSources().some(
+          ({ rel: found, text }) =>
+            found === rel && /["']Arrow(Left|Right)["']/.test(text),
+        ),
+    );
+    expect(stale).toEqual([]);
+  });
 });
 
 describe("timeline gesture governance", () => {
