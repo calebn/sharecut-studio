@@ -822,6 +822,51 @@ describe("BottomSheet", () => {
         grid.remove();
       });
 
+      it("keeps the body's scroll offset and reveals the focused field across a flip", async () => {
+        const grid = shell();
+        const { rerender } = render(sheet("sheet"));
+        const input = screen.getByLabelText("Gain");
+        const body = document.querySelector<HTMLElement>(".bottom-sheet-body");
+        if (!body) throw new Error("no sheet body");
+        let top = 0;
+        Object.defineProperty(body, "scrollTop", {
+          configurable: true,
+          get: () => top,
+          set: (value: number) => {
+            top = value;
+          },
+        });
+        const resetOnMove = (original: (...nodes: Node[]) => void) =>
+          function (this: Element, ...nodes: Node[]) {
+            original.apply(this, nodes);
+            if (nodes.includes(body.parentElement?.parentElement as Node))
+              top = 0;
+          };
+        const after = Element.prototype.after;
+        const append = Element.prototype.append;
+        Element.prototype.after = resetOnMove(after);
+        Element.prototype.append = resetOnMove(append);
+        try {
+          await waitFor(() =>
+            expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+          );
+          input.focus();
+          top = 140;
+
+          rerender(sheet("column"));
+          expect(input).toHaveFocus();
+          expect(top).toBe(140);
+
+          rerender(sheet("sheet"));
+          expect(input).toHaveFocus();
+          expect(top).toBe(140);
+        } finally {
+          Element.prototype.after = after;
+          Element.prototype.append = append;
+          grid.remove();
+        }
+      });
+
       it("returns focus to the opener on Close after a flip", async () => {
         const grid = shell();
         function Host({ placement }: { placement: "sheet" | "column" }) {
