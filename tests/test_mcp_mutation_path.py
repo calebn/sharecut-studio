@@ -56,8 +56,6 @@ _DIRECT_MUTATIONS = frozenset(
         "apply_suggested_actions",
         "apply_transcript_cleanup",
         "approve",
-        "correct_phrase",
-        "correct_word",
         "crossfade_joins",
         "cut_range",
         "cut_text_match",
@@ -79,9 +77,6 @@ _DIRECT_MUTATIONS = frozenset(
         "set_bleed_alignment_mode",
         "set_clip_fade",
         "set_effect_bypass",
-        "set_word_automatic",
-        "set_word_suppressed",
-        "set_words_ignored",
         "shorten_word_gaps",
         "strip_silence",
         "trim_clip_edge",
@@ -91,7 +86,7 @@ _DIRECT_MUTATIONS = frozenset(
         "verify_transcript",
     }
 )
-_DIRECT_MUTATIONS_SIZE = 42
+_DIRECT_MUTATIONS_SIZE = 37
 
 
 def _is_edit_service(node: ast.AST) -> bool:

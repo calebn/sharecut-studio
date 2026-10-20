@@ -580,12 +580,18 @@ def correct_transcript_tool(
     ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
     track recorded as several takes, and the refusal is ``word_source_required``.
     """
-    ws = ProjectWorkspace.open(project_path)
-    EditService(ws).correct_word(
-        track_id, word_index, new_text, expected_text=expected_text, source_id=source_id
-    )
     return to_json(
-        {"track_id": track_id, "source_id": source_id, "word_index": word_index, "text": new_text}
+        submit_host_command_result(
+            project_path,
+            "CorrectTranscriptWord",
+            {
+                "track_id": track_id,
+                "source_id": source_id,
+                "word_index": word_index,
+                "text": new_text,
+                "expected_text": expected_text,
+            },
+        )
     )
 
 
@@ -605,23 +611,19 @@ def correct_transcript_phrase_tool(
     ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
     track recorded as several takes, and the refusal is ``word_source_required``.
     """
-    ws = ProjectWorkspace.open(project_path)
-    EditService(ws).correct_phrase(
-        track_id,
-        start_word_index,
-        end_word_index,
-        new_text,
-        expected_text=expected_text,
-        source_id=source_id,
-    )
     return to_json(
-        {
-            "track_id": track_id,
-            "source_id": source_id,
-            "start_word_index": start_word_index,
-            "end_word_index": end_word_index,
-            "text": new_text,
-        }
+        submit_host_command_result(
+            project_path,
+            "CorrectTranscriptPhrase",
+            {
+                "track_id": track_id,
+                "source_id": source_id,
+                "start_word_index": start_word_index,
+                "end_word_index": end_word_index,
+                "text": new_text,
+                "expected_text": expected_text,
+            },
+        )
     )
 
 
@@ -640,10 +642,17 @@ def set_word_suppressed_tool(
     ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
     track recorded as several takes, and the refusal is ``word_source_required``.
     """
-    ws = ProjectWorkspace.open(project_path)
     return to_json(
-        EditService(ws).set_word_suppressed(
-            track_id, word_index, suppressed, expected_text=expected_text, source_id=source_id
+        submit_host_command_result(
+            project_path,
+            "SetTranscriptWordSuppressed",
+            {
+                "track_id": track_id,
+                "source_id": source_id,
+                "word_index": word_index,
+                "suppressed": suppressed,
+                "expected_text": expected_text,
+            },
         )
     )
 
@@ -665,10 +674,16 @@ def set_word_automatic_tool(
     ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
     track recorded as several takes, and the refusal is ``word_source_required``.
     """
-    ws = ProjectWorkspace.open(project_path)
     return to_json(
-        EditService(ws).set_word_automatic(
-            track_id, word_index, expected_text=expected_text, source_id=source_id
+        submit_host_command_result(
+            project_path,
+            "SetTranscriptWordAutomatic",
+            {
+                "track_id": track_id,
+                "source_id": source_id,
+                "word_index": word_index,
+                "expected_text": expected_text,
+            },
         )
     )
 
@@ -760,15 +775,18 @@ def set_words_ignored_tool(
     ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
     track recorded as several takes, and the refusal is ``word_source_required``.
     """
-    ws = ProjectWorkspace.open(project_path)
     return to_json(
-        EditService(ws).set_words_ignored(
-            track_id,
-            start_word_index,
-            end_word_index,
-            ignored,
-            expected_text=expected_text,
-            source_id=source_id,
+        submit_host_command_result(
+            project_path,
+            "SetTranscriptWordsIgnored",
+            {
+                "track_id": track_id,
+                "source_id": source_id,
+                "start_word_index": start_word_index,
+                "end_word_index": end_word_index,
+                "ignored": ignored,
+                "expected_text": expected_text,
+            },
         )
     )
 
