@@ -60,7 +60,8 @@ def cors_rule(origin: str) -> list[dict[str, Any]]:
 def cors_blocked_message(origin: str) -> str:
     return (
         f"Guests will hear nothing from the object store: the bucket has no CORS rule for "
-        f"{origin}. Add this rule to the bucket (GET and HEAD, Range header allowed): "
+        f"{origin}. Run `podcast relay bucket-setup` to add it, or add this rule to the bucket "
+        f"(GET and HEAD, Range header allowed): "
         f"{json.dumps(cors_rule(origin), separators=(',', ':'))}"
     )
 
