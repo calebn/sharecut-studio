@@ -326,13 +326,12 @@ def test_session_command_refused(local, minimal_project, monkeypatch):
     _assert(res, 400, "session_command_refused")
 
 
-def test_bootstrap_run_refusals(bootstrap_client, monkeypatch):
-    from podcast_mcp.gui.routes import bootstrap as mod
+def test_bootstrap_run_refusals(bootstrap_client):
+    from podcast_mcp.services.jobs import Job
 
-    def busy(*_a, **_k):
-        raise RuntimeError("already running")
-
-    monkeypatch.setattr(mod.JobManager, "start_bootstrap", busy)
+    live = Job.bootstrap("live", ["whisper"])
+    live.status = "running"
+    bootstrap_client.app.state.jobs._catalog._bootstrap_job = live
     _assert(bootstrap_client.post("/api/bootstrap/run", json={}), 409, "bootstrap_job_running")
 
 
