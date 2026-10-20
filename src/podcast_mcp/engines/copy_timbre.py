@@ -20,6 +20,7 @@ from podcast_mcp.engines.envelope_lag import (
     MIN_NULL_MARGIN,
     NULL_SHIFTS_SEC,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 TIMBRE_BAND_HZ = (80, 3000)
 TIMBRE_SMOOTH_BINS = 15
@@ -51,7 +52,10 @@ def _smoothing_matrix(bins: int) -> np.ndarray:
     each frame's row with a flat kernel in ``same`` mode, to rounding.
     """
     if TIMBRE_SMOOTH_BINS % 2 == 0:
-        raise ValueError("TIMBRE_SMOOTH_BINS must be odd: the band is centred on each bin")
+        raise CodedValueError(
+            "TIMBRE_SMOOTH_BINS must be odd: the band is centred on each bin",
+            code="invalid_arguments",
+        )
     index = np.arange(bins)
     reach = TIMBRE_SMOOTH_BINS // 2
     matrix = (np.abs(index[:, None] - index[None, :]) <= reach) / TIMBRE_SMOOTH_BINS

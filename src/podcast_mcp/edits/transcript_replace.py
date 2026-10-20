@@ -9,6 +9,7 @@ from typing import Any
 from podcast_mcp.edits.transcript_correct import build_phrase_replacement, correct_transcript_word
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _token_parts(text: str) -> tuple[str, str, str]:
@@ -62,15 +63,21 @@ def plan_transcript_replacement(
     query = tuple(_token_parts(token)[1] for token in search.split())
     new_tokens = tuple(replacement.split())
     if not query or not all(query):
-        raise ValueError("Enter a word or phrase to find.")
+        raise CodedValueError("Enter a word or phrase to find.", code="empty_text")
     if not new_tokens or not all(any(char.isalnum() for char in token) for token in new_tokens):
-        raise ValueError("Each replacement token must contain a letter or number.")
+        raise CodedValueError(
+            "Each replacement token must contain a letter or number.",
+            code="replacement_token_invalid",
+        )
     normalized = query if match_case else tuple(token.casefold() for token in query)
     matches: list[TranscriptReplacement] = []
     skipped = 0
     keys = [transcript.key for transcript in project.transcripts]
     if len(set(keys)) != len(keys):
-        raise ValueError("Transcript source identities are ambiguous; regenerate the transcript.")
+        raise CodedValueError(
+            "Transcript source identities are ambiguous; regenerate the transcript.",
+            code="transcript_source_ambiguous",
+        )
     for transcript in project.transcripts:
         words = transcript.words
         skipped += sum(bool(word.suppressed or word.ignored) for word in words)

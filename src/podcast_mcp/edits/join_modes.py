@@ -130,11 +130,13 @@ def set_clip_join(
     left, right, _, _ = neighbour_clips(project, left_clip_id, right_clip_id)
     join_mode = mode if isinstance(mode, ClipJoinMode) else ClipJoinMode(mode)
     if length_ms is not None and length_ms < 0:
-        raise ValueError("length_ms must be >= 0")
+        raise CodedValueError("length_ms must be >= 0. Pass 0 or more.", code="out_of_range")
     if join_mode == ClipJoinMode.CROSSFADE:
         ms = length_ms if length_ms is not None else default_join_length_ms(join_mode, cfg)
         if ms <= 0:
-            raise ValueError("crossfade length_ms must be > 0")
+            raise CodedValueError(
+                "crossfade length_ms must be > 0. Pass more than 0.", code="out_of_range"
+            )
         out_ms = in_ms = ms
     elif join_mode == ClipJoinMode.CUT:
         out_ms = in_ms = 0

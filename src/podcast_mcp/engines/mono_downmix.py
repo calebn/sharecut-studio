@@ -12,12 +12,13 @@ from __future__ import annotations
 import wave
 from pathlib import Path
 
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.wav import open_wav
 
 
 def channel_mean_pan_filter(channels: int) -> str:
     if channels < 1:
-        raise ValueError("channels must be >= 1")
+        raise CodedValueError("channels must be >= 1", code="invalid_arguments")
     if channels == 1:
         return "pan=mono|c0=c0"
     weight = 1.0 / channels

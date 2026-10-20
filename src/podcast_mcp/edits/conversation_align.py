@@ -58,6 +58,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.progress import resolve_progress_task
@@ -766,7 +767,10 @@ def acoustic_clip_offset(
     from podcast_mcp.engines.align import estimate_offset_from_arrays, load_mono_window
 
     if starts is not None and source_starts is not None and len(source_starts) != len(starts):
-        raise ValueError("source_starts must match starts")
+        raise CodedValueError(
+            "source_starts must match starts. Pass one source start per start.",
+            code="invalid_arguments",
+        )
     ref_dur = probe_wav_duration_sec(reference)
     src_dur = probe_wav_duration_sec(source)
     fit_dur = None

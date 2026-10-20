@@ -53,6 +53,7 @@ from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC, speech_level_db
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.models import Clip, EpisodeProject, Track
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_DB,
     LOW_BAND,
@@ -749,7 +750,10 @@ class SessionAir:
             and same_recording(media, primary)
         ]
         if len(origins) > 1:
-            raise ValueError("selected source has ambiguous primary transcript ownership")
+            raise CodedValueError(
+                "selected source has ambiguous primary transcript ownership. Regenerate the transcript for that source.",
+                code="transcript_source_ambiguous",
+            )
         if origins:
             return CutWordIndex.from_transcript(
                 self._project.transcript_for_source(origins[0], None), track_id

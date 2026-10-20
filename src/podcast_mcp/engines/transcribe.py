@@ -40,6 +40,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file, short_digest
 from podcast_mcp.util.progress import (
@@ -139,7 +140,10 @@ def track_transcribe_job(project: EpisodeProject, track_id: str) -> TranscribeJo
     """The primary-media job for one track (any role)."""
     track = project.track_by_id(track_id)
     if not track or not track.media:
-        raise ValueError(f"track {track_id} not found or has no media")
+        raise CodedValueError(
+            f"track {track_id} not found or has no media. Pick a track that has media.",
+            code="track_not_found",
+        )
     return TranscribeJob(track_id, None, resolve_under_workspace(project, track.media.path))
 
 
@@ -160,11 +164,16 @@ def _canonical_transcript_names(project: EpisodeProject) -> set[str]:
 
 def _cache_file(project: EpisodeProject, cache_id: str, name: str) -> Path:
     if name in _canonical_transcript_names(project):
-        raise ValueError(f"transcript cache collides with a canonical mirror: {cache_id}")
+        raise CodedValueError(
+            f"transcript cache collides with a canonical mirror: {cache_id}",
+            code="transcript_cache_collision",
+        )
     directory = project.transcripts_dir()
     path = resolve_cache_file(directory, name, kind="transcript", cache_id=cache_id)
     if path != directory.resolve() / name:
-        raise ValueError(f"transcript cache aliases another file: {cache_id}")
+        raise CodedValueError(
+            f"transcript cache aliases another file: {cache_id}", code="transcript_cache_collision"
+        )
     return path
 
 

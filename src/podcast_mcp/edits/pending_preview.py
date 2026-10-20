@@ -8,7 +8,7 @@ from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.timeline_span import map_source_span_fields, source_remove_timeline_spans
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EditDecisionType, EpisodeProject
-from podcast_mcp.util.coded_error import CodedKeyError
+from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 
 DEFAULT_PAD_SEC = 0.5
 DEFAULT_AB_GAP_SEC = 0.4
@@ -140,7 +140,7 @@ def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -
         raise held.for_delivery("suggested") from held
     applied = project.editorial.edit_log[logged:]
     if not applied:
-        raise ValueError(SUGGEST_REASON_UNMAPPED)
+        raise CodedValueError(SUGGEST_REASON_UNMAPPED, code="pending_preview_unavailable")
     return window.play_end - _timeline_shift(applied[0])
 
 
@@ -154,6 +154,9 @@ def _timeline_shift(record: AppliedEditRecord) -> float:
     if params.get("mute") or params.get("scope") == "track" or "exact_range" in params:
         return 0.0
     if record.timeline_start is None or record.timeline_end is None:
-        raise ValueError("applied edit lacks timeline bounds")
+        raise CodedValueError(
+            "applied edit lacks timeline bounds. Refresh the pending edit and try again.",
+            code="pending_preview_unavailable",
+        )
     pad = float(params.get("replace_gap_sec") or 0.0)
     return (record.timeline_end - record.timeline_start) - pad

@@ -635,12 +635,18 @@ class SourceProxyInputs:
         snapshot = snapshot_project(project)
         clip = next((c for c in snapshot.clips if c.id == clip_id), None)
         if clip_id is not None and clip is None:
-            raise ValueError(f"clip {clip_id!r} not found")
+            raise CodedValueError(
+                f"clip {clip_id!r} not found. Refresh the project and pick the clip again.",
+                code="clip_not_found",
+            )
         context_id = origin_track_id_for_clip(snapshot, clip) if clip is not None else track_id
         context = snapshot.track_by_id(context_id) if context_id is not None else None
         destination = snapshot.track_by_id(clip.track_id) if clip is not None else context
         if destination is None or context is None:
-            raise ValueError("Source proxy track is missing")
+            raise CodedValueError(
+                "Source proxy track is missing. Refresh the project and pick the track again.",
+                code="track_not_found",
+            )
         affected = (
             clip is not None and clip.bleed_restore is not None and bool(clip.bleed_restore.regions)
         )
@@ -656,7 +662,10 @@ class SourceProxyInputs:
         elif context.media is not None:
             source = resolve_under_workspace(snapshot, context.media.path)
         else:
-            raise ValueError("Source proxy context has no media")
+            raise CodedValueError(
+                "Source proxy context has no media. Add media to that track first.",
+                code="track_has_no_media",
+            )
         regions = active_restore_regions(clip, source) if affected and clip is not None else ()
         bindings: tuple[tuple[Path, Path], ...] = (
             (
@@ -872,7 +881,9 @@ def render_source_proxy_inputs(
         if context is None:
             raise _inputs_changed()
         if output_path.resolve() in {path.resolve() for path, _, _ in inputs.dependencies.media}:
-            raise ValueError("Source proxy output must not replace an input")
+            raise CodedValueError(
+                "Source proxy output must not replace an input", code="invalid_arguments"
+            )
 
         def validate() -> None:
             inputs.validate(project, engine)

@@ -38,6 +38,7 @@ from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.transcript_gated_play import word_intervals
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -483,7 +484,10 @@ def plan_off_speaker_mutes(
 ) -> OffSpeakerPlan:
     """The stretches of ``track_id`` where only another speaker is talking."""
     if project.track_by_id(track_id) is None:
-        raise ValueError(f"unknown track {track_id!r}")
+        raise CodedValueError(
+            f"unknown track {track_id!r}. List the project's tracks and pick one of them.",
+            code="track_not_found",
+        )
     others = [t for t in dialogue_track_ids(project) if t != track_id]
     plan = OffSpeakerPlan(track_id)
     if not others:

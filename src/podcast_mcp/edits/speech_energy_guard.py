@@ -103,9 +103,10 @@ def validate_speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -
     for valid in CONFLICT_ACTIONS:
         if mode == valid:
             return valid
-    raise ValueError(
+    raise CodedValueError(
         "unknown tighten.speech_energy_guard.on_conflict: "
-        f"{raw!r}; valid values: {', '.join(CONFLICT_ACTIONS)}"
+        f"{raw!r}; valid values: {', '.join(CONFLICT_ACTIONS)}",
+        code="pipeline_config_value_invalid",
     )
 
 

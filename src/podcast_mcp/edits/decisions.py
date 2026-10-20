@@ -33,7 +33,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
 )
-from podcast_mcp.util.coded_error import CodedError, CodedKeyError
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.review import reject_by_id
 
 
@@ -212,11 +212,20 @@ def preview_pending_cut_range(project: EpisodeProject, edit_id: str) -> PendingC
     if edit is None:
         raise CodedKeyError(f"edit decision not found: {edit_id}", code="edit_not_found")
     if edit.applied:
-        raise ValueError("cut suggestions require a pending edit")
+        raise CodedValueError(
+            "cut suggestions require a pending edit. Pick a pending edit first.",
+            code="cut_suggestion_unavailable",
+        )
     if edit.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
-        raise ValueError("cut suggestions require a remove or mute edit")
+        raise CodedValueError(
+            "cut suggestions require a remove or mute edit. Pick a remove or mute edit.",
+            code="cut_suggestion_unavailable",
+        )
     if edit.timebase != "source":
-        raise ValueError("cut suggestions require source-time bounds")
+        raise CodedValueError(
+            "cut suggestions require source-time bounds. Pick an edit that has source-time bounds.",
+            code="cut_suggestion_unavailable",
+        )
     return PendingCutSuggestion(
         edit_id=edit.id,
         track_id=edit.track_id,
@@ -249,7 +258,10 @@ def update_pending_edit(
         raise CodedKeyError(f"edit decision not found: {edit_id}", code="edit_not_found")
 
     if edit.exact_range is not None:
-        raise ValueError("Exact ranges cannot change source timing. Select the range again.")
+        raise CodedValueError(
+            "Exact ranges cannot change source timing. Select the range again.",
+            code="exact_range_locked",
+        )
 
     if edit.type == EditDecisionType.SPLIT:
         at_time = float(start)
@@ -264,7 +276,10 @@ def update_pending_edit(
         return edit
 
     if end <= start:
-        raise ValueError("end must be after start")
+        raise CodedValueError(
+            "end must be after start. Pick an end later than the start.",
+            code="range_end_before_start",
+        )
 
     original = edit
     if (

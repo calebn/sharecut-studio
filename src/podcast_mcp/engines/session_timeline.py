@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import (
     HalfOpenIntervalIndex,
     merge_intervals,
@@ -293,9 +294,10 @@ def clip_timeline_point_to_source(clip: Clip, timeline_sec: float) -> float:
     """Map one timeline second inside a clip to source media time."""
     mapped = clip_timeline_overlap_to_source(clip, timeline_sec, timeline_sec + 1e-6)
     if mapped is None:
-        raise ValueError(
+        raise CodedValueError(
             f"timeline {timeline_sec}s is outside clip {clip.id!r} "
-            f"[{clip.timeline_start}, {clip.timeline_end})"
+            f"[{clip.timeline_start}, {clip.timeline_end}). Pick a time inside the clip.",
+            code="no_clip_at_time",
         )
     return mapped[0]
 

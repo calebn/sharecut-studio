@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ban uncoded refusals in services/ and util/registry*: raise a CodedError subclass instead.
+"""Ban uncoded refusals in services/, edits/, engines/ and util/registry*: raise a CodedError subclass instead.
 
 A refusal that crosses a service boundary needs a code, a message written for the caller and a
 fix, so every adapter (CLI, MCP, owner GUI, share guest) can project it the same way. A bare
@@ -29,7 +29,14 @@ ALLOWED: frozenset[tuple[str, str]] = frozenset()
 
 
 def scoped_files() -> list[Path]:
-    return sorted([*(PACKAGE / "services").rglob("*.py"), *(PACKAGE / "util").glob("registry*.py")])
+    return sorted(
+        [
+            *(PACKAGE / "services").rglob("*.py"),
+            *(PACKAGE / "edits").rglob("*.py"),
+            *(PACKAGE / "engines").rglob("*.py"),
+            *(PACKAGE / "util").glob("registry*.py"),
+        ]
+    )
 
 
 def _decorator_name(node: ast.expr) -> str:

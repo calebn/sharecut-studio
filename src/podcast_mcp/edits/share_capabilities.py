@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 CAP_VIEW = "view"
 CAP_PLAY = "play"
 CAP_COMMENT = "comment"
@@ -82,7 +84,10 @@ def record_capabilities_for_role(role: str) -> list[str]:
     """Expand a record-session role to a capability list."""
     key = str(role or "").strip().lower()
     if key not in _RECORD_ROLES:
-        raise ValueError(f"unknown record role {role!r}; expected one of {sorted(_RECORD_ROLES)}")
+        raise CodedValueError(
+            f"unknown record role {role!r}; expected one of {sorted(_RECORD_ROLES)}",
+            code="share_role_invalid",
+        )
     return list(RECORD_ROLE_PRESETS[key])
 
 
@@ -105,8 +110,9 @@ def capabilities_for_role(role: str, *, with_mcp: bool = False) -> list[str]:
     try:
         key = ReviewRole(str(role or "").strip().lower())
     except ValueError:
-        raise ValueError(
-            f"unknown share role {role!r}; expected one of {[r.value for r in ReviewRole]}"
+        raise CodedValueError(
+            f"unknown share role {role!r}; expected one of {[r.value for r in ReviewRole]}",
+            code="share_role_invalid",
         ) from None
     caps = list(REVIEW_ROLE_CAPABILITIES[key])
     if with_mcp:
@@ -139,11 +145,15 @@ def normalize_capabilities(caps: list[str] | str | None) -> list[str]:
         return list(DEFAULT_CAPABILITIES)
     raw = [c.strip() for c in caps.split(",") if c.strip()] if isinstance(caps, str) else list(caps)
     if not raw:
-        raise ValueError(f"share capabilities are empty; expected some of {ALL_CAPABILITIES}")
+        raise CodedValueError(
+            f"share capabilities are empty; expected some of {ALL_CAPABILITIES}. Grant at least one.",
+            code="share_capabilities_invalid",
+        )
     unknown = sorted({c for c in raw if c not in _KNOWN})
     if unknown:
-        raise ValueError(
-            f"unknown share capabilities {unknown}; expected some of {ALL_CAPABILITIES}"
+        raise CodedValueError(
+            f"unknown share capabilities {unknown}; expected some of {ALL_CAPABILITIES}. Remove the unknown ones.",
+            code="share_capabilities_invalid",
         )
     out = list(dict.fromkeys(raw))
     if CAP_VIEW in out and CAP_PLAY not in out:

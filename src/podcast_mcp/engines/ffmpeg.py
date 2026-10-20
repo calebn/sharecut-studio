@@ -67,6 +67,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError, resolve_ffmpeg_pair
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import (
     DEVNULL,
@@ -233,7 +234,10 @@ def _concat_list_entry(path: Path) -> str:
     """Format one ``file '...'`` line for the concat demuxer (quote-safe)."""
     resolved = str(path.resolve())
     if "\n" in resolved or "\r" in resolved:
-        raise ValueError(f"media path must not contain newlines: {resolved!r}")
+        raise CodedValueError(
+            f"media path must not contain newlines: {path.name!r}. Rename the file so its path has no line break.",
+            code="media_path_invalid",
+        )
     # FFmpeg concat: escape embedded single quotes as '\''
     escaped = resolved.replace("'", r"'\''")
     return f"file '{escaped}'"
@@ -468,7 +472,7 @@ class FFmpegEngine:
         duration. Timestamp gaps retain the decoder's packed PCM samples.
         """
         if chunk_frames < 1:
-            raise ValueError("chunk_frames must be >= 1")
+            raise CodedValueError("chunk_frames must be >= 1", code="invalid_arguments")
         info = self.probe(path, untrusted=True)
         sample_rate, channels = info.sample_rate, max(1, info.channels)
         argv = self._pcm_f32_argv(path, sample_rate, channels)
@@ -499,7 +503,9 @@ class FFmpegEngine:
         reporting as :meth:`stream_pcm_f32`; arguments are validated eagerly.
         """
         if chunk_frames < 1 or sample_rate < 1:
-            raise ValueError("chunk_frames and sample_rate must be >= 1")
+            raise CodedValueError(
+                "chunk_frames and sample_rate must be >= 1", code="invalid_arguments"
+            )
         argv = self._pcm_f32_argv(path, sample_rate, 1)
         return _mono_chunks(
             self._read_pcm_f32(
@@ -522,7 +528,7 @@ class FFmpegEngine:
         with the tail of ffmpeg's stderr on a non-zero exit.
         """
         if sample_rate < 1 or channels < 1:
-            raise ValueError("sample_rate and channels must be >= 1")
+            raise CodedValueError("sample_rate and channels must be >= 1", code="invalid_arguments")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         argv = [
             self.ffmpeg,
@@ -568,7 +574,7 @@ class FFmpegEngine:
         ``n < frames`` only at end of media. Bounded by the ``PCM_WINDOW_TIMEOUT_SEC`` watchdog.
         """
         if start_frame < 0 or frames < 0 or sample_rate < 1 or channels < 1:
-            raise ValueError("invalid PCM window")
+            raise CodedValueError("invalid PCM window", code="invalid_arguments")
         if frames == 0:
             return np.zeros((0, channels), dtype=np.float32)
         # ``-frames:a`` counts decoder packets, not samples, so the read below
@@ -731,7 +737,9 @@ class FFmpegEngine:
         timeline_origin_sec: float = 0.0,
     ) -> str:
         if not math.isfinite(timeline_origin_sec) or timeline_origin_sec < 0:
-            raise ValueError("timeline_origin_sec must be finite and nonnegative")
+            raise CodedValueError(
+                "timeline_origin_sec must be finite and nonnegative", code="invalid_arguments"
+            )
         filters: list[str] = []
         if chain:
             for fx in chain.effects:
@@ -1213,7 +1221,9 @@ class FFmpegEngine:
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not part_paths:
-            raise ValueError("no parts to join")
+            raise CodedValueError(
+                "no parts to join. Pass at least one part.", code="missing_argument"
+            )
         if len(part_paths) == 1:
             shutil.copy2(part_paths[0], output_path)
             return output_path
@@ -1281,7 +1291,9 @@ class FFmpegEngine:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         target = float(duration_sec)
         if target <= 0:
-            raise ValueError("duration_sec must be positive")
+            raise CodedValueError(
+                "duration_sec must be positive. Pass more than 0 seconds.", code="out_of_range"
+            )
         cmd = [
             self.ffmpeg,
             "-y",
@@ -1399,10 +1411,14 @@ class FFmpegEngine:
         trim instead: a window of a longer mix plays at the trim measured over all of it.
         """
         if peak_ceiling_db is not None and trim_db is not None:
-            raise ValueError("pass peak_ceiling_db or trim_db, not both")
+            raise CodedValueError(
+                "pass peak_ceiling_db or trim_db, not both", code="invalid_arguments"
+            )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not track_wavs:
-            raise ValueError("no tracks to mix")
+            raise CodedValueError(
+                "no tracks to mix. Pass at least one track.", code="missing_argument"
+            )
         if peak_ceiling_db is not None:
             trim_db = self.peak_trim_db(track_wavs, float(peak_ceiling_db))
         if trim_db is None:
@@ -1996,7 +2012,9 @@ class FFmpegEngine:
     ) -> Path:
         """Stack showwavespic renders vertically (one row per input)."""
         if not input_paths:
-            raise ValueError("no inputs for stacked waveform")
+            raise CodedValueError(
+                "no inputs for stacked waveform. Pass at least one input.", code="missing_argument"
+            )
         output_png.parent.mkdir(parents=True, exist_ok=True)
         palette = colors or ["0x4a9eff", "0xe67e22", "0x2ecc71", "0x9b59b6"]
         parts: list[str] = []

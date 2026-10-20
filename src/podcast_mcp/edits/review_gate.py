@@ -21,7 +21,7 @@ from typing import Any, Literal
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
 ReviewStatus = Literal["pending", "done", "waived"]
@@ -146,7 +146,9 @@ class ReviewGate:
     ) -> dict[str, Any]:
         reason = (reason or "").strip()
         if not reason:
-            raise ValueError(f"{self.name} waive requires a non-empty reason")
+            raise CodedValueError(
+                f"{self.name} waive requires a non-empty reason", code="empty_text"
+            )
         return self.write(project, status="waived", source=source, notes=reason)
 
     def data_is_clear(self, project: EpisodeProject, data: dict[str, Any] | None) -> bool:

@@ -16,6 +16,7 @@ from podcast_mcp.engines.session_timeline import (
 from podcast_mcp.models import ClipJoinMode, EpisodeProject
 from podcast_mcp.util.batch_scope import scoped_by_file
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import run
 from podcast_mcp.util.tracks import track_audio_path
@@ -65,7 +66,9 @@ def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
     """Every channel of the first audio stream, one column each."""
     probe = probe_media(path)
     if probe is None:
-        raise ValueError(f"{path} could not be probed")
+        raise CodedValueError(
+            f"{path.name} could not be probed. Choose a playable audio file.", code="invalid_audio"
+        )
     channels = max(1, probe.channels)
     # No -ac: any channel count asks ffmpeg to remix a layout that is not its default for
     # that count (quad, 3.0(back)), which sums channels the gate must judge apart.
@@ -118,7 +121,10 @@ def raw_samples_on_timeline(
     for span, path, cell in zip(spans, paths, cells, strict=True):
         source = sources[path]
         if cell.dest < 0 or cell.first < 0 or cell.first + cell.count > source.shape[0]:
-            raise ValueError(f"clip {span.clip.id} source samples are unavailable")
+            raise CodedValueError(
+                f"clip {span.clip.id} source samples are unavailable. Re-render the track and try again.",
+                code="source_samples_unavailable",
+            )
         placed[cell.dest : cell.stop] += source[cell.first : cell.first + cell.count]
     return placed
 
@@ -135,7 +141,10 @@ def raw_timeline_samples(
 
     track = project.track_by_id(track_id)
     if track is None:
-        raise ValueError(f"track {track_id} is unavailable")
+        raise CodedValueError(
+            f"track {track_id} is unavailable. Add media to that track first.",
+            code="track_has_no_media",
+        )
     spans = SessionTimeline(project).lane_clip_spans(track_id)
     paths = (
         [resolve_clip_audio_path(project, track, span.clip) for span in spans]
@@ -166,7 +175,10 @@ def raw_timeline_window(
 
     track = project.track_by_id(track_id)
     if track is None or start < 0 or end <= start:
-        raise ValueError("raw timeline window is unavailable")
+        raise CodedValueError(
+            "raw timeline window is unavailable. Re-render the track and try again.",
+            code="source_samples_unavailable",
+        )
     spans = SessionTimeline(project).lane_clip_spans(track_id)
     if not spans:
         loader = load_wav_channels_window if preserve_channels else load_mono_window
@@ -193,13 +205,19 @@ def raw_timeline_window(
         offset = round((lo - start) * sample_rate)
         count = round((hi - lo) * sample_rate)
         if window.shape[0] < count:
-            raise ValueError(f"clip {span.clip.id} source samples are unavailable")
+            raise CodedValueError(
+                f"clip {span.clip.id} source samples are unavailable. Re-render the track and try again.",
+                code="source_samples_unavailable",
+            )
         if samples is None:
             samples = np.zeros(
                 (round((end - start) * sample_rate), *window.shape[1:]), dtype=np.float32
             )
         if samples.shape[1:] != window.shape[1:]:
-            raise ValueError("selected media channel layouts differ")
+            raise CodedValueError(
+                "selected media channel layouts differ. Use clips with the same channel layout.",
+                code="channel_layout_mismatch",
+            )
         samples[offset : offset + count] += window[:count]
     return (
         samples
@@ -220,13 +238,17 @@ def load_wav_channels_window(
     with open_wav(path) as source:
         rate, channels = source.getframerate(), source.getnchannels()
         if source.getsampwidth() != 2 or rate > sample_rate or channels not in (1, 2):
-            raise ValueError(
-                "full-band channel evidence needs mono/stereo PCM16 at the evidence rate or below"
+            raise CodedValueError(
+                "full-band channel evidence needs mono/stereo PCM16 at the evidence rate or below",
+                code="stem_format_unsupported",
             )
         first = round(start_sec * rate)
         count = round(duration_sec * rate)
         if first < 0 or first + count > source.getnframes():
-            raise ValueError("source channel samples are unavailable")
+            raise CodedValueError(
+                "source channel samples are unavailable. Re-render the track and try again.",
+                code="source_samples_unavailable",
+            )
         source.setpos(first)
         samples = (
             np.frombuffer(source.readframes(count), dtype="<i2")
@@ -235,7 +257,10 @@ def load_wav_channels_window(
             / 32768
         )
     if samples.shape[0] != count:
-        raise ValueError("source channel samples are unavailable")
+        raise CodedValueError(
+            "source channel samples are unavailable. Re-render the track and try again.",
+            code="source_samples_unavailable",
+        )
     if rate == sample_rate:
         return samples
     positions = np.arange(round(duration_sec * sample_rate)) * rate / sample_rate

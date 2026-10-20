@@ -15,6 +15,7 @@ from podcast_mcp.models import (
     TrackRole,
     save_project,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 # Codes that fire on almost every unsynced fixture and are ignored in P/R.
 IGNORE_CODES = frozenset({"stale_render", "stale_reconciliation"})
@@ -207,7 +208,10 @@ def score_labeled_windows(
     for case in cases:
         code = str(case["code"])
         if code not in HYPOTHESIS_CATALOG:
-            raise ValueError(f"unknown hypothesis code {code!r}")
+            raise CodedValueError(
+                f"unknown hypothesis code {code!r}. Use a hypothesis code from the label set.",
+                code="hypothesis_code_unknown",
+            )
         stats = by_code.setdefault(code, {"tp": 0, "fp": 0, "fn": 0, "tn": 0})
         window = (float(case["start"]), float(case["end"]))
         ctx = contexts.get(window)

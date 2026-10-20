@@ -41,6 +41,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.models.project_format import snapshot_editable_state
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import bool_runs
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.process import CalledProcessError
@@ -399,7 +400,10 @@ def plan_retained_bleed_alignment(
     Scoped override may bypass legacy recorder locks; saved fine choices still win.
     """
     if override_placement_lock and (start_sec is None or end_sec is None):
-        raise ValueError("placement override requires an explicit scoped window")
+        raise CodedValueError(
+            "placement override requires an explicit scoped window. Pass the scoped window to align.",
+            code="invalid_arguments",
+        )
     lower = 0.0 if start_sec is None else start_sec
     upper = (
         max(
@@ -413,9 +417,15 @@ def plan_retained_bleed_alignment(
         else end_sec
     )
     if not math.isfinite(lower) or not math.isfinite(upper):
-        raise ValueError("alignment window bounds must be finite")
+        raise CodedValueError(
+            "alignment window bounds must be finite. Pass finite start and end seconds.",
+            code="invalid_range",
+        )
     if lower < 0 or (upper <= lower and (end_sec is not None or project.clips)):
-        raise ValueError("alignment window must have nonnegative start and increasing end")
+        raise CodedValueError(
+            "alignment window must have nonnegative start and increasing end. Pass a start at or after 0 and an end after it.",
+            code="invalid_range",
+        )
     if not project.clips:
         return AlignmentPlan(
             _fingerprint(project),
@@ -806,7 +816,10 @@ def _safe_batch_proposals(
 def apply_retained_bleed_alignment(project: EpisodeProject, plan: AlignmentPlan) -> dict[str, Any]:
     """Apply a checked plan atomically in memory; caller owns workspace history/publication."""
     if _fingerprint(project) != plan.fingerprint:
-        raise ValueError("retained-bleed alignment plan is stale")
+        raise CodedValueError(
+            "retained-bleed alignment plan is stale. Plan the alignment again.",
+            code="retained_bleed_plan_stale",
+        )
     proposals, conflicts = _safe_batch_proposals(plan.proposals)
     skipped = list(plan.skipped)
     for tid, reason in conflicts:
@@ -906,13 +919,18 @@ def set_retained_bleed_alignment_mode(
     proposal: PhraseAlignmentProposal | None = None,
 ) -> dict[str, Any]:
     if mode not in ("auto", "manual", "declined"):
-        raise ValueError("alignment mode must be auto, manual, or declined")
+        raise CodedValueError(
+            "alignment mode must be auto, manual, or declined", code="invalid_mode"
+        )
     decision = next(
         (d for d in project.editorial.retained_bleed_alignments if d.id == decision_id), None
     )
     if decision is None:
         if proposal is None or proposal.decision_id != decision_id:
-            raise ValueError(f"unknown retained-bleed alignment decision {decision_id!r}")
+            raise CodedValueError(
+                f"unknown retained-bleed alignment decision {decision_id!r}. List the alignment decisions and pick one of them.",
+                code="retained_bleed_decision_not_found",
+            )
         decision = _decision(proposal, applied=False)
         project.editorial.retained_bleed_alignments.append(decision)
     decision.mode = mode

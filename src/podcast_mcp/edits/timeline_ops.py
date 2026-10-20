@@ -126,7 +126,10 @@ def plan_ripple_delete(
     protects every other track's speech in the span.
     """
     if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
+        raise CodedValueError(
+            "timeline_end must be after timeline_start. Pick a timeline_end later than timeline_start.",
+            code="range_end_before_start",
+        )
     start, end = _optimized_ripple_span(project, timeline_start, timeline_end, use_inaudible_opt)
     return RippleRemoval.of(
         [TrackExtent(tid, start, end) for tid in dict.fromkeys(edited_track_ids)],
@@ -254,7 +257,10 @@ def plan_ripple_delete_text(
         raise CodedValueError(f"no transcript match for {query!r}", code="no_transcript_match")
     m = matches[0]
     if m.timeline_start is None or m.timeline_end is None:
-        raise ValueError(f"transcript match for {query!r} falls in removed timeline material")
+        raise CodedValueError(
+            f"transcript match for {query!r} falls in removed timeline material. Search for a phrase that is still on the timeline.",
+            code="transcript_match_removed",
+        )
     return plan_ripple_delete(
         project,
         m.timeline_start,
@@ -289,7 +295,10 @@ def move_segment(
     insert_at: float,
 ) -> dict:
     if source_end <= source_start:
-        raise ValueError("source_end must be after source_start")
+        raise CodedValueError(
+            "source_end must be after source_start. Pick a source_end later than source_start.",
+            code="range_end_before_start",
+        )
     duration = source_end - source_start
     insert_point = insert_at
     if insert_at > source_end:
@@ -329,7 +338,10 @@ def _tightest_timeline_match(matches: list, *, label: str, query: str):
     """Prefer the shortest mapped span (word-level over containing utterances)."""
     candidates = [m for m in matches if m.timeline_start is not None and m.timeline_end is not None]
     if not candidates:
-        raise ValueError(f"{label} match for {query!r} falls in removed timeline material")
+        raise CodedValueError(
+            f"{label} match for {query!r} falls in removed timeline material. Search for a phrase that is still on the timeline.",
+            code="transcript_match_removed",
+        )
     return min(
         candidates,
         key=lambda m: (float(m.timeline_end) - float(m.timeline_start), float(m.timeline_start)),
@@ -408,9 +420,10 @@ def move_by_text(
     # Destination inside the moved span is a no-op after insert-point collapse;
     # fail loudly so agents pick a destination outside the source.
     if src_start < insert_at < src_end:
-        raise ValueError(
+        raise CodedValueError(
             "destination lies inside the source span; choose a destination outside "
-            "the text being moved"
+            "the text being moved",
+            code="move_destination_inside_source",
         )
     return move_segment(project, src_start, src_end, insert_at)
 
@@ -463,7 +476,9 @@ def split_clips_at(
     """
     tracks = list(track_ids) if track_ids else dialogue_track_ids(project)
     if not tracks:
-        raise ValueError("no tracks to split")
+        raise CodedValueError(
+            "no tracks to split. Pass at least one track.", code="no_tracks_to_split"
+        )
     affected: list[str] = []
     skipped: list[str] = []
     for tid in tracks:
@@ -510,7 +525,9 @@ def split_clips_at(
 
 def _clips_by_id(project: EpisodeProject, clip_ids: list[str]) -> list[Clip]:
     if not clip_ids:
-        raise ValueError("clip_ids required")
+        raise CodedValueError(
+            "clip_ids required. Pass at least one clip id.", code="clip_ids_required"
+        )
     by_id = {c.id: c for c in project.clips}
     missing = [cid for cid in clip_ids if cid not in by_id]
     if missing:
@@ -606,9 +623,14 @@ def _write_punch_delete_range(
 ) -> dict:
     """Leave silence over ``[timeline_start, timeline_end)`` on ``track_ids``; nothing moves."""
     if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
+        raise CodedValueError(
+            "timeline_end must be after timeline_start. Pick a timeline_end later than timeline_start.",
+            code="range_end_before_start",
+        )
     if not track_ids:
-        raise ValueError("track_ids required")
+        raise CodedValueError(
+            "track_ids required. Pass at least one track id.", code="track_ids_empty"
+        )
     for tid in track_ids:
         _write_punch_delete(
             project,
@@ -663,7 +685,10 @@ def copy_segment(
     track with clips in range, or only ``track_ids``. ``paste_segment`` takes it back.
     """
     if end <= start:
-        raise ValueError("end must be after start")
+        raise CodedValueError(
+            "end must be after start. Pick an end later than the start.",
+            code="range_end_before_start",
+        )
     tracks = track_ids or list(dict.fromkeys(c.track_id for c in project.clips))
     extracts = [
         {
@@ -823,7 +848,9 @@ def paste_segment(
     an impossible range, raises ``PasteRejectedError`` before anything changes.
     """
     if not math.isfinite(duration) or duration <= 0:
-        raise ValueError("duration must be positive")
+        raise CodedValueError(
+            "duration must be positive. Pass more than 0 seconds.", code="out_of_range"
+        )
     by_track = {tid: clips for tid, clips in _clips_from_paste(project, extracts).items() if clips}
     if mode is EditMode.RIPPLE:
         affected = ripple_track_ids(project, by_track)
@@ -932,11 +959,17 @@ def move_clips(project: EpisodeProject, clips: list[dict]) -> dict:
     from collections.abc import Mapping
 
     if not isinstance(clips, list) or not clips:
-        raise ValueError("clips must be a non-empty list")
+        raise CodedValueError(
+            "clips must be a non-empty list. Pass at least one clip to move.",
+            code="missing_argument",
+        )
     before: dict[str, tuple[str, float, float]] = {}
     for raw in clips:
         if not isinstance(raw, Mapping):
-            raise ValueError("each clip move must be an object")
+            raise CodedValueError(
+                "each clip move must be an object. Pass each move as an object with a clip id and a new start.",
+                code="invalid_arguments",
+            )
         cid = str(raw["clip_id"])
         clip = next((c for c in project.clips if c.id == cid), None)
         if clip is None:
@@ -1519,7 +1552,9 @@ def insert_room_tone_pad(
     is, per track, the source seconds its room tone may not be taken from.
     """
     if duration_sec <= 0:
-        raise ValueError("duration_sec must be positive")
+        raise CodedValueError(
+            "duration_sec must be positive. Pass more than 0 seconds.", code="out_of_range"
+        )
     pad = room_tone_pad(
         project, at_time, duration_sec, sample_duration_sec=sample_duration_sec, avoid=avoid
     )

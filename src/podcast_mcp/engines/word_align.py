@@ -36,6 +36,7 @@ from podcast_mcp.engines.ctc_forced_align import (
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models.episode import TranscriptWord
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowReader
 from podcast_mcp.word_aligner_models import (
@@ -208,9 +209,13 @@ def apply_word_spans(
     e.g. test stubs); every unplaced word's ``alignment_score`` is cleared.
     """
     if len(words) != len(spans):
-        raise ValueError(f"words/spans length mismatch: {len(words)} != {len(spans)}")
+        raise CodedValueError(
+            f"words/spans length mismatch: {len(words)} != {len(spans)}", code="invalid_arguments"
+        )
     if scores and len(scores) != len(words):
-        raise ValueError(f"words/scores length mismatch: {len(words)} != {len(scores)}")
+        raise CodedValueError(
+            f"words/scores length mismatch: {len(words)} != {len(scores)}", code="invalid_arguments"
+        )
     retimed = 0
     for i, (word, span) in enumerate(zip(words, spans, strict=True)):
         if span is None:

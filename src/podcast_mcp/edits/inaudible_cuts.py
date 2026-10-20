@@ -15,6 +15,7 @@ from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.level_profile import LevelProfile, file_level_profile
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Track, Transcript
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -653,7 +654,10 @@ def optimize_source_cut_range(
         )
     mode = detect_track_cut_mode(track)
     if end <= start:
-        raise ValueError("end must be after start")
+        raise CodedValueError(
+            "end must be after start. Pick an end later than the start.",
+            code="range_end_before_start",
+        )
     max_shift = cfg.max_shift_ms / 1000.0
     orig_start, orig_end = start, end
     trailing_extended = False
@@ -785,7 +789,10 @@ def optimize_timeline_cut_range(
     force_enabled: bool | None = None,
 ) -> OptimizedCutRange:
     if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
+        raise CodedValueError(
+            "timeline_end must be after timeline_start. Pick a timeline_end later than timeline_start.",
+            code="range_end_before_start",
+        )
     st = SessionTimeline(project)
     source_start = st.timeline_to_source(track_id, TimelineSec(timeline_start))
     source_end = st.timeline_to_source(track_id, TimelineSec(timeline_end))

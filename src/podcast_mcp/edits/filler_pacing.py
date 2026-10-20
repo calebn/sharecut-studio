@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
+from podcast_mcp.util.coded_error import CodedValueError
 
 FillerPadMode = Literal["silence", "room_tone"]
 FILLER_PAD_MODES: tuple[FillerPadMode, ...] = ("silence", "room_tone")
@@ -133,8 +134,9 @@ def filler_pad_mode(defaults: dict[str, Any] | None = None) -> FillerPadMode:
     for valid in FILLER_PAD_MODES:
         if mode == valid:
             return valid
-    raise ValueError(
-        f"unknown tighten.filler_pad_mode: {raw!r}; valid values: {', '.join(FILLER_PAD_MODES)}"
+    raise CodedValueError(
+        f"unknown tighten.filler_pad_mode: {raw!r}; valid values: {', '.join(FILLER_PAD_MODES)}",
+        code="pipeline_config_value_invalid",
     )
 
 

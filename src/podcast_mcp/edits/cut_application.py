@@ -1148,7 +1148,10 @@ def _range_candidate(
     project = project.model_copy(deep=True)
     plans = [(edit, edit.exact_range) for edit in edits if edit.exact_range is not None]
     if len(plans) != len(edits) or any(not target.clips for _, target in plans):
-        raise ValueError("No audible media in this range")
+        raise CodedValueError(
+            "No audible media in this range. Select a range that contains audio.",
+            code="no_audible_media",
+        )
     if any(edit.type == EditDecisionType.REMOVE for edit, _target in plans):
         from podcast_mcp.engines.timeline_render import timeline_duration_sec
 

@@ -356,7 +356,10 @@ def build_audition_context(
     if timeline_end <= timeline_start:
         raise CodedValueError("timeline_end must be after timeline_start", code="invalid_range")
     if detail not in ("summary", "full", "visual"):
-        raise ValueError("detail must be summary, full, or visual")
+        raise CodedValueError(
+            "detail must be summary, full, or visual. Pass one of those levels.",
+            code="invalid_detail",
+        )
 
     speaker_roles: dict[str, Any] | None = None
     if detail in ("full", "visual"):

@@ -90,6 +90,7 @@ from podcast_mcp.edits.room_tone import (
 )
 from podcast_mcp.models import EpisodeProject, GateFill, GateFillSource, Track, TrackRole
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import rms_db
 from podcast_mcp.util.pcm_stream import SequentialWindowReader
 from podcast_mcp.util.progress import resolve_progress_task
@@ -588,10 +589,16 @@ def _config(defaults: dict[str, Any]) -> tuple[str, int]:
     cfg = defaults.get("gate_fill") or {}
     mode = str(cfg.get("mode", "auto"))
     if mode not in MODES:
-        raise ValueError(f"gate_fill.mode must be one of {MODES}, not {mode!r}")
+        raise CodedValueError(
+            f"gate_fill.mode must be one of {MODES}, not {mode!r}",
+            code="pipeline_config_value_invalid",
+        )
     fade_ms = int(cfg.get("fade_ms", 10))
     if fade_ms < 0:
-        raise ValueError("gate_fill.fade_ms must be >= 0")
+        raise CodedValueError(
+            "gate_fill.fade_ms must be >= 0. Set it to 0 or more.",
+            code="pipeline_config_value_invalid",
+        )
     return mode, fade_ms
 
 

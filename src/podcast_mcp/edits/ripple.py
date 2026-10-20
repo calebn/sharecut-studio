@@ -85,7 +85,10 @@ class RippleRemoval:
             gap=_EPS,
         )
         if not spans:
-            raise ValueError("a ripple removal needs a span with end after start")
+            raise CodedValueError(
+                "a ripple removal needs a span with end after start. Pick an end after the start.",
+                code="range_end_before_start",
+            )
         return cls(tuple(spans), extents)
 
     @property
@@ -120,7 +123,9 @@ def ripple_insert_clips(
 ) -> None:
     """Open ``duration_sec`` of silence at ``at_time`` on ``track_ids``, splitting a clip there."""
     if duration_sec <= 0:
-        raise ValueError("duration_sec must be positive")
+        raise CodedValueError(
+            "duration_sec must be positive. Pass more than 0 seconds.", code="out_of_range"
+        )
     for tid in track_ids:
         split: list[Clip] = []
         for clip in clips_for_track(project, tid):
@@ -230,9 +235,15 @@ def plan_trim(
 ) -> TrimPlan:
     """Plan moving ``clip_id``'s edge toward ``source_sec``, clamped to its legal limits."""
     if not math.isfinite(source_sec):
-        raise ValueError("source_sec must be finite")
+        raise CodedValueError(
+            "source_sec must be finite. Pass a finite number of seconds.",
+            code="source_sec_not_finite",
+        )
     if edge not in ("in", "out"):
-        raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
+        raise CodedValueError(
+            f"edge must be 'in' or 'out', got {edge!r}. Pass \"in\" or \"out\".",
+            code="edge_invalid",
+        )
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if clip is None:
         raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")

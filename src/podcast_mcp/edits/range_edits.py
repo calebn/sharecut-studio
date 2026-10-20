@@ -14,7 +14,7 @@ from podcast_mcp.models import (
     ProposalOrigin,
 )
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
 RangeAction = Literal["cut", "mute"]
 
@@ -151,7 +151,10 @@ def edit_selected_range(
     if propose:
         target = resolve_range(project, target)
     if not target.clips:
-        raise ValueError("No audible media in this range")
+        raise CodedValueError(
+            "No audible media in this range. Select a range that contains audio.",
+            code="no_audible_media",
+        )
     edit = EditDecision(
         id=action_id or f"range_{uuid4().hex}",
         track_id="",
