@@ -205,6 +205,25 @@ describe("proxyMath", () => {
     ]);
   });
 
+  it("mutes transcript-ignored words with the clip's own regions", () => {
+    const [slice] = buildSchedule(
+      [
+        clip({
+          id: "c1",
+          mute_regions: [{ start_s: 1, end_s: 2 }],
+          ignored_word_regions: [{ start_s: 5, end_s: 6 }],
+        }),
+      ],
+      0,
+      30,
+      manifest(),
+    );
+    expect(slice.envelope.mute.map((span) => [span.start, span.end])).toEqual([
+      [1, 2],
+      [5, 6],
+    ]);
+  });
+
   it("leaves the mutes to an occurrence proxy that already has them baked in", () => {
     const artifactId = "b".repeat(64);
     const m: ProxyManifest = {
@@ -251,7 +270,7 @@ describe("proxyMath", () => {
     expect(slices[0].envelope.gainCurve).toBe("equalPower");
   });
 
-  it("schedules slices against origin media, not the dest lane", () => {
+  it("reads origin media but plays it through the lane the clip sits on, as render does", () => {
     const slices = buildSchedule(
       [
         clip({
@@ -268,7 +287,8 @@ describe("proxyMath", () => {
       10,
       manifest(),
     );
-    expect(slices[0]?.outputTrackId).toBe("host");
+    expect(slices[0]?.outputTrackId).toBe("guest");
+    expect(slices[0]?.chunk.artifactId).toBe("host");
   });
 });
 
@@ -319,7 +339,7 @@ describe("manifest boundary and occurrence scheduling", () => {
     ).toHaveLength(64);
   });
 
-  it("resolves only the bound occurrence before geometry and routes to the supplied output", () => {
+  it("resolves only the bound occurrence before geometry and routes to the clip's lane", () => {
     const selected = clip({
       id: "selected",
       track_id: "destination",
@@ -362,10 +382,10 @@ describe("manifest boundary and occurrence scheduling", () => {
     ]);
     expect(slices.map((s) => s.bufferOffsetSec)).toEqual([3, 0.5, 0.5, 3]);
     expect(slices.map((s) => s.outputTrackId)).toEqual([
-      "secondary-output",
-      "secondary-output",
-      "secondary-output",
-      "host",
+      "destination",
+      "destination",
+      "destination",
+      "destination",
     ]);
     expect(slices[1].envelope).toEqual(slices[0].envelope);
     expect(slices[3].chunk).toMatchObject({

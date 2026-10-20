@@ -346,7 +346,12 @@ export function buildSchedule(
       timelineEndSec: clip.timeline_end,
       sourceStartSec: clip.source_start,
       // An occurrence proxy already has its mutes baked in (`source_proxy_audio.py`).
-      mute: binding ? [] : muteSpansOf(clip.mute_regions),
+      mute: binding
+        ? []
+        : muteSpansOf([
+            ...(clip.mute_regions ?? []),
+            ...(clip.ignored_word_regions ?? []),
+          ]),
       fadeInSec: isCutJoin(clip) ? 0 : Math.max(0, clip.fade_in_ms) / 1000,
       fadeOutSec: beforeCut.has(clip.id)
         ? 0
@@ -379,7 +384,8 @@ export function buildSchedule(
           index,
           url,
         },
-        outputTrackId: binding?.outputTrackId ?? originTrackId(clip),
+        // The render stages, mutes and faders the lane the clip sits on.
+        outputTrackId: clip.track_id,
         bufferOffsetSec: offsetInChunk(
           start,
           index,

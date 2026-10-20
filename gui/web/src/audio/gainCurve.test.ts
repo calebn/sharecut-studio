@@ -105,16 +105,20 @@ describe("gain curve", () => {
   });
 });
 
+interface MuteRegion {
+  start_s: number;
+  end_s: number;
+  fade_out_ms: number;
+  fade_in_ms: number;
+  gain_db: number | null;
+}
+
 interface MuteCase {
   name: string;
   clip: { source_start: number; source_end: number };
-  regions: {
-    start_s: number;
-    end_s: number;
-    fade_out_ms: number;
-    fade_in_ms: number;
-    gain_db: number | null;
-  }[];
+  regions: MuteRegion[];
+  /** Transcript-ignored words: the render adds them to the clip's own regions. */
+  ignored?: MuteRegion[];
   samples: [number, number][];
 }
 
@@ -127,7 +131,7 @@ const muteFixture = JSON.parse(
 
 describe("mute gain", () => {
   it.each(muteFixture.cases)("$name matches what the render produces", (c) => {
-    const spans = muteSpansOf(c.regions);
+    const spans = muteSpansOf([...c.regions, ...(c.ignored ?? [])]);
     for (const [at, expected] of c.samples)
       expect(muteGainAt(spans, at), `${c.name} at ${at}`).toBeCloseTo(
         expected,

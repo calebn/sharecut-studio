@@ -1919,3 +1919,24 @@ def test_roll_between_different_sources_keeps_each_clips_regions():
     left, right = project.clips
     assert [(r.start_s, r.end_s) for r in left.mute_regions] == [(1.0, 3.0)]
     assert [(r.start_s, r.end_s) for r in right.mute_regions] == [(5.0, 5.4)]
+
+
+def test_list_clips_reports_ignored_word_regions_without_storing_them(tmp_path, sample_wav):
+    from podcast_mcp.edits.timeline_ops import list_clips
+
+    project = _project_with_audio(tmp_path, sample_wav)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="in", start=0.4, end=0.7, confidence=0.9, ignored=True),
+                TranscriptWord(text="kept", start=0.8, end=1.0, confidence=0.9),
+            ],
+        )
+    ]
+    rows = list_clips(project, track_id="host", secret=bytes(32))["tracks"]["host"]
+    ignored = [row.get("ignored_word_regions") for row in rows]
+    assert ignored[0] is not None
+    assert [(r["start_s"], r["end_s"]) for r in ignored[0]] == [(0.4, 0.7)]
+    assert all("ignored_word_regions" not in row for row in rows[1:])
+    assert all(clip.mute_regions == [] for clip in project.clips if clip.track_id == "host")

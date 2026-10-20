@@ -215,11 +215,7 @@ export class ProxyEngine {
       this.ctx.state !== "running" ||
       !this.playing ||
       !this.scheduleReady ||
-      !this.snapshot ||
-      (!this.snapshot.manifest.tracks[trackId] &&
-        !Object.values(this.snapshot.manifest.occurrences).some(
-          (binding) => binding.outputTrackId === trackId,
-        ))
+      !this.snapshot
     )
       return null;
     const gain = this.trackGains.get(trackId);
