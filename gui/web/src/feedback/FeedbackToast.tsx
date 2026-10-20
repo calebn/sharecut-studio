@@ -35,6 +35,9 @@ import {
 } from "./feedbackActionFocus";
 import { usePhoneToastDock } from "./toastDock";
 
+/** Safari reports a fully shown card a hair under 1 at fractional zoom or toolbar heights. */
+const VISIBLE_RATIO = 0.95;
+
 const SHEET = '.bottom-sheet[role="dialog"]';
 
 function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
@@ -148,12 +151,12 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         setVisibility(
-          entry?.isIntersecting && entry.intersectionRatio === 1
+          entry?.isIntersecting && entry.intersectionRatio >= VISIBLE_RATIO
             ? "visible"
             : "clipped",
         );
       },
-      { threshold: [0, 1] },
+      { threshold: [0, VISIBLE_RATIO, 1] },
     );
     observer.observe(card);
     return () => observer.disconnect();

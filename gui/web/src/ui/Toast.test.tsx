@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { BUSY_REASON } from "./disabledReason";
-import { TOAST_MS, Toast } from "./Toast";
+import { TOAST_CLIPPED_MAX_MS, TOAST_MS, Toast } from "./Toast";
 
 const region = () => document.querySelector(".ui-toast-region")!;
 
@@ -343,6 +343,29 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
+  it("dismisses a card that stays clipped once its clipped pause is spent", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <Toast
+        toast={{ id: 1, message: "Refresh failed" }}
+        onDismiss={onDismiss}
+        visibility="clipped"
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(TOAST_CLIPPED_MAX_MS);
+    });
+    act(() => {
+      vi.advanceTimersByTime(TOAST_MS - 1);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
   it("preserves remaining time while clipped and through presentation changes", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
@@ -356,7 +379,7 @@ describe("Toast", () => {
       <Toast toast={toast} onDismiss={onDismiss} visibility="clipped" />,
     );
     act(() => {
-      vi.advanceTimersByTime(12000);
+      vi.advanceTimersByTime(TOAST_CLIPPED_MAX_MS - 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     rerender(

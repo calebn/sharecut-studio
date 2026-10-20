@@ -19,7 +19,7 @@ import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import type { SessionState } from "../types/session";
 import { closeOverlay, openOverlay } from "../ui/modalGate";
-import { TOAST_MS, TOAST_UNDO_MS } from "../ui/Toast";
+import { TOAST_CLIPPED_MAX_MS, TOAST_MS, TOAST_UNDO_MS } from "../ui/Toast";
 import { ApiError } from "../utils/apiError";
 import { FeedbackToast } from "./FeedbackToast";
 
@@ -73,6 +73,28 @@ function peerSession(partial: Partial<SessionState>): SessionState {
 
 let reportVisibility = (_visible: boolean) => {};
 const disconnect = vi.fn();
+
+function stubObserverRatio(intersectionRatio: number) {
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      callback: (
+        entries: { isIntersecting: boolean; intersectionRatio: number }[],
+      ) => void;
+      constructor(
+        callback: (
+          entries: { isIntersecting: boolean; intersectionRatio: number }[],
+        ) => void,
+      ) {
+        this.callback = callback;
+      }
+      observe() {
+        this.callback([{ isIntersecting: true, intersectionRatio }]);
+      }
+      disconnect() {}
+    },
+  );
+}
 
 describe("FeedbackToast", () => {
   const layers: ReturnType<typeof openOverlay>[] = [];
@@ -349,6 +371,43 @@ describe("FeedbackToast", () => {
       vi.advanceTimersByTime(1);
     });
     expect(screen.queryByText("Saved Time")).not.toBeInTheDocument();
+  });
+
+  it("dismisses a status card the observer keeps reporting as clipped", () => {
+    vi.useFakeTimers();
+    stubObserverRatio(0.5);
+    render(<FeedbackToast />);
+    act(() =>
+      useDawStore.getState().announceStatus("Refresh failed: bad request"),
+    );
+    act(() => {
+      vi.advanceTimersByTime(TOAST_CLIPPED_MAX_MS);
+    });
+    act(() => {
+      vi.advanceTimersByTime(TOAST_MS - 1);
+    });
+    expect(screen.getByText("Refresh failed: bad request")).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(
+      screen.queryByText("Refresh failed: bad request"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("treats a sub-pixel intersection ratio as fully visible", () => {
+    vi.useFakeTimers();
+    stubObserverRatio(0.97);
+    render(<FeedbackToast />);
+    act(() => useDawStore.getState().announceStatus("Saved"));
+    act(() => {
+      vi.advanceTimersByTime(TOAST_MS - 1);
+    });
+    expect(screen.getByText("Saved")).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
   });
 
   it("keeps a card paused when compact and floating presentations both clip it", () => {

@@ -43,7 +43,13 @@ export { usePressedControl } from "./pressedControl";
 export { SegmentedControl } from "./SegmentedControl";
 export { StatusLiveRegion } from "./StatusLiveRegion";
 export { Timecode } from "./Timecode";
-export { TOAST_MS, TOAST_UNDO_MS, Toast, type ToastState } from "./Toast";
+export {
+  TOAST_CLIPPED_MAX_MS,
+  TOAST_MS,
+  TOAST_UNDO_MS,
+  Toast,
+  type ToastState,
+} from "./Toast";
 export { ToggleButton } from "./ToggleButton";
 export { type UseCommandResult, useCommand } from "./useCommand";
 export {
