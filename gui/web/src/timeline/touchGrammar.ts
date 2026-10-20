@@ -125,12 +125,24 @@ export function keyboardCreateAnchor(
   );
   if (!lane) return null;
   lane.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  const scroller = root.closest<HTMLElement>(".timeline-scroll");
+  const playheadX = () =>
+    root.getBoundingClientRect().left + playheadSec * zoomPxPerSec;
+  if (scroller) {
+    // Bring the playhead into the visible lane before the menu is placed on it.
+    const view = scroller.getBoundingClientRect();
+    const lead =
+      Number.parseFloat(
+        getComputedStyle(scroller).getPropertyValue("--timeline-header-offset"),
+      ) || 0;
+    const from = view.left + lead + 8;
+    const to = view.right - 8;
+    const x = playheadX();
+    if (x < from || x > to) scroller.scrollLeft += x - (from + to) / 2;
+  }
   const box = lane.getBoundingClientRect();
   return {
-    origin: {
-      x: root.getBoundingClientRect().left + playheadSec * zoomPxPerSec,
-      y: box.top + box.height / 2,
-    },
+    origin: { x: playheadX(), y: box.top + box.height / 2 },
     surface: lane,
   };
 }
