@@ -445,6 +445,24 @@ describe("TranscriptPanel", () => {
       expect(hint).not.toHaveTextContent(/Mod\+/);
     });
 
+    it("names touch actions in the phone shell even with a fine pointer", () => {
+      useDawStore.setState({ pointerKind: "fine", shellBreakpoint: "phone" });
+      const { container } = render(<TranscriptPanel />);
+      const hint = () => container.querySelector(".transcript-mode-hint");
+      expect(hint()).toHaveTextContent(/Double-tap a word/);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Correct/i }),
+      );
+      expect(hint()).toHaveTextContent(/tap a word/);
+      expect(hint()).not.toHaveTextContent(/click/);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Select/i }),
+      );
+      expect(hint()).toHaveTextContent(/hold a word and drag/);
+      expect(hint()).not.toHaveTextContent(/Mod\+/);
+      useDawStore.setState({ shellBreakpoint: "desktop" });
+    });
+
     it("keeps the Mod+X Select hint on fine pointers", () => {
       useDawStore.setState({ pointerKind: "fine" });
       const { container } = render(<TranscriptPanel />);

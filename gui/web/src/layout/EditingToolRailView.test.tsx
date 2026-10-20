@@ -205,11 +205,11 @@ describe("EditingToolRailView", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("shows Cut at playhead in blade mode and hides it in comment mode", () => {
+  it("shows Blade cut in blade mode and hides it in comment mode", () => {
     const { rerender } = render(
       <EditingToolRailView {...baseProps()} toolMode="blade" />,
     );
-    const cutButton = screen.getByRole("button", { name: "Cut at playhead" });
+    const cutButton = screen.getByRole("button", { name: "Blade cut" });
     expect(cutButton).not.toBeDisabled();
     expect(cutButton).toHaveAttribute(
       "title",
@@ -219,9 +219,7 @@ describe("EditingToolRailView", () => {
     rerender(
       <EditingToolRailView {...baseProps()} toolMode="blade" commentMode />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Cut at playhead" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Blade cut" })).toBeNull();
   });
 
   it("renders no toggle slot when ingest-only", () => {

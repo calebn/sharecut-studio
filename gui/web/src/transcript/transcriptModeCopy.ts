@@ -18,7 +18,11 @@ export const TRANSCRIPT_GUEST_SELECT_HINT: Record<"edit" | "suggest", string> =
       "Select: pick words, then Suggest cut or Suggest mute sends them to the host for review. Nothing changes until the host approves.",
   };
 
-/** Select hint on coarse pointers: the hold-and-drag gesture and the Range actions replace Mod+X and Mod+V. */
+/** Correct hint on touch: tapping replaces clicking. */
+export const TRANSCRIPT_CORRECT_TOUCH_HINT =
+  "Correct: tap a word, then Apply fixes its text or Suppress drops it from the transcript (text only; audio and timing stay as recorded). Ignore strikes it through and mutes its audio at render, without a cut.";
+
+/** Select hint on touch: the hold-and-drag gesture and the Range actions replace Mod+X and Mod+V. */
 export const TRANSCRIPT_SELECT_TOUCH_HINT =
   "Select (edits audio): hold a word and drag across more, or tap a word and add words in Range actions. Cut and Mute are there too. Ignore strikes through and mutes the selection at render, non-destructively; Restore brings it back.";
 
@@ -31,7 +35,7 @@ export const TRANSCRIPT_GUEST_SELECT_TOUCH_HINT: Record<
     "Select: hold a word and drag across more, then Suggest cut or Suggest mute sends them to the host for review. Nothing changes until the host approves.",
 };
 
-/** Navigate hint on coarse pointers: double-tap opens the Correct sheet, not the inline editor. */
+/** Navigate hint on touch: double-tap opens the Correct sheet, not the inline editor. */
 export const TRANSCRIPT_NAVIGATE_TOUCH_HINT =
   "Double-tap a word to correct its text in the word editor. Text fixes never move or cut audio.";
 

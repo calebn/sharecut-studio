@@ -336,7 +336,7 @@ async function sweepCell(
   // and desktop tab, and its action items and track picks appear once there is text.
   if (!phone) {
     await page
-      .getByRole("button", { name: "Comment", exact: true })
+      .getByRole("button", { name: "Toggle comment mode", exact: true })
       .first()
       .click();
     const body = page.getByRole("textbox", { name: "Comment", exact: true });
@@ -469,7 +469,7 @@ test("loaded tablet playback stays inline at 200% text", async ({ page }) => {
     .getByRole("button", { name: "Play", exact: true })
     .boundingBox();
   const stop = await page
-    .getByRole("button", { name: "Stop", exact: true })
+    .getByRole("button", { name: "Stop playback", exact: true })
     .boundingBox();
   expect(play).not.toBeNull();
   expect(stop).not.toBeNull();

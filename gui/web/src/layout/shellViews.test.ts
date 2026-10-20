@@ -64,7 +64,9 @@ describe("production shell views", () => {
     (entry) => {
       const graph = runtimeGraph(entry);
       expect(graph).toContain("ui/BottomSheet.tsx");
-      expect(graph).toContain("ui/ToggleButton.tsx");
+      expect(graph).toContain(
+        entry.includes("Mobile") ? "ui/ToggleButton.tsx" : "ui/Tabs.tsx",
+      );
       expect(
         graph.filter(
           (file) =>

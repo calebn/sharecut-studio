@@ -78,7 +78,7 @@ export const CommentAnchor: Story = {
   },
   play: async ({ canvasElement }) => {
     const slider = within(canvasElement).getByRole("slider", {
-      name: "Comment time anchor",
+      name: "Comment time",
     });
     await expect(slider).toHaveAttribute(
       "title",

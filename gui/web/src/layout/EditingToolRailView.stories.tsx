@@ -127,9 +127,11 @@ type Story = StoryObj<typeof RailPreview>;
 export const SelectTool: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Select" })).toBeTruthy();
     await expect(
-      canvas.queryByRole("button", { name: "Cut at playhead" }),
+      canvas.getByRole("button", { name: "Select tool" }),
+    ).toBeTruthy();
+    await expect(
+      canvas.queryByRole("button", { name: "Blade cut" }),
     ).toBeNull();
   },
 };
@@ -163,9 +165,9 @@ export const NothingToUndo: Story = {
 export const BladeTool: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Blade" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Blade tool" }));
     await userEvent.click(
-      canvas.getByRole("button", { name: "Cut at playhead" }),
+      canvas.getByRole("button", { name: "Blade cut" }),
     );
     await expect(args.onCutAtPlayhead).toHaveBeenCalled();
   },
@@ -174,12 +176,12 @@ export const BladeTool: Story = {
 export const CommentModeHidesCut: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Blade" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Blade tool" }));
     await userEvent.click(
       canvas.getByRole("button", { name: "Toggle comment mode" }),
     );
     await expect(
-      canvas.queryByRole("button", { name: "Cut at playhead" }),
+      canvas.queryByRole("button", { name: "Blade cut" }),
     ).toBeNull();
   },
 };
@@ -188,7 +190,9 @@ export const IngestOnly: Story = {
   args: { bladeAllowed: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "Select" })).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Select tool" }),
+    ).toBeNull();
     await expect(canvas.getByRole("button", { name: "+ Track" })).toBeTruthy();
     await expect(within(document.body).queryByRole("dialog")).toBeNull();
   },

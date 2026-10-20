@@ -104,10 +104,10 @@ type Story = StoryObj<typeof ToolModePreview>;
 export const Select: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Blade" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Select" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Blade tool" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Select tool" }));
     await expect(
-      canvas.getByRole("button", { name: "Select" }),
+      canvas.getByRole("button", { name: "Select tool" }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(args.onSelect).toHaveBeenCalled();
   },
@@ -116,11 +116,10 @@ export const Select: Story = {
 export const Blade: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Blade" }));
-    await expect(canvas.getByRole("button", { name: "Blade" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await userEvent.click(canvas.getByRole("button", { name: "Blade tool" }));
+    await expect(
+      canvas.getByRole("button", { name: "Blade tool" }),
+    ).toHaveAttribute("aria-pressed", "true");
     await expect(args.onBlade).toHaveBeenCalled();
   },
 };
@@ -128,9 +127,11 @@ export const Blade: Story = {
 export const CommentMode: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Comment" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Toggle comment mode" }),
+    );
     await expect(
-      canvas.getByRole("button", { name: "Comment" }),
+      canvas.getByRole("button", { name: "Toggle comment mode" }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(args.onToggleComment).toHaveBeenCalled();
   },
@@ -140,13 +141,18 @@ export const CommentOnlyGuest: Story = {
   args: { bladeReason: "Blade requires permission to suggest edits" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Select" })).toBeEnabled();
-    await expect(canvas.getByRole("button", { name: "Blade" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Blade" })).toHaveAttribute(
-      "title",
-      "Blade requires permission to suggest edits",
-    );
-    await expect(canvas.getByRole("button", { name: "Comment" })).toBeTruthy();
+    await expect(
+      canvas.getByRole("button", { name: "Select tool" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Blade tool" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Blade tool" }),
+    ).toHaveAttribute("title", "Blade requires permission to suggest edits");
+    await expect(
+      canvas.getByRole("button", { name: "Toggle comment mode" }),
+    ).toBeTruthy();
   },
 };
 
@@ -156,7 +162,11 @@ export const CompactPhone: Story = {
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Select" })).toBeTruthy();
-    await expect(canvas.queryByRole("button", { name: "Comment" })).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: "Select tool" }),
+    ).toBeTruthy();
+    await expect(
+      canvas.queryByRole("button", { name: "Toggle comment mode" }),
+    ).toBeNull();
   },
 };

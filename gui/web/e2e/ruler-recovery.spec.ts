@@ -111,8 +111,10 @@ for (const terminal of ["cancel", "loss"] as const) {
       await openHostShare(page, projectPath);
       await setTheme(page, "light");
       await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-      await page.getByRole("button", { name: "Comment", exact: true }).click();
-      const ruler = page.getByRole("slider", { name: "Comment time anchor" });
+      await page
+        .getByRole("button", { name: "Toggle comment mode", exact: true })
+        .click();
+      const ruler = page.getByRole("slider", { name: "Comment time" });
       const hint = page.locator(".comment-time-chip");
       const scale = await rulerScale(ruler);
       const point = async (seconds: number) => {
@@ -540,8 +542,10 @@ for (const kind of ["instant", "span"] as const) {
   }, async ({ page, receipts }) => {
     await withShareableProject(async (projectPath) => {
       await openModes(page, projectPath);
-      await page.getByRole("button", { name: "Comment", exact: true }).click();
-      const ruler = page.getByRole("slider", { name: "Comment time anchor" });
+      await page
+        .getByRole("button", { name: "Toggle comment mode", exact: true })
+        .click();
+      const ruler = page.getByRole("slider", { name: "Comment time" });
       const hint = page.locator(".comment-time-chip");
       const before = snapshot(projectPath),
         observer = rulerCommands(page, projectPath, receipts);
@@ -656,8 +660,10 @@ for (const departure of ["tool", "page"] as const) {
   }, async ({ page, receipts }) => {
     await withShareableProject(async (projectPath) => {
       await openModes(page, projectPath);
-      await page.getByRole("button", { name: "Comment", exact: true }).click();
-      const ruler = page.getByRole("slider", { name: "Comment time anchor" });
+      await page
+        .getByRole("button", { name: "Toggle comment mode", exact: true })
+        .click();
+      const ruler = page.getByRole("slider", { name: "Comment time" });
       const before = snapshot(projectPath),
         observer = rulerCommands(page, projectPath, receipts);
       try {
@@ -798,8 +804,10 @@ test("comment span accounts for held horizontal scroll and reverses without savi
     await openModes(page, projectPath);
     const ordinary = page.getByRole("slider", { name: "Timeline position" });
     const scroll = await zoomForScroll(page, ordinary);
-    await page.getByRole("button", { name: "Comment", exact: true }).click();
-    const ruler = page.getByRole("slider", { name: "Comment time anchor" }),
+    await page
+      .getByRole("button", { name: "Toggle comment mode", exact: true })
+      .click();
+    const ruler = page.getByRole("slider", { name: "Comment time" }),
       hint = page.locator(".comment-time-chip");
     const before = snapshot(projectPath),
       observer = rulerCommands(page, projectPath, receipts);

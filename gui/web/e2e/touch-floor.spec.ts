@@ -29,6 +29,14 @@ const TABLET_EXCEPTIONS = [".status-chip"];
 const FLOOR_PX = 44 - 0.5;
 const CONTROLS =
   "button, a[href], [role=button], [role=tab], [role=menuitem], [role=checkbox], [role=menuitemcheckbox], [role=menuitemradio], [role=switch], input, select, textarea, summary";
+const PANEL_TABS = [
+  "Transcript",
+  "Comments",
+  "History",
+  "Impact",
+  "Tighten",
+  "Pipeline",
+] as const;
 const MODES = ["Listen", "Timeline", "Text", "More"] as const;
 
 /** Visible controls whose touch target is under the floor and not a documented exception. */
@@ -102,7 +110,15 @@ for (const size of SIZES) {
         );
       }
     } else {
-      found.push(...(await undersized(page, exceptions)));
+      const tabs = page.getByRole("tablist", { name: "Editor panels" });
+      for (const name of PANEL_TABS) {
+        await tabs.getByRole("tab", { name, exact: true }).click();
+        found.push(
+          ...(await undersized(page, exceptions)).map(
+            (row) => `[${name}] ${row}`,
+          ),
+        );
+      }
       // The transport menu holds the overlay layers: its rows hold the floor and the last one
       // is reachable in a short window.
       await page.getByRole("button", { name: "Menu", exact: true }).click();

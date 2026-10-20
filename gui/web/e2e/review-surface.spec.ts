@@ -41,11 +41,11 @@ for (const theme of ["light", "dark"] as const) {
           ).toBeVisible();
 
           await guest
-            .getByRole("button", { name: "Comment", exact: true })
+            .getByRole("button", { name: "Toggle comment mode", exact: true })
             .first()
             .click();
           await guest
-            .getByRole("slider", { name: "Comment time anchor" })
+            .getByRole("slider", { name: "Comment time" })
             .click();
           const body = `Commenter feedback in ${theme}`;
           await guest

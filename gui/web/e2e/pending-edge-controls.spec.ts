@@ -444,7 +444,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });
   await expect(page.locator(".pending-actionbar")).toHaveCount(0);
-  await page.getByRole("button", { name: "Blade" }).click();
+  await page.getByRole("button", { name: "Blade tool" }).click();
   await page
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });

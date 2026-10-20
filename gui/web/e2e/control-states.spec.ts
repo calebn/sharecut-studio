@@ -140,7 +140,10 @@ test.describe("control state parity", () => {
         };
       });
 
-    const comment = page.getByRole("button", { name: "Comment", exact: true });
+    const comment = page.getByRole("button", {
+      name: "Toggle comment mode",
+      exact: true,
+    });
     await comment.click();
     await expect(comment).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("heading", { level: 1 }).hover();

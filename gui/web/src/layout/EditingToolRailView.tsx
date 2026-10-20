@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { commandLabel } from "../commands/labels";
 import type { ToolMode } from "../state/types";
 import { Button } from "../ui";
 import { HistoryControls } from "./HistoryControls";
@@ -76,7 +77,7 @@ export function EditingToolRailView({
               onClick={onCutAtPlayhead}
               title="Cut selected tracks at playhead"
             >
-              Cut at playhead
+              {commandLabel("edit.bladeCut")}
             </Button>
           ) : null}
           <div className="editing-tool-rail-end">

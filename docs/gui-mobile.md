@@ -473,10 +473,7 @@ phone More sheet is a `Menu` behind a "People · n" button.
 Inspector dismiss still clears the clip selection. A remounted Inspector
 sheet stays under a still-open JoinPopover and does not steal focus from
 a docked waiver field. A new sheet still takes Close after deferred
-envelope first-entry. Clip Inspector fade Escape
-stops propagation only while a fade preview is in progress, so cancelling
-it leaves the sheet open. Idle Escape on a fade slider still dismisses the
-sheet.
+envelope first-entry.
 Typing, Tab and Enter inside
 the dialog stay native. A modal can hand on named shortcuts; the Record room
 hands on M for a live marker. On close, focus returns to the control that
