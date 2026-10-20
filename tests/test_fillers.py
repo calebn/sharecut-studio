@@ -73,7 +73,7 @@ def _pause_audio(project: EpisodeProject, tmp_path: Path) -> EpisodeProject:
 
 
 def test_peer_speech_index_matches_direct_gap_scan() -> None:
-    from podcast_mcp.edits.tighten.acoustic_scan import _peer_speaking_in_gap, _peer_speech_indexes
+    from podcast_mcp.edits.pause_floor import peer_speaking_in_gap, peer_speech_indexes
 
     project = _project_with_transcript([])
     project.tracks.append(
@@ -95,7 +95,7 @@ def test_peer_speech_index_matches_direct_gap_scan() -> None:
             ],
         )
     )
-    indexes = _peer_speech_indexes(project)
+    indexes = peer_speech_indexes(project)
     for start, end in (
         (0, 1.1),
         (1.3, 1.5),
@@ -105,13 +105,13 @@ def test_peer_speech_index_matches_direct_gap_scan() -> None:
         (2.2, 3.1),
         (3.4, 4.0),
     ):
-        assert _peer_speaking_in_gap(project, "host", start, end, indexes) == (
-            _peer_speaking_in_gap(project, "host", start, end)
+        assert peer_speaking_in_gap(project, "host", start, end, indexes) == (
+            peer_speaking_in_gap(project, "host", start, end)
         )
 
 
 def test_peer_speech_index_falls_back_for_standalone_transcript() -> None:
-    from podcast_mcp.edits.tighten.acoustic_scan import _peer_speaking_in_gap, _peer_speech_indexes
+    from podcast_mcp.edits.pause_floor import peer_speaking_in_gap, peer_speech_indexes
 
     project = _project_with_transcript([TranscriptWord(text="peer", start=2.0, end=2.4)])
     project.tracks.append(
@@ -122,17 +122,17 @@ def test_peer_speech_index_falls_back_for_standalone_transcript() -> None:
             media=MediaAsset(path="/tmp/ws/raw/guest.wav", duration_sec=30.0),
         )
     )
-    indexes = _peer_speech_indexes(project)
+    indexes = peer_speech_indexes(project)
     assert "guest" not in indexes
-    assert _peer_speaking_in_gap(project, "guest", 2.1, 2.3, indexes)
-    assert not _peer_speaking_in_gap(project, "guest", 2.4, 2.6, indexes)
+    assert peer_speaking_in_gap(project, "guest", 2.1, 2.3, indexes)
+    assert not peer_speaking_in_gap(project, "guest", 2.4, 2.6, indexes)
 
 
 def test_peer_speech_index_excludes_own_long_word_across_three_tracks(monkeypatch) -> None:
-    from podcast_mcp.edits.tighten.acoustic_scan import (
-        _peer_speaking_in_gap,
-        _peer_speech_indexes,
-        _PeerSpeechIndex,
+    from podcast_mcp.edits.pause_floor import (
+        PeerSpeechIndex,
+        peer_speaking_in_gap,
+        peer_speech_indexes,
     )
 
     project = _project_with_transcript([TranscriptWord(text="host", start=0.0, end=20.0)])
@@ -160,15 +160,15 @@ def test_peer_speech_index_excludes_own_long_word_across_three_tracks(monkeypatc
         project.transcripts.append(Transcript(track_id=track_id, words=words))
 
     built: list[int] = []
-    original = _PeerSpeechIndex.build
+    original = PeerSpeechIndex.build
 
     def counted(spans):
         items = list(spans)
         built.append(len(items))
         return original(items)
 
-    monkeypatch.setattr(_PeerSpeechIndex, "build", staticmethod(counted))
-    indexes = _peer_speech_indexes(project)
+    monkeypatch.setattr(PeerSpeechIndex, "build", staticmethod(counted))
+    indexes = peer_speech_indexes(project)
     assert built == [4]  # One global pass; muted and music words are omitted.
     assert len({id(index.shared) for index in indexes.values()}) == 1
     for track_id in ("host", "guest", "third", "music"):
@@ -184,8 +184,8 @@ def test_peer_speech_index_excludes_own_long_word_across_three_tracks(monkeypatc
             (12.0, 20.0),
             (20.0, 21.0),
         ):
-            assert _peer_speaking_in_gap(project, track_id, start, end, indexes) == (
-                _peer_speaking_in_gap(project, track_id, start, end)
+            assert peer_speaking_in_gap(project, track_id, start, end, indexes) == (
+                peer_speaking_in_gap(project, track_id, start, end)
             )
     assert not indexes["host"].overlaps(6.0, 7.0)
     assert indexes["host"].overlaps(8.0, 9.0)
@@ -1158,7 +1158,7 @@ def test_repetition_requires_local_timestamps_and_ignores_filler_words():
 
 
 def test_retained_pause_floor_counts_a_peer_muted_in_the_mix():
-    from podcast_mcp.edits.tighten.collect import _retained_pause_floor_sec
+    from podcast_mcp.edits.pause_floor import retained_pause_floor_sec
 
     host_words = [
         TranscriptWord(text="her", start=1.0, end=1.2),
@@ -1180,7 +1180,7 @@ def test_retained_pause_floor_counts_a_peer_muted_in_the_mix():
             words=[TranscriptWord(text="yeah", start=2.0, end=2.4)],
         )
     )
-    floor, solo = _retained_pause_floor_sec(
+    floor, solo = retained_pause_floor_sec(
         project,
         "host",
         1.2,
@@ -1198,7 +1198,7 @@ def test_retained_pause_floor_counts_a_peer_muted_in_the_mix():
 
 
 def test_solo_floor_not_below_turn_floor():
-    from podcast_mcp.edits.tighten.collect import _retained_pause_floor_sec
+    from podcast_mcp.edits.pause_floor import retained_pause_floor_sec
 
     project = _project_with_transcript(
         [
@@ -1206,7 +1206,7 @@ def test_solo_floor_not_below_turn_floor():
             TranscriptWord(text="b", start=2.0, end=2.2),
         ]
     )
-    floor, solo = _retained_pause_floor_sec(
+    floor, solo = retained_pause_floor_sec(
         project,
         "host",
         0.2,

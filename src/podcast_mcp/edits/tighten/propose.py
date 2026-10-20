@@ -16,11 +16,9 @@ from podcast_mcp.edits.acoustic_word import (
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.mute_regions import muted_source_spans
+from podcast_mcp.edits.pause_floor import peer_speech_indexes
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
-from podcast_mcp.edits.tighten.acoustic_scan import (
-    _add_acoustic_candidates,
-    _peer_speech_indexes,
-)
+from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
 from podcast_mcp.edits.tighten.apply import (
     _apply_analyzed_cut,
     _resolve_analyzed_cuts,
@@ -191,7 +189,7 @@ def propose_tighten_edits(
     audio_caches = build_track_audio_caches(
         project, {*dialogue_track_ids(project), *(t.track_id for t in project.transcripts)}
     )
-    peer_indexes = _peer_speech_indexes(project)
+    peer_indexes = peer_speech_indexes(project)
     copy_lags = PeerCopyLags(project)
     max_workers = cfg.get("performance", {}).get("max_workers")
 

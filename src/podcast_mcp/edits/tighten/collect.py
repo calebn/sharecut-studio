@@ -18,10 +18,7 @@ from podcast_mcp.util.timebase import SourceSec
 
 if TYPE_CHECKING:
     pass
-from podcast_mcp.edits.tighten.acoustic_scan import (
-    _peer_speaking_in_gap,
-    _PeerTrackSpeechIndex,
-)
+from podcast_mcp.edits.pause_floor import PeerTrackSpeechIndex, retained_pause_floor_sec
 from podcast_mcp.edits.tighten.candidate import (
     _candidate_order,
     _count_skip,
@@ -115,30 +112,6 @@ def _timeline_pause_gap_sec(
     return sum(float(end) - float(start) for start, end in spans)
 
 
-def _retained_pause_floor_sec(
-    project: EpisodeProject,
-    track_id: str,
-    gap_start: float,
-    gap_end: float,
-    defaults: dict[str, Any],
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
-) -> tuple[float, bool]:
-    """How much pause air to keep; solo thinking pauses keep more than turn gaps.
-
-    Returns (floor_sec, is_solo). Peer speech in the gap → turn/dead-air floor
-    (``min_retained_pause_sec``). Quiet peers → same-speaker thinking floor
-    (``min_retained_solo_pause_sec``, default 0.55s).
-    """
-    tighten = defaults.get("tighten", {})
-    turn_floor = float(tighten.get("min_retained_pause_sec", 0.18))
-    solo_floor = float(tighten.get("min_retained_solo_pause_sec", 0.55))
-    if solo_floor < turn_floor:
-        solo_floor = turn_floor
-    if _peer_speaking_in_gap(project, track_id, gap_start, gap_end, peer_indexes):
-        return turn_floor, False
-    return solo_floor, True
-
-
 def _collect_filler_candidates(
     words: list[TranscriptWord],
     track_id: str,
@@ -228,7 +201,7 @@ def _collect_candidates(
     *,
     project: EpisodeProject | None = None,
     skip_counts: dict[str, int] | None = None,
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
+    peer_indexes: dict[str, PeerTrackSpeechIndex] | None = None,
 ) -> list[_CutCandidate]:
     """Find filler-cluster, repetition, and long-pause candidates (read-only).
 
@@ -262,7 +235,7 @@ def _collect_candidates(
                     gap = _timeline_pause_gap_sec(project, track_id, gap_start, gap_end)
                     if gap < max_pause:
                         continue
-                    retain, solo = _retained_pause_floor_sec(
+                    retain, solo = retained_pause_floor_sec(
                         project, track_id, gap_start, gap_end, defaults, peer_indexes
                     )
                     trim_end = _pause_trim_end_for_timeline_floor(
