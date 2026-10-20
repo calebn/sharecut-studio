@@ -29,11 +29,10 @@ import logging
 import re
 import time
 import wave
-from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Any, Literal, TypeVar, cast
+from typing import Any, Literal, cast
 
 from filelock import Timeout as FileLockTimeout
 
@@ -70,6 +69,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import open_project
+from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
@@ -157,38 +157,17 @@ class MediaIndex:
 
 
 _IndexKey = tuple[str, FileRevision]
-_INDEX: OrderedDict[_IndexKey, MediaIndex] = OrderedDict()
-_INDEX_LOCK = Lock()
-_META: OrderedDict[tuple[str, str], PyramidMeta] = OrderedDict()
-_META_LOCK = Lock()
+_INDEX: BoundedCache[_IndexKey, MediaIndex] = BoundedCache(_INDEX_MAX)
+_META: BoundedCache[tuple[str, str], PyramidMeta] = BoundedCache(_META_MAX)
 _GC_DONE: set[str] = set()
 _GC_LOCK = Lock()
 _PCM_DECODES = ConcurrencyGate(limit=PCM_DECODE_MAX_CONCURRENT, bucket_name="pcm_decode")
 _PCM_GATE_KEY = "host"  # the gate is keyed; the decode budget is one process-wide key
 _PcmKey = tuple[str, str, int]  # (media path, pyramid key, block)
-_PCM: OrderedDict[_PcmKey, bytes] = OrderedDict()
-_PCM_LOCK = Lock()
+_PCM: BoundedCache[_PcmKey, bytes] = BoundedCache(_PCM_MAX)
 # One lock per block being read, dropped once idle: concurrent requests for a block wait
 # on it, then find the first one's decode in the LRU instead of probing or decoding again.
 _PCM_LOCKS: KeyedLocks[_PcmKey, Lock] = KeyedLocks(Lock)
-
-_K = TypeVar("_K")
-_V = TypeVar("_V")
-
-
-def _lru_get(cache: OrderedDict[_K, _V], key: _K) -> _V | None:
-    """Hit moves to the MRU end. The caller holds the cache's lock."""
-    hit = cache.get(key)
-    if hit is not None:
-        cache.move_to_end(key)
-    return hit
-
-
-def _lru_put(cache: OrderedDict[_K, _V], key: _K, value: _V, limit: int) -> None:
-    """Insert and evict LRU entries past *limit*. The caller holds the cache's lock."""
-    cache[key] = value
-    while len(cache) > limit:
-        cache.popitem(last=False)
 
 
 def parse_ref(ref: str) -> tuple[RefKind, str]:
@@ -221,8 +200,7 @@ def media_index(project_path: Path) -> MediaIndex:
     A hit is reused only while its watched media and stem files are unchanged.
     """
     cache_key: _IndexKey = (str(project_path), file_revision(project_path))
-    with _INDEX_LOCK:
-        hit = _lru_get(_INDEX, cache_key)
+    hit = _INDEX.get(cache_key)
     if hit is not None and _watch_signature(hit.watch_paths) == hit.watch_sig:
         return hit
     before = file_revision(project_path)
@@ -239,8 +217,7 @@ def media_index(project_path: Path) -> MediaIndex:
         watch_sig=watch_sig,
     )
     if before == after == cache_key[1]:
-        with _INDEX_LOCK:
-            _lru_put(_INDEX, cache_key, index, _INDEX_MAX)
+        _INDEX.put(cache_key, index)
     return index
 
 
@@ -256,19 +233,16 @@ def live_key(entry: MediaEntry) -> str:
 
 def _meta(path: Path, key: str) -> PyramidMeta:
     cache_key = (str(path), key)
-    with _META_LOCK:
-        hit = _lru_get(_META, cache_key)
+    hit = _META.get(cache_key)
     if hit is not None:
         return hit
     meta = read_meta(path)
-    with _META_LOCK:
-        _lru_put(_META, cache_key, meta, _META_MAX)
+    _META.put(cache_key, meta)
     return meta
 
 
 def _drop_pyramid(path: Path, key: str) -> None:
-    with _META_LOCK:
-        _META.pop((str(path), key), None)
+    _META.pop((str(path), key))
     with (
         contextlib.suppress(OSError, FileLockTimeout),
         hold_shared_file_lock(path.parent / ".waveform.lock", timeout=PYRAMID_LOCK_TIMEOUT_SEC),
@@ -431,8 +405,7 @@ def _read_pcm_block_locked(
     take a decode slot without waiting (``WaveformBusyError`` when none is free),
     decode, and store the block.
     """
-    with _PCM_LOCK:
-        hit = _lru_get(_PCM, cache_key)
+    hit = _PCM.get(cache_key)
     if hit is not None:
         return hit
     try:
@@ -448,8 +421,7 @@ def _read_pcm_block_locked(
         body = _read_pcm_bytes(entry, key, meta, start, frames, source)
     finally:
         _PCM_DECODES.exit(_PCM_GATE_KEY)
-    with _PCM_LOCK:
-        _lru_put(_PCM, cache_key, body, _PCM_MAX)
+    _PCM.put(cache_key, body)
     return body
 
 
@@ -485,8 +457,7 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
         raise CodedValueError("block out of range", code="invalid_waveform_request")
     frames = min(frames_per_block, meta.total_frames - start)
     cache_key: _PcmKey = (str(entry.abs_path), key, block)
-    with _PCM_LOCK:
-        hit = _lru_get(_PCM, cache_key)
+    hit = _PCM.get(cache_key)
     if hit is not None:  # only compressed blocks are stored, and the key was checked live above
         return hit
     lock = _PCM_LOCKS.get(cache_key)

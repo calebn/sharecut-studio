@@ -40,6 +40,7 @@ from podcast_mcp.services.media.waveform import (
     tile_bytes,
     waveform_status,
 )
+from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from waveform_helpers import SR, reset_waveform_caches, waveform_project, write_wav
@@ -145,7 +146,7 @@ def test_media_index_reparses_after_stem_render_and_evicts(tmp_path, monkeypatch
     first = media_index(project_path)
     write_wav(project_path.parent / "artifacts" / "tracks" / "host.wav", 640)
     assert media_index(project_path) is not first  # stems folder changed
-    monkeypatch.setattr(svc, "_INDEX_MAX", 1)
+    monkeypatch.setattr(svc, "_INDEX", BoundedCache(1))
     other = waveform_project(tmp_path / "other")
     media_index(other)
     assert len(svc._INDEX) == 1
@@ -679,7 +680,7 @@ def test_stem_symlinked_outside_workspace_is_skipped(tmp_path):
 
 
 def test_meta_cache_is_bounded(tmp_path, monkeypatch):
-    monkeypatch.setattr(svc, "_META_MAX", 1)
+    monkeypatch.setattr(svc, "_META", BoundedCache(1))
     project_path = waveform_project(tmp_path)
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
@@ -1006,7 +1007,7 @@ def test_pcm_block_caches_compressed_blocks(tmp_path, monkeypatch):
 
 def test_pcm_block_cache_is_bounded(tmp_path, monkeypatch):
     _compressed(monkeypatch)
-    monkeypatch.setattr(svc, "_PCM_MAX", 2)
+    monkeypatch.setattr(svc, "_PCM", BoundedCache(2))
     project_path = waveform_project(tmp_path)
     key, _ = _ready(project_path)
     calls: list[int] = []
@@ -1041,7 +1042,7 @@ def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
     pcm_block(project_path, "track:host", key, 0)
     pcm_block(project_path, "track:host", key, 0)
     assert len(calls) == 2
-    assert svc._PCM == {}
+    assert len(svc._PCM) == 0
 
     _compressed(monkeypatch)
     real2 = svc.read_pcm_minmax
@@ -1052,7 +1053,7 @@ def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", boom)
     with pytest.raises(svc.WaveformDecodeError):
         pcm_block(project_path, "track:host", key, 2)
-    assert svc._PCM == {}
+    assert len(svc._PCM) == 0
     assert not _pcm_block_locked(project_path, key, 2)
 
     audio = project_path.parent / "raw" / "host.wav"
@@ -1066,7 +1067,7 @@ def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", swapping)
     with pytest.raises(StaleWaveformKeyError):
         pcm_block(project_path, "track:host", key, 3)
-    assert svc._PCM == {}
+    assert len(svc._PCM) == 0
     assert not _pcm_block_locked(project_path, key, 3)
 
 
