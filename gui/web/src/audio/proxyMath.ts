@@ -5,6 +5,7 @@ import {
 } from "../edit/joinRender";
 import type { ClipRow, ProjectView } from "../types/project";
 import { originTrackId } from "../utils/timebase";
+import type { VolumePoint } from "./gainCurve";
 
 export interface ProxyArtifactManifest {
   readonly hash: string;
@@ -53,6 +54,7 @@ export type ImmutableChunkRef = Readonly<{
 }>;
 
 export interface ClipEnvelope {
+  readonly volume: readonly VolumePoint[];
   readonly timelineStartSec: number;
   readonly timelineEndSec: number;
   readonly fadeInSec: number;
@@ -316,6 +318,7 @@ export function buildSchedule(
   windowStartSec: number,
   windowEndSec: number,
   manifest: ProxyManifest,
+  volumeByTrack: Readonly<Record<string, readonly VolumePoint[]>> = {},
 ): ScheduledSlice[] {
   const out: ScheduledSlice[] = [];
   const beforeCut = clipIdsBeforeCut([...clips]);
@@ -332,6 +335,8 @@ export function buildSchedule(
       : manifest.tracks[artifactId];
     if (!descriptor) throw new Error("Missing proxy descriptor for occurrence");
     const envelope: ClipEnvelope = {
+      volume:
+        volumeByTrack[binding?.outputTrackId ?? originTrackId(clip)] ?? [],
       timelineStartSec: clip.timeline_start,
       timelineEndSec: clip.timeline_end,
       fadeInSec: isCutJoin(clip) ? 0 : Math.max(0, clip.fade_in_ms) / 1000,

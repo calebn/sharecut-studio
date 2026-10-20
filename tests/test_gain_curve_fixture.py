@@ -1,0 +1,67 @@
+"""The gain a clip's edge fades and its track's volume envelope render, pinned to a fixture.
+
+``gui/web/src/audio/gainCurve.test.ts`` reads the same file, so the browser preview's
+evaluator and the FFmpeg render cannot drift apart (#1649).
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.models import AutomationEnvelope, AutomationPoint
+from podcast_mcp.util.binaries import resolve_ffmpeg
+
+_FIXTURE = json.loads(
+    (Path(__file__).parent / "fixtures" / "gain_curve" / "cases.json").read_text()
+)
+_SAMPLE_RATE = 48_000
+
+
+def _render_unit_clip(case: dict) -> np.ndarray:
+    """What the render does to a clip of constant 1.0: edge fades, then the track envelope."""
+    clip = case["clip"]
+    engine = FFmpegEngine()
+    filters = engine._fade_chain(clip["end"] - clip["start"], clip["fade_in"], clip["fade_out"])
+    if case["points"]:
+        envelope = AutomationEnvelope(
+            track_id="t",
+            points=[
+                AutomationPoint(id=str(i), time=p["time"], value=p["value"])
+                for i, p in enumerate(case["points"])
+            ],
+        )
+        expression = engine._volume_expression(envelope, timeline_origin_sec=clip["start"])
+        filters.append(f"volume=volume='{expression}':eval=frame")
+    raw = subprocess.run(
+        [
+            resolve_ffmpeg(),
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"aevalsrc=1:d={clip['end'] - clip['start']}:s={_SAMPLE_RATE}",
+            "-af",
+            ",".join(filters) or "anull",
+            "-f",
+            "f32le",
+            "-",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    return np.frombuffer(raw, dtype="<f4")
+
+
+@pytest.mark.parametrize("case", _FIXTURE["cases"], ids=lambda case: case["name"])
+def test_render_gain_matches_the_fixture_the_preview_is_tested_against(case: dict) -> None:
+    rendered = _render_unit_clip(case)
+    for at, expected in case["samples"]:
+        index = min(rendered.size - 1, round((at - case["clip"]["start"]) * _SAMPLE_RATE))
+        assert rendered[index] == pytest.approx(expected, abs=2e-3, rel=1e-2), (case["name"], at)

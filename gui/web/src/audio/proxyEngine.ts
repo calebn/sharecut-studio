@@ -1,6 +1,11 @@
 import type { ClipRow } from "../types/project";
 import { dbToLinear, trackIsAudible, trackOutputGainDb } from "../utils/audio";
 import { createChannelPeakTap } from "./channelPeakTap";
+import {
+  effectiveGainAt,
+  gainBreakpoints,
+  type VolumePoint,
+} from "./gainCurve";
 import { enterPlaybackSession, leavePlaybackSession } from "./playbackSession";
 import {
   buildSchedule,
@@ -26,6 +31,8 @@ export interface ProxyPlaybackSnapshot {
   readonly manifest: ProxyManifest;
   readonly clipsByTrack: Readonly<Record<string, readonly ClipRow[]>>;
   readonly tracks: readonly TrackInfo[];
+  /** Each track's volume envelope points by track id, sorted by time. */
+  readonly volumeByTrack?: Readonly<Record<string, readonly VolumePoint[]>>;
 }
 
 type FetchChunk = (ref: ImmutableChunkRef) => Promise<ArrayBuffer>;
@@ -75,12 +82,13 @@ export class ProxyEngine {
   }
 
   setSnapshot(snapshot: ProxyPlaybackSnapshot): void {
-    const { tracks, manifest, clipsByTrack } = snapshot;
+    const { tracks, manifest, clipsByTrack, volumeByTrack } = snapshot;
     const scheduleKey = JSON.stringify([
       manifest.tracks,
       manifest.artifacts,
       manifest.occurrences,
       clipsByTrack,
+      volumeByTrack,
     ]);
     const changed = scheduleKey !== this.scheduleKey;
     this.scheduleKey = scheduleKey;
@@ -316,40 +324,29 @@ export class ProxyEngine {
   ): void {
     const start = Math.max(when, this.ctx.currentTime);
     const end = when + slice.durationSec / this.playbackRate;
-    const envelope = slice.envelope;
+    const clip = slice.envelope;
     const timelineAt = (at: number) =>
       slice.whenTimelineSec + (at - when) * this.playbackRate;
-    const valueAt = (at: number) =>
-      Math.max(
-        0,
-        Math.min(
-          1,
-          envelope.fadeInSec > 0
-            ? (at - envelope.timelineStartSec) / envelope.fadeInSec
-            : 1,
-          envelope.fadeOutSec > 0
-            ? (envelope.timelineEndSec - at) / envelope.fadeOutSec
-            : 1,
-        ),
-      );
-    const points = [start, end];
-    const addPoint = (timeline: number) => {
-      const at = when + (timeline - slice.whenTimelineSec) / this.playbackRate;
-      if (at > start && at < end) points.push(at);
-    };
-    addPoint(envelope.timelineStartSec + envelope.fadeInSec);
-    addPoint(envelope.timelineEndSec - envelope.fadeOutSec);
-    if (envelope.fadeInSec > 0 && envelope.fadeOutSec > 0)
-      addPoint(
-        (envelope.fadeInSec * envelope.timelineEndSec +
-          envelope.fadeOutSec * envelope.timelineStartSec) /
-          (envelope.fadeInSec + envelope.fadeOutSec),
-      );
-    points.sort((a, b) => a - b);
+    const startTimeline = timelineAt(start);
+    const endTimeline = timelineAt(end);
+    const points = [
+      start,
+      ...gainBreakpoints(clip.volume, clip, startTimeline, endTimeline).map(
+        (timeline) =>
+          when + (timeline - slice.whenTimelineSec) / this.playbackRate,
+      ),
+      end,
+    ];
     gain.gain.cancelScheduledValues(start);
-    gain.gain.setValueAtTime(valueAt(timelineAt(start)), start);
+    gain.gain.setValueAtTime(
+      effectiveGainAt(clip.volume, clip, startTimeline),
+      start,
+    );
     for (const point of points.slice(1))
-      gain.gain.linearRampToValueAtTime(valueAt(timelineAt(point)), point);
+      gain.gain.linearRampToValueAtTime(
+        effectiveGainAt(clip.volume, clip, timelineAt(point)),
+        point,
+      );
   }
 
   private schedule(timelineSec: number): void {
@@ -367,7 +364,13 @@ export class ProxyEngine {
     const windowStart = Math.max(0, timelineSec - WINDOW_PAD_SEC);
     const windowEnd = timelineSec + WINDOW_PAD_SEC;
     const slices = Object.values(snapshot.clipsByTrack).flatMap((clips) =>
-      buildSchedule(clips, windowStart, windowEnd, snapshot.manifest),
+      buildSchedule(
+        clips,
+        windowStart,
+        windowEnd,
+        snapshot.manifest,
+        snapshot.volumeByTrack,
+      ),
     );
     const needed = new Map(
       slices.map((slice) => [chunkRefKey(slice.chunk), slice.chunk]),
