@@ -14,7 +14,6 @@ import os
 import platform
 import re
 import shutil
-import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
 from os import environ
@@ -22,6 +21,7 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.config import bin_cache_dir
+from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.process import TimeoutExpired, run
 
@@ -59,9 +59,7 @@ _DEVELOPMENT_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 
-_PAIR_CACHE_LIMIT = 8
-_PAIR_CACHE: dict[tuple[object, ...], FFmpegPair] = {}
-_PAIR_CACHE_LOCK = threading.RLock()
+_PAIR_CACHE: BoundedCache[tuple[object, ...], FFmpegPair] = BoundedCache(8)
 
 
 def _path_identity(path: Path) -> tuple[object, ...]:
@@ -265,18 +263,14 @@ def resolve_ffmpeg_pair(
     *,
     force_refresh: bool = False,
 ) -> FFmpegPair:
-    with _PAIR_CACHE_LOCK:
+    with _PAIR_CACHE.lock:
         key = _admission_cache_key(ffmpeg, ffprobe)
         if not force_refresh:
             cached = _PAIR_CACHE.get(key)
             if cached is not None:
-                _PAIR_CACHE.pop(key)
-                _PAIR_CACHE[key] = cached
                 return cached
         pair = _resolve_ffmpeg_pair_uncached(ffmpeg, ffprobe)
-        _PAIR_CACHE[key] = pair
-        while len(_PAIR_CACHE) > _PAIR_CACHE_LIMIT:
-            _PAIR_CACHE.pop(next(iter(_PAIR_CACHE)))
+        _PAIR_CACHE.put(key, pair)
         return pair
 
 

@@ -113,14 +113,11 @@ def _isolate_relay_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
 
 
 @pytest.fixture(autouse=True)
-def _no_object_store_cors_probe(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def _no_object_store_cors_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     """The guest CORS probe never touches the network from a test; it answers "unknown"."""
     from podcast_mcp.services.media import object_store_cors
 
     monkeypatch.setattr(object_store_cors, "_fetch_headers", lambda url, origin: None)
-    object_store_cors.clear_cors_cache()
-    yield
-    object_store_cors.clear_cors_cache()
 
 
 @pytest.fixture(autouse=True)

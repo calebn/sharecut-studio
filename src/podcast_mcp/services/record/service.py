@@ -57,6 +57,7 @@ from podcast_mcp.services.session_sync import (
     get_hub,
     sync_db_path,
 )
+from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedValueError
 
 LEASE_IN_USE_GRACE_S = 15.0
@@ -65,7 +66,7 @@ _SEQ = itertools.count(1)
 RECORD_WS_COMMAND_TYPES: frozenset[str] = COMMAND_TYPES | {"Signal"}
 _STORE_LOCK = threading.Lock()
 _AUTHORITIES: dict[str, tuple[threading.RLock, set[tuple[str, str]]]] = {}
-_SID_CACHE: dict[str, tuple[float, str | None]] = {}
+_SID_CACHE: BoundedCache[str, tuple[float, str | None]] = BoundedCache(256)
 
 
 class LeaseInUseError(PermissionError):
@@ -130,7 +131,7 @@ def _authority_for(project: EpisodeProject) -> tuple[threading.RLock, set[tuple[
 
 
 def invalidate_record_session_cache(project: EpisodeProject) -> None:
-    _SID_CACHE.pop(_workspace_cache_key(project), None)
+    _SID_CACHE.pop(_workspace_cache_key(project))
 
 
 def claim_connection(participant_id: str, connection_id: str, *, hub_key: str) -> None:
@@ -361,7 +362,7 @@ class RecordSessionService:
             sid = str(row.get("session_id") or "")
             if sid:
                 last = sid
-        _SID_CACHE[cache_key] = (now, last)
+        _SID_CACHE.put(cache_key, (now, last))
         return last
 
     def _empty(self) -> dict[str, Any]:

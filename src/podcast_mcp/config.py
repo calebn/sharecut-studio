@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from podcast_mcp.util.bounded_cache import BoundedCache
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULTS_PATH = _REPO_ROOT / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -52,7 +54,7 @@ def word_aligner_cache_dir() -> Path:
     return d
 
 
-_PARSED_DEFAULTS: dict[str, tuple[bytes, dict[str, Any]]] = {}
+_PARSED_DEFAULTS: BoundedCache[str, tuple[bytes, dict[str, Any]]] = BoundedCache(16)
 
 
 def _parsed_defaults(path: Path) -> dict[str, Any]:
@@ -66,7 +68,7 @@ def _parsed_defaults(path: Path) -> dict[str, Any]:
     hit = _PARSED_DEFAULTS.get(key)
     if hit is None or hit[0] != raw:
         hit = (raw, yaml.safe_load(raw.decode("utf-8")) or {})
-        _PARSED_DEFAULTS[key] = hit
+        _PARSED_DEFAULTS.put(key, hit)
     return copy.deepcopy(hit[1])
 
 

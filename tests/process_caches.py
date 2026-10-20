@@ -1,4 +1,6 @@
-"""Registry of process-wide ``lru_cache`` functions under ``src/`` and how tests treat each.
+"""Registry of process-wide caches under ``src/`` and how tests treat each.
+
+A cache is an ``lru_cache`` function or a module-level ``util.bounded_cache.BoundedCache``.
 
 A cache whose key omits the state a test patches (Silero availability, which
 manifest file to read, a mocked probe result) leaks that state to every later
@@ -11,11 +13,19 @@ when a cache is added to ``src/`` without being listed in one of the two.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from importlib import import_module
 from typing import Any
 
+from podcast_mcp.util.bounded_cache import BoundedCache
+
 ISOLATED: dict[str, str] = {
+    "podcast_mcp.services.media.object_store_cors:_cache": (
+        "Keyed by store host and origin with a TTL; tests stub the probe and expect a fresh answer."
+    ),
+    "podcast_mcp.services.record.service:_SID_CACHE": (
+        "Keyed by workspace path with a half-second TTL; a test that reuses a path must not see "
+        "the previous test's session id."
+    ),
     "podcast_mcp.engines.vad_silero:_cached_vad": (
         "Key is empty; the value depends on is_available(), which tests patch."
     ),
@@ -28,6 +38,14 @@ ISOLATED: dict[str, str] = {
 }
 
 SHARED: dict[str, str] = {
+    "podcast_mcp.util.binaries:_PAIR_CACHE": (
+        "Keyed by the selectors, PATH, working directory and the stat identity of every candidate."
+    ),
+    "podcast_mcp.project_store:_VOCABULARY_CACHE": "Keyed by the project and history file signatures.",
+    "podcast_mcp.config:_PARSED_DEFAULTS": "Keyed by path; a hit also compares the file's bytes.",
+    "podcast_mcp.services.media.waveform:_INDEX": "Keyed by project path and file revision.",
+    "podcast_mcp.services.media.waveform:_META": "Keyed by pyramid path and content key.",
+    "podcast_mcp.services.media.waveform:_PCM": "Keyed by media path, content key and block.",
     "podcast_relay.offline:_static_text": "Keyed by file name; static package asset.",
     "podcast_mcp.util.model_manifest:_sha256_for": "Keyed by path, size and mtime.",
     "podcast_mcp.util.timeline_zoom:load_timeline_zoom": "Static contract file in the repo.",
@@ -63,5 +81,8 @@ def _resolve(ref: str) -> Any:
 
 def reset_isolated_caches() -> None:
     for ref in ISOLATED:
-        cached: Callable[..., Any] = _resolve(ref)
-        cached.cache_clear()  # type: ignore[attr-defined]
+        cached: Any = _resolve(ref)
+        if isinstance(cached, BoundedCache):
+            cached.clear()
+        else:
+            cached.cache_clear()

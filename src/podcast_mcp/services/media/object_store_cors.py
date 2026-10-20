@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 import urllib.error
 import urllib.request
@@ -18,6 +17,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlparse
+
+from podcast_mcp.util.bounded_cache import BoundedCache
 
 log = logging.getLogger(__name__)
 
@@ -98,8 +99,7 @@ def probe_guest_cors(url: str, origin: str, *, fetch: Fetcher | None = None) -> 
     return CorsProbe("blocked", origin, detail)
 
 
-_cache: dict[tuple[str, str], tuple[float, CorsProbe]] = {}
-_cache_lock = threading.Lock()  # held across the probe on purpose (single flight)
+_cache: BoundedCache[tuple[str, str], tuple[float, CorsProbe]] = BoundedCache(64)
 
 
 def cached_guest_cors(
@@ -112,26 +112,20 @@ def cached_guest_cors(
     """``probe_guest_cors`` memoised per store host and origin so manifests stay cheap."""
     key = (urlparse(url).netloc, origin)
     # One probe at a time: concurrent guests on a cold cache share a single request.
-    with _cache_lock:
+    with _cache.lock:
         t = now()
         hit = _cache.get(key)
         if hit is not None and hit[0] > t:
             return hit[1]
         result = probe_guest_cors(url, origin, fetch=fetch)
         ttl = _OK_TTL_SEC if result.status == "ok" else _FAIL_TTL_SEC
-        _cache[key] = (t + ttl, result)
+        _cache.put(key, (t + ttl, result))
         return result
-
-
-def clear_cors_cache() -> None:
-    with _cache_lock:
-        _cache.clear()
 
 
 __all__ = [
     "CorsProbe",
     "cached_guest_cors",
-    "clear_cors_cache",
     "cors_blocked_message",
     "cors_rule",
     "probe_guest_cors",
