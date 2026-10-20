@@ -199,7 +199,7 @@ const SURFACE_GESTURES: Record<string, string> = {
   "hooks/useSwipeLeft.ts":
     "comment swipe: the horizontal-intent and distance thresholds for the comment card's swipe",
   "hooks/useLongPress.ts":
-    "one long-press timing for comment cards, track headers and transcript words (gestureConstants)",
+    "one long-press timing for comment cards, track headers, transcript words and the rail's icon-only labels (gestureConstants)",
   "hooks/useTwoFingerTap.ts":
     "two-finger tap is Undo (the Two-finger tap row in commands/gestures.ts), read from window pointers",
   "hooks/useHoldRepeat.ts":

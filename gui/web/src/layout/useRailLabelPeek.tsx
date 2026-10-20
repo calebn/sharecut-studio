@@ -1,0 +1,95 @@
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useLongPress } from "../hooks/useLongPress";
+
+const PEEK_MS = 2500;
+const EDGE_PX = 8;
+
+type Peek = { text: string; centerX: number; bottom: number };
+
+/** Text a person can see in a control; screen-reader-only and hidden text do not count. */
+function visibleText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim() ?? "";
+  if (!(node instanceof HTMLElement)) return "";
+  if (node.classList.contains("sr-only")) return "";
+  if (getComputedStyle(node).display === "none") return "";
+  return Array.from(node.childNodes).map(visibleText).join("").trim();
+}
+
+/** What an icon-only control is called, and why it is unavailable if it is. */
+export function iconOnlyLabel(control: HTMLElement): string | null {
+  if (visibleText(control) !== "") return null;
+  const name = control.getAttribute("aria-label") ?? control.title;
+  if (!name) return null;
+  const note = control.title;
+  return note && note !== name ? `${name}: ${note}` : name;
+}
+
+/**
+ * A long press on an icon-only control in `container` shows its name (and
+ * its reason, when it is unavailable) near the control without activating
+ * it (docs/interaction-system.md, Shells and placement rule 4). Spread
+ * `handlers` on the element that holds the controls and render `peek`
+ * beside it.
+ */
+export function useRailLabelPeek() {
+  const [peek, setPeek] = useState<Peek | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clear = useCallback(() => {
+    if (timerRef.current != null) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    setPeek(null);
+  }, []);
+
+  const handlers = useLongPress((target) => {
+    const control =
+      target instanceof Element
+        ? target.closest<HTMLElement>("button, [role='button']")
+        : null;
+    const text = control ? iconOnlyLabel(control) : null;
+    if (!control || !text) return;
+    const rect = control.getBoundingClientRect();
+    if (timerRef.current != null) clearTimeout(timerRef.current);
+    setPeek({
+      text,
+      centerX: rect.left + rect.width / 2,
+      bottom: window.innerHeight - rect.top,
+    });
+    timerRef.current = setTimeout(clear, PEEK_MS);
+  });
+
+  useLayoutEffect(
+    () => () => {
+      if (timerRef.current != null) clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  return { handlers, peek, dismiss: clear };
+}
+
+/** The transient label; it lets presses through. The control's own name already reaches screen readers. */
+export function RailLabelPeek({ peek }: { peek: Peek | null }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [left, setLeft] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!peek || !el) {
+      setLeft(null);
+      return;
+    }
+    const half = el.offsetWidth / 2;
+    const max = window.innerWidth - EDGE_PX - half;
+    setLeft(Math.max(EDGE_PX + half, Math.min(peek.centerX, max)));
+  }, [peek]);
+  if (!peek) return null;
+  return (
+    <div
+      ref={ref}
+      className="editing-tool-rail-peek"
+      aria-hidden="true"
+      style={{ left: left ?? peek.centerX, bottom: peek.bottom }}
+    >
+      {peek.text}
+    </div>
+  );
+}

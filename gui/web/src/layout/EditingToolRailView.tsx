@@ -4,6 +4,7 @@ import type { ToolMode } from "../state/types";
 import { Button } from "../ui";
 import { HistoryControls } from "./HistoryControls";
 import type { HistoryAvailability } from "./useHistoryControls";
+import { RailLabelPeek, useRailLabelPeek } from "./useRailLabelPeek";
 import type { ZoomAvailability } from "./useZoomControls";
 import { ZoomControls } from "./ZoomControls";
 
@@ -44,6 +45,7 @@ export function EditingToolRailView({
   onImport,
   onCutAtPlayhead,
 }: EditingToolRailViewProps) {
+  const { handlers, peek } = useRailLabelPeek();
   return (
     <>
       <div
@@ -52,7 +54,7 @@ export function EditingToolRailView({
         role="group"
         aria-label="Editing tools"
       >
-        <div className="editing-tool-rail-tools">
+        <div className="editing-tool-rail-tools" {...handlers}>
           {bladeAllowed ? toolToggle : null}
           {mayIngest ? (
             <>
@@ -94,6 +96,7 @@ export function EditingToolRailView({
           </div>
         </div>
       </div>
+      <RailLabelPeek peek={peek} />
     </>
   );
 }

@@ -1230,6 +1230,23 @@ button.save-dot {
   font-size: var(--font-size-small);
 }
 
+/* A long press on an icon-only control names it above the finger's reach. */
+.editing-tool-rail-peek {
+  position: fixed;
+  transform: translateX(-50%);
+  margin-block-end: var(--space-2);
+  max-inline-size: min(18rem, calc(100vw - 1rem));
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-raised);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-small);
+  pointer-events: none;
+  z-index: var(--z-shell-chrome);
+}
+
 /* A finger gets the full touch target on every shell, sideways included. */
 @media (pointer: coarse) {
   .editing-tool-rail .ui-control {

@@ -234,7 +234,11 @@ There are three overlay primitives.
    Instructions for an armed gesture sit in the sheet, not in a card at the top.
 4. **Icon-only controls are consistent across shells.** If the tablet rail
    labels an action, the phone rail labels it too or both use the icon with a
-   visible label on long press.
+   visible label on long press. A touch long press on an icon-only rail control
+   shows its name, and its reason when it is unavailable, in a short transient
+   label above it without activating it (`useRailLabelPeek`, #1878); the label
+   is `aria-hidden` because the control's own name already reaches screen
+   readers.
 5. **Panel tabs are a tablist.** `role="tablist"`, `role="tab"`,
    `aria-selected`, arrow-key movement.
 
