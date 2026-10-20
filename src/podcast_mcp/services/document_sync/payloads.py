@@ -275,6 +275,18 @@ class SetEffectBypassPayload(BaseModel):
     bypass: bool
 
 
+class AddEffectPayload(BaseModel):
+    track_id: str
+    preset: str | None = None
+    effect: str | None = None
+    params: dict[str, Any] | None = None
+
+
+class RemoveEffectPayload(BaseModel):
+    track_id: str
+    effect: str | None = None
+
+
 _EXPECTED_TEXT_DESCRIPTION = (
     "Optional stale-index guard: the word (or space-joined phrase) text the "
     "client saw at these indices. When it no longer matches (whitespace-collapsed, "
@@ -710,6 +722,16 @@ class SetEffectBypassCommand(DocumentCommandEnvelope):
     payload: SetEffectBypassPayload
 
 
+class AddEffectCommand(DocumentCommandEnvelope):
+    type: Literal["AddEffect"] = "AddEffect"
+    payload: AddEffectPayload
+
+
+class RemoveEffectCommand(DocumentCommandEnvelope):
+    type: Literal["RemoveEffect"] = "RemoveEffect"
+    payload: RemoveEffectPayload
+
+
 class ReplaceTranscriptMatchesCommand(DocumentCommandEnvelope):
     type: Literal["ReplaceTranscriptMatches"] = "ReplaceTranscriptMatches"
     payload: ReplaceTranscriptMatchesPayload
@@ -883,6 +905,8 @@ DocumentCommandBody = Annotated[
     | SetClipJoinCommand
     | ApplyFadeRecommendationsCommand
     | SetEffectBypassCommand
+    | AddEffectCommand
+    | RemoveEffectCommand
     | ReplaceTranscriptMatchesCommand
     | CorrectTranscriptWordCommand
     | CorrectTranscriptPhraseCommand
@@ -993,6 +1017,8 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "SetClipJoin": SetClipJoinPayload,
     "ApplyFadeRecommendations": ApplyFadeRecommendationsPayload,
     "SetEffectBypass": SetEffectBypassPayload,
+    "AddEffect": AddEffectPayload,
+    "RemoveEffect": RemoveEffectPayload,
     "ReplaceTranscriptMatches": ReplaceTranscriptMatchesPayload,
     "CorrectTranscriptWord": CorrectTranscriptWordPayload,
     "CorrectTranscriptPhrase": CorrectTranscriptPhrasePayload,

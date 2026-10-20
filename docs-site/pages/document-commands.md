@@ -34,6 +34,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddAction` | `comment_id` (string), `text` (string) | — |
 | `AddChapter` | `time` (number), `title` (string) | — |
 | `AddComment` | `author` (string), `body` (string), `timeline_start` (number) | `action_texts` (array \| null), `edit_decision_id` (string \| null), `timeline_end` (number \| null), `timeline_spans` (array \| null), `track_ids` (array \| null) |
+| `AddEffect` | `track_id` (string) | `effect` (string \| null), `params` (object \| null), `preset` (string \| null) |
 | `AddReply` | `author` (string), `body` (string), `comment_id` (string) | — |
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
@@ -54,6 +55,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `PasteSegment` | `duration` (number), `insert_at` (number), `mode` (ripple \| gap) | `extracts` (array[object]) |
 | `RedoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
 | `RejectEdits` | `ids` (array[string]) | — |
+| `RemoveEffect` | `track_id` (string) | `effect` (string \| null) |
 | `RemoveTrack` | `track_id` (string) | — |
 | `ReorderTrack` | `index` (integer), `track_id` (string) | — |
 | `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean) |
@@ -84,7 +86,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 52 command types._
+_Generated 54 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

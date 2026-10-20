@@ -287,12 +287,18 @@ def test_timeline_edit_tools_journal_through_the_document_plane(tmp_path, ten_se
     mcp_timeline.add_chapter_tool(path, 2.0, "Intro")
     mcp_timeline.move_segment_tool(path, 0.0, 1.0, 3.0)
     mcp_timeline.duplicate_segment_tool(path, 0.0, 1.0, 5.0)
+    mcp_timeline.add_effect_tool(path, track_id="host", effect="agate")
+    mcp_timeline.set_effect_bypass_tool(path, 0, True, track_id="host")
+    mcp_timeline.remove_effect_tool(path, track_id="host", effect="agate")
     assert _journal_types(path) == [
         "SetJoinMode",
         "SetClipJoin",
         "AddChapter",
         "MoveSegment",
         "DuplicateSegment",
+        "AddEffect",
+        "SetEffectBypass",
+        "RemoveEffect",
     ]
     assert [c.title for c in load_project(Path(path)).chapters] == ["Intro"]
 

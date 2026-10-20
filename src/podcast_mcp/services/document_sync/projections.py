@@ -31,7 +31,7 @@ CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-FX_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEffectBypass"})
+FX_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEffectBypass", "AddEffect", "RemoveEffect"})
 
 ENVELOPE_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEnvelope"})
 

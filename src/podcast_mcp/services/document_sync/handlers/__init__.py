@@ -36,6 +36,8 @@ HANDLERS: dict[str, Handler] = {
     "SetClipJoin": edits.set_clip_join,
     "ApplyFadeRecommendations": edits.apply_fade_recommendations,
     "SetEffectBypass": edits.set_effect_bypass,
+    "AddEffect": edits.add_effect,
+    "RemoveEffect": edits.remove_effect,
     **transcript.HANDLERS,
     "AddChapter": markers.add_chapter,
     "UpdateChapter": markers.update_chapter,
