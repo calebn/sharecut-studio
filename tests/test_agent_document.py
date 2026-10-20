@@ -295,3 +295,19 @@ def test_timeline_edit_tools_journal_through_the_document_plane(tmp_path, ten_se
         "DuplicateSegment",
     ]
     assert [c.title for c in load_project(Path(path)).chapters] == ["Intro"]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda path: mcp_timeline.set_join_mode_tool(path, "nope", "cut"),
+        lambda path: mcp_timeline.set_clip_join_tool(path, "nope", "c2", "cut"),
+        lambda path: mcp_timeline.delete_clips_tool(path, ["nope"]),
+    ],
+)
+def test_document_plane_keeps_the_handlers_error_code(tmp_path, ten_second_silence_wav, call):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, ten_second_silence_wav)
+    with pytest.raises(ValueError) as caught:
+        call(path)
+    assert getattr(caught.value, "code", None) == "clip_not_found"
