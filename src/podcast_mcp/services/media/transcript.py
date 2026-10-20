@@ -7,6 +7,7 @@ from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcrib
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.transcript import CaptionLimits, write_combined_transcript_markdown
+from podcast_mcp.models import CombinedTranscript, Transcript
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.whisper_models import resolve_whisper_model
 
@@ -48,6 +49,20 @@ class TranscriptService:
             return list(dict.fromkeys(t.track_id for t in transcripts))
 
         return self.ws.mutate("before transcribe", "after transcribe", mutate)
+
+    def seed(self, canned: dict) -> list[str]:
+        """Replace the transcripts with canned ``per_track`` JSON (plus ``combined`` when given)."""
+        per = [Transcript.model_validate(t) for t in canned.get("per_track", [])]
+        with self.ws.transaction() as p:
+            p.transcripts = per
+            combined = canned.get("combined")
+            p.combined_transcript = (
+                CombinedTranscript.model_validate(combined)
+                if combined
+                else self._engine.merge_transcripts(p)
+            )
+            self.ws.save()
+        return [t.track_id for t in per]
 
     def get(
         self,
