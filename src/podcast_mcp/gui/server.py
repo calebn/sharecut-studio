@@ -284,6 +284,7 @@ def create_app(
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=[ERROR_CODE_HEADER, "Retry-After"],
     )
     app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(MaxBodySizeMiddleware, limit=gui_max_body_bytes())

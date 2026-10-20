@@ -402,7 +402,7 @@ def plan_retained_bleed_alignment(
     if override_placement_lock and (start_sec is None or end_sec is None):
         raise CodedValueError(
             "placement override requires an explicit scoped window. Pass the scoped window to align.",
-            code="invalid_arguments",
+            code="placement_window_required",
         )
     lower = 0.0 if start_sec is None else start_sec
     upper = (
