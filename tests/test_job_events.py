@@ -6,13 +6,12 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.gui.bootstrap_jobs import BootstrapJob
 from podcast_mcp.gui.job_events import stream_job_events
-from podcast_mcp.gui.jobs import PipelineJob
 from podcast_mcp.services.jobs import (
     JOB_EVENT_QUEUE_MAX,
     LIVE_JOB_STATUSES,
     TERMINAL_JOB_STATUSES,
+    Job,
     job_events_hub,
     job_listener_count,
     publish_job_event,
@@ -39,7 +38,7 @@ async def _collect(job: Any, *, keepalive_sec: float = 5.0, limit: int | None = 
 
 
 def test_two_concurrent_subscribers_each_get_the_full_stream() -> None:
-    job = PipelineJob(
+    job = Job(
         id="two-subs",
         project_path="/tmp/p.json",
         from_step=None,
@@ -125,7 +124,7 @@ def test_aclose_unsubscribes() -> None:
 
 
 def test_publish_without_listener_is_a_noop() -> None:
-    job = PipelineJob(
+    job = Job(
         id="lonely",
         project_path="/tmp/p.json",
         from_step=None,
@@ -168,7 +167,7 @@ def test_subscriber_queue_bounded_drop_oldest() -> None:
 
 
 def test_bootstrap_job_publish_goes_through_the_same_hub() -> None:
-    job = BootstrapJob(id="boot-events", components=["whisper"])
+    job = Job.bootstrap("boot-events", ["whisper"])
 
     async def scenario() -> list[dict]:
         gen = stream_job_events(job, keepalive_sec=5.0)

@@ -9,8 +9,9 @@ from __future__ import annotations
 import pytest
 
 from job_event_helpers import JobEventTap
-from podcast_mcp.gui.bootstrap_jobs import BootstrapJob, BootstrapJobManager
-from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager, guest_render_job
+from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager
+from podcast_mcp.gui.jobs import PipelineJobManager, guest_render_job
+from podcast_mcp.services.jobs import Job
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 PIPELINE_SNAPSHOT_KEYS = {
@@ -49,7 +50,7 @@ BOOTSTRAP_SNAPSHOT_KEYS = {
 
 
 def test_pipeline_job_defaults_and_snapshot_shape() -> None:
-    job = PipelineJob(id="p1", project_path="/proj/ep.json", from_step=None, only_step="clean")
+    job = Job(id="p1", project_path="/proj/ep.json", from_step=None, only_step="clean")
     assert (job.status, job.kind, job.label, job.tool_id) == ("queued", "pipeline", None, None)
     assert (job.result, job.started_at, job.finished_at, job.last_progress_at) == (
         None,
@@ -88,7 +89,7 @@ def test_pipeline_job_defaults_and_snapshot_shape() -> None:
 
 
 def test_pipeline_snapshot_copies_mutable_fields_and_blanks_agent_project() -> None:
-    job = PipelineJob(
+    job = Job(
         id="p2",
         project_path="/proj/ep.json",
         from_step="a",
@@ -110,7 +111,7 @@ def test_pipeline_snapshot_copies_mutable_fields_and_blanks_agent_project() -> N
 
 
 def test_bootstrap_job_defaults_and_snapshot_shape() -> None:
-    job = BootstrapJob(id="b1", components=["whisper"])
+    job = Job.bootstrap("b1", ["whisper"])
     assert (job.whisper_model, job.force, job.status) == (DEFAULT_WHISPER_MODEL, False, "queued")
     assert (job.started_at, job.finished_at, job.error) == (None, None, None)
     assert (job.current, job.total, job.message) == (None, None, None)
@@ -126,7 +127,7 @@ def test_bootstrap_job_defaults_and_snapshot_shape() -> None:
 def test_guest_render_job_projection_shape() -> None:
     from pathlib import Path
 
-    job = PipelineJob(
+    job = Job(
         id="r1",
         project_path=str(Path("/tmp/guest.json").resolve()),
         from_step=None,
@@ -162,7 +163,7 @@ def _stub_services(monkeypatch) -> None:
 def test_pipeline_slot_job_publishes_status_then_progress_then_done(tmp_path, monkeypatch) -> None:
     _stub_services(monkeypatch)
     mgr = PipelineJobManager()
-    job = PipelineJob(
+    job = Job(
         id="evt-order",
         project_path=str(tmp_path),
         from_step=None,
@@ -200,7 +201,7 @@ def test_pipeline_slot_job_failure_event_order(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("podcast_mcp.gui.jobs.ProjectWorkspace.open", lambda _p: object())
     monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineService", lambda _ws: Boom())
     mgr = PipelineJobManager()
-    job = PipelineJob(
+    job = Job(
         id="evt-fail",
         project_path=str(tmp_path),
         from_step=None,
@@ -295,7 +296,7 @@ def test_bootstrap_lifecycle_event_order_and_fields(monkeypatch) -> None:
 
     monkeypatch.setattr("podcast_mcp.gui.bootstrap_jobs.run_bootstrap", fake_run)
     mgr = BootstrapJobManager()
-    job = BootstrapJob(id="boot-1", components=["whisper"])
+    job = Job.bootstrap("boot-1", ["whisper"])
     with JobEventTap(job.id) as tap:
         mgr._run_job(job)
         events = tap.drain()
@@ -319,7 +320,7 @@ def test_bootstrap_failed_component_sets_error(monkeypatch) -> None:
         "podcast_mcp.gui.bootstrap_jobs.run_bootstrap",
         lambda *_a, **_k: {"ok": False, "results": {"whisper": {"ok": False, "error": "no net"}}},
     )
-    job = BootstrapJob(id="boot-2", components=["whisper"])
+    job = Job.bootstrap("boot-2", ["whisper"])
     BootstrapJobManager()._run_job(job)
     assert (job.status, job.error, job.message) == ("error", "whisper: no net", "whisper: no net")
 
@@ -330,7 +331,8 @@ def test_bootstrap_single_flight_and_archive(monkeypatch) -> None:
         lambda *_a, **_k: {"ok": True, "results": {}},
     )
     mgr = BootstrapJobManager()
-    live = BootstrapJob(id="live", components=["whisper", "ffmpeg"], status="running")
+    live = Job.bootstrap("live", ["whisper", "ffmpeg"])
+    live.status = "running"
     mgr._job = live
     with pytest.raises(
         RuntimeError, match=r"Another download is already running \(whisper, ffmpeg\)"

@@ -16,7 +16,6 @@ from podcast_mcp import project_merge as project_merge_mod
 from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
-from podcast_mcp.gui.jobs import _gui_fail_message
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.history import rollback as rollback_mod
 from podcast_mcp.history.manager import snapshot_from_project
@@ -37,6 +36,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.app.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.services.document import EpisodeService
 from podcast_mcp.services.document.history import HistoryRerenderError, HistoryService
+from podcast_mcp.services.jobs import short_fail_message
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.progress import CancelledProgress
@@ -591,7 +591,7 @@ def test_pipeline_run_reports_an_undo_before_the_first_step(minimal_project, mon
         PipelineService(ws).run(only_step="merge_transcript")
     assert "history.lineage" in exc.value.paths
     assert ran == []
-    assert "re-run it" in (_gui_fail_message(str(exc.value)) or "")
+    assert "re-run it" in (short_fail_message(str(exc.value)) or "")
     _index_matches_file(minimal_project)
 
 

@@ -7,13 +7,12 @@ import pytest
 from job_event_helpers import JobEventTap
 from podcast_mcp.gui.jobs import (
     AgentJobFanInReporter,
-    PipelineJob,
     PipelineJobManager,
     _JobProgressReporter,
     gui_agent_job_progress_sink,
     shared_job_manager,
 )
-from podcast_mcp.services.jobs import job_listener_count
+from podcast_mcp.services.jobs import Job, job_listener_count
 from podcast_mcp.util.progress import PROGRESS_UPDATE_MIN_INTERVAL_SEC, bind_progress, progress_task
 from podcast_mcp.util.progress import task as task_mod
 
@@ -143,7 +142,7 @@ def test_heartbeat_or_lazy_timer_creates_agent_job() -> None:
 
 def test_agent_job_coexists_with_pipeline_job() -> None:
     mgr = PipelineJobManager()
-    pipeline = PipelineJob(
+    pipeline = Job(
         id="pipe",
         project_path="/tmp/p.json",
         from_step=None,
@@ -262,16 +261,16 @@ async def test_install_mcp_progress_fans_into_shared_agent_job() -> None:
 
 
 def test_agent_fanin_child_events_helpers_and_lookups() -> None:
-    from podcast_mcp.gui.jobs import _gui_fail_message
+    from podcast_mcp.services.jobs import short_fail_message
 
-    assert _gui_fail_message(None) is None
-    assert _gui_fail_message("   ") is None
-    assert _gui_fail_message("Traceback (most recent call last):") is None
-    assert _gui_fail_message("Traceback (most recent call last):", phase="align") == "align"
-    assert _gui_fail_message("\n", phase="mix") == "mix"
+    assert short_fail_message(None) is None
+    assert short_fail_message("   ") is None
+    assert short_fail_message("Traceback (most recent call last):") is None
+    assert short_fail_message("Traceback (most recent call last):", phase="align") == "align"
+    assert short_fail_message("\n", phase="mix") == "mix"
 
     mgr = PipelineJobManager()
-    mgr._job = PipelineJob(
+    mgr._job = Job(
         id="done-pipe",
         project_path="/tmp/ep.json",
         from_step=None,
@@ -281,7 +280,7 @@ def test_agent_fanin_child_events_helpers_and_lookups() -> None:
     )
     assert mgr.listening_progress_reporter() is None
 
-    pipe = PipelineJob(
+    pipe = Job(
         id="pipe-live",
         project_path="/tmp/ep.json",
         from_step=None,
@@ -335,7 +334,8 @@ def test_agent_fanin_child_events_helpers_and_lookups() -> None:
 
 
 def test_agent_fanin_closed_and_child_before_job() -> None:
-    from podcast_mcp.gui.jobs import _gui_fail_message, _SsePublishReporter
+    from podcast_mcp.gui.jobs import _SsePublishReporter
+    from podcast_mcp.services.jobs import short_fail_message
 
     mgr = PipelineJobManager()
     sink = AgentJobFanInReporter(mgr)
@@ -372,7 +372,7 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
     racing.start("race", "race")
     real_adopt = mgr.adopt_agent_job
 
-    def _adopt(*, tool_id: str, label: str, claim: str, project_path: str = "") -> PipelineJob:
+    def _adopt(*, tool_id: str, label: str, claim: str, project_path: str = "") -> Job:
         job = real_adopt(
             tool_id=tool_id,
             label=label,
@@ -391,7 +391,7 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
     dup = AgentJobFanInReporter(mgr)
     dup.start("dup", "dup")
     real2 = mgr.adopt_agent_job
-    pre = PipelineJob(
+    pre = Job(
         id="pre-existing",
         project_path="",
         from_step=None,
@@ -400,7 +400,7 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
         status="running",
     )
 
-    captured: list[PipelineJob] = []
+    captured: list[Job] = []
 
     def _adopt_dup(
         *,
@@ -408,7 +408,7 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
         label: str,
         claim: str,
         project_path: str = "",
-    ) -> PipelineJob:
+    ) -> Job:
         job = real2(
             tool_id=tool_id,
             label=label,
@@ -444,7 +444,7 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
     sse_mgr = PipelineJobManager()
     ghost = _SsePublishReporter(sse_mgr)
     ghost.start("t", "nope")
-    sse_mgr._job = PipelineJob(
+    sse_mgr._job = Job(
         id="sse",
         project_path="/tmp/p.json",
         from_step=None,
@@ -459,10 +459,10 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
         assert tap.drain() == []
     reporter.start("pipeline", "lab")
     reporter.update("pipeline", 1, message="m")
-    long_fail = _gui_fail_message("x" * 250)
+    long_fail = short_fail_message("x" * 250)
     assert long_fail is not None and len(long_fail) == 200
-    assert _gui_fail_message("/Users/host/secret/episode.project.json", phase="align") == "align"
-    assert _gui_fail_message("failed at /Users/host/secret/episode.project.json") == "failed at"
+    assert short_fail_message("/Users/host/secret/episode.project.json", phase="align") == "align"
+    assert short_fail_message("failed at /Users/host/secret/episode.project.json") == "failed at"
 
 
 def test_ensure_job_completes_orphan_when_post_adopt_raises() -> None:
@@ -470,7 +470,7 @@ def test_ensure_job_completes_orphan_when_post_adopt_raises() -> None:
     sink = AgentJobFanInReporter(mgr)
     sink.start("wrap", "wrap")
 
-    def _boom(job: PipelineJob) -> PipelineJob:
+    def _boom(job: Job) -> Job:
         raise RuntimeError("reporter failed")
 
     import podcast_mcp.gui.jobs as jobs_mod
@@ -522,7 +522,7 @@ def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
     from podcast_mcp.gui.jobs import _SsePublishReporter
 
     mgr = PipelineJobManager()
-    pipe = PipelineJob(
+    pipe = Job(
         id="pipe",
         project_path="/tmp/p.json",
         from_step=None,
@@ -588,7 +588,7 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
     _patch_fake_pipeline(monkeypatch, proj, {"ok": True, "issues": [], "warnings": []})
 
     mgr = shared_job_manager(reset=True)
-    busy = PipelineJob(
+    busy = Job(
         id="busy",
         project_path=str(proj),
         from_step=None,
@@ -648,18 +648,16 @@ def test_pipeline_run_wrap_does_not_create_agent_job() -> None:
 
 
 def test_wait_timeout_and_sse_helpers() -> None:
-    from podcast_mcp.gui.jobs import (
-        _gui_fail_message,
-        _token_looks_like_abs_path,
-        studio_job_manager,
-    )
+    from podcast_mcp.gui.jobs import studio_job_manager
+    from podcast_mcp.services.jobs import short_fail_message
+    from podcast_mcp.services.jobs.job import _token_looks_like_abs_path
 
     assert _token_looks_like_abs_path(".,;") is False
-    assert _gui_fail_message(r"C:\host\secret\episode.project.json", phase="align") == "align"
+    assert short_fail_message(r"C:\host\secret\episode.project.json", phase="align") == "align"
     studio_job_manager()
 
     mgr = PipelineJobManager()
-    live = PipelineJob(
+    live = Job(
         id="wait-me",
         project_path="/tmp/p.json",
         from_step=None,

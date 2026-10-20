@@ -677,15 +677,15 @@ def test_unattended_gate_stops_on_kept_placement_drift(tmp_path: Path) -> None:
         ALIGN_GATE.require_or_waive_unattended(p, unattended=True, defaults=load_defaults())
 
 
-def test_gui_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
-    from podcast_mcp.gui.jobs import _gui_fail_message
+def testshort_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
+    from podcast_mcp.services.jobs import short_fail_message
 
     p = _proj(tmp_path)
     _write_plans(p, -35.6)
     ALIGN_GATE.mark_pending(p)
     with pytest.raises(AlignAcceptRequiredError) as exc:
         ALIGN_GATE.require_or_waive_unattended(p, unattended=True, defaults=load_defaults())
-    shown = _gui_fail_message(str(exc.value)) or ""
+    shown = short_fail_message(str(exc.value)) or ""
     assert "guest -35.60s (bleed)" in shown
     assert shown.startswith("Unattended run will not auto-waive")
 
