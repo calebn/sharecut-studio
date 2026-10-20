@@ -3651,6 +3651,26 @@ def test_a_filler_decaying_into_a_word_waits_for_review_as_a_mute_and_is_refused
     assert sum(rippled.skip_counts.values()) == 1
 
 
+def test_a_filler_decaying_into_a_word_is_held_at_approval_by_the_same_rule_that_proposed_it(
+    tmp_path,
+):
+    from podcast_mcp.edits import propose_tighten_edits
+    from podcast_mcp.edits.cut_application import approve_edits
+
+    # One voiced-edge rule: the proposal ended its voice in the valley, so approving it
+    # through the programmatic route must not hold it as 'voiced_edge' / 'breath_edge'.
+    project = _decaying_uh_project(tmp_path, 20.0, 0.0)
+    defaults = _acoustic_mute_defaults()
+    defaults["tighten"]["acoustic_gap_filler"]["word_probe"] = False
+    (decision,) = propose_tighten_edits(project, defaults, edit_mode="mute").decisions
+    project.edit_decisions = [decision]
+    held: list = []
+
+    applied = approve_edits(project, [decision.id], defaults=defaults, held_out=held)
+
+    assert ([(h.edit_id, h.reason) for h in held], applied) == ([], 1)
+
+
 def _decaying_uh_plan_inputs(tmp_path, reason: str, cut_kind: str, end: float = 1.45):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
