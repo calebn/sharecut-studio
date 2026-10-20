@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 import math
+import subprocess
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
@@ -821,7 +822,28 @@ class EditService:
                 p, load_defaults(), edit_mode=edit_mode, intensity=intensity
             )
 
-        return self.ws.mutate("before propose edits", "after propose edits", mutate)
+        proposal = self.ws.mutate("before propose edits", "after propose edits", mutate)
+        return self._with_audio_check(proposal)
+
+    def _with_audio_check(self, proposal: TightenProposal) -> TightenProposal:
+        """Run Approve all on a scratch copy and record which proposals it would hold.
+
+        A proposal the approval then refuses is not offered as ready: each carries its reason.
+        Nothing is saved. When the audio cannot be read the proposal is returned unchecked.
+        """
+        ids = [d.id for d in proposal.decisions]
+        if not ids:
+            return proposal
+        try:
+            held, asked = self.held_by_checks(ids)
+        except (OSError, ValueError, subprocess.SubprocessError, UnconfirmedCutSpeech):
+            log.warning("propose_edits: could not run the approval check", exc_info=True)
+            return proposal
+        reasons = {h.edit_id: h.reason for h in held}
+        for group in asked:
+            for edit_id in group.edit_ids:
+                reasons.setdefault(edit_id, group.confirmation.message)
+        return replace(proposal, held=reasons, checked=True)
 
     def apply_auto(self) -> int:
         with self.ws.transaction() as project:

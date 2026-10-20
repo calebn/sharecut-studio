@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -99,11 +99,15 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
     return True
 
 
-def _edit_payload(decision: EditDecision) -> dict[str, Any]:
-    """One proposal row: the decision plus its plain-words label and suggested action."""
+def _edit_payload(
+    decision: EditDecision, audio_check: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """One proposal row: the decision, its plain-words label and suggested action, its audio check."""
     row = decision.model_dump()
     info = decision_policy(decision)
     row["label"], row["suggested_action"] = (info.label, info.action) if info else (None, None)
+    if audio_check is not None:
+        row["audio_check"] = audio_check
     return row
 
 
@@ -113,15 +117,33 @@ class TightenProposal:
 
     decisions: list[EditDecision]
     skip_counts: dict[str, int]
+    # Edit id -> why Approve all would hold it, from running the approval on a scratch copy.
+    # ``checked`` is False when that run could not read the audio: no row then claims "clean".
+    held: dict[str, str] = field(default_factory=dict)
+    checked: bool = False
+
+    def audio_check(self, decision: EditDecision) -> dict[str, str] | None:
+        if not self.checked:
+            return None
+        reason = self.held.get(decision.id)
+        if reason is None:
+            return {"status": "clean"}
+        return {"status": "held", "reason": reason}
 
     def summary(self) -> str:
-        return format_tighten_propose_summary(self.decisions, self.skip_counts)
+        text = format_tighten_propose_summary(self.decisions, self.skip_counts)
+        if self.held:
+            text += (
+                f"; {len(self.held)} of them the audio checks would hold "
+                "(`podcast edit held` lists each with its reason)"
+            )
+        return text
 
     def to_payload(self) -> dict[str, Any]:
         """JSON-ready payload matching the ``propose_edits`` MCP tool's shape."""
         return {
             "operation": "propose_edits",
-            "edits": [_edit_payload(e) for e in self.decisions],
+            "edits": [_edit_payload(e, self.audio_check(e)) for e in self.decisions],
             "skip_counts": self.skip_counts,
             "summary": self.summary(),
         }
