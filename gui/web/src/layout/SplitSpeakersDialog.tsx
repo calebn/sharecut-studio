@@ -450,7 +450,7 @@ export function SplitSpeakersDialog() {
           .getState()
           .setSelection({ kind: "range", target: sample.target });
         void runRangeAction("play").then((result) => {
-          if (result.status === "disabled")
+          if (result.status === "disabled" && !result.announced)
             useDawStore.getState().announceStatus(result.reason);
         });
       }}

@@ -121,6 +121,29 @@ describe("tighten commands", () => {
     expect(rejectEdits).toHaveBeenCalledWith("/tmp/p.json", ["e2"]);
   });
 
+  it("applyHit and skipHit offer Undo for the entry the reply names", async () => {
+    vi.mocked(approveEdits).mockResolvedValueOnce({
+      queued: false,
+      count: 1,
+      historyHead: "h-apply" as never,
+    });
+    await execute("tighten.applyHit", { id: "e1" });
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Applied tighten hit",
+      undo: "h-apply",
+    });
+    vi.mocked(rejectEdits).mockResolvedValueOnce({
+      queued: false,
+      count: 1,
+      historyHead: "h-skip" as never,
+    });
+    await execute("tighten.skipHit", { id: "e2" });
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Skipped tighten hit",
+      undo: "h-skip",
+    });
+  });
+
   it("shares the busy guard across approve and reject before permission checks", async () => {
     type Approved = Awaited<ReturnType<typeof approveEdits>>;
     let release!: (value: Approved) => void;

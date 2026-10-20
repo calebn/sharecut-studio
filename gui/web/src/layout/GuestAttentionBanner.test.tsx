@@ -268,6 +268,29 @@ describe("GuestAttentionBanner", () => {
     },
   );
 
+  it.each(["listen", "timeline", "text"] as const)(
+    "opens History on the phone from %s",
+    async (mode) => {
+      offlineStore.loadHostConflicts.mockResolvedValue([
+        offlineConflict({
+          kind: "unknown",
+          reason: "Undo or Redo may have been applied.",
+          recovery: "inspect-history",
+          command: { type: "UndoHistory" },
+        }),
+      ]);
+      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+      useDawStore.getState().setMobileMode(mode);
+      render(<GuestAttentionBanner />);
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      fireEvent.click(getActionButton("Inspect History"));
+      const state = useDawStore.getState();
+      expect(state.mobileMode).toBe("more");
+      expect(state.moreDestination).toBe("history");
+      expect(state.activeTab).toBe("history");
+    },
+  );
+
   it("opens History for an Undo outcome whose result is unknown", async () => {
     const conflict = offlineConflict({
       kind: "unknown",

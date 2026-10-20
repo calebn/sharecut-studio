@@ -86,3 +86,21 @@ it.each([
     });
   },
 );
+
+it("clears a gesture message when the drag ends without a change", async () => {
+  const button = render(<Harness handle="trim-out" />).getByRole("button");
+  fireEvent.pointerDown(button, { pointerId: 1, clientX: 150 });
+  fireEvent.pointerMove(button, { pointerId: 1, clientX: 190 });
+  fireEvent.pointerMove(button, { pointerId: 1, clientX: 150 });
+  act(() => {
+    useDawStore
+      .getState()
+      .announceStatus("Trim end is at its limit", { gesture: true });
+  });
+  expect(useDawStore.getState().feedbackToast).not.toBeNull();
+  await act(async () =>
+    fireEvent.pointerUp(button, { pointerId: 1, clientX: 150 }),
+  );
+  expect(trimClipEdge).not.toHaveBeenCalled();
+  expect(useDawStore.getState().feedbackToast).toBeNull();
+});

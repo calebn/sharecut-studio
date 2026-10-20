@@ -100,7 +100,12 @@ export function registerClipBleedCommands(): void {
             : outcome.status === "noop"
               ? "No Restore choice changed. Refresh regions to check the saved choice."
               : "Restore could not be confirmed. Refresh regions to check the saved choice.";
-        useDawStore.getState().announceStatus(message);
+        useDawStore
+          .getState()
+          .announceStatus(
+            message,
+            outcome.status === "queued" ? undefined : { tone: "error" },
+          );
         return { status: "disabled", reason: message, announced: true };
       } catch (error) {
         const stale =

@@ -63,7 +63,7 @@ function revealRecordFailure(reason: string): void {
     useRecordHostStore.getState().setTransportError(reason);
     return;
   }
-  daw.announceStatus(reason);
+  daw.announceStatus(reason, { tone: "error" });
   if (daw.shareDialogOpen) {
     return;
   }

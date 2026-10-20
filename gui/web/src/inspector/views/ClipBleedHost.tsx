@@ -141,7 +141,9 @@ export function ClipBleedHost({
             !result.announced &&
             current.action.state !== "error"
           )
-            useDawStore.getState().announceStatus(result.reason);
+            useDawStore
+              .getState()
+              .announceStatus(result.reason, { tone: "error" });
         });
       }}
       onRefresh={() => {
