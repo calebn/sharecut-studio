@@ -647,7 +647,7 @@ def render_source_with_chain(
     """Render FX + optional transcript gate on the full raw source (no timeline edits).
 
     Used for guest proxy media. Excludes envelope and gain - the client applies
-    gain; envelopes are a known approximation on the guest path.
+    both (``gui/web/src/audio/gainCurve.ts``).
     A selected recording retains the track's FX, source gate, and fill eligibility.
     """
     if selected_source_path is not None:

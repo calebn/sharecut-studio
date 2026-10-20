@@ -32,6 +32,7 @@ import { useDaw } from "../state/useDaw";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
 import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
+import { sortedVolumePoints } from "../utils/envelopes";
 
 /**
  * Guest proxy transport: Web Audio clip scheduler over FX source-clock chunks.
@@ -298,6 +299,12 @@ export function useProxyTransport(): boolean {
       manifest: accepted.manifest,
       clipsByTrack: project.clips.tracks,
       tracks: project.tracks,
+      volumeByTrack: Object.fromEntries(
+        project.tracks.map((track) => [
+          track.id,
+          sortedVolumePoints(project.envelopes, track.id),
+        ]),
+      ),
     });
   }, [project, accepted, active]);
 

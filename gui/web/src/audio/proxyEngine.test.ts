@@ -621,6 +621,34 @@ describe("immutable playback snapshots", () => {
     engine.dispose();
   });
 
+  it("scales a clip by its track's volume envelope, fades riding on it", async () => {
+    const { ctx, created, gains } = makeCtx();
+    const engine = new ProxyEngine(
+      ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+    );
+    const next = snapshot("a".repeat(16), "legacy", 10);
+    next.clipsByTrack.host[0].fade_out_ms = 8000;
+    engine.setSnapshot({
+      ...next,
+      volumeByTrack: {
+        host: [
+          { time: 0, value: 0.5 },
+          { time: 20, value: 0.5 },
+        ],
+      },
+    });
+    engine.play(16);
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    expect(gains.at(-1)?.gain.setValueAtTime).toHaveBeenCalledWith(0.25, 0);
+    expect(gains.at(-1)?.gain.linearRampToValueAtTime).toHaveBeenCalledWith(
+      0,
+      4,
+    );
+    engine.dispose();
+  });
+
   it("continues the absolute fade across chunks and a seek instead of restarting it", async () => {
     const { ctx, created, gains } = makeCtx();
     const engine = new ProxyEngine(
@@ -635,10 +663,7 @@ describe("immutable playback snapshots", () => {
     engine.play(11);
     await vi.waitFor(() => expect(created).toHaveLength(1));
     expect(created[0].start).toHaveBeenCalledWith(0, 1, 9);
-    expect(gains.at(-1)?.gain.setValueAtTime).toHaveBeenCalledWith(
-      expect.closeTo(11 / 15, 8),
-      0,
-    );
+    expect(gains.at(-1)?.gain.setValueAtTime).toHaveBeenCalledWith(1, 0);
     expect(gains.at(-1)?.gain.linearRampToValueAtTime).toHaveBeenCalledWith(
       0,
       9,
