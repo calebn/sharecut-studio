@@ -14,7 +14,7 @@ from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import (
     Clip,
     CutIntent,
@@ -71,7 +71,7 @@ def _workspace(tmp_path: Path) -> ProjectWorkspace:
         )
     ]
     save_project(project, tmp_path / "episode.project.json")
-    mark_refine_done(project, notes="Inspected literal source fixture")
+    REFINE_GATE.mark_done(project, notes="Inspected literal source fixture")
     return ProjectWorkspace.open(tmp_path / "episode.project.json")
 
 
@@ -760,7 +760,7 @@ def test_public_range_cut_preserves_repeated_source_occurrences(tmp_path, occurr
     ]
     project_path = tmp_path / "episode.project.json"
     save_project(project, project_path)
-    mark_refine_done(project, notes="literal quiet source fixture")
+    REFINE_GATE.mark_done(project, notes="literal quiet source fixture")
     ws = ProjectWorkspace.open(project_path)
     offset = 5.25 * occurrence
     EditService(ws).cut_range(

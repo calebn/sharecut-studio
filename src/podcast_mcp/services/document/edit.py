@@ -161,7 +161,7 @@ from podcast_mcp.edits.transcript_reconcile import (
     reconciliation_status_report,
     run_reconciliation,
 )
-from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.edits.transcript_replace import (
     apply_transcript_replacement,
     plan_transcript_replacement,
@@ -301,7 +301,7 @@ class EditService:
         return resolve_track(self.ws.project, track_id=track_id, speaker=speaker)
 
     def _require_refine_clear(self) -> None:
-        assert_refine_clear(self.ws.project, defaults=load_defaults())
+        REFINE_GATE.assert_clear(self.ws.project, defaults=load_defaults())
 
     def build_context(self, max_utterances: int = 200) -> str:
         return build_edit_context_json(self.ws.project, max_utterances=max_utterances)

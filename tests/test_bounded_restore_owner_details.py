@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.history.manager import HistoryManager, snapshot_from_project
 from podcast_mcp.models import EditDecisionType, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -15,7 +15,7 @@ pytestmark = pytest.mark.refine_gate
 def test_remove_restore_refuses_before_recording_any_history(tmp_path, monkeypatch):
     project = _project(tmp_path)
     project.edit_decisions = [_cut("cut", reason="filler:um")]
-    mark_refine_done(project, notes="Known synthetic fixture; no real-project acceptance")
+    REFINE_GATE.mark_done(project, notes="Known synthetic fixture; no real-project acceptance")
     ws = ProjectWorkspace.open(save_project(project))
     assert EditService(ws).approve(["cut"]) == 1
     before = ws.project.model_dump(mode="json")
@@ -46,7 +46,7 @@ def test_manual_group_cannot_connect_across_an_intervening_review_barrier(tmp_pa
         _cut("covering", 1, 4, review_required=True, crossfade_ms=17),
         _cut("review-barrier", 2, 2.1, reason="filler:acoustic", review_required=True),
     ]
-    mark_refine_done(project, notes="Known synthetic fixture; no real-project acceptance")
+    REFINE_GATE.mark_done(project, notes="Known synthetic fixture; no real-project acceptance")
     ws = ProjectWorkspace.open(save_project(project))
     original = [row.model_dump_json() for row in ws.project.edit_decisions]
     EditService(ws).cut_time_range("host", 3, 3.4, reason="nl:range", use_inaudible_opt=False)
@@ -73,7 +73,7 @@ def test_all_held_auto_apply_does_not_start_history(tmp_path, monkeypatch):
     project.edit_decisions = [
         _cut("source-hole", 0.5, 2.5, reason="filler:um", review_required=False)
     ]
-    mark_refine_done(project, notes="Known synthetic fixture; no real-project acceptance")
+    REFINE_GATE.mark_done(project, notes="Known synthetic fixture; no real-project acceptance")
     ws = ProjectWorkspace.open(save_project(project))
     before = ws.project.model_dump(mode="json")
     disk = ws.path.read_bytes()
@@ -99,7 +99,7 @@ def test_auto_apply_keeps_held_cut_and_undo_restores_the_positive_action(tmp_pat
         _cut("held", 1.2, 1.6, reason="filler:um", review_required=False),
         valid,
     ]
-    mark_refine_done(project, notes="Known synthetic fixture; no real-project acceptance")
+    REFINE_GATE.mark_done(project, notes="Known synthetic fixture; no real-project acceptance")
     ws = ProjectWorkspace.open(save_project(project))
     original = snapshot_from_project(ws.project).model_dump(mode="json")
     original_clips = [clip.model_dump(mode="json") for clip in ws.project.clips]

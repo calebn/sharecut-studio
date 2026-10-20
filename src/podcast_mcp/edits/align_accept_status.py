@@ -1,4 +1,4 @@
-"""Conversation-align accept gate — listen/nudge before later pipeline steps."""
+"""Conversation-align accept gate - listen/nudge before later pipeline steps."""
 
 from __future__ import annotations
 
@@ -6,9 +6,7 @@ import hashlib
 import json
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.conversation_align import (
@@ -20,17 +18,16 @@ from podcast_mcp.edits.conversation_align import (
     clip_drift_rows,
     large_move_sec_from_defaults,
 )
-from podcast_mcp.edits.pipeline_unattended import is_unattended
+from podcast_mcp.edits.review_gate import (
+    ReviewGate,
+    ReviewRequiredError,
+    ReviewSource,
+    ReviewStatus,
+)
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import Clip, EpisodeProject, TrackRole
-from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.workspace_paths import workspace_relpath
-
-STATUS_FILENAME = "align_accept_status.json"
-AlignStatusValue = Literal["pending", "done", "waived"]
-AlignMode = Literal["require", "waive_unattended", "off"]
-AlignSource = Literal["agent", "user", "cli", "mcp", "unattended", "align"]
 
 GATE_HINT = (
     "Conversation alignment needs review before stems/reconcile. "
@@ -40,124 +37,10 @@ GATE_HINT = (
 )
 
 
-class AlignAcceptRequiredError(CodedError, RuntimeError):
+class AlignAcceptRequiredError(ReviewRequiredError):
     """Raised when align accept is still pending/stale."""
 
     code = "align_accept_required"
-
-
-def status_path(project: EpisodeProject) -> Path:
-    return project.artifacts_dir() / STATUS_FILENAME
-
-
-def align_mode_from_defaults(defaults: dict[str, Any] | None) -> AlignMode:
-    cfg = (defaults or {}).get("align", {}).get("accept") or {}
-    mode = str(cfg.get("mode", "waive_unattended")).strip().lower()
-    if mode in ("require", "waive_unattended", "off"):
-        return mode  # type: ignore[return-value]
-    return "waive_unattended"
-
-
-def load_status(project: EpisodeProject) -> dict[str, Any] | None:
-    return load_json_object(status_path(project))
-
-
-def _write_status(project: EpisodeProject, payload: dict[str, Any]) -> Path:
-    return write_json_atomic(status_path(project), payload)
-
-
-def write_status(
-    project: EpisodeProject,
-    *,
-    status: AlignStatusValue,
-    source: AlignSource,
-    notes: str | None = None,
-    fingerprint: str | None = None,
-    accepted_drift: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    fp = fingerprint if fingerprint is not None else alignment_fingerprint(project)
-    payload: dict[str, Any] = {
-        "status": status,
-        "updated_at": datetime.now(UTC).isoformat(),
-        "source": source,
-        "notes": notes or "",
-        "align_fingerprint": fp,
-    }
-    if accepted_drift is not None:
-        payload["accepted_drift"] = accepted_drift
-    if status in ("done", "waived"):
-        artifact = load_align_artifact(project)
-        if artifact is not None:
-            payload["accepted_plan_digest"] = _plan_digest(artifact)
-    _write_status(project, payload)
-    return payload
-
-
-def mark_align_pending(
-    project: EpisodeProject,
-    *,
-    source: AlignSource = "align",
-    notes: str | None = None,
-) -> dict[str, Any]:
-    return write_status(
-        project,
-        status="pending",
-        source=source,
-        notes=notes or "reset after align_tracks",
-    )
-
-
-def mark_align_done(
-    project: EpisodeProject,
-    *,
-    source: AlignSource = "agent",
-    notes: str | None = None,
-) -> dict[str, Any]:
-    return write_status(
-        project,
-        status="done",
-        source=source,
-        notes=notes,
-        accepted_drift=_current_drift_rows(project),
-    )
-
-
-def mark_align_waived(
-    project: EpisodeProject,
-    *,
-    reason: str,
-    source: AlignSource = "user",
-) -> dict[str, Any]:
-    reason = (reason or "").strip()
-    if not reason:
-        raise ValueError("align waive requires a non-empty reason")
-    return write_status(
-        project,
-        status="waived",
-        source=source,
-        notes=reason,
-        accepted_drift=None if source == "unattended" else _current_drift_rows(project),
-    )
-
-
-def status_is_clear_payload(
-    data: dict[str, Any] | None,
-    *,
-    fingerprint: str,
-) -> bool:
-    if not data:
-        return False
-    status = data.get("status")
-    if status not in ("done", "waived"):
-        return False
-    return data.get("align_fingerprint") == fingerprint
-
-
-def status_is_clear(project: EpisodeProject) -> bool:
-    data = load_status(project)
-    return status_is_clear_payload(data, fingerprint=alignment_fingerprint(project)) and (
-        _accept_covers_current_artifact(project, data)
-    )
 
 
 def _align_artifact_or_error(project: EpisodeProject) -> tuple[dict[str, Any] | None, str | None]:
@@ -214,50 +97,16 @@ def large_align_moves(plans: list[dict[str, Any]], *, threshold: float) -> list[
     return [p for p in plans if p.get("method") not in skip and abs(_plan_move_sec(p)) > threshold]
 
 
-def align_status_report(
-    project: EpisodeProject,
-    *,
-    defaults: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    mode = align_mode_from_defaults(defaults)
-    fp = alignment_fingerprint(project)
-    data = load_status(project)
-    stored_fp = (data or {}).get("align_fingerprint")
-    status = (data or {}).get("status") or "pending"
-    fingerprint_match = bool(data) and stored_fp == fp
-    clear = status_is_clear_payload(data, fingerprint=fp) and _accept_covers_current_artifact(
-        project, data
-    )
-    if data and status in ("done", "waived") and not clear:
-        effective = "pending"
-        stale = True
-    else:
-        effective = status if data else "pending"
-        stale = False
-
+def _report_extras(project: EpisodeProject, defaults: dict[str, Any] | None) -> dict[str, Any]:
     artifact = align_artifact_path(project)
     payload = load_align_artifact(project)
     plans = list((payload or {}).get("plans") or [])
     threshold = align_threshold_sec(payload, defaults)
-
     return {
-        "status": effective,
-        "stored_status": (data or {}).get("status"),
-        "clear": clear,
-        "stale": stale,
-        "mode": mode,
-        "fingerprint": fp,
-        "stored_fingerprint": stored_fp,
-        "fingerprint_match": fingerprint_match,
-        "source": (data or {}).get("source"),
-        "notes": (data or {}).get("notes") or "",
-        "updated_at": (data or {}).get("updated_at"),
-        "path": workspace_relpath(project, status_path(project)),
         "align_artifact": (workspace_relpath(project, artifact) if artifact.is_file() else None),
         "plans": plans,
         "large_move_sec": threshold,
         "large_moves": large_align_moves(plans, threshold=threshold),
-        "hint": None if clear or mode == "off" else GATE_HINT,
     }
 
 
@@ -271,7 +120,7 @@ class _AcceptState:
 
 
 def _accept_state(project: EpisodeProject) -> _AcceptState:
-    data = load_status(project)
+    data = ALIGN_GATE.load(project)
     if data is None:
         return _AcceptState(False, "was not accepted by a person (align status: missing)", None)
     status = data.get("status")
@@ -282,9 +131,7 @@ def _accept_state(project: EpisodeProject) -> _AcceptState:
     if status not in ("done", "waived"):
         return _AcceptState(False, f"was not accepted by a person (align status: {status})", None)
     rows = list(data.get("accepted_drift") or [])
-    if status_is_clear_payload(data, fingerprint=alignment_fingerprint(project)) and (
-        _accept_covers_current_artifact(project, data)
-    ):
+    if ALIGN_GATE.data_is_clear(project, data):
         return _AcceptState(True, "", rows)
     return _AcceptState(False, f"accept is stale (alignment changed since `align {status}`)", rows)
 
@@ -459,10 +306,14 @@ def alignment_drift_report(
     """
     payload, err = _align_artifact_or_error(project)
     threshold = align_threshold_sec(payload, defaults)
-    mode = align_mode_from_defaults(defaults)
+    mode = ALIGN_GATE.mode(defaults)
     if err or payload is None or not _drift_checkable(payload):
         errs = [err] if err else []
-        if payload is None and not err and (load_status(project) or {}).get("accepted_plan_digest"):
+        if (
+            payload is None
+            and not err
+            and (ALIGN_GATE.load(project) or {}).get("accepted_plan_digest")
+        ):
             errs.append(
                 "Accepted align artifact is missing; re-run align_tracks and review alignment."
             )
@@ -490,7 +341,7 @@ def alignment_drift_report(
             "then `podcast align done`, or re-run align_tracks."
             for tid, rel in found.drift.items()
         ]
-        status_data = load_status(project) or {}
+        status_data = ALIGN_GATE.load(project) or {}
         if status_data.get("accepted_plan_digest") != _plan_digest(payload):
             findings += [
                 f"Track '{p.get('track_id')}' clip '{p.get('clip_id')}' has an unconfirmed "
@@ -511,66 +362,57 @@ def alignment_drift_report(
     }
 
 
-def require_or_waive_unattended(
-    project: EpisodeProject,
-    *,
-    defaults: dict[str, Any] | None = None,
-    unattended: bool | None = None,
-) -> str:
-    """Pipeline gate: return summary, or raise if interactive + pending.
+def _unattended_check(
+    project: EpisodeProject, data: dict[str, Any] | None, defaults: dict[str, Any] | None
+) -> None:
+    """Refuse the unattended auto-waive while a plan move or unlocked clip needs a person.
 
-    Unattended runs auto-waive only when no plan move (or held candidate) and no
-    unlocked clip's current drift exceeds the threshold: :func:`_align_findings`, the
-    same findings export QC formats, without a person's accept to lean on.
+    Uses :func:`_align_findings`, the findings export QC formats, without a person's
+    accept to lean on.
     """
-    mode = align_mode_from_defaults(defaults)
-    if mode == "off":
-        return "skipped (align.accept.mode=off)"
-    data = load_status(project)
-    fp = alignment_fingerprint(project)
-    if status_is_clear_payload(data, fingerprint=fp) and _accept_covers_current_artifact(
-        project, data
-    ):
-        return f"{(data or {}).get('status', 'done')} (fingerprint ok)"
+    payload, err = _align_artifact_or_error(project)
+    if err:
+        raise AlignAcceptRequiredError(f"{err} {GATE_HINT}")
+    if payload is None and (data or {}).get("accepted_plan_digest"):
+        raise AlignAcceptRequiredError(
+            f"Accepted align artifact is missing; re-run align_tracks. {GATE_HINT}"
+        )
+    threshold = align_threshold_sec(payload, defaults)
+    found = _align_findings(project, payload, threshold=threshold, person_rows=None)
+    named = {str(p.get("track_id")) for p in found.moves}
+    listing = [
+        f"{p.get('track_id')} {_plan_move_sec(p):+.2f}s ({p.get('method')})" for p in found.moves
+    ]
+    listing += [
+        f"{tid} {rel:.2f}s off the reference"
+        for tid, rel in found.drift.items()
+        if tid not in named
+    ]
+    if listing:
+        raise AlignAcceptRequiredError(
+            f"Unattended run will not auto-waive align move(s) above {threshold:.1f}s: "
+            f"{', '.join(listing[:6])}. {GATE_HINT}"
+        )
 
-    unattended_now = is_unattended(flag=unattended, defaults=defaults)
-    if mode == "waive_unattended" and unattended_now:
-        payload, err = _align_artifact_or_error(project)
-        if err:
-            raise AlignAcceptRequiredError(f"{err} {GATE_HINT}")
-        if payload is None and (data or {}).get("accepted_plan_digest"):
-            raise AlignAcceptRequiredError(
-                f"Accepted align artifact is missing; re-run align_tracks. {GATE_HINT}"
-            )
-        threshold = align_threshold_sec(payload, defaults)
-        found = _align_findings(project, payload, threshold=threshold, person_rows=None)
-        named = {str(p.get("track_id")) for p in found.moves}
-        listing = [
-            f"{p.get('track_id')} {_plan_move_sec(p):+.2f}s ({p.get('method')})"
-            for p in found.moves
-        ]
-        listing += [
-            f"{tid} {rel:.2f}s off the reference"
-            for tid, rel in found.drift.items()
-            if tid not in named
-        ]
-        if listing:
-            raise AlignAcceptRequiredError(
-                f"Unattended run will not auto-waive align move(s) above {threshold:.1f}s: "
-                f"{', '.join(listing[:6])}. {GATE_HINT}"
-            )
-        mark_align_waived(project, reason="unattended pipeline", source="unattended")
-        return "waived (unattended)"
 
-    raise AlignAcceptRequiredError(GATE_HINT)
+def _payload_extras(
+    project: EpisodeProject, status: ReviewStatus, source: ReviewSource
+) -> dict[str, Any]:
+    """What a person's accept records: current clip drift, and the plan set they accepted."""
+    extras: dict[str, Any] = {}
+    if status == "done" or (status == "waived" and source != "unattended"):
+        extras["accepted_drift"] = _current_drift_rows(project)
+    if status in ("done", "waived"):
+        artifact = load_align_artifact(project)
+        if artifact is not None:
+            extras["accepted_plan_digest"] = _plan_digest(artifact)
+    return extras
 
 
 def build_align_brief(
-    project: EpisodeProject,
-    *,
-    defaults: dict[str, Any] | None = None,
+    project: EpisodeProject, defaults: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    report = align_status_report(project, defaults=defaults)
+    report = ALIGN_GATE.report(project, defaults)
     meta = project.meta.ingest_alignment or {}
     return {
         "status": report,
@@ -595,3 +437,21 @@ def build_align_brief(
         ],
         "play_compare_hint": ("podcast play --project … --compare --start 0 --end 90"),
     }
+
+
+ALIGN_GATE = ReviewGate(
+    name="align",
+    filename="align_accept_status.json",
+    mode_key="align.accept",
+    fingerprint_key="align_fingerprint",
+    fingerprint=alignment_fingerprint,
+    hint=GATE_HINT,
+    error=AlignAcceptRequiredError,
+    pending_source="align",
+    pending_notes="reset after align_tracks",
+    brief=build_align_brief,
+    covers=_accept_covers_current_artifact,
+    payload_extras=_payload_extras,
+    report_extras=_report_extras,
+    unattended_check=_unattended_check,
+)

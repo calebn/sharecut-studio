@@ -12,7 +12,7 @@ from podcast_mcp.edits.edit_log import (
     require_applied_edit_restore,
     revert_applied_edit,
 )
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.engines.session_timeline import origin_track_id_for_clip
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.gui.server import create_app
@@ -101,7 +101,7 @@ def _parked_project(tmp_path):
         )
     ]
     project.edit_decisions = [_cut("parked-cut", reason="filler:um")]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     return project
@@ -227,7 +227,7 @@ async def test_owner_mcp_restore_refusal_and_explicit_guarded_undo(tmp_path):
 @pytest.mark.parametrize("delivery", ["service", "http", "owner-mcp"])
 async def test_exact_range_restore_uses_same_coded_refusal(tmp_path, delivery):
     project = _project(tmp_path)
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     ws = ProjectWorkspace.open(save_project(project))
@@ -350,7 +350,7 @@ def test_guarded_history_undo_restores_all_peer_occurrences(tmp_path, peer_shape
         peer = []
     project.clips.extend(peer)
     project.edit_decisions = [_cut("cut", reason="filler:um")]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     ws = ProjectWorkspace.open(save_project(project))
@@ -431,7 +431,7 @@ async def test_mute_restore_keeps_local_positive_workflow(tmp_path, delivery):
     mute = _cut("mute", 1, 2, reason="filler:um")
     mute.type = EditDecisionType.MUTE
     project.edit_decisions = [mute]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     ws = ProjectWorkspace.open(save_project(project))
@@ -613,7 +613,7 @@ def test_persisted_invalid_later_track_refuses_before_history(tmp_path, monkeypa
     project.transcripts = [
         Transcript(track_id="host", words=[TranscriptWord(text="um", start=1.2, end=1.6)])
     ]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     ws = ProjectWorkspace.open(save_project(project))

@@ -1058,7 +1058,7 @@ def test_apply_alignment_skips_music_and_uses_source_duration(tmp_path: Path) ->
 
 
 def test_align_tracks_marks_pending_when_not_skipped(tmp_path: Path) -> None:
-    from podcast_mcp.edits.align_accept_status import load_status
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
     from podcast_mcp.pipeline import steps
 
     proj = _project(
@@ -1071,7 +1071,7 @@ def test_align_tracks_marks_pending_when_not_skipped(tmp_path: Path) -> None:
     proj.ensure_dirs()
     summary = steps.align_tracks(proj, {})
     assert summary
-    data = load_status(proj)
+    data = ALIGN_GATE.load(proj)
     assert data is not None
     assert data["status"] == "pending"
 

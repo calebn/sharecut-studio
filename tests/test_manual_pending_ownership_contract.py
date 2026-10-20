@@ -4,7 +4,7 @@ import pytest
 
 from podcast_mcp.edits.ripple import EditMode
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import (
     CutSpeech,
     CutSpeechTrack,
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.refine_gate
 
 
 def _open(project):
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     return ProjectWorkspace.open(save_project(project))

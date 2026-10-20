@@ -1,25 +1,17 @@
-"""Transcript refine status artifact - hard agent gate after precorrect."""
+"""Transcript refine gate - hard agent gate after precorrect."""
 
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
-from podcast_mcp.edits.pipeline_unattended import is_unattended
+from podcast_mcp.edits.review_gate import ReviewGate, ReviewRequiredError
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.hashing import short_digest
-from podcast_mcp.util.workspace_paths import workspace_relpath
 
 # Open words below this confidence count toward the refine brief's low_confidence_open_words.
 REFINE_BRIEF_LOW_CONFIDENCE = 0.5
-STATUS_FILENAME = "transcript_refine_status.json"
-RefineStatusValue = Literal["pending", "done", "waived"]
-RefineMode = Literal["require", "waive_unattended", "off"]
-RefineSource = Literal["agent", "user", "cli", "mcp", "unattended", "precorrect"]
 
 GATE_HINT = (
     "Transcript refine is required before focus/tighten/NL edits. "
@@ -29,14 +21,10 @@ GATE_HINT = (
 )
 
 
-class TranscriptRefineRequiredError(CodedError, RuntimeError):
+class TranscriptRefineRequiredError(ReviewRequiredError):
     """Raised when narrative edits run while refine status is pending/stale."""
 
     code = "transcript_refine_required"
-
-
-def status_path(project: EpisodeProject) -> Path:
-    return project.artifacts_dir() / STATUS_FILENAME
 
 
 def reviewed_transcript_fingerprint(project: EpisodeProject) -> str:
@@ -58,170 +46,8 @@ def reviewed_transcript_fingerprint(project: EpisodeProject) -> str:
     return short_digest(raw)
 
 
-def refine_mode_from_defaults(defaults: dict[str, Any] | None) -> RefineMode:
-    cfg = (defaults or {}).get("analysis", {}).get("transcript_refine") or {}
-    mode = str(cfg.get("mode", "waive_unattended")).strip().lower()
-    if mode in ("require", "waive_unattended", "off"):
-        return mode  # type: ignore[return-value]
-    return "waive_unattended"
-
-
-def load_status(project: EpisodeProject) -> dict[str, Any] | None:
-    return load_json_object(status_path(project))
-
-
-def write_status(
-    project: EpisodeProject,
-    *,
-    status: RefineStatusValue,
-    source: RefineSource,
-    notes: str | None = None,
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "status": status,
-        "updated_at": datetime.now(UTC).isoformat(),
-        "source": source,
-        "notes": notes or "",
-        "transcript_fingerprint": reviewed_transcript_fingerprint(project),
-    }
-    write_json_atomic(status_path(project), payload)
-    return payload
-
-
-def mark_refine_pending(
-    project: EpisodeProject,
-    *,
-    source: RefineSource = "precorrect",
-    notes: str | None = None,
-) -> dict[str, Any]:
-    return write_status(
-        project,
-        status="pending",
-        source=source,
-        notes=notes or "reset after precorrect apply",
-    )
-
-
-def mark_refine_done(
-    project: EpisodeProject,
-    *,
-    source: RefineSource = "agent",
-    notes: str | None = None,
-) -> dict[str, Any]:
-    return write_status(project, status="done", source=source, notes=notes)
-
-
-def mark_refine_waived(
-    project: EpisodeProject,
-    *,
-    reason: str,
-    source: RefineSource = "user",
-) -> dict[str, Any]:
-    reason = (reason or "").strip()
-    if not reason:
-        raise ValueError("refine waive requires a non-empty reason")
-    return write_status(project, status="waived", source=source, notes=reason)
-
-
-def status_is_clear_payload(
-    data: dict[str, Any] | None,
-    *,
-    fingerprint: str,
-) -> bool:
-    if not data:
-        return False
-    status = data.get("status")
-    if status not in ("done", "waived"):
-        return False
-    return data.get("transcript_fingerprint") == fingerprint
-
-
-def status_is_clear(project: EpisodeProject) -> bool:
-    return status_is_clear_payload(
-        load_status(project),
-        fingerprint=reviewed_transcript_fingerprint(project),
-    )
-
-
-def refine_status_report(
-    project: EpisodeProject,
-    *,
-    defaults: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    mode = refine_mode_from_defaults(defaults)
-    fp = reviewed_transcript_fingerprint(project)
-    data = load_status(project)
-    stored_fp = (data or {}).get("transcript_fingerprint")
-    status = (data or {}).get("status") or "pending"
-    fingerprint_match = bool(data) and stored_fp == fp
-    clear = status_is_clear_payload(data, fingerprint=fp)
-    if data and status in ("done", "waived") and not fingerprint_match:
-        effective = "pending"
-        stale = True
-    else:
-        effective = status if data else "pending"
-        stale = False
-    return {
-        "status": effective,
-        "stored_status": (data or {}).get("status"),
-        "clear": clear,
-        "stale": stale,
-        "mode": mode,
-        "fingerprint": fp,
-        "stored_fingerprint": stored_fp,
-        "fingerprint_match": fingerprint_match,
-        "source": (data or {}).get("source"),
-        "notes": (data or {}).get("notes") or "",
-        "updated_at": (data or {}).get("updated_at"),
-        "path": workspace_relpath(project, status_path(project)),
-        "hint": None if clear or mode == "off" else GATE_HINT,
-    }
-
-
-def assert_refine_clear(
-    project: EpisodeProject,
-    *,
-    defaults: dict[str, Any] | None = None,
-) -> None:
-    mode = refine_mode_from_defaults(defaults)
-    if mode == "off":
-        return
-    if status_is_clear(project):
-        return
-    raise TranscriptRefineRequiredError(GATE_HINT)
-
-
-def require_or_waive_unattended(
-    project: EpisodeProject,
-    *,
-    defaults: dict[str, Any] | None = None,
-    unattended: bool | None = None,
-) -> str:
-    """Pipeline gate: return summary, or raise if interactive + pending."""
-    mode = refine_mode_from_defaults(defaults)
-    if mode == "off":
-        return "skipped (analysis.transcript_refine.mode=off)"
-    data = load_status(project)
-    fp = reviewed_transcript_fingerprint(project)
-    if status_is_clear_payload(data, fingerprint=fp):
-        return f"{(data or {}).get('status', 'done')} (fingerprint ok)"
-
-    unattended_now = is_unattended(flag=unattended, defaults=defaults)
-    if mode == "waive_unattended" and unattended_now:
-        mark_refine_waived(
-            project,
-            reason="unattended pipeline",
-            source="unattended",
-        )
-        return "waived (unattended)"
-
-    raise TranscriptRefineRequiredError(GATE_HINT)
-
-
 def build_refine_brief(
-    project: EpisodeProject,
-    *,
-    defaults: dict[str, Any] | None = None,
+    project: EpisodeProject, defaults: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     from podcast_mcp.transcript_context import load_transcript_context
 
@@ -256,7 +82,7 @@ def build_refine_brief(
 
     combined = project.transcripts_dir() / "combined.json"
     return {
-        "status": refine_status_report(project, defaults=defaults),
+        "status": REFINE_GATE.report(project, defaults),
         "show_title": ctx.show_title,
         "guest_names": list(ctx.guest_names),
         "terms": list(ctx.terms)[:50],
@@ -272,3 +98,17 @@ def build_refine_brief(
         "track_ids": [t.track_id for t in project.transcripts],
         "word_counts": {t.track_id: len(t.words or []) for t in project.transcripts},
     }
+
+
+REFINE_GATE = ReviewGate(
+    name="refine",
+    filename="transcript_refine_status.json",
+    mode_key="analysis.transcript_refine",
+    fingerprint_key="transcript_fingerprint",
+    fingerprint=reviewed_transcript_fingerprint,
+    hint=GATE_HINT,
+    error=TranscriptRefineRequiredError,
+    pending_source="precorrect",
+    pending_notes="reset after precorrect apply",
+    brief=build_refine_brief,
+)

@@ -12,9 +12,9 @@ import jsonschema
 import numpy as np
 import pytest
 
-import podcast_mcp.edits.transcript_refine_status as refine_mod
 from fixtures.lab_clips import decode_pcm16_wav
 from fixtures.lab_tighten.manifest import CASES, OWNER_VERDICTS
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import EditDecision, load_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline.service import PipelineService
@@ -90,7 +90,7 @@ def track_level(case: dict, track: str, start_s: float, end_s: float) -> str:
 def proposed_hits(tmp_path_factory: pytest.TempPathFactory) -> dict[str, list[EditDecision]]:
     hits = {}
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(refine_mod, "refine_mode_from_defaults", lambda defaults=None: "off")
+        patch.setattr(REFINE_GATE, "mode", lambda defaults=None: "off")
         for case in CASES:
             workspace = tmp_path_factory.mktemp(case["name"]) / case["name"]
             shutil.copytree(FIXTURE_DIR / case["name"], workspace)

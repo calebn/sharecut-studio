@@ -8,7 +8,7 @@ import pytest
 
 from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import (
     Clip,
     Track,
@@ -42,7 +42,7 @@ def test_real_planner_expansion_cannot_approve_unqualified_original_pause(tmp_pa
     )
     pause.boundary_mode = None
     project.edit_decisions = [pause]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     original = inspect_source_remove(project, pause)
@@ -112,7 +112,7 @@ def test_original_pause_on_music_stays_pending_before_real_inward_planning(tmp_p
     )
     pause.boundary_mode = None
     project.edit_decisions = [pause]
-    mark_refine_done(
+    REFINE_GATE.mark_done(
         project, notes="Known synthetic transcript fixture; no real-project acceptance"
     )
     original = inspect_source_remove(project, pause)

@@ -592,15 +592,15 @@ def test_media_change_invalidates_proposal(tmp_path):
 @pytest.mark.refine_gate
 def test_manual_range_and_exact_only_approval_work_with_pending_refinement(minimal_project):
     from podcast_mcp.edits.transcript_refine_status import (
+        REFINE_GATE,
         TranscriptRefineRequiredError,
-        mark_refine_pending,
     )
     from podcast_mcp.models import EditDecision
     from podcast_mcp.services.document import EditService
 
     ws = ProjectWorkspace.open(minimal_project)
     fixture(ws.project)
-    mark_refine_pending(ws.project)
+    REFINE_GATE.mark_pending(ws.project)
     service = EditService(ws)
     service.edit_selected_range(
         target(ws.project),

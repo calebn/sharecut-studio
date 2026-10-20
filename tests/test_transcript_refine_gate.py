@@ -10,16 +10,9 @@ import pytest
 
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.edits.transcript_refine_status import (
+    REFINE_GATE,
     TranscriptRefineRequiredError,
-    assert_refine_clear,
-    load_status,
-    mark_refine_done,
-    mark_refine_pending,
-    mark_refine_waived,
-    refine_status_report,
-    require_or_waive_unattended,
     reviewed_transcript_fingerprint,
-    status_is_clear,
 )
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
@@ -62,10 +55,10 @@ def _with_words(minimal_project: Path) -> object:
 @pytest.mark.refine_gate
 def test_precorrect_apply_resets_refine_pending(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_done(proj, notes="prior")
-    assert status_is_clear(proj)
+    REFINE_GATE.mark_done(proj, notes="prior")
+    assert REFINE_GATE.is_clear(proj)
     run_precorrect_transcript(proj, dry_run=False)
-    report = refine_status_report(proj)
+    report = REFINE_GATE.report(proj)
     assert report["status"] == "pending"
     assert not report["clear"]
     assert not Path(report["path"]).is_absolute()
@@ -74,11 +67,11 @@ def test_precorrect_apply_resets_refine_pending(minimal_project):
 @pytest.mark.refine_gate
 def test_fingerprint_stale_after_text_change(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_done(proj, notes="done")
-    assert status_is_clear(proj)
+    REFINE_GATE.mark_done(proj, notes="done")
+    assert REFINE_GATE.is_clear(proj)
     proj.transcripts[0].words[0].text = "hola"
-    assert not status_is_clear(proj)
-    report = refine_status_report(proj)
+    assert not REFINE_GATE.is_clear(proj)
+    report = REFINE_GATE.report(proj)
     assert report["status"] == "pending"
     assert report["stale"] is True
 
@@ -86,10 +79,10 @@ def test_fingerprint_stale_after_text_change(minimal_project):
 @pytest.mark.refine_gate
 def test_suppression_flag_change_keeps_waiver_clear(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_waived(proj, reason="host accepted", source="user")
+    REFINE_GATE.mark_waived(proj, reason="host accepted", source="user")
     proj.transcripts[0].words[0].suppressed = True
     proj.transcripts[0].words[1].audibility_status = "inaudible"
-    assert refine_status_report(proj)["clear"] is True
+    assert REFINE_GATE.report(proj)["clear"] is True
 
 
 @pytest.mark.refine_gate
@@ -153,7 +146,7 @@ def test_word_correction_stales_waiver(tmp_path):
 @pytest.mark.refine_gate
 def test_require_step_fails_interactive_pending(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     defaults = {"analysis": {"transcript_refine": {"mode": "waive_unattended"}}}
     with pytest.raises(TranscriptRefineRequiredError):
         steps.require_transcript_refine(proj, defaults)
@@ -162,20 +155,20 @@ def test_require_step_fails_interactive_pending(minimal_project):
 @pytest.mark.refine_gate
 def test_require_step_auto_waives_unattended(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     defaults = {
         "analysis": {"transcript_refine": {"mode": "waive_unattended"}},
         "_pipeline_unattended": True,
     }
     summary = steps.require_transcript_refine(proj, defaults)
     assert summary == "waived (unattended)"
-    assert status_is_clear(proj)
+    assert REFINE_GATE.is_clear(proj)
 
 
 @pytest.mark.refine_gate
 def test_require_step_passes_when_done(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_done(proj, notes="ok")
+    REFINE_GATE.mark_done(proj, notes="ok")
     defaults = {"analysis": {"transcript_refine": {"mode": "require"}}}
     summary = steps.require_transcript_refine(proj, defaults)
     assert "done" in summary
@@ -184,13 +177,13 @@ def test_require_step_passes_when_done(minimal_project):
 @pytest.mark.refine_gate
 def test_require_mode_always_blocks_even_unattended(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     defaults = {
         "analysis": {"transcript_refine": {"mode": "require"}},
         "_pipeline_unattended": True,
     }
     with pytest.raises(TranscriptRefineRequiredError):
-        require_or_waive_unattended(proj, defaults=defaults, unattended=True)
+        REFINE_GATE.require_or_waive_unattended(proj, defaults=defaults, unattended=True)
 
 
 @pytest.mark.refine_gate
@@ -198,13 +191,13 @@ def test_mode_off_skips(minimal_project):
     proj = _with_words(minimal_project)
     defaults = {"analysis": {"transcript_refine": {"mode": "off"}}}
     assert steps.require_transcript_refine(proj, defaults).startswith("skipped")
-    assert_refine_clear(proj, defaults=defaults)
+    REFINE_GATE.assert_clear(proj, defaults=defaults)
 
 
 @pytest.mark.refine_gate
 def test_edit_service_blocked_when_pending(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(TranscriptRefineRequiredError):
@@ -214,7 +207,7 @@ def test_edit_service_blocked_when_pending(minimal_project):
 @pytest.mark.refine_gate
 def test_edit_service_allowed_when_done(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_done(proj)
+    REFINE_GATE.mark_done(proj)
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     EditService(ws).propose_tighten()
@@ -223,7 +216,7 @@ def test_edit_service_allowed_when_done(minimal_project):
 @pytest.mark.refine_gate
 def test_focus_step_blocked_when_pending(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     defaults = {
         "analysis": {"transcript_refine": {"mode": "require"}},
         "focus": {"enabled": False},
@@ -235,7 +228,7 @@ def test_focus_step_blocked_when_pending(minimal_project):
 @pytest.mark.refine_gate
 def test_runner_unattended_flag_waives(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     runner = PipelineRunner(
         defaults={"analysis": {"transcript_refine": {"mode": "waive_unattended"}}}
     )
@@ -247,7 +240,7 @@ def test_runner_unattended_flag_waives(minimal_project):
 @pytest.mark.refine_gate
 def test_cli_service_done_waive_brief(minimal_project):
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     svc = TranscriptRefineService(ws)
@@ -257,7 +250,7 @@ def test_cli_service_done_waive_brief(minimal_project):
     done = svc.mark_done(notes="episode pass", source="cli")
     assert done["status"] == "done"
     assert svc.status()["clear"] is True
-    mark_refine_pending(ws.project)
+    REFINE_GATE.mark_pending(ws.project)
     waived = svc.waive(reason="fixture", source="cli")
     assert waived["status"] == "waived"
 
@@ -266,7 +259,7 @@ def test_cli_service_done_waive_brief(minimal_project):
 def test_waive_requires_reason(minimal_project):
     proj = _with_words(minimal_project)
     with pytest.raises(ValueError, match="reason"):
-        mark_refine_waived(proj, reason="  ")
+        REFINE_GATE.mark_waived(proj, reason="  ")
 
 
 @pytest.mark.refine_gate
@@ -279,7 +272,7 @@ def test_mcp_refine_tools(tmp_path):
             words=[TranscriptWord(text="hi", start=0.0, end=0.1)],
         )
     ]
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     save_project(proj, Path(path))
     status = json.loads(mcp_server.transcript_refine_status_tool(path))
     assert status["status"] == "pending"
@@ -291,7 +284,7 @@ def test_mcp_refine_tools(tmp_path):
     assert clear["clear"] is True
 
     proj2 = load_project(Path(path))
-    mark_refine_pending(proj2)
+    REFINE_GATE.mark_pending(proj2)
     save_project(proj2, Path(path))
     waived = json.loads(mcp_server.transcript_refine_waive_tool(path, reason="test waive"))
     assert waived["status"] == "waived"
@@ -300,16 +293,14 @@ def test_mcp_refine_tools(tmp_path):
 
 @pytest.mark.refine_gate
 def test_invalid_mode_defaults_to_waive_unattended(minimal_project):
-    from podcast_mcp.edits.transcript_refine_status import refine_mode_from_defaults
-
-    assert refine_mode_from_defaults({"analysis": {"transcript_refine": {"mode": "nope"}}}) == (
+    assert REFINE_GATE.mode({"analysis": {"transcript_refine": {"mode": "nope"}}}) == (
         "waive_unattended"
     )
 
 
 @pytest.mark.refine_gate
 def test_is_unattended_env(monkeypatch, minimal_project):
-    from podcast_mcp.edits.transcript_refine_status import is_unattended
+    from podcast_mcp.edits.pipeline_unattended import is_unattended
 
     monkeypatch.delenv("PODCAST_BATCH", raising=False)
     assert is_unattended() is False
@@ -319,17 +310,15 @@ def test_is_unattended_env(monkeypatch, minimal_project):
 
 @pytest.mark.refine_gate
 def test_load_status_corrupt_and_non_dict(minimal_project):
-    from podcast_mcp.edits.transcript_refine_status import load_status, status_path
-
     proj = _with_words(minimal_project)
-    path = status_path(proj)
+    path = REFINE_GATE.path(proj)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{not-json", encoding="utf-8")
     with pytest.raises(ValueError, match="corrupt"):
-        load_status(proj)
+        REFINE_GATE.load(proj)
     path.write_text("[1,2]", encoding="utf-8")
     with pytest.raises(ValueError, match="JSON object"):
-        load_status(proj)
+        REFINE_GATE.load(proj)
 
 
 @pytest.mark.refine_gate
@@ -407,11 +396,11 @@ def test_service_assert_clear_and_cli(minimal_project):
     from podcast_mcp.cli.main import app
 
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(TranscriptRefineRequiredError):
-        assert_refine_clear(ws.project)
+        REFINE_GATE.assert_clear(ws.project)
     runner = CliRunner()
     assert (
         runner.invoke(
@@ -440,7 +429,7 @@ def test_service_assert_clear_and_cli(minimal_project):
         == 0
     )
     p = load_project(minimal_project)
-    mark_refine_pending(p)
+    REFINE_GATE.mark_pending(p)
     save_project(p, minimal_project)
     assert (
         runner.invoke(
@@ -457,7 +446,7 @@ def test_service_assert_clear_and_cli(minimal_project):
         == 0
     )
     p2 = load_project(minimal_project)
-    mark_refine_pending(p2)
+    REFINE_GATE.mark_pending(p2)
     save_project(p2, minimal_project)
     assert (
         runner.invoke(
@@ -483,7 +472,7 @@ def test_ripple_delete_pending_refine_prints_clean_error_not_traceback(minimal_p
     from podcast_mcp.cli.main import app
 
     proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
+    REFINE_GATE.mark_pending(proj)
     save_project(proj, minimal_project)
     runner = CliRunner()
     result = runner.invoke(
@@ -527,9 +516,9 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(
     ]
     (proj.workspace_path() / "raw" / "host.wav").write_bytes(ten_second_silence_wav.read_bytes())
     if clearance == "done":
-        mark_refine_done(proj, notes="reviewed")
+        REFINE_GATE.mark_done(proj, notes="reviewed")
     else:
-        mark_refine_waived(proj, reason="structural edit")
+        REFINE_GATE.mark_waived(proj, reason="structural edit")
     for word in proj.transcripts[0].words:
         word.start += 3
         word.end += 3
@@ -540,14 +529,14 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert reviewed_transcript_fingerprint(reopened.project) == fingerprint
-    assert refine_status_report(reopened.project)["clear"] is True
-    assert load_status(reopened.project)["status"] == clearance
+    assert REFINE_GATE.report(reopened.project)["clear"] is True
+    assert REFINE_GATE.load(reopened.project)["status"] == clearance
     EditService(reopened).cut_range(
         0.6, 1.6, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
     again = load_project(minimal_project)
     assert reviewed_transcript_fingerprint(again) == fingerprint
-    assert status_is_clear(again)
+    assert REFINE_GATE.is_clear(again)
     assert [word.text for word in again.transcripts[0].words] == ["hello", "world"]
 
     from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
@@ -578,17 +567,17 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(
     ]
     (proj.workspace_path() / "raw" / "host.wav").write_bytes(ten_second_silence_wav.read_bytes())
     if clearance == "done":
-        mark_refine_done(proj, notes="reviewed")
+        REFINE_GATE.mark_done(proj, notes="reviewed")
     else:
-        mark_refine_waived(proj, reason="structural edit")
+        REFINE_GATE.mark_waived(proj, reason="structural edit")
     save_project(proj, minimal_project)
     EditService(ProjectWorkspace.open(minimal_project)).cut_range(
         0, 0.25, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert [word.text for word in reopened.project.transcripts[0].words] == ["world"]
-    assert refine_status_report(reopened.project)["clear"] is True
+    assert REFINE_GATE.report(reopened.project)["clear"] is True
     EditService(reopened).cut_range(
         1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
-    assert load_status(reopened.project)["status"] == clearance
+    assert REFINE_GATE.load(reopened.project)["status"] == clearance

@@ -19,7 +19,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten import propose_tighten_edits
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.models import (
     Clip,
     CutIntent,
@@ -70,7 +70,7 @@ def _project(tmp_path: Path) -> EpisodeProject:
         )
     )
     project.timeline.duration_sec = DURATION
-    mark_refine_done(project, notes="synthetic scene")
+    REFINE_GATE.mark_done(project, notes="synthetic scene")
     return project
 
 

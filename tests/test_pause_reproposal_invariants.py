@@ -14,7 +14,7 @@ import pytest
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
 from podcast_mcp.edits.cut_application import apply_auto_edits
 from podcast_mcp.edits.tighten import propose_tighten_edits
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,
@@ -67,7 +67,7 @@ def _scene(tmp_path: Path, speech: dict[str, list[tuple[float, float]]], *, db: 
             )
         )
     project.timeline.duration_sec = DURATION
-    mark_refine_done(project, notes="synthetic scene")
+    REFINE_GATE.mark_done(project, notes="synthetic scene")
     return project
 
 

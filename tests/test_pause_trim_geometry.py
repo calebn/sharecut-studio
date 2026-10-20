@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
-from podcast_mcp.edits.transcript_refine_status import mark_refine_done
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -85,7 +85,7 @@ def _workspace(tmp_path: Path) -> ProjectWorkspace:
         write_wav(tmp_path / track.media.path, audio)
     project.edit_decisions = [_pause()]
     path = tmp_path / "episode.project.json"
-    mark_refine_done(project, notes="Literal synthetic fixture. No owner audio acceptance.")
+    REFINE_GATE.mark_done(project, notes="Literal synthetic fixture. No owner audio acceptance.")
     save_project(project, path)
     return ProjectWorkspace.open(path)
 

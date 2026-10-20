@@ -50,7 +50,7 @@ StepSummary = str | None
 
 
 def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.edits.align_accept_status import mark_align_done, mark_align_pending
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
     from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts
     from podcast_mcp.edits.conversation_align import run_conversation_align
 
@@ -58,13 +58,13 @@ def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumma
     try:
         result = run_conversation_align(project, defaults=defaults)
         if result.skipped_reason:
-            mark_align_done(
+            ALIGN_GATE.mark_done(
                 project,
                 source="align",
                 notes=f"skipped: {result.skipped_reason}",
             )
         else:
-            mark_align_pending(project, notes="after align_tracks")
+            ALIGN_GATE.mark_pending(project, notes="after align_tracks")
         # Judges everything before it changes words or comments, so a failure here
         # leaves them as they were and only the clips need restoring.
         onsets = flag_clipped_word_starts(project, defaults)
@@ -77,9 +77,9 @@ def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumma
 
 
 def require_align_accept(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.edits.align_accept_status import require_or_waive_unattended
+    from podcast_mcp.edits.align_accept_status import ALIGN_GATE
 
-    return require_or_waive_unattended(project, defaults=defaults)
+    return ALIGN_GATE.require_or_waive_unattended(project, defaults=defaults)
 
 
 def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
@@ -314,9 +314,9 @@ def precorrect_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> 
 
 
 def require_transcript_refine(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.edits.transcript_refine_status import require_or_waive_unattended
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 
-    return require_or_waive_unattended(project, defaults=defaults)
+    return REFINE_GATE.require_or_waive_unattended(project, defaults=defaults)
 
 
 def reconcile_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
@@ -370,10 +370,10 @@ def analyze_prosody(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 
 def analyze_focus_cuts(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.focus import propose_focus_cuts, write_focus_outline
-    from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
     from podcast_mcp.pipeline.meta import step_noop_reason
 
-    assert_refine_clear(project, defaults=defaults)
+    REFINE_GATE.assert_clear(project, defaults=defaults)
     if reason := step_noop_reason("analyze_focus_cuts", defaults):
         return f"skipped ({reason})"
     with resolve_progress_task(
@@ -398,10 +398,10 @@ def analyze_focus_cuts(project: EpisodeProject, defaults: dict[str, Any]) -> Ste
 
 def focus_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.focus import apply_focus_decisions
-    from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
     from podcast_mcp.pipeline.meta import step_noop_reason
 
-    assert_refine_clear(project, defaults=defaults)
+    REFINE_GATE.assert_clear(project, defaults=defaults)
     if reason := step_noop_reason("focus_from_transcript", defaults):
         return f"skipped ({reason})"
     with resolve_progress_task(
@@ -415,10 +415,10 @@ def focus_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> 
 
 
 def analyze_fillers_pauses(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
     from podcast_mcp.pipeline.meta import step_noop_reason
 
-    assert_refine_clear(project, defaults=defaults)
+    REFINE_GATE.assert_clear(project, defaults=defaults)
     if reason := step_noop_reason("analyze_fillers_pauses", defaults):
         return f"skipped ({reason})"
     with resolve_progress_task(
@@ -432,10 +432,10 @@ def analyze_fillers_pauses(project: EpisodeProject, defaults: dict[str, Any]) ->
 
 
 def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
     from podcast_mcp.pipeline.meta import step_noop_reason
 
-    assert_refine_clear(project, defaults=defaults)
+    REFINE_GATE.assert_clear(project, defaults=defaults)
     if reason := step_noop_reason("tighten_from_transcript", defaults):
         return f"skipped ({reason})"
     with resolve_progress_task(
@@ -486,10 +486,10 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
         SuggestedActionsResult,
         drop_decided_sounds,
     )
-    from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
     from podcast_mcp.pipeline.meta import step_noop_reason
 
-    assert_refine_clear(project, defaults=defaults)
+    REFINE_GATE.assert_clear(project, defaults=defaults)
     if reason := step_noop_reason("apply_sound_actions", defaults):
         return f"skipped ({reason})"
     with resolve_progress_task(
