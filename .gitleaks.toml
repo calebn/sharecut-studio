@@ -10,8 +10,8 @@ id = "generic-api-key"
     description = "sha256 digests that pin downloaded model snapshot files (#728)"
     condition = "AND"
     paths = [
-      '''^src/podcast_mcp/whisper_models\.py$''',
-      '''^src/podcast_mcp/word_aligner_models\.py$''',
+      '''^src/podcast_mcp/engines/models/whisper\.py$''',
+      '''^src/podcast_mcp/engines/models/word_aligner\.py$''',
     ]
     regexTarget = "line"
     regexes = [

@@ -7,9 +7,9 @@ from typing import Any, Literal
 
 from podcast_mcp.config import bundled_defaults
 from podcast_mcp.edits.tighten_intensity import TIGHTEN_INTENSITIES
+from podcast_mcp.engines.models.whisper import WHISPER_SIZE_ENUM
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES
 from podcast_mcp.util.dicts import get_by_path
-from podcast_mcp.whisper_models import WHISPER_SIZE_ENUM
 
 StepKind = Literal["tooling", "gate", "heuristic"]
 ParamType = Literal["number", "integer", "boolean", "string", "enum", "object"]

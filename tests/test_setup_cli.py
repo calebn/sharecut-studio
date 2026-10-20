@@ -62,7 +62,7 @@ def test_setup_whisper_model_persists(tmp_path, monkeypatch):
     result = runner.invoke(setup_app, ["setup", "--whisper-model", "small.en"])
     assert result.exit_code == 0
     assert "Whisper model preference: small.en" in result.stdout
-    from podcast_mcp.whisper_models import read_whisper_model_pref
+    from podcast_mcp.engines.models.whisper import read_whisper_model_pref
 
     assert read_whisper_model_pref() == "small.en"
 
@@ -249,7 +249,7 @@ def test_doctor_faster_whisper_missing(tmp_path, monkeypatch):
 
 
 def test_doctor_fails_on_word_aligner_pin_mismatch(tmp_path, monkeypatch):
-    from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError
+    from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
 
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     with (
@@ -271,7 +271,7 @@ def test_doctor_fails_on_word_aligner_pin_mismatch(tmp_path, monkeypatch):
 
 
 def test_doctor_word_aligner_not_downloaded_prints_no_line(tmp_path, monkeypatch):
-    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
 
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     with (
@@ -290,7 +290,7 @@ def test_doctor_word_aligner_not_downloaded_prints_no_line(tmp_path, monkeypatch
 
 
 def test_doctor_fails_on_whisper_pin_mismatch(tmp_path, monkeypatch):
-    from podcast_mcp.whisper_models import WhisperPinMismatchError
+    from podcast_mcp.engines.models.whisper import WhisperPinMismatchError
 
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     with (

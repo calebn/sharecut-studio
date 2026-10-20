@@ -1,7 +1,7 @@
 """CTC forced-alignment pass over Whisper's words (#714; on by default when installed, #780).
 
 Re-times Whisper's word boundaries with a local wav2vec2 CTC aligner
-(``word_aligner_models.WORD_ALIGNER_CATALOG``). Words the aligner cannot
+(``models.word_aligner.WORD_ALIGNER_CATALOG``). Words the aligner cannot
 place keep Whisper's times — this module never invents a boundary.
 ``align`` streams the 16 kHz decode once, forward-only, through
 ``FFmpegEngine.stream_mono_f32`` + ``util.pcm_stream.SequentialWindowReader``
@@ -35,11 +35,7 @@ from podcast_mcp.engines.ctc_forced_align import (
     place_spans_stream,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.models.episode import TranscriptWord
-from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.dsp import clamp
-from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowReader
-from podcast_mcp.word_aligner_models import (
+from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WordAlignerLoadError,
     WordAlignerMissingError,
@@ -49,6 +45,10 @@ from podcast_mcp.word_aligner_models import (
     word_aligner_model,
     word_aligner_override_dir,
 )
+from podcast_mcp.models.episode import TranscriptWord
+from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.dsp import clamp
+from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowReader
 
 # The #641 measurement setting.
 DEFAULT_ALIGNER_THREADS = 4

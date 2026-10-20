@@ -16,8 +16,7 @@ from podcast_mcp.gui.routes.deps import (
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
 from podcast_mcp.services.jobs import JobManager
-from podcast_mcp.services.pipeline import component_status
-from podcast_mcp.whisper_models import resolve_whisper_model
+from podcast_mcp.services.pipeline import component_status, resolve_whisper_model
 
 router = APIRouter()
 

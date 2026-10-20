@@ -25,6 +25,7 @@ from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
     is_possible_word_reason,
 )
+from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.models import EditDecision
 from podcast_mcp.util.progress import (
     CancelledProgress,
@@ -32,7 +33,6 @@ from podcast_mcp.util.progress import (
     resolve_progress_task,
 )
 from podcast_mcp.util.project_state import current_cancel_check
-from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 WHISPER_SAMPLE_RATE = 16_000
 # Silence either side of the span: a model given a bare burst hears its edges as clicks.
@@ -122,8 +122,8 @@ def flag_possible_words(
 
 def whisper_span_transcriber(defaults: dict[str, Any]) -> SpanTranscriber:
     """A transcriber over the project's configured Whisper model, loaded on first use."""
+    from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
     from podcast_mcp.engines.transcribe import TranscriptionEngine
-    from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
     model = (defaults.get("transcribe") or {}).get("model", DEFAULT_WHISPER_MODEL)
     engine = TranscriptionEngine(model_size=model, defaults=defaults)

@@ -11,20 +11,23 @@ from typing import Any, Literal
 from podcast_mcp import settings
 from podcast_mcp.config import cache_dir
 from podcast_mcp.engines import FFmpegEngine
-from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.binaries import (
-    FFmpegPairResolutionError,
-    resolve_ffmpeg_pair,
-)
-from podcast_mcp.util.model_assets import rnnoise_model_path
-from podcast_mcp.whisper_models import (
+from podcast_mcp.engines.models.whisper import (
     WhisperPinMismatchError,
     resolve_whisper_model,
     validate_whisper_model,
     whisper_bootstrap_command,
     whisper_model_problem,
 )
-from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError, word_aligner_problem
+from podcast_mcp.engines.models.word_aligner import (
+    WordAlignerPinMismatchError,
+    word_aligner_problem,
+)
+from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.binaries import (
+    FFmpegPairResolutionError,
+    resolve_ffmpeg_pair,
+)
+from podcast_mcp.util.model_assets import rnnoise_model_path
 
 DoctorStatus = Literal["ok", "fail", "warn"]
 

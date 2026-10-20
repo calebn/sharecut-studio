@@ -57,7 +57,7 @@ def test_load_defaults_transcribe_model_is_turbo(tmp_path, monkeypatch):
 def test_load_defaults_overlay_whisper_pref(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     monkeypatch.delenv("PODCAST_WHISPER_MODEL", raising=False)
-    from podcast_mcp.whisper_models import persist_whisper_model
+    from podcast_mcp.engines.models.whisper import persist_whisper_model
 
     persist_whisper_model("small.en")
     defaults = load_defaults()

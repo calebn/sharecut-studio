@@ -33,7 +33,7 @@ from podcast_mcp.services.media import (
 )
 from podcast_mcp.services.pipeline import PipelineService, run_bootstrap
 from podcast_mcp.util.progress import bind_progress
-from podcast_mcp.whisper_models import resolve_whisper_model
+from podcast_mcp.engines.models.whisper import resolve_whisper_model
 
 
 class JobManager:

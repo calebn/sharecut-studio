@@ -39,6 +39,7 @@ from podcast_mcp.edits.tighten.propose import _flag_possible_words
 from podcast_mcp.edits.tighten_reasons import is_likely_laugh_reason, is_possible_word_reason
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
 from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
     Clip,
@@ -59,7 +60,6 @@ from podcast_mcp.util.progress import (
     progress_task,
 )
 from podcast_mcp.util.project_state import render_cancel_scope
-from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 RATE = 16_000
 

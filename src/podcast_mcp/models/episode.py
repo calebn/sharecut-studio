@@ -502,7 +502,7 @@ class Transcript(BaseModel):
     audio_mtime_ns: int | None = None
     # Fingerprint of media, silence filter settings and word spans last used to set flags.
     silence_filter_fingerprint: str | None = None
-    # Forced aligner (word_aligner_models catalog id) that re-timed these words; None =
+    # Forced aligner (engines.models.word_aligner catalog id) that re-timed these words; None =
     # Whisper's own times (transcribe.forced_alignment off, failed, or never run on them).
     word_aligner: str | None = None
     # ctc_forced_align.ALIGNMENT_SCORE_METHOD that produced words[].alignment_score; None = no

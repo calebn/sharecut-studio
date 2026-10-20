@@ -13,13 +13,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
 from podcast_mcp.services.jobs.events import (
     LIVE_JOB_STATUSES,
     job_listener_count,
     publish_job_event,
 )
 from podcast_mcp.util.coded_error import CodedError
-from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 JobKind = Literal[
     "pipeline",

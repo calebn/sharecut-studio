@@ -28,6 +28,11 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_MAX_WORD_DURATION_SEC,
     word_duration_is_anomalous,
 )
+from podcast_mcp.engines.models.whisper import (
+    DEFAULT_WHISPER_MODEL,
+    resolve_whisper_model_path,
+    validate_whisper_model,
+)
 from podcast_mcp.engines.utterance_runs import transcript_word_runs, utterance_text
 from podcast_mcp.models import (
     CombinedTranscript,
@@ -49,11 +54,6 @@ from podcast_mcp.util.progress import (
 )
 from podcast_mcp.util.project_state import asr_cache_lock_path, current_cancel_check
 from podcast_mcp.util.workspace_paths import resolve_cache_file, resolve_under_workspace
-from podcast_mcp.whisper_models import (
-    DEFAULT_WHISPER_MODEL,
-    resolve_whisper_model_path,
-    validate_whisper_model,
-)
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.word_align import WordAligner, WordAlignResult

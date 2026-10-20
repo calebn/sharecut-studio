@@ -4,7 +4,7 @@ Currently just the RNNoise `.rnnn` model used by FFmpeg's `arnndn` filter
 (the `noise_reduction_rnnoise` preset). Silero VAD needs no entry here: its
 ONNX model already ships inside `faster-whisper` (a core dependency), so
 there is nothing to download -- see `podcast_mcp.engines.vad_silero`. The
-opt-in forced word aligner lives in `podcast_mcp.word_aligner_models` (a
+opt-in forced word aligner lives in `podcast_mcp.engines.models.word_aligner` (a
 pinned Hugging Face snapshot, like the Whisper tiers).
 
 Like `util/binaries.py`, nothing here downloads anything on import; only the

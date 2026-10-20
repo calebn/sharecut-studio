@@ -425,7 +425,7 @@ def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str
     that survives raises ``WhisperPinMismatchError``. Any other size uses faster-whisper's
     own unpinned download, where ``force`` has no effect.
 
-    No lock of our own guards the shared snapshot cache (as in ``word_aligner_models.py``):
+    No lock of our own guards the shared snapshot cache (as in ``word_aligner.py``):
     a (forced) re-download racing a load relies on huggingface_hub's per-file atomic
     rename and file locks, and a pinned file that vanishes mid-check reads as not
     downloaded. The hash-then-load window is intrinsic and stays inside the same OS-user

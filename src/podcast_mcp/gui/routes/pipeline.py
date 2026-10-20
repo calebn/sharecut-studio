@@ -23,6 +23,7 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.pipeline import STEP_NAMES
 from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.pipeline import (
+    WhisperWeightsMissingError,
     build_config_payload,
     config_store,
     ensure_whisper_cached_for_run,
@@ -30,7 +31,6 @@ from podcast_mcp.services.pipeline import (
     skip_steps_from_enabled,
     transcribe_run_config,
 )
-from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 router = APIRouter()
 

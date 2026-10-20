@@ -43,10 +43,10 @@ from podcast_mcp.edits.tighten_reasons import (
     is_likely_laugh_reason,
     is_possible_word_reason,
 )
+from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import dialogue_track_ids
-from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 
 def format_tighten_propose_summary(

@@ -36,8 +36,8 @@ def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
 def test_ensure_whisper_cached_for_run_raises_when_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
-    from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(
         "podcast_mcp.config.whisper_cache_dir",
@@ -67,9 +67,9 @@ def test_ensure_whisper_cached_for_run_ok_when_cached(
 def test_pipeline_service_run_fails_fast_without_weights(
     minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.pipeline import PipelineService
-    from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(
         "podcast_mcp.config.whisper_cache_dir",
@@ -202,8 +202,8 @@ def test_transcription_engine_uses_local_files_only(
 def test_transcription_engine_refuses_a_tampered_pinned_snapshot(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from podcast_mcp.engines.models.whisper import WhisperPinMismatchError
     from podcast_mcp.engines.transcribe import TranscriptionEngine
-    from podcast_mcp.whisper_models import WhisperPinMismatchError
 
     cache = tmp_path / "whisper"
     snap = plant_pinned_whisper(cache, "tiny.en", monkeypatch)
@@ -228,8 +228,8 @@ def test_transcription_engine_refuses_a_tampered_pinned_snapshot(
 def test_transcription_engine_raises_when_weights_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.engines.transcribe import TranscriptionEngine
-    from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(
         "podcast_mcp.config.whisper_cache_dir",
@@ -243,12 +243,12 @@ def test_transcription_engine_raises_when_weights_missing(
 def test_selected_whisper_model_uses_yaml_when_prefs_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
     from podcast_mcp.services.pipeline.config import _selected_whisper_model
-    from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
     monkeypatch.delenv("PODCAST_WHISPER_MODEL", raising=False)
     monkeypatch.setattr(
-        "podcast_mcp.whisper_models.read_whisper_model_pref",
+        "podcast_mcp.engines.models.whisper.read_whisper_model_pref",
         lambda: None,
     )
     monkeypatch.setattr(
@@ -274,7 +274,7 @@ def test_ensure_whisper_cached_for_run_forwards_memoize(monkeypatch) -> None:
         seen.append(memoize)
         return model
 
-    monkeypatch.setattr("podcast_mcp.whisper_models.ensure_whisper_model_cached", fake)
+    monkeypatch.setattr("podcast_mcp.engines.models.whisper.ensure_whisper_model_cached", fake)
     ensure_whisper_cached_for_run(only_step="transcribe_tracks")
     ensure_whisper_cached_for_run(only_step="transcribe_tracks", memoize=True)
     assert seen == [False, True]

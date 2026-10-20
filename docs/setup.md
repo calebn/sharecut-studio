@@ -132,7 +132,7 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
 
 | Component | What it fetches | Needed for |
 |-----------|------------------|------------|
-| `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the Sharecut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.whisper_models.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch reports `[fail]` with a `--upgrade` hint; any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
+| `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the Sharecut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.engines.models.whisper.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch reports `[fail]` with a `--upgrade` hint; any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset |
 | `silero-vad` | Nothing — verifies the model bundled with `faster-whisper` | Optional VAD breath handling |
 | `nisqa` | NISQA weights (**opt-in only**; not included in `--component all`) | Neural join QC with `joinqc` extra. Default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir if needed |
@@ -151,8 +151,8 @@ per-file sha256 manifest (`util/model_manifest.py`, a shared
 `FileManifest`/`PinnedSnapshot`/`manifest_mismatch` used by both catalogs).
 Every downloaded file is verified, not just the model weights, so a swapped
 `vocab.json` or tokenizer config is caught before it can silently shift
-transcript or alignment output. Pins live in `word_aligner_models.py`
-(`WordAlignerModel.file_sha256`) and `whisper_models.py` (`WHISPER_PINS`).
+transcript or alignment output. Pins live in `engines/models/word_aligner.py`
+(`WordAlignerModel.file_sha256`) and `engines/models/whisper.py` (`WHISPER_PINS`).
 Hashes were obtained from a clean download of the pinned revisions on
 2026-09-28: LFS files (weights) use the hub's LFS sha256
 (`HfApi().model_info(..., files_metadata=True)`); small non-LFS files are the
@@ -163,7 +163,7 @@ the word aligner, also update `tests/fixtures/word_boundary/candidates.json`,
 which a test asserts equals the production catalog. gitleaks-history reads a
 sha256 on a line that names a token (for example `tokenizer.json`) as a
 generic API key; `.gitleaks.toml` allowlists the two pin shapes in
-`whisper_models.py` and `word_aligner_models.py` (`_…_SHA256 = "…"` constants
+`engines/models/whisper.py` and `engines/models/word_aligner.py` (`_…_SHA256 = "…"` constants
 and `("<file>", "…")` manifest entries), so keep new pins in one of those
 shapes ([docs/testing.md § Credential history
 scanning](testing.md#credential-history-scanning)).

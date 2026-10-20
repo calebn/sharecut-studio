@@ -7,22 +7,20 @@ import typer
 
 from podcast_mcp.config import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
+from podcast_mcp.services.pipeline import (
+    DEFAULT_WHISPER_MODEL,
+    DEFAULT_WORD_ALIGNER,
+    WHISPER_MODEL_IDS,
+    bootstrap_whisper_model,
+    bootstrap_word_aligner,
+    persist_whisper_model,
+    validate_whisper_model,
+    word_aligner_is_cached,
+)
 from podcast_mcp.util.binaries import FFmpegPairResolutionError
 from podcast_mcp.util.model_assets import (
     bootstrap_nisqa_model,
     bootstrap_rnnoise_model,
-)
-from podcast_mcp.whisper_models import (
-    DEFAULT_WHISPER_MODEL,
-    WHISPER_MODEL_IDS,
-    bootstrap_whisper_model,
-    persist_whisper_model,
-    validate_whisper_model,
-)
-from podcast_mcp.word_aligner_models import (
-    DEFAULT_WORD_ALIGNER,
-    bootstrap_word_aligner,
-    word_aligner_is_cached,
 )
 
 setup_app = typer.Typer(help="Install and verify Podcast MCP.")

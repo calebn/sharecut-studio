@@ -301,8 +301,8 @@ def test_transcript_service_transcribe_fails_when_alignment_is_forced_without_th
     minimal_project,
 ):
     """#780: `podcast transcribe` with forced alignment explicitly on and no model fails first."""
+    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline.config import config_store
-    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     ws = ProjectWorkspace.open(minimal_project)
     store = config_store()
@@ -326,8 +326,8 @@ def test_transcript_service_transcribe_fails_when_the_forced_model_cannot_load(
     minimal_project, monkeypatch, tmp_path
 ):
     from model_pin_helpers import plant_pinned_word_aligner
+    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline.config import config_store
-    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     plant_pinned_word_aligner(monkeypatch, tmp_path)
     ws = ProjectWorkspace.open(minimal_project)

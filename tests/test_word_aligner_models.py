@@ -9,8 +9,7 @@ from pathlib import Path
 import pytest
 
 from model_pin_helpers import pin_word_aligner_to_fake_snapshot, write_fake_files
-from podcast_mcp.util import model_manifest
-from podcast_mcp.word_aligner_models import (
+from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_CATALOG,
     WordAlignerMissingError,
@@ -22,6 +21,7 @@ from podcast_mcp.word_aligner_models import (
     word_aligner_model,
     word_aligner_problem,
 )
+from podcast_mcp.util import model_manifest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -230,7 +230,7 @@ def test_is_cached_is_false_when_a_pinned_file_vanishes(tmp_path, monkeypatch) -
         raise OSError("vanished")
 
     monkeypatch.setattr(
-        "podcast_mcp.word_aligner_models.verify_word_aligner_snapshot", raise_oserror
+        "podcast_mcp.engines.models.word_aligner.verify_word_aligner_snapshot", raise_oserror
     )
     assert word_aligner_is_cached() is False
 

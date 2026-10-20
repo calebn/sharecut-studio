@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp import whisper_models, word_aligner_models
+from podcast_mcp.engines.models import whisper as whisper_models
+from podcast_mcp.engines.models import word_aligner as word_aligner_models
 from podcast_mcp.util.model_manifest import FileManifest
 
 

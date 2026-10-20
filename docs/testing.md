@@ -191,7 +191,7 @@ The repository intentionally carries no `.gitleaksignore` baseline. Test credent
 obvious placeholders; public state certificates retain their real digest format.
 `.gitleaks.toml` extends the default rules with scoped allowlists on `generic-api-key`.
 The first matches lines in
-`src/podcast_mcp/whisper_models.py` / `word_aligner_models.py` that pin a model file by sha256
+`src/podcast_mcp/engines/models/whisper.py` / `engines/models/word_aligner.py` that pin a model file by sha256
 (`_…_SHA256 = "<64 hex>"` constants and `("<file>", "<64 hex>")` entries). It matches lines,
 not commit fingerprints, so it still holds after a rebase-merge rewrites SHAs;
 `tests/test_secret_scan_workflow.py` checks its scope and that every pin line fits it.
