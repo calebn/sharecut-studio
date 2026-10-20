@@ -5,7 +5,7 @@ import type { LayoutMode } from "../state/types";
 import type { PresenceTab } from "../types/session";
 import { BottomSheet } from "../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../ui/compactSheet";
-import { ToggleButton } from "../ui/ToggleButton";
+import { Tab, TabList } from "../ui/Tabs";
 import {
   INSPECTOR_COLUMN_SHELL_CLASS,
   type SheetPresentation,
@@ -13,6 +13,9 @@ import {
   type ShellNotices,
 } from "./shellPresentation";
 import { TAB_LABELS } from "./tabLabels";
+
+const PANEL_TAB_ID = "studio-panel-tab";
+const PANEL_TABPANEL_ID = "studio-panel";
 
 export type IngestPresentation = {
   over: boolean;
@@ -95,6 +98,7 @@ export function StudioShellView({
         {inspector.sheet.content}
       </BottomSheet>
     ) : null;
+  const tabIds = studioTabIds(appearance.guestShare);
   return (
     <div
       ref={bindings?.root}
@@ -180,22 +184,34 @@ export function StudioShellView({
         aria-label="Editor panels"
       >
         {layout === "default" ? panels.splitter : null}
-        <div className="tab-bar">
-          {studioTabIds(appearance.guestShare).map((id) => (
-            <ToggleButton
+        <TabList label="Editor panels" className="tab-bar">
+          {tabIds.map((id) => (
+            <Tab
               key={id}
-              quiet
-              pressed={panels.activeTab === id}
-              data-ui-kind="tab"
+              id={`${PANEL_TAB_ID}-${id}`}
+              panelId={PANEL_TABPANEL_ID}
+              selected={panels.activeTab === id}
               {...presenceAnchorProps(presenceAnchor("tab", id))}
               onClick={() => panels.onTabChange(id)}
             >
               {TAB_LABELS[id]}
               {id === "pipeline" && panels.pipelineRunning ? " ●" : ""}
-            </ToggleButton>
+            </Tab>
           ))}
-        </div>
-        <div className="tab-content">
+        </TabList>
+        <div
+          className="tab-content"
+          role="tabpanel"
+          id={PANEL_TABPANEL_ID}
+          aria-labelledby={
+            tabIds.includes(panels.activeTab)
+              ? `${PANEL_TAB_ID}-${panels.activeTab}`
+              : undefined
+          }
+          aria-label={
+            tabIds.includes(panels.activeTab) ? undefined : "Editor panel"
+          }
+        >
           {!appearance.guestShare || !isHostOnlyTab(panels.activeTab)
             ? panels.content
             : null}

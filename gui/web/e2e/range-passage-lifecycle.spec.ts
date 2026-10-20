@@ -63,7 +63,7 @@ test("F06 wrapped passage reversal and existing Mute action restores exact clips
     await page.setViewportSize({ width: 820, height: 1024 });
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .click();
     await expect(page.getByRole("button", { name: /^Correct:/ })).toBeEnabled();
     await page.getByRole("button", { name: /^Select:/ }).click();

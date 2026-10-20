@@ -42,7 +42,7 @@ test.describe("Transcript low-confidence walkthrough (#634)", () => {
     );
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .click();
 
     const annotateBtn = page.getByRole("button", {

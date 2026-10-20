@@ -17,12 +17,10 @@ test.describe("Sharecut Studio smoke", () => {
     await expect(
       page
         .getByLabel("Editor panels")
-        .getByRole("button", { name: "Transcript", exact: true }),
+        .getByRole("tab", { name: "Transcript", exact: true }),
     ).toBeVisible();
     await expect(
-      page
-        .getByLabel("Editor panels")
-        .getByRole("button", { name: "Comments" }),
+      page.getByLabel("Editor panels").getByRole("tab", { name: "Comments" }),
     ).toBeVisible();
     await expect(page.locator(".daw-shell")).toBeVisible();
 

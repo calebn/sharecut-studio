@@ -146,7 +146,7 @@ test.describe("core flow", () => {
           await test.step("tighten: the panel opens on its empty state", async () => {
             await host
               .getByLabel("Editor panels")
-              .getByRole("button", { name: "Tighten", exact: true })
+              .getByRole("tab", { name: "Tighten", exact: true })
               .click();
             await expect(
               host.getByRole("group", { name: "Class" }),

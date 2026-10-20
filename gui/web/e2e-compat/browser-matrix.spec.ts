@@ -81,7 +81,7 @@ test.describe("browser compatibility matrix", () => {
       await expect.poll(queuedCount).toBe(0);
       await page
         .getByLabel("Editor panels")
-        .getByRole("button", { name: "Comments" })
+        .getByRole("tab", { name: "Comments" })
         .click();
       await expect(page.getByText(note, { exact: true }).first()).toBeVisible();
     });
@@ -172,7 +172,7 @@ test.describe("browser compatibility matrix", () => {
           .toBe(true);
         await page
           .getByLabel("Editor panels")
-          .getByRole("button", { name: "Comments" })
+          .getByRole("tab", { name: "Comments" })
           .click();
         await expect(
           page.locator(".comment-card-body").getByText(note, { exact: true }),

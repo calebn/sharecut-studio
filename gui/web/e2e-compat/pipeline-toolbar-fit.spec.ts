@@ -27,7 +27,7 @@ async function openPipeline(
     await page.locator(".mobile-more-item", { hasText: "Pipeline" }).click();
   } else {
     await page
-      .getByRole("button", { name: "Pipeline", exact: true })
+      .getByRole("tab", { name: "Pipeline", exact: true })
       .first()
       .click();
   }

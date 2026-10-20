@@ -505,7 +505,7 @@ test("a Commenter suggests a cut for host review and sees the approved cut", asy
         await expectGuestPlayback();
 
         const panels = page.getByLabel("Editor panels");
-        await panels.getByRole("button", { name: "Impact" }).click();
+        await panels.getByRole("tab", { name: "Impact" }).click();
         await panels.locator(`button[data-pending-id="${pending.id}"]`).click();
         const hostInspector = page.locator(".modifier-inspector");
         await expect(

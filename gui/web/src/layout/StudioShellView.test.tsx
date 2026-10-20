@@ -104,7 +104,7 @@ describe("StudioShellView", () => {
     const panels = screen.getByRole("region", { name: "Editor panels" });
     expect(
       within(panels)
-        .getAllByRole("button")
+        .getAllByRole("tab")
         .map((button) => button.textContent),
     ).toEqual([
       "Transcript",
@@ -115,15 +115,15 @@ describe("StudioShellView", () => {
       "Pipeline ●",
     ]);
     expect(
-      within(panels).getByRole("button", { name: "Transcript" }),
+      within(panels).getByRole("tab", { name: "Transcript" }),
     ).toHaveAttribute("data-presence-anchor", "tab:transcript");
     await userEvent.click(
-      within(panels).getByRole("button", { name: "Comments" }),
+      within(panels).getByRole("tab", { name: "Comments" }),
     );
     expect(props.panels.onTabChange).toHaveBeenCalledWith("comments");
     expect(
-      within(panels).getByRole("button", { name: "Transcript" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      within(panels).getByRole("tab", { name: "Transcript" }),
+    ).toHaveAttribute("aria-selected", "true");
     await expectNoA11yViolations(document.body);
   });
 
@@ -159,7 +159,7 @@ describe("StudioShellView", () => {
       const { rerender } = render(<StudioShellView {...props} />);
       expect(
         within(screen.getByRole("region", { name: "Editor panels" }))
-          .getAllByRole("button")
+          .getAllByRole("tab")
           .map((button) => button.textContent),
       ).toEqual(["Transcript", "Comments"]);
       expect(screen.queryByText("Host panel")).toBeNull();

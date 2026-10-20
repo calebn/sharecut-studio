@@ -1295,7 +1295,7 @@ test.describe("record lobby", () => {
           ).toBeVisible();
           await host
             .getByRole("region", { name: "Editor panels" })
-            .getByRole("button", { name: "Comments" })
+            .getByRole("tab", { name: "Comments" })
             .click();
           await expect(host.getByText("Great answer").first()).toBeVisible();
           await expect(host.getByText("Producer note").first()).toBeVisible();

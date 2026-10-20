@@ -9,7 +9,7 @@ import {
 export async function openTranscriptPanel(page: Page): Promise<Locator> {
   await page
     .getByLabel("Editor panels")
-    .getByRole("button", { name: "Transcript", exact: true })
+    .getByRole("tab", { name: "Transcript", exact: true })
     .click();
   // Words hydrated ⇔ the Correct toggle carries its capability tooltip, not the loading label.
   await expect(page.getByRole("button", { name: /^Correct:/ })).toBeEnabled();
