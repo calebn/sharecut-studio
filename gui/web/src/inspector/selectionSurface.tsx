@@ -272,7 +272,6 @@ export const SELECTION_SURFACES: {
   },
 };
 
-/** The row of `selection`'s kind. */
 export function surfaceOf<K extends SelectionKind>(
   selection: SelectionOf<K>,
 ): SelectionSurface<K> {
