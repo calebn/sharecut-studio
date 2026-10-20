@@ -68,7 +68,10 @@ describe("StatusBar chips", () => {
     const user = userEvent.setup();
     const project = minimalProject();
     useDawStore.getState().hydrate("/tmp/p.json", project, null);
-    useDawStore.setState({ layoutMode: "timeline" });
+    useDawStore.setState({
+      layoutMode: "timeline",
+      followingClientId: "host-1",
+    });
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
         <StatusBar />
@@ -79,6 +82,7 @@ describe("StatusBar chips", () => {
     );
     expect(useDawStore.getState().layoutMode).toBe("default");
     expect(useDawStore.getState().activeTab).toBe("impact");
+    expect(useDawStore.getState().followingClientId).toBeNull();
     act(() => useDawStore.getState().setLayoutMode("text"));
     await user.click(
       screen.getByRole("button", { name: /^\d+ pending edits?$/ }),
