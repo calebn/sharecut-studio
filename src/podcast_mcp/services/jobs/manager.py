@@ -14,6 +14,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs.catalog import JobCatalog
 from podcast_mcp.services.jobs.events import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES
 from podcast_mcp.services.jobs.job import (
+    BootstrapSlotBusyError,
     Job,
     JobKind,
     JobSlotBusyError,
@@ -266,7 +267,7 @@ class JobManager:
             current = self._catalog._bootstrap_job
             if current is not None and current.status in LIVE_JOB_STATUSES:
                 running = ", ".join(current.components) or "setup"
-                raise JobSlotBusyError(
+                raise BootstrapSlotBusyError(
                     f"Another download is already running ({running}); try again when it finishes"
                 )
             if current is not None and current.status in TERMINAL_JOB_STATUSES:

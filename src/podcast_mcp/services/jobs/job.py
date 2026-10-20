@@ -60,9 +60,15 @@ def short_fail_message(message: str | None, phase: str | None = None) -> str | N
 
 
 class JobSlotBusyError(CodedError, RuntimeError):
-    """Another job is still running in the slot: pipeline, render preview or export, or a download."""
+    """Another pipeline-slot job (pipeline run, render preview, export) is still running."""
 
     code = "job_running"
+
+
+class BootstrapSlotBusyError(JobSlotBusyError):
+    """A first-run download is still running; the download slot holds one at a time."""
+
+    code = "bootstrap_job_running"
 
 
 @dataclass(frozen=True)
