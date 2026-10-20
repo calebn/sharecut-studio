@@ -376,6 +376,24 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 | `analyze_fillers_pauses` | Candidate gathering runs one task per dialogue track (including the per-gap acoustic scan for `filler:acoustic`, vectorized NumPy over the shared audio cache). Every filler, pause, repetition, restart, or acoustic candidate across **all** tracks is then analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool; overlaps are resolved and decisions applied serially in the original order |
 | `assemble_timeline` / `render_dialogue_stems` | Each track's stem is rendered concurrently (`_render_track_stems`) |
 | `export_deliverables` | Each configured output format is encoded concurrently |
+| Approve all / `apply_prefix_edits` (`build_track_rms_caches(unprocessed=True)`) | Only the chained tracks (an effects chain that is not bypassed) render at the same time, each without its chain (`_render_unprocessed`); tracks without a chain are assembled in process. `performance.max_workers: 1` renders them one after the other, and a cancel stops the renders not yet started |
+
+Approve all and `apply_prefix_edits` prove each cut against the timeline the earlier cuts of
+the batch left. Measuring that timeline renders every chained dialogue track, and a render
+with hundreds of segments takes tens of seconds, so one measurement per cut made a batch
+take longer per cut the more cuts it held (#1596). The batch now follows each cut on the
+cached samples and builds again when a read passes the earliest second a cut moved since the
+last build, or when the frames a cut could only guess could move a profile level by more than
+`PROFILE_TOLERANCE_DB` (see
+[filler-cut-quality.md § Peer speech guard](filler-cut-quality.md#peer-speech-guard)). Only
+the chained tracks render at the same time. A build still renders the whole timeline, so the
+time per cut still rises with the segment count. One-off local measurements on the Daniela
+tape (Studio `POST /api/document/command`, warm stems, one run per arm, a Mac shared with
+other jobs at load average 17 to 29; not asserted by CI): 20 cuts took 144 s on origin/main,
+58 s with `performance.max_workers: 1` and 41 s by default, so about 2.5x of the gain comes
+from building less and 1.4x from rendering the chained tracks together; 102 cuts took 1047 s
+where origin/main took 3103 s on an idle Mac. The issue's reference is about 58 s for 102
+cuts, so this is still about 18x above it.
 
 `tests/benchmark_tighten.py` (`pytest -m slow`) times Find hits and apply per cut on a synthetic project. Its tracks must be real audio on disk: a track that cannot decode gets no audio cache, so every candidate falls back to one ffmpeg spawn per window read and the run takes minutes (#1129). `tests/test_benchmark_tighten_smoke.py` runs each scenario on a 40-word project in the normal suite so the benchmark cannot rot unnoticed.
 

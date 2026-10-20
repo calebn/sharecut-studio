@@ -127,6 +127,8 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   Reconcile's evidence is each track before its effects chain
   (`build_reconciliation_caches(..., unprocessed=True)`): a compressor's threshold is an
   absolute level, so a processed stem moves less than the recording's gain does (#1495).
+  Only the chained tracks are rendered (without their chain), at the same time, bounded by
+  `performance.max_workers` (`build_track_rms_caches`, #1596).
   Its levels are compared on a voice scale: each track's levels and floors lose one fixed
   offset, its own voice level (`LevelProfile.path_reference_db`), so every mic's own speaker
   sits at 0 dB. Raw levels cannot be compared across mics (a call recording can carry a

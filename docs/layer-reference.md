@@ -72,6 +72,12 @@ In particular,
 render in `audio_audit._ungated_cache` for an active processing chain. Its scoped
 cleanup must remove the temporary output on success and failure. Rejected candidates
 must not publish workspace artifacts, pools, project state, history, or exports.
+A batch of source removals (`approve_edits`, `_apply_auto_removes`) measures the timeline
+through one `cut_proof.BatchTimelineEvidence` per pass. It follows each applied cut on the
+cached samples, so the level profiles are those of the cut timeline, and builds again when a
+read passes the earliest second a cut moved or the guessed frames could move a profile level
+by more than `PROFILE_TOLERANCE_DB`
+([filler-cut-quality.md § Peer speech guard](filler-cut-quality.md#peer-speech-guard)).
 
 `FFmpegEngine` and single-command consumers select one validated `FFmpegPair`
 through `util.binaries.resolve_ffmpeg_pair`. The value carries absolute command

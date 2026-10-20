@@ -182,6 +182,48 @@ timeline RMS caches once per run via `shared_timeline_rms_caches` in
 that `TrackRmsCacheSet` through `resolve_cut_scope` for every peer-scoped cut
 (#1660).
 
+Approving a batch (`cut_application.approve_edits`) and the tighten apply step
+(`_apply_auto_removes`) prove each cut against the timeline the earlier cuts of the batch
+left, and measuring that timeline renders every dialogue track again. They share one
+`BatchTimelineEvidence` (`edits/cut_proof.py`) per pass instead (#1596). It answers each
+cut as a build of the current timeline would, in two parts.
+
+- **Windows.** The batch applies its cuts from the end backwards and a cut changes the
+  timeline only from where it starts, so caches built earlier still hold the audio the next
+  cut reads. Each applied cut moves the second from which the caches may differ (its
+  timeline start less its fade and a 1 s margin), and the earliest of those since the last
+  build counts. `TimelineReads` records the latest second any read of the caches reached; a
+  read past the earliest moved second is read again from caches built for the current
+  timeline, which then serve the cuts after it. The first read is discarded, so every
+  window a cut reads is the one a fresh build would give.
+- **Whole-track levels.** A track's level profile (room, speech and loud level, read by the
+  peer speech guard through `_peer_profile` and `_voice_refs`) is a percentile over the
+  whole timeline, so every cut moves it, by tenths of a dB on a long track and by more on
+  a sparse speaker. Each applied cut is applied to the cached samples (`TrackRmsCache.remove`
+  for a ripple, `silence` for a track-scope cut, `insert_tone` for a pad) and the profile is
+  measured from what is left. A fresh render of the cut timeline differs only in the frames
+  at the join (a fade can add to either side or cancel) and in a pad's content. Those
+  frames are guessed (`GuessedFrames`): a join frame sits between digital silence and 6 dB
+  over the louder of its neighbours, a room-tone pad frame within 6 dB of the track's live
+  room tone, a silent pad's at digital silence. A percentile never falls when a frame
+  rises, so a fresh build's profile lies between the profile with every guessed frame at
+  its low and at its high, and `spread_db` is that distance. Once it passes
+  `PROFILE_TOLERANCE_DB` (0.1 dB) the timeline is built again before the next cut, so a
+  sparse speaker, a long pad or a cut with a long fade costs a build and a dense track
+  mostly does not. The frames after the join keep what a fresh render gives them, up to
+  the resampler's phase (the sample grid moves with the cut). The tests count that error
+  against a fresh build at every cut and it stays under the spread.
+
+The evidence answers only for the project a cut produced. A cut that was written and then
+not kept (the caller went back to the project it observed) is dropped, a removal of several
+spans is not followed, and any other project is built from scratch. The bleed path, the
+speech-band profile and the other whole-track measures are not carried across a cut: the
+approve path never reads them (a call trace over a batch counts zero), and the batch's cache
+set raises if the bleed path is read. A set holds each track's samples (115 MB per hour-long track,
+float32 at 8 kHz). The old set is freed before the next build, so a build holds one set plus
+its decode's working set rather than two sets, and a cut copies one track at a time (the
+removed audio is cut out into a new array while the old one is still held).
+
 `speech_energy_guard` checks each mapped span independently with 10 ms frames,
 including up to the existing 60 ms outward edge pad. One qualifying frame can
 block session ripple, even when a long cut dilutes its whole-span mean. New
