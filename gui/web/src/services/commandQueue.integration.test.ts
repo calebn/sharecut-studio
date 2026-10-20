@@ -229,7 +229,6 @@ describe("queued command identity and landed history", () => {
       expect(await obsolete).toEqual({
         status: "disabled",
         reason,
-        announced: true,
       });
       expect(await current).toEqual({ status: "ok" });
       expect(useDawStore.getState().statusAnnouncement).toBe(reason);

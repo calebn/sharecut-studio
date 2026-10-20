@@ -138,7 +138,6 @@ export function ClipBleedHost({
             current?.occurrence.trackId === trackId &&
             current.occurrence.clipId === clipId &&
             result.status === "disabled" &&
-            !result.announced &&
             current.action.state !== "error"
           )
             useDawStore

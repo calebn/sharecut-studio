@@ -3,6 +3,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { rangeActionDescriptors } from "../commands/rangeActions";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
 import { selectedTrackIdsOf } from "../state/selection";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
@@ -122,8 +123,8 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                 disabledReason={d.reason ?? undefined}
                 onClick={() =>
                   void executePointerCommand(d.commandId).then((result) => {
-                    if (result.status === "disabled" && !result.announced)
-                      setError(result.reason);
+                    if (result.status === "disabled")
+                      useDawStore.getState().announceStatus(result.reason);
                   })
                 }
               >

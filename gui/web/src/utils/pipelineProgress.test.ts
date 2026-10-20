@@ -177,3 +177,18 @@ describe("pipelineProgress", () => {
     expect(staleUpdateLabel(100, 122)).toBe("last update 22s ago");
   });
 });
+
+describe("pipelineChromeLabel on a failure", () => {
+  it("replaces the job error's internals with the next step", () => {
+    const label = pipelineChromeLabel(
+      job({
+        status: "error",
+        message:
+          "Export failed: set PODCAST_MCP_FFMPEG and PODCAST_MCP_FFPROBE.",
+      }),
+      { headlineMax: 200 },
+    );
+    expect(label).not.toMatch(/PODCAST/);
+    expect(label).toContain("Export failed.");
+  });
+});

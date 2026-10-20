@@ -195,7 +195,6 @@ describe("shared range action policy and commands", () => {
     expect(await first).toEqual({
       status: "disabled",
       reason: "Select the range again",
-      announced: true,
     });
     expect(useDawStore.getState().selection).toEqual({ kind: "range", target });
     expect(useDawStore.getState().rangeBusy).toBe(false);

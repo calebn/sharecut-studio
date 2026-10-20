@@ -43,12 +43,7 @@ export type ContextPredicateId =
 
 export type ExecuteResult =
   | { status: "ok" }
-  | {
-      status: "disabled";
-      reason: string;
-      /** The handler announced while it ran (`execute` sets it); callers must not repeat `reason`. */
-      announced?: true;
-    }
+  | { status: "disabled"; reason: string }
   | { status: "unknown" };
 
 export type CommandHandler = (

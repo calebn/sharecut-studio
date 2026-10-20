@@ -207,7 +207,8 @@ export function runHistoryAction(
     .then((result) => {
       if (result.status === "ok") return;
       if (result.status === "disabled") {
-        if (!result.announced) report(result.reason);
+        if (useDawStore.getState().statusAnnouncement !== result.reason)
+          report(result.reason);
         return;
       }
       report("unavailable");

@@ -293,7 +293,6 @@ describe("track mix commands (#386)", () => {
     expect(result).toEqual({
       status: "disabled",
       reason: SAVED_MUTE_READ_ONLY,
-      announced: true,
     });
     expect(useDawStore.getState().statusAnnouncement).toBe(
       SAVED_MUTE_READ_ONLY,
