@@ -638,6 +638,71 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   },
 ] as const;
 
+/**
+ * A key more than one row binds with compatible modifiers. The listener runs
+ * the matches in `order` and stops at the first whose when-clause passes, so
+ * the order is the rule, declared here and locked by `sharedKeys.test.ts`: a
+ * new row on one of these keys, or a new shared key, fails that test until it
+ * is placed.
+ */
+export type SharedKeyOrder = {
+  /** The key as the rows write it, with `Mod+` or `Alt+` when they need one. */
+  key: string;
+  /** Command ids, first to try first. */
+  order: readonly string[];
+  /** Why this order, in one sentence. */
+  why: string;
+};
+
+export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
+  {
+    key: "Escape",
+    order: [
+      "presence.unfollow",
+      "review.exitCommentMode",
+      "edit.clearSelection",
+    ],
+    why: "the narrowest mode ends first: stop following, then leave comment mode, then clear the selection",
+  },
+  {
+    key: "ArrowLeft",
+    order: [
+      "edit.setClipFade",
+      "edit.trimClipEdge",
+      "navigation.nudgePlayheadBack",
+    ],
+    why: "a focused clip handle takes the arrow before the playhead nudge does",
+  },
+  {
+    key: "ArrowRight",
+    order: [
+      "edit.setClipFade",
+      "edit.trimClipEdge",
+      "navigation.nudgePlayheadForward",
+    ],
+    why: "a focused clip handle takes the arrow before the playhead nudge does",
+  },
+  {
+    key: "Backspace",
+    order: ["tighten.skipHit", "track.remove", "edit.delete"],
+    why: "an open Tighten panel owns Backspace for its selected hit, then the inspector track, then the clip",
+  },
+  {
+    key: "Delete",
+    order: ["track.remove", "edit.delete"],
+    why: "the inspector track is removed before a clip is deleted",
+  },
+  {
+    key: "M",
+    order: ["record.marker", "track.muteToggle"],
+    why: "while the record panel is open M drops a marker; its when-clause fails otherwise and M mutes the targeted track",
+  },
+];
+
+const SHARED_KEY_RANK: ReadonlyMap<string, number> = new Map(
+  SHARED_KEY_ORDER.flatMap(({ order }) => order.map((id, i) => [id, i])),
+);
+
 function shortcutParts(cmd: KeymapCommand): string[] {
   // A remap replaces the key only; Mod/Shift still apply (see effectiveKeys).
   const primary = getKeymapOverride(cmd.id)?.[0] ?? cmd.keys[0] ?? "";
@@ -870,7 +935,10 @@ export function matchKeymapCommands(
       out.push(cmd);
     }
   }
-  return out;
+  return out.sort(
+    (a, b) =>
+      (SHARED_KEY_RANK.get(a.id) ?? 0) - (SHARED_KEY_RANK.get(b.id) ?? 0),
+  );
 }
 
 /** First keymap row that matches the event (ignores when-clauses). */

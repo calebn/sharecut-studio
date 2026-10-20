@@ -639,7 +639,8 @@
         "gui": [
           "editingToolRail",
           "timeline",
-          "timeline.createMenu"
+          "timeline.createMenu",
+          "transport.menu"
         ],
         "keyboard": "Mod+K",
         "mcp": [
@@ -690,7 +691,6 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canIngestMedia",
         "trackInspectorSelected"
       ],
       "surfaces": {
@@ -723,7 +723,8 @@
       "surfaces": {
         "command": "track.splitSpeakers",
         "gui": [
-          "SplitSpeakersDialog"
+          "SplitSpeakersDialog",
+          "trackInspector"
         ],
         "mcp": [
           "speaker_split_tool"
@@ -1068,14 +1069,14 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused",
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.zoomIn",
         "gui": [
           "editingToolRail",
-          "transport.menu"
+          "transport.menu",
+          "transport.editControls"
         ],
         "keyboard": "=",
         "touch": [
@@ -1096,14 +1097,14 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused",
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.zoomOut",
         "gui": [
           "editingToolRail",
-          "transport.menu"
+          "transport.menu",
+          "transport.editControls"
         ],
         "keyboard": "-",
         "touch": [
@@ -1124,13 +1125,13 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused",
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.fit",
         "gui": [
-          "transport.fit"
+          "transport.fit",
+          "transport.menu"
         ],
         "keyboard": "\\"
       },
@@ -1199,8 +1200,7 @@
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused",
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.waveformZoomIn",
@@ -1224,8 +1224,7 @@
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused",
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.waveformZoomOut",
@@ -1328,7 +1327,11 @@
         "command": "history.undo",
         "gui": [
           "historyPanel",
-          "mobileShell.gesture.twoFingerTap"
+          "mobileShell.gesture.twoFingerTap",
+          "editingToolRail",
+          "transport.editControls",
+          "transcript.findReplace",
+          "transcript.wordbar"
         ],
         "keyboard": "Mod+Z",
         "mcp": [
@@ -1359,7 +1362,9 @@
       "surfaces": {
         "command": "history.redo",
         "gui": [
-          "historyPanel"
+          "historyPanel",
+          "editingToolRail",
+          "transport.editControls"
         ],
         "keyboard": "Mod+Shift+Z",
         "mcp": [
@@ -1412,7 +1417,8 @@
       "surfaces": {
         "command": "render.refreshMix",
         "gui": [
-          "staleRenderPill"
+          "staleRenderPill",
+          "transport.menu"
         ],
         "keyboard": "Mod+B",
         "mcp": [
@@ -1733,7 +1739,9 @@
       "surfaces": {
         "command": "record.openPanel",
         "gui": [
-          "RecordPanel"
+          "RecordPanel",
+          "transport.menu",
+          "transport.recChip"
         ],
         "cli": "podcast record state",
         "mcp": [
@@ -1934,7 +1942,8 @@
         "gui": [
           "transport.menu",
           "editingToolRail",
-          "trackLane"
+          "trackLane",
+          "mobileShell.more"
         ],
         "keyboard": "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
         "mcp": [
@@ -1963,7 +1972,8 @@
         "gui": [
           "transport.menu",
           "editingToolRail",
-          "drop"
+          "drop",
+          "mobileShell.more"
         ],
         "keyboard": "Mod+I",
         "mcp": [
@@ -2610,7 +2620,8 @@
         "gui": [
           "transcript.ignore",
           "transcript.restoreIgnored",
-          "inspector.word.ignore"
+          "inspector.word.ignore",
+          "rangeActions.words"
         ],
         "mcp": [
           "set_words_ignored_tool"
@@ -2711,7 +2722,6 @@
       "service": "Sharecut Studio \u2192 TrimClipEdge document command (mode ripple or gap; a ripple asks before cutting another track's speech)",
       "industry_standard_key": false,
       "gates": [
-        "canApplyPass12",
         "focusedTrimHandle"
       ],
       "surfaces": {
@@ -2926,7 +2936,6 @@
       "service": "Sharecut Studio \u2192 SetClipFade document command",
       "industry_standard_key": false,
       "gates": [
-        "canApplyPass12",
         "focusedFadeHandle"
       ],
       "surfaces": {
@@ -3093,8 +3102,7 @@
       "service": "SpeakerService.move_lane_span",
       "industry_standard_key": false,
       "gates": [
-        "hasProject",
-        "host"
+        "hasProject"
       ],
       "surfaces": {
         "command": "range.moveSpeakerLane",

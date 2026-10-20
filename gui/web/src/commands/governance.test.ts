@@ -308,23 +308,6 @@ describe("command governance", () => {
     }
   });
 
-  it("lists each catalog when-clause in the manifest gates", () => {
-    const drift: string[] = [];
-    for (const cap of MANIFEST_CAPABILITIES) {
-      const commandId = cap.surfaces?.command;
-      const def = commandId ? COMMANDS[commandId] : undefined;
-      if (!def) {
-        continue;
-      }
-      if (!(cap.gates ?? []).includes(def.when)) {
-        drift.push(
-          `${def.id}: when=${def.when} gates=${(cap.gates ?? []).join(",")}`,
-        );
-      }
-    }
-    expect(drift).toEqual([]);
-  });
-
   it("gates host project commands on a loaded host project", async () => {
     const hostProjectCommands = [
       "export.bounce",

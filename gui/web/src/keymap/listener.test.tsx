@@ -424,3 +424,33 @@ it("holds the keymap while a menu is open", async () => {
   expect(vi.mocked(execute)).not.toHaveBeenCalled();
   await user.keyboard("{Escape}");
 });
+
+async function pressOnCanvas(key: string, code: string): Promise<string[]> {
+  vi.mocked(execute).mockClear();
+  vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
+  await act(async () => {
+    fireEvent.keyDown(screen.getByTestId("canvas"), { key, code });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  return vi.mocked(execute).mock.calls.map(([id]) => id);
+}
+
+it("runs the Tighten hit on Backspace while the panel is open, and the clip delete once it closes", async () => {
+  render(<KeymapHost />);
+  useDawStore.setState({ activeTab: "tighten", layoutMode: "default" });
+  expect(await pressOnCanvas("Backspace", "Backspace")).toEqual([
+    "tighten.skipHit",
+  ]);
+  useDawStore.setState({ activeTab: "transcript" });
+  expect(await pressOnCanvas("Backspace", "Backspace")).toEqual([
+    "edit.delete",
+  ]);
+});
+
+it("drops a marker on M while the record panel is open and mutes the track once it closes", async () => {
+  render(<KeymapHost />);
+  useDawStore.setState({ recordPanelOpen: true });
+  expect(await pressOnCanvas("m", "KeyM")).toEqual(["record.marker"]);
+  useDawStore.setState({ recordPanelOpen: false });
+  expect(await pressOnCanvas("m", "KeyM")).toEqual(["track.muteToggle"]);
+});
