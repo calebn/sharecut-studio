@@ -68,7 +68,16 @@ def _ts(node: dict[str, Any]) -> str:
         extra = node.get("additionalProperties")
         value = _ts(extra) if isinstance(extra, dict) and extra else "unknown"
         return f"Record<string, {value}>"
-    if not node or set(node) <= {"title", "description", "default", "examples"}:
+    if not node or set(node) <= {
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "$comment",
+    }:
         return "unknown"  # a schema that places no constraint (Pydantic's Any)
     raise ValueError(f"export_project_types: unhandled JSON-schema shape {sorted(node)}")
 
