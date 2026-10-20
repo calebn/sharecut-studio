@@ -387,7 +387,7 @@ any ASR, both when overwrite was requested and when its audio changed (its word
 times are stale); the error names each track and reason. Run attended to replace
 them with a warning, or use Studio Re-transcribe, which names the edited tracks and asks before replacing them.
 
-**What counts as an edit:** `user_edited` is set by `EditService` (`correct_word`,
+**What counts as an edit:** `user_edited` is set by `TranscriptService` (`correct_word`,
 `correct_phrase`, `set_word_suppressed`, `set_word_automatic`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
 which MCP tools, CLI (`podcast transcript correct`, `correct-phrase`, `suppress-word`,
 `cleanup-batch`) and Studio document commands all
@@ -401,7 +401,7 @@ detected; set `"user_edited": true` on that transcript to protect it.
 `SetTranscriptWordSuppressed` / `SetTranscriptWordsIgnored` document commands and the
 `correct_transcript_tool` / `correct_transcript_phrase_tool` / `set_word_suppressed_tool` /
 `set_words_ignored_tool` MCP tools take an optional `expected_text` — the word (or
-space-joined phrase) text the caller read at those indices. `EditService` checks it inside
+space-joined phrase) text the caller read at those indices. `TranscriptService` checks it inside
 the same transaction as the mutation, for all four via the shared
 `_guarded_transcript_edit` helper (`edits/transcript_correct.require_word_text`),
 comparing whitespace-collapsed, case-sensitive text; indices that no longer exist count as

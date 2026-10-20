@@ -152,7 +152,7 @@ from the word views.
 
 ### Transcript find and replace
 
-The host Transcript toolbar and command palette open a form to review literal replacements across source recordings. `POST /api/transcript/replacement-preview` delegates to `EditService`; the `ReplaceTranscriptMatches` document command revalidates the preview and applies the complete set as one Undo action. See [the find-and-replace guide](daw-editing.md#transcript-find-and-replace) for matching rules, source scope, timing warnings, and queued delivery.
+The host Transcript toolbar and command palette open a form to review literal replacements across source recordings. `POST /api/transcript/replacement-preview` delegates to `TranscriptService`; the `ReplaceTranscriptMatches` document command revalidates the preview and applies the complete set as one Undo action. See [the find-and-replace guide](daw-editing.md#transcript-find-and-replace) for matching rules, source scope, timing warnings, and queued delivery.
 
 ### Exact-source word timing adapters
 
