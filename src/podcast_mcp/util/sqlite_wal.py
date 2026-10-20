@@ -4,7 +4,6 @@ import os
 import sqlite3
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
@@ -20,14 +19,14 @@ def _transient_readonly(connection: sqlite3.Connection, exc: sqlite3.Operational
     if code is None:
         if "readonly" not in str(exc).lower():
             return False
-    elif (code & 0xFF) != sqlite3.SQLITE_READONLY:
+    elif code not in (sqlite3.SQLITE_READONLY, sqlite3.SQLITE_READONLY_RECOVERY):
         return False
     try:
         rows = connection.execute("PRAGMA database_list").fetchall()
     except sqlite3.Error:
         return False
     path = next((row[2] for row in rows if row[1] == "main"), "")
-    return bool(path) and (not Path(path).exists() or os.access(path, os.W_OK))
+    return bool(path) and os.access(path, os.W_OK)
 
 
 def ensure_wal(
