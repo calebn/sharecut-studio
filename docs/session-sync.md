@@ -307,6 +307,8 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 - `seek_session_tool`, `set_session_*` → typed commands via `SessionControlService`  
 - `PlayService.play` → `PlayOsAudio` or `AuditionInViewer`
 
+**MCP mutations journal.** A host MCP tool that edits the timeline submits a catalog document command (`submit_host_command_result`) instead of calling `EditService` directly, so the edit is one history step and reaches an open Studio tab through the same journal as a Studio edit. `tests/test_mcp_mutation_path.py` lists the mutating tools still on the direct path; each migration shrinks it. So far `split_clip_tool`, `delete_clips_tool`, `move_clips_tool`, `paste_segment_tool`, `roll_clip_join_tool`, `set_word_timing_tool`, `set_join_mode_tool`, `set_clip_join_tool`, `move_segment_tool`, `duplicate_segment_tool` and `add_chapter_tool` are migrated (#1809).
+
 **Process boundary:** host MCP (`http://127.0.0.1:8765/mcp`) and GUI routes run in-process and fan out immediately over the socket. Stdio `podcast-mcp`, the `podcast session` / `podcast play` CLIs and `podcast record land` / `discard-take` run in a separate process; they journal to the shared `artifacts/session/` stores, and the GUI process's cross-process watcher pushes those rows to open tabs within about `CROSS_PROCESS_POLL_S` (0.5 s) while any document/session/guest socket is open (#695). The 30 s sanity poll and the focus/visibility check remain the net for a write that advances no journal seq, and for a watcher read error.
 
 ### Cross-process bridge (#695)

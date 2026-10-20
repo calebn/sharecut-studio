@@ -243,15 +243,16 @@ def test_payload_validation_and_projection():
     assert projection_for_command("SetClipJoin") is ViewProjection.CLIPS
 
 
-def test_mcp_tool_delegates():
-    with (
-        patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
-        patch("podcast_mcp.mcp.tools.timeline.ProjectWorkspace"),
-    ):
-        svc_cls.return_value.set_clip_join.return_value = {"operation": "set_clip_join"}
+def test_mcp_tool_submits_the_document_command():
+    with patch("podcast_mcp.mcp.tools.timeline.submit_host_command_result") as submit:
+        submit.return_value = {"operation": "set_clip_join"}
         out = json.loads(mcp_timeline.set_clip_join_tool("p.json", "a", "b", "crossfade", 30))
     assert out["operation"] == "set_clip_join"
-    svc_cls.return_value.set_clip_join.assert_called_once_with("a", "b", "crossfade", 30)
+    submit.assert_called_once_with(
+        "p.json",
+        "SetClipJoin",
+        {"left_clip_id": "a", "right_clip_id": "b", "mode": "crossfade", "length_ms": 30},
+    )
 
 
 def test_cli_set_clip_join(tmp_path):
