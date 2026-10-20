@@ -278,14 +278,14 @@ describe("TransportBar desktop edit controls", () => {
       await user.click(screen.getByRole("button", { name: "Menu" }));
       expect(
         screen.getByRole("menuitem", { name: "Select tool" }),
-      ).toBeEnabled();
+      ).not.toHaveAttribute("aria-disabled", "true");
       const blade = screen.getByRole("menuitem", { name: "Blade tool" });
       if (guestMode === "view" || guestMode === "comment") {
-        expect(blade).toBeDisabled();
+        expect(blade).toHaveAttribute("aria-disabled", "true");
         await user.click(blade);
         expect(execute).not.toHaveBeenCalled();
       } else {
-        expect(blade).toBeEnabled();
+        expect(blade).not.toHaveAttribute("aria-disabled", "true");
         await user.click(blade);
         expect(execute).toHaveBeenLastCalledWith(
           "tool.blade",
@@ -307,7 +307,7 @@ describe("TransportBar desktop edit controls", () => {
     act(() => useDawStore.setState({ toolMode: "blade", commentMode: false }));
     expect(
       screen.getByRole("menuitem", { name: "Cut at playhead" }),
-    ).toBeEnabled();
+    ).not.toHaveAttribute("aria-disabled", "true");
     act(() => useDawStore.setState({ commentMode: true }));
     expect(
       screen.queryByRole("menuitem", { name: "Cut at playhead" }),
@@ -440,8 +440,10 @@ describe("TransportBar desktop edit controls", () => {
     await user.click(screen.getByRole("button", { name: "Menu" }));
     expect(
       screen.getByRole("menuitem", { name: "Select tool" }),
-    ).toBeDisabled();
-    expect(screen.getByRole("menuitem", { name: "Blade tool" })).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByRole("menuitem", { name: "Blade tool" }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("has no accessibility violations with the desktop controls", async () => {

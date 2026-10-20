@@ -224,7 +224,7 @@ describe("TransportBar collapsed", () => {
       within(screen.getByRole("menu")).getByRole("menuitem", {
         name: /Export deliverables/,
       }),
-    ).toBeEnabled();
+    ).not.toHaveAttribute("aria-disabled", "true");
     await expectNoA11yViolations(container);
   });
 
@@ -280,16 +280,24 @@ describe("TransportBar collapsed", () => {
       "Export deliverables…",
     ];
     for (const name of hostProjectItems) {
-      expect(menu.getByRole("menuitem", { name })).toBeDisabled();
+      expect(menu.getByRole("menuitem", { name })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     }
-    expect(menu.getByRole("menuitem", { name: "Open project…" })).toBeEnabled();
+    expect(
+      menu.getByRole("menuitem", { name: "Open project…" }),
+    ).not.toHaveAttribute("aria-disabled", "true");
 
     // A zero-track project must still re-render the items (null vs empty key).
     act(() => {
       useDawStore.setState({ project: minimalProject({ tracks: [] }) });
     });
     for (const name of hostProjectItems) {
-      expect(menu.getByRole("menuitem", { name })).toBeEnabled();
+      expect(menu.getByRole("menuitem", { name })).not.toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     }
   });
 
@@ -340,40 +348,48 @@ describe("TransportBar track menu actions", () => {
 
   it("disables remove and move actions without an inspector track selection", async () => {
     const menu = await openTrackMenu(null);
-    expect(menu.getByRole("menuitem", { name: "Remove track" })).toBeDisabled();
+    expect(
+      menu.getByRole("menuitem", { name: "Remove track" }),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       menu.getByRole("menuitem", { name: "Move track up" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       menu.getByRole("menuitem", { name: "Move track down" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("enables every track action for a movable selected track", async () => {
     const menu = await openTrackMenu({ kind: "track", trackId: "b" });
-    expect(menu.getByRole("menuitem", { name: "Remove track" })).toBeEnabled();
-    expect(menu.getByRole("menuitem", { name: "Move track up" })).toBeEnabled();
+    expect(
+      menu.getByRole("menuitem", { name: "Remove track" }),
+    ).not.toHaveAttribute("aria-disabled", "true");
+    expect(
+      menu.getByRole("menuitem", { name: "Move track up" }),
+    ).not.toHaveAttribute("aria-disabled", "true");
     expect(
       menu.getByRole("menuitem", { name: "Move track down" }),
-    ).toBeEnabled();
+    ).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("disables moves that would leave the track order", async () => {
     const menu = await openTrackMenu({ kind: "track", trackId: "a" });
     expect(
       menu.getByRole("menuitem", { name: "Move track up" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       menu.getByRole("menuitem", { name: "Move track down" }),
-    ).toBeEnabled();
+    ).not.toHaveAttribute("aria-disabled", "true");
 
     act(() => {
       useDawStore.setState({ selection: { kind: "track", trackId: "c" } });
     });
-    expect(menu.getByRole("menuitem", { name: "Move track up" })).toBeEnabled();
+    expect(
+      menu.getByRole("menuitem", { name: "Move track up" }),
+    ).not.toHaveAttribute("aria-disabled", "true");
     expect(
       menu.getByRole("menuitem", { name: "Move track down" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 });
 
