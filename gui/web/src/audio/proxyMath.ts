@@ -7,7 +7,13 @@ import { DocumentCommand } from "../types/documentCommands.generated";
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow, ProjectView } from "../types/project";
 import { originTrackId } from "../utils/timebase";
-import { type MuteSpan, muteSpansOf, type VolumePoint } from "./gainCurve";
+import {
+  type AutomaticMuteSpan,
+  automaticSpansOf,
+  type MuteSpan,
+  muteSpansOf,
+  type VolumePoint,
+} from "./gainCurve";
 
 export interface ProxyArtifactManifest {
   readonly hash: string;
@@ -62,6 +68,8 @@ export interface ClipEnvelope {
   readonly sourceStartSec: number;
   /** The clip's mute-in-place spans (source seconds); room-tone fills are not played. */
   readonly mute: readonly MuteSpan[];
+  /** Off-speaker mutes (source seconds); an occurrence proxy has them baked in. */
+  readonly automaticMute: readonly AutomaticMuteSpan[];
   readonly fadeInSec: number;
   readonly fadeOutSec: number;
   readonly gainCurve: "linear" | "equalPower";
@@ -449,6 +457,9 @@ export function buildSchedule(
             ...(clip.mute_regions ?? []),
             ...(clip.ignored_word_regions ?? []),
           ]),
+      automaticMute: binding
+        ? []
+        : automaticSpansOf(clip.off_speaker_mute_regions),
       // A blending join replaces both edge fades with the overlap's ramps.
       fadeInSec:
         overlapInSec > 0

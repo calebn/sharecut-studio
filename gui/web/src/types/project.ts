@@ -9,6 +9,13 @@ import type {
 
 export type { ClipMuteRegion, RoomToneFill } from "./project.generated";
 
+export interface OffSpeakerMuteRegion {
+  start_s: number;
+  end_s: number;
+  fade_out_ms?: number;
+  fade_in_ms?: number;
+}
+
 export type TimelineSpan = RangeInterval;
 
 /** Encoder-detected sample-peak clipping, in source seconds. */
@@ -55,6 +62,8 @@ export interface ClipRow {
   mute_regions?: ClipMuteRegion[];
   /** Mutes the render adds for transcript-ignored words (#633); derived, not stored on the clip. */
   ignored_word_regions?: ClipMuteRegion[];
+  /** Automatic off-speaker mutes (source seconds), fully silent between their fades; render-time, stored on the clip. */
+  off_speaker_mute_regions?: OffSpeakerMuteRegion[];
   /** Source spans where the recording clipped, inside this clip window. */
   clipping_regions?: ClippingRegion[];
   /** The recording hit its clip-region cap; clipping after this clip's last flag was not recorded. */

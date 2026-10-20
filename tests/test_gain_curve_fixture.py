@@ -123,3 +123,56 @@ def test_render_mute_gain_matches_the_fixture_the_preview_is_tested_against(case
     for at, expected in case["samples"]:
         index = min(rendered.size - 1, round((at - start) * _SAMPLE_RATE))
         assert rendered[index] == pytest.approx(expected, abs=2e-3), (case["name"], at)
+
+
+_AUTOMATIC_FIXTURE = json.loads(
+    (Path(__file__).parent / "fixtures" / "gain_curve" / "automatic_cases.json").read_text()
+)
+
+
+def _render_unit_automatic(case: dict) -> np.ndarray:
+    """What the render does to a clip of constant 1.0 under its off-speaker mute regions."""
+    from podcast_mcp.engines.audio import SourceFrameMapping, SourceMuteEnvelope
+    from podcast_mcp.engines.ffmpeg import automatic_gain_expression
+
+    start, end = case["clip"]["source_start"], case["clip"]["source_end"]
+    mapping = SourceFrameMapping(_SAMPLE_RATE, round(start * _SAMPLE_RATE), ())
+    gain = automatic_gain_expression(
+        tuple(
+            SourceMuteEnvelope(
+                r["start_s"], r["end_s"], r["fade_out_ms"] / 1000, r["fade_in_ms"] / 1000
+            )
+            for r in case["regions"]
+        ),
+        mapping,
+    )
+    raw = subprocess.run(
+        [
+            resolve_ffmpeg(),
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"aevalsrc=1:d={end - start}:s={_SAMPLE_RATE}",
+            "-af",
+            f"aeval=exprs='val(ch)*({gain})':c=same",
+            "-f",
+            "f32le",
+            "-",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    return np.frombuffer(raw, dtype="<f4")
+
+
+@pytest.mark.parametrize("case", _AUTOMATIC_FIXTURE["cases"], ids=lambda case: case["name"])
+def test_render_off_speaker_gain_matches_the_fixture_the_preview_is_tested_against(
+    case: dict,
+) -> None:
+    rendered = _render_unit_automatic(case)
+    start = case["clip"]["source_start"]
+    for at, expected in case["samples"]:
+        index = min(rendered.size - 1, round((at - start) * _SAMPLE_RATE))
+        assert rendered[index] == pytest.approx(expected, abs=2e-3), (case["name"], at)
