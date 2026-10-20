@@ -1154,7 +1154,7 @@ def test_a_flanking_words_voice_running_into_the_gap_is_not_part_of_a_string() -
 
 
 def test_a_flanking_words_voice_running_out_of_the_gap_is_not_part_of_a_string() -> None:
-    transcript, gap_start = _phrase_transcript()
+    transcript, _ = _phrase_transcript()
     gap_end = transcript.words[-1].start
     total = transcript.words[-1].end + 1.0
     # Three hits at syllable spacing whose last one reaches the next word's start.
