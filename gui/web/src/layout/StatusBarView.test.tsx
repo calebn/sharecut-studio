@@ -82,11 +82,13 @@ describe("StatusBarView", () => {
         onOpenTab={onOpenTab}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /^Pending:/ }));
+    await user.click(
+      screen.getByRole("button", { name: /^\d+ pending edits?$/ }),
+    );
     expect(onOpenTab).toHaveBeenCalledTimes(1);
     expect(onOpenTab).toHaveBeenLastCalledWith("impact");
     await user.click(
-      screen.getByRole("button", { name: /^Edits in removed audio \(/ }),
+      screen.getByRole("button", { name: /edits? in removed audio$/ }),
     );
     expect(onOpenTab).toHaveBeenCalledTimes(2);
     expect(onOpenTab).toHaveBeenLastCalledWith("impact");
@@ -105,8 +107,8 @@ describe("StatusBarView", () => {
         onOpenTab={vi.fn()}
       />,
     );
-    expect(screen.queryByText(/^Edits in removed audio/)).toBeNull();
-    expect(screen.queryByText(/^Social:/)).toBeNull();
+    expect(screen.queryByText(/edits? in removed audio$/)).toBeNull();
+    expect(screen.queryByText(/^\d+ social clips?$/)).toBeNull();
     expect(screen.queryByText(/^Cut /)).toBeNull();
   });
 
@@ -147,7 +149,7 @@ describe("StatusBarView", () => {
     expect(
       screen.queryByRole("button", { name: /Mix out of date/ }),
     ).toBeNull();
-    const notice = screen.getByText("Transcript: needs sync");
+    const notice = screen.getByText("Transcript needs sync");
     expect(notice.className).toContain("stale-highlight");
   });
 
@@ -176,7 +178,9 @@ describe("StatusBarView", () => {
         onOpenTab={vi.fn()}
       />,
     );
-    expect(screen.getByText(/^Social:/).className).toBe("status-bar-secondary");
+    expect(screen.getByText(/^\d+ social clips?$/).className).toBe(
+      "status-bar-secondary",
+    );
     expect(
       screen.getByRole("button", { name: "Open comments" }).className,
     ).toContain("status-bar-secondary");
@@ -193,7 +197,7 @@ describe("StatusBarView", () => {
         onOpenTab={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("button", { name: /Pipeline:/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Pipeline / })).toBeNull();
 
     rerender(
       <StatusBarView
@@ -205,7 +209,7 @@ describe("StatusBarView", () => {
         onOpenTab={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: /Pipeline:/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Pipeline / })).toBeTruthy();
   });
 
   it("renders a PresenceStatusView block via the presence slot", () => {
@@ -250,16 +254,16 @@ describe("StatusBarView", () => {
         onOpenTab={onOpenTab}
       />,
     );
-    expect(screen.getByText("Pending: 2").tagName).toBe("SPAN");
-    expect(screen.getByText(/^Edits in removed audio/).tagName).toBe("SPAN");
+    expect(screen.getByText("2 pending edits").tagName).toBe("SPAN");
+    expect(screen.getByText(/edits? in removed audio$/).tagName).toBe("SPAN");
     expect(screen.queryByText(/^Mix /i)).toBeNull();
     expect(
       screen.queryByRole("button", {
-        name: /^Pending:|^Edits in removed audio|^Mix /i,
+        name: /^\d+ pending edits?$|edits? in removed audio|^Mix /i,
       }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByText("Pending: 2"));
-    await user.click(screen.getByText(/^Edits in removed audio/));
+    await user.click(screen.getByText("2 pending edits"));
+    await user.click(screen.getByText(/edits? in removed audio$/));
     expect(onOpenTab).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Open comments" }));
     expect(onOpenTab.mock.calls).toEqual([["comments"]]);

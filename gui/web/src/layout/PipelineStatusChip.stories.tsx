@@ -41,7 +41,7 @@ export const Running: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const button = within(canvasElement).getByRole("button", {
-      name: /Pipeline: running · Preparing mix preview · 1\/3 steps/,
+      name: /Pipeline is running · Preparing mix preview · 1\/3 steps/,
     });
     await expect(button).toHaveAttribute("aria-busy", "true");
     await userEvent.click(button);
@@ -61,7 +61,7 @@ export const MultipleActivities: Story = {
   },
   play: async ({ canvasElement }) => {
     const chip = within(canvasElement)
-      .getByText(/Activity: running/)
+      .getByText(/Activity is running/)
       .closest(".status-pipeline");
     await expect(chip).toHaveTextContent("3 activities");
     await expect(chip).toHaveAttribute("aria-busy", "true");
@@ -76,7 +76,7 @@ export const Stalled: Story = {
   },
   play: async ({ canvasElement }) => {
     const button = within(canvasElement).getByRole("button", {
-      name: /Pipeline: running/,
+      name: /Pipeline is running/,
     });
     await expect(button).toHaveTextContent("last update 42s ago");
   },
@@ -115,7 +115,7 @@ export const ReadOnly: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button")).toBeNull();
     await expect(
-      canvas.getByText(/Activity: ok · Transcript ready/),
+      canvas.getByText(/Activity finished · Transcript ready/),
     ).toBeVisible();
   },
 };
@@ -139,7 +139,7 @@ export const CompactPhone: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const chip = canvas
-      .getByText(/Activity: running/)
+      .getByText(/Activity is running/)
       .closest(".status-pipeline");
     await expect(chip).toHaveTextContent("3 activities");
     await expect(chip).toHaveTextContent("…");

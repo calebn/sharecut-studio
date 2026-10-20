@@ -119,9 +119,7 @@ export const StaleRender: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: /^Mix / })).toBeNull();
-    await expect(
-      canvas.getByText("Transcript: needs sync"),
-    ).toBeInTheDocument();
+    await expect(canvas.getByText("Transcript needs sync")).toBeInTheDocument();
   },
 };
 
@@ -142,7 +140,7 @@ export const GuestActivity: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.queryByRole("button", { name: /Activity: running/ }),
+      canvas.queryByRole("button", { name: /Activity is running/ }),
     ).not.toBeInTheDocument();
     await expect(canvas.getByText(/2 activities/)).toBeInTheDocument();
   },

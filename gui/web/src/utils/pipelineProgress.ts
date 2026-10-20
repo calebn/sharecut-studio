@@ -1,6 +1,5 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { isAnalyzeJob, isPipelineKindJob, isPipelineRunning } from "./pipeline";
-import { plainError } from "./plainError";
 
 /** True when the job has an honest determinate total (no fake %). */
 export function hasDeterminateProgress(
@@ -72,6 +71,29 @@ export function pipelineStatusLabel(status: string): string {
   }
 }
 
+/**
+ * One sentence for a job's state: "Pipeline is running", "Activity failed".
+ * A failed or cancelled job's own message is never part of it: the message is
+ * the server's refusal text, and the Pipeline panel shows it with its fix.
+ */
+export function pipelineStateSentence(
+  job: Pick<PipelineJobSnapshot, "kind" | "status">,
+): string {
+  const subject = pipelineKindLabel(job.kind);
+  switch (job.status) {
+    case "ok":
+      return `${subject} finished`;
+    case "error":
+      return `${subject} failed`;
+    case "cancelled":
+      return `${subject} was cancelled`;
+    case "queued":
+      return `${subject} is waiting`;
+    default:
+      return `${subject} is running`;
+  }
+}
+
 /** StatusBar prefix: "Pipeline" only for pipeline jobs; "Activity" otherwise. */
 export function pipelineKindLabel(
   kind: PipelineJobSnapshot["kind"] | undefined,
@@ -87,12 +109,13 @@ export function pipelineChromeLabel(
   job: PipelineJobSnapshot,
   options?: { headlineMax?: number },
 ): string {
-  const parts = [
-    `${pipelineKindLabel(job.kind)}: ${pipelineStatusLabel(job.status)}`,
-  ];
+  const parts = [pipelineStateSentence(job)];
+  if (job.status === "error" || job.status === "cancelled") {
+    return parts[0]!;
+  }
   const text = job.message || job.label;
   const headline = truncateHeadline(
-    text && job.status === "error" ? plainError(text) : text,
+    text,
     options?.headlineMax ?? 48,
   );
   if (headline) {

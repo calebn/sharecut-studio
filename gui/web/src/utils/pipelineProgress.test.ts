@@ -74,7 +74,7 @@ describe("pipelineProgress", () => {
           total: 2,
         }),
       ),
-    ).toBe("Pipeline: running · Aligning conversation · 1/2 steps");
+    ).toBe("Pipeline is running · Aligning conversation · 1/2 steps");
     expect(
       pipelineChromeLabel(
         job({
@@ -84,7 +84,7 @@ describe("pipelineProgress", () => {
           total: null,
         }),
       ),
-    ).toBe("Pipeline: running · Whisper encode");
+    ).toBe("Pipeline is running · Whisper encode");
     expect(
       pipelineChromeLabel(
         job({
@@ -95,7 +95,7 @@ describe("pipelineProgress", () => {
           total: 2,
         }),
       ),
-    ).toBe("Activity: running · Scanned host (1/2) · 1/2 tracks");
+    ).toBe("Activity is running · Scanned host (1/2) · 1/2 tracks");
   });
 
   it("uses tracks for Analyze and steps otherwise", () => {
@@ -132,7 +132,7 @@ describe("pipelineProgress", () => {
           message: "Mixing bounce…",
         }),
       ),
-    ).toBe("Activity: running · Mixing bounce…");
+    ).toBe("Activity is running · Mixing bounce…");
   });
 
   it("labels agent jobs as Activity with the tool headline", () => {
@@ -153,7 +153,7 @@ describe("pipelineProgress", () => {
           message: "Scoring bleed windows",
         }),
       ),
-    ).toBe("Activity: running · Scoring bleed windows");
+    ).toBe("Activity is running · Scoring bleed windows");
   });
 
   it("reads artifact paths from a terminal job result", () => {
