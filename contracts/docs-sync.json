@@ -1081,7 +1081,7 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/services/document/play.py",
+          "src/podcast_mcp/services/document/play*.py",
           "src/podcast_mcp/cli/play.py",
           "src/podcast_mcp/mcp/tools/play.py",
           "src/podcast_mcp/engines/transcript_gated_play.py",

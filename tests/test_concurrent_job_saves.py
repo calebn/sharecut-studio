@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import podcast_mcp.services.document.history as history_service_mod
+from play_patch import patch_play
 from podcast_mcp import project_merge as project_merge_mod
 from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.config import load_defaults
@@ -263,7 +264,7 @@ def test_play_premix_rerender_keeps_an_edit_saved_mid_render(minimal_project):
         premix.write_bytes(b"RIFF")
         return {"ok": True}
 
-    with patch("podcast_mcp.services.document.play.rerender_preview", fake):
+    with patch_play("rerender_preview", fake):
         svc._ensure_premix(rerender=True)
     assert load_project(minimal_project).track_by_id("host").fader_db == -6.0
     assert svc.project is ws.project

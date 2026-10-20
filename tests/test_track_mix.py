@@ -22,6 +22,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
+from play_patch import patch_play
 from podcast_mcp.cli.main import app
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
@@ -959,8 +960,8 @@ def test_the_gated_play_mix_plays_each_track_at_its_output_gain(minimal_project:
             "_follow_transcript_audio",
             side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
         ),
-        patch("podcast_mcp.services.document.play.word_intervals", return_value=[]),
-        patch("podcast_mcp.services.document.play.FFmpegEngine.mix_tracks", side_effect=_render),
+        patch_play("word_intervals", return_value=[]),
+        patch("podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks", side_effect=_render),
     ):
         _play()
         _play()  # an unchanged mix replays from play_cache
@@ -997,12 +998,12 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
             "_follow_transcript_audio",
             side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
         ),
-        patch("podcast_mcp.services.document.play.word_intervals", return_value=[]),
-        patch(
-            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
+        patch_play("word_intervals", return_value=[]),
+        patch_play(
+            "dialogue_tracks_for_play",
             return_value=["host", "guest"],
         ),
-        patch("podcast_mcp.services.document.play.FFmpegEngine.mix_tracks", side_effect=_mix),
+        patch("podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks", side_effect=_mix),
     ):
         _play(source="premix", compare=True)
         single_track_calls = [call[0][0] for call in calls if len(call[0]) == 1]
