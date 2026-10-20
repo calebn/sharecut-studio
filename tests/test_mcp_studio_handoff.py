@@ -180,3 +180,48 @@ def test_studio_that_cannot_be_reached_before_the_send_falls_back_here(
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
     assert result == "ran here"
+
+
+def test_relative_file_arguments_are_made_absolute_before_the_send(
+    studio: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    seen: dict[str, Any] = {}
+
+    class _Session:
+        def __init__(self, *_a: Any) -> None: ...
+
+        async def __aenter__(self) -> _Session:
+            return self
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+        async def initialize(self) -> None:
+            return None
+
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+            seen.update(arguments)
+            return CallToolResult(content=[])
+
+    class _Streams:
+        async def __aenter__(self) -> tuple[None, None]:
+            return None, None
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+    monkeypatch.setattr(handoff, "ClientSession", _Session)
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+    monkeypatch.chdir(tmp_path)
+    server = _wrapped()
+    asyncio.run(
+        server.call_tool(
+            "track_add",
+            {"project_path": str(studio), "file_path": "a.wav", "track_id": "relative-id"},
+        )
+    )
+    assert seen["file_path"] == str(tmp_path / "a.wav")
+    assert seen["track_id"] == "relative-id"
+    assert "project_path" not in seen
