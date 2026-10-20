@@ -74,7 +74,7 @@ test.describe("rotating with the word editor open (#1870)", () => {
   const rotations = [
     { name: "phone portrait to landscape", from: [390, 844], to: [844, 390] },
     {
-      name: "tablet landscape to portrait",
+      name: "tablet landscape to portrait (same shell)",
       from: [1194, 834],
       to: [834, 1194],
     },
