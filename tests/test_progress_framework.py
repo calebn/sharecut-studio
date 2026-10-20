@@ -496,7 +496,7 @@ def test_mcp_notification_progress_skips_without_report_progress():
     reporter = McpNotificationProgress(object())
     reporter.start("t", "Task")
     reporter.update("t", 1, total=3)
-    reporter._schedule(1.0, 3.0, "x")  # no running loop / no report_progress
+    reporter._notify(1.0, 3.0, "x")  # no running loop / no report_progress
 
 
 def test_install_cli_progress_skips_null_callback_and_double_wrap():

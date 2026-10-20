@@ -29,6 +29,7 @@ from podcast_mcp.util.progress.reporters import (
     JsonProgressReporter,
     McpNotificationProgress,
     MultiProgress,
+    NotificationProgress,
     NullProgress,
     RecordingProgress,
 )
@@ -74,6 +75,7 @@ __all__ = [
     "JsonProgressReporter",
     "McpNotificationProgress",
     "MultiProgress",
+    "NotificationProgress",
     "NullProgress",
     "ProgressEvent",
     "ProgressReporter",

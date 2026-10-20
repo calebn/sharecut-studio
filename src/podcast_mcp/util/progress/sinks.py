@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import os
 import sys
 import threading
 from collections.abc import Callable, Mapping
@@ -183,8 +184,6 @@ def make_progress_reporter(
 
 
 def default_progress_enabled() -> bool:
-    import os
-
     return os.environ.get("PODCAST_PROGRESS", "1") not in ("0", "false", "no")
 
 
