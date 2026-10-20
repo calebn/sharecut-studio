@@ -169,7 +169,7 @@ def download_diagnostics_bundle(
     except OSError:
         raise coded_http_error(404, "bundle not found", code="bundle_not_found") from None
     if size > MAX_BUNDLE_BYTES:
-        raise coded_http_error(404, "bundle not found", code="bundle_too_large")
+        raise coded_http_error(404, "bundle not found", code="bundle_not_found")
     return FileResponse(
         path,
         media_type="application/zip",
