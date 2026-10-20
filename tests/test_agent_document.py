@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.mcp import server as mcp_server
+from podcast_mcp.mcp.tools import edits as mcp_edits
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.document_sync import DocumentSyncService, submit_host_document_command
@@ -317,3 +318,12 @@ def test_document_plane_keeps_the_handlers_error_code(tmp_path, ten_second_silen
     with pytest.raises(ValueError) as caught:
         call(path)
     assert getattr(caught.value, "code", None) == "clip_not_found"
+
+
+def test_staged_cut_tools_journal_through_the_document_plane(tmp_path, ten_second_silence_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, ten_second_silence_wav)
+    mcp_edits.cut_time_range_tool(path, "host", 1.0, 2.0)
+    assert _journal_types(path) == ["StageTimeRangeCut"]
+    pending = load_project(Path(path)).edit_decisions
+    assert [e.track_id for e in pending] == ["host"]

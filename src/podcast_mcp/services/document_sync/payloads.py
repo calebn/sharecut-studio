@@ -486,6 +486,39 @@ class SuggestPendingEditPayload(BaseModel):
         return self
 
 
+class StageTimeRangeCutPayload(BaseModel):
+    track_id: str
+    start: float = Field(allow_inf_nan=False)
+    end: float = Field(allow_inf_nan=False)
+    reason: str | None = None
+    review_required: bool = True
+    use_inaudible_opt: bool | None = None
+
+
+class StageTextMatchCutPayload(BaseModel):
+    query: str
+    track_id: str | None = None
+    speaker: str | None = None
+    match_all: bool = False
+    review_required: bool = True
+    use_inaudible_opt: bool | None = None
+
+
+class StageUtteranceCutPayload(BaseModel):
+    utterance_index: int
+    review_required: bool = True
+    use_inaudible_opt: bool | None = None
+
+
+class StageWordsCutPayload(BaseModel):
+    track_id: str
+    start_word_index: int
+    end_word_index: int
+    source_id: str | None = None
+    review_required: bool = True
+    use_inaudible_opt: bool | None = None
+
+
 class SplitAtTimePayload(BaseModel):
     at_time: float
     track_ids: list[str] | None = None
@@ -812,6 +845,26 @@ class SuggestPendingEditCommand(DocumentCommandEnvelope):
     payload: SuggestPendingEditPayload
 
 
+class StageTimeRangeCutCommand(DocumentCommandEnvelope):
+    type: Literal["StageTimeRangeCut"] = "StageTimeRangeCut"
+    payload: StageTimeRangeCutPayload
+
+
+class StageTextMatchCutCommand(DocumentCommandEnvelope):
+    type: Literal["StageTextMatchCut"] = "StageTextMatchCut"
+    payload: StageTextMatchCutPayload
+
+
+class StageUtteranceCutCommand(DocumentCommandEnvelope):
+    type: Literal["StageUtteranceCut"] = "StageUtteranceCut"
+    payload: StageUtteranceCutPayload
+
+
+class StageWordsCutCommand(DocumentCommandEnvelope):
+    type: Literal["StageWordsCut"] = "StageWordsCut"
+    payload: StageWordsCutPayload
+
+
 class SplitAtTimeCommand(DocumentCommandEnvelope):
     type: Literal["SplitAtTime"] = "SplitAtTime"
     payload: SplitAtTimePayload
@@ -923,6 +976,10 @@ DocumentCommandBody = Annotated[
     | SetEnvelopeCommand
     | EditSelectedRangeCommand
     | SuggestPendingEditCommand
+    | StageTimeRangeCutCommand
+    | StageTextMatchCutCommand
+    | StageUtteranceCutCommand
+    | StageWordsCutCommand
     | SplitAtTimeCommand
     | DeleteClipCommand
     | DuplicateSegmentCommand
@@ -1035,6 +1092,10 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "SetEnvelope": SetEnvelopePayload,
     "EditSelectedRange": EditSelectedRangePayload,
     "SuggestPendingEdit": SuggestPendingEditPayload,
+    "StageTimeRangeCut": StageTimeRangeCutPayload,
+    "StageTextMatchCut": StageTextMatchCutPayload,
+    "StageUtteranceCut": StageUtteranceCutPayload,
+    "StageWordsCut": StageWordsCutPayload,
     "SplitAtTime": SplitAtTimePayload,
     "DeleteClip": DeleteClipPayload,
     "DuplicateSegment": DuplicateSegmentPayload,

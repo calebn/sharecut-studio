@@ -6510,6 +6510,551 @@
         "title": "SplitAtTimePayload",
         "type": "object"
       },
+      "StageTextMatchCutCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/StageTextMatchCutPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "StageTextMatchCut",
+            "default": "StageTextMatchCut",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "StageTextMatchCutCommand",
+        "type": "object"
+      },
+      "StageTextMatchCutPayload": {
+        "properties": {
+          "match_all": {
+            "default": false,
+            "title": "Match All",
+            "type": "boolean"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "review_required": {
+            "default": true,
+            "title": "Review Required",
+            "type": "boolean"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          },
+          "use_inaudible_opt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Inaudible Opt"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "StageTextMatchCutPayload",
+        "type": "object"
+      },
+      "StageTimeRangeCutCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/StageTimeRangeCutPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "StageTimeRangeCut",
+            "default": "StageTimeRangeCut",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "StageTimeRangeCutCommand",
+        "type": "object"
+      },
+      "StageTimeRangeCutPayload": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "review_required": {
+            "default": true,
+            "title": "Review Required",
+            "type": "boolean"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          },
+          "use_inaudible_opt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Inaudible Opt"
+          }
+        },
+        "required": [
+          "track_id",
+          "start",
+          "end"
+        ],
+        "title": "StageTimeRangeCutPayload",
+        "type": "object"
+      },
+      "StageUtteranceCutCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/StageUtteranceCutPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "StageUtteranceCut",
+            "default": "StageUtteranceCut",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "StageUtteranceCutCommand",
+        "type": "object"
+      },
+      "StageUtteranceCutPayload": {
+        "properties": {
+          "review_required": {
+            "default": true,
+            "title": "Review Required",
+            "type": "boolean"
+          },
+          "use_inaudible_opt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Inaudible Opt"
+          },
+          "utterance_index": {
+            "title": "Utterance Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "utterance_index"
+        ],
+        "title": "StageUtteranceCutPayload",
+        "type": "object"
+      },
+      "StageWordsCutCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/StageWordsCutPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "StageWordsCut",
+            "default": "StageWordsCut",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "StageWordsCutCommand",
+        "type": "object"
+      },
+      "StageWordsCutPayload": {
+        "properties": {
+          "end_word_index": {
+            "title": "End Word Index",
+            "type": "integer"
+          },
+          "review_required": {
+            "default": true,
+            "title": "Review Required",
+            "type": "boolean"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "start_word_index": {
+            "title": "Start Word Index",
+            "type": "integer"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          },
+          "use_inaudible_opt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Inaudible Opt"
+          }
+        },
+        "required": [
+          "track_id",
+          "start_word_index",
+          "end_word_index"
+        ],
+        "title": "StageWordsCutPayload",
+        "type": "object"
+      },
       "SuggestPendingEditCommand": {
         "properties": {
           "causation_id": {
@@ -8499,6 +9044,10 @@
                     "SetTranscriptWordTiming": "#/components/schemas/SetTranscriptWordTimingCommand",
                     "SetTranscriptWordsIgnored": "#/components/schemas/SetTranscriptWordsIgnoredCommand",
                     "SplitAtTime": "#/components/schemas/SplitAtTimeCommand",
+                    "StageTextMatchCut": "#/components/schemas/StageTextMatchCutCommand",
+                    "StageTimeRangeCut": "#/components/schemas/StageTimeRangeCutCommand",
+                    "StageUtteranceCut": "#/components/schemas/StageUtteranceCutCommand",
+                    "StageWordsCut": "#/components/schemas/StageWordsCutCommand",
                     "SuggestPendingEdit": "#/components/schemas/SuggestPendingEditCommand",
                     "TrimClipEdge": "#/components/schemas/TrimClipEdgeCommand",
                     "UndoHistory": "#/components/schemas/UndoHistoryCommand",
@@ -8629,6 +9178,18 @@
                   },
                   {
                     "$ref": "#/components/schemas/SuggestPendingEditCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StageTimeRangeCutCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StageTextMatchCutCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StageUtteranceCutCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StageWordsCutCommand"
                   },
                   {
                     "$ref": "#/components/schemas/SplitAtTimeCommand"

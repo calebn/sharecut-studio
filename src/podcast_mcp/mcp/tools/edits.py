@@ -95,16 +95,18 @@ def cut_time_range_tool(
     use_inaudible_opt: bool | None = None,
 ) -> str:
     """Stage a pending cut of a time range on a track; applies after approve_edits."""
-    ws = ProjectWorkspace.open(project_path)
-    EditService(ws).cut_time_range(
-        track_id,
-        start,
-        end,
-        reason=reason,
-        review_required=review_required,
-        use_inaudible_opt=use_inaudible_opt,
+    submit_host_command_result(
+        project_path,
+        "StageTimeRangeCut",
+        {
+            "track_id": track_id,
+            "start": start,
+            "end": end,
+            "reason": reason,
+            "review_required": review_required,
+            "use_inaudible_opt": use_inaudible_opt,
+        },
     )
-    agent_mutated(ws)
     return to_json({"track_id": track_id, "start": start, "end": end})
 
 
@@ -118,17 +120,19 @@ def cut_text_match_tool(
     use_inaudible_opt: bool | None = None,
 ) -> str:
     """Stage a pending cut for the first text match, or every match with match_all=True."""
-    ws = ProjectWorkspace.open(project_path)
-    EditService(ws).cut_text_match(
-        query,
-        track_id=track_id,
-        speaker=speaker,
-        match_all=match_all,
-        review_required=review_required,
-        use_inaudible_opt=use_inaudible_opt,
+    submit_host_command_result(
+        project_path,
+        "StageTextMatchCut",
+        {
+            "query": query,
+            "track_id": track_id,
+            "speaker": speaker,
+            "match_all": match_all,
+            "review_required": review_required,
+            "use_inaudible_opt": use_inaudible_opt,
+        },
     )
-    agent_mutated(ws)
-    ws.reload()
+    ws = ProjectWorkspace.open(project_path)
     return to_json([e.model_dump() for e in ws.project.edit_decisions[-5:]])
 
 
@@ -139,13 +143,15 @@ def cut_utterance_tool(
     use_inaudible_opt: bool | None = None,
 ) -> str:
     """Stage a pending cut of one utterance by its index."""
-    ws = ProjectWorkspace.open(project_path)
-    EditService(ws).cut_utterance(
-        utterance_index,
-        review_required=review_required,
-        use_inaudible_opt=use_inaudible_opt,
+    submit_host_command_result(
+        project_path,
+        "StageUtteranceCut",
+        {
+            "utterance_index": utterance_index,
+            "review_required": review_required,
+            "use_inaudible_opt": use_inaudible_opt,
+        },
     )
-    agent_mutated(ws)
     return to_json(
         {
             "operation": "cut_utterance",
@@ -166,16 +172,18 @@ def cut_words_tool(
     source_id: str | None = None,
 ) -> str:
     """Stage a pending cut of a word-index range on a track."""
-    ws = ProjectWorkspace.open(project_path)
-    EditService(ws).cut_words(
-        track_id,
-        start_word_index,
-        end_word_index,
-        source_id=source_id,
-        review_required=review_required,
-        use_inaudible_opt=use_inaudible_opt,
+    submit_host_command_result(
+        project_path,
+        "StageWordsCut",
+        {
+            "track_id": track_id,
+            "start_word_index": start_word_index,
+            "end_word_index": end_word_index,
+            "source_id": source_id,
+            "review_required": review_required,
+            "use_inaudible_opt": use_inaudible_opt,
+        },
     )
-    agent_mutated(ws)
     return to_json(
         {
             "operation": "cut_words",

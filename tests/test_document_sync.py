@@ -2074,15 +2074,12 @@ def test_notify_document_changed_after_mcp_cut(minimal_project):
         loop.run_until_complete(asyncio.sleep(0))
         event = queue.get_nowait()
         assert event["type"] == "Applied"
-        assert event["command"]["type"] == "ExternalMutate"
+        assert event["command"]["type"] == "StageTimeRangeCut"
         assert event["server_seq"] == before + 1
         assert event["snapshot"]["server_seq"] == event["server_seq"]
-        assert event["command"]["client_id"] == "server:external"
         assert event["command"]["role"] == "agent"
-        assert event["command"]["client_seq"] < 0
-        assert "project" in event["snapshot"]
-        pending = event["snapshot"]["project"].get("pending_edits") or []
-        assert any(p.get("reason") == "pass6" for p in pending)
+        pending = load_project(minimal_project).edit_decisions
+        assert any(p.reason == "pass6" for p in pending)
         assert document_server_seq(minimal_project) == event["server_seq"]
     finally:
         get_hub().unsubscribe(key, queue)
