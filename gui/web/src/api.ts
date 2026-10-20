@@ -131,6 +131,7 @@ export {
   loadReviewVersionStatus,
   openEpisodeProject,
   pickEpisodeProject,
+  reviewVersionAtBootstrap,
   uploadMediaFile,
 } from "./api/project";
 export {

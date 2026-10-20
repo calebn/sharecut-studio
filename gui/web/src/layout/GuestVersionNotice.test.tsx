@@ -1,12 +1,15 @@
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadReviewVersionStatus } from "../api";
+import { loadReviewVersionStatus, reviewVersionAtBootstrap } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { minimalProject } from "../test/fixtures";
 import { GuestVersionNotice } from "./GuestVersionNotice";
 
-vi.mock("../api", () => ({ loadReviewVersionStatus: vi.fn() }));
+vi.mock("../api", () => ({
+  loadReviewVersionStatus: vi.fn(),
+  reviewVersionAtBootstrap: vi.fn(() => null),
+}));
 
 const frozen = {
   versionId: "v1",
@@ -26,6 +29,7 @@ function mount(projectPath = "share:tok") {
 describe("GuestVersionNotice", () => {
   beforeEach(() => {
     vi.mocked(loadReviewVersionStatus).mockReset();
+    vi.mocked(reviewVersionAtBootstrap).mockReturnValue(null);
     useDawStore.getState().hydrate("share:tok", minimalProject());
   });
 
@@ -64,6 +68,25 @@ describe("GuestVersionNotice", () => {
     });
     mount();
     await screen.findByText(/follows the latest version/);
+    vi.mocked(loadReviewVersionStatus).mockResolvedValue({
+      versionId: "v2",
+      label: "Cut 2",
+      followsLatest: true,
+      newer: null,
+    });
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByRole("button", { name: "Reload" })).toBeTruthy();
+  });
+
+  it("measures a change from the version the page loaded on, even when the first read failed", async () => {
+    vi.mocked(reviewVersionAtBootstrap).mockReturnValue("v1");
+    vi.mocked(loadReviewVersionStatus).mockRejectedValue(new Error("offline"));
+    mount();
+    await vi.waitFor(() =>
+      expect(loadReviewVersionStatus).toHaveBeenCalledTimes(1),
+    );
     vi.mocked(loadReviewVersionStatus).mockResolvedValue({
       versionId: "v2",
       label: "Cut 2",
