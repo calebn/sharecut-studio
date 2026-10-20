@@ -4,6 +4,7 @@ import { useDaw } from "../state/useDaw";
 import { joinSentences } from "../utils/format";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { pipelineStateSentence } from "../utils/pipelineProgress";
+import { plainError } from "../utils/plainError";
 
 /**
  * Speak the Activity/Pipeline chip's status in the shell's polite live region,
@@ -58,11 +59,16 @@ export function useJobStatusAnnouncement(): void {
     if (jobStatus === "ok" && jobId != null && jobId in pending) {
       return;
     }
-    const failed = jobStatus === "error" || jobStatus === "cancelled";
+    const detail =
+      jobStatus === "error"
+        ? jobMessage && plainError(jobMessage)
+        : jobStatus === "cancelled"
+          ? ""
+          : jobMessage;
     announceStatus(
       joinSentences([
         pipelineStateSentence({ kind: jobKind, status: jobStatus }),
-        !failed && jobMessage,
+        detail,
         activityRunningCount > 1 && `${activityRunningCount} activities`,
       ]),
       { toast: false },

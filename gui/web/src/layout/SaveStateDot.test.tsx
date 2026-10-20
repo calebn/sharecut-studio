@@ -61,7 +61,7 @@ async function settle(ms = 0) {
 
 function openDetails() {
   const details = screen.getByLabelText(
-    "View attention details and recovery actions",
+    "Needs attention details and recovery actions",
   );
   if (!details.closest("details")?.hasAttribute("open"))
     fireEvent.click(details);

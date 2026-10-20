@@ -316,7 +316,7 @@ describe("StatusBar live region", () => {
       }),
     ).toBeTruthy();
     const status = screen.getByRole("status");
-    expect(status.textContent).toBe("Pipeline failed");
+    expect(status.textContent).toBe("Pipeline failed. Step exploded");
     expect(status.textContent).not.toMatch(/\d+:\d+/);
   });
 

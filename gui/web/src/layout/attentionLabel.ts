@@ -1,5 +1,8 @@
 import { plural } from "../utils/format";
 
+export const NEEDS_ATTENTION = "Needs attention";
+export const ATTENTION_DETAILS_LABEL = `${NEEDS_ATTENTION} details and recovery actions`;
+
 export function attentionCountLabel(
   pending: number,
   conflictCount: number,
@@ -22,7 +25,7 @@ export function attentionRegionLabel(input: {
 }): string {
   const countLabel = attentionCountLabel(input.pending, input.conflictCount);
   return [
-    "Needs attention",
+    NEEDS_ATTENTION,
     countLabel,
     input.unreadable ? "Saved edits could not be read" : "",
     input.dismissFailed ? "Dismissal failed" : "",

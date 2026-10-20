@@ -60,7 +60,7 @@ describe("useOfflineAttentionAnnouncement", () => {
     const region = screen.getByRole("region", {
       name: "Needs attention. 2 pending",
     });
-    expectOutsideLiveRegions(container, /^Attention$/);
+    expectOutsideLiveRegions(container, /^Needs attention$/);
     expect(
       within(
         document.getElementById(ATTENTION_BANNER_ID) as HTMLElement,
