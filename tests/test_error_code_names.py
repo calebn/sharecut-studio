@@ -26,6 +26,7 @@ def test_a_clip_with_an_unlisted_source_is_a_data_inconsistency_not_a_missing_ta
 
 
 def test_caller_actionable_argument_errors_carry_their_own_codes(tmp_path) -> None:
+    from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.conversation_align import acoustic_clip_offset
     from podcast_mcp.edits.retained_bleed_alignment import plan_retained_bleed_alignment
     from podcast_mcp.edits.timeline_ops import move_clips
@@ -34,13 +35,15 @@ def test_caller_actionable_argument_errors_carry_their_own_codes(tmp_path) -> No
     project = EpisodeProject.create("t", "/tmp/ws")
     wav = tmp_path / "a.wav"
     with pytest.raises(CodedValueError) as moves:
-        move_clips(project, ["not an object"])
+        move_clips(project, ["not an object"], defaults=load_defaults())
     assert moves.value.code == "clip_move_invalid"
     with pytest.raises(CodedValueError) as starts:
         acoustic_clip_offset(wav, wav, starts=[1.0, 2.0], source_starts=[1.0])
     assert starts.value.code == "align_starts_mismatch"
     with pytest.raises(CodedValueError) as window:
-        plan_retained_bleed_alignment(project, override_placement_lock=True)
+        plan_retained_bleed_alignment(
+            project, override_placement_lock=True, defaults=load_defaults()
+        )
     assert window.value.code == "placement_window_required"
 
 
