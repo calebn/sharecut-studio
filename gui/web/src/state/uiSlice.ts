@@ -43,6 +43,7 @@ import type {
   DawStore,
   DawTab,
   EnvelopeDraftEntry,
+  FeedbackToast,
   LaneHeightMode,
   LayerVisibility,
   LayoutMode,
@@ -50,6 +51,7 @@ import type {
   MoreDestination,
   PointerKind,
   ShellBreakpoint,
+  ToastTone,
   ToolMode,
   TranscriptInlineEditFailure,
   TranscriptInlineEditRequest,
@@ -89,7 +91,13 @@ const MORE_DESTINATION_TAB: Readonly<
 
 /** A repeat of the last announcement within this window is the same outcome told twice. */
 const REPEAT_WINDOW_MS = 1000;
-let lastSpoken: { message: string; at: number } | null = null;
+let lastSpoken: {
+  message: string;
+  at: number;
+  /** The toast it raised, or null when it was spoken only (`toast: false`). */
+  toastId: number | null;
+  tone: ToastTone;
+} | null = null;
 
 /** True when `message` (as shown, after the error filter) was announced within the repeat window. */
 export function justAnnounced(message: string): boolean {
@@ -99,6 +107,21 @@ export function justAnnounced(message: string): boolean {
     (lastSpoken.message === message ||
       lastSpoken.message === plainError(message))
   );
+}
+
+/**
+ * A repeat is absorbed only when it adds nothing: the same text is still
+ * standing as a toast, or a handler spoke its refusal without a toast and the
+ * caller re-announces the same result.
+ */
+function repeatsStanding(
+  message: string,
+  standing: FeedbackToast | null,
+): boolean {
+  if (!lastSpoken || !justAnnounced(message)) return false;
+  return lastSpoken.toastId != null
+    ? standing?.id === lastSpoken.toastId
+    : lastSpoken.tone === "error";
 }
 
 export function resetFeedbackRepeatForTests(): void {
@@ -320,10 +343,21 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         const tone = options.tone ?? "status";
         const message = tone === "error" ? plainError(rawMessage) : rawMessage;
         const showToast = message !== "" && options.toast !== false;
-        if (message !== "" && !options.undo && !options.reverse) {
-          if (justAnnounced(message)) return {};
-        }
-        if (message !== "") lastSpoken = { message, at: Date.now() };
+        if (
+          message !== "" &&
+          !options.undo &&
+          !options.reverse &&
+          !options.gesture &&
+          repeatsStanding(message, s.feedbackToast)
+        )
+          return {};
+        if (message !== "")
+          lastSpoken = {
+            message,
+            at: Date.now(),
+            toastId: showToast ? id : null,
+            tone,
+          };
         return {
           statusAnnouncement: message,
           statusAnnouncementSeq: id,
@@ -342,7 +376,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
             : {}),
         };
       }),
-    endGestureFeedback: () => set(endGestureToast),
+    endGestureFeedback: () => {
+      lastSpoken = null;
+      set(endGestureToast);
+    },
     dismissFeedbackToast: (id) =>
       set((s) => (s.feedbackToast?.id === id ? { feedbackToast: null } : {})),
     dropFeedbackUndo: (id) =>
