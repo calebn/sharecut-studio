@@ -142,7 +142,9 @@ all timeline editing. Portrait phone is the primary target.
 - This grammar is for touch. A mouse acts on press: it selects and drags at
   once with no arming, and a right click on a lane or target opens the same
   create menu, so desktop editing does not change by accident (#1793). The
-  Menu key and Shift+F10 on a focused target open it too.
+  Menu key and Shift+F10 (`create.menu`) open it too: over the focused target,
+  else at the playhead on the selected track, so a keyboard user needs no
+  focusable lane or clip (#1877).
 - A second finger means pinch or pan. It cancels and rolls back any
   uncommitted single-finger action, so a pinch never edits.
 - Nudges in the strip repeat while held.

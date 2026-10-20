@@ -70,3 +70,22 @@ test("Shift+F10 on a focused envelope level opens the create menu and Escape clo
   await page.keyboard.press("Escape");
   await expect(menu(page)).toHaveCount(0);
 });
+
+test("Shift+F10 with no target focused opens the create menu at the playhead on the selected track (#1877)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openHostProject(page);
+  const lane = page.locator(".lane-row[data-track-id]").first();
+  await lane.click({ position: { x: 4, y: 4 } });
+  await page.keyboard.press("End");
+  await page.keyboard.press("Shift+F10");
+  await expect(menu(page)).toBeVisible();
+  const label = await menu(page).getAttribute("aria-label");
+  expect(label).toMatch(/^Create at 01:00\.000/);
+  // A bare F10 is not the menu's key.
+  await page.keyboard.press("Escape");
+  await expect(menu(page)).toHaveCount(0);
+  await page.keyboard.press("F10");
+  await expect(menu(page)).toHaveCount(0);
+});

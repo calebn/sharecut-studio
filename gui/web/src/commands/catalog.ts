@@ -163,6 +163,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { atTime?: number } → SplitAtTime at the clicked time, else the playhead (Mod+K)",
   },
+  "create.menu": {
+    id: "create.menu",
+    category: "edit",
+    label: "Create here",
+    keywords: ["context menu", "chapter", "comment", "envelope point", "blade"],
+    when: "timelineFocused",
+    paletteRunnable: false,
+    notes:
+      "Shift+F10 or the Menu key: open the create menu over the focused timeline target, else at the playhead on the selected track",
+  },
   "edit.delete": {
     id: "edit.delete",
     mutates: true,

@@ -255,6 +255,22 @@
       "tooltip": "Clear selection"
     },
     {
+      "id": "daw.create.menu",
+      "label": "Create here",
+      "effect": "view",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "timelineFocused"
+      ],
+      "surfaces": {
+        "command": "create.menu",
+        "keyboard": "Shift+F10"
+      },
+      "omit": {},
+      "tooltip": "Open the create menu over the focused timeline target, else at the playhead on the selected track"
+    },
+    {
       "id": "daw.review.toggleCommentMode",
       "label": "Toggle comment mode",
       "effect": "view",

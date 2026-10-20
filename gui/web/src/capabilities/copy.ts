@@ -46,6 +46,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Clear selection",
     tooltip: "Clear selection",
   },
+  "daw.create.menu": {
+    label: "Create here",
+    tooltip:
+      "Open the create menu over the focused timeline target, else at the playhead on the selected track",
+  },
   "daw.review.toggleCommentMode": {
     label: "Toggle comment mode",
     tooltip: "Toggle comment mode",

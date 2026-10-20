@@ -20,6 +20,7 @@ import { askConfirm } from "../feedback/ask";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
+import { openCreateMenu } from "../timeline/createMenuHost";
 import {
   SOLO_OFF_ANNOUNCEMENT,
   SOLO_ON_ANNOUNCEMENT,
@@ -149,6 +150,12 @@ export function registerPrimaryEditingCommands(): void {
     }
     return runDeleteClip(clipId, false);
   });
+
+  registerCommand("create.menu", () =>
+    openCreateMenu()
+      ? { status: "ok" }
+      : { status: "disabled", reason: "No track to create on" },
+  );
 
   registerCommand("edit.clearSelection", () => {
     useDawStore.getState().setSelection(null);

@@ -69,6 +69,7 @@ import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 import { CreateMenu, type CreateMenuPlace } from "./CreateMenu";
 import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
+import { registerCreateMenuOpener } from "./createMenuHost";
 import { DetentMark } from "./DetentMark";
 import { attachDragWatch } from "./dragWatch";
 import { FixedPlayheadNeedle } from "./FixedPlayheadNeedle";
@@ -113,6 +114,7 @@ import {
   announceArmed,
   armedDetents,
   createPlace,
+  keyboardCreateAnchor,
   vibrate,
 } from "./touchGrammar";
 import {
@@ -308,8 +310,15 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     const detachDragWatch = attachDragWatch(root, (dragging) =>
       useDawStore.getState().setTimelineDragging(dragging),
     );
+    const unregisterCreate = registerCreateMenuOpener(() => {
+      const anchor = keyboardCreateAnchor(root);
+      if (!anchor) return false;
+      router.openCreate(anchor.origin, anchor.surface);
+      return true;
+    });
     setHitRouter(router);
     return () => {
+      unregisterCreate();
       detachDragWatch();
       router.dispose();
       setHitRouter(null);
