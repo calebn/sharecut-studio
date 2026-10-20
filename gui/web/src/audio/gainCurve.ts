@@ -62,11 +62,14 @@ export function effectiveGainAt(
   return envelopeGainAt(points, sec) * fadeGainAt(clip, sec);
 }
 
+/** A step in the envelope holds its old level to this long before it jumps. */
+const STEP_HOLD_SEC = 1e-6;
+
 /** Inside a fade the product of two lines is a curve; a ramp every step follows it. */
 const FADE_STEP_SEC = 0.01;
 
 /**
- * The times in `(fromSec, toSec)` where the effective gain changes slope, so linear ramps
+ * The times in `(fromSec, toSec)` where the effective gain changes slope or steps, so linear ramps
  * between them (and the two ends) follow it exactly.
  */
 export function gainBreakpoints(
@@ -84,6 +87,9 @@ export function gainBreakpoints(
     clip.timelineStartSec + fadeIn,
     clip.timelineEndSec - fadeOut,
     ...points.map((point) => point.time),
+    ...points
+      .filter((point, index) => points[index + 1]?.time === point.time)
+      .map((point) => point.time - STEP_HOLD_SEC),
   ];
   for (const [from, to] of [
     [clip.timelineStartSec, clip.timelineStartSec + fadeIn],
