@@ -91,7 +91,7 @@ def test_health_invalid_boot_token(local, monkeypatch):
 def test_get_project_unknown_phase(local, minimal_project):
     res = local.get("/api/project", params={"path": str(minimal_project), "phase": "bogus"})
     assert res.status_code == 400
-    assert res.headers[CODE]
+    assert res.headers[CODE] == "projection_unknown"
 
 
 def test_pending_cut_suggestion_unknown_edit(local, minimal_project):
@@ -105,13 +105,13 @@ def test_waveform_snap_invalid(local, minimal_project):
         params={"path": str(minimal_project), "track_id": "nope", "start": 0, "end": 1},
     )
     assert res.status_code == 400
-    assert res.headers[CODE]
+    assert res.headers[CODE] == "track_not_found"
 
 
 def test_audio_unknown_source(local, minimal_project):
     res = local.get("/api/audio", params={"path": str(minimal_project), "kind": "bogus"})
     assert res.status_code == 400
-    assert res.headers[CODE]
+    assert res.headers[CODE] == "transport_kind_unknown"
 
 
 def test_audio_missing_file_and_merge_conflict(local, minimal_project, monkeypatch):
@@ -209,7 +209,7 @@ def test_auth_oauth_provider_failures(auth_client, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     res = auth_client.get("/auth/login/google", follow_redirects=False)
     assert res.status_code == 503
-    assert res.headers[CODE]
+    assert res.headers[CODE] == "oauth_provider_unavailable"
 
     monkeypatch.setenv("PODCAST_GOOGLE_OAUTH_CLIENT_ID", "cid")
     monkeypatch.setenv("PODCAST_GOOGLE_OAUTH_CLIENT_SECRET", "gsec")
@@ -245,7 +245,7 @@ def test_auth_passkey_invalid(auth_client):
         },
     )
     assert res.status_code == 400
-    assert res.headers[CODE]
+    assert res.headers[CODE] == "passkey_authentication_challenge_invalid"
 
 
 # --- bootstrap.py ---------------------------------------------------------------------------
@@ -271,9 +271,8 @@ def test_bootstrap_job_missing(bootstrap_client):
 
 def test_bootstrap_status_bad_model(bootstrap_client):
     res = bootstrap_client.get("/api/bootstrap/status", params={"whisper_model": "no-such/model!"})
-    if res.status_code != 200:
-        assert res.status_code == 400
-        assert res.headers[CODE]
+    assert res.status_code == 400
+    assert res.headers[CODE] == "invalid_request"
 
 
 # --- diagnostics.py -------------------------------------------------------------------------

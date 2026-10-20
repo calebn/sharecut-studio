@@ -92,12 +92,26 @@ def violations(tree: ast.AST) -> Iterator[tuple[ast.Raise, str]]:
 def http_violations(tree: ast.AST) -> Iterator[tuple[ast.Call, str]]:
     """Each ``HTTPException(...)`` construction, with its enclosing function name."""
 
+    names = {"HTTPException"} | {
+        alias.asname
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name == "HTTPException" and alias.asname
+    }
+
+    def is_http_exception(call: ast.Call) -> bool:
+        func = call.func
+        if isinstance(func, ast.Attribute):
+            return func.attr == "HTTPException"
+        return isinstance(func, ast.Name) and func.id in names
+
     def walk(node: ast.AST, scope: str) -> Iterator[tuple[ast.Call, str]]:
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 yield from walk(child, child.name)
                 continue
-            if isinstance(child, ast.Call) and _raised_name(child) == "HTTPException":
+            if isinstance(child, ast.Call) and is_http_exception(child):
                 yield child, scope
             yield from walk(child, scope)
 

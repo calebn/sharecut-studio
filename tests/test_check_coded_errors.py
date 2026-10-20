@@ -42,8 +42,10 @@ def test_bare_http_exceptions_are_flagged_and_coded_ones_are_not():
         "def a():\n    raise HTTPException(status_code=404, detail='x')\n"
         "def b():\n    raise coded_http_error(404, 'x', code='x_missing')\n"
         "def c():\n    return fastapi.HTTPException(400, 'y')\n"
+        "from starlette.exceptions import HTTPException as HE\n"
+        "def d():\n    raise HE(status_code=400, detail='z')\n"
     )
-    assert _http_flagged(source) == ["a", "c"]
+    assert _http_flagged(source) == ["a", "c", "d"]
 
 
 def test_gui_host_routes_build_http_errors_only_through_coded_http_error():
