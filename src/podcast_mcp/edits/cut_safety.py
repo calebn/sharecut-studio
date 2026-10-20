@@ -5,7 +5,6 @@ import math
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from enum import Enum
 from functools import partial
 from itertools import pairwise
 from pathlib import Path
@@ -28,6 +27,15 @@ from podcast_mcp.edits.breath_detect import (
     _read_evidence,
     _UncertainEdge,
 )
+from podcast_mcp.edits.cut_policy import (
+    CUT_EDGE_CHECKS,
+    SAFETY_LABELS,
+    BreathEdgeAction,
+    CutJoin,
+    CutMode,
+    action_for_safety_observation,
+    edit_time_behavior,
+)
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SourceExtent
 from podcast_mcp.edits.filler_pacing import pause_trim_is_imperceptible
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
@@ -37,13 +45,7 @@ from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
 from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 from podcast_mcp.edits.tighten_reasons import (
-    ACOUSTIC_FILLER_REASON,
-    PAUSE_REASON_PREFIX,
-    REPETITION_REASON_PREFIX,
-    RESTART_REASON_PREFIX,
     is_acoustic_filler_reason,
-    is_likely_laugh_reason,
-    is_possible_word_reason,
 )
 from podcast_mcp.edits.voiced_runs import (
     FRAME_SEC,
@@ -90,60 +92,6 @@ _SOURCE_GEOMETRY_TOLERANCE_SEC = 1e-6
 
 class DuplicateSourceOccurrence(ValueError):
     """A completed edit reused or replayed one source occurrence."""
-
-
-class CutJoin(Enum):
-    SPLICE = "splice"
-    PADDED = "padded"
-    MUTE = "mute"
-
-
-class BreathEdgeAction(Enum):
-    PROTECT = "protect"
-    KEEP_WHOLE = "keep_whole"
-    IGNORE = "ignore"
-
-
-@dataclass(frozen=True)
-class CutEdgeChecks:
-    breaths: BreathEdgeAction
-    score_joins: bool
-    end_before_next_onset: bool
-    keep_whole_words: bool
-    refuse_attached_runs: bool
-    audible_only: bool
-    peer_scoped: bool
-
-
-CUT_EDGE_CHECKS = {
-    CutJoin.SPLICE: CutEdgeChecks(
-        breaths=BreathEdgeAction.PROTECT,
-        score_joins=True,
-        end_before_next_onset=False,
-        keep_whole_words=False,
-        refuse_attached_runs=False,
-        audible_only=False,
-        peer_scoped=True,
-    ),
-    CutJoin.PADDED: CutEdgeChecks(
-        breaths=BreathEdgeAction.IGNORE,
-        score_joins=False,
-        end_before_next_onset=True,
-        keep_whole_words=True,
-        refuse_attached_runs=False,
-        audible_only=False,
-        peer_scoped=True,
-    ),
-    CutJoin.MUTE: CutEdgeChecks(
-        breaths=BreathEdgeAction.KEEP_WHOLE,
-        score_joins=False,
-        end_before_next_onset=True,
-        keep_whole_words=True,
-        refuse_attached_runs=True,
-        audible_only=True,
-        peer_scoped=False,
-    ),
-}
 
 
 def protect_cut_breaths(
@@ -2290,95 +2238,8 @@ def complete_effect_receipts(
     ]
 
 
-SuggestedAction = Literal["cut", "shorten", "lower", "leave"]
-CutAction = Literal["cut", "shorten", "lower", "leave", "review"]
-CutMode = Literal["ripple", "mute"]
-SUGGESTED_ACTIONS: tuple[SuggestedAction, ...] = ("cut", "shorten", "lower", "leave")
-
-
-@dataclass(frozen=True)
-class CutActionPolicy:
-    label: str
-    action: CutAction
-    join: CutJoin | None
-    editorial: bool
-    proposal_review: bool
-    acoustic_override: bool = False
-
-
-_SOUND_ACTIONS: tuple[tuple[str, str, SuggestedAction, bool, bool], ...] = (
-    ("filler", "Filler word", "cut", True, False),
-    ("pause", "Long pause", "shorten", True, False),
-    ("repetition", "Repeated words", "cut", True, True),
-    ("restart", "False start", "cut", True, True),
-    ("acoustic", "Unclear sound", "leave", False, True),
-    ("laugh", "Laugh", "lower", False, True),
-    ("possible_word", "Possible missed word", "leave", False, True),
-    ("backchannel", "Backchannel", "lower", False, False),
-    ("breath", "Breath", "leave", False, False),
-    ("mouth_click", "Mouth click", "cut", False, False),
-    ("playful_phrase", "Playful phrase", "leave", False, False),
-)
-_SAFETY_ACTIONS = (
-    ("breath_edge", True),
-    ("peer_speech", True),
-    ("speaker_bleed", True),
-    ("join_continuity", True),
-    ("source_geometry", False),
-    ("pause_effect_geometry", False),
-    ("pad_hull", False),
-    ("pad_placement", False),
-    ("pad_source_binding", False),
-    ("pad_coverage", False),
-    ("source_receipt", False),
-    ("recording_identity", False),
-    ("clip_identity", False),
-    ("clip_recording_identity", False),
-    ("recording_extent", False),
-    ("fill_binding", False),
-    ("operation_scope", False),
-    ("scope_unavailable", True),
-    ("media_extent_unavailable", False),
-    ("stored_track_pause", False),
-    ("pause_not_shorter", False),
-    ("pause_imperceptible", True),
-    ("pause_air", True),
-    ("pause_join", True),
-    ("acoustic_edge", True),
-)
-
-# Sound labels and fresh safety observations share this one mode/action table. Safety
-# observation rows all retain the operation for review unless trusted intent overrides
-# an acoustic row at the private-candidate boundary.
-CUT_ACTION_TABLE: dict[tuple[str, CutMode], CutActionPolicy] = {
-    (kind, mode): CutActionPolicy(
-        label,
-        action,
-        CutJoin.SPLICE if mode == "ripple" else CutJoin.MUTE,
-        editorial,
-        proposal_review=review,
-    )
-    for kind, label, action, editorial, review in _SOUND_ACTIONS
-    for mode in ("ripple", "mute")
-}
-CUT_ACTION_TABLE.update(
-    {
-        (label, mode): CutActionPolicy(
-            label=label,
-            action="review",
-            join=None,
-            editorial=False,
-            proposal_review=False,
-            acoustic_override=acoustic,
-        )
-        for label, acoustic in _SAFETY_ACTIONS
-        for mode in ("ripple", "mute")
-    }
-)
-
-
 def safety_observation_label(hold: CutScopeHold) -> str:
-    if hold.detail in {label for label, _ in _SAFETY_ACTIONS}:
+    if hold.detail in SAFETY_LABELS:
         return hold.detail
     if hold.detail and hold.detail.startswith("breath"):
         return "breath_edge"
@@ -2387,20 +2248,10 @@ def safety_observation_label(hold: CutScopeHold) -> str:
     return hold.reason
 
 
-def action_for_safety_observation(label: str, mode: CutMode) -> CutActionPolicy:
-    return CUT_ACTION_TABLE[(label, mode)]
-
-
 def hold_is_overridable(hold: CutScopeHold) -> bool:
     """Whether the owner's audio-check override can clear this hold (an audio-quality or
     cut-position check, not a project-integrity one)."""
     return action_for_safety_observation(safety_observation_label(hold), "ripple").acoustic_override
-
-
-def edit_time_behavior(edit: EditDecision) -> CutMode:
-    if edit.type is EditDecisionType.MUTE or edit.scope == "track" or edit.exact_range is not None:
-        return "mute"
-    return "ripple"
 
 
 def apply_safety_actions(
@@ -2422,42 +2273,6 @@ def apply_safety_actions(
             continue
         retained.append(hold)
     return retained
-
-
-def sound_kind(reason: str | None) -> str | None:
-    text = reason or ""
-    if text.startswith(ACOUSTIC_FILLER_REASON):
-        # A heard word outranks a laugh: "leave" is the safe default when both flags are set.
-        if is_possible_word_reason(text):
-            return "possible_word"
-        if is_likely_laugh_reason(text):
-            return "laugh"
-        return "acoustic"
-    if text.startswith("filler:"):
-        return "filler"
-    if text.startswith(PAUSE_REASON_PREFIX):
-        return "pause"
-    if text.startswith(REPETITION_REASON_PREFIX):
-        return "repetition"
-    if text.startswith(RESTART_REASON_PREFIX):
-        return "restart"
-    return None
-
-
-def sound_policy(reason: str | None, mode: CutMode = "ripple") -> CutActionPolicy | None:
-    kind = sound_kind(reason)
-    return CUT_ACTION_TABLE[(kind, mode)] if kind is not None else None
-
-
-def decision_policy(decision: EditDecision) -> CutActionPolicy | None:
-    return sound_policy(
-        decision.reason, "mute" if decision.type == EditDecisionType.MUTE else "ripple"
-    )
-
-
-def is_non_speech_sound(reason: str | None) -> bool:
-    policy = sound_policy(reason)
-    return policy is not None and not policy.editorial
 
 
 def assess_source_offer(project: EpisodeProject, edit: EditDecision, *, defaults: dict) -> None:

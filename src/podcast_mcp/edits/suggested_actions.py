@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from podcast_mcp.config import EffectiveConfig
-from podcast_mcp.edits.cut_safety import decision_policy
+from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.models import (
     EditDecision,
@@ -119,7 +119,7 @@ def record_sound_action(
     project: EpisodeProject, decision: EditDecision, action: Literal["lower", "leave"]
 ) -> None:
     """Remember that ``decision``'s sound was lowered or left, so a re-run does not redo it."""
-    from podcast_mcp.edits.cut_safety import is_non_speech_sound
+    from podcast_mcp.edits.cut_policy import is_non_speech_sound
 
     if decision.timebase != "source" or not is_non_speech_sound(decision.reason):
         return
@@ -153,7 +153,7 @@ def is_decided_sound(project: EpisodeProject, decision: EditDecision) -> bool:
 
 def drop_decided_sounds(project: EpisodeProject) -> int:
     """Drop pending non-speech proposals of sounds already lowered or left; returns the count."""
-    from podcast_mcp.edits.cut_safety import is_non_speech_sound
+    from podcast_mcp.edits.cut_policy import is_non_speech_sound
 
     kept = [
         e

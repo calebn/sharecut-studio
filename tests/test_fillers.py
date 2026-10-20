@@ -4254,7 +4254,7 @@ def test_filler_pad_is_paced_from_the_span_the_cut_removes(tmp_path, word_start,
 def test_cut_plan_paces_its_pad_from_its_own_span():
     from dataclasses import replace
 
-    from podcast_mcp.edits.cut_safety import CutJoin
+    from podcast_mcp.edits.cut_policy import CutJoin
     from podcast_mcp.edits.filler_pacing import PacedPad
     from podcast_mcp.edits.tighten.plan import _CutPlan
 
