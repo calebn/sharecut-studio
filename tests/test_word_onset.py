@@ -416,3 +416,37 @@ def test_a_quiet_plateau_then_a_louder_syllable_is_not_a_hum_that_decays(gain_db
 
     assert not is_one_hum(_cache((0.98, step), gain_db=gain_db), 0.98, 1.7)
     assert is_one_hum(_cache((0.98, ramp), gain_db=gain_db), 0.98, 1.5)
+
+
+@pytest.mark.parametrize("depth_db", [11.0, 14.0, 20.0])
+@pytest.mark.parametrize("gain_db", [-18.0, 0.0, 12.0])
+def test_an_edge_the_plan_places_in_a_valley_is_one_the_voiced_edge_check_reads_as_in_it(
+    depth_db, gain_db
+):
+    """The plan flags an edge with ``edge_in_valley`` over its own window of frames; the
+    voiced-edge check splits the runs over a wider one. For every edge the flag admits,
+    near either end of the valley and from any start, no split run may straddle it."""
+    from podcast_mcp.edits.cut_safety import EDGE_NUDGE_MAX_SEC, VOICE_EDGE_PAD_SEC
+    from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC, run_straddling, voiced_runs
+    from podcast_mcp.edits.word_onset import edge_in_valley
+
+    cache = _uh_decaying_into_a_word(depth_db, gain_db)
+    floor_db = cache.profile.voice_floor_db
+    reach = EDGE_NUDGE_MAX_SEC + VOICE_EDGE_PAD_SEC + FRAME_SEC
+    flagged = 0
+    for start in (0.95, 1.0, 1.1, 1.2):
+        for step in range(0, 25):
+            edge = 1.30 + step * HOP_SEC
+            if not edge_in_valley(cache, start, edge, 1.52):
+                continue
+            flagged += 1
+            runs = voiced_runs(
+                cache.waveform,
+                start - reach,
+                edge + reach,
+                floor_db=floor_db,
+                split_at_valleys=True,
+            )
+            assert run_straddling(runs, edge) is None, (start, edge)
+    # The flag is not vacuous: the valley's bottom half (about 1.35-1.47) is flagged.
+    assert flagged >= 4 * 5
