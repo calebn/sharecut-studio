@@ -1,4 +1,9 @@
-# Keeps one "release" PR open that bumps the Sharecut Studio version everywhere and writes
+# Manual only (workflow_dispatch). Run it from the Actions tab (or `gh workflow run
+# release-please.yml`) when you want a release. Run 1 opens or refreshes the "release" PR; after
+# that PR merges, run 2 creates the vX.Y.Z tag and GitHub release. It no longer runs on every
+# push to main, because each run refreshed the release PR and re-ran its CI.
+#
+# Opens or refreshes a "release" PR that bumps the Sharecut Studio version everywhere and writes
 # the changelog from Conventional Commits. Merging it is the decision to cut a tester build;
 # sharecut-ops then builds and publishes the update feed at that tag. This workflow builds
 # and publishes nothing itself. See docs/desktop-packaging.md § Version bumps.
@@ -14,8 +19,6 @@
 name: release-please
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
