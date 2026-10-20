@@ -46,6 +46,7 @@ for (const ipad of IPADS) {
     context,
   }) => {
     await page.setViewportSize(ipad);
+    await page.clock.install();
     await openHostProject(page);
     const clip = page.locator(".lane-row .clip-block").first();
     await clip.scrollIntoViewIfNeeded();
@@ -57,7 +58,7 @@ for (const ipad of IPADS) {
       type: "touchStart",
       touchPoints: [{ ...point, id: 1 }],
     });
-    await page.waitForTimeout(LONG_PRESS_MS + 150);
+    await page.clock.runFor(LONG_PRESS_MS + 150);
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchEnd",
       touchPoints: [],
