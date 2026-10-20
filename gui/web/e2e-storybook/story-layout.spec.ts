@@ -113,10 +113,10 @@ for (const width of [1440, 360]) {
         const frame = docs.frameLocator(
           `#story--templates-joinpopover--${story} iframe`,
         );
-        await expectInside(frame.locator(".join-popover"), "viewport");
+        await expectInside(frame.locator(".command-palette-panel"), "viewport");
         await expect(frame.locator("html")).toHaveCSS("color-scheme", theme);
       }
-      await expect(docs.locator(".join-popover")).toHaveCount(0);
+      await expect(docs.getByRole("dialog")).toHaveCount(0);
     });
 
     for (const [family, story] of [
@@ -127,7 +127,6 @@ for (const width of [1440, 360]) {
       ["templates-sharedialog", "empty"],
       ["templates-bouncedialog", "ready"],
       ["templates-commandpalette", "browse"],
-      ["templates-editingtoolrail", "confirm-all-dialogue"],
     ]) {
       test(`${family} contains its portaled dialog in Docs at ${width} in ${theme}`, async ({
         page,

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { clipRow } from "../test/fixtures";
+import { Dialog } from "../ui";
 import { JoinPopoverView } from "./JoinPopoverView";
 
 const left = clipRow({
@@ -32,7 +33,9 @@ const meta: Meta<typeof JoinPopoverView> = {
   decorators: [
     (Story) => (
       <main aria-label="Join popover preview">
-        <Story />
+        <Dialog open onClose={fn()} title="Join at 0:05">
+          <Story />
+        </Dialog>
       </main>
     ),
   ],
