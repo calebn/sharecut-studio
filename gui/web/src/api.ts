@@ -119,6 +119,7 @@ export {
 export type {
   MediaUploadResult,
   PickEpisodeProjectResult,
+  ReviewVersionStatus,
 } from "./api/project";
 export {
   closeEpisodeProject,
@@ -127,6 +128,7 @@ export {
   loadHistoryDiff,
   loadProjectMeta,
   loadReviewBootstrap,
+  loadReviewVersionStatus,
   openEpisodeProject,
   pickEpisodeProject,
   uploadMediaFile,

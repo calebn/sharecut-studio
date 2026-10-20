@@ -20,6 +20,37 @@ export async function loadReviewBootstrap(token: string): Promise<{
   }>;
 }
 
+/** What a review link plays: its version, whether it follows the latest, and any newer one a frozen link is missing. */
+export type ReviewVersionStatus = {
+  versionId: string | null;
+  label: string | null;
+  followsLatest: boolean;
+  newer: { id: string; label: string | null } | null;
+};
+
+export async function loadReviewVersionStatus(
+  token: string,
+  signal?: AbortSignal,
+): Promise<ReviewVersionStatus> {
+  const res = await apiFetch(
+    shareProjectKey(token),
+    { guest: "/project" },
+    { signal },
+  );
+  const body = (await res.json()) as {
+    review_version?: { id?: string; label?: string | null } | null;
+    link_follows_latest?: boolean;
+    newer_version?: { id?: string; label?: string | null } | null;
+  };
+  const newer = body.newer_version;
+  return {
+    versionId: body.review_version?.id ?? null,
+    label: body.review_version?.label ?? null,
+    followsLatest: body.link_follows_latest === true,
+    newer: newer?.id ? { id: newer.id, label: newer.label ?? null } : null,
+  };
+}
+
 export async function loadDocumentState(
   projectPath: string,
   phase: "shell" | "detail" | "full" = "shell",

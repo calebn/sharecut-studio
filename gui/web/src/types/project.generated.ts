@@ -217,6 +217,7 @@ export interface ShareCreateRequest {
   role?: "viewer" | "commenter" | "editor";
   with_mcp?: boolean;
   review_version_id?: string | null;
+  freeze?: boolean;
 }
 
 export interface ShareRevokeRequest {

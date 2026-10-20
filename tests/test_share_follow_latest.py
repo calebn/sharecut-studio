@@ -164,3 +164,26 @@ def test_object_cleanup_keeps_the_newest_mix_a_follow_link_serves_without_an_act
     store = FakeStore()
     assert delete_object_store_object_if_unused(ws, second["id"], object_store=store) is False
     assert store.deleted == []
+
+
+def test_host_share_freeze_pins_the_link_to_the_current_version(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    ws = _seed_premix(minimal_project, sample_wav)
+    first = ReviewService(ws).publish(label="Rough cut")
+    client = TestClient(create_app(served_project=Path(minimal_project)))
+    path = str(minimal_project)
+
+    frozen = client.post("/api/shares", json={"path": path, "freeze": True}).json()["share"]
+    following = client.post("/api/shares", json={"path": path}).json()["share"]
+    assert frozen["follow_latest"] is False
+    assert frozen["review_version_id"] == first["id"]
+    assert following["follow_latest"] is True
+
+    second = _publish_second(ws, "Intro fix")
+    frozen_view = share_project_view(frozen["token"])
+    assert frozen_view["review_version"]["id"] == first["id"]
+    assert frozen_view["link_follows_latest"] is False
+    assert frozen_view["newer_version"] == {"id": second["id"], "label": "Intro fix"}
+    assert share_project_view(following["token"])["review_version"]["id"] == second["id"]

@@ -300,16 +300,21 @@ class ShareService:
         role: str = "commenter",
         with_mcp: bool = False,
         review_version_id: str | None = None,
+        freeze: bool = False,
         public_base_url: str | None = None,
     ) -> dict[str, Any]:
-        """Mint a link share from a review role; publish a mix when none exists."""
+        """Mint a link share from a review role; publish a mix when none exists.
+
+        The link follows the active version unless ``review_version_id`` names one
+        or ``freeze`` pins it to the version it starts on.
+        """
         caps = capabilities_for_role(role, with_mcp=with_mcp)
         with _create_for_host_lock:
             return self.create(
                 review_version_id=self.resolve_start_version(review_version_id),
                 public_base_url=public_base_url,
                 capabilities=caps,
-                follow_latest=not review_version_id,
+                follow_latest=not (review_version_id or freeze),
             )
 
     def resolve_start_version(self, review_version_id: str | None = None) -> str:

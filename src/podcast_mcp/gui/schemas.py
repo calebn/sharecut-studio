@@ -262,6 +262,7 @@ class ShareCreateRequest(BaseModel):
     role: Literal["viewer", "commenter", "editor"] = "commenter"
     with_mcp: bool = False
     review_version_id: str | None = None
+    freeze: bool = False
 
 
 class ShareRevokeRequest(BaseModel):

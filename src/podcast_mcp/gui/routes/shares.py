@@ -67,6 +67,7 @@ def create_host_share(
             role=body.role,
             with_mcp=body.with_mcp,
             review_version_id=body.review_version_id,
+            freeze=body.freeze,
             public_base_url=origin,
         )
     except MixUnavailableError as exc:
