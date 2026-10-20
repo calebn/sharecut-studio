@@ -389,6 +389,17 @@ describe("StudioShell tablet peek", () => {
     expect(skeleton.style.height).toBe(chrome.style.height);
   });
 
+  it("tells the loading timeline its headers sit outside its scroller", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={null}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    const area = screen.getByLabelText("Loading timeline");
+    expect(area.classList).toContain("timeline-area--headers-outside");
+    expect(area.querySelector(".track-headers")).toBeNull();
+  });
+
   it("puts Solo on · Clear solo in the ruler corner above the tracks, not the transport", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>

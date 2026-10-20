@@ -818,7 +818,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     return (
       <div
         ref={areaRef}
-        className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}`}
+        className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}${headerSlot ? "" : " timeline-area--headers-outside"}`}
         role="group"
         aria-busy="true"
         aria-label="Loading timeline"

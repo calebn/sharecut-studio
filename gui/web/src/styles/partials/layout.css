@@ -327,6 +327,12 @@ html[data-shell="phone"] .guest-attention-dismiss {
   padding-block-end: var(--sheet-clearance, 0);
 }
 
+/* While the project loads the headers are drawn beside this area, not inside
+   its scroller, so the scroller has no header plane to paint (#1750). */
+.timeline-area--headers-outside .timeline-scroll {
+  --bg-timeline-scroll: var(--color-timeline-well);
+}
+
 /* Sticky identity + time Reel; nowrap is intentional (Sidebar wrap would stack headers above lanes). */
 .timeline-lock-inner {
   display: flex;
