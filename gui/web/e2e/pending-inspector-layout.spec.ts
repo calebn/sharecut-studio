@@ -181,11 +181,16 @@ test.describe("Pending inspector layout", () => {
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize({ width: 1024, height: 768 });
     await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    // The tablet opens the same compact drawer as the phone; at full height it
+    // holds the whole pending inspector.
+    const dialog = page.locator(".bottom-sheet--compact");
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Expand to half height" }).click();
+    await dialog.getByRole("button", { name: "Expand to full height" }).click();
     await expect(
-      page.getByRole("heading", { name: "Pending edit" }),
+      dialog.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
-    const dialog = page.getByRole("dialog", { name: "Inspector" });
-    // The sheet's pinned card repeats Approve; the inspector body owns the error.
+    // The drawer's pinned card repeats Approve; the inspector body owns the error.
     const inspector = dialog.getByRole("complementary");
     await clickApproveUntilError(inspector);
     await expectErrorPinnedAboveAudition(inspector);
