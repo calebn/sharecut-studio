@@ -47,7 +47,6 @@ _READ_ONLY = frozenset(
 # method into the document command catalog and shrinks this set and its size.
 _DIRECT_MUTATIONS = frozenset(
     {
-        "add_effect",
         "align_retained_bleed",
         "apply_auto",
         "apply_bleed_mute",
@@ -68,7 +67,6 @@ _DIRECT_MUTATIONS = frozenset(
         "mute_off_speaker",
         "propose_tighten",
         "reconcile_transcript",
-        "remove_effect",
         "ripple_delete_text",
         "set_bleed_alignment_mode",
         "set_clip_fade",
@@ -80,7 +78,7 @@ _DIRECT_MUTATIONS = frozenset(
         "verify_transcript",
     }
 )
-_DIRECT_MUTATIONS_SIZE = 31
+_DIRECT_MUTATIONS_SIZE = 29
 
 
 def _is_edit_service(node: ast.AST) -> bool:

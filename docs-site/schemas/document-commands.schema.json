@@ -415,6 +415,151 @@
       "title": "AddCommentPayload",
       "type": "object"
     },
+    "AddEffectCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/AddEffectPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "AddEffect",
+          "default": "AddEffect",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "AddEffectCommand",
+      "type": "object"
+    },
+    "AddEffectPayload": {
+      "properties": {
+        "effect": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effect"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
+        "preset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preset"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id"
+      ],
+      "title": "AddEffectPayload",
+      "type": "object"
+    },
     "AddReplyCommand": {
       "properties": {
         "causation_id": {
@@ -3478,6 +3623,126 @@
         "ids"
       ],
       "title": "RejectEditsPayload",
+      "type": "object"
+    },
+    "RemoveEffectCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/RemoveEffectPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "RemoveEffect",
+          "default": "RemoveEffect",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "RemoveEffectCommand",
+      "type": "object"
+    },
+    "RemoveEffectPayload": {
+      "properties": {
+        "effect": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effect"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id"
+      ],
+      "title": "RemoveEffectPayload",
       "type": "object"
     },
     "RemoveTrackCommand": {
@@ -7271,6 +7536,7 @@
       "AddAction": "#/$defs/AddActionCommand",
       "AddChapter": "#/$defs/AddChapterCommand",
       "AddComment": "#/$defs/AddCommentCommand",
+      "AddEffect": "#/$defs/AddEffectCommand",
       "AddReply": "#/$defs/AddReplyCommand",
       "AddSocialClip": "#/$defs/AddSocialClipCommand",
       "AddTrack": "#/$defs/AddTrackCommand",
@@ -7291,6 +7557,7 @@
       "PasteSegment": "#/$defs/PasteSegmentCommand",
       "RedoHistory": "#/$defs/RedoHistoryCommand",
       "RejectEdits": "#/$defs/RejectEditsCommand",
+      "RemoveEffect": "#/$defs/RemoveEffectCommand",
       "RemoveTrack": "#/$defs/RemoveTrackCommand",
       "ReorderTrack": "#/$defs/ReorderTrackCommand",
       "ReplaceTranscriptMatches": "#/$defs/ReplaceTranscriptMatchesCommand",
@@ -7389,6 +7656,12 @@
     },
     {
       "$ref": "#/$defs/SetEffectBypassCommand"
+    },
+    {
+      "$ref": "#/$defs/AddEffectCommand"
+    },
+    {
+      "$ref": "#/$defs/RemoveEffectCommand"
     },
     {
       "$ref": "#/$defs/ReplaceTranscriptMatchesCommand"

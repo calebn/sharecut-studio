@@ -839,12 +839,15 @@ def add_effect_tool(
     """Add an effect (or preset) to a track or speaker's effect chain."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
-        EditService(ws).add_effect(
-            track_id=track_id,
-            speaker=speaker,
-            preset=preset,
-            effect=effect,
-            params=params,
+        submit_host_command_result(
+            project_path,
+            "AddEffect",
+            {
+                "track_id": resolve_track(ws.project, track_id=track_id, speaker=speaker),
+                "preset": preset,
+                "effect": effect,
+                "params": params,
+            },
         )
     )
 
@@ -857,7 +860,16 @@ def remove_effect_tool(
 ) -> str:
     """Remove an effect from a track or speaker's effect chain."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).remove_effect(track_id=track_id, speaker=speaker, effect=effect))
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "RemoveEffect",
+            {
+                "track_id": resolve_track(ws.project, track_id=track_id, speaker=speaker),
+                "effect": effect,
+            },
+        )
+    )
 
 
 def set_effect_bypass_tool(

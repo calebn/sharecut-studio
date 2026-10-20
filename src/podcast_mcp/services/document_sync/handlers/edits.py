@@ -129,6 +129,19 @@ def apply_fade_recommendations(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[
     )
 
 
+def add_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EditService(ws).add_effect(
+        track_id=str(p["track_id"]),
+        preset=p.get("preset"),
+        effect=p.get("effect"),
+        params=p.get("params"),
+    )
+
+
+def remove_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EditService(ws).remove_effect(track_id=str(p["track_id"]), effect=p.get("effect"))
+
+
 def set_effect_bypass(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return EditService(ws).set_effect_bypass(
         track_id=str(p["track_id"]),
