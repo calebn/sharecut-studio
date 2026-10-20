@@ -53,7 +53,6 @@ _DIRECT_MUTATIONS = frozenset(
         "apply_bleed_mute",
         "apply_fade_recommendations",
         "apply_plan",
-        "apply_suggested_actions",
         "apply_transcript_cleanup",
         "approve",
         "crossfade_joins",
@@ -69,10 +68,8 @@ _DIRECT_MUTATIONS = frozenset(
         "mute_off_speaker",
         "propose_tighten",
         "reconcile_transcript",
-        "reject",
         "remove_chapter",
         "remove_effect",
-        "revert_applied",
         "ripple_delete_text",
         "set_bleed_alignment_mode",
         "set_clip_fade",
@@ -82,11 +79,10 @@ _DIRECT_MUTATIONS = frozenset(
         "trim_clip_edge",
         "suppress_bleed",
         "suppress_low_audibility",
-        "update_pending",
         "verify_transcript",
     }
 )
-_DIRECT_MUTATIONS_SIZE = 37
+_DIRECT_MUTATIONS_SIZE = 33
 
 
 def _is_edit_service(node: ast.AST) -> bool:
