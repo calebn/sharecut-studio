@@ -195,9 +195,18 @@ Firefox result is claimed.
 
 "Pass" means the required `frontend-e2e` gate on `main` includes the check on
 that engine with at most one retry and no skip, so a green `main` is a measured
-pass. "Not run"
-means no compat project runs it. Core-flow rows are the `test.step`s of its one
-test; other rows are whole tests.
+pass. "Not run" means the CI compat project for that column does not run it. Core-flow rows are the `test.step`s of its one
+test; other rows are whole tests. The seven direct compat axe owners and the
+shared touch-affordance and Mix helpers assign compat scans to WebKit.
+Main Chromium Studio scans and all reading-surface scans remain enabled.
+Chromium retains every non-axe assertion in the compat specs it runs.
+Branded Chrome keeps its full local inventory. Its `browserName` is `chromium`,
+so those conditional scans do not run there. Comment-undo and wordbar retain
+their existing unconditional helper scans in branded Chrome.
+
+The touch-nudge strip rows and touch-peek theme and motion row describe
+assertions both engines run. WebKit also scans every collected strip state
+with axe before the collected results are asserted.
 
 | Check | Spec | Area | Chromium (Chrome) | WebKit (Safari) | Firefox |
 | --- | --- | --- | --- | --- | --- |
@@ -216,9 +225,9 @@ test; other rows are whole tests.
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | snap ticks, mute regions and a live trim ghost share the ruler geometry | `gui/web/e2e-compat/timeline-geometry.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Pass | Pass | Not run |
+| Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
-| comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Pass | Pass | Not run |
+| comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | actual sheet controls and help copy work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -330,10 +339,10 @@ test; other rows are whole tests.
 | the Cut button of the blade confirmation can be tapped at 32px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a held nudge repeats, saves once, and one Undo restores it | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | a held nudge stops at a soft boundary with a cue; a fresh press goes past | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
-| pending and envelope strips: nudge rows, targets and axe (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
+| pending and envelope strips: nudge rows and targets (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | iPhone envelope Time field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | iPhone comment field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending and envelope strips: nudge rows, targets and axe (landscape-636) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
+| pending and envelope strips: nudge rows and targets (landscape-636) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: slid on, settled, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: lifted at the origin, chip pressed again, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: slid on and lifted without moving | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -344,7 +353,7 @@ test; other rows are whole tests.
 | a drag stows the strip, which returns with the new value: landscape-636 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Expand is remembered for the next selection, and so is Collapse: portrait-360 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Expand is remembered for the next selection, and so is Collapse: landscape-636 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| axe, both themes and reduced motion with the strip open | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| both themes and reduced motion with the strip open | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels the drag and pinches (portrait-360) | `gui/web/e2e-compat/touch-pinch.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels the drag and pinches (landscape-844) | `gui/web/e2e-compat/touch-pinch.spec.ts` | Core flow | Pass | Pass | Not run |
 | timeline text takes no selection or callout | `gui/web/e2e-compat/touch-selection.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -378,6 +387,16 @@ test; other rows are whole tests.
 | a document state load the server never answers shows a banner whose retry recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | the banner sits in view, not under the fixed shell, and its retry recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 
+Two compat Chromium specs have exact main Chromium owners:
+
+| Omitted compat spec | Retained main spec and helper | Exact shared profile |
+| --- | --- | --- |
+| `comment-undo.spec.ts` | `gui/web/e2e/comment-undo.spec.ts`, `exerciseCommentUndo` | 360x800, dark, default motion |
+| `transcript-wordbar.spec.ts` | `gui/web/e2e/transcript-wordbar.spec.ts`, `checkWordbarOutsideRelease` | inherited Desktop Chrome viewport, default theme and motion |
+
+Envelope recovery, touch affordances, and phone Mix keep both engines. Their
+compat profiles or combined focus scenarios have no exact existing main owner.
+
 A dated snapshot, not a threshold (measured locally on macOS as of #739 and
 #747; no test re-checks these figures): the core-flow landed track peaked at
 about 0.9999 on Chromium and 0.636 on WebKit, and the bounced WAV at about
@@ -400,7 +419,16 @@ Not covered, so still manual:
 `tests/markdown_table.py`). It derives the rows from
 `gui/web/e2e-compat/*.spec.ts` and each engine cell from
 `playwright.compat.config.ts`: a project for that engine that does not
-`testIgnore` the spec means "Pass". It also fails if a compat spec uses
+`testIgnore` the spec means "Pass". Its closed two-entry main ownership map
+rejects every other Chromium exclusion, all WebKit exclusions, unknown and
+duplicate ignores, and drift in the retained main helper/profile evidence.
+`StudioAxeOwnership` in `e2e/studioAxeOwnership.ts` keeps main and WebKit scans.
+Shared helpers require an explicit owner. Owned touch scans retain collected
+results until their original assertion points, after geometry and action evidence.
+`e2e/mainAxeProfiles.test.ts` imports both actual configs and rejects inherited
+viewport, color scheme, or reduced-motion drift in either Chromium profile.
+Behavioral Vitest checks preserve main/reading scan execution and fail on
+injected violations. Live WebKit checks still qualify the actual scan states. The guard also fails if a compat spec uses
 `test.skip`, `fixme`, `fail` or `only`, or if the compat config's `retries` is
 not `process.env.CI ? 1 : 0`. It also fails if the `main` / nightly plan stops
 running the complete main shard set or either complete compat engine, or stops
@@ -470,7 +498,7 @@ hydrates; "transcribe" is the browser rendering only, because live ASR is
 server-side (`make e2e-slow`). The Tighten panel opens on its empty state. A
 transcript word is corrected and undone with Mod+Z. A viewer review share
 plays the per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on
-Play). A host Bounce dialog passes full-page axe (`expectPageAxeClean`) and
+Play). A host Bounce dialog passes full-page axe on WebKit (`expectPageAxeClean`) and
 writes one non-silent WAV under `export/bounces/` — its own result copy goes
 through `runAnnouncedJob` (`expectJobResult` → `announceJobResult`), and
 `useJobStatusAnnouncement` speaks it in place of the generic Activity "ok"

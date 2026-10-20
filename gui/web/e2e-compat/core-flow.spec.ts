@@ -21,6 +21,7 @@ import {
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
 import { createReviewShare, openGuestShare } from "../e2e/shareNavigation";
+import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -46,6 +47,7 @@ const AUDIBLE_PEAK = 0.01;
 test.describe("core flow", () => {
   test("records, transcribes, tightens, edits, shares and exports", async ({
     browser,
+    browserName,
   }) => {
     test.slow();
     await withShareableProject(async (projectPath) => {
@@ -216,7 +218,9 @@ test.describe("core flow", () => {
             await openDialogFromMenu(host, "Bounce…");
             const dlg = host.getByRole("dialog", { name: "Bounce…" });
             await expect(dlg).toBeVisible();
-            await expectPageAxeClean(host);
+            if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+              await expectPageAxeClean(host);
+            }
             await dlg
               .getByRole("button", { name: "Bounce", exact: true })
               .click();

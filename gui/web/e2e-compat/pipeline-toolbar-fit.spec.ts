@@ -3,6 +3,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "../e2e/axe";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true });
@@ -93,6 +94,7 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
   test.describe(`Root text ${rootPx}px`, () => {
     test("Pipeline native targets stay clear in the original short panel", async ({
       page,
+      browserName,
     }, testInfo) => {
       await withShareableProject(async (projectPath) => {
         await page.emulateMedia({
@@ -158,12 +160,15 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         await summary.press("Enter");
         await expect(summary.locator("..")).not.toHaveAttribute("open");
         await expect(term).toHaveValue("toolbar fit draft");
-        await expectPageAxeClean(page, ".pipeline-panel");
+        if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+          await expectPageAxeClean(page, ".pipeline-panel");
+        }
       });
     });
 
     test("Pipeline retains a scrolled focused control across viewport resizes", async ({
       page,
+      browserName,
     }, testInfo) => {
       await withShareableProject(async (projectPath) => {
         await page.emulateMedia({
@@ -303,7 +308,9 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
           ).toBe(true);
         }
         await nodes.dispose();
-        await expectPageAxeClean(page, ".pipeline-panel");
+        if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+          await expectPageAxeClean(page, ".pipeline-panel");
+        }
       });
     });
   });

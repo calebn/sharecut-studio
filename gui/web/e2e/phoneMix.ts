@@ -2,6 +2,7 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { isApplePlatform } from "../src/utils/platform";
 import { expectPageAxeClean } from "./axe";
+import { ownsStudioAxe, type StudioAxeOwnership } from "./studioAxeOwnership";
 
 export async function openPhoneMix(page: Page) {
   const nav = page.getByRole("navigation", { name: "Primary" });
@@ -33,7 +34,11 @@ export async function savedMix(page: Page, projectPath: string) {
   }));
 }
 
-export async function checkMixGeometry(page: Page, info: TestInfo) {
+export async function checkMixGeometry(
+  page: Page,
+  info: TestInfo,
+  owner: StudioAxeOwnership,
+) {
   const mix = page.getByRole("dialog", { name: "Mix", exact: true });
   const geometry = await mix.evaluate((el) => {
     const rect = el.getBoundingClientRect();
@@ -73,7 +78,9 @@ export async function checkMixGeometry(page: Page, info: TestInfo) {
   const body = await page.locator(".bottom-sheet-body").boundingBox();
   const row = await last.boundingBox();
   expect(row!.y + row!.height).toBeLessThanOrEqual(body!.y + body!.height + 1);
-  await expectPageAxeClean(page);
+  if (ownsStudioAxe(owner)) {
+    await expectPageAxeClean(page);
+  }
   await info.attach("mix-geometry", {
     body: JSON.stringify(geometry),
     contentType: "application/json",

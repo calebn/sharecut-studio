@@ -782,8 +782,10 @@ every `i/n` present) before any shard nears the job timeout. Specs must not
 depend on state left by another spec: which specs share a shard changes with
 the shard count.
 
-Each compatibility job runs every spec for its engine (or shard) with one
-worker, no parallel tests and one retry in CI. Its timeout is configured in
+Each compatibility job runs its selected inventory with one worker and one retry in CI.
+WebKit retains every spec and compat Studio axe assertion. Main and reading scans remain enabled.
+Compat Chromium omits only comment-undo and transcript-wordbar with guarded exact main owners.
+Retained scenarios keep all non-axe assertions. See [the ownership map](testing-ci.md#browser-acceptance-matrix). Its timeout is configured in
 `.github/workflows/test.yml`.
 `tests/test_browser_acceptance_matrix.py` rejects missing,
 duplicate or filtered engine selections, checks their disjoint coverage, and

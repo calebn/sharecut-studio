@@ -9,6 +9,7 @@ import {
 } from "./inspectorResponsiveEvidence";
 import { openHostProject } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { ownsStudioAxe, type StudioAxeOwnership } from "./studioAxeOwnership";
 import { setTheme, type Theme } from "./theme";
 
 export type TouchSheetViewport = {
@@ -40,6 +41,7 @@ export async function exerciseTouchSheetAffordances(
   viewport: TouchSheetViewport,
   theme: Theme,
   reducedMotion: boolean,
+  owner: StudioAxeOwnership,
 ): Promise<void> {
   await page.setViewportSize({
     width: viewport.width,
@@ -186,7 +188,9 @@ export async function exerciseTouchSheetAffordances(
   expect(closeBox.height).toBeGreaterThanOrEqual(44);
   expect(closeBox.width).toBeGreaterThanOrEqual(44);
   expectSheetClearsShellChrome(halfBox, before.shellChrome);
-  await expectPageAxeClean(page, ".bottom-sheet-chrome");
+  if (ownsStudioAxe(owner)) {
+    await expectPageAxeClean(page, ".bottom-sheet-chrome");
+  }
 
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
@@ -246,7 +250,9 @@ export async function exerciseTouchSheetAffordances(
     ),
     contentType: "application/json",
   });
-  await expectPageAxeClean(page, ".bottom-sheet-chrome");
+  if (ownsStudioAxe(owner)) {
+    await expectPageAxeClean(page, ".bottom-sheet-chrome");
+  }
   const fullBox = await sheet.boundingBox();
   if (fullBox === null) throw new Error("The expanded sheet has no geometry");
   if (!viewport.requireBodyOverflow) {

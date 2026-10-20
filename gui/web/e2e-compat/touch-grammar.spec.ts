@@ -17,6 +17,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import {
   buildFixture,
@@ -461,10 +462,12 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   const menu = page.getByRole("menu", { name: /^Create at / });
   await expect(menu).toBeVisible();
   await frame(page, info, `grammar-create-menu-${browserName}`);
-  const axe = await new AxeBuilder({ page })
-    .disableRules([...STUDIO_AXE_DISABLED_RULES])
-    .include(".create-menu")
-    .analyze();
+  const axe = ownsStudioAxe({ suite: "compat", engine: browserName })
+    ? await new AxeBuilder({ page })
+        .disableRules([...STUDIO_AXE_DISABLED_RULES])
+        .include(".create-menu")
+        .analyze()
+    : undefined;
   const items = await menu
     .getByRole("menuitem")
     .evaluateAll((els) => els.map((el) => el.textContent?.trim()));
@@ -482,10 +485,12 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   await frame(page, info, `grammar-create-added-${browserName}`);
   json(info, `grammar-create-${browserName}`, {
     items,
-    axe: axe.violations.map((v) => v.id),
+    ...(axe ? { axe: axe.violations.map((v) => v.id) } : {}),
     commands: commands.map((c) => ({ type: c.type, payload: c.payload })),
   });
-  expect(axe.violations).toEqual([]);
+  if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+    expect(axe?.violations).toEqual([]);
+  }
   expect(items[0]).toMatch(/^Add envelope point/);
   expect(items.slice(1)).toEqual([
     "Blade cutCuts all dialogue tracks",

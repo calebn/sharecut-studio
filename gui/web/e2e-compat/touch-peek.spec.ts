@@ -18,6 +18,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import {
   buildFixture,
@@ -915,7 +916,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
   });
 });
 
-test("axe, both themes and reduced motion with the strip open", async ({
+test("both themes and reduced motion with the strip open", async ({
   page,
   context,
   browserName,
@@ -933,10 +934,12 @@ test("axe, both themes and reduced motion with the strip open", async ({
     await page.waitForTimeout(SETTLE_MS);
     await finger.up();
     await page.waitForTimeout(700);
-    const axeStrip = await new AxeBuilder({ page })
-      .disableRules([...STUDIO_AXE_DISABLED_RULES])
-      .include(".bottom-sheet")
-      .analyze();
+    const axeStrip = ownsStudioAxe({ suite: "compat", engine: browserName })
+      ? await new AxeBuilder({ page })
+          .disableRules([...STUDIO_AXE_DISABLED_RULES])
+          .include(".bottom-sheet")
+          .analyze()
+      : undefined;
     await frame(page, info, `strip-${theme}-${motion}-${browserName}`);
     const transition = await sheet(page).evaluate(
       (el) => getComputedStyle(el).transitionDuration,
@@ -953,17 +956,21 @@ test("axe, both themes and reduced motion with the strip open", async ({
     );
     await page.getByRole("button", { name: "Expand to half height" }).click();
     await page.waitForTimeout(600);
-    const axeExpanded = await new AxeBuilder({ page })
-      .disableRules([...STUDIO_AXE_DISABLED_RULES])
-      .include(".bottom-sheet")
-      .analyze();
+    const axeExpanded = ownsStudioAxe({ suite: "compat", engine: browserName })
+      ? await new AxeBuilder({ page })
+          .disableRules([...STUDIO_AXE_DISABLED_RULES])
+          .include(".bottom-sheet")
+          .analyze()
+      : undefined;
     rows.push({
       motion,
       theme,
       transition,
       nudges,
-      axeStrip: axeStrip.violations.map((v) => v.id),
-      axeExpanded: axeExpanded.violations.map((v) => v.id),
+      ...(axeStrip ? { axeStrip: axeStrip.violations.map((v) => v.id) } : {}),
+      ...(axeExpanded
+        ? { axeExpanded: axeExpanded.violations.map((v) => v.id) }
+        : {}),
     });
   }
   json(info, `axe-theme-motion-${browserName}`, rows);
@@ -971,11 +978,13 @@ test("axe, both themes and reduced motion with the strip open", async ({
     motion: string;
     transition: string;
     nudges: { label: string; w: number; h: number }[];
-    axeStrip: string[];
-    axeExpanded: string[];
+    axeStrip?: string[];
+    axeExpanded?: string[];
   }[]) {
-    expect(row.axeStrip).toEqual([]);
-    expect(row.axeExpanded).toEqual([]);
+    if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+      expect(row.axeStrip).toEqual([]);
+      expect(row.axeExpanded).toEqual([]);
+    }
     expect(row.nudges.map((n) => n.label)).toEqual([
       "Trim start 0.1 s earlier",
       "Trim start 0.01 s earlier",

@@ -17,6 +17,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import {
   buildFixture,
@@ -303,10 +304,12 @@ async function pendingAndEnvelopeStrips(
         `strip-${name}-${size}-${theme}-${browserName}.png`,
         await page.screenshot(),
       );
-      const axe = await new AxeBuilder({ page })
-        .disableRules([...STUDIO_AXE_DISABLED_RULES])
-        .include(".bottom-sheet")
-        .analyze();
+      const axe = ownsStudioAxe({ suite: "compat", engine: browserName })
+        ? await new AxeBuilder({ page })
+            .disableRules([...STUDIO_AXE_DISABLED_RULES])
+            .include(".bottom-sheet")
+            .analyze()
+        : undefined;
       rows.push({
         name,
         theme,
@@ -325,7 +328,7 @@ async function pendingAndEnvelopeStrips(
             }),
           })),
         ),
-        axe: axe.violations.map((v) => v.id),
+        ...(axe ? { axe: axe.violations.map((v) => v.id) } : {}),
       });
     }
   }
@@ -336,9 +339,11 @@ async function pendingAndEnvelopeStrips(
       label: string;
       buttons: { w: number; h: number; inView: boolean }[];
     }[];
-    axe: string[];
+    axe?: string[];
   }[]) {
-    expect(row.axe).toEqual([]);
+    if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
+      expect(row.axe).toEqual([]);
+    }
     expect(row.rows.map((r) => r.label)).toEqual(
       row.name === "envelope" ? ["Time", "Level"] : ["Start", "End"],
     );
@@ -349,7 +354,7 @@ async function pendingAndEnvelopeStrips(
   }
 }
 
-test("pending and envelope strips: nudge rows, targets and axe (portrait-360)", ({
+test("pending and envelope strips: nudge rows and targets (portrait-360)", ({
   page,
   context,
   browserName,
@@ -360,7 +365,7 @@ test("pending and envelope strips: nudge rows, targets and axe (portrait-360)", 
     info,
   ));
 
-test("pending and envelope strips: nudge rows, targets and axe (landscape-636)", ({
+test("pending and envelope strips: nudge rows and targets (landscape-636)", ({
   page,
   context,
   browserName,

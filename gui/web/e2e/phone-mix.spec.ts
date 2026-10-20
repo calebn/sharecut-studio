@@ -35,7 +35,7 @@ for (const { cell: viewport, theme } of withAppearance([
         document.documentElement.setAttribute("data-theme", theme);
       }, theme);
       await openPhoneMix(page);
-      await checkMixGeometry(page, info);
+      await checkMixGeometry(page, info, { suite: "main" });
       await page
         .getByRole("dialog", { name: "Mix", exact: true })
         .getByRole("button", { name: "Close" })

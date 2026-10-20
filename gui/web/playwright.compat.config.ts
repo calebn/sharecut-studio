@@ -10,6 +10,7 @@ import baseConfig from "./playwright.config";
 const projects: Project[] = [
   {
     name: "chromium",
+    testIgnore: ["**/comment-undo.spec.ts", "**/transcript-wordbar.spec.ts"],
     use: {
       ...devices["Desktop Chrome"],
       launchOptions: withLaunchArgs(
