@@ -27,6 +27,7 @@ from podcast_mcp.edits.clips_ops import clips_for_track, is_session_join
 from podcast_mcp.edits.comments import list_comments
 from podcast_mcp.edits.join_speech import SpeechCrossing, speech_crossings_in_window
 from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason
+from podcast_mcp.edits.trim_suggestion import check_suggested_trim
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_profiles
 from podcast_mcp.engines.render_status import render_status_report
@@ -721,7 +722,13 @@ def _speech_cut_fix(c: SpeechCrossing, session_join: bool) -> dict[str, Any]:
     }
 
 
-def _speech_cut_meaning(c: SpeechCrossing, session_join: bool) -> str:
+def _speech_cut_meaning(
+    c: SpeechCrossing,
+    session_join: bool,
+    suggested_sec: float | None = None,
+    held: list[str] | None = None,
+) -> str:
+    suggested_sec = c.suggested_source_sec if suggested_sec is None else suggested_sec
     onset = c.direction == "clipped_onset"
     edge = "starts" if onset else "ends"
     where = (
@@ -744,9 +751,9 @@ def _speech_cut_meaning(c: SpeechCrossing, session_join: bool) -> str:
     else:
         asr = "; a transcript word covers the cut"
     move = (
-        f"trim the in-point back to {c.suggested_source_sec:.2f}s"
+        f"trim the in-point back to {suggested_sec:.2f}s"
         if onset
-        else f"extend the out-point to {c.suggested_source_sec:.2f}s"
+        else f"extend the out-point to {suggested_sec:.2f}s"
     )
     scope = (
         " on every track (trim_clip_edge_tool mode=ripple; this join is a session-wide cut,"
@@ -755,7 +762,16 @@ def _speech_cut_meaning(c: SpeechCrossing, session_join: bool) -> str:
         else f" on clip {c.clip_id} (trim_clip_edge_tool mode=gap; this edge is track-local,"
         " so only it moves; use mode=ripple when the next clip leaves no room)"
     )
-    return f"speech_crosses_cut: {head}{asr}. {move}{scope}, or move the cut to a handoff silence."
+    advice = (
+        f"speech_crosses_cut: {head}{asr}. {move}{scope}, or move the cut to a handoff silence."
+    )
+    if held:
+        advice += (
+            f" The trim's own audio check holds this edge ({'; '.join(held)}) and no edge with"
+            " a little more air passes: listen with play_audio_tool, then apply it with"
+            " override_audio_checks=true, or move the cut to a handoff silence."
+        )
+    return advice
 
 
 def _speech_cut_hypotheses(
@@ -768,6 +784,15 @@ def _speech_cut_hypotheses(
     for c in speech_crossings_in_window(project, track_ids, timeline_start, timeline_end):
         edge = "in" if c.direction == "clipped_onset" else "out"
         session_join = is_session_join(project, c.join_timeline_sec, edge)
+        fix = _speech_cut_fix(c, session_join)
+        checked = check_suggested_trim(
+            project,
+            clip_id=c.clip_id,
+            edge=edge,
+            source_sec=c.suggested_source_sec,
+            mode=EditMode(fix["mode"]),
+        )
+        fix["source_sec"] = round(checked.source_sec, 3)
         out.append(
             _hypothesis(
                 "speech_crosses_cut",
@@ -779,9 +804,12 @@ def _speech_cut_hypotheses(
                 evidence={
                     **c.to_dict(),
                     "session_join": session_join,
-                    "fix": _speech_cut_fix(c, session_join),
+                    "fix": fix,
+                    "fix_check": checked.to_dict(),
                 },
-                meaning=_speech_cut_meaning(c, session_join),
+                meaning=_speech_cut_meaning(
+                    c, session_join, checked.source_sec, checked.held or None
+                ),
             )
         )
     return out

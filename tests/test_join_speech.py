@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.clips_ops import clips_for_track, is_splice, splice_joins
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.join_speech import (
     JoinSpeechConfig,
     find_speech_crossings,
@@ -350,3 +351,102 @@ def test_audition_context_skips_the_join_check_without_dsp(tmp_path: Path) -> No
     project = _project(tmp_path, _voice(3.0, 1.0, 2.2), [(0.0, 0.5), (1.34, 3.0)])
     ctx = build_audition_context(project, 0.0, 1.5, include_dsp=False, include_prosody=False)
     assert not [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
+
+
+def _clipped_onset_context(tmp_path: Path) -> dict:
+    from podcast_mcp.edits.audition_context import build_audition_context
+
+    project = _project(
+        tmp_path,
+        _voice(3.0, 1.0, 2.2),
+        [(0.0, 0.5), (1.34, 3.0)],
+        [TranscriptWord(text="Um,", start=1.49, end=1.9)],
+    )
+    return build_audition_context(project, 0.0, 1.5, include_prosody=False)
+
+
+def _crossing_hypothesis(ctx: dict) -> dict:
+    (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
+    return hyp
+
+
+def test_the_suggested_trim_is_accepted_by_the_trim_check_itself(tmp_path: Path) -> None:
+    """#1746: extending a clip's edge restores audio; the check once read the clip's old audio
+    as removed and held the interior voice onset of the old edge."""
+    from podcast_mcp.edits.cut_application import apply_trim
+    from podcast_mcp.edits.ripple import plan_trim
+    from podcast_mcp.models import CutIntent, EditMode
+
+    project = _project(tmp_path, _voice(3.0, 1.0, 2.2), [(0.0, 0.5), (1.34, 3.0)])
+    plan = plan_trim(project, "c1", "in", 0.94, EditMode.RIPPLE)
+    apply_trim(project, plan, application_intent=CutIntent.PROGRAMMATIC)
+    clip = next(c for c in project.clips if c.id == "c1")
+    assert clip.source_start == pytest.approx(0.94)
+
+
+def test_a_suggested_trim_the_trim_check_accepts_says_so(tmp_path: Path) -> None:
+    hyp = _crossing_hypothesis(_clipped_onset_context(tmp_path))
+    assert hyp["evidence"]["fix_check"]["status"] == "passes"
+    assert "audio check holds" not in " ".join(hyp["meaning"].split("\n"))
+
+
+def test_a_held_suggestion_moves_to_the_nearest_edge_the_trim_accepts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.edits.cut_application as cut_application
+
+    seen: list[float] = []
+
+    def holds(project, plan, *, application_intent):  # type: ignore[no-untyped-def]
+        seen.append(plan.moves[0].source_sec)
+        if len(seen) < 3:
+            return [CutScopeHold("c1", (), "acoustic_edge", detail="voiced_edge")]
+        return []
+
+    monkeypatch.setattr(cut_application, "trim_holds", holds)
+    hyp = _crossing_hypothesis(_clipped_onset_context(tmp_path))
+    check = hyp["evidence"]["fix_check"]
+    assert check["status"] == "passes"
+    assert check["nudged_ms"] == pytest.approx(20.0, abs=1.0)
+    # An in-point extends earlier, so more air is a smaller source second.
+    assert hyp["evidence"]["fix"]["source_sec"] == pytest.approx(seen[2], abs=0.001)
+    assert seen[0] > seen[1] > seen[2]
+    assert f"{seen[2]:.2f}s" in hyp["meaning"]
+
+
+def test_a_suggestion_no_edge_can_fix_says_which_check_holds_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.edits.cut_application as cut_application
+
+    monkeypatch.setattr(
+        cut_application,
+        "trim_holds",
+        lambda project, plan, *, application_intent: [
+            CutScopeHold("c1", (), "acoustic_edge", detail="voiced_edge,breath_edge")
+        ],
+    )
+    ctx = _clipped_onset_context(tmp_path)
+    hyp = _crossing_hypothesis(ctx)
+    check = hyp["evidence"]["fix_check"]
+    assert check["status"] == "held"
+    assert "nudged_ms" not in check
+    assert any("breath" in reason for reason in check["held"])
+    assert hyp["evidence"]["fix"]["source_sec"] == pytest.approx(0.94, abs=0.02)
+    warning = next(w for w in ctx["warnings"] if w.startswith("speech_crosses_cut:"))
+    assert "audio check holds this edge" in warning
+    assert "override_audio_checks=true" in warning
+
+
+def test_an_unreadable_check_leaves_the_suggestion_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.edits.cut_application as cut_application
+
+    def boom(*_a, **_k):  # type: ignore[no-untyped-def]
+        raise OSError("audio gone")
+
+    monkeypatch.setattr(cut_application, "trim_holds", boom)
+    hyp = _crossing_hypothesis(_clipped_onset_context(tmp_path))
+    assert hyp["evidence"]["fix_check"] == {"status": "unchecked"}
+    assert hyp["evidence"]["fix"]["source_sec"] == pytest.approx(0.94, abs=0.02)
