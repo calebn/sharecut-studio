@@ -6,10 +6,17 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, Final
 
-REQUIRED_CHECKS = ("pytest", "frontend", "frontend-e2e", "gitleaks-history")
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from ci_plan import REQUIRED_CHECKS as _REQUIRED
+
+REQUIRED_CHECKS = tuple(check.name for check in _REQUIRED)
 HOLD_LABELS = {"needs-user-input", "do-not-merge"}
 STALL_LABEL = "pipeline:stalled"
 HEAD_SHA = re.compile(r"[0-9a-f]{40}\Z")

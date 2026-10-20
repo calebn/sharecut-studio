@@ -251,8 +251,18 @@ and decides:
 on every PR. The required `frontend` and `frontend-e2e` aggregates succeed only
 when the planner succeeded and each workload either succeeded for `gui=true` or
 was skipped for `gui=false`. The merge helper requires all four literal required
-checks to report `SUCCESS` on the exact head. See
-[testing.md § Which jobs a run needs](testing.md#which-jobs-a-run-needs).
+checks to report `SUCCESS` on the exact head:
+
+<!-- ci-plan:required-checks -->
+| Required check | Workflow | What it covers | Local mirror |
+|---|---|---|---|
+| `pytest` | `test.yml` | Lint, format, types, project compatibility, commit lint, version policy, the Python suite with the 95% coverage floor and the docs-sync gate. Plans its own scope, so it never skips. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
+| `frontend` | `test.yml` | Aggregate over the planner and `frontend-suite` (lint, format, types, Vitest with axe, build). Succeeds when the plan orders the workload and it passes, or the plan orders none and it skipped. | `make test-web` |
+| `frontend-e2e` | `test.yml` | Aggregate over the planner and the Playwright shards (`frontend-e2e-suites`), with the same fail-closed contract as `frontend`. | `make test-web-e2e` |
+| `gitleaks-history` | `secret-scan.yml` | Secret scan over the full git history. Runs on every PR. | none (CI only) |
+<!-- /ci-plan:required-checks -->
+
+See [testing.md § Which jobs a run needs](testing.md#which-jobs-a-run-needs).
 
 - **New directory.** A new top-level directory, or a new `src/podcast_mcp`
   package, fails `tests/test_ci_plan.py` until you classify it in `PATH_RULES`
@@ -260,7 +270,8 @@ checks to report `SUCCESS` on the exact head. See
   already has a `**` rule (`tests/`, `scripts/`, `docs/`) inherits that rule's
   scope. The test also fails when `gui/web` names a repo path that is not
   classified GUI-facing, so give such a path a GUI rule. An unclassified path
-  counts as GUI-facing in a real run.
+  counts as GUI-facing in a real run. `scripts/path_vocab.py` holds the glob
+  syntax that `ci_plan.py` and `docs_sync.py` share.
 - **A non-GUI change that you expect to affect the browser.** For example, an
   `edits/` change that alters what a timeline spec sees. Run
   `gh workflow run test.yml --ref <branch>` to get the full run before merge,

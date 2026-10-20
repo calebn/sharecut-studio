@@ -5,10 +5,14 @@ Usage:
   python3 scripts/ci_plan.py plan --event pull_request --base <sha> --head <sha>
   python3 scripts/ci_plan.py plan --event push          # main, nightly, dispatch: everything
   python3 scripts/ci_plan.py subset-tests web|docs      # pytest files that read that scope
+  python3 scripts/ci_plan.py required-checks [--check]   # the required-checks table in the docs
 
 `plan` prints `key=value` lines for `$GITHUB_OUTPUT`: `gui` (run Vitest and the
 browser suites), `pytest` (`full`, `web` or `docs`) and `e2e-matrix` (the browser
 jobs).
+`REQUIRED_CHECKS` is the one list of required status contexts: `required-checks` renders
+it into docs/testing.md and docs/contributing.md, the merge gate reads it, and
+`tests/test_ci_plan.py` diffs it against `make ci-body` and the workflows.
 Stdlib only, so CI runs it before installing anything.
 """
 
@@ -135,6 +139,8 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         # frontend job runs.
         ("scripts/ci_plan.py", Scope.GUI),
         ("scripts/docs_sync.py", Scope.GUI),
+        ("scripts/path_vocab.py", Scope.GUI),
+        ("scripts/export_capabilities_copy.py", Scope.GUI),
         ("scripts/export_timeline_zoom.py", Scope.GUI),
         ("scripts/build_large_project_fixture.py", Scope.GUI),
         ("scripts/ux_demo_prepare_shares.py", Scope.GUI),
@@ -178,6 +184,100 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("lint-staged.config.mjs", Scope.OTHER),
     )
 )
+
+
+@dataclass(frozen=True)
+class RequiredCheck:
+    """A status context that must be SUCCESS on the PR head before a merge."""
+
+    name: str
+    workflow: str
+    job: str
+    runs: str
+    local: tuple[str, ...]
+
+
+# `local` lists the `make ci-body` targets that mirror the check; none for a CI-only check.
+REQUIRED_CHECKS: tuple[RequiredCheck, ...] = (
+    RequiredCheck(
+        "pytest",
+        "test.yml",
+        "pytest",
+        "Lint, format, types, project compatibility, commit lint, version policy, the Python suite with the "
+        "95% coverage floor and the docs-sync gate. Plans its own scope, so it never skips.",
+        ("lint-py", "format-py-check", "typecheck", "generated-check", "docs-sync", "test"),
+    ),
+    RequiredCheck(
+        "frontend",
+        "test.yml",
+        "frontend",
+        "Aggregate over the planner and `frontend-suite` (lint, format, types, Vitest with "
+        "axe, build). Succeeds when the plan orders the workload and it passes, or the plan "
+        "orders none and it skipped.",
+        ("test-web",),
+    ),
+    RequiredCheck(
+        "frontend-e2e",
+        "test.yml",
+        "frontend-e2e",
+        "Aggregate over the planner and the Playwright shards (`frontend-e2e-suites`), with "
+        "the same fail-closed contract as `frontend`.",
+        ("test-web-e2e",),
+    ),
+    RequiredCheck(
+        "gitleaks-history",
+        "secret-scan.yml",
+        "gitleaks",
+        "Secret scan over the full git history. Runs on every PR.",
+        (),
+    ),
+)
+REQUIRED_CHECKS_BEGIN = "<!-- ci-plan:required-checks -->"
+REQUIRED_CHECKS_END = "<!-- /ci-plan:required-checks -->"
+REQUIRED_CHECKS_DOCS = ("docs/testing.md", "docs/contributing.md")
+
+
+def render_required_checks() -> str:
+    rows = [
+        "| Required check | Workflow | What it covers | Local mirror |",
+        "|---|---|---|---|",
+    ]
+    for check in REQUIRED_CHECKS:
+        local = " ".join(f"`make {target}`" for target in check.local) or "none (CI only)"
+        rows.append(f"| `{check.name}` | `{check.workflow}` | {check.runs} | {local} |")
+    return "\n".join(rows)
+
+
+def embedded_required_checks(text: str) -> str | None:
+    """The text between the markers in *text*, or None when a marker is missing."""
+    start = text.find(REQUIRED_CHECKS_BEGIN)
+    end = text.find(REQUIRED_CHECKS_END)
+    if start < 0 or end < start:
+        return None
+    return text[start + len(REQUIRED_CHECKS_BEGIN) : end].strip("\n")
+
+
+def embed_required_checks(text: str) -> str:
+    """*text* with the table between its markers replaced by the current one."""
+    if embedded_required_checks(text) is None:
+        raise ValueError(f"missing {REQUIRED_CHECKS_BEGIN} / {REQUIRED_CHECKS_END} markers")
+    start = text.index(REQUIRED_CHECKS_BEGIN) + len(REQUIRED_CHECKS_BEGIN)
+    end = text.index(REQUIRED_CHECKS_END)
+    return f"{text[:start]}\n{render_required_checks()}\n{text[end:]}"
+
+
+def sync_required_checks_docs(root: Path = ROOT, *, write: bool) -> list[str]:
+    """Docs whose embedded table is stale. With *write*, rewrite them."""
+    stale = []
+    for relative in REQUIRED_CHECKS_DOCS:
+        path = root / relative
+        text = path.read_text(encoding="utf-8")
+        if embedded_required_checks(text) == render_required_checks():
+            continue
+        stale.append(relative)
+        if write:
+            path.write_text(embed_required_checks(text), encoding="utf-8")
+    return stale
 
 
 def rule_for(path: str) -> tuple[Glob, Scope] | None:
@@ -315,7 +415,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_cmd.add_argument("--head")
     subset_cmd = sub.add_parser("subset-tests")
     subset_cmd.add_argument("scope", choices=sorted(SUBSETS))
+    required_cmd = sub.add_parser("required-checks")
+    required_cmd.add_argument("--check", action="store_true", help="fail instead of writing")
     args = parser.parse_args(argv)
+
+    if args.command == "required-checks":
+        stale = sync_required_checks_docs(write=not args.check)
+        for relative in stale:
+            verb = "stale" if args.check else "rewrote"
+            print(f"{relative}: required-checks table {verb}", file=sys.stderr)
+        return 1 if stale and args.check else 0
 
     if args.command == "subset-tests":
         _print_lines(subset_tests(args.scope))
