@@ -267,6 +267,7 @@ function mount(shell: ShellBreakpoint) {
   useDawStore.getState().setActiveTab("transcript");
   useDawStore.getState().setSelection(null);
   useDawStore.getState().setRangeArmed(false);
+  useDawStore.getState().setCompactInspectorView("half");
   return render(
     <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
       <StudioShell />
@@ -280,7 +281,11 @@ function select(selection: NonNullable<Selection>) {
   act(() => useDawStore.getState().setSelection(selection));
 }
 
-const sheet = () => screen.queryByRole("dialog", { name: "Inspector" });
+const sheet = () =>
+  screen
+    .queryAllByRole("dialog")
+    .find((dialog) => dialog.classList.contains("bottom-sheet--inspector")) ??
+  null;
 const rangeRegions = () =>
   screen.queryAllByRole("region", { name: "Range actions" });
 

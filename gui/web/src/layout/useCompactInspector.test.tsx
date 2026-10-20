@@ -94,14 +94,14 @@ describe("useCompactInspector", () => {
     ).toBeNull();
   });
 
-  it("is off in other phone modes and on tablets unless the screen is short", () => {
+  it("is off in other phone modes and peeks on a tablet upright or sideways", () => {
     act(() => useDawStore.setState({ mobileMode: "text" }));
     expect(
       renderHook(() => useCompactInspector("phone", false)).result.current,
     ).toBe(null);
     const media = stubMatchMedia(false);
     const tablet = renderHook(() => useCompactInspector("tablet", false));
-    expect(tablet.result.current).toBeNull();
+    expect(tablet.result.current?.peek.title).toBe("Trim start");
     act(() => media.setMatches(true));
     expect(tablet.result.current?.peek.title).toBe("Trim start");
     expect(

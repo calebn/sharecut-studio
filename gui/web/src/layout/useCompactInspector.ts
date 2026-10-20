@@ -6,9 +6,10 @@
  * sheet, the selected target stays in view above it, and any timeline drag
  * stows it until release.
  *
- * Phone-sized: the phone shell's Timeline mode, or the tablet shell on a
- * short screen (a phone held sideways). Real tablets keep their sheet. Where
- * the Inspector is a side column (#1696) there is no sheet to peek from.
+ * The phone shell's Timeline mode and the tablet shell, upright or sideways,
+ * peek alike (#1871): a mid-height sheet over a tall iPad timeline hid the
+ * pressed clip. Where the Inspector is a side column (#1696) there is no
+ * sheet to peek from.
  */
 import {
   type ComponentProps,
@@ -107,15 +108,14 @@ function clearClearance(): void {
 }
 
 /**
- * The compact inspector for `shell` (Timeline mode on the phone shell, or a
- * short tablet shell; null for the desktop shell), or null where the usual
+ * The compact inspector for `shell` (Timeline mode on the phone shell, or the
+ * tablet shell; null for the desktop shell), or null where the usual
  * sheet or the side `column` applies.
  */
 export function useCompactInspector(
   shell: "phone" | "tablet" | null,
   column: boolean,
 ): CompactInspector | null {
-  const short = useShortScreen();
   const {
     project,
     selection,
@@ -141,9 +141,7 @@ export function useCompactInspector(
   const applies =
     !column &&
     !rangeArmed &&
-    (shell === "phone"
-      ? mobileMode === "timeline"
-      : shell === "tablet" && short);
+    (shell === "phone" ? mobileMode === "timeline" : shell === "tablet");
   const candidate =
     applies && project ? peekTarget(project, selection, hit) : null;
   const [seen, setSeen] = useState<{

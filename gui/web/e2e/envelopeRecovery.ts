@@ -71,7 +71,7 @@ export async function exerciseEnvelopeRecovery(
       const width = page.viewportSize()!.width;
       const shell =
         width < 720 ? "phone" : width <= 1194 ? "tablet" : "desktop";
-      if (shell === "phone") await rememberInspectorDetent(page, "half");
+      if (shell !== "desktop") await rememberInspectorDetent(page, "half");
       await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
       if (shell === "phone") await openPhoneTimeline(page);

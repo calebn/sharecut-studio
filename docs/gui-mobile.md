@@ -352,8 +352,8 @@ A timeline or transcript range opens the same sheet with **Range actions** as it
 
 **Split speakers…** is a track-inspector button, so the same sheet carries it on a phone, and the More hub's empty-session hint ("One recording of everyone? Import it, then choose Split speakers.") points there. Its dialog is a bottom sheet with **Split speakers**, **Cancel split** or **Undo split** and **Done** pinned in the footer ([communication-philosophy.md](communication-philosophy.md#terminology) names the terms). After a split, the scrollable result lists saved unsure and overlapping stretches with timeline start, length and speaker tracks; repeated timeline placements have separate **Go to** buttons. A stretch removed from the timeline shows recording time and explains why **Go to** is unavailable. Close the sheet to listen with the lane Solo controls, then choose **Review split…** in that track's inspector to return to the list. The review entry is session-scoped and expires after any saved project edit, including a saved mute change; listen-only Solo keeps it available.
 
-A timeline selection in Timeline mode opens the **compact inspector**
-instead: a peek strip with the target's name, its key
+A timeline selection in Timeline mode, or on the tablet shell upright or
+sideways (#1871), opens the **compact inspector** instead: a peek strip with the target's name, its key
 value and rows of 44 px nudges at the keyboard's steps: a clip's fade or
 trim, a pending edit's start and end, and an envelope point's time and level
 (for the host and Editor links; Commenter and Viewer links see them view-only). Holding a nudge repeats it,

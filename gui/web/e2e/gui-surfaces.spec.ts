@@ -180,7 +180,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         { time: 1, title },
       );
       try {
-        if (viewport.name === "phone") {
+        if (viewport.name !== "desktop") {
           await rememberInspectorDetent(page, "half");
         }
         await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
