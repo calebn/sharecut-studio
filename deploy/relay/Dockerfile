@@ -5,7 +5,8 @@ WORKDIR /app
 RUN pip install --no-cache-dir \
     "fastapi>=0.116.1" \
     "uvicorn[standard]>=0.32.0" \
-    "websockets>=12.0"
+    "websockets>=12.0" \
+    "filelock>=3.16.0"
 
 ARG PODCAST_RELAY_VERSION=
 ARG PODCAST_RELAY_GIT_SHA=

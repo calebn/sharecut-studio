@@ -402,7 +402,7 @@ def test_score_window_loads_profiles_from_cache(tmp_path, sample_wav):
     )
     with (
         patch(
-            "podcast_mcp.engines.speaker_id._stem_hash",
+            "podcast_mcp.engines.speaker_id.file_revision_key",
             return_value=stem_hash,
         ),
         patch(

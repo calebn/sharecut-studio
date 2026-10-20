@@ -82,3 +82,49 @@ def test_relay_image_sources_import_the_entrypoint(tmp_path: Path) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+_PIP_IMPLIED = {
+    "fastapi": {"fastapi", "starlette", "pydantic", "anyio", "typing_extensions"},
+    "uvicorn": {"uvicorn", "h11", "click"},
+}
+
+
+def _installed_import_names() -> set[str]:
+    text = DOCKERFILE.read_text(encoding="utf-8")
+    block = text.split("pip install", 1)[1].split("\n\n", 1)[0]
+    names: set[str] = set()
+    for token in block.replace("\\", " ").split():
+        token = token.strip('"')
+        if token.startswith("--") or not token:
+            continue
+        package = token.split("[", 1)[0].split(">", 1)[0].split("=", 1)[0].lower()
+        names |= _PIP_IMPLIED.get(package, {package})
+    return names
+
+
+def _top_level_third_party_imports(path: Path) -> set[str]:
+    names: set[str] = set()
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Import):
+            names.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names.add(node.module.split(".")[0])
+    return {
+        name
+        for name in names
+        if name not in sys.stdlib_module_names
+        and name not in {"podcast_mcp", "podcast_relay", "__future__"}
+    }
+
+
+def test_relay_dockerfile_installs_every_third_party_import_of_the_copied_sources() -> None:
+    """The dev venv hides missing pip deps, so compare module-level imports to the pip line."""
+    installed = _installed_import_names()
+    missing = {
+        f"{path.relative_to(ROOT)}: {name}"
+        for path in _copied_source_paths()
+        for name in _top_level_third_party_imports(path)
+        if name not in installed
+    }
+    assert not missing, "relay image pip install omits:\n" + "\n".join(sorted(missing))

@@ -16,7 +16,6 @@ from podcast_mcp.engines.speaker_id import (
     WindowScore,
     _decode_window_samples,
     _profile_stem_valid,
-    _stem_hash,
     _stem_path_and_source,
     assess_speaker_cut_role,
     enroll_track,
@@ -38,6 +37,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.speaker import SpeakerService
+from podcast_mcp.util.project_state import file_revision_key
 
 
 def _project(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
@@ -180,12 +180,12 @@ def test_load_all_profiles_skips_stale_hash(tmp_path, sample_wav) -> None:
     assert load_all_profiles(proj) == {}
 
 
-def test_stem_hash_changes_when_file_changes(tmp_path, sample_wav) -> None:
+def test_file_revision_key_changes_when_file_changes(tmp_path, sample_wav) -> None:
     wav = tmp_path / "a.wav"
     wav.write_bytes(sample_wav.read_bytes())
-    h1 = _stem_hash(wav)
+    h1 = file_revision_key(wav)
     wav.write_bytes(sample_wav.read_bytes() + b"x")
-    h2 = _stem_hash(wav)
+    h2 = file_revision_key(wav)
     assert h1 != h2
 
 
