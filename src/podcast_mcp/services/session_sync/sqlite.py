@@ -10,6 +10,8 @@ from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.sqlite_open import open_sqlite
 
 _WAL_INIT_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
+_WAL_INIT_PENDING_GUARD = threading.Lock()
+_WAL_INIT_PENDING: dict[str, int] = {}
 _WAL_INIT_TIMEOUT_SEC = 10.0
 _WAL_INIT_RETRY_SEC = 0.05
 
@@ -50,7 +52,8 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
     needs to change it. A per-database thread lock (keyed by resolved path)
     serializes that one-time transition inside this process, so a retry on
     one busy database never blocks another. The lock is dropped once the
-    switch succeeds, since later opens only read the persisted mode. Another
+    switch succeeds, or when a failed attempt leaves no other thread waiting
+    on it, since later opens only read the persisted mode. Another
     process can still hold the database lock, and SQLite may return busy for
     a journal-mode change without invoking the busy handler, so the
     read-and-switch runs with the busy handler off (``timeout=0``) and is
@@ -69,8 +72,13 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
         if create
         else f"{_with_empty_uri_authority(db_path.resolve().as_uri())}?mode=rw"
     )
+    key = _wal_init_key(db_path)
+    with _WAL_INIT_PENDING_GUARD:
+        _WAL_INIT_PENDING[key] = _WAL_INIT_PENDING.get(key, 0) + 1
+        lock = _WAL_INIT_LOCKS.get(key)
+    connected = False
     try:
-        with _wal_init_lock(db_path):
+        with lock:
             connection = open_sqlite(
                 target,
                 uri=not create,
@@ -78,9 +86,18 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
                 wal_timeout_sec=_WAL_INIT_TIMEOUT_SEC,
                 wal_retry_sec=_WAL_INIT_RETRY_SEC,
             )
+            connected = True
     finally:
-        # WAL now persists on the file, so later opens only read journal_mode; drop the
-        # lock so the registry does not grow with every sync.db this process opens, or
-        # keeps failing to open (a deleted or locked one the meta polls keep hitting).
-        _WAL_INIT_LOCKS.discard_idle(_wal_init_key(db_path))
+        # Drop the lock so the registry does not grow with every sync.db this process
+        # opens, or keeps failing to open (a deleted or locked one the meta polls keep
+        # hitting). After a failure the switch is still owed, so keep the lock while
+        # another thread waits on it; WAL persists on the file after a success.
+        with _WAL_INIT_PENDING_GUARD:
+            remaining = _WAL_INIT_PENDING[key] - 1
+            if remaining:
+                _WAL_INIT_PENDING[key] = remaining
+            else:
+                del _WAL_INIT_PENDING[key]
+            if connected or not remaining:
+                _WAL_INIT_LOCKS.discard_idle(key)
     return connection

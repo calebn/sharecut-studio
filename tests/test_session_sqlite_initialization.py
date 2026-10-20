@@ -216,6 +216,24 @@ def test_wal_init_lock_is_dropped_when_the_switch_fails(
     assert session_sqlite._wal_init_key(db_path) not in session_sqlite._WAL_INIT_LOCKS
 
 
+def test_wal_init_lock_is_kept_while_another_thread_waits_after_a_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connection = Mock()
+    connection.execute.side_effect = sqlite3.OperationalError("disk I/O error")
+    monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
+    db_path = tmp_path / "sync.db"
+    key = session_sqlite._wal_init_key(db_path)
+    monkeypatch.setitem(session_sqlite._WAL_INIT_PENDING, key, 1)  # a thread queued on the lock
+
+    with pytest.raises(sqlite3.OperationalError):
+        session_sqlite.connect_session_db(db_path)
+
+    assert key in session_sqlite._WAL_INIT_LOCKS
+    assert session_sqlite._WAL_INIT_PENDING[key] == 1
+    session_sqlite._WAL_INIT_LOCKS.discard_idle(key)
+
+
 def test_wal_init_lock_is_dropped_when_the_database_is_missing(tmp_path: Path) -> None:
     db_path = tmp_path / "missing.db"
     for _ in range(3):
