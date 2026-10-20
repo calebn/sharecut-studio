@@ -109,7 +109,7 @@ describe("edit.copy/cut/paste", () => {
     expect(api.rippleDeleteClips).not.toHaveBeenCalled();
   });
 
-  it("refuses every range action on a tapped word in Correct mode", async () => {
+  it("refuses every range action on a tapped word in Correct mode, each for the Correct reason", async () => {
     useDawStore.setState({
       selection: wordSelection({
         trackId: "host",
@@ -118,14 +118,16 @@ describe("edit.copy/cut/paste", () => {
       }),
       transcriptCorrecting: true,
     });
-    for (const id of [
-      "range.cut",
-      "range.mute",
-      "range.play",
-      "range.comment",
-      "range.bounce",
-    ]) {
-      expect((await execute(id)).status).toBe("disabled");
+    const cut = "Use Select mode for media cut (Correct is ASR-only)";
+    const other = "Use Select mode for range actions (Correct is ASR-only)";
+    for (const [id, reason] of [
+      ["range.cut", cut],
+      ["range.mute", other],
+      ["range.play", other],
+      ["range.comment", other],
+      ["range.bounce", other],
+    ] as const) {
+      expect(await execute(id)).toEqual({ status: "disabled", reason });
     }
     expect(api.rippleDeleteClips).not.toHaveBeenCalled();
   });
