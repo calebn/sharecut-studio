@@ -9,7 +9,7 @@ description: >-
 
 # Pipeline tune (visible params)
 
-**Contract:** What the Pipeline pane shows is what `pipeline_run` uses. Agents and the GUI share the same in-memory working set for a project path.
+**Contract:** What the Pipeline pane shows is what `pipeline_run` uses, and what interactive tighten, Play, ad-hoc cuts and render preview use too: every service request resolves the project's working set once (`ProjectWorkspace.effective_config()`). Agents and the GUI share the same in-memory working set for a project path.
 
 ## Flow
 

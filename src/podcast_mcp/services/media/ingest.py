@@ -450,7 +450,7 @@ class IngestService:
 
         self.ws.mutate("before ingest consolidate", "after ingest consolidate", mutate)
         for track in self.ws.project.tracks:
-            schedule_track_waveforms(self.ws.project, track)
+            schedule_track_waveforms(self.ws.project, track, defaults=self.ws.effective_config())
         return AppliedConsolidation(
             track_ids=[t.id for t in self.ws.project.tracks], warnings=list(warnings)
         )

@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import retained_bleed_alignment as api
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from test_retained_bleed_alignment import RATE, _episode, _read, _write, gate_abstains
@@ -23,7 +24,12 @@ def _unseeded(tmp_path: Path):
 
 def _plan(project, **kwargs):
     return api.plan_retained_bleed_alignment(
-        project, track_id="uncertain", start_sec=0.8, end_sec=3.5, **kwargs
+        project,
+        track_id="uncertain",
+        start_sec=0.8,
+        end_sec=3.5,
+        **kwargs,
+        defaults=load_defaults(),
     )
 
 
@@ -39,7 +45,10 @@ def test_erased_copy_words_recovers_same_complete_plan_and_pcm(tmp_path: Path) -
     proposal = plan.proposals[0]
     assert proposal.offset_sec == pytest.approx(-0.15)
     assert (proposal.source_start, proposal.source_end) == pytest.approx((1.18, 3.22))
-    assert api.apply_retained_bleed_alignment(project, plan)["applied_count"] == 1
+    assert (
+        api.apply_retained_bleed_alignment(project, plan, defaults=load_defaults())["applied_count"]
+        == 1
+    )
     for track_id in ("direct", "uncertain"):
         output = tmp_path / f"{track_id}-rendered.wav"
         render_track_from_timeline(project, project.track_by_id(track_id), output, {})
@@ -66,7 +75,12 @@ def test_erased_copy_words_recovers_same_complete_plan_and_pcm(tmp_path: Path) -
     before_repeat = reopened.model_dump(by_alias=True)
     repeated = _plan(reopened)
     assert repeated.proposals == ()
-    assert api.apply_retained_bleed_alignment(reopened, repeated)["applied_count"] == 0
+    assert (
+        api.apply_retained_bleed_alignment(reopened, repeated, defaults=load_defaults())[
+            "applied_count"
+        ]
+        == 0
+    )
     assert reopened.model_dump(by_alias=True) == before_repeat
 
 
@@ -75,7 +89,9 @@ def test_discovery_requires_complete_explicit_scope(tmp_path: Path, missing: str
     project = _unseeded(tmp_path)
     args = {"track_id": "uncertain", "start_sec": 0.8, "end_sec": 3.5}
     args.pop(missing)
-    assert api.plan_retained_bleed_alignment(project, **args).proposals == ()
+    assert (
+        api.plan_retained_bleed_alignment(project, **args, defaults=load_defaults()).proposals == ()
+    )
 
 
 @pytest.mark.parametrize("bound", ["start_sec", "end_sec"])
@@ -84,7 +100,7 @@ def test_discovery_rejects_nonfinite_scope(tmp_path: Path, bound: str, value: fl
     project = _unseeded(tmp_path)
     args = {"track_id": "uncertain", "start_sec": 0.8, "end_sec": 3.5, bound: value}
     with pytest.raises(ValueError, match="finite"):
-        api.plan_retained_bleed_alignment(project, **args)
+        api.plan_retained_bleed_alignment(project, **args, defaults=load_defaults())
 
 
 @pytest.mark.parametrize("peer", ["agree", "conflict", "unrelated", "quiet"])
@@ -291,7 +307,7 @@ def test_completed_acoustic_envelope_cannot_exceed_phrase_bound(
 
     monkeypatch.setattr(api, "_local_delay", forbidden)
     plan = api.plan_retained_bleed_alignment(
-        project, track_id="uncertain", start_sec=0.5, end_sec=33.0
+        project, track_id="uncertain", start_sec=0.5, end_sec=33.0, defaults=load_defaults()
     )
     assert plan.proposals == ()
     assert {"track_id": "direct", "reason": "unsafe_phrase_boundaries"} in plan.skipped
@@ -324,7 +340,7 @@ def test_unseeded_insufficient_null_context_is_not_supported(tmp_path: Path, mon
 
     monkeypatch.setattr(api, "measure_long_delay_regions", measured)
     plan = api.plan_retained_bleed_alignment(
-        project, track_id="uncertain", start_sec=0.01, end_sec=1.8
+        project, track_id="uncertain", start_sec=0.01, end_sec=1.8, defaults=load_defaults()
     )
     assert plan.proposals == ()
     assert any(row.reason == "insufficient_null_context" for row in rows)
@@ -441,11 +457,18 @@ def test_acoustic_correction_and_internal_fades_stay_inside_scope(tmp_path: Path
     project = _unseeded(tmp_path)
     before = project.model_dump(by_alias=True)
     plan = api.plan_retained_bleed_alignment(
-        project, track_id="uncertain", start_sec=window[0], end_sec=window[1]
+        project,
+        track_id="uncertain",
+        start_sec=window[0],
+        end_sec=window[1],
+        defaults=load_defaults(),
     )
     assert plan.proposals == ()
     assert plan.skipped
-    assert api.apply_retained_bleed_alignment(project, plan)["applied_count"] == 0
+    assert (
+        api.apply_retained_bleed_alignment(project, plan, defaults=load_defaults())["applied_count"]
+        == 0
+    )
     assert project.model_dump(by_alias=True) == before
 
 
@@ -467,7 +490,7 @@ def test_unseeded_loud_owner_never_moves_or_changes_mixed_lane(
     project.transcripts[1].words = []
     clips = [clip.model_dump() for clip in project.clips if clip.track_id == "uncertain"]
     plan = _plan(project)
-    api.apply_retained_bleed_alignment(project, plan)
+    api.apply_retained_bleed_alignment(project, plan, defaults=load_defaults())
     assert [clip.model_dump() for clip in project.clips if clip.track_id == "uncertain"] == clips
     output = tmp_path / "mixed-after.wav"
     render_track_from_timeline(project, project.track_by_id("uncertain"), output, {})
@@ -527,10 +550,15 @@ def test_explicit_foreign_retention_cannot_authorize_owner_move(
     plan = (
         _plan(project)
         if origin == "acoustic"
-        else api.plan_retained_bleed_alignment(project, track_id="uncertain")
+        else api.plan_retained_bleed_alignment(
+            project, track_id="uncertain", defaults=load_defaults()
+        )
     )
     assert plan.proposals == ()
-    assert api.apply_retained_bleed_alignment(project, plan)["applied_count"] == 0
+    assert (
+        api.apply_retained_bleed_alignment(project, plan, defaults=load_defaults())["applied_count"]
+        == 0
+    )
     assert project.model_dump(by_alias=True) == before
     assert all(not word.suppressed for word in project.transcripts[0].words)
 
@@ -554,7 +582,9 @@ def test_retained_local_owner_words_still_authorize_move(
     plan = (
         _plan(project)
         if origin == "acoustic"
-        else api.plan_retained_bleed_alignment(project, track_id="uncertain")
+        else api.plan_retained_bleed_alignment(
+            project, track_id="uncertain", defaults=load_defaults()
+        )
     )
     assert len(plan.proposals) == 1
     assert plan.proposals[0].offset_sec == pytest.approx(-0.15)
@@ -604,10 +634,14 @@ def test_completed_owner_interval_cannot_enclose_foreign_attribution(
         project,
         track_id="uncertain",
         **({"start_sec": 0.8, "end_sec": 4.0} if origin == "acoustic" else {}),
+        defaults=load_defaults(),
     )
     assert plan.proposals == ()
     assert {"track_id": "direct", "reason": "foreign_attribution_in_direct_phrase"} in plan.skipped
-    assert api.apply_retained_bleed_alignment(project, plan)["applied_count"] == 0
+    assert (
+        api.apply_retained_bleed_alignment(project, plan, defaults=load_defaults())["applied_count"]
+        == 0
+    )
     assert project.model_dump(by_alias=True) == before
 
 
@@ -647,6 +681,7 @@ def test_foreign_attribution_outside_selected_source_interval_does_not_veto(
         project,
         track_id="uncertain",
         **({"start_sec": 0.8, "end_sec": 4.0} if origin == "acoustic" else {}),
+        defaults=load_defaults(),
     )
     assert len(plan.proposals) == 1
     assert plan.proposals[0].offset_sec == pytest.approx(-0.15)
@@ -661,5 +696,5 @@ def test_previous_owner_evidence_revision_cannot_apply(tmp_path: Path, monkeypat
     assert len(plan.proposals) == 1
     before = project.model_dump(by_alias=True)
     with pytest.raises(ValueError, match="plan is stale"):
-        api.apply_retained_bleed_alignment(project, plan)
+        api.apply_retained_bleed_alignment(project, plan, defaults=load_defaults())
     assert project.model_dump(by_alias=True) == before

@@ -59,7 +59,7 @@ class EpisodeService:
         )
         track = self.ws.project.track_by_id(track_id)
         if track is not None:
-            schedule_track_waveforms(self.ws.project, track)
+            schedule_track_waveforms(self.ws.project, track, defaults=self.ws.effective_config())
             if track.role == TrackRole.DIALOGUE:
                 schedule_room_tone_pool(self.ws.project, track_id)
         return f"Added track {track_id}"
@@ -122,7 +122,7 @@ class EpisodeService:
         )
         track = self.ws.project.track_by_id(track_id)
         assert track is not None and track.media is not None
-        schedule_track_waveforms(self.ws.project, track)
+        schedule_track_waveforms(self.ws.project, track, defaults=self.ws.effective_config())
         if track.role == TrackRole.DIALOGUE:
             schedule_room_tone_pool(self.ws.project, track_id)
         return {

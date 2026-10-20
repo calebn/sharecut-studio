@@ -70,13 +70,9 @@ def defaults(*, acoustic: bool = False, mode: str = "room_tone") -> dict:
 
 
 def configure(monkeypatch, cfg: dict) -> None:
-    for target in (
-        "podcast_mcp.edits.cut_application.load_defaults",
-        "podcast_mcp.edits.decisions.load_defaults",
-        "podcast_mcp.edits.filler_pacing.load_defaults",
-        "podcast_mcp.services.document.edit.load_defaults",
-    ):
-        monkeypatch.setattr(target, lambda: copy.deepcopy(cfg))
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.config.load_defaults", lambda: copy.deepcopy(cfg)
+    )
     monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: None)
 
 

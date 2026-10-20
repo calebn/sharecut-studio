@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -37,8 +38,11 @@ def low_audibility_words(
     *,
     track_id: str | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
-    return list_low_audibility_words(project, track_id=track_id, progress=progress)
+    return list_low_audibility_words(
+        project, track_id=track_id, progress=progress, defaults=defaults
+    )
 
 
 class DiagnosticsWindowError(ValueError):
@@ -94,6 +98,8 @@ def _window_extract_spec(
     track_id: str,
     start_sec: float,
     end_sec: float,
+    *,
+    defaults: EffectiveConfig,
 ) -> tuple[Path, float, float]:
     """File and file-clock bounds backing a timeline window.
 
@@ -102,7 +108,7 @@ def _window_extract_spec(
     gap in the window is not a single extract — callers should skip DSP.
     """
     stem = _processed_track_path(project, track_id)
-    if stem is not None and stem_is_fresh(project, track_id):
+    if stem is not None and stem_is_fresh(project, track_id, defaults=defaults):
         return stem, start_sec, end_sec
 
     st = SessionTimeline(project)
@@ -128,6 +134,7 @@ def audio_diagnostics_report(
     start_sec: float | None = None,
     end_sec: float | None = None,
     pngs: bool = True,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Spectrogram + waveform PNGs plus astats/hum health for one track (or a time window).
 
@@ -147,7 +154,7 @@ def audio_diagnostics_report(
             )
         window = (start_sec, end_sec)
         extract_path, file_start, file_end = _window_extract_spec(
-            project, track_id, start_sec, end_sec
+            project, track_id, start_sec, end_sec, defaults=defaults
         )
     else:
         extract_path = track_diagnostics_audio_path(project, track_id)
@@ -202,8 +209,11 @@ def cleanup_analysis_report(
     track_id: str | None = None,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
-    return analyze_cleanup(project, track_id=track_id, policy=policy, progress=progress)
+    return analyze_cleanup(
+        project, track_id=track_id, policy=policy, progress=progress, defaults=defaults
+    )
 
 
 def fade_recommendations(
@@ -211,13 +221,16 @@ def fade_recommendations(
     *,
     policy: AnalysisPolicy | None = None,
     track_id: str | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
-    return recommend_boundary_fades(project, policy=policy, track_id=track_id)
+    return recommend_boundary_fades(project, policy=policy, track_id=track_id, defaults=defaults)
 
 
 def apply_fade_recommendations(
     project: EpisodeProject,
     recommendations: list[dict[str, Any]],
+    *,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Apply recommended fades to adjacent clip pairs from recommend_boundary_fades."""
     from podcast_mcp.edits.join_modes import cap_fade_ms
@@ -231,12 +244,16 @@ def apply_fade_recommendations(
         if left_id:
             clip = next((c for c in project.clips if c.id == left_id), None)
             if clip:
-                clip.fade_out_ms = max(clip.fade_out_ms, cap_fade_ms(project, clip.track_id, fout))
+                clip.fade_out_ms = max(
+                    clip.fade_out_ms, cap_fade_ms(project, clip.track_id, fout, defaults=defaults)
+                )
                 applied += 1
         if right_id:
             clip = next((c for c in project.clips if c.id == right_id), None)
             if clip:
-                clip.fade_in_ms = max(clip.fade_in_ms, cap_fade_ms(project, clip.track_id, fin))
+                clip.fade_in_ms = max(
+                    clip.fade_in_ms, cap_fade_ms(project, clip.track_id, fin, defaults=defaults)
+                )
                 applied += 1
     return {"applied_fade_updates": applied}
 
@@ -246,6 +263,7 @@ def suppress_low_audibility_words(
     *,
     track_id: str | None = None,
     word_keys: list[dict[str, Any]] | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """
     Set suppressed=True on low-audibility words (or explicit track_id/word_index list).
@@ -261,7 +279,7 @@ def suppress_low_audibility_words(
     if word_keys is not None:
         targets = requested_word_keys(project, word_keys)
     else:
-        flagged = list_low_audibility_words(project, track_id=track_id)
+        flagged = list_low_audibility_words(project, track_id=track_id, defaults=defaults)
         targets = {word_key(f) for f in flagged}
 
     count = 0
@@ -275,7 +293,7 @@ def suppress_low_audibility_words(
             elif w.resolve_auto_suppression(True) != w.suppressed:
                 tr.words[i] = w.model_copy(update={"suppressed": True})
                 count += 1
-    rebuild_combined(project)
+    rebuild_combined(project, defaults=defaults)
     return {"suppressed_count": count}
 
 
@@ -285,8 +303,11 @@ def gate_overreach_report(
     *,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
-    return analyze_gate_overreach(project, track_id, policy=policy, progress=progress)
+    return analyze_gate_overreach(
+        project, track_id, policy=policy, progress=progress, defaults=defaults
+    )
 
 
 def _filter_rows_by_time(
@@ -311,12 +332,13 @@ def bleed_words(
     start_sec: float | None = None,
     end_sec: float | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     rows = [
         row
         for row in compute_word_audibility_map(
-            project, track_id=track_id, policy=pol, progress=progress
+            project, track_id=track_id, policy=pol, progress=progress, defaults=defaults
         )
         if row["audibility_status"] == "bleed"
     ]
@@ -334,6 +356,7 @@ def suppress_bleed_words(
     end_sec: float | None = None,
     dry_run: bool = True,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """
     Suppress bleed-tagged words on the wrong track (metadata only).
@@ -345,7 +368,7 @@ def suppress_bleed_words(
     locking a heuristic guess would pin it forever instead of letting a later
     reconcile pass recompute it (#781).
     """
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     reporter = resolve_progress(progress)
     explicit = word_keys is not None
     if word_keys is not None:
@@ -358,6 +381,7 @@ def suppress_bleed_words(
             start_sec=start_sec,
             end_sec=end_sec,
             progress=reporter,
+            defaults=defaults,
         )
         targets = {word_key(f) for f in flagged}
 
@@ -420,8 +444,8 @@ def suppress_bleed_words(
             elif w.resolve_auto_suppression(True):
                 tr.words[i] = w.model_copy(update={"suppressed": True})
                 count += 1
-    rebuild_combined(project)
-    mark_reconciliation_fresh(project)
+    rebuild_combined(project, defaults=defaults)
+    mark_reconciliation_fresh(project, defaults=defaults)
     return {
         "dry_run": False,
         "applied": True,

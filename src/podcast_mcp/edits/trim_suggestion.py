@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.cut_speech import UnconfirmedCutSpeech
 from podcast_mcp.edits.ripple import plan_trim
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
@@ -58,6 +59,7 @@ def check_suggested_trim(
     edge: str,
     source_sec: float,
     mode: EditMode,
+    defaults: EffectiveConfig,
 ) -> CheckedTrim:
     """The suggestion if the trim accepts it, else the nearest edge with a little more air that
     it accepts, else the suggestion with the reasons it is held."""
@@ -78,7 +80,12 @@ def check_suggested_trim(
                     continue
                 tried.add(landed)
                 try:
-                    holds = trim_holds(project, plan, application_intent=CutIntent.PROGRAMMATIC)
+                    holds = trim_holds(
+                        project,
+                        plan,
+                        application_intent=CutIntent.PROGRAMMATIC,
+                        defaults=defaults,
+                    )
                     reasons = _reasons(holds) if holds else []
                 except UnconfirmedCutSpeech:
                     reasons = ["another speaker is talking where the trim would restore audio"]

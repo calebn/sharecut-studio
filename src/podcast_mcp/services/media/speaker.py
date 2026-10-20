@@ -207,6 +207,7 @@ class SpeakerService:
             ctx.speaker_id,
             backend,
             dry_run=dry_run,
+            defaults=self.ws.effective_config(),
         )
 
     def gate_track(
@@ -228,6 +229,7 @@ class SpeakerService:
                 track_ids=track_ids,
                 dry_run=False,
                 progress=resolve_progress(progress),
+                defaults=self.ws.effective_config(),
             )
 
         if dry_run:
@@ -238,6 +240,7 @@ class SpeakerService:
                 track_ids=track_ids,
                 dry_run=True,
                 progress=resolve_progress(progress),
+                defaults=self.ws.effective_config(),
             )
         return self.ws.mutate(
             "before speaker gate",
@@ -259,6 +262,7 @@ class SpeakerService:
                 ctx,
                 dry_run=False,
                 progress=resolve_progress(progress),
+                defaults=self.ws.effective_config(),
             )
 
         if dry_run:
@@ -267,6 +271,7 @@ class SpeakerService:
                 ctx,
                 dry_run=True,
                 progress=resolve_progress(progress),
+                defaults=self.ws.effective_config(),
             )
         return self.ws.mutate(
             "before speaker attribute",
@@ -372,6 +377,7 @@ class SpeakerService:
                 names=speakers,
                 crosstalk_mode=crosstalk_mode,
                 room_tone_fill=room_tone_fill,
+                defaults=self.ws.effective_config(),
             ),
             operation="split_speakers",
             params={
@@ -384,7 +390,9 @@ class SpeakerService:
         for lane in result["lanes"][1:]:
             track = self.ws.project.track_by_id(lane["track_id"])
             if track is not None:
-                schedule_track_waveforms(self.ws.project, track)
+                schedule_track_waveforms(
+                    self.ws.project, track, defaults=self.ws.effective_config()
+                )
         from podcast_mcp.services.document_sync import after_agent_mutation
 
         after_agent_mutation(self.ws)
@@ -426,7 +434,7 @@ class SpeakerService:
         result = self.ws.mutate(
             f"before move lane span on {from_lane}",
             f"after move lane span to {to_lane}",
-            lambda p: move_lane_span(p, move),
+            lambda p: move_lane_span(p, move, defaults=self.ws.effective_config()),
             operation="move_lane_span",
             params=asdict(move),
         )

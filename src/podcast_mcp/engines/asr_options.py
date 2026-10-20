@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.config import bounded_float
+from podcast_mcp.config import EffectiveConfig, bounded_float
 from podcast_mcp.util.dicts import get_by_path
 from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
@@ -145,11 +145,7 @@ class AsrOptions:
         return self.forced_alignment.enabled
 
     @classmethod
-    def from_defaults(cls, defaults: Mapping[str, Any] | None = None) -> AsrOptions:
-        if defaults is None:
-            from podcast_mcp.config import load_defaults
-
-            defaults = load_defaults()
+    def from_defaults(cls, defaults: EffectiveConfig) -> AsrOptions:
         base = cls()
         vad = _section(defaults, "transcribe.vad")
         dec = _section(defaults, "transcribe.decode")

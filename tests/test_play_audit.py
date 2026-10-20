@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.range_edits import range_media_seal
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
@@ -53,14 +54,14 @@ def test_envelope_ids_do_not_change_audio_hashes(tmp_path) -> None:
             points=[AutomationPoint(id="first", time=0.0, value=1.0)],
         )
     ]
-    render_hash = track_render_hash(project, "host")
-    reconciliation_hash = audio_state_fingerprint(project)
+    render_hash = track_render_hash(project, "host", defaults=load_defaults())
+    reconciliation_hash = audio_state_fingerprint(project, defaults=load_defaults())
     project.automation_envelopes[0].points[0] = AutomationPoint(id="second", time=0.0, value=1.0)
-    assert track_render_hash(project, "host") == render_hash
-    assert audio_state_fingerprint(project) == reconciliation_hash
+    assert track_render_hash(project, "host", defaults=load_defaults()) == render_hash
+    assert audio_state_fingerprint(project, defaults=load_defaults()) == reconciliation_hash
     project.automation_envelopes[0].points[0].value = 0.5
-    assert track_render_hash(project, "host") != render_hash
-    assert audio_state_fingerprint(project) != reconciliation_hash
+    assert track_render_hash(project, "host", defaults=load_defaults()) != render_hash
+    assert audio_state_fingerprint(project, defaults=load_defaults()) != reconciliation_hash
 
 
 def test_track_render_hash_changes_with_edit(tmp_path) -> None:
@@ -84,7 +85,7 @@ def test_track_render_hash_changes_with_edit(tmp_path) -> None:
             timeline_start=0.0,
         )
     ]
-    h1 = track_render_hash(project, "host")
+    h1 = track_render_hash(project, "host", defaults=load_defaults())
     project.edit_decisions.append(
         EditDecision(
             id="e1",
@@ -95,7 +96,7 @@ def test_track_render_hash_changes_with_edit(tmp_path) -> None:
             applied=True,
         )
     )
-    h2 = track_render_hash(project, "host")
+    h2 = track_render_hash(project, "host", defaults=load_defaults())
     assert h1 != h2
 
 
@@ -118,9 +119,9 @@ def test_track_render_hash_changes_with_selected_source(tmp_path) -> None:
             source_id="a",
         )
     ]
-    before = track_render_hash(project, "music")
+    before = track_render_hash(project, "music", defaults=load_defaults())
     project.clips[0].source_id = "b"
-    assert track_render_hash(project, "music") != before
+    assert track_render_hash(project, "music", defaults=load_defaults()) != before
 
 
 def test_track_render_hash_tracks_selected_media_revision_and_missing_source(tmp_path) -> None:
@@ -149,23 +150,23 @@ def test_track_render_hash_tracks_selected_media_revision_and_missing_source(tmp
         )
     ]
 
-    first = track_render_hash(project, "music")
+    first = track_render_hash(project, "music", defaults=load_defaults())
     raw_a.write_bytes(b"first replacement")
-    replaced = track_render_hash(project, "music")
+    replaced = track_render_hash(project, "music", defaults=load_defaults())
     assert replaced != first
     project.sources[0].path = "b/tone.wav"
-    relocated = track_render_hash(project, "music")
+    relocated = track_render_hash(project, "music", defaults=load_defaults())
     assert relocated != replaced
     project.sources[0].path = "a/tone.wav"
     project.clips[0].source_id = "b"
-    second = track_render_hash(project, "music")
+    second = track_render_hash(project, "music", defaults=load_defaults())
     assert second != replaced
     raw_a.write_bytes(b"unselected change")
-    assert track_render_hash(project, "music") == second
+    assert track_render_hash(project, "music", defaults=load_defaults()) == second
     raw_b.unlink()
-    missing = track_render_hash(project, "music")
+    missing = track_render_hash(project, "music", defaults=load_defaults())
     assert missing != second
-    assert track_render_hash(project, "music") == missing
+    assert track_render_hash(project, "music", defaults=load_defaults()) == missing
 
 
 def test_track_render_hash_changes_with_join_mode(tmp_path) -> None:
@@ -194,9 +195,9 @@ def test_track_render_hash_changes_with_join_mode(tmp_path) -> None:
             join_in_mode=ClipJoinMode.FADE,
         ),
     ]
-    h1 = track_render_hash(project, "host")
+    h1 = track_render_hash(project, "host", defaults=load_defaults())
     project.clips[1].join_in_mode = ClipJoinMode.CROSSFADE
-    h2 = track_render_hash(project, "host")
+    h2 = track_render_hash(project, "host", defaults=load_defaults())
     assert h1 != h2
 
 
@@ -215,9 +216,9 @@ def test_track_render_hash_changes_with_effect_bypass(tmp_path) -> None:
             ],
         )
     ]
-    h1 = track_render_hash(project, "host")
+    h1 = track_render_hash(project, "host", defaults=load_defaults())
     project.processing_chains[0].effects[0].bypass = True
-    h2 = track_render_hash(project, "host")
+    h2 = track_render_hash(project, "host", defaults=load_defaults())
     assert h1 != h2
 
 
@@ -238,8 +239,8 @@ def test_stem_fresh_after_write(tmp_path, sample_wav) -> None:
     ]
     stem = ws / "artifacts" / "tracks" / "host.wav"
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(project, "host")
-    assert stem_is_fresh(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
+    assert stem_is_fresh(project, "host", defaults=load_defaults())
 
 
 def test_stem_not_fresh_when_duration_mismatches(tmp_path, sample_wav) -> None:
@@ -260,8 +261,8 @@ def test_stem_not_fresh_when_duration_mismatches(tmp_path, sample_wav) -> None:
     ]
     stem = ws / "artifacts" / "tracks" / "host.wav"
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(project, "host")
-    assert not stem_is_fresh(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
+    assert not stem_is_fresh(project, "host", defaults=load_defaults())
     assert expected_stem_duration_sec(project, "host") == pytest.approx(1.0)
     assert not stem_duration_matches_timeline(project, "host")
 
@@ -279,14 +280,14 @@ def test_track_render_hash_includes_render_semantics_rev(tmp_path, sample_wav, m
         Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
     ]
     (ws / "artifacts" / "tracks" / "host.wav").write_bytes(sample_wav.read_bytes())
-    write_stem_hash(project, "host")
-    before = track_render_hash(project, "host")
-    assert stem_is_fresh(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
+    before = track_render_hash(project, "host", defaults=load_defaults())
+    assert stem_is_fresh(project, "host", defaults=load_defaults())
 
     monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", RENDER_SEMANTICS_REV + 1)
 
-    assert track_render_hash(project, "host") != before
-    assert not stem_is_fresh(project, "host")
+    assert track_render_hash(project, "host", defaults=load_defaults()) != before
+    assert not stem_is_fresh(project, "host", defaults=load_defaults())
 
 
 def test_track_render_hash_ignores_clip_list_order(tmp_path) -> None:
@@ -295,11 +296,11 @@ def test_track_render_hash_ignores_clip_list_order(tmp_path) -> None:
     first = Clip(id="a", track_id="host", source_start=0.0, source_end=1.0, timeline_start=0.0)
     second = Clip(id="b", track_id="host", source_start=2.0, source_end=3.0, timeline_start=1.0)
     project.timeline.clips = [first, second]
-    in_order = track_render_hash(project, "host")
+    in_order = track_render_hash(project, "host", defaults=load_defaults())
 
     project.timeline.clips = [second, first]
 
-    assert track_render_hash(project, "host") == in_order
+    assert track_render_hash(project, "host", defaults=load_defaults()) == in_order
 
 
 def test_clear_invalidations_if_current_keeps_an_edit_made_meanwhile(tmp_path) -> None:
@@ -309,11 +310,20 @@ def test_clear_invalidations_if_current_keeps_an_edit_made_meanwhile(tmp_path) -
     record_invalidation(project, track_ids=["host"])
     edited = project.model_copy(deep=True)
     edited.track_by_id("host").gain_db = 3.0
-    assert clear_invalidations_if_current(project, snapshot, "host", current=edited) is False
+    assert (
+        clear_invalidations_if_current(
+            project, snapshot, "host", current=edited, defaults=load_defaults()
+        )
+        is False
+    )
     assert len(project.render.invalidations) == 1
-    assert clear_invalidations_if_current(project, snapshot, "host") is True
+    assert (
+        clear_invalidations_if_current(project, snapshot, "host", defaults=load_defaults()) is True
+    )
     assert project.render.invalidations == []
-    assert clear_invalidations_if_current(project, snapshot, "host") is False
+    assert (
+        clear_invalidations_if_current(project, snapshot, "host", defaults=load_defaults()) is False
+    )
 
 
 def test_mix_render_hash_includes_mix_semantics_rev(monkeypatch) -> None:
@@ -321,11 +331,15 @@ def test_mix_render_hash_includes_mix_semantics_rev(monkeypatch) -> None:
     import podcast_mcp.engines.play_audit as play_audit
     from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 
-    before = mix_render_hash({"host": 0.0})
+    before = mix_render_hash({"host": 0.0}, defaults=load_defaults())
     monkeypatch.setattr(play_audit, "MIX_SEMANTICS_REV", MIX_SEMANTICS_REV + 1)
-    assert mix_render_hash({"host": 0.0}) != before
-    assert mix_render_hash({"host": 0.0}, -1.0) != mix_render_hash({"host": 0.0}, -2.0)
-    assert mix_render_hash({"host": 0.0}) == mix_render_hash({"host": 0.0}, -1.0)
+    assert mix_render_hash({"host": 0.0}, defaults=load_defaults()) != before
+    assert mix_render_hash({"host": 0.0}, -1.0, defaults=load_defaults()) != mix_render_hash(
+        {"host": 0.0}, -2.0, defaults=load_defaults()
+    )
+    assert mix_render_hash({"host": 0.0}, defaults=load_defaults()) == mix_render_hash(
+        {"host": 0.0}, -1.0, defaults=load_defaults()
+    )
 
 
 def test_reconciliation_fingerprint_ignores_music_envelopes(tmp_path) -> None:
@@ -334,7 +348,7 @@ def test_reconciliation_fingerprint_ignores_music_envelopes(tmp_path) -> None:
         Track(id="host", label="Host", role=TrackRole.DIALOGUE),
         Track(id="bed", label="Bed", role=TrackRole.MUSIC),
     ]
-    before = audio_state_fingerprint(project)
+    before = audio_state_fingerprint(project, defaults=load_defaults())
     project.automation_envelopes = [
         AutomationEnvelope(
             track_id="bed",
@@ -344,13 +358,13 @@ def test_reconciliation_fingerprint_ignores_music_envelopes(tmp_path) -> None:
             ],
         )
     ]
-    assert audio_state_fingerprint(project) == before
+    assert audio_state_fingerprint(project, defaults=load_defaults()) == before
     project.automation_envelopes.append(
         AutomationEnvelope(
             track_id="host", points=[AutomationPoint(id="test-point-2", time=0.0, value=0.5)]
         )
     )
-    assert audio_state_fingerprint(project) != before
+    assert audio_state_fingerprint(project, defaults=load_defaults()) != before
 
 
 def test_wav_duration_probe_is_cached_per_file_revision(tmp_path, sample_wav, monkeypatch) -> None:
@@ -410,7 +424,7 @@ def test_render_status_reuses_the_stem_probe(tmp_path, sample_wav, monkeypatch) 
     ]
     stem = ws / "artifacts" / "tracks" / "host.wav"
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     calls: list[Path] = []
 
     def fake(self, path, **_k):
@@ -419,8 +433,8 @@ def test_render_status_reuses_the_stem_probe(tmp_path, sample_wav, monkeypatch) 
 
     monkeypatch.setattr(FFmpegEngine, "probe", fake)
 
-    report1 = render_status_report(project)
-    report2 = render_status_report(project)
+    report1 = render_status_report(project, defaults=load_defaults())
+    report2 = render_status_report(project, defaults=load_defaults())
 
     assert report1["tracks"]["host"]["stem_is_fresh"] is True
     assert report2["tracks"]["host"]["stem_is_fresh"] is True
@@ -437,16 +451,16 @@ def test_stem_matches_uses_the_fingerprint_not_the_live_project(tmp_path, sample
     ]
     stem = ws / "artifacts" / "tracks" / "host.wav"
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(project, "host")
-    assert stem_is_fresh(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
+    assert stem_is_fresh(project, "host", defaults=load_defaults())
 
-    fp = stem_fingerprint(project, "host")
+    fp = stem_fingerprint(project, "host", defaults=load_defaults())
 
     project.clips[0].source_end = 1.0
     assert stem_matches(project, "host", fp) is True
-    assert stem_is_fresh(project, "host") is False
+    assert stem_is_fresh(project, "host", defaults=load_defaults()) is False
 
-    fp2 = stem_fingerprint(project, "host")
+    fp2 = stem_fingerprint(project, "host", defaults=load_defaults())
     assert stem_matches(project, "host", fp2) is False
 
 
@@ -458,7 +472,7 @@ def test_stem_hash_matches_needs_the_wav_and_the_named_hash(tmp_path, sample_wav
     project.timeline.clips = [
         Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
     ]
-    h = write_stem_hash(project, "host")
+    h = write_stem_hash(project, "host", defaults=load_defaults())
     assert stem_hash_matches(project, "host", h) is False  # sidecar, no WAV
 
     stem_path(project, "host").write_bytes(sample_wav.read_bytes())
@@ -481,21 +495,21 @@ def test_reconciliation_fingerprint_accepts_precomputed_render_hashes(tmp_path) 
     project.timeline.clips = [
         Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
     ]
-    assert audio_state_fingerprint(project, dialogue_render_hashes(project)) == (
-        audio_state_fingerprint(project)
-    )
+    assert audio_state_fingerprint(
+        project, dialogue_render_hashes(project, defaults=load_defaults()), defaults=load_defaults()
+    ) == (audio_state_fingerprint(project, defaults=load_defaults()))
 
 
 def test_reconciliation_fingerprint_takes_the_track_set_from_the_project(tmp_path) -> None:
     project = EpisodeProject.create("fp", str(tmp_path))
     for tid in ("host", "guest"):
         project.timeline.tracks.append(Track(id=tid, label=tid, role=TrackRole.DIALOGUE))
-    hashes = dialogue_render_hashes(project)
-    assert audio_state_fingerprint(project, {**hashes, "gone": "0" * 16}) == (
-        audio_state_fingerprint(project)
-    )
+    hashes = dialogue_render_hashes(project, defaults=load_defaults())
+    assert audio_state_fingerprint(
+        project, {**hashes, "gone": "0" * 16}, defaults=load_defaults()
+    ) == (audio_state_fingerprint(project, defaults=load_defaults()))
     with pytest.raises(KeyError):
-        audio_state_fingerprint(project, {"host": hashes["host"]})
+        audio_state_fingerprint(project, {"host": hashes["host"]}, defaults=load_defaults())
 
 
 def test_reconciliation_status_hashes_each_dialogue_track_once(tmp_path, monkeypatch) -> None:
@@ -504,16 +518,16 @@ def test_reconciliation_status_hashes_each_dialogue_track_once(tmp_path, monkeyp
     project = EpisodeProject.create("rs", str(tmp_path))
     for tid in ("host", "guest"):
         project.timeline.tracks.append(Track(id=tid, label=tid, role=TrackRole.DIALOGUE))
-    mark_reconciliation_fresh(project)
+    mark_reconciliation_fresh(project, defaults=load_defaults())
     real = play_audit.track_render_hash
     calls: list[str] = []
 
-    def counting(p, tid):
+    def counting(p, tid, **_kw):
         calls.append(tid)
-        return real(p, tid)
+        return real(p, tid, **_kw)
 
     monkeypatch.setattr(play_audit, "track_render_hash", counting)
-    assert reconciliation_status(project)["stale"] is False
+    assert reconciliation_status(project, defaults=load_defaults())["stale"] is False
     assert sorted(calls) == ["guest", "host"]
 
 
@@ -526,6 +540,7 @@ def test_media_probe_cache_is_bounded_by_the_named_size() -> None:
 
 @pytest.mark.parametrize("media_hash", [track_render_hash, range_media_seal])
 def test_media_hashes_resolve_each_source_once_not_each_clip(tmp_path, media_hash) -> None:
+    kwargs = {"defaults": load_defaults()} if media_hash is track_render_hash else {}
     """A long edit splits one recording into thousands of clips (#1041).
 
     Each path resolution is a realpath plus a stat, and every document command
@@ -551,7 +566,7 @@ def test_media_hashes_resolve_each_source_once_not_each_clip(tmp_path, media_has
         for i in range(2000)
     ]
     with patch("podcast_mcp.util.workspace_paths.resolve_within", wraps=resolve_within) as resolved:
-        before = media_hash(project, "host")
+        before = media_hash(project, "host", **kwargs)
     assert resolved.call_count == 2
     (tmp_path / "alt.wav").write_bytes(b"replaced alt take")
-    assert media_hash(project, "host") != before
+    assert media_hash(project, "host", **kwargs) != before

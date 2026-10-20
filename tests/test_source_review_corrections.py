@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import approve_edits
 from podcast_mcp.edits.focus import propose_focus_cuts
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
@@ -40,9 +41,9 @@ def test_original_manual_seed_cannot_contract_away_missing_source(tmp_path, monk
     monkeypatch.setattr("podcast_mcp.edits.transcript_cuts.optimize_source_cut_range", shrink)
 
     def request(project, start, end):
-        row = add_remove_decision(project, "host", start, end)
+        row = add_remove_decision(project, "host", start, end, defaults=load_defaults())
         if applied:
-            assert approve_edits(project, [row.id]) == 1
+            assert approve_edits(project, [row.id], defaults=load_defaults()) == 1
         return row
 
     with pytest.raises(ScopeChangedAtApproval) as held:
@@ -101,7 +102,9 @@ def test_generator_preserves_every_unowned_row_before_coalescing(tmp_path, autho
         ]
         project.edit_decisions.extend(owned)
     skips = {}
-    coalesce_edits(project, merge_ids={e.id for e in owned}, skip_counts=skips)
+    coalesce_edits(
+        project, merge_ids={e.id for e in owned}, skip_counts=skips, defaults=load_defaults()
+    )
     assert [
         row.model_dump() for row in project.edit_decisions if row.id.startswith("manual")
     ] == expected
@@ -124,7 +127,7 @@ def test_generic_coalescer_keeps_mixed_primary_witness_state_separate(tmp_path):
     )
     project.edit_decisions = [unwitnessed, witnessed]
 
-    assert coalesce_edits(project) == 0
+    assert coalesce_edits(project, defaults=load_defaults()) == 0
     assert [(row.id, row.start, row.end) for row in project.edit_decisions] == [
         ("ordinary", 0, 3),
         ("transcript", 1, 2),
@@ -321,7 +324,9 @@ def test_current_source_cut_does_not_merge_stale_witness_geometry(tmp_path, monk
     )
     from podcast_mcp.edits.transcript_cuts import cut_text_match
 
-    existing = cut_text_match(project, "coffee", use_inaudible_opt=False)[0]
+    existing = cut_text_match(project, "coffee", use_inaudible_opt=False, defaults=load_defaults())[
+        0
+    ]
     if geometry == "moved":
         project.clips[0].timeline_start = 1
     elif geometry == "deleted":
@@ -343,7 +348,7 @@ def test_current_source_cut_does_not_merge_stale_witness_geometry(tmp_path, monk
         )
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        cut_text_match(project, "tea", use_inaudible_opt=False)
+        cut_text_match(project, "tea", use_inaudible_opt=False, defaults=load_defaults())
 
     assert held.value.held[0].reason == "source_geometry"
     assert [row.id for row in project.edit_decisions] == [existing.id]
@@ -385,7 +390,9 @@ def test_manual_survivor_same_id_must_still_be_an_ordinary_remove(tmp_path, monk
         "podcast_mcp.edits.transcript_cuts.optimize_source_cut_range", _exact_optimizer
     )
     with pytest.raises(RuntimeError, match="survivor"):
-        add_remove_decision(project, "host", 1, 2, use_inaudible_opt=False)
+        add_remove_decision(
+            project, "host", 1, 2, use_inaudible_opt=False, defaults=load_defaults()
+        )
     assert [e.model_dump() for e in project.edit_decisions] == before
 
 

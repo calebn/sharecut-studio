@@ -11,6 +11,9 @@ import yaml
 
 from podcast_mcp.util.bounded_cache import BoundedCache
 
+EffectiveConfig = dict[str, Any]
+"""The merged pipeline config one request runs against: the project's staged working set, else shipped defaults."""
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULTS_PATH = _REPO_ROOT / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -88,29 +91,32 @@ def load_defaults() -> dict[str, Any]:
     return {}
 
 
+def shipped_tighten_defaults() -> dict[str, Any]:
+    """The ``tighten`` block as shipped, the baseline that tells a tuned key from an untouched one."""
+    return load_defaults().get("tighten") or {}
+
+
 DEFAULT_PREMIX_PEAK_CEILING_DB = -1.0
 
 
-def mix_peak_ceiling_db(defaults: Mapping[str, Any] | None = None) -> float:
+def mix_peak_ceiling_db(defaults: Mapping[str, Any]) -> float:
     """True-peak ceiling (dBTP) the premix, bounce and compose sums are trimmed under.
 
-    ``defaults`` is a pipeline config (a run's merged config); None reads ``load_defaults()``.
+    ``defaults`` is a pipeline config (a run's merged config).
     """
-    cfg = load_defaults() if defaults is None else defaults
-    mix = cfg.get("mix") or {}
+    mix = defaults.get("mix") or {}
     return float(mix.get("premix_peak_ceiling_db", DEFAULT_PREMIX_PEAK_CEILING_DB))
 
 
 DEFAULT_MICRO_FADE_MS = 10
 
 
-def join_micro_fade_ms(defaults: Mapping[str, Any] | None = None) -> int:
+def join_micro_fade_ms(defaults: Mapping[str, Any]) -> int:
     """Declick micro-fade (ms) at a join: ``inaudible_cuts.micro_fade_ms``.
 
-    ``defaults`` is a pipeline config; None reads ``load_defaults()``.
+    ``defaults`` is a pipeline config.
     """
-    cfg = load_defaults() if defaults is None else defaults
-    return int((cfg.get("inaudible_cuts") or {}).get("micro_fade_ms", DEFAULT_MICRO_FADE_MS))
+    return int((defaults.get("inaudible_cuts") or {}).get("micro_fade_ms", DEFAULT_MICRO_FADE_MS))
 
 
 def bounded_float(value: Any, default: float, lo: float, hi: float) -> float:

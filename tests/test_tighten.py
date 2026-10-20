@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import apply_tighten_decisions
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.models import (
@@ -74,7 +75,7 @@ def test_apply_tighten_decisions_counts_applied(tmp_path):
             review_required=True,
         ),
     ]
-    n = apply_tighten_decisions(proj)
+    n = apply_tighten_decisions(proj, defaults=load_defaults())
     assert n == 1
     assert all(e.id != "1" for e in proj.edit_decisions)
     assert proj.edit_decisions[0].id == "2"
@@ -129,7 +130,7 @@ def test_apply_tighten_decisions_applies_a_pause_trim_that_needs_no_review(tmp_p
         ),
     ]
 
-    assert apply_tighten_decisions(proj) == 1
+    assert apply_tighten_decisions(proj, defaults=load_defaults()) == 1
     assert [e.id for e in proj.edit_decisions] == ["risky-trim"]
     assert max(c.timeline_end for c in clips_for_track(proj, "guest")) == pytest.approx(
         9.0, abs=0.001
@@ -155,7 +156,7 @@ def test_apply_tighten_decisions_holds_a_pause_without_original_media(tmp_path):
     ]
     before = proj.model_dump(mode="json")
 
-    assert apply_tighten_decisions(proj) == 0
+    assert apply_tighten_decisions(proj, defaults=load_defaults()) == 0
 
     assert proj.model_dump(mode="json") == before
     assert max(c.timeline_end for c in clips_for_track(proj, "guest")) == 10.0

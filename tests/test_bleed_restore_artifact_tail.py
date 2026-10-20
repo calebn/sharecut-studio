@@ -53,7 +53,7 @@ def test_fractional_delay_restore_preserves_full_nonlinear_artifact(
         attenuation_db=20,
     )
     monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan", lambda *_: plan
+        "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan", lambda *_, **_kw: plan
     )
     baseline = _render(project, tmp_path / "baseline.wav", None)
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.3, 0.9)])

@@ -176,9 +176,9 @@ def test_mix_with_music_hashes_the_faded_music_stem(minimal_project, sample_wav,
     envelope = proj.volume_envelope_for("bed")
     assert envelope is not None and len(envelope.points) == 4
     assert len({p.id for p in envelope.points}) == 4
-    assert read_stem_hash(proj, "bed") == track_render_hash(proj, "bed")
+    assert read_stem_hash(proj, "bed") == track_render_hash(proj, "bed", defaults=defaults)
     envelope.points[1].value = 0.5
-    assert read_stem_hash(proj, "bed") != track_render_hash(proj, "bed")
+    assert read_stem_hash(proj, "bed") != track_render_hash(proj, "bed", defaults=defaults)
 
 
 def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
@@ -198,13 +198,16 @@ def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
         )
     ]
     ProjectWorkspace(minimal_project, proj).save()  # mutate() adopts the saved project
-    before_hash = track_render_hash(proj, "host")
+    before_hash = track_render_hash(proj, "host", defaults=load_defaults())
     rendered: list[tuple[float, str]] = []
 
     class MutatingEngine:
         def render_dialogue_track(self, render_project, track, out, defaults):
             rendered.append(
-                (render_project.clips[0].source_end, track_render_hash(render_project, track.id))
+                (
+                    render_project.clips[0].source_end,
+                    track_render_hash(render_project, track.id, defaults=defaults),
+                )
             )
             ProjectWorkspace(minimal_project, proj).mutate(
                 "before cut",
@@ -220,7 +223,7 @@ def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
 
     assert rendered == [(1.0, before_hash)]
     assert read_stem_hash(proj, "host") == before_hash
-    assert track_render_hash(proj, "host") != before_hash
+    assert track_render_hash(proj, "host", defaults=load_defaults()) != before_hash
     assert not (proj.artifacts_dir() / "track_outputs.json").exists()
 
 
@@ -387,7 +390,7 @@ def test_stem_step_with_every_stem_fresh_copies_no_project(
     out_dir.mkdir(parents=True, exist_ok=True)
     for track_id in ("host", "bed"):
         (out_dir / f"{track_id}.wav").write_bytes(b"RIFF")
-        write_stem_hash(proj, track_id)
+        write_stem_hash(proj, track_id, defaults=load_defaults())
 
     monkeypatch.setattr(
         "podcast_mcp.util.project_state.snapshot_project",
@@ -412,7 +415,7 @@ def test_stem_rejects_edit_to_a_cached_stem_during_render(
     out_dir = proj.artifacts_dir() / "tracks"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "bed.wav").write_bytes(b"RIFF")
-    write_stem_hash(proj, "bed")
+    write_stem_hash(proj, "bed", defaults=load_defaults())
 
     class MutatingEngine:
         def render_dialogue_track(self, _snapshot, _track, out, _defaults):
@@ -492,7 +495,7 @@ def test_export_qc_ok_on_clean_run(minimal_project, sample_wav, tmp_workspace, w
     defaults = load_defaults()
     steps.ingest_tracks(proj, defaults)
     steps.assemble_timeline(proj, defaults)
-    mark_reconciliation_fresh(proj)  # stands in for reconcile_transcript pass 2
+    mark_reconciliation_fresh(proj, defaults=defaults)  # stands in for reconcile_transcript pass 2
     PipelineRunner(defaults=defaults).run(proj, only_step="mix_with_music")
     steps.master_loudness(proj, defaults)
     steps.export_deliverables(proj, defaults)
@@ -521,7 +524,7 @@ def test_premix_rebuild_leaves_reconciliation_to_the_fingerprint(
     defaults = load_defaults()
     steps.ingest_tracks(proj, defaults)
     steps.assemble_timeline(proj, defaults)
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=defaults)
     steps.mix_with_music(proj, defaults)
 
     with patch.object(steps, "assemble_timeline", wraps=steps.assemble_timeline) as assemble:
@@ -531,11 +534,11 @@ def test_premix_rebuild_leaves_reconciliation_to_the_fingerprint(
         steps.ensure_current_premix(proj, defaults)
     assert assemble.call_count == 2
     assert premix_path(proj).is_file()
-    assert reconciliation_status(proj)["stale"] is False
+    assert reconciliation_status(proj, defaults=defaults)["stale"] is False
 
     proj.track_by_id("host").gain_db = 3.0  # dialogue change: the fingerprint catches it
     steps.ensure_current_premix(proj, defaults)
-    assert reconciliation_status(proj)["stale"] is True
+    assert reconciliation_status(proj, defaults=defaults)["stale"] is True
 
 
 def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_workspace):
@@ -1096,7 +1099,7 @@ def test_export_deliverables_remasters_after_a_remix(minimal_project, sample_wav
     assert before is not None
     proj.track_by_id("host").fader_db = -6.0
     steps.export_deliverables(proj, defaults)
-    assert premix_stale_vs_mix(proj) is False
+    assert premix_stale_vs_mix(proj, defaults=defaults) is False
     assert mastered_is_fresh(proj)
     assert read_mastered_hash(proj) != before
 
@@ -1132,7 +1135,7 @@ def test_export_deliverables_writes_qc_ok_when_reconciled_and_within_tolerance(
     steps.assemble_timeline(proj, defaults)
     steps.mix_with_music(proj, defaults)
     steps.master_loudness(proj, defaults)
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=defaults)
     steps.export_deliverables(proj, defaults)
     qc = json.loads((proj.artifacts_dir() / "export_qc.json").read_text(encoding="utf-8"))
     assert qc["reconciliation"]["stale"] is False
@@ -1154,7 +1157,7 @@ def test_export_deliverables_qc_rolls_up_master_qc_issues(
     steps.assemble_timeline(proj, defaults)
     steps.mix_with_music(proj, defaults)
     steps.master_loudness(proj, defaults)
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=defaults)
     (proj.artifacts_dir() / "master_qc.json").write_text(
         json.dumps({"within_tolerance": False, "issues": ["True peak exceeds target"]}),
         encoding="utf-8",
@@ -1170,9 +1173,9 @@ def test_write_export_qc_tolerates_corrupt_master_qc(minimal_project, tmp_worksp
     from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 
     proj = load_project(minimal_project)
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=load_defaults())
     (proj.artifacts_dir() / "master_qc.json").write_text("not json", encoding="utf-8")
-    qc = steps.write_export_qc(proj)
+    qc = steps.write_export_qc(proj, defaults=load_defaults())
     assert qc["master_qc"] is None
     assert qc["ok"] is True
     assert "timebase" in qc
@@ -1184,7 +1187,7 @@ def test_write_export_qc_timebase_issues(minimal_project, tmp_workspace):
     from podcast_mcp.models import Clip, Transcript, TranscriptWord
 
     proj = load_project(minimal_project)
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=load_defaults())
     proj.clips = [
         Clip(
             id="c1",
@@ -1207,7 +1210,7 @@ def test_write_export_qc_timebase_issues(minimal_project, tmp_workspace):
             words=[TranscriptWord(text="gap", start=70.0, end=72.0)],
         )
     ]
-    qc = steps.write_export_qc(proj)
+    qc = steps.write_export_qc(proj, defaults=load_defaults())
     assert qc["timebase"]["ok"] is False
     assert not qc["ok"]
 
@@ -1217,12 +1220,12 @@ def test_write_export_qc_flags_stacked_same_source_clips(minimal_project, tmp_wo
     from podcast_mcp.models import Clip
 
     proj = load_project(minimal_project)
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=load_defaults())
     proj.clips = [
         Clip(id="c1", track_id="host", source_start=0.0, source_end=60.0, timeline_start=0.0),
         Clip(id="c2", track_id="host", source_start=0.0, source_end=60.0, timeline_start=0.0),
     ]
-    qc = steps.write_export_qc(proj)
+    qc = steps.write_export_qc(proj, defaults=load_defaults())
     assert not qc["ok"]
     assert any("stacked" in i for i in qc["timebase"]["issues"])
 
@@ -1286,7 +1289,7 @@ def test_transcribe_tracks_honours_input_keyed_cache(minimal_project, sample_wav
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     TranscriptContext(transcribe={"initial_prompt": False}).save(proj.workspace_path())
-    engine = Engine()
+    engine = Engine(defaults=load_defaults())
     cache = engine.cache_path(proj, "host", tmp_workspace / "raw" / "host.wav", language="en")
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(
@@ -1583,7 +1586,7 @@ def test_transcribe_tracks_rechecks_same_span_phrase_correction(
     original_fingerprint = transcript.silence_filter_fingerprint
     assert transcript.words[0].suspect_hallucination
 
-    correct_phrase(proj, "host", 0, 0, "fixed")
+    correct_phrase(proj, "host", 0, 0, "fixed", defaults=load_defaults())
     assert (transcript.words[0].start, transcript.words[0].end) == (0.0, 0.5)
     assert not transcript.words[0].suspect_hallucination
     with (

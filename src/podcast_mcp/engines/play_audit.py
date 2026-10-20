@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.config import mix_peak_ceiling_db
+from podcast_mcp.config import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits.bleed_restore import RESTORE_RENDER_REV
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
@@ -39,7 +39,7 @@ def envelope_audio_payload(envelope: AutomationEnvelope | None) -> dict[str, Any
     }
 
 
-def track_render_hash(project: EpisodeProject, track_id: str) -> str:
+def track_render_hash(project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig) -> str:
     """Fingerprint selected media, edits, clips, and FX baked into a track render.
 
     Includes ``RENDER_SEMANTICS_REV`` so stems and play segments rendered under
@@ -49,12 +49,12 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
     """
     return frozen(
         ("track_render_hash", id(project), track_id),
-        lambda: _track_render_hash(project, track_id),
+        lambda: _track_render_hash(project, track_id, defaults=defaults),
         keep=project,
     )
 
 
-def _track_render_hash(project: EpisodeProject, track_id: str) -> str:
+def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig) -> str:
     track = project.track_by_id(track_id)
     chain = next((c for c in project.processing_chains if c.track_id == track_id), None)
     env = project.volume_envelope_for(track_id)
@@ -116,12 +116,13 @@ def _track_render_hash(project: EpisodeProject, track_id: str) -> str:
     if track is not None and track.transcript_gate:
         from podcast_mcp.engines.bleed_gate import bleed_gate_payload
 
-        payload["bleed_gate"] = bleed_gate_payload(project, track_id)
+        payload["bleed_gate"] = bleed_gate_payload(project, track_id, defaults=defaults)
     if any(clip.bleed_restore is not None for clip in clips_for_track(project, track_id)):
         payload["bleed_restore_policy"] = {
             "revision": RESTORE_RENDER_REV,
             "media": {
-                str(path): _media_revision(path) for path in _restore_media_paths(project, track_id)
+                str(path): _media_revision(path)
+                for path in _restore_media_paths(project, track_id, defaults=defaults)
             },
         }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -135,7 +136,9 @@ def _media_revision(path: Path) -> FileRevision | None:
         return None
 
 
-def _restore_media_paths(project: EpisodeProject, track_id: str) -> list[Path]:
+def _restore_media_paths(
+    project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
+) -> list[Path]:
     from podcast_mcp.edits.gate_fill import current_gate_fill_path
     from podcast_mcp.engines.bleed_gate import bleed_gate_payload
 
@@ -151,7 +154,7 @@ def _restore_media_paths(project: EpisodeProject, track_id: str) -> list[Path]:
         if fill is not None:
             paths.add(fill.resolve())
         if track.transcript_gate:
-            for lane in bleed_gate_payload(project, track_id)["inputs"]:
+            for lane in bleed_gate_payload(project, track_id, defaults=defaults)["inputs"]:
                 paths.update(Path(media["path"]).resolve() for media in lane["media"])
     return sorted(paths)
 
@@ -163,22 +166,32 @@ class RenderDependencies:
 
     @classmethod
     def capture(
-        cls, project: EpisodeProject, track_id: str, paths: tuple[Path, ...] = ()
+        cls,
+        project: EpisodeProject,
+        track_id: str,
+        paths: tuple[Path, ...] = (),
+        *,
+        defaults: EffectiveConfig,
     ) -> RenderDependencies:
         media = tuple(
             (path, _media_revision(path))
             for path in sorted(
-                {*_restore_media_paths(project, track_id), *(path.resolve() for path in paths)}
+                {
+                    *_restore_media_paths(project, track_id, defaults=defaults),
+                    *(path.resolve() for path in paths),
+                }
             )
         )
-        result = cls(_track_render_hash(project, track_id), media)
-        result.validate(project, track_id)
+        result = cls(_track_render_hash(project, track_id, defaults=defaults), media)
+        result.validate(project, track_id, defaults=defaults)
         return result
 
-    def validate(self, project: EpisodeProject, track_id: str) -> None:
+    def validate(
+        self, project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
+    ) -> None:
         if (
             any(_media_revision(path) != revision for path, revision in self.media)
-            or _track_render_hash(project, track_id) != self.fingerprint
+            or _track_render_hash(project, track_id, defaults=defaults) != self.fingerprint
         ):
             raise CodedValueError(
                 "Inputs changed during bleed Restore rendering", code="bleed_restore_inputs_changed"
@@ -208,9 +221,12 @@ def _selected_media_identity(
         return {"unresolved": type(exc).__name__, "source_id": getattr(clip, "source_id", None)}
 
 
-def dialogue_render_hashes(project: EpisodeProject) -> dict[str, str]:
+def dialogue_render_hashes(project: EpisodeProject, *, defaults: EffectiveConfig) -> dict[str, str]:
     """``track_render_hash`` of every dialogue track (muted too), by id."""
-    return {tid: track_render_hash(project, tid) for tid in dialogue_track_ids(project)}
+    return {
+        tid: track_render_hash(project, tid, defaults=defaults)
+        for tid in dialogue_track_ids(project)
+    }
 
 
 def changed_render_hashes(before: Mapping[str, str], after: Mapping[str, str]) -> list[str]:
@@ -218,7 +234,7 @@ def changed_render_hashes(before: Mapping[str, str], after: Mapping[str, str]) -
     return [tid for tid, h in after.items() if before.get(tid) != h]
 
 
-def proxy_render_hash(project: EpisodeProject, track_id: str) -> str:
+def proxy_render_hash(project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig) -> str:
     """16-hex fingerprint of FX source-clock render inputs.
 
     Includes: source media identity (path name, size, mtime_ns),
@@ -263,7 +279,7 @@ def proxy_render_hash(project: EpisodeProject, track_id: str) -> str:
     if track is not None and track.transcript_gate:
         from podcast_mcp.engines.bleed_gate import bleed_gate_payload
 
-        payload["bleed_gate"] = bleed_gate_payload(project, track_id)
+        payload["bleed_gate"] = bleed_gate_payload(project, track_id, defaults=defaults)
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return short_digest(raw)
 
@@ -322,6 +338,7 @@ def publish_stem(
     render: Callable[[Path], object],
     *,
     clear_invalidations: bool = True,
+    defaults: EffectiveConfig,
 ) -> Path:
     """Render ``artifacts/tracks/<id>.wav`` from ``project`` and publish it with its hash (#356).
 
@@ -335,7 +352,7 @@ def publish_stem(
     """
     track = project.track_by_id(track_id)
     dependencies = (
-        RenderDependencies.capture(project, track_id)
+        RenderDependencies.capture(project, track_id, defaults=defaults)
         if track is not None
         and any(
             c.bleed_restore and (track.transcript_gate or c.off_speaker_mute_regions)
@@ -346,7 +363,7 @@ def publish_stem(
 
     def before_replace() -> None:
         if dependencies is not None:
-            dependencies.validate(project, track_id)
+            dependencies.validate(project, track_id, defaults=defaults)
         clear_stem_hash(project, track_id)
 
     render_atomic(
@@ -356,13 +373,16 @@ def publish_stem(
         reap_partials=True,
     )
     if dependencies is None:
-        write_stem_hash(project, track_id, clear_invalidations=clear_invalidations)
+        write_stem_hash(
+            project, track_id, clear_invalidations=clear_invalidations, defaults=defaults
+        )
     else:
         write_stem_hash(
             project,
             track_id,
             clear_invalidations=clear_invalidations,
             validated_hash=dependencies.fingerprint,
+            defaults=defaults,
         )
     return stem_path(project, track_id)
 
@@ -373,6 +393,7 @@ def write_stem_hash(
     *,
     clear_invalidations: bool = True,
     validated_hash: str | None = None,
+    defaults: EffectiveConfig,
 ) -> str:
     """Persist stem content hash; optionally clear diagnostic invalidations.
 
@@ -382,7 +403,9 @@ def write_stem_hash(
     """
     h = _write_hash(
         stem_hash_path(project, track_id),
-        validated_hash if validated_hash is not None else track_render_hash(project, track_id),
+        validated_hash
+        if validated_hash is not None
+        else track_render_hash(project, track_id, defaults=defaults),
     )
     if clear_invalidations:
         from podcast_mcp.engines.render_invalidations import (
@@ -399,6 +422,7 @@ def clear_invalidations_if_current(
     track_id: str,
     *,
     current: EpisodeProject | None = None,
+    defaults: EffectiveConfig,
 ) -> bool:
     """Clear ``project``'s invalidations for ``track_id`` if a stem from ``snapshot`` is current.
 
@@ -409,7 +433,9 @@ def clear_invalidations_if_current(
     from podcast_mcp.engines.render_invalidations import clear_invalidations_for_tracks
 
     reference = current if current is not None else project
-    if track_render_hash(reference, track_id) != track_render_hash(snapshot, track_id):
+    if track_render_hash(reference, track_id, defaults=defaults) != track_render_hash(
+        snapshot, track_id, defaults=defaults
+    ):
         return False
     before = [(inv.id, tuple(inv.track_ids)) for inv in project.render.invalidations]
     clear_invalidations_for_tracks(project, [track_id])
@@ -481,13 +507,13 @@ def stem_duration_matches_timeline(
     )
 
 
-def stem_is_fresh(project: EpisodeProject, track_id: str) -> bool:
+def stem_is_fresh(project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig) -> bool:
     """Hash matches current edit state and stem is not longer than timeline."""
     stem = stem_path(project, track_id)
     if not stem.is_file():
         return False
     stored = read_stem_hash(project, track_id)
-    if stored != track_render_hash(project, track_id):
+    if stored != track_render_hash(project, track_id, defaults=defaults):
         return False
     return stem_duration_matches_timeline(project, track_id)
 
@@ -507,7 +533,9 @@ class StemFingerprint:
     expected_duration_sec: float | None
 
 
-def stem_fingerprint(project: EpisodeProject, track_id: str) -> StemFingerprint:
+def stem_fingerprint(
+    project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
+) -> StemFingerprint:
     """``track_render_hash`` and the expected stem length, read together under the state lock.
 
     Costs what this track's clips, edits, FX and transcript words cost, not a deep copy
@@ -518,7 +546,7 @@ def stem_fingerprint(project: EpisodeProject, track_id: str) -> StemFingerprint:
     """
     with project_state_lock(project):
         return StemFingerprint(
-            track_render_hash(project, track_id),
+            track_render_hash(project, track_id, defaults=defaults),
             expected_stem_duration_sec(project, track_id),
         )
 
@@ -538,7 +566,9 @@ def mix_gains(project: EpisodeProject) -> dict[str, float]:
     return {t.id: t.output_gain_db for t in project.tracks if t.media and not t.muted}
 
 
-def mix_render_hash(gains: Mapping[str, float], peak_ceiling_db: float | None = None) -> str:
+def mix_render_hash(
+    gains: Mapping[str, float], peak_ceiling_db: float | None = None, *, defaults: EffectiveConfig
+) -> str:
     """Fingerprint a mix: which tracks, at what output gain, in any order.
 
     Stem audio is covered by each stem's own hash and the premix-vs-stem mtime
@@ -548,7 +578,11 @@ def mix_render_hash(gains: Mapping[str, float], peak_ceiling_db: float | None = 
     the premix true-peak ceiling (None reads the configured default), so changing
     ``mix.premix_peak_ceiling_db`` re-mixes.
     """
-    ceiling = mix_peak_ceiling_db() if peak_ceiling_db is None else float(peak_ceiling_db)
+    ceiling = (
+        mix_peak_ceiling_db(defaults=defaults)
+        if peak_ceiling_db is None
+        else float(peak_ceiling_db)
+    )
     payload = {
         "mix_rev": MIX_SEMANTICS_REV,
         "peak_ceiling_db": round(ceiling, 2),
@@ -607,6 +641,7 @@ def write_premix_hash(
     *,
     trim_db: float,
     peak_ceiling_db: float | None = None,
+    defaults: EffectiveConfig,
 ) -> str:
     """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``).
 
@@ -615,8 +650,12 @@ def write_premix_hash(
     then the headroom trim the whole mix got, so a window mixed from segments plays at
     the premix's level.
     """
-    ceiling = mix_peak_ceiling_db() if peak_ceiling_db is None else float(peak_ceiling_db)
-    h = mix_render_hash(gains, ceiling)
+    ceiling = (
+        mix_peak_ceiling_db(defaults=defaults)
+        if peak_ceiling_db is None
+        else float(peak_ceiling_db)
+    )
+    h = mix_render_hash(gains, ceiling, defaults=defaults)
     write_text_atomic(premix_hash_path(project), f"{h}\n{round(ceiling, 2)}\n{trim_db}\n")
     return h
 
@@ -625,29 +664,22 @@ def clear_premix_hash(project: EpisodeProject) -> None:
     _clear_hash(premix_hash_path(project))
 
 
-def premix_stale_vs_mix(project: EpisodeProject, defaults: Mapping[str, Any] | None = None) -> bool:
+def premix_stale_vs_mix(project: EpisodeProject, defaults: EffectiveConfig) -> bool:
     """True when the saved mix settings changed since ``premix.wav`` was mixed.
 
     A premix mixed before this hash existed predates saved volumes, so it's
     stale once a fader moves off 0 dB. It also counts stale once a track is
     muted: older mixes skipped muted tracks too, but nothing records which,
     so a project with a hand-set mute re-mixes once. ``defaults`` is the pipeline config
-    whose ``mix.premix_peak_ceiling_db`` the premix must match. With None (render status,
-    review publish: no run config at hand) the ceiling recorded in ``premix.hash`` is used,
-    falling back to ``load_defaults()`` for a hash without one, so a per-project ceiling
-    override doesn't read as stale.
+    whose ``mix.premix_peak_ceiling_db`` the premix must match.
     """
     if not premix_path(project).is_file():
         return False
     stored = read_premix_hash(project)
     if stored is None:
         return any(t.fader_db or t.muted for t in project.tracks if t.media)
-    if defaults is None:
-        recorded = read_premix_ceiling_db(project)
-        ceiling = mix_peak_ceiling_db() if recorded is None else recorded
-    else:
-        ceiling = mix_peak_ceiling_db(defaults)
-    return stored != mix_render_hash(mix_gains(project), ceiling)
+    ceiling = mix_peak_ceiling_db(defaults)
+    return stored != mix_render_hash(mix_gains(project), ceiling, defaults=defaults)
 
 
 def _mtime(path: Path) -> float | None:
@@ -674,7 +706,7 @@ def premix_stale_vs_stems(project: EpisodeProject) -> bool:
     return any(_stem_newer_than(project, tid, premix_mtime) for tid in mix_gains(project))
 
 
-def premix_is_stale(project: EpisodeProject, defaults: Mapping[str, Any] | None = None) -> bool:
+def premix_is_stale(project: EpisodeProject, defaults: EffectiveConfig) -> bool:
     """True when ``premix.wav`` no longer matches what the mix would play now.
 
     Covers the saved mix (volume, mute), a stem rendered after the premix, and a
@@ -692,7 +724,7 @@ def premix_is_stale(project: EpisodeProject, defaults: Mapping[str, Any] | None 
         newer = _stem_newer_than(project, tid, premix_mtime)
         if newer is None:
             continue  # a missing stem is unknown, not stale
-        if newer or not stem_is_fresh(project, tid):
+        if newer or not stem_is_fresh(project, tid, defaults=defaults):
             return True
     return False
 

@@ -176,7 +176,7 @@ def run_reconcile_benchmark(project: EpisodeProject) -> PipelineBenchmarkResult:
     from podcast_mcp.engines import audio_audit
 
     result = PipelineBenchmarkResult()
-    AnalysisPolicy.from_defaults()
+    AnalysisPolicy.from_defaults(defaults=load_defaults())
     map_calls = {"n": 0}
     mono_calls = {"n": 0}
     original_map = compute_word_audibility_map
@@ -222,7 +222,7 @@ def run_reconcile_benchmark(project: EpisodeProject) -> PipelineBenchmarkResult:
 
 def run_analyze_cleanup_benchmark(project: EpisodeProject) -> PipelineBenchmarkResult:
     result = PipelineBenchmarkResult()
-    pol = AnalysisPolicy.from_defaults()
+    pol = AnalysisPolicy.from_defaults(defaults=load_defaults())
     map_calls = {"n": 0}
     original_map = compute_word_audibility_map
 
@@ -252,7 +252,7 @@ def run_analyze_cleanup_benchmark(project: EpisodeProject) -> PipelineBenchmarkR
         ),
     ):
         t0 = time.perf_counter()
-        analyze_cleanup(project, policy=pol)
+        analyze_cleanup(project, policy=pol, defaults=load_defaults())
         result.analyze_cleanup_sec = time.perf_counter() - t0
 
     result.analyze_cleanup_map_calls = map_calls["n"]
@@ -292,7 +292,7 @@ def test_benchmark_analyze_cleanup_synthetic(tmp_path: Path):
 @pytest.mark.slow
 def test_benchmark_analyze_cleanup_map_pass_count(tmp_path: Path):
     project = _two_track_reconcile_project(tmp_path)
-    pol = AnalysisPolicy.from_defaults()
+    pol = AnalysisPolicy.from_defaults(defaults=load_defaults())
 
     def fake_rms(proj, track_id, t_start, t_end, **kwargs):
         return -40.0
@@ -318,7 +318,7 @@ def test_benchmark_analyze_cleanup_map_pass_count(tmp_path: Path):
             return_value=-50.0,
         ),
     ):
-        analyze_cleanup(project, policy=pol)
+        analyze_cleanup(project, policy=pol, defaults=load_defaults())
 
     assert map_calls["n"] <= len(project.tracks) * 2
 

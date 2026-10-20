@@ -9,6 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.conversation_align import (
     REFERENCE_METHOD,
     UNCONFIRMED_HOLD,
@@ -207,7 +208,7 @@ def test_whisper_jitter_bleed_holds_identity(tmp_path: Path) -> None:
     assert abs(guest.offset_sec) < 1e-6
     assert guest.bleed_offset_sec is not None
     assert abs(guest.bleed_offset_sec) < 1.0
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     gclip = next(c for c in proj.clips if c.track_id == "guest")
     assert abs(gclip.timeline_start) < 1e-6
     assert abs(gclip.source_start) < 1e-6
@@ -257,7 +258,7 @@ def test_small_bleed_applies_when_acoustic_agrees(tmp_path: Path) -> None:
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method == "bleed_acoustic"
     assert abs(guest.offset_sec - (-0.45)) < 0.02
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     gclip = next(c for c in proj.clips if c.track_id == "guest")
     assert abs(gclip.source_start - 0.45) < 0.02
     assert abs(gclip.timeline_start) < 1e-6
@@ -294,7 +295,7 @@ def test_near_equal_iso_durations_not_same_length_prior(tmp_path: Path) -> None:
             ("guest", 474.0, guest_words),
         ],
     )
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert not guest.same_length_prior
 
@@ -391,7 +392,7 @@ def test_late_join_occupancy_into_host_silence(tmp_path: Path) -> None:
     island_center_file = (30.0 + 35.92) / 2.0
     session_center = island_center_file + guest.offset_sec
     assert 46.0 <= session_center <= 66.0
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     gclip = next(c for c in proj.clips if c.track_id == "guest")
     assert abs(gclip.timeline_start - guest.offset_sec) < 0.05
 
@@ -462,7 +463,7 @@ def test_plan_bleed_preferred(tmp_path: Path) -> None:
     assert guest.method == "bleed"
     assert guest.acoustic_confirmed is True
     assert abs(guest.offset_sec - 5.02) < 0.01
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     gclip = next(c for c in proj.clips if c.track_id == "guest")
     assert abs(gclip.timeline_start - 5.02) < 0.01
 
@@ -476,7 +477,7 @@ def test_large_bleed_move_without_confirmation_is_held(tmp_path: Path) -> None:
     assert guest.candidate_offset_sec == pytest.approx(5.0, abs=0.01)
     assert guest.acoustic_confirmed is False
     assert "held unconfirmed" in result.summary()
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     gclip = next(c for c in proj.clips if c.track_id == "guest")
     assert gclip.timeline_start == 0
 
@@ -495,7 +496,7 @@ def test_large_move_rejected_when_residual_or_windows_disagree(tmp_path: Path) -
 
 def test_late_join_without_confirmation_is_held(tmp_path: Path) -> None:
     proj = _late_join_project(tmp_path)
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method == "unconfirmed_hold"
     assert guest.candidate_offset_sec is not None
@@ -575,7 +576,7 @@ def test_same_length_prior_holds(tmp_path: Path) -> None:
             ("guest", 60.0, guest_words),
         ],
     )
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert abs(guest.offset_sec) < 1.0 or guest.same_length_prior
 
@@ -612,7 +613,7 @@ def test_skip_single_track(tmp_path: Path) -> None:
         tmp_path,
         [("solo", 10.0, [TranscriptWord(text="hi", start=0.0, end=0.5, confidence=0.9)])],
     )
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     assert result.skipped_reason is not None
 
 
@@ -641,7 +642,7 @@ def test_three_speakers_n_way(tmp_path: Path) -> None:
             ("third", 80.0, third_w),
         ],
     )
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     assert len(result.plans) == 3
     assert result.reference_track_id == "host"
     assert {p.track_id for p in result.plans} == {"host", "guest", "third"}
@@ -739,7 +740,7 @@ def _multi_file_project(tmp_path: Path, *, guest_a_sec: float = 30.0) -> Episode
 def test_multi_file_clips_plan_independently(tmp_path: Path) -> None:
     """Several whole-file clips on one speaker each get their own plan."""
     p = _multi_file_project(tmp_path)
-    result = plan_conversation_alignment(p)
+    result = plan_conversation_alignment(p, defaults=load_defaults())
     guest_plans = [pl for pl in result.plans if pl.track_id == "guest"]
     assert len(guest_plans) == 2
     assert {pl.clip_id for pl in guest_plans} == {"clip_ga", "clip_gb"}
@@ -809,11 +810,11 @@ def test_snapshot_restore_clip_geometry(tmp_path: Path) -> None:
 
 def test_run_conversation_align_skip_writes_artifact(tmp_path: Path) -> None:
     proj = _project(tmp_path, [("host", 10.0, [TranscriptWord(text="hi", start=0.0, end=0.2)])])
-    result = run_conversation_align(proj)
+    result = run_conversation_align(proj, defaults=load_defaults())
     assert result.skipped_reason
     artifact = tmp_path / "artifacts" / "alignment" / "conversation_align.json"
     assert artifact.is_file()
-    assert apply_alignment_plans(proj, result) == 0
+    assert apply_alignment_plans(proj, result, defaults=load_defaults()) == 0
 
 
 def test_apply_alignment_plans_creates_missing_clip(tmp_path: Path) -> None:
@@ -838,7 +839,7 @@ def test_apply_alignment_plans_creates_missing_clip(tmp_path: Path) -> None:
         ],
         reference_track_id="host",
     )
-    assert apply_alignment_plans(p, result) == 1
+    assert apply_alignment_plans(p, result, defaults=load_defaults()) == 1
     assert p.clips[0].id == "clip_host"
     assert p.clips[0].timeline_start == pytest.approx(2.0)
 
@@ -966,7 +967,7 @@ def test_identity_summary_and_fingerprint_meta(tmp_path: Path) -> None:
             ("guest", 10.0, [TranscriptWord(text="hi", start=0.0, end=0.2)]),
         ],
     )
-    result = run_conversation_align(proj)
+    result = run_conversation_align(proj, defaults=load_defaults())
     assert not result.skipped_reason
     assert proj.clips
     proj.meta.ingest_alignment = {
@@ -1052,7 +1053,7 @@ def test_apply_alignment_skips_music_and_uses_source_duration(tmp_path: Path) ->
         ],
         reference_track_id="guest",
     )
-    assert apply_alignment_plans(p, result) == 1
+    assert apply_alignment_plans(p, result, defaults=load_defaults()) == 1
     assert p.clips[0].source_start == pytest.approx(1.0)
     assert p.clips[0].timeline_start == 0.0
 
@@ -1137,7 +1138,7 @@ def test_apply_keeps_identity_sequential_reference_clips(tmp_path: Path) -> None
         ],
         reference_track_id="host",
     )
-    assert apply_alignment_plans(p, result) == 2
+    assert apply_alignment_plans(p, result, defaults=load_defaults()) == 2
     by_id = {c.id: c for c in p.clips}
     assert by_id["h1"].timeline_start == pytest.approx(0.0)
     assert by_id["h2"].timeline_start == pytest.approx(12.0)
@@ -1196,7 +1197,7 @@ def test_apply_alignment_plans_rebases_on_reference_lead_in(tmp_path: Path) -> N
         ],
         reference_track_id="host",
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     host = next(c for c in proj.clips if c.track_id == "host")
     guest = next(c for c in proj.clips if c.track_id == "guest")
     assert (host.source_start, host.timeline_start) == (3.0, 0.0)
@@ -1217,7 +1218,7 @@ def test_apply_alignment_plans_rebases_offset_zero_guest(tmp_path: Path) -> None
         ],
         reference_track_id="host",
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     host = next(c for c in proj.clips if c.track_id == "host")
     guest = next(c for c in proj.clips if c.track_id == "guest")
     assert (host.source_start, host.timeline_start) == (3.0, 0.0)
@@ -1440,7 +1441,7 @@ def _plans(offset: float, method: str = "bleed") -> AlignResult:
 @pytest.mark.parametrize("off", [-0.18, -35.6])
 def test_split_track_negative_offset_slips_source(tmp_path: Path, off: float) -> None:
     proj = _bladed_project(tmp_path)
-    apply_alignment_plans(proj, _plans(off))
+    apply_alignment_plans(proj, _plans(off), defaults=load_defaults())
     guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
     assert len(guest) == 2
     assert same_source_timeline_overlaps(proj) == []
@@ -1468,7 +1469,7 @@ def test_split_track_negative_offset_slips_source(tmp_path: Path, off: float) ->
 
 def test_split_track_positive_offset_trims_head(tmp_path: Path) -> None:
     proj = _bladed_project(tmp_path)
-    apply_alignment_plans(proj, _plans(5.0))
+    apply_alignment_plans(proj, _plans(5.0), defaults=load_defaults())
     guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
     assert (
         guest["guest_a"].source_start,
@@ -1520,7 +1521,7 @@ def test_split_track_after_ripple_follows_reference_piece(tmp_path: Path) -> Non
             ClipAlignPlan(track_id="guest", clip_id="guest_b", offset_sec=-2.0, method="bleed"),
         ],
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
     assert guest["guest_a"].timeline_start == pytest.approx(0.0)
     assert guest["guest_b"].timeline_start == pytest.approx(1375.4)
@@ -1566,7 +1567,7 @@ def test_split_track_ambiguous_delta_is_skipped_with_reason(tmp_path: Path) -> N
         ],
     )
     before = _geometry_full(proj)
-    updated = apply_alignment_plans(proj, result)
+    updated = apply_alignment_plans(proj, result, defaults=load_defaults())
     assert _geometry_full(proj) == before
     assert updated == 1
     guest_plans = [p for p in result.plans if p.track_id == "guest"]
@@ -1591,7 +1592,7 @@ def test_apply_invariant_reverts_stacking_geometry(tmp_path: Path, monkeypatch) 
         lambda clip, target_shift, *, media_duration: (0.0, media_duration, 0.0),
     )
     result = _plans(-35.6)
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     assert _geometry_full(proj) == before
     guest_plans = [p for p in result.plans if p.track_id == "guest"]
     assert guest_plans and all(
@@ -1631,7 +1632,7 @@ def test_apply_alignment_rejects_only_new_cross_lane_pair(
             ClipAlignPlan(track_id="guest", clip_id="parked", offset_sec=2, method="bleed"),
         ],
     )
-    updated = apply_alignment_plans(proj, result)
+    updated = apply_alignment_plans(proj, result, defaults=load_defaults())
     parked = next(c for c in proj.clips if c.id == "parked")
     assert parked.timeline_start == (guest_start if should_skip else 0.0)
     assert updated == (1 if should_skip else 2)
@@ -1679,7 +1680,7 @@ def test_alignment_rollback_distinguishes_clip_ids_reused_on_other_lanes(
             ClipAlignPlan(track_id="guest", clip_id="b", offset_sec=2, method="bleed"),
         ],
     )
-    assert apply_alignment_plans(proj, result) == 1
+    assert apply_alignment_plans(proj, result, defaults=load_defaults()) == 1
     assert next(c for c in proj.clips if c.track_id == "guest").timeline_start == 20
     assert result.plans[1].skipped_reason is not None
     assert [(s.track_ids, s.clip_ids) for s in same_source_timeline_overlaps(proj)] == [
@@ -1718,7 +1719,7 @@ def test_whole_file_single_clip_keeps_legacy_geometry(tmp_path: Path) -> None:
             ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=5.0, method="bleed"),
         ],
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     guest_a = next(c for c in proj.clips if c.id == "guest_a")
     assert (guest_a.source_start, guest_a.source_end, guest_a.timeline_start) == (0.0, 90.0, 5.0)
 
@@ -1776,7 +1777,7 @@ def test_head_trimmed_solo_clip_slips_instead_of_whole_file(tmp_path: Path) -> N
             ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=2.0, method="bleed"),
         ],
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     g = next(c for c in proj.clips if c.id == "guest_a")
     assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((0.0, 68.0, 2.0))
     assert g.timeline_end == pytest.approx(70.0)
@@ -1809,7 +1810,7 @@ def test_recorded_lead_in_clip_is_replaced_as_whole_file(tmp_path: Path) -> None
             ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=-3.0, method="bleed"),
         ],
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     g = next(c for c in proj.clips if c.id == "guest_a")
     assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((3.0, 100.0, 0.0))
 
@@ -1853,7 +1854,7 @@ def test_split_track_after_ripple_zero_offset_rebases_each_piece(tmp_path: Path)
             ClipAlignPlan(track_id="guest", clip_id="guest_b", offset_sec=0.0, method="bleed"),
         ],
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
     assert (guest["guest_a"].source_start, guest["guest_a"].timeline_start) == (0.0, 0.0)
     assert (
@@ -1896,7 +1897,7 @@ def test_hold_co_timed_uses_overlapping_reference_piece(tmp_path: Path) -> None:
             ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=0.0, method="hold"),
         ],
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     g = next(c for c in proj.clips if c.id == "guest_a")
     assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((3.0, 40.0, 0.0))
 
@@ -1932,7 +1933,7 @@ def test_stack_skip_reason_lists_every_new_pair(tmp_path: Path, monkeypatch) -> 
             ),
         ],
     )
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     reason = next(p.skipped_reason for p in result.plans if p.track_id == "guest")
     assert reason is not None
     assert "'g0'/'g1'" in reason and "'g1'/'g3'" in reason
@@ -1942,7 +1943,7 @@ def test_stack_skip_reason_lists_every_new_pair(tmp_path: Path, monkeypatch) -> 
 
 def test_split_track_meta_uses_clip_shift(tmp_path: Path) -> None:
     proj = _bladed_project(tmp_path)
-    apply_alignment_plans(proj, _plans(-35.6))
+    apply_alignment_plans(proj, _plans(-35.6), defaults=load_defaults())
     meta = proj.meta.ingest_alignment or {}
     entry = meta["guest:guest_b"]
     assert entry.session_start_in_file_sec == pytest.approx(35.6, abs=1e-6)
@@ -2021,14 +2022,14 @@ def _geometry(proj: EpisodeProject) -> list[tuple[str, float, float, float]]:
 def test_equal_duration_three_tracks_hold_identity_with_sparse_bleed(tmp_path: Path) -> None:
     proj = _three_track_project(tmp_path)
     before = _geometry(proj)
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     for p in result.plans:
         if p.track_id == "host":
             continue
         assert p.method == "hold"
         assert p.offset_sec == 0.0
         assert p.same_length_prior
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     assert _geometry(proj) == before
     assert "locked" in result.summary()
 
@@ -2052,7 +2053,7 @@ def test_equal_duration_hold_survives_ripple(tmp_path: Path) -> None:
             )
         )
     before = _geometry(proj)
-    run_conversation_align(proj)
+    run_conversation_align(proj, defaults=load_defaults())
     assert len(proj.clips) == 6
     assert _geometry(proj) == before
 
@@ -2092,7 +2093,7 @@ def test_manifest_pinned_offset_is_manual_lock(tmp_path: Path) -> None:
     assert guest.method == "manual"
     assert guest.offset_sec == pytest.approx(3.0)
     assert "locked guest" in result.summary()
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     gclip = next(c for c in proj.clips if c.track_id == "guest")
     assert gclip.timeline_start == 3.0
     assert proj.meta.ingest_alignment is not None
@@ -2148,7 +2149,10 @@ def test_manifest_pin_is_per_clip(tmp_path: Path) -> None:
     p.meta.ingest_alignment = {
         "guest:clip_ga": SpeakerIngestAlignment(content_align_sec=0.0, align_method="manual")
     }
-    methods = {pl.clip_id: pl.method for pl in plan_conversation_alignment(p).plans}
+    methods = {
+        pl.clip_id: pl.method
+        for pl in plan_conversation_alignment(p, defaults=load_defaults()).plans
+    }
     assert methods["clip_ga"] == "manual"
     assert methods["clip_gb"] != "manual"
 
@@ -2168,13 +2172,21 @@ def test_duplicate_speaker_label_does_not_cross_lock(tmp_path: Path) -> None:
 
     a = build()
     a.meta.ingest_alignment = {"Guest": SpeakerIngestAlignment(align_method="manual")}
-    assert not [pl for pl in plan_conversation_alignment(a).plans if pl.method == "manual"]
+    assert not [
+        pl
+        for pl in plan_conversation_alignment(a, defaults=load_defaults()).plans
+        if pl.method == "manual"
+    ]
     b = build()
     b.meta.ingest_alignment = {"guest2:clip_guest2": SpeakerIngestAlignment(align_method="manual")}
     assert [
-        pl.track_id for pl in plan_conversation_alignment(b).plans if pl.method == "manual"
+        pl.track_id
+        for pl in plan_conversation_alignment(b, defaults=load_defaults()).plans
+        if pl.method == "manual"
     ] == ["guest2"]
-    apply_alignment_plans(a, plan_conversation_alignment(a))
+    apply_alignment_plans(
+        a, plan_conversation_alignment(a, defaults=load_defaults()), defaults=load_defaults()
+    )
     assert a.meta.ingest_alignment is not None
     assert "guest:clip_guest" in a.meta.ingest_alignment
     assert "guest2:clip_guest2" in a.meta.ingest_alignment
@@ -2183,16 +2195,16 @@ def test_duplicate_speaker_label_does_not_cross_lock(tmp_path: Path) -> None:
 
 def test_coincidental_equal_length_extra_is_not_locked(tmp_path: Path) -> None:
     p = _multi_file_project(tmp_path, guest_a_sec=100.0)
-    plans = plan_conversation_alignment(p).plans
+    plans = plan_conversation_alignment(p, defaults=load_defaults()).plans
     assert next(pl for pl in plans if pl.clip_id == "clip_ga").method != "hold"
 
 
 def test_hold_rebases_onto_reference_lead_in(tmp_path: Path) -> None:
     proj = _project(tmp_path, [("host", 100.0, []), ("guest", 100.0, [])])
     next(c for c in proj.clips if c.track_id == "host").source_start = 3.0
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     assert next(pl for pl in result.plans if pl.track_id == "guest").method == "hold"
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     g = next(c for c in proj.clips if c.track_id == "guest")
     assert (g.source_start, g.timeline_start) == (3.0, 0.0)
 
@@ -2201,9 +2213,9 @@ def test_equal_duration_hold_keeps_prior_guest_nudge(tmp_path: Path) -> None:
     proj = _project(tmp_path, [("host", 100.0, []), ("guest", 100.0, [])])
     guest = next(c for c in proj.clips if c.track_id == "guest")
     guest.timeline_start = 5.0
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults=load_defaults())
     assert next(p for p in result.plans if p.track_id == "guest").method == "hold"
-    apply_alignment_plans(proj, result)
+    apply_alignment_plans(proj, result, defaults=load_defaults())
     assert guest.timeline_start == 5.0
 
 
@@ -2267,7 +2279,7 @@ def test_locked_track_joins_peer_union_in_pass_one(tmp_path: Path) -> None:
         "Audra": SpeakerIngestAlignment(content_align_sec=0.0, align_method="manual")
     }
     with patch.object(ca, "_score_one_clip", wraps=ca._score_one_clip) as spy:
-        ca.plan_conversation_alignment(p)
+        ca.plan_conversation_alignment(p, defaults=load_defaults())
     union = spy.call_args_list[0].kwargs["union"]
     assert any(s <= 50.1 <= e for s, e in union)
 
@@ -2338,7 +2350,11 @@ def test_ingest_alignment_meta_key_uses_clip_key_for_shared_label(tmp_path: Path
     key = ingest_alignment_meta_key(p, guest, gclip, multi_clip=False)
     assert key == "guest:clip_guest"
     p.meta.ingest_alignment = {key: SpeakerIngestAlignment(align_method="manual")}
-    manual = [pl.track_id for pl in plan_conversation_alignment(p).plans if pl.method == "manual"]
+    manual = [
+        pl.track_id
+        for pl in plan_conversation_alignment(p, defaults=load_defaults()).plans
+        if pl.method == "manual"
+    ]
     assert manual == ["guest"]
 
 
@@ -2355,7 +2371,11 @@ def test_manual_lock_offset_uses_overlapping_reference_clip(tmp_path: Path) -> N
     )
     next(c for c in p.clips if c.track_id == "guest").timeline_start = 120.0
     p.meta.ingest_alignment = {"Guest": SpeakerIngestAlignment(align_method="manual")}
-    guest = next(pl for pl in plan_conversation_alignment(p).plans if pl.track_id == "guest")
+    guest = next(
+        pl
+        for pl in plan_conversation_alignment(p, defaults=load_defaults()).plans
+        if pl.track_id == "guest"
+    )
     assert guest.method == "manual"
     assert guest.offset_sec == pytest.approx(20.0)
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.history.diff import diff_snapshots
 from podcast_mcp.models import (
@@ -124,6 +125,7 @@ def test_punch_delete_archives_per_track_source() -> None:
         "host",
         2.5,
         3.0,
+        defaults=load_defaults(),
     )
     records = list_applied_edits(p, track_id="host")
     assert len(records) == 1
@@ -140,7 +142,7 @@ def test_split_clips_at_records_split_source_by_track() -> None:
     from podcast_mcp.edits.timeline_ops import split_clips_at
 
     p = _project_with_two_clips()
-    split_clips_at(p, 1.0, ["host"])
+    split_clips_at(p, 1.0, ["host"], defaults=load_defaults())
     records = list_applied_edits(p, track_id="host")
     assert records[-1].params["split_source_by_track"] == {"host": pytest.approx(1.0)}
 
@@ -218,7 +220,9 @@ def test_ripple_across_a_moved_clip_records_the_seam_not_the_source_envelope() -
     from podcast_mcp.edits.timeline_ops import move_clips
 
     p = _project_with_moved_clip()
-    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    move_clips(
+        p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}], defaults=load_defaults()
+    )
     ripple_cut(p, 10.0, 21.0, use_inaudible_opt=False)
     record = list_applied_edits(p)[-1]
     assert record.operation == "ripple_delete"
@@ -238,12 +242,15 @@ def test_punch_across_a_moved_clip_records_the_seam() -> None:
     from podcast_mcp.edits.timeline_ops import _write_punch_delete, move_clips
 
     p = _project_with_moved_clip()
-    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    move_clips(
+        p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}], defaults=load_defaults()
+    )
     _write_punch_delete(
         p,
         "host",
         10.0,
         21.0,
+        defaults=load_defaults(),
     )
     record = list_applied_edits(p, track_id="host")[-1]
     assert record.params["per_track_source"] == {"host": [pytest.approx(15.0), pytest.approx(33.0)]}
@@ -256,7 +263,7 @@ def _assert_restore_requires_history(project, record_id):
 
     before = project.model_dump(mode="json")
     with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, record_id)
+        revert_applied_edit(project, record_id, defaults=load_defaults())
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == (
         "This edit cannot be restored individually. Use History Undo to restore the whole action. "
@@ -272,7 +279,9 @@ def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
     from podcast_mcp.edits.timeline_ops import move_clips
 
     p = _project_with_moved_clip()
-    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    move_clips(
+        p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}], defaults=load_defaults()
+    )
     ripple_cut(p, 10.0, 21.0, use_inaudible_opt=False)
     record = list_applied_edits(p)[-1]
     record.source_start = 10.0
@@ -293,12 +302,15 @@ def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
     from podcast_mcp.edits.timeline_ops import _write_punch_delete, move_clips
 
     p = _project_with_moved_clip()
-    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    move_clips(
+        p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}], defaults=load_defaults()
+    )
     _write_punch_delete(
         p,
         "host",
         10.0,
         21.0,
+        defaults=load_defaults(),
     )
     record = list_applied_edits(p, track_id="host")[-1]
     assert record.params["scope"] == "track"
@@ -433,11 +445,11 @@ def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
     ]
     ripple_cut(p, 2.1, 3.37, use_inaudible_opt=False)
     first = list_applied_edits(p)[-1]
-    split_clips_at(p, 6.123)
+    split_clips_at(p, 6.123, defaults=load_defaults())
     clips = clips_for_track(p, "host")
     trim(p, clips[-1].id, "out", 19.5)
     clips = clips_for_track(p, "host")
-    roll_clip_join(p, clips[1].id, clips[2].id, 0.237)
+    roll_clip_join(p, clips[1].id, clips[2].id, 0.237, defaults=load_defaults())
     ripple_cut(p, 0.5, 1.1, use_inaudible_opt=False)
 
     pre, post = first.params["per_track_source"]["host"]
@@ -566,7 +578,7 @@ def test_render_status_report() -> None:
     from podcast_mcp.engines.render_status import render_status_report
 
     p = _project_with_two_clips()
-    report = render_status_report(p)
+    report = render_status_report(p, defaults=load_defaults())
     assert "tracks" in report
     assert "premix" in report
     assert report["needs_rerender"] is True
@@ -582,7 +594,7 @@ def test_render_status_report_with_premix(tmp_path) -> None:
     premix = p.artifacts_dir() / "premix.wav"
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(b"RIFF")
-    report = render_status_report(p)
+    report = render_status_report(p, defaults=load_defaults())
     assert report["premix"]["exists"] is True
     assert report["premix"]["size_bytes"] == 4
 
@@ -614,10 +626,10 @@ def test_render_status_reports_duration_mismatch(tmp_path, sample_wav) -> None:
     stem = p.artifacts_dir() / "tracks" / "host.wav"
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(p, "host")
+    write_stem_hash(p, "host", defaults=load_defaults())
     premix = p.artifacts_dir() / "premix.wav"
     premix.write_bytes(b"RIFF")
-    report = render_status_report(p)
+    report = render_status_report(p, defaults=load_defaults())
     assert report["tracks"]["host"]["duration_mismatch"] is True
     assert report["tracks"]["host"]["stem_is_fresh"] is False
     assert report["needs_rerender"] is True

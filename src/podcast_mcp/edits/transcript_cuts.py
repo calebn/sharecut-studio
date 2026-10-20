@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.cut_safety import decision_policy
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_SPLIT_REASON,
@@ -77,17 +77,21 @@ def _with_timeline_spans(project: EpisodeProject, match: TranscriptMatch) -> Tra
     return match
 
 
-def ensure_combined_transcript(project: EpisodeProject) -> CombinedTranscript:
+def ensure_combined_transcript(
+    project: EpisodeProject, *, defaults: EffectiveConfig
+) -> CombinedTranscript:
     if project.transcripts:
         from podcast_mcp.engines import TranscriptionEngine
 
-        project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+        project.combined_transcript = TranscriptionEngine(defaults=defaults).merge_transcripts(
+            project
+        )
         return project.combined_transcript
     if project.combined_transcript is not None:
         return project.combined_transcript
     from podcast_mcp.engines import TranscriptionEngine
 
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=defaults).merge_transcripts(project)
     return project.combined_transcript
 
 
@@ -99,12 +103,13 @@ def search_transcript(
     speaker: str | None = None,
     fuzzy: bool = True,
     include_suppressed: bool = False,
+    defaults: EffectiveConfig,
 ) -> list[TranscriptMatch]:
     q = normalize_text(query)
     if not q:
         return []
     matches: list[TranscriptMatch] = []
-    combined = ensure_combined_transcript(project)
+    combined = ensure_combined_transcript(project, defaults=defaults)
     for idx, utt in enumerate(combined.utterances):
         if track_id and utt.track_id != track_id:
             continue
@@ -219,6 +224,7 @@ def append_remove_decision(
     decision_type: EditDecisionType = EditDecisionType.REMOVE,
     decision_id: str | None = None,
     author: str | None = None,
+    defaults: EffectiveConfig,
 ) -> EditDecision:
     """Append a remove or mute decision without waveform optimization or coalescing.
 
@@ -253,7 +259,7 @@ def append_remove_decision(
     require_source_remove(project, decision)
     from podcast_mcp.edits.cut_safety import assess_source_offer
 
-    assess_source_offer(project, decision, defaults=load_defaults())
+    assess_source_offer(project, decision, defaults=defaults)
     project.edit_decisions.append(decision)
     return decision
 
@@ -302,7 +308,7 @@ def add_remove_decision(
     review_required: bool = True,
     crossfade_ms: int = 10,
     use_inaudible_opt: bool | None = None,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     source_id: str | None = None,
     source_aware: bool = False,
     merge_ids: set[str] | None = None,
@@ -312,7 +318,6 @@ def add_remove_decision(
             "end must be greater than start. Pick an end after the start.",
             code="range_end_before_start",
         )
-    from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.cut_safety import (
         CutScopeHold,
         CutScopeUnavailable,
@@ -377,10 +382,9 @@ def add_remove_decision(
     )
     if isinstance(placement, CutScopeHold):
         raise ScopeChangedAtApproval([placement], {})
-    cfg = defaults if defaults is not None else load_defaults()
     # Pace from the requested span first so waveform snap cannot pull a boundary
     # onto the next word and then room-tone-expand across real dialogue.
-    pacing_kwargs: dict[str, Any] = {"defaults": cfg, "cut_kind": "nl"}
+    pacing_kwargs: dict[str, Any] = {"defaults": defaults, "cut_kind": "nl"}
     if source_aware:
         pacing_kwargs["transcript"] = transcript
     paced = apply_filler_pacing(project, track_id, start, end, **pacing_kwargs)
@@ -390,7 +394,7 @@ def add_remove_decision(
             "widen the retained gap or leave this hesitation in",
             code="filler_gap_too_small",
         )
-    optimizer_kwargs: dict[str, Any] = {"force_enabled": use_inaudible_opt}
+    optimizer_kwargs: dict[str, Any] = {"force_enabled": use_inaudible_opt, "defaults": defaults}
     if source_aware:
         optimizer_kwargs.update(source_id=source_id)
         if transcript is not None:
@@ -446,7 +450,7 @@ def add_remove_decision(
         track_id,
         cut_start,
         cut_end,
-        defaults=cfg,
+        defaults=defaults,
         _admissible_spans=(
             [(float(placement_witness.start), float(placement_witness.end))]
             if placement_witness is not None
@@ -485,7 +489,7 @@ def add_remove_decision(
     )
     require_source_remove(project, decision)
     if guard is not None and guard.blocked:
-        record_suggested_cut_speech(project, decision)
+        record_suggested_cut_speech(project, decision, defaults=defaults)
     staged = project.model_copy(deep=True)
     staged.edit_decisions.append(decision)
     complete_primary_witness = source_aware and source_id is None
@@ -500,7 +504,7 @@ def add_remove_decision(
     coalesce_edits(
         staged,
         track_id=track_id,
-        defaults=cfg,
+        defaults=defaults,
         merge_ids=joining_ids,
         allow_primary_witness_completion=complete_primary_witness,
     )
@@ -517,7 +521,7 @@ def add_remove_decision(
     survivor = candidates[0]
     from podcast_mcp.edits.cut_safety import assess_source_offer
 
-    assess_source_offer(staged, survivor, defaults=cfg)
+    assess_source_offer(staged, survivor, defaults=defaults)
     project.edit_decisions = staged.edit_decisions
     return survivor
 
@@ -617,7 +621,7 @@ def coalesce_edits(
     *,
     track_id: str | None = None,
     merge_gap_sec: float = 0.05,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     skip_counts: dict[str, int] | None = None,
     merge_ids: set[str] | None = None,
     allow_primary_witness_completion: bool = False,
@@ -727,14 +731,14 @@ def coalesce_edits(
         if len(group) > 1:
             from podcast_mcp.edits.cut_safety import assess_source_offer
 
-            assess_source_offer(project, survivor, defaults=defaults or load_defaults())
+            assess_source_offer(project, survivor, defaults=defaults)
         result.append(survivor)
     project.edit_decisions = result
     return merged_count
 
 
 def _merged_pad_sec(
-    project: EpisodeProject, group: list[EditDecision], defaults: dict[str, Any] | None
+    project: EpisodeProject, group: list[EditDecision], defaults: EffectiveConfig
 ) -> float | None:
     """The pad for the cut ``group`` merged into; ``group[0]`` already spans the merge.
 
@@ -804,7 +808,7 @@ def cut_time_range(
     review_required: bool = True,
     crossfade_ms: int = 10,
     use_inaudible_opt: bool | None = None,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
 ) -> EditDecision:
     return add_remove_decision(
         project,
@@ -828,8 +832,11 @@ def cut_text_match(
     match_all: bool = False,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
+    defaults: EffectiveConfig,
 ) -> list[EditDecision]:
-    matches = search_transcript(project, query, track_id=track_id, speaker=speaker)
+    matches = search_transcript(
+        project, query, track_id=track_id, speaker=speaker, defaults=defaults
+    )
     if not matches:
         return []
     selected = matches if match_all else [matches[0]]
@@ -845,6 +852,7 @@ def cut_text_match(
                 reason=f"{NL_MATCH_REASON_PREFIX}{query[:40]}",
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=defaults,
             )
         )
     return decisions
@@ -856,8 +864,9 @@ def cut_utterance(
     *,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
+    defaults: EffectiveConfig,
 ) -> EditDecision:
-    combined = ensure_combined_transcript(project)
+    combined = ensure_combined_transcript(project, defaults=defaults)
     tid, source_id, start, end, text = time_range_from_utterance(combined, utterance_index)
     return _cut_transcript_source_range(
         project,
@@ -868,6 +877,7 @@ def cut_utterance(
         reason=f"{NL_UTTERANCE_REASON_PREFIX}{text[:40]}",
         review_required=review_required,
         use_inaudible_opt=use_inaudible_opt,
+        defaults=defaults,
     )
 
 
@@ -880,6 +890,7 @@ def cut_words(
     source_id: str | None = None,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
+    defaults: EffectiveConfig,
 ) -> EditDecision:
     transcript = _cut_transcript_for_source(project, track_id, source_id)
     if not transcript:
@@ -897,6 +908,7 @@ def cut_words(
         reason=NL_WORDS_REASON,
         review_required=review_required,
         use_inaudible_opt=use_inaudible_opt,
+        defaults=defaults,
     )
 
 
@@ -910,6 +922,7 @@ def _cut_transcript_source_range(
     reason: str,
     review_required: bool,
     use_inaudible_opt: bool | None,
+    defaults: EffectiveConfig,
 ) -> EditDecision:
     transcript = _cut_transcript_for_source(project, track_id, source_id)
     if transcript is None and source_id is not None:
@@ -927,11 +940,12 @@ def _cut_transcript_source_range(
         use_inaudible_opt=use_inaudible_opt,
         source_id=source_id,
         source_aware=True,
+        defaults=defaults,
     )
 
 
-def format_transcript_timestamps(project: EpisodeProject) -> str:
-    combined = ensure_combined_transcript(project)
+def format_transcript_timestamps(project: EpisodeProject, *, defaults: EffectiveConfig) -> str:
+    combined = ensure_combined_transcript(project, defaults=defaults)
     lines: list[str] = []
     for i, u in enumerate(combined.utterances):
         lines.append(f"[{i}] {u.start:.2f}-{u.end:.2f}s {u.speaker} ({u.track_id}): {u.text}")

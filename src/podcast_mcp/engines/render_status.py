@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.balance import balance_status
 from podcast_mcp.engines.play_audit import (
     STEM_DURATION_TOLERANCE_SEC,
@@ -17,7 +18,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.tracks import dialogue_track_ids, stem_path
 
 
-def render_status_report(project: EpisodeProject) -> dict:
+def render_status_report(project: EpisodeProject, *, defaults: EffectiveConfig) -> dict:
     tracks: dict[str, dict] = {}
     # Muted tracks too: the pipeline renders their stems, and an unmute plays them.
     for tid in dialogue_track_ids(project):
@@ -28,7 +29,7 @@ def render_status_report(project: EpisodeProject) -> dict:
         duration_ok = expected is None or (
             actual is not None and actual <= expected + STEM_DURATION_TOLERANCE_SEC
         )
-        render_hash = track_render_hash(project, tid)
+        render_hash = track_render_hash(project, tid, defaults=defaults)
         stored_hash = read_stem_hash(project, tid)
         fresh = exists and stored_hash == render_hash and duration_ok
         entry = {
@@ -59,13 +60,13 @@ def render_status_report(project: EpisodeProject) -> dict:
         "exists": premix.is_file(),
         "stale_vs_stems": premix_stale_vs_stems(project),
         # Fader, mute or staging gain changed since the premix was mixed.
-        "stale_vs_mix": premix_stale_vs_mix(project),
+        "stale_vs_mix": premix_stale_vs_mix(project, defaults=defaults),
     }
     if premix.is_file():
         premix_info["mtime_sec"] = premix.stat().st_mtime
         premix_info["size_bytes"] = premix.stat().st_size
 
-    reconciliation = reconciliation_status(project)
+    reconciliation = reconciliation_status(project, defaults=defaults)
     any_stale_stem = any(
         t.get("stem_exists") and not t.get("stem_is_fresh") for t in tracks.values()
     )
@@ -76,5 +77,7 @@ def render_status_report(project: EpisodeProject) -> dict:
         "premix": premix_info,
         "reconciliation": reconciliation,
         "invalidations": invalidations_as_dicts(project),
-        "needs_rerender": (any_stale_stem or not premix.is_file() or premix_is_stale(project)),
+        "needs_rerender": (
+            any_stale_stem or not premix.is_file() or premix_is_stale(project, defaults=defaults)
+        ),
     }

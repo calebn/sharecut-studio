@@ -1,4 +1,6 @@
-# Default pipeline parameters — referenced by skills and the engine
+# Default pipeline parameters — referenced by skills and the engine.
+# A service request runs against these values unless the project has a staged Pipeline
+# working set; the working set replaces this file for that project (ProjectWorkspace.effective_config).
 
 performance:
   # 0 = auto (cpu_count-based, capped at 8 workers); 1 = force serial (debugging/

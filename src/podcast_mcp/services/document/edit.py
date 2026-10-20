@@ -7,7 +7,6 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
-from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import (
     TightenProposal,
     apply_auto_edits,
@@ -264,6 +263,7 @@ class EditService:
                 TimelineCut(removal, EditMode.RIPPLE if ripple else EditMode.GAP, clip_ids),
                 application_intent=application_intent,
                 params=params or {},
+                defaults=self.ws.effective_config(),
             )
             report["operation"] = operation
             return report
@@ -301,10 +301,12 @@ class EditService:
         return resolve_track(self.ws.project, track_id=track_id, speaker=speaker)
 
     def _require_refine_clear(self) -> None:
-        REFINE_GATE.assert_clear(self.ws.project, defaults=load_defaults())
+        REFINE_GATE.assert_clear(self.ws.project, defaults=self.ws.effective_config())
 
     def build_context(self, max_utterances: int = 200) -> str:
-        return build_edit_context_json(self.ws.project, max_utterances=max_utterances)
+        return build_edit_context_json(
+            self.ws.project, max_utterances=max_utterances, defaults=self.ws.effective_config()
+        )
 
     def boundary_context(
         self,
@@ -312,7 +314,12 @@ class EditService:
         *,
         expected_geometry: list[ClipGeometry] | None = None,
     ) -> BoundaryContext:
-        return boundary_context(self.ws.project, target, expected_geometry=expected_geometry)
+        return boundary_context(
+            self.ws.project,
+            target,
+            defaults=self.ws.effective_config(),
+            expected_geometry=expected_geometry,
+        )
 
     def search(
         self,
@@ -321,7 +328,13 @@ class EditService:
         track_id: str | None = None,
         speaker: str | None = None,
     ) -> list[TranscriptMatch]:
-        return search_transcript(self.ws.project, query, track_id=track_id, speaker=speaker)
+        return search_transcript(
+            self.ws.project,
+            query,
+            track_id=track_id,
+            speaker=speaker,
+            defaults=self.ws.effective_config(),
+        )
 
     def cut_time_range(
         self,
@@ -345,6 +358,7 @@ class EditService:
                 reason=reason,
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             ),
         )
 
@@ -369,6 +383,7 @@ class EditService:
                 match_all=match_all,
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             )
 
         return self.ws.mutate("before cut text match", "after cut text match", mutate)
@@ -389,6 +404,7 @@ class EditService:
                 utterance_index,
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             ),
         )
 
@@ -414,6 +430,7 @@ class EditService:
                 source_id=source_id,
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             ),
         )
 
@@ -432,6 +449,7 @@ class EditService:
                 edits,
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             )
             return len(created)
 
@@ -476,6 +494,7 @@ class EditService:
                 action_id=action_id,
                 author=author,
                 boundary_intent=boundary_intent,
+                defaults=self.ws.effective_config(),
             ),
             operation="edit_selected_range",
             params={"action_id": action_id, "action": action},
@@ -509,7 +528,9 @@ class EditService:
         held: list[HeldEdit] = []
         asked: list[AskedEdits] = []
         try:
-            apply_on_copy(scratch, wanted, held_out=held, asked_out=asked)
+            apply_on_copy(
+                scratch, wanted, held_out=held, asked_out=asked, defaults=self.ws.effective_config()
+            )
         except ScopeChangedAtApproval as refused:
             # A batch that is not partial still refuses whole on a hold;
             # for a listing, name each hold instead of failing.
@@ -579,6 +600,7 @@ class EditService:
                 held_out=held_out,
                 asked_out=asked_out,
                 override_peer_holds=override_peer_holds,
+                defaults=self.ws.effective_config(),
             )
 
         restored = False
@@ -676,13 +698,19 @@ class EditService:
                     "before apply suggested actions",
                     "after apply suggested actions",
                     lambda p: apply_suggested_to_project(
-                        p, actions, result, application_intent=application_intent
+                        p,
+                        actions,
+                        result,
+                        application_intent=application_intent,
+                        defaults=self.ws.effective_config(),
                     ),
                     operation="apply_suggested_actions",
                     params={
                         "ids": sorted(actions),
                         "requested": dict(actions),
-                        "sounds": describe_sounds(project, listed, actions),
+                        "sounds": describe_sounds(
+                            project, listed, actions, defaults=self.ws.effective_config()
+                        ),
                     },
                 )
         return {"operation": "apply_suggested_actions", **result.to_payload()}
@@ -752,7 +780,9 @@ class EditService:
         return self.ws.mutate("before reject edits", "after reject edits", mutate)
 
     def preview_pending_cut(self, edit_id: str) -> PendingCutSuggestion:
-        return preview_pending_cut_range(self.ws.project, edit_id)
+        return preview_pending_cut_range(
+            self.ws.project, edit_id, defaults=self.ws.effective_config()
+        )
 
     def update_pending(
         self,
@@ -774,6 +804,7 @@ class EditService:
                 snap=snap,
                 track_ids=track_ids,
                 boundary_intent=boundary_intent,
+                defaults=self.ws.effective_config(),
             )
 
         with self.ws.transaction() as project:
@@ -800,7 +831,7 @@ class EditService:
             return self.ws.mutate(
                 "before revert applied edit",
                 "after revert applied edit",
-                lambda p: revert_applied_edit(p, record_id),
+                lambda p: revert_applied_edit(p, record_id, defaults=self.ws.effective_config()),
                 operation="revert_applied_edit",
                 params={"id": record_id},
             )
@@ -818,7 +849,7 @@ class EditService:
 
         def mutate(p) -> TightenProposal:
             return propose_tighten_edits(
-                p, load_defaults(), edit_mode=edit_mode, intensity=intensity
+                p, self.ws.effective_config(), edit_mode=edit_mode, intensity=intensity
             )
 
         proposal = self.ws.mutate("before propose edits", "after propose edits", mutate)
@@ -857,7 +888,7 @@ class EditService:
         with self.ws.transaction() as project:
             self._require_refine_clear()
             staged = project.model_copy(deep=True)
-            applied = apply_auto_edits(staged)
+            applied = apply_auto_edits(staged, defaults=self.ws.effective_config())
             if applied == 0:
                 return 0
             snapshot = snapshot_from_project(staged)
@@ -874,7 +905,7 @@ class EditService:
             )
 
     def transcript_timestamps(self) -> str:
-        return format_transcript_timestamps(self.ws.project)
+        return format_transcript_timestamps(self.ws.project, defaults=self.ws.effective_config())
 
     def strip_silence(
         self,
@@ -895,6 +926,7 @@ class EditService:
                 over_voice_floor_db=over_voice_floor_db,
                 min_duration_sec=min_duration_sec,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             )
 
         return self.ws.mutate(
@@ -935,7 +967,12 @@ class EditService:
                 return self._apply_cut(
                     "cut range",
                     plan_ripple_delete(
-                        project, start, end, edited_track_ids=selected, use_inaudible_opt=False
+                        project,
+                        start,
+                        end,
+                        edited_track_ids=selected,
+                        use_inaudible_opt=False,
+                        defaults=self.ws.effective_config(),
                     ),
                     operation="punch_delete",
                     application_intent=application_intent,
@@ -949,6 +986,7 @@ class EditService:
                 end,
                 edited_track_ids=tids,
                 use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             )
             out = self._apply_cut(
                 "ripple delete",
@@ -971,7 +1009,11 @@ class EditService:
             if tid:
                 out = dict(out)
                 out["join_quality"] = assess_existing_join(
-                    self.ws.project, tid, float(start), timebase="timeline"
+                    self.ws.project,
+                    tid,
+                    float(start),
+                    timebase="timeline",
+                    defaults=self.ws.effective_config(),
                 ).to_dict()
         except Exception as exc:
             log.debug("join quality advisory skipped: %s", exc)
@@ -988,9 +1030,13 @@ class EditService:
     ) -> dict:
         tid = self._resolve(track_id, speaker)
         if timeline:
-            opt = optimize_timeline_cut_range(self.ws.project, tid, start, end)
+            opt = optimize_timeline_cut_range(
+                self.ws.project, tid, start, end, defaults=self.ws.effective_config()
+            )
         else:
-            opt = optimize_source_cut_range(self.ws.project, tid, start, end)
+            opt = optimize_source_cut_range(
+                self.ws.project, tid, start, end, defaults=self.ws.effective_config()
+            )
         return {
             "track_id": tid,
             "timeline_mode": timeline,
@@ -1037,7 +1083,9 @@ class EditService:
         found: list[SilenceIsland] = []
         if timeline:
             try:
-                hops = timeline_floor_hops(self.ws.project, [tid], lo, hi)
+                hops = timeline_floor_hops(
+                    self.ws.project, [tid], lo, hi, defaults=self.ws.effective_config()
+                )
                 found = silence_islands_from_hops(hops)
             except Exception as exc:
                 log.debug("waveform snap islands skipped: %s", exc)
@@ -1083,6 +1131,7 @@ class EditService:
             min_island_sec=min_island_sec,
             hop_ms=hop_ms,
             retain_sec=retain_sec,
+            defaults=self.ws.effective_config(),
         )
 
     def join_quality(
@@ -1106,6 +1155,7 @@ class EditService:
                 float(cut_end),
                 timebase=tb,
                 audio_caches=audio_caches,
+                defaults=self.ws.effective_config(),
             ).to_dict()
         if join_sec is None:
             raise CodedValueError(
@@ -1116,10 +1166,13 @@ class EditService:
             tid,
             float(join_sec),
             timebase=tb,
+            defaults=self.ws.effective_config(),
         ).to_dict()
 
     def join_qa_sweep(self, *, track_id: str | None = None) -> dict:
-        return assess_project_joins(self.ws.project, track_id=track_id)
+        return assess_project_joins(
+            self.ws.project, track_id=track_id, defaults=self.ws.effective_config()
+        )
 
     def join_label(
         self,
@@ -1204,7 +1257,12 @@ class EditService:
     ) -> dict:
         self._require_refine_clear()
         with self.ws.transaction() as project:
-            removal = plan_ripple_delete_text(project, query, use_inaudible_opt=use_inaudible_opt)
+            removal = plan_ripple_delete_text(
+                project,
+                query,
+                use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
+            )
             out = self._apply_cut(
                 "ripple delete text",
                 removal,
@@ -1217,7 +1275,9 @@ class EditService:
         return self.ws.mutate(
             "before move segment",
             "after move segment",
-            lambda p: move_segment(p, source_start, source_end, insert_at),
+            lambda p: move_segment(
+                p, source_start, source_end, insert_at, defaults=self.ws.effective_config()
+            ),
             operation="move_segment",
             params={
                 "source_start": source_start,
@@ -1235,7 +1295,9 @@ class EditService:
         return self.ws.mutate(
             "before move by text",
             "after move by text",
-            lambda p: move_by_text(p, source_query, destination_query, position),
+            lambda p: move_by_text(
+                p, source_query, destination_query, position, defaults=self.ws.effective_config()
+            ),
             operation="move_by_text",
             params={
                 "source_query": source_query,
@@ -1248,7 +1310,7 @@ class EditService:
         return self.ws.mutate(
             "before insert gap",
             "after insert gap",
-            lambda p: insert_gap(p, at_time, duration_sec),
+            lambda p: insert_gap(p, at_time, duration_sec, defaults=self.ws.effective_config()),
             operation="insert_gap",
             params={"at_time": at_time, "duration_sec": duration_sec},
         )
@@ -1268,6 +1330,7 @@ class EditService:
                 speaker=speaker,
                 fade_ms=fade_ms,
                 dry_run=True,
+                defaults=self.ws.effective_config(),
             )
         return self.ws.mutate(
             "before fade joins",
@@ -1277,6 +1340,7 @@ class EditService:
                 track_id=track_id,
                 speaker=speaker,
                 fade_ms=fade_ms,
+                defaults=self.ws.effective_config(),
             ),
             operation="fade_joins",
             params={
@@ -1301,6 +1365,7 @@ class EditService:
                 speaker=speaker,
                 fade_ms=fade_ms,
                 dry_run=True,
+                defaults=self.ws.effective_config(),
             )
         return self.ws.mutate(
             "before crossfade joins",
@@ -1310,6 +1375,7 @@ class EditService:
                 track_id=track_id,
                 speaker=speaker,
                 fade_ms=fade_ms,
+                defaults=self.ws.effective_config(),
             ),
             operation="crossfade_joins",
             params={
@@ -1339,7 +1405,9 @@ class EditService:
             return self.ws.mutate(
                 "before set clip fade",
                 "after set clip fade",
-                lambda p: set_clip_fade(p, clip_id, fade_in_ms, fade_out_ms),
+                lambda p: set_clip_fade(
+                    p, clip_id, fade_in_ms, fade_out_ms, defaults=self.ws.effective_config()
+                ),
                 operation="set_clip_fade",
                 params={
                     "clip_id": clip_id,
@@ -1353,7 +1421,7 @@ class EditService:
         return self.ws.mutate(
             "before move clips",
             "after move clips",
-            lambda p: move_clips(p, clips),
+            lambda p: move_clips(p, clips, defaults=self.ws.effective_config()),
             operation="move_clips",
             params={
                 "clip_ids": [
@@ -1379,7 +1447,9 @@ class EditService:
             raise CodedValueError("source_sec must be finite", code="source_sec_not_finite")
         target = TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge, "mode": mode})
         with self.ws.transaction() as project:
-            assert_boundary_token(project, target, expected_token)
+            assert_boundary_token(
+                project, target, expected_token, defaults=self.ws.effective_config()
+            )
             plan = plan_trim(project, clip_id, edge, source_sec, mode)
             if plan.unchanged:
                 return {"operation": "trim_clip_edge", "unchanged": True}
@@ -1388,7 +1458,12 @@ class EditService:
             return self._mutate_timeline_cut(
                 "trim clip edge",
                 "trim_clip_edge",
-                lambda p: apply_trim(p, plan, application_intent=application_intent),
+                lambda p: apply_trim(
+                    p,
+                    plan,
+                    application_intent=application_intent,
+                    defaults=self.ws.effective_config(),
+                ),
                 {"clip_id": clip_id, "edge": edge, "source_sec": source_sec, "mode": mode.value},
             )
 
@@ -1405,11 +1480,15 @@ class EditService:
         target = RollBoundaryTarget(left_clip_id=left_clip_id, right_clip_id=right_clip_id)
 
         def apply(p: EpisodeProject) -> dict:
-            assert_boundary_token(p, target, expected_token)
-            return roll_clip_join(p, left_clip_id, right_clip_id, delta_sec)
+            assert_boundary_token(p, target, expected_token, defaults=self.ws.effective_config())
+            return roll_clip_join(
+                p, left_clip_id, right_clip_id, delta_sec, defaults=self.ws.effective_config()
+            )
 
         with self.ws.transaction() as project:
-            current = assert_boundary_token(project, target, expected_token)
+            current = assert_boundary_token(
+                project, target, expected_token, defaults=self.ws.effective_config()
+            )
             bounded = min(max(delta_sec, current.limits.min), current.limits.max)
             if abs(bounded) < 1e-12:
                 return {"operation": "roll_clip_join", "unchanged": True}
@@ -1445,7 +1524,14 @@ class EditService:
         return self.ws.mutate(
             "before set clip join",
             "after set clip join",
-            lambda p: set_clip_join(p, left_clip_id, right_clip_id, mode, length_ms=length_ms),
+            lambda p: set_clip_join(
+                p,
+                left_clip_id,
+                right_clip_id,
+                mode,
+                length_ms=length_ms,
+                defaults=self.ws.effective_config(),
+            ),
             operation="set_clip_join",
             params={
                 "left_clip_id": left_clip_id,
@@ -1464,7 +1550,10 @@ class EditService:
         """Ripple out long pauses; another speaker talking in a pause asks to confirm first."""
         with self.ws.transaction() as project:
             removal = plan_shorten_word_gaps(
-                project, max_gap_sec, use_inaudible_opt=use_inaudible_opt
+                project,
+                max_gap_sec,
+                use_inaudible_opt=use_inaudible_opt,
+                defaults=self.ws.effective_config(),
             )
             if removal is None:
                 return change_summary(
@@ -1496,7 +1585,7 @@ class EditService:
         return self.ws.mutate(
             "before split clip",
             "after split clip",
-            lambda p: split_clips_at(p, at_time, tids),
+            lambda p: split_clips_at(p, at_time, tids, defaults=self.ws.effective_config()),
         )
 
     def split_at_time(
@@ -1523,7 +1612,7 @@ class EditService:
                     author=author,
                 )
                 return {"operation": "propose_split", "edit": decision.model_dump()}
-            return split_clips_at(p, float(at_time), tids)
+            return split_clips_at(p, float(at_time), tids, defaults=self.ws.effective_config())
 
         return self.ws.mutate(
             "before split at time",
@@ -1569,9 +1658,12 @@ class EditService:
                         review_required=True,
                         scope="session" if ripple else "track",
                         author=author,
+                        defaults=self.ws.effective_config(),
                     )
                     if ripple:
-                        decision.cut_speech = assess_cut_speech(p, plan_delete_clips(p, [cid]))
+                        decision.cut_speech = assess_cut_speech(
+                            p, plan_delete_clips(p, [cid]), defaults=self.ws.effective_config()
+                        )
                     edits.append(decision.model_dump(mode="json"))
                 return {"operation": "propose_delete_clips", "mode": mode.value, "edits": edits}
 
@@ -1602,7 +1694,9 @@ class EditService:
         return self.ws.mutate(
             "before duplicate segment",
             "after duplicate segment",
-            lambda p: duplicate_segment(p, source_start, source_end, insert_at),
+            lambda p: duplicate_segment(
+                p, source_start, source_end, insert_at, defaults=self.ws.effective_config()
+            ),
         )
 
     def copy_segment(self, start: float, end: float, track_ids: list[str] | None = None) -> dict:
@@ -1621,7 +1715,9 @@ class EditService:
         return self.ws.mutate(
             "before paste segment",
             "after paste segment",
-            lambda p: paste_segment(p, insert_at, duration, extracts, mode=mode),
+            lambda p: paste_segment(
+                p, insert_at, duration, extracts, mode=mode, defaults=self.ws.effective_config()
+            ),
             operation="paste_segment",
             params={"insert_at": insert_at, "duration": duration, "mode": mode.value},
         )
@@ -1649,7 +1745,7 @@ class EditService:
         }
 
     def render_status(self) -> dict:
-        return render_status_report(self.ws.project)
+        return render_status_report(self.ws.project, defaults=self.ws.effective_config())
 
     def fill_room_tone(
         self,
@@ -1661,7 +1757,7 @@ class EditService:
         return self.ws.mutate(
             "before fill room tone",
             "after fill room tone",
-            lambda p: fill_with_room_tone(p, tid),
+            lambda p: fill_with_room_tone(p, tid, defaults=self.ws.effective_config()),
         )
 
     def _guarded_transcript_edit(
@@ -1726,7 +1822,9 @@ class EditService:
                 self.ws.mutate(
                     "before adjust word timing",
                     "after adjust word timing",
-                    lambda p: apply_word_timing(p, target, start, end),
+                    lambda p: apply_word_timing(
+                        p, target, start, end, defaults=self.ws.effective_config()
+                    ),
                 )
             return {"changed": changed, "context": word_timing_context(project, target, media)}
 
@@ -1752,7 +1850,9 @@ class EditService:
             return self.ws.mutate(
                 "before replace transcript matches",
                 "after replace transcript matches",
-                lambda p: apply_transcript_replacement(p, plan),
+                lambda p: apply_transcript_replacement(
+                    p, plan, defaults=self.ws.effective_config()
+                ),
             )
 
     def correct_word(
@@ -1771,7 +1871,9 @@ class EditService:
             word_index,
             word_index,
             expected_text,
-            lambda p: correct_word(p, track_id, word_index, new_text, source_id),
+            lambda p: correct_word(
+                p, track_id, word_index, new_text, source_id, defaults=self.ws.effective_config()
+            ),
             source_id,
         )
 
@@ -1793,7 +1895,13 @@ class EditService:
             end_word_index,
             expected_text,
             lambda p: correct_phrase(
-                p, track_id, start_word_index, end_word_index, new_text, source_id
+                p,
+                track_id,
+                start_word_index,
+                end_word_index,
+                new_text,
+                source_id,
+                defaults=self.ws.effective_config(),
             ),
             source_id,
         )
@@ -1814,7 +1922,9 @@ class EditService:
             word_index,
             word_index,
             expected_text,
-            lambda p: set_word_suppressed(p, track_id, word_index, suppressed, source_id),
+            lambda p: set_word_suppressed(
+                p, track_id, word_index, suppressed, source_id, defaults=self.ws.effective_config()
+            ),
             source_id,
         )
 
@@ -1877,7 +1987,7 @@ class EditService:
         corrections: list[dict[str, Any]],
     ) -> int:
         def mutate(p) -> int:
-            return verify_words(p, track_id, corrections)
+            return verify_words(p, track_id, corrections, defaults=self.ws.effective_config())
 
         return self.ws.mutate(
             "before verify transcript",
@@ -1895,7 +2005,9 @@ class EditService:
         """History-safe batch: word + phrase corrections in one undo step."""
 
         def mutate(p) -> int:
-            return apply_transcript_corrections(p, track_id, words=words, phrases=phrases)
+            return apply_transcript_corrections(
+                p, track_id, words=words, phrases=phrases, defaults=self.ws.effective_config()
+            )
 
         return self.ws.mutate(
             "before transcript cleanup",
@@ -1966,6 +2078,7 @@ class EditService:
                 review_required=True,
                 decision_type=decision_type,
                 author=author,
+                defaults=self.ws.effective_config(),
             )
             return decision.model_dump()
 
@@ -2004,11 +2117,11 @@ class EditService:
         path = Path(audio_path) if audio_path else export_wav if export_wav.is_file() else premix
         if not path.is_file():
             raise FileNotFoundError(f"no audio to measure: {path}")
-        report = check_loudness(path)
+        report = check_loudness(path, defaults=self.ws.effective_config())
         if path.resolve() == premix.resolve():
             if read_premix_hash(project) is None:
                 reason = "premix_unverified"
-            elif premix_is_stale(project):
+            elif premix_is_stale(project, defaults=self.ws.effective_config()):
                 reason = "premix_stale"
             else:
                 reason = None
@@ -2018,7 +2131,7 @@ class EditService:
                 reason = "premix_missing"
             elif read_premix_hash(project) is None:
                 reason = "premix_unverified"
-            elif premix_is_stale(project):
+            elif premix_is_stale(project, defaults=self.ws.effective_config()):
                 reason = "premix_stale"
             elif not master.is_file():
                 reason = "master_missing"
@@ -2049,7 +2162,7 @@ class EditService:
         params: dict[str, Any] | None = None,
     ) -> dict:
         tid = self._resolve(track_id, speaker)
-        specs = get_preset(preset) if preset else None
+        specs = get_preset(preset, defaults=self.ws.effective_config()) if preset else None
         requested = (
             [spec["effect"] for spec in specs]
             if specs is not None
@@ -2124,7 +2237,10 @@ class EditService:
                 "effects": list_track_effects(self.ws.project, tid),
                 "supported_effects": list(supported_effect_names()),
             }
-        return {"presets": list_presets(), "supported_effects": list(supported_effect_names())}
+        return {
+            "presets": list_presets(defaults=self.ws.effective_config()),
+            "supported_effects": list(supported_effect_names()),
+        }
 
     def analyze_cleanup(
         self,
@@ -2136,7 +2252,9 @@ class EditService:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
-        return cleanup_analysis_report(self.ws.project, track_id=tid, progress=progress)
+        return cleanup_analysis_report(
+            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
+        )
 
     def audio_diagnostics(
         self,
@@ -2147,7 +2265,13 @@ class EditService:
         end_sec: float | None = None,
     ) -> dict:
         tid = self._resolve(track_id, speaker)
-        return audio_diagnostics_report(self.ws.project, tid, start_sec=start_sec, end_sec=end_sec)
+        return audio_diagnostics_report(
+            self.ws.project,
+            tid,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            defaults=self.ws.effective_config(),
+        )
 
     def recommend_fades(
         self,
@@ -2158,13 +2282,17 @@ class EditService:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
-        return fade_recommendations(self.ws.project, track_id=tid)
+        return fade_recommendations(
+            self.ws.project, track_id=tid, defaults=self.ws.effective_config()
+        )
 
     def apply_fade_recommendations(self, recommendations: list[dict]) -> dict:
         return self.ws.mutate(
             "before apply fade recommendations",
             "after apply fade recommendations",
-            lambda p: apply_fade_recommendations(p, recommendations),
+            lambda p: apply_fade_recommendations(
+                p, recommendations, defaults=self.ws.effective_config()
+            ),
         )
 
     def apply_fade_recommendations_for_track(
@@ -2190,7 +2318,9 @@ class EditService:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
-        return audit_low_audibility_words(self.ws.project, track_id=tid, progress=progress)
+        return audit_low_audibility_words(
+            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
+        )
 
     def suppress_low_audibility(
         self,
@@ -2204,7 +2334,9 @@ class EditService:
             tid = self._resolve(track_id, speaker)
 
         def mutate(p) -> dict:
-            return suppress_low_audibility_words(p, track_id=tid, word_keys=word_keys)
+            return suppress_low_audibility_words(
+                p, track_id=tid, word_keys=word_keys, defaults=self.ws.effective_config()
+            )
 
         return self.ws.mutate(
             "before suppress low audibility",
@@ -2230,6 +2362,7 @@ class EditService:
             start_sec=start_sec,
             end_sec=end_sec,
             progress=progress,
+            defaults=self.ws.effective_config(),
         )
 
     def suppress_bleed(
@@ -2258,6 +2391,7 @@ class EditService:
                 end_sec=end_sec,
                 dry_run=True,
                 progress=progress,
+                defaults=self.ws.effective_config(),
             )
 
         def mutate(p) -> dict:
@@ -2270,6 +2404,7 @@ class EditService:
                 end_sec=end_sec,
                 dry_run=False,
                 progress=progress,
+                defaults=self.ws.effective_config(),
             )
 
         return self.ws.mutate(
@@ -2290,6 +2425,7 @@ class EditService:
             start_sec=start_sec,
             end_sec=end_sec,
             progress=progress,
+            defaults=self.ws.effective_config(),
         )
 
     def align_retained_bleed(
@@ -2309,15 +2445,16 @@ class EditService:
                 start_sec=start_sec,
                 end_sec=end_sec,
                 override_placement_lock=override_placement_lock,
+                defaults=self.ws.effective_config(),
             )
 
         if not apply:
             return _alignment_preview(plan(self.ws.project))
 
         def mutate(p: EpisodeProject) -> dict[str, Any]:
-            result = apply_retained_bleed_alignment(p, plan(p))
+            result = apply_retained_bleed_alignment(p, plan(p), defaults=self.ws.effective_config())
             if result["applied_count"]:
-                rerender_preview(p, reconcile=False)
+                rerender_preview(p, reconcile=False, defaults=self.ws.effective_config())
             return result
 
         with render_lock(self.ws.project, timeout=lock_timeout):
@@ -2344,6 +2481,7 @@ class EditService:
                     start_sec=start_sec,
                     end_sec=end_sec,
                     override_placement_lock=override_placement_lock,
+                    defaults=self.ws.effective_config(),
                 )
                 proposal = next(
                     (item for item in plan.proposals if item.decision_id == decision_id), None
@@ -2379,15 +2517,23 @@ class EditService:
                     start_sec=start_sec,
                     end_sec=end_sec,
                     override_placement_lock=override_placement_lock,
+                    defaults=self.ws.effective_config(),
                 )
                 if plan.proposals or plan.skipped:
                     alignment = (
                         _alignment_preview(plan)
                         if dry_run
-                        else apply_retained_bleed_alignment(p, plan)
+                        else apply_retained_bleed_alignment(
+                            p, plan, defaults=self.ws.effective_config()
+                        )
                     )
                     if not dry_run and alignment["applied_count"]:
-                        rerender_preview(p, reconcile=False, progress=progress)
+                        rerender_preview(
+                            p,
+                            reconcile=False,
+                            progress=progress,
+                            defaults=self.ws.effective_config(),
+                        )
             result = apply_transcript_bleed_mute(
                 p,
                 track_id=tid,
@@ -2395,6 +2541,7 @@ class EditService:
                 end_sec=end_sec,
                 dry_run=dry_run,
                 progress=progress,
+                defaults=self.ws.effective_config(),
             )
             if alignment is not None:
                 result["alignment"] = alignment
@@ -2432,18 +2579,22 @@ class EditService:
 
         tid = self._resolve(track_id, speaker)
         if not apply:
-            plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
+            plan = plan_off_speaker_mutes(
+                self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
+            )
             return {"dry_run": True, **plan.summary()}
 
         from podcast_mcp.project_merge import adopt_project_state
 
         with render_lock(self.ws.project, timeout=lock_timeout), self.ws.transaction():
-            plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
+            plan = plan_off_speaker_mutes(
+                self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
+            )
             result = {"dry_run": False, **plan.summary()}
             if not plan.regions:
                 return result
             candidate = self.ws.project.model_copy(deep=True)
-            applied = apply_off_speaker_mutes(candidate, plan)
+            applied = apply_off_speaker_mutes(candidate, plan, defaults=self.ws.effective_config())
             if applied["applied_count"]:
                 self.ws.mutate(
                     "before mute off speaker",
@@ -2460,7 +2611,9 @@ class EditService:
         progress: ProgressReporter | None = None,
     ) -> dict:
         tid = self._resolve(track_id, speaker)
-        return gate_overreach_report(self.ws.project, tid, progress=progress)
+        return gate_overreach_report(
+            self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
+        )
 
     def audibility_map(
         self,
@@ -2472,7 +2625,9 @@ class EditService:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
-        return build_audibility_map(self.ws.project, track_id=tid, progress=progress)
+        return build_audibility_map(
+            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
+        )
 
     def flagged_words(
         self,
@@ -2484,10 +2639,12 @@ class EditService:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
-        return list_flagged_transcript_words(self.ws.project, track_id=tid, progress=progress)
+        return list_flagged_transcript_words(
+            self.ws.project, track_id=tid, progress=progress, defaults=self.ws.effective_config()
+        )
 
     def reconciliation_status(self) -> dict:
-        return reconciliation_status_report(self.ws.project)
+        return reconciliation_status_report(self.ws.project, defaults=self.ws.effective_config())
 
     def reconcile_transcript(
         self,
@@ -2511,6 +2668,7 @@ class EditService:
                 start_sec=start_sec,
                 end_sec=end_sec,
                 progress=progress,
+                defaults=self.ws.effective_config(),
             )
 
         return self.ws.mutate(

@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from model_pin_helpers import plant_pinned_whisper
+from podcast_mcp.config import load_defaults
 
 
 def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
@@ -192,7 +193,7 @@ def test_transcription_engine_uses_local_files_only(
         return MagicMock()
 
     with patch("faster_whisper.WhisperModel", side_effect=fake_model):
-        eng = TranscriptionEngine("tiny.en")
+        eng = TranscriptionEngine("tiny.en", defaults=load_defaults())
         eng._get_model()
     assert captured["local_files_only"] is True
     assert captured["name"] == str(snap)
@@ -218,7 +219,7 @@ def test_transcription_engine_refuses_a_tampered_pinned_snapshot(
         return MagicMock()
 
     with patch("faster_whisper.WhisperModel", side_effect=fake_model):
-        eng = TranscriptionEngine("tiny.en")
+        eng = TranscriptionEngine("tiny.en", defaults=load_defaults())
         with pytest.raises(WhisperPinMismatchError, match=r"config\.json"):
             eng._get_model()
     assert called["n"] == 0
@@ -234,7 +235,7 @@ def test_transcription_engine_raises_when_weights_missing(
         "podcast_mcp.config.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
-    eng = TranscriptionEngine("tiny.en")
+    eng = TranscriptionEngine("tiny.en", defaults=load_defaults())
     with pytest.raises(WhisperWeightsMissingError, match=r"tiny\.en"):
         eng._get_model()
 

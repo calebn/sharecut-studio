@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.clips_ops import (
     new_clip_id,
     set_track_clips,
@@ -60,6 +61,7 @@ def strip_silence(
     min_duration_sec: float = 0.5,
     keep_padding_sec: float = 0.05,
     use_inaudible_opt: bool | None = None,
+    defaults: EffectiveConfig,
 ) -> dict:
     """Rebuild a track from speech islands between detected silences.
 
@@ -99,7 +101,7 @@ def strip_silence(
 
     timeline_cursor = 0.0
     new_clips: list[Clip] = []
-    fades = recommend_micro_fades()
+    fades = recommend_micro_fades(defaults=defaults)
     for src_start, src_end in kept:
         new_clips.append(
             Clip(
@@ -126,7 +128,7 @@ def strip_silence(
         cursor = max(cursor, src_end)
     if cursor < probe.duration_sec - 1e-6:
         removed_ranges.append((cursor, probe.duration_sec))
-    apply_source_transcript_removes(project, {track_id: removed_ranges})
+    apply_source_transcript_removes(project, {track_id: removed_ranges}, defaults=defaults)
 
     removed_sec = probe.duration_sec - sum(e - s for s, e in kept)
     return {

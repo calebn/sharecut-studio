@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
 from podcast_mcp.engines.waveform_media import collect_media_refs, track_media_refs
 from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline
@@ -185,8 +186,11 @@ def test_mapper_provenance_and_unplaced_waveform_refs(timing_workspace):
     project.transcripts[0].words[0].suppressed = True
     shown = map_transcript_utterances_to_timeline(project, {"utterances": []})
     assert shown["utterances"][0]["words"][0]["timing_target"]["source_id"] == "extra"
-    assert "source:extra" in collect_media_refs(project).refs
-    assert "source:extra" in track_media_refs(project, project.tracks[0]).refs
+    assert "source:extra" in collect_media_refs(project, defaults=load_defaults()).refs
+    assert (
+        "source:extra"
+        in track_media_refs(project, project.tracks[0], defaults=load_defaults()).refs
+    )
     project.transcripts[0].source_id = None
     project.transcripts = project.transcripts[:1]
     shown = map_transcript_utterances_to_timeline(project, {"utterances": []})

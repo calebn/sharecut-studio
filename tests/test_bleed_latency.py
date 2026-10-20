@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.bleed_latency import TrackLatency, measure_bleed_latency
 from podcast_mcp.edits.conversation_align import (
     AcousticOffset,
@@ -215,7 +216,7 @@ def test_manifest_pin_keeps_placement_and_proposes_the_shift(
         )
     }
 
-    result = plan_conversation_alignment(late_audra.project)
+    result = plan_conversation_alignment(late_audra.project, defaults=load_defaults())
 
     audra = next(p for p in result.plans if p.track_id == "audra")
     assert (audra.method, audra.offset_sec, round(audra.candidate_offset_sec or 0.0, 2)) == (
@@ -229,7 +230,7 @@ def test_manifest_pin_keeps_placement_and_proposes_the_shift(
 def test_conflicting_pairs_leave_placement_and_flag_it(tmp_path: Path) -> None:
     ws = bh.workspace(tmp_path, bh.tracks(bleed={"caleb": {"audra": 0.3}, "audra": {"caleb": 0.0}}))
 
-    result = plan_conversation_alignment(ws.project)
+    result = plan_conversation_alignment(ws.project, defaults=load_defaults())
 
     audra = next(p for p in result.plans if p.track_id == "audra")
     assert (audra.method, audra.offset_sec) == ("hold", 0.0)
@@ -239,7 +240,7 @@ def test_conflicting_pairs_leave_placement_and_flag_it(tmp_path: Path) -> None:
 def test_loudspeaker_loop_keeps_placement_and_proposes_even_on_realign(tmp_path: Path) -> None:
     ws = bh.workspace(tmp_path, bh.tracks(bleed={"caleb": {"lana": 0.15}}))
 
-    result = plan_conversation_alignment(ws.project)
+    result = plan_conversation_alignment(ws.project, defaults=load_defaults())
     PipelineService(ws).run(
         only_step="align_tracks", unattended=True, config={"align": {"realign": True}}
     )
@@ -285,7 +286,9 @@ def test_realign_lands_on_the_latency_and_then_makes_no_move(
         ),
     }
 
-    run_conversation_align(late_audra.project, defaults=rescored if first_realign else None)
+    run_conversation_align(
+        late_audra.project, defaults=rescored if first_realign else load_defaults()
+    )
     aligned = bh.geometry(late_audra, "audra")
     run_conversation_align(late_audra.project, defaults=rescored)
     once = bh.geometry(late_audra, "audra")

@@ -22,6 +22,7 @@ import numpy as np
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
@@ -217,7 +218,9 @@ def build_fixture(fixture: Path, canned: Path, gold_dir: Path = GOLD_DIR) -> Non
             }
         )
     project.transcript_data.per_track = transcripts
-    project.transcript_data.combined = TranscriptionEngine().merge_transcripts(project)
+    project.transcript_data.combined = TranscriptionEngine(
+        defaults=load_defaults()
+    ).merge_transcripts(project)
     ProjectStore(project_path).commit(project)
     canned.write_text(
         json.dumps(

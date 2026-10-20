@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_reconciliation_caches
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.project_state import snapshot_project
@@ -28,9 +29,11 @@ class PeerCopyLags:
         self._caches: TrackRmsCacheSet | None = None
         self._lock = threading.Lock()
 
-    def sec(self, source_track_id: str, bleed_track_id: str) -> float:
+    def sec(self, source_track_id: str, bleed_track_id: str, *, defaults: EffectiveConfig) -> float:
         """How far ``source_track_id``'s own track trails its copy on ``bleed_track_id``'s mic."""
         with self._lock:
             if self._caches is None:
-                self._caches = build_reconciliation_caches(self._project, private_copy=True)
+                self._caches = build_reconciliation_caches(
+                    self._project, private_copy=True, defaults=defaults
+                )
             return self._caches.path_lag_sec(source_track_id, bleed_track_id)

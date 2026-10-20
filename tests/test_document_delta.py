@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from history_helpers import history_move
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.gui.assembler import projection_dependencies
 from podcast_mcp.models import (
@@ -292,7 +293,7 @@ def test_real_large_clip_move_and_word_edit_have_bounded_payload(tmp_path):
             ],
         )
     ]
-    rebuild_combined(project)
+    rebuild_combined(project, defaults=load_defaults())
     svc = DocumentSyncService.open(save_project(project))
     result = svc.submit(
         command(

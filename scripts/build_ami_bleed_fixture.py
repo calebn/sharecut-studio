@@ -34,6 +34,7 @@ from build_synthetic_bleed_fixture import (
     _validate_bleed,
 )
 from import_ami_words import import_meeting_words
+from podcast_mcp.config import load_defaults
 
 DEFAULT_MEETING = "ES2002a"
 DEFAULT_SLICE = (120.0, 180.0)
@@ -204,7 +205,9 @@ def build_from_words_dir(
         Transcript(track_id="host", language="en", words=host_words),
         Transcript(track_id="guest", language="en", words=guest_words),
     ]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     project_path = out_root / "episode.project.json"
     ProjectStore(project_path).commit(project)
 

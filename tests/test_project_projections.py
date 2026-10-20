@@ -527,7 +527,7 @@ def test_track_views_expose_fade_cap(minimal_project, monkeypatch) -> None:
         ),
     ]
     monkeypatch.setattr(
-        "podcast_mcp.gui.assembler.load_defaults",
+        "podcast_mcp.services.pipeline.config.load_defaults",
         lambda: {"render": {"join_fade_max_ms": 25}},
     )
     caps = {t.id: t.fade_max_ms for t in build_track_views(ws)}
@@ -567,7 +567,7 @@ def test_fade_cap_view_matches_the_writer_and_refreshes_with_clips(
         Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
     ]
     view_cap = {t.id: t.fade_max_ms for t in build_track_views(ws)}["host"]
-    set_clip_fade(ws.project, "c1", 500, 0)
+    set_clip_fade(ws.project, "c1", 500, 0, defaults=load_defaults())
     assert view_cap == ws.project.timeline.clips[0].fade_in_ms == 25
 
     use_cap("cap30.yaml", 30)

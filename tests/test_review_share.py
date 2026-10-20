@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
@@ -2078,7 +2079,7 @@ def _waveform_share(minimal_project, sample_wav, capabilities):
     # A current stem, mixed into the premix after it, so publish sees a fresh mix.
     (proj.artifacts_dir() / "tracks").mkdir(parents=True, exist_ok=True)
     (proj.artifacts_dir() / "tracks" / "host.wav").write_bytes(sample_wav.read_bytes())
-    write_stem_hash(proj, "host", clear_invalidations=False)
+    write_stem_hash(proj, "host", clear_invalidations=False, defaults=load_defaults())
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Waveform")
     share = ShareService(ws).create(review_version_id=ver["id"], capabilities=capabilities)
@@ -2091,7 +2092,7 @@ def _waveform_share(minimal_project, sample_wav, capabilities):
 def test_guest_waveform_status_and_tiles(minimal_project, sample_wav, monkeypatch):
     import podcast_mcp.engines.waveform_media as wm
 
-    monkeypatch.setattr(wm, "stem_is_fresh", lambda *_a: True)
+    monkeypatch.setattr(wm, "stem_is_fresh", lambda *_a, **_kw: True)
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
     status = client.get(f"/api/review/{token}/daw/waveform/status")
     assert status.status_code == 200

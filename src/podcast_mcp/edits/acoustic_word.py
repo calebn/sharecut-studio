@@ -126,7 +126,7 @@ def whisper_span_transcriber(defaults: dict[str, Any]) -> SpanTranscriber:
     from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
     model = (defaults.get("transcribe") or {}).get("model", DEFAULT_WHISPER_MODEL)
-    engine = TranscriptionEngine(model_size=model)
+    engine = TranscriptionEngine(model_size=model, defaults=defaults)
 
     def transcribe(samples: np.ndarray, language: str | None) -> str:
         return engine.transcribe_samples(

@@ -6,6 +6,7 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_restore_targets import (
     BleedRegionKind,
     BleedRestoreChangedError,
@@ -69,8 +70,8 @@ def _content(path: Path) -> tuple[str, FileRevision]:
     return digest, before
 
 
-def _gate_state(project: EpisodeProject, track_id: str) -> dict:
-    payload = bleed_gate_payload(project, track_id)
+def _gate_state(project: EpisodeProject, track_id: str, defaults: EffectiveConfig) -> dict:
+    payload = bleed_gate_payload(project, track_id, defaults=defaults)
     return {
         "gate": payload,
         "lanes": [
@@ -91,13 +92,15 @@ def _media_seal(
     )
 
 
-def _inspect_locked(project: EpisodeProject, clip_id: str, track_id: str) -> ClipBleedInspection:
+def _inspect_locked(
+    project: EpisodeProject, clip_id: str, track_id: str, defaults: EffectiveConfig
+) -> ClipBleedInspection:
     clip, occurrence_kind = selected_occurrence(project, clip_id, track_id)
     track = project.track_by_id(track_id)
     assert track is not None
     opening_head = project.history.head_id()
     opening_clip = clip.model_dump(mode="json")
-    payload = _gate_state(project, track_id)
+    payload = _gate_state(project, track_id, defaults)
     payload_digest = state_digest(payload)
     dependencies: RenderDependencies | None = None
     path: Path | None = None
@@ -106,14 +109,18 @@ def _inspect_locked(project: EpisodeProject, clip_id: str, track_id: str) -> Cli
     media_seal: str | None = None
     try:
         path = resolve_clip_audio_path(project, track, clip).resolve()
-        dependencies = RenderDependencies.capture(project, track_id, (path,))
+        dependencies = RenderDependencies.capture(project, track_id, (path,), defaults=defaults)
         sha, revision = _content(path)
         media_seal = _media_seal(project, track, clip, path, revision)
     except BleedRestoreChangedError:
         raise
     except (OSError, ValueError):
         sha = None
-    plan = build_bleed_gate_plan(project, track_id) if track.transcript_gate else None
+    plan = (
+        build_bleed_gate_plan(project, track_id, defaults=defaults)
+        if track.transcript_gate
+        else None
+    )
     plan_state: Literal["disabled", "ready", "unavailable_evidence"] = "disabled"
     if plan is not None:
         plan_state = (
@@ -193,13 +200,15 @@ def _inspect_locked(project: EpisodeProject, clip_id: str, track_id: str) -> Cli
             )
     artifact_state: Literal["missing", "stale", "current"] = "missing"
     if stem_path(project, track_id).is_file():
-        artifact_state = "current" if stem_is_fresh(project, track_id) else "stale"
+        artifact_state = (
+            "current" if stem_is_fresh(project, track_id, defaults=defaults) else "stale"
+        )
     current_clip, current_kind = selected_occurrence(project, clip_id, track_id)
     if (
         current_clip.model_dump(mode="json") != opening_clip
         or current_kind != occurrence_kind
         or project.history.head_id() != opening_head
-        or state_digest(_gate_state(project, track_id)) != payload_digest
+        or state_digest(_gate_state(project, track_id, defaults)) != payload_digest
     ):
         raise BleedRestoreChangedError("The selected audio changed. Inspect the clip again.")
     if path is not None and revision is not None:
@@ -217,7 +226,7 @@ def _inspect_locked(project: EpisodeProject, clip_id: str, track_id: str) -> Cli
             ) from exc
     if dependencies is not None:
         try:
-            dependencies.validate(project, track_id)
+            dependencies.validate(project, track_id, defaults=defaults)
         except ValueError as exc:
             raise BleedRestoreChangedError(
                 "The selected audio changed. Inspect the clip again."
@@ -241,7 +250,7 @@ def _inspect_locked(project: EpisodeProject, clip_id: str, track_id: str) -> Cli
 
 def inspect_clip_bleed(ws: ProjectWorkspace, clip_id: str, *, track_id: str) -> ClipBleedInspection:
     with ws.transaction() as project:
-        return _inspect_locked(project, clip_id, track_id)
+        return _inspect_locked(project, clip_id, track_id, ws.effective_config())
 
 
 def restore_clip_bleed(ws: ProjectWorkspace, target: BleedRestoreTarget) -> BleedRestoreResult:
@@ -250,7 +259,9 @@ def restore_clip_bleed(ws: ProjectWorkspace, target: BleedRestoreTarget) -> Blee
     with ws.transaction() as project:
         if project.history.head_id() != target.expected_head_id:
             raise BleedRestoreChangedError("The project changed. Inspect the clip again.")
-        inspection = _inspect_locked(project, target.clip.id, target.track_id)
+        inspection = _inspect_locked(
+            project, target.clip.id, target.track_id, ws.effective_config()
+        )
         if not any(region.target == target for region in inspection.regions if region.target):
             raise BleedRestoreChangedError(
                 "The selected reduction changed. Inspect the clip again."

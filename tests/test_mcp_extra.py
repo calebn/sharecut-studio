@@ -178,11 +178,11 @@ def test_mcp_pipeline_analyze_tool_reports_phases(tmp_path, sample_wav, monkeypa
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None, **_kw: {"tracks": []},
     )
     monkeypatch.setattr(
         "podcast_mcp.engines.asr_silence.digital_silence_fraction",
-        lambda track_path: 0.1,
+        lambda track_path, **_kw: 0.1,
     )
 
     rec = RecordingProgress()

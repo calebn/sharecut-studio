@@ -24,6 +24,7 @@ from manifest import (
     TRACK_LABELS,
 )
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.track_media import apply_full_span_media
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import EpisodeProject, Track, TrackRole, Transcript, TranscriptWord
@@ -133,7 +134,9 @@ def write_project(
         )
         for track_id, words in words_by_track.items()
     ]
-    project.transcript_data.combined = TranscriptionEngine().merge_transcripts(project)
+    project.transcript_data.combined = TranscriptionEngine(
+        defaults=load_defaults()
+    ).merge_transcripts(project)
     ProjectStore(case_dir / "episode.project.json").commit(project)
 
 

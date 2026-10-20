@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import bleed_gate
 from test_bleed_gate_regression import RATE, _episode, _read_pcm, _write_pcm
 
@@ -38,18 +39,23 @@ def test_repeated_audition_planning_reuses_evidence_until_media_changes(tmp_path
         return original(*args, **kwargs)
 
     monkeypatch.setattr(bleed_gate, "raw_timeline_samples", measured)
-    first = bleed_gate.build_bleed_gate_plan(project, "host")
+    first = bleed_gate.build_bleed_gate_plan(project, "host", defaults=load_defaults())
     count = len(reads)
     assert count > 0 and first.attenuation_spans
-    assert bleed_gate.build_bleed_gate_plan(project, "host") == first
+    assert bleed_gate.build_bleed_gate_plan(project, "host", defaults=load_defaults()) == first
     assert len(reads) == count
     media = tmp_path / "raw" / "host.wav"
     stat = media.stat()
     os.utime(media, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
-    assert bleed_gate.build_bleed_gate_plan(project, "host") == first
+    assert bleed_gate.build_bleed_gate_plan(project, "host", defaults=load_defaults()) == first
     assert len(reads) > count
     project.transcripts[0].words[1].suppressed = False
-    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ()
+    assert (
+        bleed_gate.build_bleed_gate_plan(
+            project, "host", defaults=load_defaults()
+        ).attenuation_spans
+        == ()
+    )
 
 
 def test_unavailable_evidence_is_retried_without_changing_project_or_media(tmp_path, monkeypatch):
@@ -62,11 +68,13 @@ def test_unavailable_evidence_is_retried_without_changing_project_or_media(tmp_p
         return original(project, track_id, **kwargs)
 
     monkeypatch.setattr(bleed_gate, "raw_timeline_samples", peer_unavailable)
-    failed = bleed_gate.build_bleed_gate_plan(project, "host")
+    failed = bleed_gate.build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert failed.attenuation_spans == ()
     assert failed.reasons == ("unavailable_peer_source",)
     monkeypatch.setattr(bleed_gate, "raw_timeline_samples", original)
-    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ((1.7, 2.75),)
+    assert bleed_gate.build_bleed_gate_plan(
+        project, "host", defaults=load_defaults()
+    ).attenuation_spans == ((1.7, 2.75),)
 
 
 @pytest.mark.parametrize("replaced_track", ["host", "guest"])
@@ -77,9 +85,9 @@ def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_pe
     from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
 
     project = _episode(tmp_path)
-    first = bleed_gate.build_bleed_gate_plan(project, "host")
+    first = bleed_gate.build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert first.attenuation_spans
-    previous_hash = track_render_hash(project, "host")
+    previous_hash = track_render_hash(project, "host", defaults=load_defaults())
     path = tmp_path / "raw" / f"{replaced_track}.wav"
     before = path.stat()
     samples = _read_pcm(path).astype(np.float64) / 32767
@@ -92,12 +100,19 @@ def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_pe
     after = path.stat()
     assert (after.st_size, after.st_mtime_ns) == (before.st_size, before.st_mtime_ns)
     assert after.st_ino != before.st_ino
-    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ()
-    assert track_render_hash(project, "host") != previous_hash
+    assert (
+        bleed_gate.build_bleed_gate_plan(
+            project, "host", defaults=load_defaults()
+        ).attenuation_spans
+        == ()
+    )
+    assert track_render_hash(project, "host", defaults=load_defaults()) != previous_hash
     source = tmp_path / "raw" / "host.wav"
     output = tmp_path / "replacement-gated.wav"
     shutil.copyfile(source, output)
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
+    apply_track_transcript_gate(
+        project, "host", output, timeline_start=0, timeline_end=4, defaults=load_defaults()
+    )
     np.testing.assert_array_equal(_read_pcm(output), _read_pcm(source))
 
 
@@ -115,7 +130,7 @@ def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch
     track = project.track_by_id("guest")
     stem = project.artifacts_dir() / "tracks" / "guest.wav"
     timeline_render.render_track_from_timeline(project, track, stem, load_defaults())
-    write_stem_hash(project, "guest")
+    write_stem_hash(project, "guest", defaults=load_defaults())
     baseline_rms = TrackRmsCache.from_timeline_stem(stem).rms_db(2.1, 2.5)
     assert baseline_rms is not None
     if state == "stale":
@@ -124,7 +139,7 @@ def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch
     elif state == "gated":
         track.transcript_gate = True
         timeline_render.render_track_from_timeline(project, track, stem, load_defaults())
-        write_stem_hash(project, "guest")
+        write_stem_hash(project, "guest", defaults=load_defaults())
     renders = []
     original = timeline_render.render_track_from_timeline
 
@@ -133,7 +148,7 @@ def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch
         return original(*args, **kwargs)
 
     monkeypatch.setattr(timeline_render, "render_track_from_timeline", measured)
-    caches = build_track_rms_caches(project, before_transcript_gate=True)
+    caches = build_track_rms_caches(project, before_transcript_gate=True, defaults=load_defaults())
     assert set(caches.caches) == {"guest"}
     assert renders == ([] if state == "fresh" else ["guest"])
     measured_rms = caches.caches["guest"].rms_db(2.1, 2.5)

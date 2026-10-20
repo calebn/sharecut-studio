@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_quality import _filter_rows_by_time
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -33,8 +34,11 @@ def audibility_map(
     track_id: str | None = None,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
-    return compute_word_audibility_map(project, track_id=track_id, policy=policy, progress=progress)
+    return compute_word_audibility_map(
+        project, track_id=track_id, policy=policy, progress=progress, defaults=defaults
+    )
 
 
 def flagged_words(
@@ -43,8 +47,11 @@ def flagged_words(
     track_id: str | None = None,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
-    return list_flagged_words(project, track_id=track_id, policy=policy, progress=progress)
+    return list_flagged_words(
+        project, track_id=track_id, policy=policy, progress=progress, defaults=defaults
+    )
 
 
 @dataclass(frozen=True)
@@ -66,6 +73,7 @@ def overlap_duplicate_report(
     progress: ProgressReporter | None = None,
     audibility: list[dict[str, Any]] | None = None,
     is_suppressed: Callable[[WordKey], bool] | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Read-only: time-overlapping word pairs across tracks with text match hints.
 
@@ -79,9 +87,9 @@ def overlap_duplicate_report(
     the session clock (``session_start_a``/``session_start_b``), since two takes on
     one lane each have their own source clock (#1470).
     """
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     rows = (
-        compute_word_audibility_map(project, policy=pol, progress=progress)
+        compute_word_audibility_map(project, policy=pol, progress=progress, defaults=defaults)
         if audibility is None
         else audibility
     )
@@ -189,8 +197,9 @@ def run_reconciliation(
     start_sec: float | None = None,
     end_sec: float | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     if dry_run is None:
         apply_suppression = pol.transcript_mode == "reconcile"
         update_status = pol.transcript_mode in ("flag", "suggest", "reconcile")
@@ -206,6 +215,7 @@ def run_reconciliation(
         start_sec=start_sec,
         end_sec=end_sec,
         progress=progress,
+        defaults=defaults,
     )
     out = result.to_dict()
     if start_sec is not None or end_sec is not None:
@@ -221,12 +231,14 @@ def run_reconciliation(
         out["suppress_count"] = len(out["suppress"])
         out["unsuppress_count"] = len(out["unsuppress"])
         out["reattribute_count"] = len(out["reattribute"])
-    out["reconciliation"] = reconciliation_status(project)
+    out["reconciliation"] = reconciliation_status(project, defaults=defaults)
     return out
 
 
-def reconciliation_status_report(project: EpisodeProject) -> dict[str, Any]:
-    return reconciliation_status(project)
+def reconciliation_status_report(
+    project: EpisodeProject, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
+    return reconciliation_status(project, defaults=defaults)
 
 
 def maybe_auto_reconcile(
@@ -235,14 +247,14 @@ def maybe_auto_reconcile(
     track_ids: list[str] | None = None,
     force: bool = False,
     policy: AnalysisPolicy | None = None,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any] | None:
     """Refresh transcript audibility metadata when audio state may have changed."""
     pol = policy or AnalysisPolicy.from_defaults(defaults)
     if pol.transcript_mode == "off":
         return None
-    if not force and not reconciliation_is_stale(project):
+    if not force and not reconciliation_is_stale(project, defaults=defaults):
         return None
 
     if track_ids:
@@ -254,7 +266,10 @@ def maybe_auto_reconcile(
                 dry_run=None,
                 track_id=tid,
                 progress=progress,
+                defaults=defaults,
             )
         return result
 
-    return run_reconciliation(project, policy=pol, dry_run=None, progress=progress)
+    return run_reconciliation(
+        project, policy=pol, dry_run=None, progress=progress, defaults=defaults
+    )

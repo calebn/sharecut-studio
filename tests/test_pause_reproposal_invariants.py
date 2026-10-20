@@ -175,7 +175,7 @@ def test_reproposing_over_a_padded_cut_never_double_cuts_or_splits_the_tracks(
     first = _round_config(fillers=["um"], max_pause_sec=5.0, retained_sec=0.55)
     configure(monkeypatch, first)
     propose_tighten_edits(project, first, intensity="medium")
-    assert apply_auto_edits(project) == 1
+    assert apply_auto_edits(project, defaults=first) == 1
     padded = project.editorial.edit_log[-1]
     assert padded.reason == "filler:um"
     assert {s["track_id"] for s in padded.params["pad_samples"]} == set(speech)
@@ -186,7 +186,7 @@ def test_reproposing_over_a_padded_cut_never_double_cuts_or_splits_the_tracks(
     pauses = [e for e in proposal.decisions if (e.reason or "").startswith("pause:")]
     assert pauses
     assert _pauses_across_a_join(project, pauses) == []
-    assert apply_auto_edits(project) == len(proposal.decisions)
+    assert apply_auto_edits(project, defaults=second) == len(proposal.decisions)
 
     assert _applied_problems(project) == {"overlaps": [], "one_track": [], "claimed_more": []}
     ends_after = _timeline_ends(project)

@@ -27,7 +27,7 @@ def test_synthetic_bleed_precorrect_report(synthetic_bleed_workspace: Path) -> N
     pipeline_steps.reconcile_transcript(project, defaults)
 
     policy = AnalysisPolicy.from_defaults(defaults)
-    result = run_precorrect_transcript(project, dry_run=False, policy=policy)
+    result = run_precorrect_transcript(project, dry_run=False, policy=policy, defaults=defaults)
 
     report = result.report
     assert isinstance(report, dict)

@@ -5,11 +5,12 @@ from __future__ import annotations
 import math
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
     _snap_to_quiet,
@@ -157,7 +158,7 @@ def test_suggest_handoff_retains_air_and_removes_um(tmp_path):
         return -20.0
 
     with _lanes(fake_rms):
-        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50)
+        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50, defaults=load_defaults())
 
     assert out["ok"] is True
     assert out["use_inaudible_opt"] is False
@@ -192,7 +193,9 @@ def test_suggest_handoff_ignores_puddle_glued_to_pivot(tmp_path):
         return -20.0
 
     with _lanes(fake_rms):
-        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(
+            p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0, defaults=load_defaults()
+        )
 
     assert out["ok"] is True
     assert out["cut_end"] is not None
@@ -217,7 +220,9 @@ def test_suggest_handoff_refuses_um_at_retain_target(tmp_path):
         return -20.0
 
     with _lanes(fake_rms):
-        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(
+            p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0, defaults=load_defaults()
+        )
 
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
@@ -239,7 +244,9 @@ def test_suggest_handoff_ignores_brief_quiet_dip_in_um(tmp_path):
         return -20.0
 
     with _lanes(fake_rms):
-        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=20, retain_sec=1.0)
+        out = suggest_handoff_cut(
+            p, ["host"], 1.6, 8.0, hop_ms=20, retain_sec=1.0, defaults=load_defaults()
+        )
 
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
@@ -248,7 +255,7 @@ def test_suggest_handoff_ignores_brief_quiet_dip_in_um(tmp_path):
 def test_suggest_handoff_missing_audio_is_not_room_tone(tmp_path):
     p = _project(tmp_path)
     with _lanes(lambda *_: None):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 5.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 5.0, defaults=load_defaults())
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
 
@@ -256,7 +263,7 @@ def test_suggest_handoff_missing_audio_is_not_room_tone(tmp_path):
 def test_suggest_handoff_refuses_when_bounds_are_speech(tmp_path):
     p = _project(tmp_path)
     with _lanes(lambda *_: -10.0):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 3.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 3.0, defaults=load_defaults())
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
     assert "cut_end_not_quiet" in out["warnings"]
@@ -268,7 +275,9 @@ def test_suggest_handoff_single_island_retains_target_air(tmp_path):
     """Long quiet gap: keep ~1s after left / before right, not 25%/75%."""
     p = _project(tmp_path)
     with _lanes(lambda *_: -55.0):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(
+            p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=1.0, defaults=load_defaults()
+        )
     assert out["ok"] is True
     assert len(out["islands"]) == 1
     assert out["cut_start"] is not None and out["cut_end"] is not None
@@ -287,7 +296,9 @@ def test_suggest_handoff_snaps_to_quieter_hop(tmp_path):
         return -55.0
 
     with _lanes(fake_rms):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 5.0, hop_ms=20, retain_sec=1.0)
+        out = suggest_handoff_cut(
+            p, ["host"], 1.0, 5.0, hop_ms=20, retain_sec=1.0, defaults=load_defaults()
+        )
     assert out["ok"] is True
     assert out["cut_start"] is not None
     assert 2.05 < out["cut_start"] < 2.16
@@ -299,7 +310,7 @@ def test_suggest_handoff_side_blob_bounds_not_quiet(tmp_path):
         "podcast_mcp.edits.silence_islands.timeline_floor_hops",
         return_value=[(1.0, -5.0), (1.4, -5.0), (1.7, -5.0)],
     ):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 8.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 8.0, defaults=load_defaults())
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
     assert "cut_end_not_quiet" in out["warnings"]
@@ -312,7 +323,7 @@ def test_suggest_handoff_keep_gap_too_short(tmp_path):
         "podcast_mcp.edits.silence_islands.timeline_floor_hops",
         return_value=[(1.0, -5.0)],
     ):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 1.04)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 1.04, defaults=load_defaults())
     assert out["ok"] is False
     assert "keep_gap_too_short" in out["warnings"]
 
@@ -320,7 +331,9 @@ def test_suggest_handoff_keep_gap_too_short(tmp_path):
 def test_suggest_handoff_clamps_retain_on_short_gap(tmp_path):
     p = _project(tmp_path)
     with _lanes(lambda *_: -55.0):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 1.9, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(
+            p, ["host"], 1.0, 1.9, hop_ms=50, retain_sec=1.0, defaults=load_defaults()
+        )
     assert out["ok"] is True
     assert out["cut_start"] is not None and out["cut_end"] is not None
     assert out["retained_air_after_left_sec"] is not None
@@ -333,7 +346,9 @@ def test_suggest_handoff_clamps_retain_on_short_gap(tmp_path):
 def test_suggest_handoff_warns_when_requested_retain_is_short(tmp_path):
     p = _project(tmp_path)
     with _lanes(lambda *_: -55.0):
-        out = suggest_handoff_cut(p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=0.3)
+        out = suggest_handoff_cut(
+            p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=0.3, defaults=load_defaults()
+        )
     assert out["ok"] is True
     assert "retained_air_after_left_short" in out["warnings"]
     assert "retained_air_before_right_short" in out["warnings"]
@@ -342,15 +357,15 @@ def test_suggest_handoff_warns_when_requested_retain_is_short(tmp_path):
 def test_timeline_floor_hops_reads_each_lane_against_its_own_floor(tmp_path):
     p = _project(tmp_path)
     with _lanes(lambda *_: -42.0, voice_floor_db=-50.0) as build:
-        hops = timeline_floor_hops(p, ["host"], 0.0, 0.1, hop_ms=50)
-    build.assert_called_once_with(p, track_ids=["host"])
+        hops = timeline_floor_hops(p, ["host"], 0.0, 0.1, hop_ms=50, defaults=load_defaults())
+    build.assert_called_once_with(p, track_ids=["host"], defaults=ANY)
     assert hops == [(0.0, pytest.approx(8.0)), (0.05, pytest.approx(8.0))]
 
 
 def test_suggest_handoff_rejects_inverted_keeps(tmp_path):
     p = _project(tmp_path)
     with pytest.raises(ValueError, match="keep_right_start"):
-        suggest_handoff_cut(p, ["host"], 5.0, 4.0)
+        suggest_handoff_cut(p, ["host"], 5.0, 4.0, defaults=load_defaults())
 
 
 def test_silence_islands_empty_hops():
@@ -385,7 +400,7 @@ def test_suggest_handoff_warns_when_snaps_invert(tmp_path):
             "podcast_mcp.edits.silence_islands._snap_to_quiet",
             side_effect=[2.0, 2.01],
         ):
-            out = suggest_handoff_cut(p, ["host"], 1.0, 5.0)
+            out = suggest_handoff_cut(p, ["host"], 1.0, 5.0, defaults=load_defaults())
     assert out["ok"] is False
     assert "proposed_bounds_too_tight_or_inverted" in out["warnings"]
     assert out["cut_start"] is None
@@ -438,8 +453,8 @@ def test_missing_cache_is_never_quiet(tmp_path):
         "podcast_mcp.edits.silence_islands.build_track_rms_caches",
         return_value=TrackRmsCacheSet(),
     ) as build:
-        hops = timeline_floor_hops(p, ["host", "guest"], 1, 5)
-        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5)
+        hops = timeline_floor_hops(p, ["host", "guest"], 1, 5, defaults=load_defaults())
+        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5, defaults=load_defaults())
     assert all(db == math.inf for _, db in hops)
     assert out["ok"] is False
     assert build.call_count == 2
@@ -447,7 +462,7 @@ def test_missing_cache_is_never_quiet(tmp_path):
 
 def test_handoff_requires_nonempty_selection(tmp_path):
     with pytest.raises(ValueError, match="at least one dialogue track"):
-        suggest_handoff_cut(_project(tmp_path), [], 1, 5)
+        suggest_handoff_cut(_project(tmp_path), [], 1, 5, defaults=load_defaults())
 
 
 @pytest.mark.parametrize("peer_quiet", [(1.95, 2.05), (3.5, 4.5)])
@@ -460,8 +475,8 @@ def test_handoff_refuses_short_or_disjoint_common_quiet(tmp_path, peer_quiet):
         return -60.0 if quiet else -15.0
 
     with _lanes(measured, tracks=("host", "guest")) as build:
-        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5)
-    build.assert_called_once_with(p, track_ids=["host", "guest"])
+        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5, defaults=load_defaults())
+    build.assert_called_once_with(p, track_ids=["host", "guest"], defaults=ANY)
     assert out["ok"] is False
     assert out["cut_start"] is None
     assert out["islands"] == []
@@ -477,7 +492,7 @@ def test_incomplete_cache_windows_are_unknown(tmp_path, offset, size):
         "podcast_mcp.edits.silence_islands.build_track_rms_caches",
         return_value=TrackRmsCacheSet({"host": cache}),
     ):
-        hops = timeline_floor_hops(p, ["host"], 0, 0.12, hop_ms=40)
+        hops = timeline_floor_hops(p, ["host"], 0, 0.12, hop_ms=40, defaults=load_defaults())
     assert hops[-1 if offset == 0 else 0][1] == math.inf
 
 
@@ -503,8 +518,8 @@ def test_real_wav_repeated_source_mapping_and_gain(tmp_path):
         ) as build,
         patch("podcast_mcp.engines.ungated_audio.load_mono_full", wraps=load_mono_full) as decode,
     ):
-        hops = timeline_floor_hops(p, ["host"], 0, 4, hop_ms=500)
-    build.assert_called_once_with(p, track_ids=["host"])
+        hops = timeline_floor_hops(p, ["host"], 0, 4, hop_ms=500, defaults=load_defaults())
+    build.assert_called_once_with(p, track_ids=["host"], defaults=ANY)
     assert decode.call_count == 1
     assert [t for t, _ in hops] == [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]
     assert [db <= 0 for _, db in hops] == [True, True, False, False, True, True, False, False]
@@ -561,7 +576,7 @@ def test_default_quiet_session_excludes_music_and_adapters_work(tmp_path):
 @pytest.mark.parametrize("measurement", [None, float("nan"), float("inf")])
 def test_unavailable_rms_does_not_approve_quiet(tmp_path, measurement):
     with _lanes(lambda *_: measurement, voice_floor_db=float("inf")):
-        out = suggest_handoff_cut(_project(tmp_path), ["host"], 1, 5)
+        out = suggest_handoff_cut(_project(tmp_path), ["host"], 1, 5, defaults=load_defaults())
     assert out["ok"] is False
     assert out["islands"] == []
 

@@ -8,6 +8,7 @@ from pathlib import Path
 import filelock
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.history import HistoryManager, record_if_changed
 from podcast_mcp.history import rollback as rollback_mod
 from podcast_mcp.history.manager import record_and_commit, snapshot_from_project, write_snapshot
@@ -499,7 +500,12 @@ def test_unlocked_rollback_does_not_adopt_an_index_a_dead_commit_left_ahead(
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
         run_mutation(
-            minimal_project, proj, "before add comment", "after add comment", lambda p: None
+            minimal_project,
+            proj,
+            "before add comment",
+            "after add comment",
+            lambda p: None,
+            defaults=load_defaults(),
         )
 
     assert proj.history.is_empty()
@@ -526,7 +532,12 @@ def test_unlocked_rollback_keeps_empty_history_when_the_saved_project_is_unreada
     monkeypatch.setattr(rollback_mod, "load_project", unreadable)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
         run_mutation(
-            minimal_project, proj, "before add comment", "after add comment", lambda p: None
+            minimal_project,
+            proj,
+            "before add comment",
+            "after add comment",
+            lambda p: None,
+            defaults=load_defaults(),
         )
 
     assert proj.history.is_empty()
@@ -549,7 +560,14 @@ def test_failed_first_mutation_keeps_an_index_another_writer_committed(minimal_p
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError, match="boom"):
-        run_mutation(minimal_project, proj, "before", "after", other_writer_commits_then_fail)
+        run_mutation(
+            minimal_project,
+            proj,
+            "before",
+            "after",
+            other_writer_commits_then_fail,
+            defaults=load_defaults(),
+        )
 
     assert proj.history == load_project(minimal_project).history
     assert proj.history.entries[-1].label == "other writer"

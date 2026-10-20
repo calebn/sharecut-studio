@@ -8,6 +8,7 @@ import wave
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.pending_preview import (
     SUGGEST_REASON_SPLIT,
     SUGGEST_REASON_UNMAPPED,
@@ -27,7 +28,9 @@ from podcast_mcp.models import (
 
 @pytest.fixture(autouse=True)
 def _silent_pads(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("podcast_mcp.edits.cut_application.filler_pad_mode", lambda: "silence")
+    monkeypatch.setattr(
+        "podcast_mcp.edits.cut_application.filler_pad_mode", lambda **_kw: "silence"
+    )
 
 
 def _project() -> EpisodeProject:
@@ -215,8 +218,8 @@ def _premix_window(ws, start: float, end: float, *, approve: str | None = None):
     shutil.copytree(root, copy)
     fresh = ProjectWorkspace.open(copy)
     if approve is not None:
-        assert approve_edits(fresh.project, [approve]) == 1
-    rerender_preview(fresh.project, reconcile=False)
+        assert approve_edits(fresh.project, [approve], defaults=load_defaults()) == 1
+    rerender_preview(fresh.project, reconcile=False, defaults=load_defaults())
     fresh.save()
     wav = (
         PlayService(fresh)
@@ -338,7 +341,7 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
             applied=False,
         ),
     )
-    rerender_preview(ws.project, reconcile=False)
+    rerender_preview(ws.project, reconcile=False, defaults=load_defaults())
     ws.save()
     trim_before = read_premix_trim_db(ws.project)
     assert PlayService(ws).mix_trim_db() == trim_before
@@ -374,7 +377,7 @@ def _touch_stems(project) -> None:
         path = play_module.stem_path(project, track_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"stem")
-        write_stem_hash(project, track_id)
+        write_stem_hash(project, track_id, defaults=load_defaults())
 
 
 def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
@@ -403,7 +406,7 @@ def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
         measured.append(sum(gain for _path, gain, _hash in stems))
         return -3.5
 
-    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
+    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args, **_kw: True)
     monkeypatch.setattr(play_module, "_stem_mix_trim_db", functools.lru_cache(maxsize=8)(measure))
     _touch_stems(ws.project)
 
@@ -448,7 +451,7 @@ def test_a_trim_measured_while_a_stem_was_replaced_is_not_recorded(
             path.write_bytes(path.read_bytes() + b"\0\0")  # a render replaced it mid-pass
         return -3.5
 
-    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
+    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args, **_kw: True)
     # Memoized like the real one: the torn measurement must not come back from the cache.
     monkeypatch.setattr(play_module, "_stem_mix_trim_db", functools.lru_cache(maxsize=8)(measure))
     _touch_stems(ws.project)
@@ -475,12 +478,12 @@ def test_a_damaged_trim_record_is_measured_again(minimal_project, monkeypatch) -
             applied=False,
         ),
     )
-    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
-    monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args: -2.0)
+    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args, **_kw: True)
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args, **_kw: -2.0)
     _touch_stems(ws.project)
     PlayService(ws).mix_trim_db()
     (record,) = (ws.project.artifacts_dir() / "play_cache").glob("mix_trim_*.json")
-    monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args: -2.5)
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args, **_kw: -2.5)
     for damaged in ("{", '{"trim_db": "loud"}', '{"trim_db": 4.0}', "[]"):
         record.write_text(damaged, encoding="utf-8")
         assert PlayService(ws).mix_trim_db() == -2.5

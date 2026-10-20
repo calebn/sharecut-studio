@@ -9,6 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
     SpeakerIdConfig,
@@ -240,6 +241,7 @@ def test_label_track_home_speaker_suppresses_bleed_windows(tmp_path, sample_wav)
             cfg,
             MockSpeakerBackend(),
             dry_run=False,
+            defaults=load_defaults(),
         )
     assert report["words_suppressed"] >= 1
     um = next(w for w in proj.transcript_for_track("host").words if w.text == "um")
@@ -406,7 +408,7 @@ def test_bleed_mute_does_not_depend_on_speaker_extension(tmp_path, sample_wav) -
     (stems / "host.wav").write_bytes(sample_wav.read_bytes())
     from podcast_mcp.engines.play_audit import write_stem_hash
 
-    write_stem_hash(proj, "host")
+    write_stem_hash(proj, "host", defaults=load_defaults())
     with (
         patch(
             "podcast_mcp.engines.speaker_id.load_all_profiles",
@@ -426,7 +428,7 @@ def test_bleed_mute_does_not_depend_on_speaker_extension(tmp_path, sample_wav) -
             side_effect=RuntimeError("speaker boom"),
         ) as extension,
     ):
-        out = apply_transcript_bleed_mute(proj, dry_run=True)
+        out = apply_transcript_bleed_mute(proj, dry_run=True, defaults=load_defaults())
     profiles.assert_not_called()
     extension.assert_not_called()
     assert out["speaker_errors"] is None
@@ -507,7 +509,9 @@ def test_label_track_home_speaker_dry_run_counts_would_suppress(tmp_path, sample
             side_effect=lambda _p, tid, s, e, *_a, **_k: bleed if e <= 3.1 else own,
         ),
     ):
-        report = label_track_home_speaker(proj, cfg, MockSpeakerBackend(), dry_run=True)
+        report = label_track_home_speaker(
+            proj, cfg, MockSpeakerBackend(), dry_run=True, defaults=load_defaults()
+        )
     assert report["words_would_suppress"] >= 1
     assert report["words_suppressed"] == 0
     um = next(w for w in proj.transcript_for_track("host").words if w.text == "um")

@@ -212,7 +212,7 @@ def test_propose_and_apply_edits(tmp_path, monkeypatch):
 
     defaults = load_defaults()
     defaults["tighten"]["breath_handling"]["enabled"] = False
-    monkeypatch.setattr("podcast_mcp.services.document.edit.load_defaults", lambda: defaults)
+    monkeypatch.setattr("podcast_mcp.services.pipeline.config.load_defaults", lambda: defaults)
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
     proj = load_project(Path(path))

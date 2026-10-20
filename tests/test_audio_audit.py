@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from audibility_floors import floors_at
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_quality import suppress_low_audibility_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -56,7 +57,7 @@ def _floor_at(audibility_db: float) -> LevelProfile:
 
 
 def test_analysis_policy_from_defaults():
-    pol = AnalysisPolicy.from_defaults()
+    pol = AnalysisPolicy.from_defaults(defaults=load_defaults())
     assert str(pol.ml_backend).lower() in ("off", "false", "0")
 
 
@@ -103,7 +104,7 @@ def test_list_low_audibility_flags_quiet_word(sample_wav: Path, tmp_path: Path):
         patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-50.0),
         patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
     ):
-        flagged = list_low_audibility_words(project, track_id="host")
+        flagged = list_low_audibility_words(project, track_id="host", defaults=load_defaults())
     assert len(flagged) == 1
     assert flagged[0]["text"] == "hello"
 
@@ -131,7 +132,9 @@ def test_list_low_audibility_reads_the_floor_of_a_track_with_no_decoded_cache(
         patch("podcast_mcp.engines.audio_audit.measure_window_rms_db", return_value=-50.0),
         patch("podcast_mcp.engines.audio_audit.file_level_profile", return_value=_floor_at(-40.0)),
     ):
-        flagged = list_low_audibility_words(project, track_id="host", caches=TrackRmsCacheSet())
+        flagged = list_low_audibility_words(
+            project, track_id="host", caches=TrackRmsCacheSet(), defaults=load_defaults()
+        )
     assert [(row["text"], row["rms_db"], row["threshold_db"]) for row in flagged] == [
         ("hello", -50.0, -40.0)
     ]
@@ -142,7 +145,7 @@ def test_gate_overreach_no_gate(tmp_path: Path):
     project.timeline.tracks = [
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
-    report = analyze_gate_overreach(project, "host")
+    report = analyze_gate_overreach(project, "host", defaults=load_defaults())
     assert report["gate_present"] is False
     assert report["risk"] == "none"
 
@@ -179,7 +182,9 @@ def test_gate_overreach_high_risk_many_issues(tmp_path: Path):
         "podcast_mcp.engines.audio_audit.measure_window_rms_db",
         side_effect=[-20.0, -50.0] * 20,
     ):
-        report = analyze_gate_overreach(project, "host", policy=AnalysisPolicy())
+        report = analyze_gate_overreach(
+            project, "host", policy=AnalysisPolicy(), defaults=load_defaults()
+        )
     assert report["risk"] == "high"
 
 
@@ -206,7 +211,9 @@ def test_gate_overreach_with_gate_and_mock_issues(tmp_path: Path):
         "podcast_mcp.engines.audio_audit.measure_window_rms_db",
         side_effect=[-20.0, -50.0, None, None],
     ):
-        report = analyze_gate_overreach(project, "host", policy=AnalysisPolicy())
+        report = analyze_gate_overreach(
+            project, "host", policy=AnalysisPolicy(), defaults=load_defaults()
+        )
     assert report["gate_present"] is True
 
 
@@ -267,6 +274,7 @@ def test_recommend_boundary_fades_adjacent_clips(tmp_path: Path):
                 boundary_jump_db=5.0, recommended_fade_ms=20, harsh_fade_max_ms=80
             ),
             track_id="host",
+            defaults=load_defaults(),
         )
     assert recs
     assert recs[0]["kind"] == "harsh_join"
@@ -319,11 +327,12 @@ def test_recommend_boundary_fades_treats_sub_tolerance_gap_as_join(tmp_path: Pat
                 boundary_jump_db=5.0, recommended_fade_ms=20, harsh_fade_max_ms=80
             ),
             track_id="host",
+            defaults=load_defaults(),
         )
     assert [r["kind"] for r in recs] == ["harsh_join"]
 
     project.timeline.clips[1].timeline_start = 1.0 + JOIN_GAP_TOLERANCE_SEC + 1e-3
-    recs = recommend_boundary_fades(project, track_id="host")
+    recs = recommend_boundary_fades(project, track_id="host", defaults=load_defaults())
     assert recs[0]["kind"] == "gap_between_clips"
 
 
@@ -353,11 +362,12 @@ def test_suppress_low_audibility_mutates_and_rebuilds(tmp_path: Path):
     result = suppress_low_audibility_words(
         project,
         word_keys=[{"track_id": "host", "word_index": 0}],
+        defaults=load_defaults(),
     )
     assert result["suppressed_count"] == 1
     assert project.transcripts[0].words[0].suppressed is True
     assert project.transcripts[0].words[0].audibility_locked is True
-    merged = TranscriptionEngine().merge_transcripts(project)
+    merged = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(project)
     assert "quiet" not in merged.utterances[0].text if merged.utterances else True
 
 
@@ -382,7 +392,7 @@ def test_suppress_low_audibility_heuristic_respects_lock(tmp_path: Path):
         "podcast_mcp.edits.audio_quality.list_low_audibility_words",
         return_value=[{"track_id": "host", "word_index": 0}],
     ):
-        result = suppress_low_audibility_words(project, track_id="host")
+        result = suppress_low_audibility_words(project, track_id="host", defaults=load_defaults())
     assert result["suppressed_count"] == 0
     assert project.transcripts[0].words[0].suppressed is False
     assert project.transcripts[0].words[0].audibility_locked is True
@@ -413,7 +423,7 @@ def test_zero_duration_words_classified_inaudible(tmp_path: Path):
             ],
         )
     ]
-    rows = compute_word_audibility_map(project, track_id="host")
+    rows = compute_word_audibility_map(project, track_id="host", defaults=load_defaults())
     by_idx = {r["word_index"]: r for r in rows}
     assert by_idx[0]["audibility_status"] == "inaudible"
     assert by_idx[0]["reason"] == "zero_duration_word"
@@ -448,17 +458,17 @@ def test_sandwiched_zero_duration_deferred_not_suppressed(tmp_path: Path):
             ],
         )
     ]
-    rows = compute_word_audibility_map(project, track_id="host")
+    rows = compute_word_audibility_map(project, track_id="host", defaults=load_defaults())
     by_idx = {r["word_index"]: r for r in rows}
     assert by_idx[1]["audibility_status"] == "deferred"
     assert by_idx[1]["reason"] == "sandwiched_zero_duration_word"
 
     from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 
-    result = reconcile_transcript(project, dry_run=False)
+    result = reconcile_transcript(project, dry_run=False, defaults=load_defaults())
     assert result.applied
     assert project.transcripts[0].words[1].suppressed is False
-    merged = TranscriptionEngine().merge_transcripts(project)
+    merged = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(project)
     assert any("what" in (u.text or "") for u in merged.utterances)
 
 
@@ -503,8 +513,28 @@ def test_short_word_audibility_uses_loudest_frame(tmp_path: Path):
             return_value=-45.0,
         ),
     ):
-        peak = _track_levels(project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.06)
-        mean = _track_levels(project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.2)
+        peak = _track_levels(
+            project,
+            ["host"],
+            1.0,
+            1.06,
+            {},
+            caches,
+            offsets,
+            word_dur=0.06,
+            defaults=load_defaults(),
+        )
+        mean = _track_levels(
+            project,
+            ["host"],
+            1.0,
+            1.06,
+            {},
+            caches,
+            offsets,
+            word_dur=0.2,
+            defaults=load_defaults(),
+        )
     assert peak["host"] == pytest.approx(-8.0)
     assert mean["host"] == pytest.approx(-15.0)
 
@@ -551,7 +581,7 @@ def test_short_word_map_audible_when_peak_reaches_voice_floor(tmp_path: Path):
             return_value=caches,
         ),
     ):
-        rows = compute_word_audibility_map(project, track_id="host")
+        rows = compute_word_audibility_map(project, track_id="host", defaults=load_defaults())
     assert rows[0]["audibility_status"] == "audible"
 
 
@@ -599,6 +629,7 @@ def test_anomalous_word_duration_deferred_skips_mean_rms(tmp_path: Path):
             project,
             track_id="host",
             policy=AnalysisPolicy(max_word_audibility_sec=2.0),
+            defaults=load_defaults(),
         )
     by_idx = {r["word_index"]: r for r in rows}
     assert by_idx[0]["audibility_status"] == "deferred"
@@ -610,6 +641,7 @@ def test_anomalous_word_duration_deferred_skips_mean_rms(tmp_path: Path):
         project,
         dry_run=False,
         policy=AnalysisPolicy(max_word_audibility_sec=2.0),
+        defaults=load_defaults(),
     )
     assert project.transcripts[0].words[0].suppressed is False
 
@@ -619,7 +651,7 @@ def test_analyze_cleanup_summary(tmp_path: Path):
     project.timeline.tracks = [
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
-    report = analyze_cleanup(project)
+    report = analyze_cleanup(project, defaults=load_defaults())
     assert "tracks" in report
     assert "summary" in report
     assert report["tracks"][0]["health"] is None
@@ -634,7 +666,7 @@ def test_analyze_cleanup_includes_health_with_processed_stem(tmp_path: Path, sam
     project.timeline.tracks = [
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
-    report = analyze_cleanup(project)
+    report = analyze_cleanup(project, defaults=load_defaults())
     health = report["tracks"][0]["health"]
     assert health is not None
     assert "crest_factor" in health
@@ -684,7 +716,7 @@ def test_apply_fade_recommendations(tmp_path: Path):
             "recommended_fade_out_ms": 25,
         }
     ]
-    result = apply_fade_recommendations(project, recs)
+    result = apply_fade_recommendations(project, recs, defaults=load_defaults())
     assert result["applied_fade_updates"] == 2
     # Dialogue fades capped at render.join_fade_max_ms (40)
     assert project.clips[0].fade_out_ms == 25
@@ -760,12 +792,14 @@ def test_analyze_cleanup_matches_separate_scans(tmp_path: Path):
         patch("podcast_mcp.engines.audio_audit.file_level_profile", return_value=_floor_at(-35.0)),
     ):
         expected_low = {
-            tid: list_low_audibility_words(project, track_id=tid) for tid in ("host", "guest")
+            tid: list_low_audibility_words(project, track_id=tid, defaults=load_defaults())
+            for tid in ("host", "guest")
         }
         expected_flagged = {
-            tid: list_flagged_words(project, policy=pol, track_id=tid) for tid in ("host", "guest")
+            tid: list_flagged_words(project, policy=pol, track_id=tid, defaults=load_defaults())
+            for tid in ("host", "guest")
         }
-        report = analyze_cleanup(project, policy=pol)
+        report = analyze_cleanup(project, policy=pol, defaults=load_defaults())
 
     by_track = {row["track_id"]: row for row in report["tracks"]}
     for tid in ("host", "guest"):
@@ -796,7 +830,7 @@ def test_gap_between_clips_recommends_fade(tmp_path: Path):
             timeline_start=1.5,
         ),
     ]
-    recs = recommend_boundary_fades(project, track_id="host")
+    recs = recommend_boundary_fades(project, track_id="host", defaults=load_defaults())
     assert recs[0]["kind"] == "gap_between_clips"
 
 
@@ -851,8 +885,8 @@ def test_build_track_rms_caches_uses_processed_stem(sample_wav: Path, tmp_path: 
     stem = project.artifacts_dir() / "tracks" / "host.wav"
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(sample_wav.read_bytes())
-    write_stem_hash(project, "host")
-    caches = build_track_rms_caches(project)
+    write_stem_hash(project, "host", defaults=load_defaults())
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     assert caches.get("host") is not None
 
 
@@ -873,7 +907,7 @@ def test_measure_window_rms_db_decode_failure(sample_wav: Path):
 def test_compute_word_audibility_transcript_off(tmp_path: Path):
     project = EpisodeProject.create("ep", str(tmp_path))
     pol = AnalysisPolicy(transcript_mode="off")
-    assert compute_word_audibility_map(project, policy=pol) == []
+    assert compute_word_audibility_map(project, policy=pol, defaults=load_defaults()) == []
 
 
 def test_list_bleed_words_filters_status(tmp_path: Path):
@@ -905,7 +939,7 @@ def test_list_bleed_words_filters_status(tmp_path: Path):
         "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
         return_value=rows,
     ):
-        bleed = list_bleed_words(project)
+        bleed = list_bleed_words(project, defaults=load_defaults())
     assert len(bleed) == 1
     assert bleed[0]["audibility_status"] == "bleed"
 
@@ -925,7 +959,7 @@ def test_inaudible_when_own_rms_missing(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         return_value=None,
     ):
-        rows = compute_word_audibility_map(project)
+        rows = compute_word_audibility_map(project, defaults=load_defaults())
     assert rows[0]["audibility_status"] == "inaudible"
 
 
@@ -940,7 +974,7 @@ def test_gate_overreach_no_transcript_words(tmp_path: Path):
             effects=[ProcessingEffect(effect="agate", params={})],
         )
     ]
-    report = analyze_gate_overreach(project, "host")
+    report = analyze_gate_overreach(project, "host", defaults=load_defaults())
     assert report["risk"] == "unknown"
     assert "No transcript words" in report["advice"]
 
@@ -981,7 +1015,9 @@ def test_gate_overreach_moderate_risk(tmp_path: Path):
         "podcast_mcp.engines.audio_audit.measure_window_rms_db",
         side_effect=fake_measure,
     ):
-        report = analyze_gate_overreach(project, "host", policy=AnalysisPolicy())
+        report = analyze_gate_overreach(
+            project, "host", policy=AnalysisPolicy(), defaults=load_defaults()
+        )
     assert report["risk"] == "moderate"
     assert "Review flagged words" in report["advice"]
 
@@ -1033,7 +1069,9 @@ def test_gate_overreach_processed_onset_chop(tmp_path: Path, sample_wav: Path):
         ),
         patch.object(TrackRmsCache, "rms_db", fake_cache_rms),
     ):
-        report = analyze_gate_overreach(project, "host", policy=AnalysisPolicy())
+        report = analyze_gate_overreach(
+            project, "host", policy=AnalysisPolicy(), defaults=load_defaults()
+        )
     assert any(i["kind"] == "processed_onset_chop" for i in report["issues"])
 
 
@@ -1072,6 +1110,7 @@ def test_recommend_boundary_fades_processed_track(sample_wav: Path, tmp_path: Pa
             project,
             policy=AnalysisPolicy(boundary_jump_db=5.0),
             track_id="host",
+            defaults=load_defaults(),
         )
     assert recs and recs[0]["kind"] == "harsh_join"
 
@@ -1113,7 +1152,7 @@ def test_recommend_boundary_fades_raw_timeline_source(tmp_path: Path, sample_wav
         "podcast_mcp.engines.audio_audit.measure_window_rms_db",
         side_effect=[-12.0, -12.0],
     ):
-        recs = recommend_boundary_fades(project, track_id="host")
+        recs = recommend_boundary_fades(project, track_id="host", defaults=load_defaults())
     assert recs
     assert "missing boundary fades" in recs[0]["reason"]
 
@@ -1136,12 +1175,12 @@ def test_list_low_audibility_uses_proc_cache(sample_wav: Path, tmp_path: Path):
             ],
         )
     ]
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     with (
         patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-55.0),
         patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
     ):
-        flagged = list_low_audibility_words(project, track_id="host")
+        flagged = list_low_audibility_words(project, track_id="host", defaults=load_defaults())
     assert len(flagged) == 1
     assert flagged[0]["context_before"] == ""
 
@@ -1189,7 +1228,7 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
             return_value=[{"kind": "harsh_join"}],
         ),
     ):
-        report = analyze_cleanup(project, policy=pol)
+        report = analyze_cleanup(project, policy=pol, defaults=load_defaults())
     assert len(report["tracks"]) == 1
     assert report["tracks"][0]["suppression_recommendations"] == [
         {"track_id": "host", "source_id": None, "word_index": 0}
@@ -1220,7 +1259,7 @@ def test_analyze_cleanup_summary_no_issues(tmp_path: Path):
             return_value=[],
         ),
     ):
-        report = analyze_cleanup(project)
+        report = analyze_cleanup(project, defaults=load_defaults())
     assert report["summary"] == "No significant cleanup issues detected."
 
 
@@ -1234,7 +1273,7 @@ def test_analyze_cleanup_shares_cache_set(tmp_path: Path, monkeypatch):
     shared = aa.TrackRmsCacheSet()
     builds = []
     seen = []
-    monkeypatch.setattr(aa, "build_track_rms_caches", lambda _: builds.append(1) or shared)
+    monkeypatch.setattr(aa, "build_track_rms_caches", lambda _, **_kw: builds.append(1) or shared)
 
     def record(*args, **kwargs):
         seen.append(kwargs["caches"])
@@ -1248,7 +1287,7 @@ def test_analyze_cleanup_shares_cache_set(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(aa, "list_low_audibility_words", record)
     monkeypatch.setattr(aa, "compute_word_audibility_map", record)
     monkeypatch.setattr(aa, "recommend_boundary_fades", record)
-    aa.analyze_cleanup(project)
+    aa.analyze_cleanup(project, defaults=load_defaults())
     assert len(builds) == 1
     assert seen == [shared] * 4
 
@@ -1297,20 +1336,25 @@ def test_rms_for_track_at_timeline_paths(sample_wav: Path, tmp_path: Path):
             timeline_start=0.0,
         )
     ]
-    caches = build_track_rms_caches(project)
-    proc_rms = aa._rms_for_track_at_timeline(project, "host", 0.0, 0.5, caches=caches)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
+    proc_rms = aa._rms_for_track_at_timeline(
+        project, "host", 0.0, 0.5, caches=caches, defaults=load_defaults()
+    )
     assert proc_rms is not None
     assert proc_rms > -80.0
 
     stem.unlink()
-    raw_rms = aa._rms_for_track_at_timeline(project, "host", 0.0, 0.5)
+    raw_rms = aa._rms_for_track_at_timeline(project, "host", 0.0, 0.5, defaults=load_defaults())
     assert raw_rms is not None
 
     with patch(
         "podcast_mcp.edits.session_air.lane_clip_placements",
         side_effect=RuntimeError("bad map"),
     ):
-        assert aa._rms_for_track_at_timeline(project, "host", 0.0, 0.5) is None
+        assert (
+            aa._rms_for_track_at_timeline(project, "host", 0.0, 0.5, defaults=load_defaults())
+            is None
+        )
 
 
 def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
@@ -1346,7 +1390,10 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
             "podcast_mcp.edits.session_air.load_mono_window", return_value=np.zeros(4000)
         ) as lane,
     ):
-        assert aa.timeline_window_samples(project, "host", 0.0, 0.5) is not None
+        assert (
+            aa.timeline_window_samples(project, "host", 0.0, 0.5, defaults=load_defaults())
+            is not None
+        )
     stem_read.assert_not_called()
     lane.assert_called_once()
     assert lane.call_args.kwargs["antialias"] is True
@@ -1359,7 +1406,10 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
         ) as stem_read,
         patch("podcast_mcp.edits.session_air.load_mono_window") as lane,
     ):
-        assert aa.timeline_window_samples(project, "host", 0.0, 0.5) is not None
+        assert (
+            aa.timeline_window_samples(project, "host", 0.0, 0.5, defaults=load_defaults())
+            is not None
+        )
     stem_read.assert_called_once()
     assert stem_read.call_args.kwargs["antialias"] is True
     lane.assert_not_called()
@@ -1386,7 +1436,7 @@ def test_list_low_audibility_timeline_source_error(tmp_path: Path):
         "podcast_mcp.engines.audio_audit.timeline_to_source",
         side_effect=RuntimeError("bad map"),
     ):
-        assert list_low_audibility_words(project, track_id="host") == []
+        assert list_low_audibility_words(project, track_id="host", defaults=load_defaults()) == []
 
 
 def test_gate_overreach_skips_bad_timeline_map(tmp_path: Path):
@@ -1416,7 +1466,7 @@ def test_gate_overreach_skips_bad_timeline_map(tmp_path: Path):
         "podcast_mcp.engines.audio_audit.timeline_to_source",
         side_effect=RuntimeError("bad map"),
     ):
-        report = analyze_gate_overreach(project, "host")
+        report = analyze_gate_overreach(project, "host", defaults=load_defaults())
     assert report["issues"] == []
 
 
@@ -1457,7 +1507,7 @@ def test_recommend_boundary_fades_timeline_map_error(tmp_path: Path, sample_wav:
         "podcast_mcp.engines.audio_audit.timeline_to_source",
         side_effect=RuntimeError("bad map"),
     ):
-        recs = recommend_boundary_fades(project, track_id="host")
+        recs = recommend_boundary_fades(project, track_id="host", defaults=load_defaults())
     assert recs and "missing boundary fades" in recs[0]["reason"]
 
 
@@ -1466,7 +1516,7 @@ def test_analyze_cleanup_skips_non_dialogue_track(tmp_path: Path):
     project.timeline.tracks = [
         Track(id="music", label="Music", role=TrackRole.MUSIC, speaker="Music"),
     ]
-    report = analyze_cleanup(project, track_id="music")
+    report = analyze_cleanup(project, track_id="music", defaults=load_defaults())
     assert report["tracks"] == []
     assert report["summary"] == "No dialogue tracks to analyze."
 
@@ -1528,7 +1578,9 @@ def test_analyze_cleanup_flags_high_bleed_ratio(tmp_path: Path):
             return_value=[],
         ),
     ):
-        report = analyze_cleanup(project, policy=AnalysisPolicy(bleed_ratio_warn_threshold=0.2))
+        report = analyze_cleanup(
+            project, policy=AnalysisPolicy(bleed_ratio_warn_threshold=0.2), defaults=load_defaults()
+        )
     row = report["tracks"][0]
     assert row["bleed_ratio"] == 0.4
     assert "high_bleed_warning" in row
@@ -1566,7 +1618,9 @@ def test_analyze_cleanup_no_bleed_warning_below_threshold(tmp_path: Path):
             return_value=[],
         ),
     ):
-        report = analyze_cleanup(project, policy=AnalysisPolicy(bleed_ratio_warn_threshold=0.2))
+        report = analyze_cleanup(
+            project, policy=AnalysisPolicy(bleed_ratio_warn_threshold=0.2), defaults=load_defaults()
+        )
     row = report["tracks"][0]
     assert row["bleed_ratio"] == 0.1
     assert "high_bleed_warning" not in row
@@ -1577,7 +1631,7 @@ def test_analyze_cleanup_bleed_ratio_none_without_transcript(tmp_path: Path):
     project.timeline.tracks = [
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
-    report = analyze_cleanup(project)
+    report = analyze_cleanup(project, defaults=load_defaults())
     assert report["tracks"][0]["bleed_ratio"] is None
 
 
@@ -1596,7 +1650,7 @@ def test_analyze_cleanup_off_mode_skips_audibility_map(tmp_path: Path):
     with patch(
         "podcast_mcp.engines.audio_audit.compute_word_audibility_map"
     ) as mock_audibility_map:
-        report = analyze_cleanup(project, policy=pol)
+        report = analyze_cleanup(project, policy=pol, defaults=load_defaults())
 
     mock_audibility_map.assert_not_called()
     row = report["tracks"][0]
@@ -1661,7 +1715,7 @@ def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
             new=lambda self: [room_pair("host", "guest"), room_pair("guest", "host")],
         ),
     ):
-        report = analyze_cleanup(project, policy=pol)
+        report = analyze_cleanup(project, policy=pol, defaults=load_defaults())
 
     by_track = {row["track_id"]: row for row in report["tracks"]}
     assert by_track["guest"]["flagged_count"] == 0
@@ -1686,7 +1740,7 @@ def test_audio_diagnostics_report_with_processed_stem(tmp_path: Path, sample_wav
     if not eng.check_available()[0]:
         pytest.skip("ffmpeg not available")
 
-    report = audio_diagnostics_report(project, "host")
+    report = audio_diagnostics_report(project, "host", defaults=load_defaults())
     assert report["track_id"] == "host"
     assert Path(report["spectrogram_png"]).is_file()
     assert Path(report["waveform_png"]).is_file()
@@ -1709,7 +1763,9 @@ def test_audio_diagnostics_report_with_time_window(tmp_path: Path, sample_wav: P
     if not eng.check_available()[0]:
         pytest.skip("ffmpeg not available")
 
-    report = audio_diagnostics_report(project, "host", start_sec=0.0, end_sec=1.0)
+    report = audio_diagnostics_report(
+        project, "host", start_sec=0.0, end_sec=1.0, defaults=load_defaults()
+    )
     assert "spectrogram_0.000_1.000" in report["spectrogram_png"]
     assert report["window"]["start"] == 0.0
     assert report["window"]["end"] == 1.0
@@ -1737,7 +1793,9 @@ def test_audio_diagnostics_report_pngs_false_omits_png_keys(
 
     monkeypatch.setattr(FFmpegEngine, "render_spectrogram", boom_png)
     monkeypatch.setattr(FFmpegEngine, "render_showwavespic", boom_png)
-    report = audio_diagnostics_report(project, "host", start_sec=0.0, end_sec=1.0, pngs=False)
+    report = audio_diagnostics_report(
+        project, "host", start_sec=0.0, end_sec=1.0, pngs=False, defaults=load_defaults()
+    )
     assert "spectrogram_png" not in report
     assert "waveform_png" not in report
     assert "crest_factor" in report["astats"]
@@ -1768,8 +1826,12 @@ def test_audio_diagnostics_windowed_hum_not_full_file(tmp_path: Path):
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
 
-    clean_win = audio_diagnostics_report(project, "host", start_sec=0.0, end_sec=3.0)
-    hum_win = audio_diagnostics_report(project, "host", start_sec=4.5, end_sec=8.0)
+    clean_win = audio_diagnostics_report(
+        project, "host", start_sec=0.0, end_sec=3.0, defaults=load_defaults()
+    )
+    hum_win = audio_diagnostics_report(
+        project, "host", start_sec=4.5, end_sec=8.0, defaults=load_defaults()
+    )
     assert clean_win["hum"]["hum_detected"] is False
     assert hum_win["hum"]["hum_detected"] is True
     assert "window" in hum_win
@@ -1796,7 +1858,7 @@ def test_audio_diagnostics_report_falls_back_to_raw_media(tmp_path: Path, sample
     if not eng.check_available()[0]:
         pytest.skip("ffmpeg not available")
 
-    report = audio_diagnostics_report(project, "host")
+    report = audio_diagnostics_report(project, "host", defaults=load_defaults())
     assert Path(report["spectrogram_png"]).is_file()
 
 
@@ -1808,7 +1870,7 @@ def test_audio_diagnostics_report_raises_without_media(tmp_path: Path):
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
     with pytest.raises(ValueError, match="no audio available"):
-        audio_diagnostics_report(project, "host")
+        audio_diagnostics_report(project, "host", defaults=load_defaults())
 
 
 def test_audio_diagnostics_report_rejects_inverted_window(tmp_path: Path, sample_wav: Path):
@@ -1823,7 +1885,9 @@ def test_audio_diagnostics_report_rejects_inverted_window(tmp_path: Path, sample
         Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
     ]
     with pytest.raises(ValueError, match="end_sec"):
-        audio_diagnostics_report(project, "host", start_sec=2.0, end_sec=1.0)
+        audio_diagnostics_report(
+            project, "host", start_sec=2.0, end_sec=1.0, defaults=load_defaults()
+        )
 
 
 def test_diagnostics_dir_rejects_traversal(tmp_path: Path) -> None:
@@ -1893,7 +1957,9 @@ def test_audio_diagnostics_window_maps_offset_clip_to_source(tmp_path: Path) -> 
         )
     ]
     # Timeline 0-2s is source 4-6s (clean). Timeline seconds on raw would hit hum 0-3s.
-    clean = audio_diagnostics_report(project, "host", start_sec=0.0, end_sec=2.0, pngs=False)
+    clean = audio_diagnostics_report(
+        project, "host", start_sec=0.0, end_sec=2.0, pngs=False, defaults=load_defaults()
+    )
     assert clean["hum"]["hum_detected"] is False
 
 
@@ -2002,7 +2068,9 @@ def test_bleed_needs_a_measured_path_from_the_louder_mic(tmp_path: Path, paths, 
             new=lambda self: [_bleed_path(a, b) for a, b in paths],
         ),
     ):
-        rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+        rows = compute_word_audibility_map(
+            project, policy=AnalysisPolicy(), defaults=load_defaults()
+        )
 
     assert [(r["track_id"], r["audibility_status"], r["dominant_track"]) for r in rows] == [
         ("host", *expected),
@@ -2088,7 +2156,7 @@ def test_reconciliation_evidence_leaves_the_effects_chain_out(tmp_path: Path, ga
                 ],
             )
         ]
-        cache = build_reconciliation_caches(project).get("host")
+        cache = build_reconciliation_caches(project, defaults=load_defaults()).get("host")
         assert cache is not None
         level = cache.rms_db(0.5, 1.5)
         assert level is not None
@@ -2126,7 +2194,9 @@ def _own_word_verdict(caches: TrackRmsCacheSet, project: EpisodeProject, *, star
     ids = ["a", "b"]
     offsets = aa._voice_offsets(ids, caches)
     floors = aa._voice_floors(ids, caches, offsets)
-    levels = aa._track_levels(project, ids, start, start + 1.0, {}, caches, offsets)
+    levels = aa._track_levels(
+        project, ids, start, start + 1.0, {}, caches, offsets, defaults=load_defaults()
+    )
     return aa._classify_word_audibility(
         "a",
         levels.get("a"),
@@ -2191,6 +2261,7 @@ def test_whisper_above_low_band_hvac_is_audible_in_the_speech_band() -> None:
         {},
         caches,
         offsets,
+        defaults=load_defaults(),
     )
     own_speech = cache.speech_rms_db(word_start, word_end)
     assert own_speech is not None
@@ -2270,10 +2341,12 @@ def test_cached_and_uncached_window_reads_return_the_same_samples(tmp_path: Path
             timeline_start=2.00175,
         )
     ]
-    caches = aa.build_track_rms_caches(project)
+    caches = aa.build_track_rms_caches(project, defaults=load_defaults())
     for t0, t1 in [(4.00175, 4.08175), (3.348981, 3.408981), (2.5, 2.6003), (5.1234, 5.2)]:
-        cached, _ = aa.timeline_window_samples(project, "host", t0, t1, caches=caches)
-        uncached, _ = aa.timeline_window_samples(project, "host", t0, t1)
+        cached, _ = aa.timeline_window_samples(
+            project, "host", t0, t1, caches=caches, defaults=load_defaults()
+        )
+        uncached, _ = aa.timeline_window_samples(project, "host", t0, t1, defaults=load_defaults())
         assert cached.size == uncached.size
         np.testing.assert_allclose(cached, uncached, atol=1e-4)
 

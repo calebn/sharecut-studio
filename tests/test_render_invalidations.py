@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.render_invalidations import (
     clear_invalidations_for_tracks,
@@ -37,7 +38,7 @@ def test_render_status_probes_each_existing_stem_once(tmp_path, monkeypatch) -> 
         return 1.0
 
     monkeypatch.setattr(render_status, "probe_stem_duration_sec", probe)
-    report = render_status_report(project)
+    report = render_status_report(project, defaults=load_defaults())
     assert report["tracks"]["host"]["stem_duration_sec"] == 1.0
     assert calls == ["host"]
 
@@ -192,7 +193,7 @@ def test_clear_invalidations_on_stem_hash(minimal_project, sample_wav) -> None:
         timeline_end=2.0,
     )
     assert project.render.invalidations
-    write_stem_hash(project, tid)
+    write_stem_hash(project, tid, defaults=load_defaults())
     assert project.render.invalidations == []
 
 
@@ -210,7 +211,7 @@ def test_render_status_includes_invalidations(minimal_project, sample_wav) -> No
     project = _with_dialogue_track(minimal_project, sample_wav)
     tid = project.tracks[0].id
     record_invalidation(project, track_ids=[tid], reason="fx")
-    report = render_status_report(project)
+    report = render_status_report(project, defaults=load_defaults())
     assert "invalidations" in report
     assert report["invalidations"][0]["reason"] == "fx"
     assert report["invalidations"][0]["track_ids"] == [tid]

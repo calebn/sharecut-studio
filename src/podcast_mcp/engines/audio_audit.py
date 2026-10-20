@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
@@ -134,8 +134,8 @@ class AnalysisPolicy:
     bleed_ratio_warn_threshold: float = 0.2
 
     @classmethod
-    def from_defaults(cls, defaults: dict[str, Any] | None = None) -> AnalysisPolicy:
-        cfg = (defaults or load_defaults()).get("analysis", {})
+    def from_defaults(cls, defaults: EffectiveConfig) -> AnalysisPolicy:
+        cfg = defaults.get("analysis", {})
         heur = cfg.get("heuristics", {})
         min_dom = heur.get("bleed_text_match_min_dominance_db")
         return cls(
@@ -561,7 +561,7 @@ class TrackRmsCacheSet:
 
 
 def build_reconciliation_caches(
-    project: EpisodeProject, *, private_copy: bool = False
+    project: EpisodeProject, *, private_copy: bool = False, defaults: EffectiveConfig
 ) -> TrackRmsCacheSet:
     """The decodes reconcile and tighten read to tell whose voice a stretch of audio is.
 
@@ -574,9 +574,13 @@ def build_reconciliation_caches(
     """
     if any(track.transcript_gate for track in project.tracks):
         return build_track_rms_caches(
-            project, before_transcript_gate=True, private_copy=private_copy, unprocessed=True
+            project,
+            before_transcript_gate=True,
+            private_copy=private_copy,
+            unprocessed=True,
+            defaults=defaults,
         )
-    return build_track_rms_caches(project, unprocessed=True)
+    return build_track_rms_caches(project, unprocessed=True, defaults=defaults)
 
 
 def build_track_rms_caches(
@@ -586,6 +590,7 @@ def build_track_rms_caches(
     track_ids: Collection[str] | None = None,
     private_copy: bool = False,
     unprocessed: bool = False,
+    defaults: EffectiveConfig,
 ) -> TrackRmsCacheSet:
     """One decoded cache per dialogue track, from its fresh stem, else its raw clips.
 
@@ -604,7 +609,7 @@ def build_track_rms_caches(
         if unprocessed and track is not None and _has_active_chain(project, tid):
             snapshot = project.model_copy(deep=True) if private_copy else _snapshot(project)
             try:
-                caches[tid] = _ungated_cache(snapshot, tid, with_chain=False)
+                caches[tid] = _ungated_cache(snapshot, tid, with_chain=False, defaults=defaults)
                 continue
             except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
                 # No unprocessed render: the track's evidence stays as before, processed.
@@ -612,15 +617,15 @@ def build_track_rms_caches(
                     "reconcile evidence for track %s keeps its effects chain: %s", tid, exc
                 )
         if before_transcript_gate and track is not None:
-            proc = _fresh_stem_path(project, tid)
+            proc = _fresh_stem_path(project, tid, defaults=defaults)
             if not track.transcript_gate and proc is not None:
                 caches[tid] = TrackRmsCache.from_timeline_stem(proc)
             elif private_copy:
-                caches[tid] = _ungated_cache(project.model_copy(deep=True), tid)
+                caches[tid] = _ungated_cache(project.model_copy(deep=True), tid, defaults=defaults)
             else:
-                caches[tid] = _pre_transcript_gate_cache(project, tid)
+                caches[tid] = _pre_transcript_gate_cache(project, tid, defaults=defaults)
             continue
-        proc = _fresh_stem_path(project, tid)
+        proc = _fresh_stem_path(project, tid, defaults=defaults)
         if proc is not None:
             caches[tid] = TrackRmsCache.from_timeline_stem(proc)
             continue
@@ -671,12 +676,14 @@ def _has_active_chain(project: EpisodeProject, track_id: str) -> bool:
     )
 
 
-def _pre_transcript_gate_cache(project: EpisodeProject, track_id: str) -> TrackRmsCache:
-    return _ungated_cache(_snapshot(project), track_id)
+def _pre_transcript_gate_cache(
+    project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
+) -> TrackRmsCache:
+    return _ungated_cache(_snapshot(project), track_id, defaults=defaults)
 
 
 def _ungated_cache(
-    snapshot: EpisodeProject, track_id: str, *, with_chain: bool = True
+    snapshot: EpisodeProject, track_id: str, *, with_chain: bool = True, defaults: EffectiveConfig
 ) -> TrackRmsCache:
     """``track_id`` rendered with its transcript gate off, from a private copy it may change.
 
@@ -697,7 +704,7 @@ def _ungated_cache(
         ]
     with tempfile.TemporaryDirectory(prefix="podcast-ungated-evidence-") as directory:
         path = Path(directory) / "evidence.wav"
-        render_track_from_timeline(snapshot, track, path, load_defaults())
+        render_track_from_timeline(snapshot, track, path, defaults)
         return TrackRmsCache.from_timeline_stem(path)
 
 
@@ -753,7 +760,9 @@ def _processed_track_path(project: EpisodeProject, track_id: str) -> Path | None
     return existing_stem_path(project, track_id)
 
 
-def _fresh_stem_path(project: EpisodeProject, track_id: str) -> Path | None:
+def _fresh_stem_path(
+    project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
+) -> Path | None:
     """The rendered stem when audio may be read from it: it exists and is fresh.
 
     A stem is the timeline as it was rendered. After an edit moves the timeline it holds
@@ -762,7 +771,9 @@ def _fresh_stem_path(project: EpisodeProject, track_id: str) -> Path | None:
     from podcast_mcp.engines.play_audit import stem_is_fresh
 
     stem = _processed_track_path(project, track_id)
-    return stem if stem is not None and stem_is_fresh(project, track_id) else None
+    return (
+        stem if stem is not None and stem_is_fresh(project, track_id, defaults=defaults) else None
+    )
 
 
 def _effective_rms_db(rms: float | None, gain_db: float) -> float | None:
@@ -789,19 +800,27 @@ def timeline_window_samples(
     t_end: float,
     *,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> tuple[np.ndarray, int] | None:
     """One track's mono samples over timeline ``[t_start, t_end)`` and their rate."""
     cache = caches.get(track_id) if caches else None
     if cache is not None:
         return cache.window(t_start, t_end), cache.sample_rate
     try:
-        return _played_window(project, track_id, t_start, t_end), _RMS_SAMPLE_RATE
+        return _played_window(
+            project, track_id, t_start, t_end, defaults=defaults
+        ), _RMS_SAMPLE_RATE
     except Exception:
         return None
 
 
 def _played_window(
-    project: EpisodeProject, track_id: str, t_start: float, t_end: float
+    project: EpisodeProject,
+    track_id: str,
+    t_start: float,
+    t_end: float,
+    *,
+    defaults: EffectiveConfig,
 ) -> np.ndarray:
     """What plays on ``track_id`` over timeline ``[t_start, t_end)`` now.
 
@@ -812,7 +831,7 @@ def _played_window(
     """
     from podcast_mcp.edits.session_air import lane_window
 
-    stem = _fresh_stem_path(project, track_id)
+    stem = _fresh_stem_path(project, track_id, defaults=defaults)
     if stem is not None:
         return load_mono_window(
             stem,
@@ -842,6 +861,7 @@ def _rms_for_track_at_timeline(
     caches: TrackRmsCacheSet | None = None,
     floor_db: float = DIGITAL_SILENCE_DB,
     recorded_gain: bool = True,
+    defaults: EffectiveConfig,
 ) -> float | None:
     cache = caches.get(track_id) if caches else None
     if cache is not None:
@@ -849,7 +869,7 @@ def _rms_for_track_at_timeline(
     elif t_end - t_start <= 0.005:
         return None
     else:
-        read = timeline_window_samples(project, track_id, t_start, t_end)
+        read = timeline_window_samples(project, track_id, t_start, t_end, defaults=defaults)
         if read is None or read[0].size == 0:
             return None
         rms = rms_db(read[0], floor_db=floor_db)
@@ -865,6 +885,7 @@ def _speech_rms_for_track_at_timeline(
     caches: TrackRmsCacheSet | None = None,
     floor_db: float = DIGITAL_SILENCE_DB,
     recorded_gain: bool = True,
+    defaults: EffectiveConfig,
 ) -> float | None:
     cache = caches.get(track_id) if caches else None
     if cache is not None:
@@ -872,7 +893,7 @@ def _speech_rms_for_track_at_timeline(
     elif t_end - t_start <= 0.005:
         return None
     else:
-        read = timeline_window_samples(project, track_id, t_start, t_end)
+        read = timeline_window_samples(project, track_id, t_start, t_end, defaults=defaults)
         if read is None or read[0].size == 0:
             return None
         filtered = band_filter(read[0], read[1], SPEECH_BAND)
@@ -889,13 +910,16 @@ def timeline_frame_levels_db(
     frame_sec: float,
     hop_sec: float,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> np.ndarray | None:
     """Recorded level (dB) of each ``frame_sec`` frame every ``hop_sec`` from ``t_start``.
 
     Only frames wholly inside timeline ``[t_start, t_end)`` count. ``None`` when the
     track cannot be read there or no frame fits.
     """
-    read = timeline_window_samples(project, track_id, t_start, t_end, caches=caches)
+    read = timeline_window_samples(
+        project, track_id, t_start, t_end, caches=caches, defaults=defaults
+    )
     if read is None:
         return None
     samples, rate = read
@@ -913,6 +937,7 @@ def measure_timeline_rms_db(
     *,
     caches: TrackRmsCacheSet | None = None,
     floor_db: float = DIGITAL_SILENCE_DB,
+    defaults: EffectiveConfig,
 ) -> float | None:
     """Public RMS (dB) for a timeline window on one dialogue track.
 
@@ -921,7 +946,7 @@ def measure_timeline_rms_db(
     of a recording quiet enough to put its speech near -80 dBFS.
     """
     return _rms_for_track_at_timeline(
-        project, track_id, t_start, t_end, caches=caches, floor_db=floor_db
+        project, track_id, t_start, t_end, caches=caches, floor_db=floor_db, defaults=defaults
     )
 
 
@@ -1041,6 +1066,7 @@ def _track_levels(
     offsets: dict[str, float],
     *,
     word_dur: float | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, float]:
     """Each track's level for a timeline window on the voice scale, a lagged source read later."""
     use_peak = (
@@ -1059,12 +1085,13 @@ def _track_levels(
                 frame_sec=_SHORT_WORD_FRAME_SEC,
                 hop_sec=_SHORT_WORD_FRAME_SEC,
                 caches=caches,
+                defaults=defaults,
             )
             if frame_levels is not None and frame_levels.size:
                 levels[tid] = float(frame_levels.max()) - offsets.get(tid, 0.0)
                 continue
         rms = _rms_for_track_at_timeline(
-            project, tid, win_start, win_end, caches=caches, recorded_gain=False
+            project, tid, win_start, win_end, caches=caches, recorded_gain=False, defaults=defaults
         )
         if rms is not None:
             levels[tid] = rms - offsets.get(tid, 0.0)
@@ -1078,6 +1105,7 @@ def compute_word_audibility_map(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     """Per-word audibility across all dialogue tracks at each word's timeline window.
 
@@ -1101,11 +1129,11 @@ def compute_word_audibility_map(
     samples a cache serves (#1560). Voice floors and mic paths come from the caches, so a
     set with no cache for a track cannot judge ``inaudible`` or ``bleed`` there.
     """
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     if pol.transcript_mode == "off":
         return []
 
-    caches = caches if caches is not None else build_track_rms_caches(project)
+    caches = caches if caches is not None else build_track_rms_caches(project, defaults=defaults)
     st = SessionTimeline(project)
     out: list[dict[str, Any]] = []
     all_tracks = dialogue_track_ids(project)
@@ -1227,12 +1255,19 @@ def compute_word_audibility_map(
                     caches,
                     offsets,
                     word_dur=word_dur,
+                    defaults=defaults,
                 )
                 own_rms = track_rms.get(tid)
                 own_speech: float | None = None
                 if own_rms is not None and own_rms < floors.get(tid, -math.inf):
                     raw_speech = _speech_rms_for_track_at_timeline(
-                        project, tid, tl_start, tl_end, caches=caches, recorded_gain=False
+                        project,
+                        tid,
+                        tl_start,
+                        tl_end,
+                        caches=caches,
+                        recorded_gain=False,
+                        defaults=defaults,
                     )
                     if raw_speech is not None:
                         own_speech = raw_speech - speech_offsets.get(tid, 0.0)
@@ -1257,12 +1292,19 @@ def compute_word_audibility_map(
                         caches,
                         offsets,
                         word_dur=word_dur,
+                        defaults=defaults,
                     )
                     zero_speech: float | None = None
                     zero_own = at_zero.get(tid)
                     if zero_own is not None and zero_own < floors.get(tid, -math.inf):
                         raw_zero = _speech_rms_for_track_at_timeline(
-                            project, tid, tl_start, tl_end, caches=caches, recorded_gain=False
+                            project,
+                            tid,
+                            tl_start,
+                            tl_end,
+                            caches=caches,
+                            recorded_gain=False,
+                            defaults=defaults,
                         )
                         if raw_zero is not None:
                             zero_speech = raw_zero - speech_offsets.get(tid, 0.0)
@@ -1315,10 +1357,13 @@ def list_bleed_words(
     *,
     track_id: str | None = None,
     policy: AnalysisPolicy | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     return [
         row
-        for row in compute_word_audibility_map(project, track_id=track_id, policy=policy)
+        for row in compute_word_audibility_map(
+            project, track_id=track_id, policy=policy, defaults=defaults
+        )
         if row["audibility_status"] == "bleed"
     ]
 
@@ -1330,11 +1375,17 @@ def list_flagged_words(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     return [
         row
         for row in compute_word_audibility_map(
-            project, track_id=track_id, policy=policy, progress=progress, caches=caches
+            project,
+            track_id=track_id,
+            policy=policy,
+            progress=progress,
+            caches=caches,
+            defaults=defaults,
         )
         if row["audibility_status"] in _FLAGGED_STATUSES
     ]
@@ -1356,10 +1407,11 @@ def list_low_audibility_words(
     track_id: str | None = None,
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     """Flag transcript words whose timeline windows are under their track's voice floor."""
 
-    caches = caches if caches is not None else build_track_rms_caches(project)
+    caches = caches if caches is not None else build_track_rms_caches(project, defaults=defaults)
     st = SessionTimeline(project)
     out: list[dict[str, Any]] = []
     tracks = [track_id] if track_id else dialogue_track_ids(project)
@@ -1407,6 +1459,7 @@ def list_low_audibility_words(
                                 frame_sec=_SHORT_WORD_FRAME_SEC,
                                 hop_sec=_SHORT_WORD_FRAME_SEC,
                                 caches=caches,
+                                defaults=defaults,
                             )
                         )
                         is not None
@@ -1463,22 +1516,25 @@ def analyze_gate_overreach(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Attribute transcript and noise-gate loss to separate audio comparisons."""
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     track = project.track_by_id(track_id)
     if track is None or not track.transcript_gate:
         return _noise_gate_overreach(
-            project, track_id, policy=pol, progress=progress, caches=caches
+            project, track_id, policy=pol, progress=progress, caches=caches, defaults=defaults
         )
     noise_project = project.model_copy(deep=True)
     noise_track = noise_project.track_by_id(track_id)
     assert noise_track is not None
     noise_track.transcript_gate = False
     if not _track_has_gate(noise_project, track_id):
-        return _transcript_gate_overreach(project, track_id, pol, progress=progress)
+        return _transcript_gate_overreach(
+            project, track_id, pol, progress=progress, defaults=defaults
+        )
     try:
-        before = _pre_transcript_gate_cache(project, track_id)
+        before = _pre_transcript_gate_cache(project, track_id, defaults=defaults)
     except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
         return {
             "track_id": track_id,
@@ -1491,7 +1547,7 @@ def analyze_gate_overreach(
             "advice": "Evidence before transcript gating is unavailable; neither gate is verified safe.",
         }
     transcript = _transcript_gate_overreach(
-        project, track_id, pol, progress=progress, before=before
+        project, track_id, pol, progress=progress, before=before, defaults=defaults
     )
     noise = _noise_gate_overreach(
         noise_project,
@@ -1499,6 +1555,7 @@ def analyze_gate_overreach(
         policy=pol,
         progress=progress,
         caches=TrackRmsCacheSet(caches={track_id: before}),
+        defaults=defaults,
     )
     noise["gate_type"] = "noise"
     components = [noise, transcript]
@@ -1525,9 +1582,10 @@ def _noise_gate_overreach(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Detect likely gate clipping on syllable onsets/offsets."""
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     if not _track_has_gate(project, track_id):
         return {
             "track_id": track_id,
@@ -1668,6 +1726,7 @@ def _transcript_gate_overreach(
     *,
     progress: ProgressReporter | None,
     before: TrackRmsCache | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     transcript = project.transcript_for_track(track_id)
     processed = _processed_track_path(project, track_id)
@@ -1684,7 +1743,11 @@ def _transcript_gate_overreach(
     if transcript is None or not transcript.words or processed is None:
         return result
     try:
-        raw = before if before is not None else _pre_transcript_gate_cache(project, track_id)
+        raw = (
+            before
+            if before is not None
+            else _pre_transcript_gate_cache(project, track_id, defaults=defaults)
+        )
         final = TrackRmsCache.from_timeline_stem(processed)
     except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
         return result
@@ -1786,6 +1849,7 @@ def recommend_boundary_fades(
     policy: AnalysisPolicy | None = None,
     track_id: str | None = None,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     """Recommend clip fades where joins have large level jumps or no fades."""
     # Deferred: edits/clips_ops.py sits behind the edits package __init__, which
@@ -1796,7 +1860,7 @@ def recommend_boundary_fades(
     # finished initializing.
     from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
 
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     recs: list[dict[str, Any]] = []
     tracks = [track_id] if track_id else dialogue_track_ids(project)
 
@@ -1907,15 +1971,16 @@ def analyze_cleanup(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     cancel_check: Callable[[], bool] | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Full cleanup analysis report for one or all dialogue tracks.
 
     ``cancel_check`` is polled before each track; true raises ``CancelledProgress``.
     """
 
-    pol = policy or AnalysisPolicy.from_defaults()
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     tracks = [track_id] if track_id else dialogue_track_ids(project)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=defaults)
     per_track: list[dict[str, Any]] = []
 
     raise_if_cancel_requested(cancel_check, "Cleanup analysis cancelled")
@@ -1927,7 +1992,7 @@ def analyze_cleanup(
         # regardless of scope (#805, #806). Computed once and reused below instead of
         # a second per-track acoustic pass.
         audibility_map = compute_word_audibility_map(
-            project, policy=pol, progress=None, caches=caches
+            project, policy=pol, progress=None, caches=caches, defaults=defaults
         )
         for row in audibility_map:
             if row["audibility_status"] in _FLAGGED_STATUSES:
@@ -1935,7 +2000,9 @@ def analyze_cleanup(
 
         from podcast_mcp.engines.transcript_reconcile import word_targets
 
-        targets = word_targets(project, policy=pol, audibility_map=audibility_map, caches=caches)
+        targets = word_targets(
+            project, policy=pol, audibility_map=audibility_map, caches=caches, defaults=defaults
+        )
 
     with resolve_progress_task(
         "analyze-cleanup",
@@ -1950,14 +2017,20 @@ def analyze_cleanup(
             if not track or track.role != TrackRole.DIALOGUE:
                 task.advance(1, total=len(tracks), message=f"track {tid}")
                 continue
-            gate = analyze_gate_overreach(project, tid, policy=pol, progress=None, caches=caches)
-            low_aud = list_low_audibility_words(project, track_id=tid, progress=None, caches=caches)
+            gate = analyze_gate_overreach(
+                project, tid, policy=pol, progress=None, caches=caches, defaults=defaults
+            )
+            low_aud = list_low_audibility_words(
+                project, track_id=tid, progress=None, caches=caches, defaults=defaults
+            )
             flagged = flagged_by_track.get(tid, [])
             bleed = [f for f in flagged if f["audibility_status"] == "bleed"]
             lanes = lane_transcripts(project, tid)
             total_words = sum(len(lane.transcript.words) for lane in lanes)
             bleed_ratio = round(len(bleed) / total_words, 3) if total_words else None
-            fades = recommend_boundary_fades(project, policy=pol, track_id=tid, caches=caches)
+            fades = recommend_boundary_fades(
+                project, policy=pol, track_id=tid, caches=caches, defaults=defaults
+            )
             chain = next((c for c in project.processing_chains if c.track_id == tid), None)
             effects = [e.effect for e in chain.effects] if chain else []
 
@@ -2015,7 +2088,7 @@ def analyze_cleanup(
             "transcript_mode": pol.transcript_mode,
             "reconcile_on_render": pol.reconcile_on_render,
         },
-        "reconciliation": reconciliation_status(project),
+        "reconciliation": reconciliation_status(project, defaults=defaults),
         "summary": _summarize_report(per_track),
     }
     return result

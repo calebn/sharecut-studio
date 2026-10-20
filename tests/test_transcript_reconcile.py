@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from audibility_floors import floors_at
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.tighten import analyze_fillers_and_pauses
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import (
@@ -246,7 +247,7 @@ def test_reconcile_word_never_auto_flips_locked_word() -> None:
 
 
 def test_analysis_policy_bleed_defaults():
-    pol = AnalysisPolicy.from_defaults()
+    pol = AnalysisPolicy.from_defaults(defaults=load_defaults())
     assert pol.bleed_dominance_db == 6.0
     assert pol.reconcile_on_render is True
     assert pol.transcript_mode == "reconcile"
@@ -257,7 +258,7 @@ def test_analysis_policy_bleed_defaults():
 @_ROOM_PAIR_MEASURED
 def test_run_reconciliation_applies_by_default(tmp_path: Path):
     project = _two_track_project(tmp_path)
-    pol = AnalysisPolicy.from_defaults()
+    pol = AnalysisPolicy.from_defaults(defaults=load_defaults())
 
     def fake_rms(project, track_id, t_start, t_end, **kwargs):
         if track_id == "host" and t_start >= 1.0:
@@ -270,7 +271,7 @@ def test_run_reconciliation_applies_by_default(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=fake_rms,
     ):
-        result = run_reconciliation(project, dry_run=None, policy=pol)
+        result = run_reconciliation(project, dry_run=None, policy=pol, defaults=load_defaults())
 
     host = project.transcript_for_track("host")
     assert host is not None
@@ -308,7 +309,7 @@ def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=fake_rms,
     ):
-        run_reconciliation(workspace.project, dry_run=None)
+        run_reconciliation(workspace.project, dry_run=None, defaults=load_defaults())
 
     host = workspace.project.transcript_for_track("host")
     assert host is not None
@@ -354,7 +355,7 @@ def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=fake_rms,
     ):
-        run_reconciliation(workspace.project, dry_run=None)
+        run_reconciliation(workspace.project, dry_run=None, defaults=load_defaults())
 
     host = workspace.project.transcript_for_track("host")
     assert host is not None
@@ -419,7 +420,7 @@ def test_compute_word_audibility_map_bleed(tmp_path: Path):
         ),
         floors_at(-42.0),
     ):
-        rows = compute_word_audibility_map(project, policy=pol)
+        rows = compute_word_audibility_map(project, policy=pol, defaults=load_defaults())
 
     bleed_rows = [r for r in rows if r["audibility_status"] == "bleed"]
     assert len(bleed_rows) == 1
@@ -446,7 +447,7 @@ def test_list_flagged_words_includes_inaudible_and_bleed(tmp_path: Path):
         ),
         floors_at(-35.0),
     ):
-        flagged = list_flagged_words(project, policy=pol)
+        flagged = list_flagged_words(project, policy=pol, defaults=load_defaults())
 
     assert len(flagged) >= 2
     statuses = {f["audibility_status"] for f in flagged}
@@ -468,7 +469,9 @@ def test_reconcile_transcript_skips_text_match_when_disabled(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         return_value=-35.0,
     ):
-        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+        result = reconcile_transcript(
+            project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+        )
 
     assert not any(s.get("reason") == "text_match_overlap" for s in result.suppress)
 
@@ -485,7 +488,9 @@ def test_reconcile_keeps_identical_words_on_a_pair_with_no_bleed_path(tmp_path: 
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         return_value=-35.0,
     ):
-        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+        result = reconcile_transcript(
+            project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+        )
 
     assert _word_state(project) == {
         ("host", 0): (False, "audible", None),
@@ -508,7 +513,9 @@ def test_reconcile_transcript_text_match_overlap(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         return_value=-35.0,
     ):
-        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+        result = reconcile_transcript(
+            project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+        )
 
     guest = project.transcript_for_track("guest")
     assert guest is not None
@@ -535,7 +542,9 @@ def test_reconcile_apply_writes_status_for_text_match_loser_with_update_status_f
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         return_value=-35.0,
     ):
-        reconcile_transcript(project, policy=pol, dry_run=False, update_status=False)
+        reconcile_transcript(
+            project, policy=pol, dry_run=False, update_status=False, defaults=load_defaults()
+        )
 
     guest = project.transcript_for_track("guest")
     assert guest is not None
@@ -560,7 +569,7 @@ def test_reconcile_flag_mode_tags_text_match_loser_without_suppressing(tmp_path:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         return_value=-35.0,
     ):
-        run_reconciliation(project, policy=pol, dry_run=None)
+        run_reconciliation(project, policy=pol, dry_run=None, defaults=load_defaults())
 
     guest = project.transcript_for_track("guest")
     assert guest is not None
@@ -585,7 +594,9 @@ def test_reconcile_transcript_suppresses_bleed(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=fake_rms,
     ):
-        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+        result = reconcile_transcript(
+            project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+        )
 
     host = project.transcript_for_track("host")
     assert host is not None
@@ -615,7 +626,9 @@ def test_reconcile_keeps_a_quieter_word_on_a_pair_with_no_bleed_path(tmp_path: P
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=fake_rms,
     ):
-        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+        result = reconcile_transcript(
+            project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+        )
 
     assert _word_state(project) == {
         ("host", 0): (False, "audible", None),
@@ -638,7 +651,9 @@ def test_reconcile_unsuppresses_when_audible_again(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         return_value=-30.0,
     ):
-        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+        result = reconcile_transcript(
+            project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+        )
 
     assert host.words[1].suppressed is False
     assert host.words[1].audibility_status == "audible"
@@ -677,9 +692,9 @@ def test_reconcile_second_pass_on_unchanged_project_is_a_no_op(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=fake_rms,
     ):
-        first = run_reconciliation(project, policy=pol, dry_run=False)
+        first = run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
         converged = _word_state(project)
-        second = run_reconciliation(project, policy=pol, dry_run=False)
+        second = run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
 
     assert converged == {
         ("host", 0): (False, "audible", None),
@@ -738,10 +753,10 @@ def test_reconcile_dry_run_preview_matches_apply_with_text_match_overlap(tmp_pat
         side_effect=fake_rms,
     ):
         before = _word_state(project)
-        preview = run_reconciliation(project, policy=pol, dry_run=True)
+        preview = run_reconciliation(project, policy=pol, dry_run=True, defaults=load_defaults())
         assert _word_state(project) == before, "preview must not write"
 
-        applied = run_reconciliation(project, policy=pol, dry_run=False)
+        applied = run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
         converged = _word_state(project)
         assert converged != before
 
@@ -749,10 +764,14 @@ def test_reconcile_dry_run_preview_matches_apply_with_text_match_overlap(tmp_pat
             assert _diff_keys(preview[key]) == _diff_keys(applied[key]), key
         assert _diff_keys(preview["suppress"]) == {("guest", 0), ("guest", 1)}
 
-        preview_converged = run_reconciliation(project, policy=pol, dry_run=True)
+        preview_converged = run_reconciliation(
+            project, policy=pol, dry_run=True, defaults=load_defaults()
+        )
         assert _word_state(project) == converged, "preview must not write"
 
-        applied_converged = run_reconciliation(project, policy=pol, dry_run=False)
+        applied_converged = run_reconciliation(
+            project, policy=pol, dry_run=False, defaults=load_defaults()
+        )
         assert _word_state(project) == converged, "apply on a converged project is a no-op"
 
     for key in ("suppress", "unsuppress", "reattribute"):
@@ -817,7 +836,7 @@ def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_sign_off_chain_rms,
     ):
-        first = run_reconciliation(project, policy=pol, dry_run=False)
+        first = run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
         assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
         assert [(s["track_id"], s["word_index"], s["reason"]) for s in first["suppress"]] == [
             ("host", 0, "text_match_overlap"),
@@ -826,14 +845,37 @@ def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path
         assert counts(first) == (2, 0, 2, 3)
 
         later = [
-            counts(run_reconciliation(project, policy=pol, dry_run=False, track_id="host")),
-            counts(run_reconciliation(project, policy=pol, dry_run=False)),
-            counts(run_reconciliation(project, policy=pol, dry_run=False, track_id="guest")),
-            counts(run_reconciliation(project, policy=pol, dry_run=False)),
             counts(
-                run_reconciliation(project, policy=pol, dry_run=False, start_sec=1.0, end_sec=1.2)
+                run_reconciliation(
+                    project, policy=pol, dry_run=False, track_id="host", defaults=load_defaults()
+                )
             ),
-            counts(run_reconciliation(project, policy=pol, dry_run=False, track_id="host")),
+            counts(
+                run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
+            ),
+            counts(
+                run_reconciliation(
+                    project, policy=pol, dry_run=False, track_id="guest", defaults=load_defaults()
+                )
+            ),
+            counts(
+                run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
+            ),
+            counts(
+                run_reconciliation(
+                    project,
+                    policy=pol,
+                    dry_run=False,
+                    start_sec=1.0,
+                    end_sec=1.2,
+                    defaults=load_defaults(),
+                )
+            ),
+            counts(
+                run_reconciliation(
+                    project, policy=pol, dry_run=False, track_id="host", defaults=load_defaults()
+                )
+            ),
         ]
 
     assert later == [(0, 0, 0, 0)] * 6
@@ -856,9 +898,11 @@ def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_sign_off_chain_rms,
     ):
-        scoped = run_reconciliation(project, policy=pol, dry_run=False, track_id="host")
+        scoped = run_reconciliation(
+            project, policy=pol, dry_run=False, track_id="host", defaults=load_defaults()
+        )
         after_scoped = _word_state(project)
-        full = run_reconciliation(project, policy=pol, dry_run=False)
+        full = run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
 
     assert after_scoped == {
         ("host", 0): (True, "bleed", "guest"),
@@ -903,10 +947,10 @@ def test_window_pass_leaves_text_match_losers_outside_the_window_alone(tmp_path:
         return_value=-35.0,
     ):
         windowed = run_reconciliation(
-            project, policy=pol, dry_run=False, start_sec=2.0, end_sec=4.0
+            project, policy=pol, dry_run=False, start_sec=2.0, end_sec=4.0, defaults=load_defaults()
         )
         after_window = _word_state(project)
-        full = run_reconciliation(project, policy=pol, dry_run=False)
+        full = run_reconciliation(project, policy=pol, dry_run=False, defaults=load_defaults())
 
     assert after_window == {
         ("host", 0): (False, None, None),
@@ -936,32 +980,32 @@ def test_window_pass_leaves_text_match_losers_outside_the_window_alone(tmp_path:
 
 def test_audio_state_fingerprint_changes_on_effect(tmp_path: Path):
     project = _two_track_project(tmp_path)
-    before = audio_state_fingerprint(project)
+    before = audio_state_fingerprint(project, defaults=load_defaults())
     project.processing_chains = [
         ProcessingChain(
             track_id="host",
             effects=[ProcessingEffect(effect="agate", params={"threshold_db": -30})],
         )
     ]
-    after = audio_state_fingerprint(project)
+    after = audio_state_fingerprint(project, defaults=load_defaults())
     assert before != after
 
 
 def test_reconciliation_stale_tracking(tmp_path: Path):
     project = _two_track_project(tmp_path)
-    assert reconciliation_is_stale(project)
-    mark_reconciliation_fresh(project)
-    assert not reconciliation_is_stale(project)
+    assert reconciliation_is_stale(project, defaults=load_defaults())
+    mark_reconciliation_fresh(project, defaults=load_defaults())
+    assert not reconciliation_is_stale(project, defaults=load_defaults())
     mark_reconciliation_stale(project)
-    status = reconciliation_status(project)
+    status = reconciliation_status(project, defaults=load_defaults())
     assert status["stale"] is True
 
 
 def test_maybe_auto_reconcile_skips_when_fresh(tmp_path: Path):
     project = _two_track_project(tmp_path)
-    mark_reconciliation_fresh(project)
+    mark_reconciliation_fresh(project, defaults=load_defaults())
     with patch("podcast_mcp.edits.transcript_reconcile.run_reconciliation") as run_rec:
-        result = maybe_auto_reconcile(project)
+        result = maybe_auto_reconcile(project, defaults=load_defaults())
     assert result is None
     run_rec.assert_not_called()
 
@@ -973,7 +1017,7 @@ def test_maybe_auto_reconcile_runs_when_stale(tmp_path: Path):
         "podcast_mcp.edits.transcript_reconcile.run_reconciliation",
         return_value={"status_updates": 2},
     ) as run_rec:
-        result = maybe_auto_reconcile(project, force=True)
+        result = maybe_auto_reconcile(project, force=True, defaults=load_defaults())
     assert result == {"status_updates": 2}
     run_rec.assert_called_once()
 
@@ -984,7 +1028,7 @@ def test_run_mutation_marks_stale_on_audio_change(tmp_path: Path):
 
     project = _two_track_project(tmp_path)
     path = save_project(project)
-    mark_reconciliation_fresh(project)
+    mark_reconciliation_fresh(project, defaults=load_defaults())
     ProjectStore(path).commit(project)
 
     def add_gate(p: EpisodeProject) -> None:
@@ -995,7 +1039,7 @@ def test_run_mutation_marks_stale_on_audio_change(tmp_path: Path):
             )
         ]
 
-    run_mutation(path, project, "before", "after", add_gate)
+    run_mutation(path, project, "before", "after", add_gate, defaults=load_defaults())
     assert project.reconciliation_stale is True
 
 
@@ -1006,14 +1050,14 @@ def test_run_mutation_skips_auto_reconcile_when_stems_stale(tmp_path: Path):
 
     project = _two_track_project(tmp_path)
     path = save_project(project)
-    mark_reconciliation_fresh(project)
+    mark_reconciliation_fresh(project, defaults=load_defaults())
     ProjectStore(path).commit(project)
 
     for tid in ("host", "guest"):
         stem = project.artifacts_dir() / "tracks" / f"{tid}.wav"
         stem.parent.mkdir(parents=True, exist_ok=True)
         stem.write_bytes(b"\x00" * 100)
-        write_stem_hash(project, tid)
+        write_stem_hash(project, tid, defaults=load_defaults())
 
     def add_gate(p: EpisodeProject) -> None:
         p.processing_chains = [
@@ -1027,7 +1071,7 @@ def test_run_mutation_skips_auto_reconcile_when_stems_stale(tmp_path: Path):
         "podcast_mcp.history.session.maybe_auto_reconcile",
         return_value={"status_updates": 1},
     ) as auto_rec:
-        run_mutation(path, project, "before", "after", add_gate)
+        run_mutation(path, project, "before", "after", add_gate, defaults=load_defaults())
 
     auto_rec.assert_not_called()
     assert project.reconciliation_stale is True
@@ -1048,12 +1092,16 @@ def test_search_transcript_excludes_suppressed_by_default(tmp_path: Path):
     host = project.transcript_for_track("host")
     assert host is not None
     host.words[1] = host.words[1].model_copy(update={"suppressed": True})
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
 
-    matches = search_transcript(project, "bleed", track_id="host")
+    matches = search_transcript(project, "bleed", track_id="host", defaults=load_defaults())
     assert len(matches) == 0
 
-    matches_all = search_transcript(project, "bleed", track_id="host", include_suppressed=True)
+    matches_all = search_transcript(
+        project, "bleed", track_id="host", include_suppressed=True, defaults=load_defaults()
+    )
     assert len(matches_all) == 1
 
 
@@ -1084,7 +1132,7 @@ def test_overlap_report_matches_pairwise_for_unsorted_and_long_words(tmp_path: P
     with patch(
         "podcast_mcp.edits.transcript_reconcile.compute_word_audibility_map", return_value=[]
     ):
-        rows = overlap_duplicate_report(project)["pairs"]
+        rows = overlap_duplicate_report(project, defaults=load_defaults())["pairs"]
     assert [(row["word_index_a"], row["word_index_b"]) for row in rows] == expected
 
 
@@ -1165,7 +1213,9 @@ def _echo_stem_project(tmp_path: Path) -> EpisodeProject:
             + [TranscriptWord(text="bye", start=18.3, end=18.7, confidence=1.0)],
         ),
     ]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     return project
 
 
@@ -1177,7 +1227,9 @@ def test_reconcile_picks_the_source_mic_on_a_measured_bleed_pair(tmp_path: Path)
     project = _echo_stem_project(tmp_path)
     pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
 
-    result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+    result = reconcile_transcript(
+        project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+    )
 
     host = project.transcript_for_track("host")
     guest = project.transcript_for_track("guest")
@@ -1205,7 +1257,9 @@ def test_reconcile_picks_the_source_mic_on_a_measured_bleed_pair(tmp_path: Path)
     ]
     assert result.unsuppress == []
 
-    again = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+    again = reconcile_transcript(
+        project, policy=pol, dry_run=False, update_status=True, defaults=load_defaults()
+    )
     assert (again.suppress, again.unsuppress, again.reattribute, again.status_updates) == (
         [],
         [],

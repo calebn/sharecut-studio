@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.strip_silence import _kept_source_ranges, strip_silence
 from podcast_mcp.engines.silence import SilenceInterval
 from podcast_mcp.models import (
@@ -69,7 +70,7 @@ def test_strip_silence_splits_clips(tmp_path, sample_wav) -> None:
             timeline_start=0.0,
         )
     ]
-    result = strip_silence(p, "host", min_duration_sec=0.1)
+    result = strip_silence(p, "host", min_duration_sec=0.1, defaults=load_defaults())
     assert result["clips_created"] >= 1
     assert len([c for c in p.clips if c.track_id == "host"]) >= 1
 
@@ -112,7 +113,7 @@ def _strip(tmp_path, samples: np.ndarray) -> dict:
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
     ):
         eng_cls.return_value.probe.return_value = type("Probe", (), {"duration_sec": duration})()
-        return strip_silence(p, "host")
+        return strip_silence(p, "host", defaults=load_defaults())
 
 
 def test_strip_silence_finds_the_room_between_words_on_a_noisy_track(tmp_path) -> None:

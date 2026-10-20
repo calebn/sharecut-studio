@@ -121,7 +121,9 @@ def guest_search_transcript(query: str, limit: int = 20) -> list[dict[str, Any]]
         raise CodedPermissionError("share does not allow view", code="share_capability_required")
     from podcast_mcp.edits.transcript_cuts import search_transcript
 
-    hits = search_transcript(ctx.workspace.project, query=query)
+    hits = search_transcript(
+        ctx.workspace.project, query=query, defaults=ctx.workspace.effective_config()
+    )
     out: list[dict[str, Any]] = []
     for h in hits[: max(1, limit)]:
         if hasattr(h, "model_dump"):

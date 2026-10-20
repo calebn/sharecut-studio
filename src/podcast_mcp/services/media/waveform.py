@@ -36,6 +36,7 @@ from typing import Any, Literal, cast
 
 from filelock import Timeout as FileLockTimeout
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import PCM_WINDOW_TIMEOUT_SEC
 from podcast_mcp.engines.waveform_media import (
     REASON_DECODE_FAILED,
@@ -208,7 +209,9 @@ def media_index(project_path: Path) -> MediaIndex:
     after = file_revision(project_path)
     watch_paths = media_watch_paths(project)
     watch_sig = _watch_signature(watch_paths)  # before collecting: a later change misses next time
-    refs = collect_media_refs(project)
+    from podcast_mcp.services.pipeline import run_defaults_for
+
+    refs = collect_media_refs(project, defaults=run_defaults_for(project_path))
     index = MediaIndex(
         artifacts_dir=_artifacts_dir(project_path),
         refs=refs.refs,
@@ -290,7 +293,12 @@ def _generating() -> dict[str, Any]:
 
 
 def _ref_status(
-    project_path: Path, artifacts_dir: Path, ref: str, entry: MediaEntry
+    project_path: Path,
+    artifacts_dir: Path,
+    ref: str,
+    entry: MediaEntry,
+    *,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     try:
         target = pyramid_target(artifacts_dir, ref, entry)
@@ -311,7 +319,7 @@ def _ref_status(
         target.key,
         entry.abs_path,
         target.out,
-        current_key=functools.partial(current_ref_key, project_path, ref),
+        current_key=functools.partial(current_ref_key, project_path, ref, defaults=defaults),
     ):
         return _generating()
     return _unavailable(REASON_DECODE_FAILED)
@@ -328,10 +336,15 @@ def waveform_status(project_path: Path, kind: MediaKind) -> dict[str, Any]:
         gc_pyramids(project_path, index)
     except Exception:
         log.warning("waveform pyramid GC failed for %s", project_path, exc_info=True)
+    from podcast_mcp.services.pipeline import run_defaults_for
+
+    defaults = run_defaults_for(project_path)
     media: dict[str, dict[str, Any]] = {}
     for ref, entry in index.refs.items():
         if entry.kind == kind:
-            media[ref] = _ref_status(project_path, index.artifacts_dir, ref, entry)
+            media[ref] = _ref_status(
+                project_path, index.artifacts_dir, ref, entry, defaults=defaults
+            )
     for ref, reason in index.unavailable.items():
         if _ref_kind(ref) == kind:
             media[ref] = _unavailable(reason)

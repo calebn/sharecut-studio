@@ -10,6 +10,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.acoustic_gap import (
     AcousticGapConfig,
     AcousticGapRun,
@@ -176,7 +177,7 @@ def test_sustained_voiced_run_is_bounded_inside_gap_and_does_not_mutate_cache() 
     cache = _cache(_tone(2.0, 0.5, 0.9))
     original = cache.waveform.samples.copy()
 
-    runs = find_voiced_gap_runs(cache, 0.2, 1.4)
+    runs = find_voiced_gap_runs(cache, 0.2, 1.4, defaults=load_defaults())
 
     assert runs
     assert all(0.2 <= run.start < run.end <= 1.4 for run in runs)
@@ -186,18 +187,23 @@ def test_sustained_voiced_run_is_bounded_inside_gap_and_does_not_mutate_cache() 
 def test_noise_short_gap_and_empty_window_are_rejected() -> None:
     noise = np.random.default_rng(7).normal(0, 0.12, RATE * 2).astype(np.float32)
 
-    assert find_voiced_gap_runs(_cache(noise), 0.2, 1.0) == []
-    assert find_voiced_gap_runs(_cache(noise), 0.2, 0.5) == []
-    assert find_voiced_gap_runs(_cache(noise), 0.8, 0.4) == []
-    assert find_voiced_gap_runs(_cache(np.zeros(RATE, dtype=np.float32)), 5.0, 6.0) == []
+    assert find_voiced_gap_runs(_cache(noise), 0.2, 1.0, defaults=load_defaults()) == []
+    assert find_voiced_gap_runs(_cache(noise), 0.2, 0.5, defaults=load_defaults()) == []
+    assert find_voiced_gap_runs(_cache(noise), 0.8, 0.4, defaults=load_defaults()) == []
+    assert (
+        find_voiced_gap_runs(
+            _cache(np.zeros(RATE, dtype=np.float32)), 5.0, 6.0, defaults=load_defaults()
+        )
+        == []
+    )
 
 
 def test_window_too_short_to_hold_a_run_whole_scans_no_longer_gap() -> None:
     cache = _cache(_tone(3.0, 1.0, 1.3))
 
-    assert find_voiced_gap_runs(cache, 0.4, 2.0)
+    assert find_voiced_gap_runs(cache, 0.4, 2.0, defaults=load_defaults())
     # 100 frames ~= 1.0 s of analysis, under the longest run plus its seam margins.
-    assert find_voiced_gap_runs(cache, 0.4, 2.0, max_frames=100) == []
+    assert find_voiced_gap_runs(cache, 0.4, 2.0, max_frames=100, defaults=load_defaults()) == []
 
 
 def _bursts(total_sec: float, starts: list[float], length: float = 0.3) -> np.ndarray:
@@ -212,7 +218,7 @@ def test_gap_longer_than_one_window_is_scanned_whole_in_overlapping_windows() ->
     starts = [0.9, 3.0, 5.5, 6.2, 6.9, 9.5, 10.6, 14.9, 20.0, 29.8, 34.7, 39.0]
     cache = _cache(_bursts(41.0, starts))
 
-    runs = find_voiced_gap_runs(cache, 0.4, 40.6)
+    runs = find_voiced_gap_runs(cache, 0.4, 40.6, defaults=load_defaults())
 
     assert len(runs) == len(starts)
     for run, start in zip(runs, starts, strict=True):
@@ -223,7 +229,7 @@ def test_every_offset_of_a_burst_is_found_once_across_the_seams() -> None:
     for offset in np.arange(3.0, 12.0, 0.17):
         cache = _cache(_bursts(20.0, [float(offset)]))
 
-        runs = find_voiced_gap_runs(cache, 0.4, 19.6)
+        runs = find_voiced_gap_runs(cache, 0.4, 19.6, defaults=load_defaults())
 
         assert len(runs) == 1, offset
 
@@ -231,7 +237,7 @@ def test_every_offset_of_a_burst_is_found_once_across_the_seams() -> None:
 def test_a_run_cut_by_a_seam_is_not_reported_short() -> None:
     cache = _cache(_bursts(20.0, [6.3], length=1.2))
 
-    (run,) = find_voiced_gap_runs(cache, 0.4, 19.6)
+    (run,) = find_voiced_gap_runs(cache, 0.4, 19.6, defaults=load_defaults())
 
     assert run.end - run.start >= 1.1
 
@@ -239,7 +245,7 @@ def test_a_run_cut_by_a_seam_is_not_reported_short() -> None:
 def test_a_burst_straddling_a_seam_is_reported_whole_not_cut_at_the_seam() -> None:
     cache = _cache(_bursts(20.0, [6.2], length=0.5))
 
-    (run,) = find_voiced_gap_runs(cache, 0.4, 19.6)
+    (run,) = find_voiced_gap_runs(cache, 0.4, 19.6, defaults=load_defaults())
 
     assert abs((run.end - run.start) - 0.5) <= 0.04
     assert 6.15 <= run.start < run.end <= 6.75
@@ -251,7 +257,7 @@ def test_a_long_gap_is_judged_window_by_window_so_hum_in_one_does_not_hide_a_bur
     samples = _bursts(41.0, [30.0])
     samples[: 20 * RATE] += _dbfs_sine(20.0, 120.0, -53.0)
 
-    runs = find_voiced_gap_runs(_cache(samples), 0.4, 40.6)
+    runs = find_voiced_gap_runs(_cache(samples), 0.4, 40.6, defaults=load_defaults())
 
     assert len(runs) == 1 and 29.9 <= runs[0].start < 30.4
 
@@ -262,14 +268,14 @@ def test_flat_hum_and_rumble_never_yield_candidates() -> None:
     rumble = np.convolve(rng.normal(0, 1, RATE * 3), np.ones(80) / 80, "same")
     rumble = (rumble / np.sqrt(np.mean(rumble**2)) * 10 ** (-42 / 20)).astype(np.float32)
 
-    assert find_voiced_gap_runs(_cache(hum), 0.4, 2.8) == []
-    assert find_voiced_gap_runs(_cache(rumble), 0.4, 2.8) == []
+    assert find_voiced_gap_runs(_cache(hum), 0.4, 2.8, defaults=load_defaults()) == []
+    assert find_voiced_gap_runs(_cache(rumble), 0.4, 2.8, defaults=load_defaults()) == []
 
 
 def test_voiced_burst_over_hum_is_still_found() -> None:
     samples = _dbfs_sine(3.0, 120.0, -53.0) + _tone(3.0, 1.0, 1.4)
 
-    runs = find_voiced_gap_runs(_cache(samples), 0.4, 2.8)
+    runs = find_voiced_gap_runs(_cache(samples), 0.4, 2.8, defaults=load_defaults())
 
     assert len(runs) == 1
     assert 0.9 <= runs[0].start < runs[0].end <= 1.5
@@ -278,7 +284,7 @@ def test_voiced_burst_over_hum_is_still_found() -> None:
 def test_run_covering_most_of_the_gap_is_a_plateau_not_a_filler() -> None:
     samples = _tone(3.0, 0.45, 2.75)
 
-    assert find_voiced_gap_runs(_cache(samples), 0.4, 2.8) == []
+    assert find_voiced_gap_runs(_cache(samples), 0.4, 2.8, defaults=load_defaults()) == []
 
 
 def test_aperiodic_burst_and_short_blip_are_not_fillers() -> None:
@@ -287,8 +293,8 @@ def test_aperiodic_burst_and_short_blip_are_not_fillers() -> None:
     samples[int(1.0 * RATE) : int(1.4 * RATE)] = rng.normal(0, 0.2, int(0.4 * RATE))
     blip = _tone(3.0, 1.0, 1.04)
 
-    assert find_voiced_gap_runs(_cache(samples), 0.4, 2.8) == []
-    assert find_voiced_gap_runs(_cache(blip), 0.4, 2.8) == []
+    assert find_voiced_gap_runs(_cache(samples), 0.4, 2.8, defaults=load_defaults()) == []
+    assert find_voiced_gap_runs(_cache(blip), 0.4, 2.8, defaults=load_defaults()) == []
     assert not _voiced(np.ones(10, dtype=np.float32), RATE)
 
 
@@ -297,7 +303,7 @@ def test_no_speech_context_keeps_voiced_runs_for_review(gain: float) -> None:
     samples = _tone(3.0, 0.65, 0.9, amp=0.036 * gain)
     samples += _tone(3.0, 1.3, 1.65, amp=0.2 * gain)
 
-    runs = find_voiced_gap_runs(_cache(samples), 0.4, 2.0)
+    runs = find_voiced_gap_runs(_cache(samples), 0.4, 2.0, defaults=load_defaults())
 
     assert len(runs) == 2
 
@@ -352,7 +358,6 @@ def test_public_proposal_scans_the_track_for_acoustic_fillers(tmp_path: Path) ->
             "podcast_mcp.edits.tighten.propose.analyze_candidates",
             side_effect=lambda project, candidates, *args, **kwargs: [None] * len(candidates),
         ) as analyze,
-        patch("podcast_mcp.edits.breath_detect.load_defaults", side_effect=AssertionError),
     ):
         result = propose_tighten_edits(project, defaults)
 
@@ -365,7 +370,7 @@ def test_acoustic_gap_silero_is_opt_in_and_receives_only_candidate_samples() -> 
     with patch(
         "podcast_mcp.edits.acoustic_gap.classify_breath_samples", return_value=None
     ) as classify:
-        assert find_voiced_gap_runs(cache, 0.2, 1.4, vad_backend="silero")
+        assert find_voiced_gap_runs(cache, 0.2, 1.4, vad_backend="silero", defaults=load_defaults())
 
     assert classify.call_count == 1
     assert classify.call_args.kwargs["vad_backend"] == "silero"
@@ -736,7 +741,7 @@ def _coalesced(tmp_path, *decisions: EditDecision) -> list[tuple[str, float, flo
     project = EpisodeProject.create("c", str(tmp_path))
     finite_primary_recording(project, 3)
     project.edit_decisions = list(decisions)
-    coalesce_edits(project, track_id="host")
+    coalesce_edits(project, track_id="host", defaults=load_defaults())
     return sorted(
         (e.reason or "", e.start, e.end, e.applied, e.review_required)
         for e in project.edit_decisions
@@ -825,7 +830,7 @@ def test_propose_emits_bounded_review_only_acoustic_decision_that_never_auto_app
     assert decision.replace_gap_sec is None
     assert "1 acoustic (review)" in proposal.summary()
 
-    assert apply_tighten_decisions(project) == 0
+    assert apply_tighten_decisions(project, defaults=load_defaults()) == 0
     assert [e.id for e in project.edit_decisions] == [decision.id]
     assert project.edit_decisions[0].applied is False
 
@@ -1580,7 +1585,7 @@ def test_the_engine_hands_the_model_only_the_samples_it_was_given() -> None:
             seen.update(kwargs, dtype=audio.dtype, size=audio.size)
             return iter([_Segment()]), None
 
-    engine = TranscriptionEngine(model_size="base")
+    engine = TranscriptionEngine(model_size="base", defaults=load_defaults())
     engine._model = _Model()
 
     text = engine.transcribe_samples(np.zeros(1600), language="en", initial_prompt="Umm.")

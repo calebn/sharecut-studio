@@ -7,6 +7,7 @@ import wave
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.range_edits import range_geometry, range_media_seal
 from podcast_mcp.models import Clip, MediaAsset, Track
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
@@ -87,13 +88,25 @@ def test_exact_window_keeps_the_hole_before_a_seeked_clip_to_the_sample(
     play = PlayService(ws)
     if action == "pending_suggested":
         edit_selected_range(
-            ws.project, target, "cut", propose=True, reason="guest:range", action_id="proposal"
+            ws.project,
+            target,
+            "cut",
+            propose=True,
+            reason="guest:range",
+            action_id="proposal",
+            defaults=load_defaults(),
         )
         output = play.play_pending_preview("proposal", pad_sec=0, dry_run=True).wav_path
         seconds, tail_loud = 4, False
     else:
         edit_selected_range(
-            ws.project, target, "cut", propose=False, reason="host:range", action_id="cut"
+            ws.project,
+            target,
+            "cut",
+            propose=False,
+            reason="host:range",
+            action_id="cut",
+            defaults=load_defaults(),
         )
         after = exact_target(ws, [RangeInterval(start=1, end=4)])
         if action == "bounce_after_cut":
@@ -180,7 +193,13 @@ def test_full_cut_retains_authoritative_extent_in_full_stem(minimal_project, tmp
         media_seals={"a": range_media_seal(ws.project, "a")},
     )
     edit_selected_range(
-        ws.project, selection, "cut", propose=False, reason="host:range", action_id="full-cut"
+        ws.project,
+        selection,
+        "cut",
+        propose=False,
+        reason="host:range",
+        action_id="full-cut",
+        defaults=load_defaults(),
     )
     save_project(ws.project)
     project = load_project(minimal_project)
@@ -204,7 +223,13 @@ def test_exact_pending_preview_invalidates_after_peer_mix_change(minimal_project
         Clip(id="b-full", track_id="b", source_start=0, source_end=6, timeline_start=0)
     )
     edit_selected_range(
-        ws.project, target, "cut", propose=True, reason="guest:suggest", action_id="proposal"
+        ws.project,
+        target,
+        "cut",
+        propose=True,
+        reason="guest:suggest",
+        action_id="proposal",
+        defaults=load_defaults(),
     )
     play = PlayService(ws)
     first = play.play_pending_preview("proposal", pad_sec=0, dry_run=True).wav_path
@@ -239,7 +264,13 @@ def test_exact_pending_all_muted_mix_is_duration_correct_silence(minimal_project
     ws, target, _raw = seed(minimal_project)
     ws.project.tracks[0].muted = True
     edit_selected_range(
-        ws.project, target, "cut", propose=True, reason="guest:range", action_id="silent"
+        ws.project,
+        target,
+        "cut",
+        propose=True,
+        reason="guest:range",
+        action_id="silent",
+        defaults=load_defaults(),
     )
     output = (
         PlayService(ws).play_pending_preview("silent", mode=mode, pad_sec=0, dry_run=True).wav_path
@@ -267,7 +298,12 @@ def test_guest_range_http_requires_view_and_returns_full_mix(
     save_project(ws.project)
     from podcast_mcp.engines.play_audit import publish_stem
 
-    publish_stem(ws.project, "a", lambda output: output.write_bytes(raw.read_bytes()))
+    publish_stem(
+        ws.project,
+        "a",
+        lambda output: output.write_bytes(raw.read_bytes()),
+        defaults=load_defaults(),
+    )
     mix = ws.project.artifacts_dir() / "premix.wav"
     mix.parent.mkdir(parents=True, exist_ok=True)
     mix.write_bytes(raw.read_bytes())
@@ -309,7 +345,13 @@ def test_host_exact_pending_preview_http_keeps_islands_and_full_window(
 
     ws, target, raw = seed(minimal_project)
     edit_selected_range(
-        ws.project, target, action, propose=True, reason="guest:suggest", action_id="proposal"
+        ws.project,
+        target,
+        action,
+        propose=True,
+        reason="guest:suggest",
+        action_id="proposal",
+        defaults=load_defaults(),
     )
     save_project(ws.project)
     response = TestClient(create_app()).get(
@@ -379,7 +421,13 @@ def test_a_preview_the_warm_rendered_is_served_without_a_render_or_the_lock(
 
     ws, target, _raw = seed(minimal_project)
     edit_selected_range(
-        ws.project, target, "cut", propose=True, reason="guest:suggest", action_id="proposal"
+        ws.project,
+        target,
+        "cut",
+        propose=True,
+        reason="guest:suggest",
+        action_id="proposal",
+        defaults=load_defaults(),
     )
     save_project(ws.project)
     client = TestClient(create_app())

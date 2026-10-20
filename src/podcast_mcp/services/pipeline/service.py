@@ -136,7 +136,7 @@ class PipelineService:
         self.ws.checkpoint()
         # Commit the "before" entry now so the index never holds an entry the file lacks.
         self.ws.save_merged(history_label="before pipeline run")
-        defaults = merge_pipeline_config(config) if config is not None else None
+        defaults = merge_pipeline_config(config) if config is not None else self._run_defaults()
         runner = PipelineRunner(defaults=defaults)
         try:
             pipeline_run = runner.run(
@@ -231,7 +231,7 @@ class PipelineService:
         if rerender:
 
             def mutate(p) -> dict:
-                return rerender_preview(p, progress=progress)
+                return rerender_preview(p, progress=progress, defaults=self.ws.effective_config())
 
             # mutate() re-reads the saved project under the cross-process lock, so Refresh renders it.
             # The render lock comes before mutate()'s project locks (lock order, #482).
@@ -243,7 +243,11 @@ class PipelineService:
                     mutate,
                     operation="render_preview",
                 )
-        return json.loads(render_preview_result(self.ws.project, rerender=False))
+        return json.loads(
+            render_preview_result(
+                self.ws.project, rerender=False, defaults=self.ws.effective_config()
+            )
+        )
 
     def render_final(self) -> Path:
         # Lock, then checkpoint: the wait can last minutes and the render must see the

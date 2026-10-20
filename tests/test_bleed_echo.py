@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import bleed_echo
 from podcast_mcp.engines.bleed_echo import (
     EchoConfig,
@@ -222,10 +223,10 @@ def test_echo_profiles_measure_fresh_stems_and_skip_stale_ones(
     guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
     remote = _speech_like(20.0, seed=5)
     project = _stem_project(tmp_path, {"host": host, "guest": guest, "remote": remote})
-    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, tid: tid != "remote")
+    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, tid, **_kw: tid != "remote")
     bleed_echo._cached_profiles.cache_clear()
 
-    profiles, skipped = echo_profiles(project, start_sec=3.0, end_sec=6.0)
+    profiles, skipped = echo_profiles(project, start_sec=3.0, end_sec=6.0, defaults=load_defaults())
     assert skipped == ["remote"]
     by_pair = {(p.source_track_id, p.bleed_track_id): p for p in profiles}
     assert set(by_pair) == {("host", "guest"), ("guest", "host")}
@@ -244,8 +245,11 @@ def test_echo_profiles_need_two_fresh_stems(
     project = _stem_project(
         tmp_path, {"host": _speech_like(5.0, seed=3), "guest": _speech_like(5.0, seed=4)}
     )
-    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, tid: tid == "host")
-    assert echo_profiles(project, start_sec=0.0, end_sec=1.0) == ([], ["guest"])
+    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, tid, **_kw: tid == "host")
+    assert echo_profiles(project, start_sec=0.0, end_sec=1.0, defaults=load_defaults()) == (
+        [],
+        ["guest"],
+    )
 
 
 def test_audition_context_reports_echo_risk_with_a_listen_at_the_strongest_example(
@@ -256,14 +260,14 @@ def test_audition_context_reports_echo_risk_with_a_listen_at_the_strongest_examp
     host = _speech_like(20.0, seed=3)
     guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
     project = _stem_project(tmp_path, {"host": host, "guest": guest})
-    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, _tid: True)
+    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, _tid, **_kw: True)
     monkeypatch.setattr(
         "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
         lambda *_a, **_k: {"astats": {}, "hum": {}},
     )
     bleed_echo._cached_profiles.cache_clear()
 
-    ctx = build_audition_context(project, 3.0, 6.0, include_prosody=False)
+    ctx = build_audition_context(project, 3.0, 6.0, include_prosody=False, defaults=load_defaults())
     (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "echo_risk"]
     assert hyp["tracks"] == ["host", "guest"]
     assert hyp["severity"] == "warn"
@@ -292,12 +296,12 @@ def test_audition_context_marks_the_echo_check_skipped_on_stale_stems(
     project = _stem_project(
         tmp_path, {"host": _speech_like(5.0, seed=3), "guest": _speech_like(5.0, seed=4)}
     )
-    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, _tid: False)
+    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, _tid, **_kw: False)
     monkeypatch.setattr(
         "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
         lambda *_a, **_k: {"astats": {}, "hum": {}},
     )
-    ctx = build_audition_context(project, 0.0, 2.0, include_prosody=False)
+    ctx = build_audition_context(project, 0.0, 2.0, include_prosody=False, defaults=load_defaults())
     assert "echo_check_needs_fresh_stems" in ctx["limits"]
     assert not [h for h in ctx["hypotheses"] if h["code"] == "echo_risk"]
 
@@ -466,13 +470,13 @@ def test_audition_context_exposes_long_delay_without_claiming_owner_absence(tmp_
         _delayed_copy(host, delay_samples=1200, gain_db=-14) + _speech_like(20.0, seed=27) * 0.03
     )
     project = _stem_project(tmp_path, {"host": host, "guest": guest})
-    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, _tid: True)
+    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, _tid, **_kw: True)
     monkeypatch.setattr(
         "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
         lambda *_a, **_k: {"astats": {}, "hum": {}},
     )
     bleed_echo._cached_profiles.cache_clear()
-    context = build_audition_context(project, 1, 5, include_prosody=False)
+    context = build_audition_context(project, 1, 5, include_prosody=False, defaults=load_defaults())
     hypothesis = next(
         h
         for h in context["hypotheses"]

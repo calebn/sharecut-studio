@@ -119,7 +119,9 @@ def _gated(project: EpisodeProject, tmp_path: Path) -> tuple[np.ndarray, np.ndar
     source = tmp_path / "raw" / "host.wav"
     output = tmp_path / "gated.wav"
     shutil.copyfile(source, output)
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=DURATION)
+    apply_track_transcript_gate(
+        project, "host", output, timeline_start=0, timeline_end=DURATION, defaults=load_defaults()
+    )
     return _read_pcm(source).astype(float), _read_pcm(output).astype(float)
 
 
@@ -159,7 +161,7 @@ def test_foreign_copy_on_a_gated_lane_is_muted(
     tmp_path: Path, direct_lag_sec: float, colored: bool
 ) -> None:
     project = _episode(tmp_path, direct_lag_sec=direct_lag_sec, colored=colored)
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert (plan.reduction, plan.bed_db) == ("mute", LEVEL_FLOOR_DB)
     before, after = _gated(project, tmp_path)
     _silent(after, 1.05, 2.95)
@@ -199,7 +201,7 @@ def test_level_without_a_matching_copy_is_not_foreign_evidence(tmp_path: Path) -
     project = _episode(tmp_path)
     unrelated = _speech(*FOREIGN, seed=99)
     _write_pcm(tmp_path / "raw" / "guest.wav", np.roll(unrelated, round(0.9 * RATE)))
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("uncertain_foreign_ownership",)
 
@@ -444,7 +446,9 @@ def _gated_over(project: EpisodeProject, tmp_path: Path) -> tuple[np.ndarray, np
     output = tmp_path / "gated.wav"
     shutil.copyfile(source, output)
     duration = project.timeline.tracks[0].media.duration_sec
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=duration)
+    apply_track_transcript_gate(
+        project, "host", output, timeline_start=0, timeline_end=duration, defaults=load_defaults()
+    )
     return _read_pcm(source).astype(float), _read_pcm(output).astype(float)
 
 
@@ -509,7 +513,7 @@ def test_backchannel_transcribed_early_is_kept_where_it_sounds(tmp_path: Path) -
 
 def test_lane_with_a_room_floor_is_turned_down_20_db_not_muted(tmp_path: Path) -> None:
     project = _talking_over(tmp_path, room_floor_db=-60.0)
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.reduction == "attenuate"
     # The -60 dBFS bed, read against the lane's -22.8 dBFS voice.
     assert plan.bed_db == pytest.approx(-37.2, abs=1.0)
@@ -535,7 +539,7 @@ def test_lane_whose_bed_cannot_survive_attenuation_is_muted(
     tails beside it must not decide. The lane's voice here is -22.8 dBFS, so its tone sits
     at the lab's distance under it."""
     project = _talking_over(tmp_path, room_floor_db=-84.0, room_floor_spans=room_floor_spans)
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.reduction == "mute"
     assert plan.bed_db == pytest.approx(bed_db, abs=1.0)
     _, after = _gated_over(project, tmp_path)
@@ -581,7 +585,7 @@ def test_explicit_bleed_handling_overrides_auto(
 ) -> None:
     _configure(monkeypatch, tmp_path, bleed_handling=handling)
     project = _talking_over(tmp_path, room_floor_db=room_floor_db)
-    assert build_bleed_gate_plan(project, "host").reduction == reduction
+    assert build_bleed_gate_plan(project, "host", defaults=load_defaults()).reduction == reduction
     before, after = _gated_over(project, tmp_path)
     if reduction == "mute":
         _silent(after, 1.05, 30.65)
@@ -593,9 +597,9 @@ def test_changing_bleed_handling_replans_the_same_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _talking_over(tmp_path)
-    assert build_bleed_gate_plan(project, "host").reduction == "mute"
+    assert build_bleed_gate_plan(project, "host", defaults=load_defaults()).reduction == "mute"
     _configure(monkeypatch, tmp_path, bleed_handling="attenuate")
-    assert build_bleed_gate_plan(project, "host").reduction == "attenuate"
+    assert build_bleed_gate_plan(project, "host", defaults=load_defaults()).reduction == "attenuate"
 
 
 @pytest.mark.parametrize(
@@ -609,7 +613,9 @@ def test_changing_bleed_handling_replans_the_same_project(
 def test_strong_copy_path_needs_twenty_seconds_of_peer_speech(
     tmp_path: Path, talk_end: float, attenuated: bool
 ) -> None:
-    plan = build_bleed_gate_plan(_talking_over(tmp_path, talk_end=talk_end), "host")
+    plan = build_bleed_gate_plan(
+        _talking_over(tmp_path, talk_end=talk_end), "host", defaults=load_defaults()
+    )
     assert bool(plan.attenuation_spans) is attenuated
     assert plan.reasons == (() if attenuated else ("uncertain_foreign_ownership",))
 
@@ -631,7 +637,7 @@ def test_own_voice_talking_with_the_peer_is_untouched(
     nothing but the acoustic check protects the own voice.
     """
     project = _talking_over(tmp_path, talk_end=talk_end, own_voice=own_voice)
-    plan = build_bleed_gate_plan(project, "host")
+    plan = build_bleed_gate_plan(project, "host", defaults=load_defaults())
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("uncertain_foreign_ownership",)
     before, after = _gated_over(project, tmp_path)
@@ -640,7 +646,9 @@ def test_own_voice_talking_with_the_peer_is_untouched(
 
 @pytest.mark.parametrize("lag_sec", [0.3, 0.32])
 def test_copy_lag_at_or_beyond_the_search_edge_abstains(tmp_path: Path, lag_sec: float) -> None:
-    plan = build_bleed_gate_plan(_talking_over(tmp_path, lag_sec=lag_sec), "host")
+    plan = build_bleed_gate_plan(
+        _talking_over(tmp_path, lag_sec=lag_sec), "host", defaults=load_defaults()
+    )
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("uncertain_foreign_ownership",)
 
@@ -648,4 +656,4 @@ def test_copy_lag_at_or_beyond_the_search_edge_abstains(tmp_path: Path, lag_sec:
 def test_unknown_bleed_handling_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _configure(monkeypatch, tmp_path, bleed_handling="gate")
     with pytest.raises(ValueError, match="bleed_handling must be one of"):
-        AnalysisPolicy.from_defaults()
+        AnalysisPolicy.from_defaults(defaults=load_defaults())

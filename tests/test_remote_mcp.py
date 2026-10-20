@@ -651,7 +651,9 @@ def test_guest_applied_edits_shapes(monkeypatch):
             (),
             {
                 "capabilities": ["view"],
-                "workspace": type("W", (), {"project": object()})(),
+                "workspace": type(
+                    "W", (), {"project": object(), "effective_config": lambda self: {}}
+                )(),
             },
         )(),
     )

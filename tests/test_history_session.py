@@ -11,6 +11,7 @@ import filelock
 import pytest
 
 from podcast_mcp import project_store as project_store_mod
+from podcast_mcp.config import load_defaults
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.history import rollback as rollback_mod
 from podcast_mcp.history import session as session_mod
@@ -67,6 +68,7 @@ def test_run_mutation_records_history(minimal_project):
         "before",
         "after",
         lambda p: p.edit_decisions.append(_decision("x")),
+        defaults=load_defaults(),
     )
     loaded = load_project(path)
     assert len(loaded.edit_decisions) == 1
@@ -82,7 +84,14 @@ def test_run_mutation_reuses_pre_edit_snapshot_for_before_record(minimal_project
         return original(value)
 
     monkeypatch.setattr(session_mod, "snapshot_from_project", capture)
-    run_mutation(path, project, "before edit", "after edit", lambda p: setattr(p, "name", "new"))
+    run_mutation(
+        path,
+        project,
+        "before edit",
+        "after edit",
+        lambda p: setattr(p, "name", "new"),
+        defaults=load_defaults(),
+    )
     assert calls == [project]
 
 
@@ -103,7 +112,9 @@ def test_render_snapshot_waits_for_mutation_to_commit(minimal_project):
         return snapshot_project(project)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        mutation = pool.submit(run_mutation, path, project, "before", "after", edit)
+        mutation = pool.submit(
+            run_mutation, path, project, "before", "after", edit, defaults=load_defaults()
+        )
         assert halfway.wait(2)
         snapshot = pool.submit(copy_when_started)
         assert taking_snapshot.wait(2)
@@ -179,7 +190,7 @@ def test_failed_mutation_rolls_back_its_history(minimal_project, monkeypatch, st
         stage, RuntimeError
     )
     with pytest.raises(expected):
-        run_mutation(path, proj, "before", "after", mutate)
+        run_mutation(path, proj, "before", "after", mutate, defaults=load_defaults())
 
     assert json.loads(index_path.read_text()) == index_before
     assert history_snapshot_ids(index_path) == ids_before
@@ -193,7 +204,14 @@ def test_failed_mutation_keeps_the_redo_branch(minimal_project):
     mgr = HistoryManager(path)
     mgr.record(proj, "initial", force=True)
     ProjectStore(path).commit(proj)
-    run_mutation(path, proj, "b1", "a1", lambda p: p.edit_decisions.append(_decision("one")))
+    run_mutation(
+        path,
+        proj,
+        "b1",
+        "a1",
+        lambda p: p.edit_decisions.append(_decision("one")),
+        defaults=load_defaults(),
+    )
     mgr.undo(proj)
     proj.edit_decisions.append(_decision("unrecorded"))
 
@@ -201,7 +219,7 @@ def test_failed_mutation_keeps_the_redo_branch(minimal_project):
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError):
-        run_mutation(path, proj, "b2", "a2", fail)
+        run_mutation(path, proj, "b2", "a2", fail, defaults=load_defaults())
 
     assert mgr.status(proj).can_redo
     assert proj.history.cursor == 0
@@ -221,7 +239,7 @@ def test_failed_mutation_keeps_entries_another_writer_recorded_on_top(
 
     with caplog.at_level(logging.WARNING):
         with pytest.raises(RuntimeError, match="boom"):
-            run_mutation(path, proj, "before", "after", fn)
+            run_mutation(path, proj, "before", "after", fn, defaults=load_defaults())
 
     labels = [e["label"] for e in json.loads(index_path.read_text())["entries"]]
     assert labels[-1] == "other writer"
@@ -244,7 +262,12 @@ def test_commit_that_landed_keeps_its_history(minimal_project, monkeypatch):
     monkeypatch.setattr(ProjectStore, "commit", commit_then_fail)
     with pytest.raises(RuntimeError, match="late"):
         run_mutation(
-            path, proj, "before", "after", lambda p: p.edit_decisions.append(_decision("n"))
+            path,
+            proj,
+            "before",
+            "after",
+            lambda p: p.edit_decisions.append(_decision("n")),
+            defaults=load_defaults(),
         )
 
     expected = ["initial", "before", "after"]
@@ -274,7 +297,12 @@ def test_failed_mutation_leaves_history_on_disk_when_project_file_cannot_be_stat
     with caplog.at_level(logging.WARNING):
         with pytest.raises(RuntimeError, match="boom"):
             run_mutation(
-                path, proj, "before", "after", lambda p: p.edit_decisions.append(_decision("n"))
+                path,
+                proj,
+                "before",
+                "after",
+                lambda p: p.edit_decisions.append(_decision("n")),
+                defaults=load_defaults(),
             )
 
     assert rollback_outcomes == [RollbackOutcome.UNKNOWN]
@@ -301,7 +329,7 @@ def test_rollback_failure_is_logged_and_the_original_error_raised(
 
     with caplog.at_level(logging.WARNING):
         with pytest.raises(RuntimeError, match="boom"):
-            run_mutation(path, proj, "before", "after", fail)
+            run_mutation(path, proj, "before", "after", fail, defaults=load_defaults())
     assert "Could not roll back" in caplog.text
     assert proj.history.model_dump(mode="json") == json.loads(index_path.read_text())
 
@@ -316,7 +344,7 @@ def test_unreadable_index_after_a_failed_mutation_restores_history_before(minima
 
     with caplog.at_level(logging.WARNING):
         with pytest.raises(RuntimeError, match="boom"):
-            run_mutation(path, proj, "before", "after", fn)
+            run_mutation(path, proj, "before", "after", fn, defaults=load_defaults())
     assert "Could not roll back" in caplog.text
     assert proj.history == history_before
 
@@ -349,7 +377,7 @@ def test_rollback_checks_the_commit_under_the_same_lock_hold(minimal_project, mo
     monkeypatch.setattr(project_store_mod, "project_file_revision", revision)
     monkeypatch.setattr(ProjectStore, "commit", commit)
     with pytest.raises(RuntimeError, match="boom"):
-        run_mutation(path, proj, "before", "after", lambda p: None)
+        run_mutation(path, proj, "before", "after", lambda p: None, defaults=load_defaults())
     assert held == [True]
 
 
@@ -390,7 +418,7 @@ def test_failed_mutation_removes_an_index_that_did_not_exist(minimal_project):
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError, match="boom"):
-        run_mutation(path, proj, "before", "after", fail)
+        run_mutation(path, proj, "before", "after", fail, defaults=load_defaults())
     assert not index_path.exists()
     assert history_snapshot_ids(index_path) == set()
     assert proj.history.is_empty()
@@ -406,7 +434,7 @@ def test_failed_mutation_restores_a_corrupt_index_from_the_project_history(minim
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError, match="boom"):
-        run_mutation(path, proj, "before", "after", fail)
+        run_mutation(path, proj, "before", "after", fail, defaults=load_defaults())
     assert json.loads(index_path.read_text()) == history_before.model_dump(mode="json")
     assert history_snapshot_ids(index_path) == ids_before
     assert proj.history == history_before
@@ -493,6 +521,7 @@ def test_failed_first_history_record_reports_restored_outcome(minimal_project, m
             "after",
             lambda _project: None,
             on_failure=outcomes.append,
+            defaults=load_defaults(),
         )
     assert outcomes == [RollbackOutcome.RESTORED]
     assert json.loads(index_path.read_text()) == index_before
@@ -543,7 +572,7 @@ def test_commit_lock_timeout_restores_the_project_in_memory(
 
     monkeypatch.setattr(session_mod, "project_commit_lock", lock)
     with pytest.raises(filelock.Timeout):
-        run_mutation(path, proj, "before", "after", _append_new)
+        run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert _ids(proj) == ["unrecorded"]
     assert proj.history == history_before
@@ -562,7 +591,7 @@ def test_failed_save_restores_memory_and_index(minimal_project, monkeypatch, rol
 
     monkeypatch.setattr(project_store_mod, "save_project", broken)
     with pytest.raises(OSError, match="disk"):
-        run_mutation(path, proj, "before", "after", _append_new)
+        run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert _ids(proj) == ["unrecorded"]
     assert json.loads(index_path.read_text()) == index_before
@@ -580,7 +609,7 @@ def test_failed_transcript_mirror_after_save_keeps_the_saved_state(
 
     monkeypatch.setattr(ProjectStore, "_mirror_transcript_cache", broken)
     with pytest.raises(RuntimeError, match="mirror"):
-        run_mutation(path, proj, "before", "after", _append_new)
+        run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert _ids(proj) == ["unrecorded", "new"]
     assert _ids(load_project(path)) == _ids(proj)
@@ -595,7 +624,7 @@ def test_failed_audio_bookkeeping_restores_render_state(
     render_before = proj.render.model_copy(deep=True)
     fingerprints = iter(["a", "b"])
     monkeypatch.setattr(
-        session_mod, "audio_state_fingerprint", lambda _p, _h=None: next(fingerprints)
+        session_mod, "audio_state_fingerprint", lambda _p, _h=None, **_kw: next(fingerprints)
     )
 
     def broken(*_a, **_k):
@@ -603,7 +632,7 @@ def test_failed_audio_bookkeeping_restores_render_state(
 
     monkeypatch.setattr(session_mod, "record_after_audio_mutation", broken)
     with pytest.raises(RuntimeError, match="bookkeeping"):
-        run_mutation(path, proj, "before", "after", _append_new)
+        run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert proj.render == render_before
     assert not proj.render.reconciliation_stale
@@ -628,7 +657,7 @@ def test_unlocked_rollback_cannot_confirm_a_commit_that_changed_the_file(
     monkeypatch.setattr(ProjectStore, "commit", commit_then_fail)
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     with pytest.raises(RuntimeError, match="late"):
-        run_mutation(path, proj, "before", "after", _append_new)
+        run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert rollback_outcomes == [RollbackOutcome.UNKNOWN]
     assert _ids(proj) == ["unrecorded"]
@@ -646,7 +675,7 @@ def test_unlocked_rollback_restores_memory_when_the_commit_did_not_land(
     monkeypatch.setattr(ProjectStore, "commit", commit_fails)
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     with pytest.raises(RuntimeError, match="early"):
-        run_mutation(path, proj, "before", "after", _append_new)
+        run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert rollback_outcomes == [RollbackOutcome.KEPT]
     assert _ids(proj) == ["unrecorded"]
@@ -715,7 +744,7 @@ def test_a_raising_rollback_still_restores_memory_and_the_original_error_propaga
     _fail_commit(monkeypatch)
     with caplog.at_level(logging.WARNING):
         with pytest.raises(RuntimeError, match="commit"):
-            run_mutation(path, proj, "before", "after", _append_new)
+            run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert _ids(proj) == ["unrecorded"]
     assert "Could not finish rolling back" in caplog.text
@@ -730,7 +759,7 @@ def test_an_interrupted_rollback_still_restores_memory(minimal_project, monkeypa
     monkeypatch.setattr(rollback_mod, "roll_back_history", interrupted)
     _fail_commit(monkeypatch)
     with pytest.raises(RuntimeError, match="commit"):
-        run_mutation(path, proj, "before", "after", _append_new)
+        run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert _ids(proj) == ["unrecorded"]
 
@@ -797,7 +826,7 @@ def test_a_failed_memory_restore_is_logged_and_the_original_error_propagates(
     _fail_commit(monkeypatch)
     with caplog.at_level(logging.WARNING):
         with pytest.raises(RuntimeError, match="commit"):
-            run_mutation(path, proj, "before", "after", _append_new)
+            run_mutation(path, proj, "before", "after", _append_new, defaults=load_defaults())
 
     assert "Could not restore the in-memory project" in caplog.text
     assert proj.render == render_before
@@ -812,6 +841,6 @@ def test_owned_rollback_preserves_a_foreign_orphan_snapshot(minimal_project, mon
         raise RuntimeError("mutation failed")
 
     with pytest.raises(RuntimeError, match="mutation failed"):
-        run_mutation(path, project, "before", "after", fail_mutation)
+        run_mutation(path, project, "before", "after", fail_mutation, defaults=load_defaults())
 
     assert orphan.read_text(encoding="utf-8") == '{"foreign": true}'

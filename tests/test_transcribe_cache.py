@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
@@ -15,22 +16,27 @@ def test_transcript_cache_keeps_short_file_hash(minimal_project, tmp_path):
     audio = tmp_path / "recording.wav"
     audio.write_bytes(b"recording")
 
-    cache = TranscriptionEngine().cache_path(project, "host", audio)
+    cache = TranscriptionEngine(defaults=load_defaults()).cache_path(project, "host", audio)
 
     assert cache.name.startswith(f"host_{hashlib.sha256(b'recording').hexdigest()[:16]}_")
     assert cache.name.endswith(".json")
-    assert TranscriptionEngine().cache_path(project, "host", audio, initial_prompt="New") != cache
+    assert (
+        TranscriptionEngine(defaults=load_defaults()).cache_path(
+            project, "host", audio, initial_prompt="New"
+        )
+        != cache
+    )
 
 
 def test_transcript_cache_rejects_outward_symlink(minimal_project, tmp_path):
     project = load_project(minimal_project)
     audio = tmp_path / "recording.wav"
     audio.write_bytes(b"recording")
-    name = TranscriptionEngine().cache_path(project, "host", audio).name
+    name = TranscriptionEngine(defaults=load_defaults()).cache_path(project, "host", audio).name
     project.transcripts_dir().mkdir(parents=True, exist_ok=True)
     (project.transcripts_dir() / name).symlink_to(audio)
     with pytest.raises(ValueError, match="transcript cache escaped"):
-        TranscriptionEngine().cache_path(project, "host", audio)
+        TranscriptionEngine(defaults=load_defaults()).cache_path(project, "host", audio)
 
 
 def test_transcribe_track_uses_cache(minimal_project, sample_wav, tmp_workspace):
@@ -51,7 +57,7 @@ def test_transcribe_track_uses_cache(minimal_project, sample_wav, tmp_workspace)
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
 
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cached = Transcript(
         track_id="host",
         words=[TranscriptWord(text="cached", start=0.0, end=0.5)],
@@ -82,7 +88,7 @@ def test_transcribe_track_recomputes_after_prompt_change(
     )
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     fresh = Transcript(track_id="host", words=[TranscriptWord(text="fresh", start=0, end=0.5)])
     with patch.object(engine, "transcribe_file", return_value=fresh) as transcribe:
         assert engine.transcribe_track(proj, "host", initial_prompt="Old").words[0].text == "fresh"
@@ -112,7 +118,7 @@ def test_transcribe_track_writes_cache_on_miss(minimal_project, sample_wav, tmp_
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
 
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cached = Transcript(
         track_id="host",
         words=[TranscriptWord(text="fresh", start=0.0, end=0.5)],
@@ -145,7 +151,7 @@ def test_transcribe_track_absolute_audio_path(minimal_project, sample_wav, tmp_w
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
 
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cached = Transcript(
         track_id="host",
         words=[TranscriptWord(text="abs", start=0.0, end=0.5)],
@@ -183,12 +189,16 @@ def _write_legacy(proj, dest):
 
 def test_cache_key_changes_with_decode_options(minimal_project, sample_wav, tmp_workspace):
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
-    on = TranscriptionEngine(options=AsrOptions())
-    off = TranscriptionEngine(options=AsrOptions(vad_enabled=False))
-    loops = TranscriptionEngine(options=AsrOptions(condition_on_previous_text=False))
+    on = TranscriptionEngine(options=AsrOptions(), defaults=load_defaults())
+    off = TranscriptionEngine(options=AsrOptions(vad_enabled=False), defaults=load_defaults())
+    loops = TranscriptionEngine(
+        options=AsrOptions(condition_on_previous_text=False), defaults=load_defaults()
+    )
     paths = {e.cache_path(proj, "host", dest) for e in (on, off, loops)}
     assert len(paths) == 3
-    assert on.cache_path(proj, "host", dest) == TranscriptionEngine().cache_path(proj, "host", dest)
+    assert on.cache_path(proj, "host", dest) == TranscriptionEngine(
+        defaults=load_defaults()
+    ).cache_path(proj, "host", dest)
 
 
 def test_legacy_cache_ignored_with_non_default_decode_options(
@@ -198,7 +208,9 @@ def test_legacy_cache_ignored_with_non_default_decode_options(
 
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
     _write_legacy(proj, dest)
-    engine = TranscriptionEngine()  # VAD on: legacy words were decoded without it
+    engine = TranscriptionEngine(
+        defaults=load_defaults()
+    )  # VAD on: legacy words were decoded without it
     with patch.object(
         engine, "transcribe_file", return_value=Transcript(track_id="", words=[])
     ) as asr:
@@ -213,7 +225,7 @@ def test_legacy_cache_is_a_miss_and_removed_after_success(
 
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
     _write_legacy(proj, dest)
-    engine = TranscriptionEngine(options=AsrOptions(vad_enabled=False))
+    engine = TranscriptionEngine(options=AsrOptions(vad_enabled=False), defaults=load_defaults())
     with patch.object(
         engine, "transcribe_file", return_value=Transcript(track_id="", words=[])
     ) as asr:
@@ -231,7 +243,7 @@ def test_legacy_cache_ignored_with_prompt_or_when_disabled(
 
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
     _write_legacy(proj, dest)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     fresh = Transcript(track_id="", words=[TranscriptWord(text="fresh", start=0, end=0.5)])
     with patch.object(engine, "transcribe_file", return_value=fresh) as asr:
         with_prompt = engine.transcribe_all_dialogue(proj, language="en", initial_prompt="P")
@@ -246,7 +258,7 @@ def test_corrupt_cache_is_a_miss_and_is_rewritten(
     from unittest.mock import patch
 
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cache = engine.cache_path(proj, "host", dest, language="en")
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text('{"track_id": "host", "words": [', encoding="utf-8")
@@ -286,7 +298,7 @@ def test_transcript_cache_keeps_auto_detection_separate_from_english(minimal_pro
     project = load_project(minimal_project)
     audio = tmp_path / "recording.wav"
     audio.write_bytes(b"recording")
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     auto = engine.cache_path(project, "host", audio, language=None)
     english = engine.cache_path(project, "host", audio, language="en")
     assert auto != english
@@ -336,7 +348,7 @@ def test_successful_cache_write_keeps_two_variants_and_their_alignments(
 
     project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
     job = TranscribeJob("host", source_id, audio)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     current = engine.cache_path(project, job.cache_id, audio, initial_prompt="current")
     current.parent.mkdir(exist_ok=True)
     previous = []
@@ -392,7 +404,7 @@ def test_failed_transcription_preserves_prior_cache_family(
     from unittest.mock import patch
 
     project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     old = engine.cache_path(project, "host", audio, initial_prompt="old")
     old.parent.mkdir(exist_ok=True)
     legacy = old.with_name(f"{old.stem.rsplit('_', 1)[0]}.json")
@@ -419,7 +431,7 @@ def test_cache_cleanup_failure_keeps_successful_transcription(
     from unittest.mock import patch
 
     project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     current = engine.cache_path(project, "host", audio, initial_prompt="new")
     current.parent.mkdir(exist_ok=True)
     legacy = current.with_name(f"{current.stem.rsplit('_', 1)[0]}.json")
@@ -443,7 +455,7 @@ def test_cache_path_rejects_alias_to_canonical_transcript(minimal_project, tmp_p
     project = load_project(minimal_project)
     audio = tmp_path / "audio.wav"
     audio.write_bytes(b"audio")
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cache = engine.cache_path(project, "host", audio)
     cache.parent.mkdir(exist_ok=True)
     canonical = cache.with_name("host.json")
@@ -472,7 +484,9 @@ def test_concurrent_cache_writers_leave_two_complete_variants(
         return Transcript(track_id="", words=[])
 
     def run(prompt):
-        return TranscriptionEngine().transcribe_job(project, job, initial_prompt=prompt)
+        return TranscriptionEngine(defaults=load_defaults()).transcribe_job(
+            project, job, initial_prompt=prompt
+        )
 
     with patch.object(TranscriptionEngine, "transcribe_file", side_effect=decode):
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -493,7 +507,7 @@ def test_cache_cleanup_handles_filesystem_changes_after_success(
     from unittest.mock import patch
 
     project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cache = engine.cache_path(project, "host", audio, initial_prompt="new")
     cache.parent.mkdir(exist_ok=True)
     legacy = cache.with_name(f"{cache.stem.rsplit('_', 1)[0]}.json")
@@ -530,7 +544,7 @@ def test_cache_path_rejects_name_collision_with_canonical_mirror(minimal_project
     project = load_project(minimal_project)
     audio = tmp_path / "audio.wav"
     audio.write_bytes(b"audio")
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cache = engine.cache_path(project, "host", audio)
     project.tracks.append(Track(id=cache.stem, label="Cache-shaped track"))
     cache.parent.mkdir(exist_ok=True)
@@ -551,7 +565,7 @@ def test_cache_publication_timeout_does_not_prune(
     import podcast_mcp.engines.transcribe as module
 
     project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(defaults=load_defaults())
     cache = engine.cache_path(project, "host", audio, initial_prompt="new")
     cache.parent.mkdir(exist_ok=True)
     legacy = cache.with_name(f"{cache.stem.rsplit('_', 1)[0]}.json")

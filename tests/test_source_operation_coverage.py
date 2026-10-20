@@ -5,6 +5,7 @@ import wave
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
@@ -48,7 +49,11 @@ def test_parked_music_cannot_report_success_without_consuming_selected_audio(tmp
                 EditService(ws).approve(["parked-cut"])
             elif delivery == "suggested":
                 snapshot = ws.project.model_copy(deep=True)
-                apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "parked-cut"))
+                apply_for_suggested(
+                    snapshot,
+                    resolve_pending_preview(snapshot, "parked-cut"),
+                    defaults=load_defaults(),
+                )
             else:
                 EditService(ws).suggest_pending_edit("host", 1, 2)
         assert held.value.held[0].reason == "operation_scope"

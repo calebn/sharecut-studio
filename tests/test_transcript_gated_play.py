@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.transcript_gated_play import (
     dialogue_tracks_for_play,
     gate_stem_window,
@@ -297,7 +298,9 @@ def test_apply_track_transcript_gate_branches(tmp_path: Path, monkeypatch) -> No
     wav = tmp_path / "seg.wav"
     wav.write_bytes(b"wav")
     assert (
-        apply_track_transcript_gate(project, "missing", wav, timeline_start=0.0, timeline_end=1.0)
+        apply_track_transcript_gate(
+            project, "missing", wav, timeline_start=0.0, timeline_end=1.0, defaults=load_defaults()
+        )
         is wav
     )
 
@@ -311,12 +314,16 @@ def test_apply_track_transcript_gate_branches(tmp_path: Path, monkeypatch) -> No
         )
     )
     assert (
-        apply_track_transcript_gate(project, "host", wav, timeline_start=0.0, timeline_end=1.0)
+        apply_track_transcript_gate(
+            project, "host", wav, timeline_start=0.0, timeline_end=1.0, defaults=load_defaults()
+        )
         is wav
     )
     project.track_by_id("host").transcript_gate = True
     assert (
-        apply_track_transcript_gate(project, "host", wav, timeline_start=1.0, timeline_end=0.5)
+        apply_track_transcript_gate(
+            project, "host", wav, timeline_start=1.0, timeline_end=0.5, defaults=load_defaults()
+        )
         is wav
     )
 
@@ -336,7 +343,9 @@ def test_apply_track_transcript_gate_branches(tmp_path: Path, monkeypatch) -> No
         _fake_gate,
     )
     assert (
-        apply_track_transcript_gate(project, "host", wav, timeline_start=0.0, timeline_end=0.5)
+        apply_track_transcript_gate(
+            project, "host", wav, timeline_start=0.0, timeline_end=0.5, defaults=load_defaults()
+        )
         is wav
     )
     assert called and called[0][1] is plan

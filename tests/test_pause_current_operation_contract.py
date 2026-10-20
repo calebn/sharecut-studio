@@ -124,16 +124,15 @@ def test_saved_remove_uses_ripple_policy_after_current_proposal_mode_changes_to_
     cfg = defaults(acoustic=False)
     cfg["tighten"]["edit_mode"] = "mute"
     configure(monkeypatch, cfg)
-    monkeypatch.setattr("podcast_mcp.edits.cut_application.load_defaults", lambda: cfg)
     original_config = copy.deepcopy(cfg)
     ws = workspace(_stored_remove(tmp_path, rustle=True))
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     if delivery == "suggested":
         edited = ws.project.model_copy(deep=True)
-        assert apply_for_suggested(edited, resolve_pending_preview(edited, "stored-remove")) == (
-            pytest.approx(0.8)
-        )
+        assert apply_for_suggested(
+            edited, resolve_pending_preview(edited, "stored-remove"), defaults=cfg
+        ) == (pytest.approx(0.8))
         assert files(tmp_path) == before_files
         assert ws.project.model_dump(mode="json") == before_model
     else:

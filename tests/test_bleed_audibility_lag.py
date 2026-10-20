@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.bleed_lag_segments import LagSegment, LagSteps
 from podcast_mcp.engines import audio_audit as aa
 from podcast_mcp.engines.audio_audit import (
@@ -25,7 +26,7 @@ def test_segment_lag_flips_bleed_verdict_when_peer_track_opens_late(
 ) -> None:
     """Per-word copy lag drives dominance: a longer segment lag marks bleed, steady lag does not."""
     project = _episode(tmp_path, direct_lag_sec=0.14)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     steady_lag = caches.copy_path("guest", "host").lag_sec
     assert steady_lag > 0.05
 
@@ -45,17 +46,7 @@ def test_segment_lag_flips_bleed_verdict_when_peer_track_opens_late(
     segment_lag = effective_copy_lag_sec(steady_lag, steps, 1.2)
     assert segment_lag > steady_lag + 0.1
 
-    def _levels(
-        project,
-        track_ids,
-        t_start,
-        t_end,
-        lags,
-        caches,
-        offsets,
-        *,
-        word_dur=None,
-    ):
+    def _levels(project, track_ids, t_start, t_end, lags, caches, offsets, *, word_dur=None, **_kw):
         guest_lag = lags.get("guest", 0.0)
         if guest_lag >= segment_lag - 0.01:
             return {"host": -30.0, "guest": 0.0}
@@ -70,7 +61,11 @@ def test_segment_lag_flips_bleed_verdict_when_peer_track_opens_late(
         caches, "lane_lag_steps", lambda _project, lane_id: steps if lane_id == "guest" else None
     ):
         stepped = compute_word_audibility_map(
-            project, track_id="host", policy=AnalysisPolicy(), caches=caches
+            project,
+            track_id="host",
+            policy=AnalysisPolicy(),
+            caches=caches,
+            defaults=load_defaults(),
         )
     assert next(r for r in stepped if r["text"] == "and")["audibility_status"] == "bleed"
 
@@ -80,7 +75,11 @@ def test_segment_lag_flips_bleed_verdict_when_peer_track_opens_late(
         return_value=None,
     ):
         steady = compute_word_audibility_map(
-            project, track_id="host", policy=AnalysisPolicy(), caches=caches
+            project,
+            track_id="host",
+            policy=AnalysisPolicy(),
+            caches=caches,
+            defaults=load_defaults(),
         )
     assert next(r for r in steady if r["text"] == "and")["audibility_status"] != "bleed"
 
@@ -89,7 +88,7 @@ def test_segment_lag_flips_bleed_verdict_when_peer_track_opens_late(
 def test_copy_lag_at_timeline_uses_lane_lag_steps(tmp_path: Path) -> None:
     """``copy_lag_at_timeline`` reads segment shifts from cached lane steps."""
     project = _episode(tmp_path, direct_lag_sec=0.14)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     steady = caches.copy_path("guest", "host").lag_sec
     steps = LagSteps(
         (
@@ -112,7 +111,7 @@ def test_copy_lag_outside_the_source_lane_keeps_the_steady_lag(
 ) -> None:
     """A word judged past the source lane's end has no step to read: steady lag, no raise."""
     project = _episode(tmp_path, direct_lag_sec=0.14)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     steady = caches.copy_path("guest", "host").lag_sec
     steps = LagSteps(
         (
@@ -131,7 +130,7 @@ def test_copy_lag_outside_the_source_lane_keeps_the_steady_lag(
 def test_a_lane_with_no_lag_steps_is_measured_once_per_reconcile(tmp_path: Path) -> None:
     """Steady copy lag, no steps: ``None`` means measured, so no word re-measures the lane (#1685)."""
     project = _episode(tmp_path, direct_lag_sec=0.14)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     guest_path = CopyPath(lag_sec=caches.copy_path("guest", "host").lag_sec, likeness=0.4)
     caches.leak_paths = lambda track_id: {"guest": guest_path} if track_id == "host" else {}
     caches.copy_match = lambda *args, **kwargs: 1.0
@@ -140,7 +139,11 @@ def test_a_lane_with_no_lag_steps_is_measured_once_per_reconcile(tmp_path: Path)
         "podcast_mcp.engines.bleed_audibility_lag.measure_lane_lag_steps", return_value=None
     ) as measure:
         rows = compute_word_audibility_map(
-            project, track_id="host", policy=AnalysisPolicy(), caches=caches
+            project,
+            track_id="host",
+            policy=AnalysisPolicy(),
+            caches=caches,
+            defaults=load_defaults(),
         )
         copy_lag_at_timeline(project, caches, "guest", "host", 1.0)
     assert len(rows) > 1

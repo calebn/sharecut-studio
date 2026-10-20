@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
 from podcast_mcp.models import EpisodeProject
@@ -7,12 +8,16 @@ from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 
-def shared_timeline_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
+def shared_timeline_rms_caches(
+    project: EpisodeProject, *, defaults: EffectiveConfig
+) -> TrackRmsCacheSet:
     """Timeline stems for every dialogue track, once per read-only proof block."""
     tracks = tuple(sorted(dialogue_track_ids(project)))
     return frozen(
         ("cut_proof_timeline_rms", id(project), tracks),
-        lambda: build_track_rms_caches(project, track_ids=tracks, unprocessed=True),
+        lambda: build_track_rms_caches(
+            project, track_ids=tracks, unprocessed=True, defaults=defaults
+        ),
         keep=project,
     )
 

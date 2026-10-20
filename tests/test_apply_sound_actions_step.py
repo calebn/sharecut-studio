@@ -110,7 +110,7 @@ def test_the_step_acts_on_sounds_and_leaves_spoken_proposals_pending(sounds_proj
     defaults = load_defaults()
     defaults["tighten"]["enabled"] = True
     _analysis_ran_in_this_run(sounds_project)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
 
     summary = steps.apply_sound_actions(sounds_project, defaults)
 
@@ -125,12 +125,12 @@ def test_with_tighten_off_the_step_looks_for_sounds_itself(sounds_project, monke
     found = [_decision("laugh2", "filler:acoustic:likely_laugh", 7.0)]
     seen = {}
 
-    def propose(project, cfg, *, replace_existing):
+    def propose(project, cfg, *, replace_existing, **_kw):
         seen["replace_existing"] = replace_existing
         return type("Proposal", (), {"decisions": [*found, _decision("um2", "filler:um", 8.0)]})()
 
     monkeypatch.setattr(steps, "propose_tighten_edits", propose)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
 
     summary = steps.apply_sound_actions(sounds_project, defaults)
 
@@ -144,7 +144,7 @@ def test_with_tighten_off_the_scan_skips_the_word_probe(sounds_project, monkeypa
     defaults = load_defaults()
     seen = {}
 
-    def propose(project, cfg, *, replace_existing):
+    def propose(project, cfg, *, replace_existing, **_kw):
         seen["word_probe"] = AcousticGapConfig.from_tighten(cfg.get("tighten")).word_probe
         seen["caller_word_probe"] = AcousticGapConfig.from_tighten(
             defaults.get("tighten")
@@ -164,7 +164,7 @@ def test_with_tighten_off_the_scan_shares_its_repeat_reads(sounds_project, monke
 
     seen = {}
 
-    def propose(project, cfg, *, replace_existing):
+    def propose(project, cfg, *, replace_existing, **_kw):
         seen["state"] = batch_scope.snapshot()
         return type("Proposal", (), {"decisions": []})()
 
@@ -180,12 +180,12 @@ def test_with_tighten_off_the_scan_shares_its_repeat_reads(sounds_project, monke
 def _stale_run_then_scan(monkeypatch, sounds_project, found):
     seen = {"scans": 0}
 
-    def propose(project, cfg, *, replace_existing):
+    def propose(project, cfg, *, replace_existing, **_kw):
         seen["scans"] += 1
         return type("Proposal", (), {"decisions": found})()
 
     monkeypatch.setattr(steps, "propose_tighten_edits", propose)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **__: True)
     return seen
 
 

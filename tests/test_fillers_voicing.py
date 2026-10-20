@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from pause_policy_public_helpers import room
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
@@ -204,7 +205,7 @@ def test_speech_inside_an_asr_gap_never_becomes_an_auto_applicable_pause(tmp_pat
     assert decision.reason == "pause:2.60s:solo:interior_speech"
     assert decision.review_required is True
     assert (decision.start, decision.end) == (pytest.approx(0.4, abs=0.05), pytest.approx(2.45))
-    assert apply_tighten_decisions(project) == 0
+    assert apply_tighten_decisions(project, defaults=load_defaults()) == 0
 
 
 def test_pause_start_inside_a_word_tail_moves_past_the_voice(tmp_path: Path) -> None:
@@ -552,7 +553,7 @@ def test_peer_voice_inside_a_session_pause_is_reviewed(tmp_path: Path) -> None:
     assert decision.reason == "pause:2.60s:solo:interior_speech:other_speaking:guest"
     assert decision.review_required is True
     assert decision.scope == "session"
-    assert apply_tighten_decisions(project) == 0
+    assert apply_tighten_decisions(project, defaults=load_defaults()) == 0
 
 
 def test_mistimed_peer_onset_holds_when_original_room_cannot_be_measured(tmp_path: Path) -> None:
@@ -594,7 +595,7 @@ def test_unvoiced_material_inside_a_pause_is_not_dead_air(tmp_path: Path) -> Non
 
     assert decision.reason == "pause:2.60s:solo:interior_audio"
     assert decision.review_required is True
-    assert apply_tighten_decisions(project) == 0
+    assert apply_tighten_decisions(project, defaults=load_defaults()) == 0
 
 
 def test_voice_before_a_filler_word_start_moves_the_cut_to_its_onset(tmp_path: Path) -> None:

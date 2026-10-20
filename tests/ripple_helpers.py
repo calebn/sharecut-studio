@@ -7,6 +7,7 @@ the public application policy and publication boundary.
 
 from __future__ import annotations
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim
 from podcast_mcp.edits.timeline_ops import (
     _write_ripple_delete,
@@ -27,7 +28,7 @@ def trim(
     plan = plan_trim(project, clip_id, edge, source_sec, mode)
     if plan.unchanged:
         return {"operation": "trim_clip_edge", "unchanged": True}
-    return _write_trim_clip_edge(project, plan)
+    return _write_trim_clip_edge(project, plan, defaults=load_defaults())
 
 
 def shorten_gaps(
@@ -36,10 +37,14 @@ def shorten_gaps(
     *,
     use_inaudible_opt: bool | None = None,
 ) -> dict:
-    removal = plan_shorten_word_gaps(project, max_gap_sec, use_inaudible_opt=use_inaudible_opt)
+    removal = plan_shorten_word_gaps(
+        project, max_gap_sec, use_inaudible_opt=use_inaudible_opt, defaults=load_defaults()
+    )
     if removal is None:
         return {"operation": "shorten_word_gaps", "affected_tracks": []}
-    report = _write_ripple_delete(project, removal, params={"use_inaudible_opt": use_inaudible_opt})
+    report = _write_ripple_delete(
+        project, removal, params={"use_inaudible_opt": use_inaudible_opt}, defaults=load_defaults()
+    )
     return {**report, "operation": "shorten_word_gaps"}
 
 
@@ -56,7 +61,7 @@ def ripple_cut_spans(
             span
             for start, end in ranges
             for span in plan_ripple_delete(
-                project, start, end, use_inaudible_opt=use_inaudible_opt
+                project, start, end, use_inaudible_opt=use_inaudible_opt, defaults=load_defaults()
             ).spans
         ]
     )
@@ -65,6 +70,7 @@ def ripple_cut_spans(
         removal,
         record_log=record_log,
         params={"use_inaudible_opt": use_inaudible_opt},
+        defaults=load_defaults(),
     )
 
 

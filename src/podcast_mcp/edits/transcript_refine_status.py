@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.review_gate import ReviewGate, ReviewRequiredError
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object
@@ -46,9 +47,7 @@ def reviewed_transcript_fingerprint(project: EpisodeProject) -> str:
     return short_digest(raw)
 
 
-def build_refine_brief(
-    project: EpisodeProject, defaults: dict[str, Any] | None = None
-) -> dict[str, Any]:
+def build_refine_brief(project: EpisodeProject, defaults: EffectiveConfig) -> dict[str, Any]:
     from podcast_mcp.transcript_context import load_transcript_context
 
     report_path = project.artifacts_dir() / "transcript_precorrect_report.json"

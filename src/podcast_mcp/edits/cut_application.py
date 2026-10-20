@@ -7,7 +7,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
@@ -34,10 +34,10 @@ from podcast_mcp.edits.decisions import (
     HeldEdit,
     _near,
     _near_on_timeline,
-    _pre_pad_fade_out_ms,
     _source_extents,
     _speaker_name,
     edit_timeline_range,
+    pre_pad_fade_out_ms,
     unplayed_pending_ids,
 )
 from podcast_mcp.edits.edit_log import archive_decision
@@ -183,18 +183,22 @@ def _completed_holds(
 
 
 def _checked_trim(
-    project: EpisodeProject, plan: TrimPlan, *, application_intent: CutIntent
+    project: EpisodeProject,
+    plan: TrimPlan,
+    *,
+    application_intent: CutIntent,
+    defaults: EffectiveConfig,
 ) -> tuple[EpisodeProject, dict, list[CutScopeHold]]:
     """The project with ``plan`` applied, the change report, and what the audio checks hold."""
     candidate = project.model_copy(deep=True)
-    speech = assess_cut_speech(project, plan.removal) if plan.removal else None
-    report = _write_trim_clip_edge(candidate, plan, cut_speech=speech)
+    speech = assess_cut_speech(project, plan.removal, defaults=defaults) if plan.removal else None
+    report = _write_trim_clip_edge(candidate, plan, cut_speech=speech, defaults=defaults)
     ids = frozenset({plan.clip_id})
     held = _completed_holds(
         project,
         candidate,
         ids,
-        defaults=load_defaults(),
+        defaults=defaults,
         peers=cut_safety.PeerObservations(None, speech),
         owned=bool(plan.removal and plan.removal.selected),
         manual_ids=ids if is_human_intent(application_intent) else frozenset(),
@@ -212,9 +216,10 @@ def trim_holds(
     plan: TrimPlan,
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    defaults: EffectiveConfig,
 ) -> list[CutScopeHold]:
     """What ``apply_trim`` would refuse ``plan`` for; the project is not changed."""
-    return _checked_trim(project, plan, application_intent=application_intent)[2]
+    return _checked_trim(project, plan, application_intent=application_intent, defaults=defaults)[2]
 
 
 @batch_scope()
@@ -223,8 +228,11 @@ def apply_trim(
     plan: TrimPlan,
     *,
     application_intent: CutIntent,
+    defaults: EffectiveConfig,
 ) -> dict:
-    candidate, report, held = _checked_trim(project, plan, application_intent=application_intent)
+    candidate, report, held = _checked_trim(
+        project, plan, application_intent=application_intent, defaults=defaults
+    )
     if held:
         raise ScopeChangedAtApproval(held, {})
     adopt_project_state(project, candidate)
@@ -245,32 +253,41 @@ def apply_timeline_cut(
     *,
     application_intent: CutIntent,
     params: dict,
+    defaults: EffectiveConfig,
 ) -> dict:
     candidate = project.model_copy(deep=True)
     speech = (
-        assess_cut_speech(project, request.removal) if request.mode is EditMode.RIPPLE else None
+        assess_cut_speech(project, request.removal, defaults=defaults)
+        if request.mode is EditMode.RIPPLE
+        else None
     )
     if request.mode is EditMode.RIPPLE:
         report = (
             _write_ripple_delete_clips(
-                candidate, list(request.clip_ids), request.removal, cut_speech=speech
+                candidate,
+                list(request.clip_ids),
+                request.removal,
+                cut_speech=speech,
+                defaults=defaults,
             )
             if request.clip_ids
-            else _write_ripple_delete(candidate, request.removal, cut_speech=speech, params=params)
+            else _write_ripple_delete(
+                candidate, request.removal, cut_speech=speech, params=params, defaults=defaults
+            )
         )
     elif request.clip_ids:
-        report = _write_punch_delete_clips(candidate, list(request.clip_ids))
+        report = _write_punch_delete_clips(candidate, list(request.clip_ids), defaults=defaults)
     else:
         start, end = request.removal.spans[0]
         report = _write_punch_delete_range(
-            candidate, start, end, list(request.removal.edited_track_ids)
+            candidate, start, end, list(request.removal.edited_track_ids), defaults=defaults
         )
     ids = frozenset({"timeline_cut"})
     held = _completed_holds(
         project,
         candidate,
         ids,
-        defaults=load_defaults(),
+        defaults=defaults,
         peers=cut_safety.PeerObservations(None, speech),
         owned=bool(request.removal.selected),
         manual_ids=ids if is_human_intent(application_intent) else frozenset(),
@@ -311,6 +328,7 @@ def _apply_replace_gap_pad(
     exact_seam: bool = False,
     source_audio_caches: Mapping[str, TrackAudioCache] | None = None,
     effects: list[cut_safety.PadEffect],
+    defaults: EffectiveConfig,
 ) -> list[dict]:
     gap = edit.replace_gap_sec
     if gap is None or gap <= 0:
@@ -322,14 +340,18 @@ def _apply_replace_gap_pad(
         if exact_seam or (edit.reason or "").startswith("pause:")
         else _nearest_ripple_join_time(project, tl_start)
     )
-    if filler_pad_mode() == "room_tone":
+    if filler_pad_mode(defaults=defaults) == "room_tone":
         from podcast_mcp.edits.cut_safety import pending_pad_source_spans
 
         plan = room_tone_pad(
-            project, pad_start_sec, gap, avoid=pending_pad_source_spans(project, edit)
+            project,
+            pad_start_sec,
+            gap,
+            avoid=pending_pad_source_spans(project, edit),
+            defaults=defaults,
         )
         before_ids = {clip.id for clip in project.clips}
-        report = insert_bound_room_tone_pad(project, plan)
+        report = insert_bound_room_tone_pad(project, plan, defaults=defaults)
         effect = cut_safety.PadEffect(
             edit.id,
             plan,
@@ -339,10 +361,9 @@ def _apply_replace_gap_pad(
         cut_safety.native_pad_origins().update((clip_id, effect) for clip_id in effect.clip_ids)
         samples = report["pad_samples"]
     else:
-        insert_gap(project, pad_start_sec, gap)
+        insert_gap(project, pad_start_sec, gap, defaults=defaults)
         samples = []
-    defaults = load_defaults()
-    left_pad_fade_out_ms = int(defaults.get("tighten", {}).get("filler_pre_pad_fade_out_ms", 5))
+    left_pad_fade_out_ms = pre_pad_fade_out_ms(defaults)
     for tid in dialogue_track_ids(project):
         for clip in clips_for_track(project, tid):
             if abs(clip.timeline_end - pad_start_sec) <= _PAD_EDGE_MATCH_SEC:
@@ -371,7 +392,7 @@ def _apply_source_remove(
     project: EpisodeProject,
     edit: EditDecision,
     *,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     batch: Sequence[SourceExtent],
     record_log: bool = False,
@@ -392,7 +413,6 @@ def _apply_source_remove(
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
 
     candidate = project.model_copy(deep=True)
-    cfg = load_defaults() if defaults is None else defaults
     pads: list[cut_safety.PadEffect] = []
     manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
     with ExitStack() as proof:
@@ -401,11 +421,11 @@ def _apply_source_remove(
         observation = cut_safety.observe_source_cut(
             project,
             edit,
-            defaults=cfg,
+            defaults=defaults,
             manual=manual,
             batch=batch,
             audio_caches=caches,
-            timeline_caches=shared_timeline_rms_caches(project),
+            timeline_caches=shared_timeline_rms_caches(project, defaults=defaults),
         )
         pause = observation.pause if isinstance(observation.pause, cut_safety.HeldPause) else None
         actual = (
@@ -425,6 +445,7 @@ def _apply_source_remove(
             source_audio_caches=caches,
             record_log=record_log,
             pads=pads,
+            defaults=defaults,
         )
     ids = frozenset({edit.id})
     try:
@@ -432,7 +453,7 @@ def _apply_source_remove(
             project,
             candidate,
             ids,
-            defaults=cfg,
+            defaults=defaults,
             manual_ids=ids if manual else frozenset(),
             pauses={edit.id: observation.pause},
             join=cut_safety.CutJoin.PADDED if actual.replace_gap_sec else cut_safety.CutJoin.SPLICE,
@@ -468,6 +489,7 @@ def _write_source_remove(
     source_audio_caches: Mapping[str, TrackAudioCache],
     record_log: bool,
     pads: list[cut_safety.PadEffect],
+    defaults: EffectiveConfig,
 ) -> tuple[float, float, list[str], dict]:
     from podcast_mcp.edits.track_media import full_span_clip
 
@@ -495,7 +517,7 @@ def _write_source_remove(
     project.clips.extend(implicit)
     if scope == "track":
         report = _write_punch_delete(
-            project, edit.track_id, tl_start, tl_end, record_log=record_log
+            project, edit.track_id, tl_start, tl_end, record_log=record_log, defaults=defaults
         )
         return (
             tl_start,
@@ -518,6 +540,7 @@ def _write_source_remove(
         cut_speech=speech,
         record_log=record_log,
         params={"use_inaudible_opt": consumed_inaudible_opt},
+        defaults=defaults,
     )
     tl_start, tl_end = report["timeline_start"], report["timeline_end"]
     per_track = report["per_track_source"]
@@ -529,6 +552,7 @@ def _write_source_remove(
         exact_seam=pause,
         source_audio_caches=source_audio_caches,
         effects=pads,
+        defaults=defaults,
     )
     effects = prepared_pause.effects if prepared_pause is not None else ()
     matches = [
@@ -587,9 +611,8 @@ def _write_join_fades(
     project: EpisodeProject,
     decisions: list[EditDecision],
     *,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
 ) -> dict:
-    cfg = defaults or load_defaults()
     pad_origins = cut_safety.native_pad_origins()
     pad_origin_ids: set[str | None] = {*pad_origins}
     by_track: dict[str, list[EditDecision]] = {}
@@ -619,9 +642,9 @@ def _write_join_fades(
                     left.source_end,
                     right.source_start,
                     cut_kind="filler",
-                    defaults=cfg,
+                    defaults=defaults,
                 )
-            fade = cap_fade_ms(project, tid, fade, cfg)
+            fade = cap_fade_ms(project, tid, fade, defaults)
             left.fade_out_ms = max(left.fade_out_ms, fade)
             right.fade_in_ms = max(right.fade_in_ms, fade)
             right.join_in_mode = ClipJoinMode.FADE
@@ -645,7 +668,7 @@ def _apply_mute_edit(
     edit: EditDecision,
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
 ) -> tuple[EpisodeProject, tuple[float, float, list[str], dict]] | CutScopeHold:
     """Mute ``edit``'s source span in place, with the fill and fades a ripple pad gets.
 
@@ -656,9 +679,8 @@ def _apply_mute_edit(
     published = project
     project = project.model_copy(deep=True)
 
-    defaults = load_defaults() if defaults is None else defaults
-    room_tone = filler_pad_mode() == "room_tone"
-    fade_out = _pre_pad_fade_out_ms()
+    room_tone = filler_pad_mode(defaults=defaults) == "room_tone"
+    fade_out = pre_pad_fade_out_ms(defaults)
     fade_in = (
         recommend_post_pad_fade_in_ms(
             project,
@@ -729,7 +751,7 @@ def approve_edits(
     project: EpisodeProject,
     ids: list[str],
     *,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     held_out: list[HeldEdit] | None = None,
     asked_out: list[AskedEdits] | None = None,
@@ -778,7 +800,9 @@ def approve_edits(
         )
     exact = [e for e in to_apply if e.exact_range is not None]
     if exact:
-        project = _range_candidate(project, exact, application_intent=application_intent)
+        project = _range_candidate(
+            project, exact, application_intent=application_intent, defaults=defaults
+        )
         applied_ids.update(edit.id for edit in exact)
     to_apply = [e for e in to_apply if e.exact_range is None]
     # Mutes first (timeline-stable). Later removes first so earlier positions
@@ -937,7 +961,7 @@ def approve_edits(
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
         at_time = float(edit.start)
         tids = list(edit.track_ids) if edit.track_ids else [edit.track_id]
-        split_report = split_clips_at(project, at_time, tids, record_log=False)
+        split_report = split_clips_at(project, at_time, tids, record_log=False, defaults=defaults)
         archive_decision(
             project,
             edit,
@@ -1020,7 +1044,7 @@ def apply_prefix_edits(
     reason_prefix: str | tuple[str, ...],
     *,
     config_key: str,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
 ) -> int:
     """Apply auto-approved REMOVE (ripple) or MUTE (in-place) edits for reason prefixes.
 
@@ -1048,14 +1072,12 @@ def apply_prefix_edits(
     if not applied_decisions:
         return 0
 
-    cfg_all = load_defaults() if defaults is None else defaults
-
     mutes = [e for e in applied_decisions if e.type == EditDecisionType.MUTE]
     removes = [e for e in applied_decisions if e.type == EditDecisionType.REMOVE]
     held_mutes: set[str] = set()
     for edit in sorted(mutes, key=lambda e: e.start, reverse=True):
         previous = project
-        muted = _apply_mute_edit(project, edit, defaults=cfg_all)
+        muted = _apply_mute_edit(project, edit, defaults=defaults)
         if isinstance(muted, CutScopeHold):
             held_mutes.add(edit.id)
             continue
@@ -1084,7 +1106,7 @@ def apply_prefix_edits(
             working,
             [e for e in working.edit_decisions if e.id in remove_ids - held],
             config_key=config_key,
-            defaults=cfg_all,
+            defaults=defaults,
         )
         if newly:
             held |= newly
@@ -1097,14 +1119,14 @@ def apply_prefix_edits(
                 for e in working.edit_decisions
                 if e.id in remove_ids - held and not (e.reason or "").startswith("pause:")
             ],
-            defaults=cfg_all,
+            defaults=defaults,
         )
 
         effects_held = _completed_holds(
             before_fades,
             working,
             frozenset(remove_ids - held),
-            defaults=cfg_all,
+            defaults=defaults,
             manual_ids=frozenset(
                 e.id for e in applied_decisions if is_human_intent(e.boundary_intent)
             ),
@@ -1131,7 +1153,7 @@ def apply_prefix_edits(
     return before - len(project.edit_decisions)
 
 
-def apply_auto_edits(project: EpisodeProject, defaults: dict | None = None) -> int:
+def apply_auto_edits(project: EpisodeProject, defaults: EffectiveConfig) -> int:
     return apply_prefix_edits(
         project, ("filler:", "pause:"), config_key="tighten", defaults=defaults
     )
@@ -1143,6 +1165,7 @@ def _range_candidate(
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     mute_ownership: MuteOwnership = MuteOwnership.ORDINARY,
+    defaults: EffectiveConfig,
 ) -> EpisodeProject:
     published = project
     project = project.model_copy(deep=True)
@@ -1203,14 +1226,16 @@ def _range_candidate(
                 continue
             remaining = [clip]
             for start, end in sorted(cuts):
-                remaining = punch_timeline_range_from_clips(remaining, start, end)
+                remaining = punch_timeline_range_from_clips(
+                    remaining, start, end, defaults=defaults
+                )
             replacements.extend(remaining)
         set_track_clips(project, tid, replacements)
         if not replacements:
             track = project.track_by_id(tid)
             if track is not None:
                 track.timeline_empty = True
-    rebuild_combined(project)
+    rebuild_combined(project, defaults=defaults)
     for edit, target in plans:
         archive_decision(
             project,
@@ -1231,7 +1256,7 @@ def _range_candidate(
         published,
         project,
         ids,
-        defaults=load_defaults(),
+        defaults=defaults,
         exact_ranges={edit.id: target for edit, target in plans},
         manual_ids=frozenset(
             edit.id
@@ -1254,9 +1279,14 @@ def apply_ranges(
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     mute_ownership: MuteOwnership = MuteOwnership.ORDINARY,
+    defaults: EffectiveConfig,
 ) -> None:
     candidate = _range_candidate(
-        project, edits, application_intent=application_intent, mute_ownership=mute_ownership
+        project,
+        edits,
+        application_intent=application_intent,
+        mute_ownership=mute_ownership,
+        defaults=defaults,
     )
     adopt_project_state(project, candidate)
 
@@ -1267,7 +1297,7 @@ def assess_offer(
 ) -> list[CutScopeHold]:
     if edit.exact_range is not None:
         try:
-            _range_candidate(project, [edit])
+            _range_candidate(project, [edit], defaults=defaults)
         except ScopeChangedAtApproval as exc:
             return list(exc.held)
         return []
@@ -1290,6 +1320,7 @@ def apply_lower(
     db: float = LOWER_GAIN_DB,
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    defaults: EffectiveConfig,
 ) -> bool:
     published = project
     project = project.model_copy(deep=True)
@@ -1349,7 +1380,7 @@ def apply_lower(
         published,
         project,
         ids,
-        defaults=load_defaults(),
+        defaults=defaults,
         observation=observation,
         mode="mute",
         manual_ids=ids
@@ -1372,6 +1403,7 @@ def apply_suggested_to_project(
     result: SuggestedActionsResult,
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    defaults: EffectiveConfig,
 ) -> None:
     """Apply ``actions`` (decision id -> cut / shorten / lower / leave) to ``project`` in place.
 
@@ -1390,13 +1422,15 @@ def apply_suggested_to_project(
     done: set[str] = set()
     for edit_id in [i for i, a in actions.items() if a == "lower" and i in by_id]:
         decision = by_id[edit_id]
-        peer = another_speaker_over(project, decision)
+        peer = another_speaker_over(project, decision, defaults=defaults)
         if peer is None:
             result.held.append(edit_id)  # unreadable, so neither lowered nor recorded as left
         elif not peer:
             actions[edit_id] = "leave"
             result.left_no_overlap += 1
-        elif apply_lower(project, decision, application_intent=application_intent):
+        elif apply_lower(
+            project, decision, application_intent=application_intent, defaults=defaults
+        ):
             record_sound_action(project, decision, "lower")
             done.add(edit_id)
             result.applied["lower"] = result.applied.get("lower", 0) + 1
@@ -1418,7 +1452,7 @@ def apply_suggested_to_project(
     for edit_id in live:
         decision = by_id[edit_id]
         if decision.scope != "track" and decision.exact_range is None:
-            record_suggested_cut_speech(project, decision)
+            record_suggested_cut_speech(project, decision, defaults=defaults)
     over = {i for i in live if by_id[i].cut_speech is not None}
     held: list[HeldEdit] = []
     overridden: set[str] = set()
@@ -1429,6 +1463,7 @@ def apply_suggested_to_project(
         held_out=held,
         override_peer_holds=overridden,
         accept_leaned_on=True,
+        defaults=defaults,
     )
     gone = before - {e.id for e in project.edit_decisions}
     applied_cuts = [i for i in cut_ids if i in gone]
@@ -1451,6 +1486,7 @@ def apply_edit_plan(
     crossfade_ms: int = 10,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
+    defaults: EffectiveConfig,
 ) -> list[EditDecision]:
     from podcast_mcp.edits.transcript_cuts import add_remove_decision
 
@@ -1473,6 +1509,7 @@ def apply_edit_plan(
             crossfade_ms=int(raw.get("crossfade_ms", crossfade_ms)),
             use_inaudible_opt=raw.get("use_inaudible_opt", use_inaudible_opt),
             merge_ids=merge_ids,
+            defaults=defaults,
         )
         merged = prior_ids - {row.id for row in candidate.edit_decisions}
         created = [decision if row.id in merged else row for row in created]
@@ -1481,6 +1518,6 @@ def apply_edit_plan(
         if apply_now:
             requested.add(decision.id)
     if requested:
-        approve_edits(candidate, sorted(requested))
+        approve_edits(candidate, sorted(requested), defaults=defaults)
     adopt_project_state(project, candidate)
     return [row.model_copy(update={"applied": row.id in requested}) for row in created]

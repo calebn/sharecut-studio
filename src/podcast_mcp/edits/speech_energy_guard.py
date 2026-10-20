@@ -16,7 +16,7 @@ from typing import Any, Literal, NamedTuple
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_cache import track_level_profile
 from podcast_mcp.edits.clips_ops import clips_for_track, remove_timeline_range_from_clips
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
@@ -82,16 +82,15 @@ class SpeechEnergyGuardResult:
         return bool(self.blocking_track_ids)
 
 
-def _guard_cfg(defaults: dict[str, Any] | None) -> dict[str, Any]:
-    cfg = defaults if defaults is not None else load_defaults()
-    return dict((cfg.get("tighten") or {}).get("speech_energy_guard") or {})
+def _guard_cfg(defaults: EffectiveConfig) -> dict[str, Any]:
+    return dict((defaults.get("tighten") or {}).get("speech_energy_guard") or {})
 
 
-def speech_energy_guard_enabled(defaults: dict[str, Any] | None = None) -> bool:
+def speech_energy_guard_enabled(defaults: EffectiveConfig) -> bool:
     return bool(_guard_cfg(defaults).get("enabled", True))
 
 
-def validate_speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -> ConflictAction:
+def validate_speech_energy_on_conflict(defaults: EffectiveConfig) -> ConflictAction:
     """The validated ``tighten.speech_energy_guard.on_conflict``: ``review`` or ``skip``.
 
     An unknown value raises ``ValueError`` naming the valid ones. ``merge_pipeline_config``
@@ -110,7 +109,7 @@ def validate_speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -
     )
 
 
-def speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -> ConflictAction:
+def speech_energy_on_conflict(defaults: EffectiveConfig) -> ConflictAction:
     return _guard_cfg(defaults).get("on_conflict", "review")
 
 
@@ -181,6 +180,7 @@ def _removal_cells(
     caches: TrackRmsCacheSet | None,
     *,
     removal_span: tuple[float, float] | None,
+    defaults: EffectiveConfig,
 ) -> _RemovedCells:
     """The peer's samples a removal of ``removal_span`` deletes inside ``[start, end)``.
 
@@ -217,7 +217,9 @@ def _removal_cells(
     for clip, (_, placement), cell in zip(clips, pairs, cells, strict=True):
         kept = [
             (round(piece.source_start * rate), round(piece.source_end * rate))
-            for piece in remove_timeline_range_from_clips([clip], removal_start, removal_end)
+            for piece in remove_timeline_range_from_clips(
+                [clip], removal_start, removal_end, defaults=defaults
+            )
         ]
         gone = subtract_intervals([(cell.first, cell.first + cell.count)], kept)
         shift = cell.dest - cell.first
@@ -253,9 +255,13 @@ def _pitchless_independent_runs(
     end: float,
     own: np.ndarray,
     caches: TrackRmsCacheSet | None,
+    *,
+    defaults: EffectiveConfig,
 ) -> np.ndarray:
     pitchless = np.zeros(own.size, dtype=bool)
-    read = timeline_window_samples(project, peer_track_id, start, end, caches=caches)
+    read = timeline_window_samples(
+        project, peer_track_id, start, end, caches=caches, defaults=defaults
+    )
     if read is None:
         return pitchless
     samples, rate = read
@@ -315,6 +321,7 @@ def _owned_peer_frames(
     dominance_db: float,
     caches: TrackRmsCacheSet | None,
     half_open: bool = False,
+    defaults: EffectiveConfig,
 ) -> _PeerFrames | None:
     if half_open:
         start, end = (float(np.nextafter(point, np.inf)) for point in (start, end))
@@ -328,6 +335,7 @@ def _owned_peer_frames(
         frame_sec=LEVEL_FRAME_SEC,
         hop_sec=LEVEL_FRAME_SEC,
         caches=caches,
+        defaults=defaults,
     )
     if levels is None:
         return None
@@ -346,6 +354,7 @@ def _owned_peer_frames(
             frame_sec=LEVEL_FRAME_SEC,
             hop_sec=LEVEL_FRAME_SEC,
             caches=caches,
+            defaults=defaults,
         )
         if owner is None:
             continue
@@ -364,7 +373,9 @@ def _owned_peer_frames(
     return _PeerFrames(
         levels,
         own,
-        lambda: _pitchless_independent_runs(project, peer_track_id, start, end, own, caches),
+        lambda: _pitchless_independent_runs(
+            project, peer_track_id, start, end, own, caches, defaults=defaults
+        ),
     )
 
 
@@ -479,6 +490,7 @@ def _peer_speaks_near_span(
     caches: TrackRmsCacheSet | None,
     admissible_span: tuple[float, float] | None = None,
     removal_span: tuple[float, float] | None = None,
+    defaults: EffectiveConfig,
 ) -> bool | None:
     config = JoinSpeechConfig()
     start, end = (
@@ -533,6 +545,7 @@ def _peer_speaks_near_span(
             dominance_db=dominance_db,
             caches=source,
             half_open=sealed,
+            defaults=defaults,
         )
         if evidence is None:
             return None
@@ -548,6 +561,7 @@ def _peer_speaks_near_span(
                 dominance_db=dominance_db,
                 caches=source,
                 half_open=sealed,
+                defaults=defaults,
             )
             if tail is None:
                 return None
@@ -569,7 +583,7 @@ def _peer_speaks_near_span(
     source = caches
     if admissible_span is not None:
         removed = _removal_cells(
-            project, peer_track_id, start, end, caches, removal_span=removal_span
+            project, peer_track_id, start, end, caches, removal_span=removal_span, defaults=defaults
         )
         decision_spans = removed.spans(removed.sole)
         if removed.shared:
@@ -757,6 +771,8 @@ def _loudest_window_db(
     span: tuple[float, float],
     mean_db: float,
     caches: TrackRmsCacheSet | None,
+    *,
+    defaults: EffectiveConfig,
 ) -> float:
     """The loudest 100 ms window of ``span`` on ``track_id`` (recorded dB, balance gain included), at least ``mean_db``.
 
@@ -764,7 +780,7 @@ def _loudest_window_db(
     span, reads under the voice's reach. The loudest window is what a listener hears (#1419).
     ``mean_db`` where the span cannot be read in windows.
     """
-    read = timeline_window_samples(project, track_id, *span, caches=caches)
+    read = timeline_window_samples(project, track_id, *span, caches=caches, defaults=defaults)
     if read is None:
         return mean_db
     samples, rate = read
@@ -810,7 +826,7 @@ def measure_peer_speech(
     *,
     owner_track_ids: Collection[str],
     peer_track_ids: Iterable[str],
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
     _removal_spans: Sequence[tuple[float, float]] | None = None,
@@ -848,7 +864,13 @@ def measure_peer_speech(
                 r
                 for r in (
                     measure_timeline_rms_db(
-                        project, tid, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
+                        project,
+                        tid,
+                        s,
+                        e,
+                        caches=caches,
+                        floor_db=DIGITAL_SILENCE_DB,
+                        defaults=defaults,
                     )
                     for tid in owner_track_ids
                 )
@@ -876,13 +898,23 @@ def measure_peer_speech(
             return [
                 max(
                     (
-                        (_loudest_window_db(project, owner, (s, e), r, caches) if windowed else r)
+                        (
+                            _loudest_window_db(project, owner, (s, e), r, caches, defaults=defaults)
+                            if windowed
+                            else r
+                        )
                         - _gain_db(project, owner)
                         - refs[owner]
                         for owner in owner_track_ids
                         if (
                             r := measure_timeline_rms_db(
-                                project, owner, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
+                                project,
+                                owner,
+                                s,
+                                e,
+                                caches=caches,
+                                floor_db=DIGITAL_SILENCE_DB,
+                                defaults=defaults,
                             )
                         )
                         is not None
@@ -896,7 +928,13 @@ def measure_peer_speech(
         span_owner_loudest: list[float | None] | None = None
         for index, (tl_start, tl_end) in enumerate(checked):
             rms = measure_timeline_rms_db(
-                project, tid, tl_start, tl_end, caches=caches, floor_db=DIGITAL_SILENCE_DB
+                project,
+                tid,
+                tl_start,
+                tl_end,
+                caches=caches,
+                floor_db=DIGITAL_SILENCE_DB,
+                defaults=defaults,
             )
             if rms is None:
                 unread.setdefault(tid, []).append((tl_start, tl_end))
@@ -921,13 +959,16 @@ def measure_peer_speech(
                 )
                 if _removal_spans is not None
                 else None,
+                defaults=defaults,
             )
             if calibrated is None:
                 own_voice = math.isfinite(_voice_reach_db(project, tid, caches))
                 if own_voice and span_owner_loudest is None:
                     span_owner_loudest = owner_raw(refs, windowed=True)
                 heard = (
-                    _loudest_window_db(project, tid, (tl_start, tl_end), rms, caches)
+                    _loudest_window_db(
+                        project, tid, (tl_start, tl_end), rms, caches, defaults=defaults
+                    )
                     if own_voice
                     else rms
                 )
@@ -959,6 +1000,7 @@ def word_voice_sounds_in(
     span: tuple[float, float],
     *,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> bool:
     """Whether a word's own voice on ``track_id`` sounds inside timeline ``span``.
 
@@ -982,6 +1024,7 @@ def word_voice_sounds_in(
             frame_sec=FRAME_SEC,
             hop_sec=HOP_SEC,
             caches=caches,
+            defaults=defaults,
         )
 
     word = levels(*word_span)
@@ -998,10 +1041,11 @@ def _voiced_in_parts(
     parts: Sequence[tuple[float, float]],
     *,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> bool:
     span = (word.timeline_start, word.timeline_end)
     return any(
-        word_voice_sounds_in(project, track_id, span, (a, b), caches=caches)
+        word_voice_sounds_in(project, track_id, span, (a, b), caches=caches, defaults=defaults)
         for start, end in parts
         if (a := max(start, span[0])) < (b := min(end, span[1]))
     )
@@ -1015,6 +1059,7 @@ def speech_words_in(
     *,
     voiced: bool,
     caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> list[CutSpeechWord]:
     """``track_id``'s unsuppressed, unignored words overlapping timeline ``parts``.
 
@@ -1050,11 +1095,15 @@ def speech_words_in(
                 )
             )
     if voiced:
-        words = [w for w in words if _voiced_in_parts(project, track_id, w, parts, caches=caches)]
+        words = [
+            w
+            for w in words
+            if _voiced_in_parts(project, track_id, w, parts, caches=caches, defaults=defaults)
+        ]
     return sorted(words, key=lambda w: w.timeline_start)
 
 
-def guard_min_overlap_sec(defaults: dict[str, Any] | None = None) -> float:
+def guard_min_overlap_sec(defaults: EffectiveConfig) -> float:
     """Shortest overlap with a removed span that counts as cutting speech."""
     return float(_guard_cfg(defaults).get("min_overlap_sec", 0.03))
 

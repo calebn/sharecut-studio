@@ -13,6 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.mute_regions import source_span_is_muted
 from podcast_mcp.edits.speaker_split import (
     SPLIT_FADE_MS,
@@ -80,6 +81,7 @@ def _split_track(project, track_id, attribution, **kwargs):
         attribution,
         media_identity=identity,
         **kwargs,
+        defaults=load_defaults(),
     )
 
 
@@ -666,7 +668,7 @@ def test_move_lane_span_mutes_source_and_reopens_target(scripted_ws: ProjectWork
     project = scripted_ws.project
     _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     region = _mute_region((1.0, 1.4), 10.0, SPLIT_FADE_MS)
-    move_lane_span(project, LaneSpanMove("room", "room_ben", 1.0, 1.4))
+    move_lane_span(project, LaneSpanMove("room", "room_ben", 1.0, 1.4), defaults=load_defaults())
     ana = next(c for c in project.clips if c.track_id == "room")
     ben = next(c for c in project.clips if c.track_id == "room_ben")
     assert any(
@@ -724,7 +726,9 @@ def test_move_lane_span_undo_restores_lanes(scripted_ws: ProjectWorkspace) -> No
     scripted_ws.mutate(
         "before move",
         "after move",
-        lambda p: move_lane_span(p, LaneSpanMove("room", "room_ben", 1.0, 1.4)),
+        lambda p: move_lane_span(
+            p, LaneSpanMove("room", "room_ben", 1.0, 1.4), defaults=load_defaults()
+        ),
         operation="move_lane_span",
     )
     HistoryService(scripted_ws).undo()

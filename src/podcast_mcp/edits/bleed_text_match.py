@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
@@ -186,6 +187,7 @@ def overlap_text_match_losers(
     audibility: list[dict[str, Any]] | None = None,
     is_suppressed: Callable[[WordKey], bool] | None = None,
     echo_pairs: Iterable[EchoPairProfile] = (),
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     """The loser of each identical-text overlap across tracks, as a ``bleed`` verdict.
 
@@ -219,6 +221,7 @@ def overlap_text_match_losers(
         progress=progress,
         audibility=audibility,
         is_suppressed=is_suppressed,
+        defaults=defaults,
     )
     min_overlap = policy.bleed_text_match_min_overlap_sec
     min_dom = policy.bleed_text_match_min_dominance_db

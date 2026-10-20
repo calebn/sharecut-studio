@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import (
@@ -120,7 +121,7 @@ def test_insert_room_tone_pad_tiles_short_sample():
         "podcast_mcp.edits.timeline_ops.room_tone_span",
         return_value=OwnQuietSample(Sample(3.0, 3.1, -70.0, None)),
     ) as span:
-        insert_room_tone_pad(p, 0.15, 0.4, sample_duration_sec=0.1)
+        insert_room_tone_pad(p, 0.15, 0.4, sample_duration_sec=0.1, defaults=load_defaults())
     span.assert_called_once_with(p, "host", near_sec=0.15, duration_sec=0.1, avoid=[])
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
     # Multiple pad tiles between left and shifted right
@@ -142,7 +143,7 @@ def test_insert_room_tone_pad_skips_track_without_left_clip():
         Clip(id="a", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0),
         Clip(id="b", track_id="host", source_start=2.0, source_end=5.0, timeline_start=2.0),
     ]
-    summary = insert_room_tone_pad(p, 2.0, 0.2)
+    summary = insert_room_tone_pad(p, 2.0, 0.2, defaults=load_defaults())
     assert summary["operation"] == "insert_room_tone_pad"
 
 
@@ -162,7 +163,7 @@ def test_update_pending_edit_rejects_inverted_range():
         )
     ]
     with pytest.raises(ValueError):
-        update_pending_edit(project, "cut_1", start=2.0, end=1.0)
+        update_pending_edit(project, "cut_1", start=2.0, end=1.0, defaults=load_defaults())
 
 
 def test_shrink_cut_invalid_inputs():
@@ -319,18 +320,6 @@ def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_
     ]
     with (
         patch(
-            "podcast_mcp.edits.cut_application.load_defaults",
-            return_value={
-                "tighten": {
-                    "inaudible_opt": False,
-                    "filler_pre_pad_fade_out_ms": 5,
-                    "filler_post_pad_fade_in_min_ms": 15,
-                    "filler_post_pad_fade_in_max_ms": 120,
-                },
-                "render": {"join_fade_max_ms": 40},
-            },
-        ),
-        patch(
             "podcast_mcp.edits.cut_application.recommend_post_pad_fade_in_ms",
             return_value=72,
         ),
@@ -340,7 +329,18 @@ def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_
             return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
         ),
     ):
-        n = apply_auto_edits(project)
+        n = apply_auto_edits(
+            project,
+            defaults={
+                "tighten": {
+                    "inaudible_opt": False,
+                    "filler_pre_pad_fade_out_ms": 5,
+                    "filler_post_pad_fade_in_min_ms": 15,
+                    "filler_post_pad_fade_in_max_ms": 120,
+                },
+                "render": {"join_fade_max_ms": 40},
+            },
+        )
     assert n == 1
     assert project.edit_decisions == []
     host = sorted(
@@ -378,7 +378,7 @@ def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_
             "f1", RoomTonePad(tile.timeline_start, 0.28, ()), frozenset({tile.id})
         )
         cut_safety.native_pad_origins()[tile.id] = effect
-        first, second = split_clip_at(tile, tile.timeline_start + 0.14)
+        first, second = split_clip_at(tile, tile.timeline_start + 0.14, defaults=load_defaults())
         project.clips.remove(tile)
         project.clips.extend((first, second))
         result = cut_application._write_join_fades(
@@ -430,7 +430,7 @@ def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_
 def test_insert_room_tone_pad_rejects_nonpositive():
     p = _project([TranscriptWord(text="hi", start=0.0, end=0.5)])
     with pytest.raises(ValueError):
-        insert_room_tone_pad(p, 1.0, 0.0)
+        insert_room_tone_pad(p, 1.0, 0.0, defaults=load_defaults())
 
 
 def test_cut_time_range_raises_when_gap_too_tight():
@@ -734,7 +734,7 @@ def test_insert_room_tone_pad_fills_gap():
         "podcast_mcp.edits.timeline_ops.room_tone_span",
         return_value=OwnQuietSample(Sample(5.0, 5.28, -70.0, None)),
     ):
-        summary = insert_room_tone_pad(p, 3.0, 0.28)
+        summary = insert_room_tone_pad(p, 3.0, 0.28, defaults=load_defaults())
     assert summary["operation"] == "insert_room_tone_pad"
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
     assert len(host) >= 3
@@ -764,7 +764,7 @@ def test_filler_pad_mode_rejects_unknown_values(bad):
 def test_shipped_defaults_fill_pads_with_room_tone():
     from podcast_mcp.edits.filler_pacing import filler_pad_mode
 
-    assert filler_pad_mode() == "room_tone"
+    assert filler_pad_mode(defaults=load_defaults()) == "room_tone"
 
 
 def test_approve_edits_applies_silence_pad_when_configured(tmp_path):
@@ -800,7 +800,7 @@ def test_approve_edits_applies_silence_pad_when_configured(tmp_path):
         "podcast_mcp.edits.cut_application.filler_pad_mode",
         return_value="silence",
     ):
-        removed = approve_edits(project, ["cut_1"])
+        removed = approve_edits(project, ["cut_1"], defaults=load_defaults())
     assert removed == 1
     assert project.edit_decisions == []
     host = sorted(
@@ -847,7 +847,7 @@ def test_approve_edits_applies_room_tone_pad_when_configured(tmp_path):
             return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
         ),
     ):
-        removed = approve_edits(project, ["cut_1"])
+        removed = approve_edits(project, ["cut_1"], defaults=load_defaults())
     assert removed == 1
     host = sorted(
         [c for c in project.clips if c.track_id == "host"], key=lambda c: c.timeline_start
@@ -864,7 +864,7 @@ def test_cut_time_range_applies_pacing(monkeypatch):
     ]
     project = _project(words)
 
-    def passthrough(project, track_id, start, end, force_enabled=None):
+    def passthrough(project, track_id, start, end, force_enabled=None, **_kw):
         from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
         return OptimizedCutRange(

@@ -9,7 +9,11 @@ from typing import Literal
 
 import numpy as np
 
-from podcast_mcp.config import DEFAULT_MICRO_FADE_MS, join_micro_fade_ms, load_defaults
+from podcast_mcp.config import (
+    DEFAULT_MICRO_FADE_MS,
+    EffectiveConfig,
+    join_micro_fade_ms,
+)
 from podcast_mcp.edits.audio_cache import TrackAudioCache, track_level_profile
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.level_profile import LevelProfile, file_level_profile
@@ -52,8 +56,7 @@ class InaudibleCutConfig:
     absorb_trailing_silence_quiet_over_floor_db: float = -3.0
 
     @classmethod
-    def from_defaults(cls) -> InaudibleCutConfig:
-        defaults = load_defaults()
+    def from_defaults(cls, defaults: EffectiveConfig) -> InaudibleCutConfig:
         cfg = defaults.get("inaudible_cuts", {})
         w = cfg.get("weights", {})
         return cls(
@@ -638,8 +641,9 @@ def optimize_source_cut_range(
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
     source_id: str | None = None,
+    defaults: EffectiveConfig,
 ) -> OptimizedCutRange:
-    cfg = config or InaudibleCutConfig.from_defaults()
+    cfg = config or InaudibleCutConfig.from_defaults(defaults=defaults)
     enabled = _effective_cut_optimization_enabled(cfg, force_enabled)
     track = project.track_by_id(track_id)
     if not track:
@@ -787,6 +791,7 @@ def optimize_timeline_cut_range(
     *,
     config: InaudibleCutConfig | None = None,
     force_enabled: bool | None = None,
+    defaults: EffectiveConfig,
 ) -> OptimizedCutRange:
     if timeline_end <= timeline_start:
         raise CodedValueError(
@@ -807,7 +812,7 @@ def optimize_timeline_cut_range(
             confidence=0.0,
             details={"strategy": "passthrough"},
         )
-    cfg = config or InaudibleCutConfig.from_defaults()
+    cfg = config or InaudibleCutConfig.from_defaults(defaults=defaults)
     enabled = _effective_cut_optimization_enabled(cfg, force_enabled)
     optimized = optimize_source_cut_range(
         project,
@@ -816,6 +821,7 @@ def optimize_timeline_cut_range(
         source_end,
         config=cfg,
         force_enabled=enabled,
+        defaults=defaults,
     )
     return OptimizedCutRange(
         start=(
@@ -830,7 +836,9 @@ def optimize_timeline_cut_range(
     )
 
 
-def recommend_micro_fades(config: InaudibleCutConfig | None = None) -> dict[str, int]:
-    cfg = config or InaudibleCutConfig.from_defaults()
+def recommend_micro_fades(
+    config: InaudibleCutConfig | None = None, *, defaults: EffectiveConfig
+) -> dict[str, int]:
+    cfg = config or InaudibleCutConfig.from_defaults(defaults=defaults)
     fade = max(1, cfg.micro_fade_ms)
     return {"fade_in_ms": fade, "fade_out_ms": fade}

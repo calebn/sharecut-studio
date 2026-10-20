@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.audio_audit import AnalysisPolicy, BleedHandling, BleedReduction
 from podcast_mcp.engines.copy_timbre import (
     LIKENESS_FRAMES,
@@ -706,13 +707,19 @@ class _UnavailableGateEvidence(Exception):
 
 @lru_cache(maxsize=16)
 def _cached_bleed_gate_plan(
-    project_json: str, track_id: str, _media_revision: str, source_clock: bool, ignore_scope: bool
+    project_json: str,
+    track_id: str,
+    _media_revision: str,
+    source_clock: bool,
+    ignore_scope: bool,
+    defaults_json: str,
 ) -> BleedGatePlan:
     plan = _compute_bleed_gate_plan(
         EpisodeProject.model_validate_json(project_json),
         track_id,
         source_clock=source_clock,
         ignore_scope=ignore_scope,
+        defaults=json.loads(defaults_json),
     )
     if any(reason.startswith("unavailable_") for reason in plan.reasons):
         raise _UnavailableGateEvidence(plan)
@@ -725,6 +732,7 @@ def build_bleed_gate_plan(
     *,
     source_clock: bool = False,
     ignore_scope: bool = False,
+    defaults: EffectiveConfig,
 ) -> BleedGatePlan:
     """Reuse immutable acoustic evidence until selected media, metadata, or policy changes."""
     excluded_clips = {
@@ -738,10 +746,19 @@ def build_bleed_gate_plan(
         exclude={"timeline": {"clips": excluded_clips}},
     )
     revision = json.dumps(
-        bleed_gate_payload(project, track_id), sort_keys=True, separators=(",", ":")
+        bleed_gate_payload(project, track_id, defaults=defaults),
+        sort_keys=True,
+        separators=(",", ":"),
     )
     try:
-        return _cached_bleed_gate_plan(serialized, track_id, revision, source_clock, ignore_scope)
+        return _cached_bleed_gate_plan(
+            serialized,
+            track_id,
+            revision,
+            source_clock,
+            ignore_scope,
+            json.dumps(defaults, sort_keys=True, default=str),
+        )
     except _UnavailableGateEvidence as exc:
         return exc.plan
 
@@ -752,6 +769,7 @@ def _compute_bleed_gate_plan(
     *,
     source_clock: bool = False,
     ignore_scope: bool = False,
+    defaults: EffectiveConfig,
 ) -> BleedGatePlan:
     timeline = SessionTimeline(project)
     if source_clock:
@@ -779,7 +797,7 @@ def _compute_bleed_gate_plan(
         return BleedGatePlan(reasons=("no_peer_tracks",))
     if any(raw_evidence_layout_reason(project, tid) for tid in [track_id, *peer_ids]):
         return BleedGatePlan(reasons=("unsupported_crossfade_evidence_clock",))
-    policy = AnalysisPolicy.from_defaults()
+    policy = AnalysisPolicy.from_defaults(defaults=defaults)
     sources: dict[Path, np.ndarray] = {}
     try:
         signals = _lane_signals(project, track_id)
@@ -876,7 +894,9 @@ def _source_clock_spans(
     return merge_intervals((float(start), float(end)) for start, end in mapped)
 
 
-def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]:
+def bleed_gate_payload(
+    project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
     """Gate-driving metadata and media revisions without decoding acoustic evidence."""
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
@@ -937,7 +957,7 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
                 ],
             }
         )
-    policy = AnalysisPolicy.from_defaults()
+    policy = AnalysisPolicy.from_defaults(defaults=defaults)
     return {
         "revision": BLEED_GATE_REV,
         "fade_sec": GATE_FADE_SEC,

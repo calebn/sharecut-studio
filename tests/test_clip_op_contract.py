@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import clips_ops, timeline_ops
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
 from podcast_mcp.models import Clip, EditMode, MediaAsset, Track, TrackRole, load_project
@@ -27,9 +28,11 @@ def test_timeline_wrapper_preserves_domain_geometry_and_archives(minimal_project
     domain = project.model_copy(deep=True)
     archived = project.model_copy(deep=True)
     if operation == "trim_clip_edge":
-        apply_trim_geometry(domain, plan_trim(domain, "c1", "out", 7.0, EditMode.RIPPLE))
+        apply_trim_geometry(
+            domain, plan_trim(domain, "c1", "out", 7.0, EditMode.RIPPLE), defaults=load_defaults()
+        )
         plan = plan_trim(archived, "c1", "out", 7.0, EditMode.RIPPLE)
-        summary = timeline_ops._write_trim_clip_edge(archived, plan)
+        summary = timeline_ops._write_trim_clip_edge(archived, plan, defaults=load_defaults())
     else:
         args = (
             ("c1", "c2", 1.0)
@@ -37,7 +40,7 @@ def test_timeline_wrapper_preserves_domain_geometry_and_archives(minimal_project
             else ([{"clip_id": "c2", "timeline_start": 8.0, "track_id": "host"}],)
         )
         getattr(clips_ops, operation)(domain, *args)
-        summary = getattr(timeline_ops, operation)(archived, *args)
+        summary = getattr(timeline_ops, operation)(archived, *args, defaults=load_defaults())
 
     def geometry(clips):
         return [(c.id, c.track_id, c.source_start, c.source_end, c.timeline_start) for c in clips]

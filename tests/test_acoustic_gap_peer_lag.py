@@ -19,12 +19,13 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import numpy as np
 import pytest
 
 from bleed_helpers import DURATION_SEC, RATE, delay, voices, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import build_track_audio_caches
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten import propose_tighten_edits
@@ -309,9 +310,9 @@ def test_the_lag_is_the_one_reconcile_measures_and_is_zero_off_a_measured_path(
     lags = PeerCopyLags(project)
 
     with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
-        assert lags.sec("audra", "caleb") == pytest.approx(0.25, abs=0.02)
-        assert lags.sec("caleb", "audra") == 0.0
-        assert lags.sec("audra", "lana") == 0.0
+        assert lags.sec("audra", "caleb", defaults=load_defaults()) == pytest.approx(0.25, abs=0.02)
+        assert lags.sec("caleb", "audra", defaults=load_defaults()) == 0.0
+        assert lags.sec("audra", "lana", defaults=load_defaults()) == 0.0
 
 
 def test_a_gated_track_is_measured_before_its_transcript_gate(tmp_path: Path) -> None:
@@ -319,10 +320,14 @@ def test_a_gated_track_is_measured_before_its_transcript_gate(tmp_path: Path) ->
     project.tracks[0].transcript_gate = True
 
     with patch("podcast_mcp.engines.audio_audit.build_track_rms_caches") as build:
-        build_reconciliation_caches(project)
+        build_reconciliation_caches(project, defaults=load_defaults())
 
     build.assert_called_once_with(
-        project, before_transcript_gate=True, private_copy=False, unprocessed=True
+        project,
+        before_transcript_gate=True,
+        private_copy=False,
+        unprocessed=True,
+        defaults=ANY,
     )
 
 
@@ -344,6 +349,6 @@ def test_a_worker_inside_a_mutation_measures_a_gated_track_without_the_project_l
         project_state_lock(project),
     ):
         lags = PeerCopyLags(project)
-        lag = pool.submit(lags.sec, "audra", "caleb").result(timeout=30)
+        lag = pool.submit(lags.sec, "audra", "caleb", defaults=load_defaults()).result(timeout=30)
 
     assert lag == pytest.approx(0.25, abs=0.02)

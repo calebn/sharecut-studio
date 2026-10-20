@@ -84,7 +84,7 @@ def test_one_step_cuts_lowers_and_leaves_each_by_its_own_action(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
     assert out["applied"] == {"lower": 1, "leave": 1, "cut": 1}
     assert out["cut_over_speaker"] == 0
@@ -104,7 +104,7 @@ def test_one_step_cuts_lowers_and_leaves_each_by_its_own_action(
 
 def test_a_laugh_nobody_talks_over_is_left(tmp_path, sample_wav, monkeypatch) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: False)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: False)
     out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
     assert out["lowered_to_leave"] == 1
     assert "lower" not in out["applied"]
@@ -141,7 +141,7 @@ def test_lowering_a_pending_remove_uses_the_mute_policy_row(
     service = EditService(ProjectWorkspace.open(path))
     hold = cut_safety.CutScopeHold("laugh", (), "source_geometry")
     monkeypatch.setattr(cut_safety, "complete_effect_placement", lambda *a, **k: hold)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     mute_key = ("source_geometry", "mute")
     ripple_policy = cut_safety.CUT_ACTION_TABLE[("source_geometry", "ripple")]
     mute_policy = cut_safety.CUT_ACTION_TABLE[mute_key]
@@ -165,7 +165,7 @@ def test_lowering_a_pending_remove_uses_the_mute_policy_row(
 
 def test_the_whole_batch_is_one_undo_step(tmp_path, sample_wav, monkeypatch) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     ws = ProjectWorkspace.open(path)
     EditService(ws).apply_suggested_actions()
     after = load_project(Path(path))
@@ -198,7 +198,7 @@ def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     ws = ProjectWorkspace.open(path)
     first = EditService(ws).apply_suggested_actions()
     assert first["applied"] == {"lower": 1, "leave": 1, "cut": 1}
@@ -236,7 +236,7 @@ def test_the_batch_entry_remembers_each_sound_so_a_client_can_list_it(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
 
     sounds = _batch_sounds(path)
@@ -258,7 +258,7 @@ def test_the_batch_entry_lists_a_laugh_nobody_talks_over_as_left(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: False)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: False)
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
 
     assert _batch_sounds(path)["laugh"]["action"] == "leave"
@@ -266,7 +266,7 @@ def test_the_batch_entry_lists_a_laugh_nobody_talks_over_as_left(
 
 def test_a_revised_batch_lists_its_new_actions(tmp_path, sample_wav, monkeypatch) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
         overrides={"um": "leave"}, revise=True
@@ -295,7 +295,7 @@ def test_revise_that_applies_nothing_keeps_the_batch(tmp_path, sample_wav, monke
 
 def test_revise_refuses_once_something_else_changed(tmp_path, sample_wav, monkeypatch) -> None:
     path = _project(tmp_path, sample_wav)
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
     EditService(ProjectWorkspace.open(path)).reject(["manual"])
     with pytest.raises(Exception, match="Nothing to revise"):
@@ -418,7 +418,7 @@ def test_a_lowered_span_beside_a_mute_keeps_the_mute_and_does_not_widen_it(
     proj = load_project(Path(path))
     proj.clips[0].mute_regions = [ClipMuteRegion(start_s=2.8, end_s=3.1)]
     save_project(proj, Path(path))
-    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
 
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["laugh"])
 

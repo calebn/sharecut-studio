@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.config import join_micro_fade_ms, load_defaults
+from podcast_mcp.config import EffectiveConfig, join_micro_fade_ms
 from podcast_mcp.edits.audio_cache import JUMP_SAMPLE_RATE, TrackAudioCache, track_level_profile
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
@@ -28,9 +28,8 @@ class CutRisk:
         return self.score >= 1.0
 
 
-def _heuristics(defaults: dict[str, Any] | None) -> dict[str, float | int]:
-    cfg = defaults or load_defaults()
-    h = cfg.get("analysis", {}).get("heuristics", {})
+def _heuristics(defaults: EffectiveConfig) -> dict[str, float | int]:
+    h = defaults.get("analysis", {}).get("heuristics", {})
     return {
         "boundary_jump_db": float(h.get("boundary_jump_db", 12.0)),
         "min_fade_ms": int(h.get("min_fade_ms", 10)),
@@ -38,9 +37,8 @@ def _heuristics(defaults: dict[str, Any] | None) -> dict[str, float | int]:
     }
 
 
-def _tighten_cfg(defaults: dict[str, Any] | None) -> dict[str, Any]:
-    cfg = defaults or load_defaults()
-    return cfg.get("tighten", {})
+def _tighten_cfg(defaults: EffectiveConfig) -> dict[str, Any]:
+    return defaults.get("tighten", {})
 
 
 def word_margin_violation_sec(
@@ -51,8 +49,9 @@ def word_margin_violation_sec(
     *,
     config: InaudibleCutConfig | None = None,
     word_index: CutWordIndex | None = None,
+    defaults: EffectiveConfig,
 ) -> float:
-    cfg = config or InaudibleCutConfig.from_defaults()
+    cfg = config or InaudibleCutConfig.from_defaults(defaults=defaults)
     margin = cfg.min_word_margin_ms / 1000.0
     if margin <= 0:
         return 0.0
@@ -120,7 +119,7 @@ def recommend_cut_fade_ms(
     end: float,
     *,
     cut_kind: str = "filler",
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     cache: JumpCache | None = None,
     audio_cache: TrackAudioCache | None = None,
 ) -> int:
@@ -166,7 +165,7 @@ def _resume_edge_rms_db(
     return measure_window_rms_db(path, t0, t1, floor_db=DIGITAL_SILENCE_DB)
 
 
-def post_pad_fade_in_bounds_ms(defaults: dict[str, Any] | None) -> tuple[int, int]:
+def post_pad_fade_in_bounds_ms(defaults: EffectiveConfig) -> tuple[int, int]:
     tighten = _tighten_cfg(defaults)
     min_ms = int(tighten.get("filler_post_pad_fade_in_min_ms", 15))
     max_ms = int(tighten.get("filler_post_pad_fade_in_max_ms", 120))
@@ -174,7 +173,7 @@ def post_pad_fade_in_bounds_ms(defaults: dict[str, Any] | None) -> tuple[int, in
 
 
 def _fit_before_burst_ms(
-    fade_ms: int, resume_sec: float, burst_sec: float, defaults: dict[str, Any] | None
+    fade_ms: int, resume_sec: float, burst_sec: float, defaults: EffectiveConfig
 ) -> int:
     """``fade_ms`` capped so a ramp starting at ``resume_sec`` ends by ``burst_sec``."""
     headroom_ms = int((burst_sec - resume_sec) * 1000.0 + 1e-6)
@@ -187,7 +186,7 @@ def recommend_post_pad_fade_in_ms(
     source_resume_sec: float,
     *,
     next_burst_sec: float | None = None,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     audio_cache: TrackAudioCache | None = None,
 ) -> int:
     """Silence/room-tone pad → speech: fade length from resume-edge energy.
@@ -251,7 +250,7 @@ def recommend_prev_word_lead_out_ms(
     track_id: str,
     prev_end_sec: float,
     *,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     audio_cache: TrackAudioCache | None = None,
     max_available_sec: float | None = None,
 ) -> int:
@@ -311,7 +310,7 @@ def assess_cut_risk(
     *,
     filler_confidence: float | None = None,
     boundary_confidence: float | None = None,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     cache: JumpCache | None = None,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
@@ -330,7 +329,7 @@ def assess_cut_risk(
         reasons.append(f"low boundary confidence ({boundary_confidence:.2f})")
 
     margin_violation = word_margin_violation_sec(
-        project, track_id, start, end, word_index=word_index
+        project, track_id, start, end, word_index=word_index, defaults=defaults
     )
     if margin_violation > 0:
         score += min(0.35, margin_violation * 20.0)
@@ -369,7 +368,7 @@ def optimize_and_assess(
     end: float,
     *,
     filler_confidence: float | None = None,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     force_enabled: bool | None = None,
     cache: JumpCache | None = None,
     audio_cache: TrackAudioCache | None = None,
@@ -387,6 +386,7 @@ def optimize_and_assess(
         force_enabled=force_enabled,
         audio_cache=audio_cache,
         word_index=word_index,
+        defaults=defaults,
     )
     risk = assess_cut_risk(
         project,

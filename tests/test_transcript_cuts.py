@@ -4,6 +4,7 @@ import wave
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import apply_edit_plan, approve_edits
 from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.transcript_cuts import (
@@ -100,16 +101,32 @@ def _project_with_transcript(tmp_path):
 
 def test_search_transcript_finds_coffee(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    matches = search_transcript(proj, "coffee")
+    matches = search_transcript(proj, "coffee", defaults=load_defaults())
     assert len(matches) >= 1
     assert any("coffee" in m.text.lower() for m in matches)
 
 
 def test_cut_time_range_and_coalesce(tmp_path):
     proj = _project_with_media(tmp_path)
-    cut_time_range(proj, "host", 1.0, 2.0, review_required=True, use_inaudible_opt=False)
-    cut_time_range(proj, "host", 1.5, 2.5, review_required=True, use_inaudible_opt=False)
-    merged = coalesce_edits(proj)
+    cut_time_range(
+        proj,
+        "host",
+        1.0,
+        2.0,
+        review_required=True,
+        use_inaudible_opt=False,
+        defaults=load_defaults(),
+    )
+    cut_time_range(
+        proj,
+        "host",
+        1.5,
+        2.5,
+        review_required=True,
+        use_inaudible_opt=False,
+        defaults=load_defaults(),
+    )
+    merged = coalesce_edits(proj, defaults=load_defaults())
     assert merged >= 0
     assert len(proj.edit_decisions) == 1
     assert proj.edit_decisions[0].end == 2.5
@@ -121,7 +138,7 @@ def test_coalesce_keeps_the_next_burst_of_the_cut_that_ends_last(tmp_path):
     _pending(proj, "host", 1.9, 2.5, replace_gap_sec=0.6, next_burst_sec=2.51)
     _pending(proj, "host", 2.0, 2.2, next_burst_sec=2.21)
 
-    assert coalesce_edits(proj) == 2
+    assert coalesce_edits(proj, defaults=load_defaults()) == 2
     (merged,) = proj.edit_decisions
     assert (merged.end, merged.next_burst_sec) == (2.5, 2.51)
 
@@ -153,7 +170,7 @@ def test_coalesce_repaces_the_merged_cut_from_its_final_span(tmp_path):
         proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
     )
 
-    assert coalesce_edits(proj, track_id="host") == 1
+    assert coalesce_edits(proj, track_id="host", defaults=load_defaults()) == 1
 
     (merged,) = proj.edit_decisions
     assert (merged.start, merged.end) == (1.0, 1.7)
@@ -193,7 +210,7 @@ def test_coalesce_caps_a_long_merged_hesitation_at_the_pad_maximum(tmp_path):
         proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
     )
 
-    coalesce_edits(proj, track_id="host")
+    coalesce_edits(proj, track_id="host", defaults=load_defaults())
 
     (merged,) = proj.edit_decisions
     # 2.1 s of air is past filler_room_tone_max_expand_sec, so the 0.7 s span sets the pad.
@@ -207,7 +224,7 @@ def test_coalesce_paces_the_merged_pad_when_only_one_cut_was_padded(tmp_path):
         proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
     )
 
-    coalesce_edits(proj, track_id="host")
+    coalesce_edits(proj, track_id="host", defaults=load_defaults())
 
     (merged,) = proj.edit_decisions
     assert merged.replace_gap_sec == pytest.approx(0.765)
@@ -222,7 +239,7 @@ def test_coalesce_keeps_a_pause_shortfall_pad_apart_from_the_filler_pad(tmp_path
         proj, "host", 2.35, 2.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
     )
 
-    assert coalesce_edits(proj, track_id="host") == 0
+    assert coalesce_edits(proj, track_id="host", defaults=load_defaults()) == 0
 
     # The pause's 0.90 s makes up for a retained stretch that prior ripples shortened. A
     # pause trim is its own proposal, applied or reviewed, so the filler's pad stays its own.
@@ -236,10 +253,24 @@ def test_adjacent_nl_cuts_merge_into_one_paced_cut(tmp_path):
     proj = _hesitation_project(tmp_path)
 
     cut_time_range(
-        proj, "host", 1.0, 1.3, reason="nl:um", review_required=False, use_inaudible_opt=False
+        proj,
+        "host",
+        1.0,
+        1.3,
+        reason="nl:um",
+        review_required=False,
+        use_inaudible_opt=False,
+        defaults=load_defaults(),
     )
     cut_time_range(
-        proj, "host", 1.3, 1.7, reason="nl:uh", review_required=False, use_inaudible_opt=False
+        proj,
+        "host",
+        1.3,
+        1.7,
+        reason="nl:uh",
+        review_required=False,
+        use_inaudible_opt=False,
+        defaults=load_defaults(),
     )
 
     (merged,) = proj.edit_decisions
@@ -254,7 +285,7 @@ def test_coalesce_leaves_unpadded_cuts_unpadded(tmp_path):
     _pending(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
     _pending(proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False)
 
-    coalesce_edits(proj, track_id="host")
+    coalesce_edits(proj, track_id="host", defaults=load_defaults())
 
     (merged,) = proj.edit_decisions
     assert merged.replace_gap_sec is None
@@ -272,7 +303,7 @@ def test_coalesce_keeps_pending_edits_of_different_authors_apart(tmp_path):
     ):
         _pending(proj, "host", start, end, reason=reason, author=author)
 
-    assert coalesce_edits(proj) == 2
+    assert coalesce_edits(proj, defaults=load_defaults()) == 2
     assert sorted((e.start, e.end, e.author) for e in proj.edit_decisions) == [
         (1.0, 1.5, None),
         (1.5, 2.0, "share:ann"),
@@ -297,7 +328,7 @@ def test_coalesce_preserves_each_boundary_mode(tmp_path, modes, expected_merges)
     left = _pending(proj, "host", 1.0, 2.0, boundary_mode=modes[0])
     right = _pending(proj, "host", 1.9, 2.5, boundary_mode=modes[1])
 
-    assert coalesce_edits(proj) == expected_merges
+    assert coalesce_edits(proj, defaults=load_defaults()) == expected_merges
     if expected_merges:
         assert [(e.start, e.end, e.boundary_mode) for e in proj.edit_decisions] == [
             (1.0, 2.5, modes[0])
@@ -312,7 +343,7 @@ def test_coalesce_preserves_each_boundary_mode(tmp_path, modes, expected_merges)
 
 def test_cut_text_match(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    cuts = cut_text_match(proj, "coffee", review_required=True)
+    cuts = cut_text_match(proj, "coffee", review_required=True, defaults=load_defaults())
     assert len(cuts) == 1
     assert cuts[0].reason.startswith("nl:match:")
 
@@ -327,6 +358,7 @@ def test_apply_edit_plan(tmp_path):
             {"track_id": "host", "start": 1.5, "end": 2.5, "reason": "agent:test", "applied": True},
         ],
         use_inaudible_opt=False,
+        defaults=load_defaults(),
     )
     assert len(proj.edit_decisions) == 1
     assert proj.edit_decisions[0].review_required is True
@@ -365,7 +397,7 @@ def test_coalesce_keeps_other_types(tmp_path):
             end=3,
         ),
     ]
-    coalesce_edits(proj)
+    coalesce_edits(proj, defaults=load_defaults())
     removes = [e for e in proj.edit_decisions if e.type == EditDecisionType.REMOVE]
     assert len(removes) == 1
     assert len(proj.edit_decisions) == 2
@@ -373,19 +405,19 @@ def test_coalesce_keeps_other_types(tmp_path):
 
 def test_search_transcript_empty_query(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    assert search_transcript(proj, "   ") == []
+    assert search_transcript(proj, "   ", defaults=load_defaults()) == []
 
 
 def test_search_transcript_track_and_speaker_filters(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    assert search_transcript(proj, "coffee", track_id="guest") == []
-    assert search_transcript(proj, "coffee", speaker="Guest") == []
+    assert search_transcript(proj, "coffee", track_id="guest", defaults=load_defaults()) == []
+    assert search_transcript(proj, "coffee", speaker="Guest", defaults=load_defaults()) == []
 
 
 def test_ensure_combined_transcript_builds(tmp_path):
     proj = _project_with_transcript(tmp_path)
     proj.combined_transcript = None
-    matches = search_transcript(proj, "coffee")
+    matches = search_transcript(proj, "coffee", defaults=load_defaults())
     assert matches
     assert proj.combined_transcript is not None
 
@@ -395,14 +427,14 @@ def test_search_transcript_skips_suppressed_words(tmp_path):
     proj.transcripts[0].words.append(
         TranscriptWord(text="secret", start=2.0, end=2.5, suppressed=True)
     )
-    assert search_transcript(proj, "secret") == []
-    assert search_transcript(proj, "secret", include_suppressed=True)
+    assert search_transcript(proj, "secret", defaults=load_defaults()) == []
+    assert search_transcript(proj, "secret", include_suppressed=True, defaults=load_defaults())
 
 
 def test_search_transcript_empty_words_track(tmp_path):
     proj = _project_with_transcript(tmp_path)
     proj.transcripts.append(Transcript(track_id="guest", words=[]))
-    matches = search_transcript(proj, "coffee")
+    matches = search_transcript(proj, "coffee", defaults=load_defaults())
     assert matches
 
 
@@ -444,6 +476,7 @@ def test_append_remove_decision_stores_cut_metadata(tmp_path):
         reason="test",
         cut_confidence=0.85,
         boundary_mode="vocal_transcript_guided",
+        defaults=load_defaults(),
     )
     assert decision.cut_confidence == 0.85
     assert decision.boundary_mode == "vocal_transcript_guided"
@@ -451,7 +484,9 @@ def test_append_remove_decision_stores_cut_metadata(tmp_path):
 
 def test_append_remove_decision(tmp_path):
     proj = _project_with_media(tmp_path)
-    decision = append_remove_decision(proj, "host", 1.0, 2.0, reason="test")
+    decision = append_remove_decision(
+        proj, "host", 1.0, 2.0, reason="test", defaults=load_defaults()
+    )
     assert decision.reason == "test"
     assert decision.applied is False
     assert len(proj.edit_decisions) == 1
@@ -460,20 +495,20 @@ def test_append_remove_decision(tmp_path):
 def test_append_remove_decision_invalid_range(tmp_path):
     proj = _project_with_media(tmp_path)
     with pytest.raises(ValueError, match="end must be greater"):
-        append_remove_decision(proj, "host", 2.0, 1.0)
+        append_remove_decision(proj, "host", 2.0, 1.0, defaults=load_defaults())
 
 
 def test_add_remove_decision_invalid_range(tmp_path):
     proj = _project_with_media(tmp_path)
     with pytest.raises(ValueError, match="end must be greater"):
-        cut_time_range(proj, "host", 2.0, 1.0)
+        cut_time_range(proj, "host", 2.0, 1.0, defaults=load_defaults())
 
 
 def test_add_remove_decision_stores_cut_metadata(tmp_path, monkeypatch):
     from podcast_mcp.edits import transcript_cuts as tc
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
-    def _fake_opt(project, track_id, start, end, force_enabled=None):
+    def _fake_opt(project, track_id, start, end, force_enabled=None, **_kw):
         return OptimizedCutRange(
             start=start + 0.01,
             end=end - 0.01,
@@ -486,7 +521,9 @@ def test_add_remove_decision_stores_cut_metadata(tmp_path, monkeypatch):
 
     monkeypatch.setattr(tc, "optimize_source_cut_range", _fake_opt)
     proj = _project_with_media(tmp_path)
-    decision = tc.add_remove_decision(proj, "host", 1.0, 2.0, reason="nl:test")
+    decision = tc.add_remove_decision(
+        proj, "host", 1.0, 2.0, reason="nl:test", defaults=load_defaults()
+    )
     assert decision.start == pytest.approx(1.01)
     assert decision.end == pytest.approx(1.99)
     assert decision.cut_confidence == 0.91
@@ -507,7 +544,7 @@ def test_trailing_energy_extends_when_next_word_overlaps(tmp_path, monkeypatch):
             allow_trailing_past_end=True,
         )
 
-    def _fake_opt(project, track_id, start, end, force_enabled=None):
+    def _fake_opt(project, track_id, start, end, force_enabled=None, **_kw):
         return OptimizedCutRange(
             start=1.0,
             end=1.62,
@@ -525,7 +562,9 @@ def test_trailing_energy_extends_when_next_word_overlaps(tmp_path, monkeypatch):
         lambda *a, **k: ResolvedCutScope("session_clear", None),
     )
     proj = _project_with_media(tmp_path)
-    decision = tc.add_remove_decision(proj, "host", 1.0, 1.4, reason="nl:words")
+    decision = tc.add_remove_decision(
+        proj, "host", 1.0, 1.4, reason="nl:words", defaults=load_defaults()
+    )
     assert decision.end == pytest.approx(1.62)
     # The pad is paced from the span shipped: 0.85 x 0.62 s.
     assert decision.replace_gap_sec == pytest.approx(0.527)
@@ -545,7 +584,7 @@ def test_trailing_energy_clamped_when_next_word_has_lead_in(tmp_path, monkeypatc
             allow_trailing_past_end=False,
         )
 
-    def _fake_opt(project, track_id, start, end, force_enabled=None):
+    def _fake_opt(project, track_id, start, end, force_enabled=None, **_kw):
         return OptimizedCutRange(
             start=1.0,
             end=1.62,
@@ -563,7 +602,9 @@ def test_trailing_energy_clamped_when_next_word_has_lead_in(tmp_path, monkeypatc
         lambda *a, **k: ResolvedCutScope("session_clear", None),
     )
     proj = _project_with_media(tmp_path)
-    decision = tc.add_remove_decision(proj, "host", 1.0, 1.4, reason="nl:words")
+    decision = tc.add_remove_decision(
+        proj, "host", 1.0, 1.4, reason="nl:words", defaults=load_defaults()
+    )
     assert decision.end == pytest.approx(1.50)
     assert decision.replace_gap_sec == pytest.approx(0.425)
 
@@ -586,7 +627,7 @@ def test_coalesce_edits_track_filter(tmp_path):
             end=1,
         ),
     ]
-    merged = coalesce_edits(proj, track_id="host")
+    merged = coalesce_edits(proj, track_id="host", defaults=load_defaults())
     assert merged == 0
     assert len(proj.edit_decisions) == 2
 
@@ -609,7 +650,7 @@ def test_coalesce_edits_non_adjacent(tmp_path):
             end=3,
         ),
     ]
-    merged = coalesce_edits(proj)
+    merged = coalesce_edits(proj, defaults=load_defaults())
     assert merged == 0
     assert len(proj.edit_decisions) == 2
 
@@ -653,7 +694,7 @@ def test_coalesce_keeps_reviewable_restart_and_neighbors_separate(tmp_path):
         ),
     ]
 
-    assert coalesce_edits(proj) == 0
+    assert coalesce_edits(proj, defaults=load_defaults()) == 0
     assert [(edit.id, edit.reason) for edit in proj.edit_decisions] == [
         ("filler", "filler:um"),
         ("restart", "restart:partial:w"),
@@ -664,19 +705,19 @@ def test_coalesce_keeps_reviewable_restart_and_neighbors_separate(tmp_path):
 
 def test_cut_text_match_no_matches(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    assert cut_text_match(proj, "nonexistent phrase") == []
+    assert cut_text_match(proj, "nonexistent phrase", defaults=load_defaults()) == []
 
 
 def test_cut_utterance(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    decision = cut_utterance(proj, 0, review_required=False)
+    decision = cut_utterance(proj, 0, review_required=False, defaults=load_defaults())
     assert decision.track_id == "host"
     assert decision.reason.startswith("nl:utterance:")
 
 
 def test_cut_words(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    decision = cut_words(proj, "host", 3, 4, review_required=False)
+    decision = cut_words(proj, "host", 3, 4, review_required=False, defaults=load_defaults())
     assert decision.track_id == "host"
     assert decision.reason == "nl:words"
 
@@ -684,7 +725,7 @@ def test_cut_words(tmp_path):
 def test_cut_words_no_transcript(tmp_path):
     proj = _project_with_media(tmp_path)
     with pytest.raises(ValueError, match="No transcript"):
-        cut_words(proj, "host", 0, 1)
+        cut_words(proj, "host", 0, 1, defaults=load_defaults())
 
 
 def test_transcript_cuts_resolve_source_and_placement(tmp_path):
@@ -719,7 +760,9 @@ def test_transcript_cuts_resolve_source_and_placement(tmp_path):
         SourceRecording(id="A", path="raw/take-a.wav"),
         SourceRecording(id="B", path="raw/take-b.wav"),
     ]
-    by_word = cut_words(proj, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    by_word = cut_words(
+        proj, "host", 0, 0, source_id="B", use_inaudible_opt=False, defaults=load_defaults()
+    )
     assert by_word.exact_range is None
     assert by_word.source_id == "B"
     assert by_word.source_timeline_span.start == 10
@@ -735,7 +778,7 @@ def test_transcript_cuts_resolve_source_and_placement(tmp_path):
             ),
         ]
     )
-    by_utterance = cut_utterance(proj, 1, use_inaudible_opt=False)
+    by_utterance = cut_utterance(proj, 1, use_inaudible_opt=False, defaults=load_defaults())
     assert by_utterance.source_id == "B"
     assert by_utterance.source_timeline_span.start == 10
     saved = load_project(save_project(proj, tmp_path / "episode.project.json"))
@@ -782,7 +825,9 @@ def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monk
         lambda *args, **kwargs: ResolvedCutScope("session_clear"),
     )
 
-    decision = cut_words(proj, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    decision = cut_words(
+        proj, "host", 0, 0, source_id="B", use_inaudible_opt=False, defaults=load_defaults()
+    )
 
     assert decision.source_id == "B"
     assert decision.source_timeline_span.start == 20.1
@@ -794,7 +839,7 @@ def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monk
     assert persisted.source_timeline_span.start == 20.1
     assert persisted.source_timeline_span.end == pytest.approx(20.4)
 
-    assert approve_edits(proj, [decision.id]) == 1
+    assert approve_edits(proj, [decision.id], defaults=load_defaults()) == 1
 
     assert proj.clips[0].model_dump(mode="json") == a_before
     b_segments = sorted(
@@ -856,7 +901,7 @@ def test_transcript_cut_refuses_overlapping_unselected_source_without_mutation(
     )
 
     with pytest.raises(ScopeChangedAtApproval, match="selected audio"):
-        cut_words(proj, "host", 0, 0, source_id="B")
+        cut_words(proj, "host", 0, 0, source_id="B", defaults=load_defaults())
 
     assert proj.model_dump(mode="json") == before
 
@@ -881,11 +926,11 @@ def test_transcript_cut_holds_if_selected_source_moves_before_approval(tmp_path)
             track_id="host", source_id="B", words=[TranscriptWord(text="beta", start=0.1, end=0.4)]
         )
     ]
-    decision = cut_words(proj, "host", 0, 0, source_id="B")
+    decision = cut_words(proj, "host", 0, 0, source_id="B", defaults=load_defaults())
     proj.clips[0].timeline_start = 20
 
     with pytest.raises(ScopeChangedAtApproval, match="selected audio no longer has"):
-        approve_edits(proj, [decision.id])
+        approve_edits(proj, [decision.id], defaults=load_defaults())
 
     assert [(clip.timeline_start, clip.source_start, clip.source_end) for clip in proj.clips] == [
         (20, 0, 10)
@@ -922,7 +967,7 @@ def test_combined_projection_rebuilds_from_saved_current_source_transcripts(tmp_
     path = save_project(proj, tmp_path / "episode.project.json")
 
     reloaded = load_project(path)
-    rebuilt = ensure_combined_transcript(reloaded)
+    rebuilt = ensure_combined_transcript(reloaded, defaults=load_defaults())
     assert [(u.source_id, u.text) for u in rebuilt.utterances] == [("A", "alpha")]
     edited = reloaded.transcript_for_source("host", "B")
     assert edited is not None
@@ -937,13 +982,13 @@ def test_combined_projection_rebuilds_from_saved_current_source_transcripts(tmp_
         .model_copy(update={"text": "beta changed", "suppressed": False})
     )
     reloaded.transcripts[1].user_edited = True
-    current = ensure_combined_transcript(reloaded)
+    current = ensure_combined_transcript(reloaded, defaults=load_defaults())
     assert [u.text for u in current.utterances] == ["alpha", "beta changed"]
 
 
 def test_format_transcript_timestamps(tmp_path):
     proj = _project_with_transcript(tmp_path)
-    text = format_transcript_timestamps(proj)
+    text = format_transcript_timestamps(proj, defaults=load_defaults())
     assert "[0]" in text
     assert "Host" in text
     assert "coffee" in text
@@ -962,7 +1007,7 @@ def test_coalesce_keeps_a_pause_trim_waiting_for_review_apart_from_the_filler_be
     _pending(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
     _pending(proj, "host", 1.3, 2.4, reason="pause:1.10s", review_required=True)
 
-    assert coalesce_edits(proj, track_id="host") == 0
+    assert coalesce_edits(proj, track_id="host", defaults=load_defaults()) == 0
     assert _spans(proj) == [("filler", 1.0, 1.3, False), ("pause", 1.3, 2.4, True)]
 
 
@@ -974,7 +1019,7 @@ def test_coalesce_keeps_pause_trims_apart_from_each_other_and_from_cuts_waiting_
     _pending(proj, "host", 1.3, 1.6, reason="pause:0.3s", review_required=True)
     _pending(proj, "host", 1.6, 1.9, reason="filler:um", review_required=True)
 
-    assert coalesce_edits(proj, track_id="host") == 0
+    assert coalesce_edits(proj, track_id="host", defaults=load_defaults()) == 0
     assert _spans(proj) == [
         ("filler", 1.6, 1.9, True),
         ("pause", 1.0, 1.3, True),
@@ -996,7 +1041,7 @@ def test_coalesce_never_chains_a_review_filler_a_pause_and_an_auto_filler_into_o
     _pending(proj, "host", 1.3, 2.4, reason="pause:1.10s:air_edges", review_required=True)
     _pending(proj, "host", 2.4, 2.6, reason="filler:uh", review_required=False)
 
-    assert coalesce_edits(proj, track_id="host") == 0
+    assert coalesce_edits(proj, track_id="host", defaults=load_defaults()) == 0
     assert _labelled(proj) == [
         (1.0, 1.3, "filler:um:risky", True, "session"),
         (1.3, 2.4, "pause:1.10s:air_edges", True, "session"),
@@ -1016,7 +1061,7 @@ def test_coalesce_never_absorbs_a_session_pause_into_a_cut_that_is_not_its_own(
     first.scope = scope
     _pending(proj, "host", 1.3, 2.4, reason="pause:1.10s", review_required=True)
 
-    assert coalesce_edits(proj, track_id="host") == 0
+    assert coalesce_edits(proj, track_id="host", defaults=load_defaults()) == 0
     assert _labelled(proj) == [
         (1.0, 1.3, reason, True, scope),
         (1.3, 2.4, "pause:1.10s", True, "session"),

@@ -296,7 +296,7 @@ def test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied(
     (decision,) = proposal.decisions
     assert decision.review_required is True
     assert "other_speaking:guest" in decision.reason
-    assert apply_tighten_decisions(result) == 0
+    assert apply_tighten_decisions(result, defaults=load_defaults()) == 0
     assert decision.applied is False
     assert [(d.type, d.scope, d.review_required) for d in result.edit_decisions if d.applied] == []
 

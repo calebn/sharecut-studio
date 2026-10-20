@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import clips_for_track, is_splice, splice_joins
 from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.join_speech import (
@@ -278,7 +279,7 @@ def test_audition_context_flags_the_clipped_onset_with_a_concrete_fix(tmp_path: 
         [(0.0, 0.5), (1.34, 3.0)],
         [TranscriptWord(text="Um,", start=1.49, end=1.9)],
     )
-    ctx = build_audition_context(project, 0.0, 1.5, include_prosody=False)
+    ctx = build_audition_context(project, 0.0, 1.5, include_prosody=False, defaults=load_defaults())
     (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
     assert hyp["tracks"] == ["host"]
     assert hyp["severity"] == "warn"
@@ -333,7 +334,7 @@ def test_track_local_edge_gets_a_single_clip_fix(tmp_path: Path) -> None:
     project.timeline.clips.append(
         Clip(id="p0", track_id="peer", source_start=0.0, source_end=3.0, timeline_start=0.0)
     )
-    ctx = build_audition_context(project, 0.0, 1.5, include_prosody=False)
+    ctx = build_audition_context(project, 0.0, 1.5, include_prosody=False, defaults=load_defaults())
     (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
     assert hyp["evidence"]["session_join"] is False
     assert hyp["evidence"]["fix"]["mode"] == "gap"
@@ -349,7 +350,9 @@ def test_audition_context_skips_the_join_check_without_dsp(tmp_path: Path) -> No
     from podcast_mcp.edits.audition_context import build_audition_context
 
     project = _project(tmp_path, _voice(3.0, 1.0, 2.2), [(0.0, 0.5), (1.34, 3.0)])
-    ctx = build_audition_context(project, 0.0, 1.5, include_dsp=False, include_prosody=False)
+    ctx = build_audition_context(
+        project, 0.0, 1.5, include_dsp=False, include_prosody=False, defaults=load_defaults()
+    )
     assert not [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
 
 

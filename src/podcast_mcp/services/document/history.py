@@ -132,9 +132,9 @@ class HistoryService:
         its cursor is the ``after merging concurrent edits`` entry, not the move's target.
         """
         with self.ws.transaction() as project:
-            before = AudioStateBefore.capture(project)
+            before = AudioStateBefore.capture(project, defaults=self.ws.effective_config())
             move(project)
-            mark_history_move_stale(project, before)
+            mark_history_move_stale(project, before, defaults=self.ws.effective_config())
             self.ws.save()
         if not rerender:
             return self.status()
@@ -142,8 +142,10 @@ class HistoryService:
         # saved file) and uses that file, stale marks included, as the merge base.
         project = self.ws.checkpoint()
         try:
-            rerender_preview(project)
-            preview = json.loads(render_preview_result(project, rerender=False))
+            rerender_preview(project, defaults=self.ws.effective_config())
+            preview = json.loads(
+                render_preview_result(project, rerender=False, defaults=self.ws.effective_config())
+            )
         except Exception as exc:
             # The move is saved; drop the render's partial in-memory state (and the
             # checkpoint) so a reused workspace matches the file.

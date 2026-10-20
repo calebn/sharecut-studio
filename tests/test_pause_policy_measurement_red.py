@@ -14,6 +14,7 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import room_tone
 from podcast_mcp.edits.room_tone import room_tone_span
 from podcast_mcp.edits.timeline_ops import fill_with_room_tone, insert_room_tone_pad
@@ -171,7 +172,7 @@ def test_real_own_sample_tiles_point25_point25_point10_with_only_outer_fades(tmp
         Clip(id="right", track_id="host", source_start=2, source_end=6, timeline_start=1),
     ]
 
-    insert_room_tone_pad(result, 1, 0.6, sample_duration_sec=0.25)
+    insert_room_tone_pad(result, 1, 0.6, sample_duration_sec=0.25, defaults=load_defaults())
 
     pads = sorted(
         (c for c in result.clips if c.id not in {"left", "right"}), key=lambda c: c.timeline_start
@@ -192,7 +193,7 @@ def test_actual_render_plays_the_bound_own_sample_inside_each_literal_tile(tmp_p
         Clip(id="left", track_id="host", source_start=0, source_end=1, timeline_start=0),
         Clip(id="right", track_id="host", source_start=2, source_end=6, timeline_start=1),
     ]
-    insert_room_tone_pad(result, 1, 0.6, sample_duration_sec=0.25)
+    insert_room_tone_pad(result, 1, 0.6, sample_duration_sec=0.25, defaults=load_defaults())
 
     rendered = render_track_from_timeline(
         result, result.track_by_id("host"), tmp_path / "bound.wav", {}
@@ -219,7 +220,7 @@ def test_unreadable_registered_render_source_falls_back_to_actual_own_air(tmp_pa
         Clip(id="right", track_id="host", source_start=2, source_end=6, timeline_start=1),
     ]
 
-    insert_room_tone_pad(result, 1, 0.3)
+    insert_room_tone_pad(result, 1, 0.3, defaults=load_defaults())
 
     pads = [c for c in result.clips if c.id not in {"left", "right"}]
     assert len(pads) == 1
@@ -237,7 +238,7 @@ def test_manual_gap_fill_keeps_registered_bed_tiling_and_outer_fades(tmp_path, m
         Clip(id="right", track_id="host", source_start=2, source_end=6, timeline_start=1.6),
     ]
 
-    fill_with_room_tone(result, "host")
+    fill_with_room_tone(result, "host", defaults=load_defaults())
 
     pads = sorted(
         (c for c in result.clips if c.source_id == "room-tone-host"), key=lambda c: c.timeline_start

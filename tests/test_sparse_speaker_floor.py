@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -96,7 +97,7 @@ def _words(bursts: tuple[tuple[float, float], ...]) -> list[TranscriptWord]:
 def test_words_on_room_tone_are_inaudible(tmp_path: Path, speech_share: float, room_db: float):
     audio, bursts = _scene(speech_share, room_db)
     project = _project(tmp_path, audio, _words(bursts))
-    rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+    rows = compute_word_audibility_map(project, policy=AnalysisPolicy(), defaults=load_defaults())
     verdicts = {r["text"]: r["audibility_status"] for r in rows}
     expected = {f"real{i}": "audible" for i in range(len(bursts))}
     expected |= {"ghost0": "inaudible", "ghost1": "inaudible"}

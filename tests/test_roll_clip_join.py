@@ -8,6 +8,7 @@ from mcp.client import Client
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import roll_clip_join
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
@@ -206,7 +207,9 @@ def test_document_roll_clip_join(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _three_clips(ws)
     revision = boundary_context(
-        ws.project, RollBoundaryTarget(left_clip_id="c1", right_clip_id="c2")
+        ws.project,
+        RollBoundaryTarget(left_clip_id="c1", right_clip_id="c2"),
+        defaults=load_defaults(),
     ).token
     svc = DocumentSyncService.open(minimal_project)
     out = svc.submit(
@@ -314,7 +317,7 @@ def test_boundary_context_across_a_gap_raises_the_coded_refusal(minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     _gapped_pair(ws)
     with pytest.raises(CodedValueError) as refused:
-        boundary_context(ws.project, _gap_roll_target())
+        boundary_context(ws.project, _gap_roll_target(), defaults=load_defaults())
     assert refused.value.code == "roll_needs_abutting_clips"
     assert str(refused.value) == ROLL_GAP_MESSAGE
 

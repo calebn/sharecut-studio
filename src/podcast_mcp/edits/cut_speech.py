@@ -14,7 +14,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ripple import RippleRemoval, ripple_track_ids
 from podcast_mcp.edits.speech_energy_guard import (
@@ -150,6 +150,7 @@ def _own_sound(
     cfg: dict[str, Any],
     *,
     timeline_caches: TrackRmsCacheSet | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, list[RangeInterval]]:
     """Windows where a track without words there speaks with its own sound.
 
@@ -165,7 +166,9 @@ def _own_sound(
     ]
     caches = timeline_caches
     if caches is None and len(jobs) > _WINDOW_READS_MAX:
-        caches = build_track_rms_caches(project, track_ids=scope, unprocessed=True)
+        caches = build_track_rms_caches(
+            project, track_ids=scope, unprocessed=True, defaults=defaults
+        )
     found: dict[str, list[tuple[float, float]]] = {}
     for window, owners, tid in jobs:
         levels = measure_peer_speech(
@@ -195,7 +198,7 @@ def assess_cut_speech(
     removal: RippleRemoval,
     *,
     also_chosen: Sequence[SourceExtent] = (),
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
     timeline_caches: TrackRmsCacheSet | None = None,
 ) -> CutSpeech | None:
     """Speech ``removal`` cuts outside what it selected, or ``None`` when it cuts none.
@@ -203,10 +206,9 @@ def assess_cut_speech(
     ``also_chosen`` is source time other edits in the same approval cut, so the
     speech there is chosen too.
     """
-    cfg = defaults if defaults is not None else load_defaults()
-    min_overlap = guard_min_overlap_sec(cfg)
+    min_overlap = guard_min_overlap_sec(defaults)
     scope = ripple_track_ids(project, removal.edited_track_ids)
-    guard_on = speech_energy_guard_enabled(cfg)
+    guard_on = speech_energy_guard_enabled(defaults)
     words: dict[str, list[CutSpeechWord]] = {}
     sound: dict[str, list[RangeInterval]] = {}
     unlabeled: list[tuple[str, list[tuple[float, float]]]] = []
@@ -220,14 +222,28 @@ def assess_cut_speech(
             if not parts:
                 continue
             found = speech_words_in(
-                project, tid, parts, min_overlap, voiced=guard_on, caches=timeline_caches
+                project,
+                tid,
+                parts,
+                min_overlap,
+                voiced=guard_on,
+                caches=timeline_caches,
+                defaults=defaults,
             )
             if found:
                 words.setdefault(tid, []).extend(found)
             else:
                 unlabeled.append((tid, parts))
     if unlabeled and guard_on:
-        sound = _own_sound(project, removal, unlabeled, scope, cfg, timeline_caches=timeline_caches)
+        sound = _own_sound(
+            project,
+            removal,
+            unlabeled,
+            scope,
+            defaults,
+            timeline_caches=timeline_caches,
+            defaults=defaults,
+        )
     tracks = [
         CutSpeechTrack(
             track_id=tid,

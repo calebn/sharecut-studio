@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_text_match import pair_word, pair_word_key
 from podcast_mcp.edits.transcript_correct import apply_transcript_corrections
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
@@ -179,6 +180,7 @@ def run_glossary_pass(
     *,
     dry_run: bool = True,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     preserve = set(ctx.preserve_tokens)
     applied: list[dict[str, Any]] = []
@@ -229,6 +231,7 @@ def run_glossary_pass(
                     phrases=phrases,
                     keep_evidence=True,
                     source_id=tr.source_id,
+                    defaults=defaults,
                 )
                 for item in word_fixes:
                     applied.append(
@@ -281,6 +284,7 @@ def run_cross_track_sync(
     dry_run: bool = True,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Rewrite a garbled word on one mic from its clearer copy on the other.
 
@@ -288,10 +292,12 @@ def run_cross_track_sync(
     (``TrackRmsCacheSet.echo_pairs``), so only those pairs are candidates: a text mismatch
     on any other pair is two people talking, neither fixed nor deferred (#774).
     """
-    pol = policy or AnalysisPolicy.from_defaults()
-    caches = build_track_rms_caches(project)
-    rows = compute_word_audibility_map(project, policy=pol, progress=progress, caches=caches)
-    report = overlap_duplicate_report(project, policy=pol, audibility=rows)
+    pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
+    caches = build_track_rms_caches(project, defaults=defaults)
+    rows = compute_word_audibility_map(
+        project, policy=pol, progress=progress, caches=caches, defaults=defaults
+    )
+    report = overlap_duplicate_report(project, policy=pol, audibility=rows, defaults=defaults)
     bleed_pairs = {frozenset((p.source_track_id, p.bleed_track_id)) for p in caches.echo_pairs()}
     cfg = ctx.cross_track
 
@@ -384,6 +390,7 @@ def run_cross_track_sync(
                     words=[{"word_index": loser_idx, "text": source_text}],
                     keep_evidence=True,
                     source_id=tr.source_id,
+                    defaults=defaults,
                 )
 
             if (idx + 1) % 50 == 0:
@@ -469,6 +476,7 @@ def run_precorrect_transcript(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
     context: TranscriptContext | None = None,
+    defaults: EffectiveConfig,
 ) -> PrecorrectResult:
     ctx = context or load_transcript_context(project.workspace_path())
     result = PrecorrectResult()
@@ -480,7 +488,9 @@ def run_precorrect_transcript(
         prefer_parent=True,
         progress=progress,
     ) as task:
-        glossary_report = run_glossary_pass(project, ctx, dry_run=dry_run, progress=None)
+        glossary_report = run_glossary_pass(
+            project, ctx, dry_run=dry_run, progress=None, defaults=defaults
+        )
         task.advance(1, message="Glossary done")
 
         speaker_report: dict[str, Any] = {"ran": False, "skipped_reason": None}
@@ -495,6 +505,7 @@ def run_precorrect_transcript(
                     dry_run=dry_run,
                     policy=policy,
                     progress=None,
+                    defaults=defaults,
                 )
                 result.speaker_ran = True
             except ImportError:
@@ -513,6 +524,7 @@ def run_precorrect_transcript(
             dry_run=dry_run,
             policy=policy,
             progress=None,
+            defaults=defaults,
         )
         task.advance(1, message="Cross-track done")
 
@@ -529,7 +541,7 @@ def run_precorrect_transcript(
                     "similarity": item.get("similarity"),
                 }
             )
-        pol = policy or AnalysisPolicy.from_defaults()
+        pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
         for flag in collect_anomalous_asr_duration_flags(
             project,
             max_word_sec=pol.max_word_audibility_sec,

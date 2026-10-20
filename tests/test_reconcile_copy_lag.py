@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 from bleed_helpers import RATE, delay, voices
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCache,
@@ -112,7 +113,9 @@ def _project() -> EpisodeProject:
 
 def _verdicts(caches: TrackRmsCacheSet) -> dict[tuple[str, str], tuple[str, str | None]]:
     with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
-        rows = compute_word_audibility_map(_project(), policy=AnalysisPolicy(), caches=caches)
+        rows = compute_word_audibility_map(
+            _project(), policy=AnalysisPolicy(), caches=caches, defaults=load_defaults()
+        )
     return {(r["track_id"], r["text"]): (r["audibility_status"], r["dominant_track"]) for r in rows}
 
 

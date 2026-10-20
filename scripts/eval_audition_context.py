@@ -13,6 +13,8 @@ import json
 import sys
 from pathlib import Path
 
+from podcast_mcp.config import load_defaults
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 evaluation = importlib.import_module("audition_eval")
@@ -39,7 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     project = build_defect_project(args.workspace)
-    report = score_labeled_windows(project, DEFAULT_CASES, detail="summary")
+    report = score_labeled_windows(
+        project, DEFAULT_CASES, detail="summary", defaults=load_defaults()
+    )
     print(json.dumps(report, indent=2))
 
     if not args.thresholds.is_file():

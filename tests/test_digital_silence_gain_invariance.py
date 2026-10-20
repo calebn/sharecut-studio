@@ -107,7 +107,7 @@ def stub_cleanup(monkeypatch):
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None, **_kw: {"tracks": []},
     )
 
 

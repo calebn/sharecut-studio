@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_restore import RestoreSupport
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
@@ -315,6 +316,7 @@ def apply_track_transcript_gate(
     *,
     timeline_start: float,
     timeline_end: float,
+    defaults: EffectiveConfig,
 ) -> Path:
     """Attenuate verified foreign copies in a rendered WAV when the gate is enabled."""
     track = project.track_by_id(track_id)
@@ -322,7 +324,7 @@ def apply_track_transcript_gate(
         return wav_path
     if timeline_end <= timeline_start:
         return wav_path
-    plan = build_bleed_gate_plan(project, track_id)
+    plan = build_bleed_gate_plan(project, track_id, defaults=defaults)
     return apply_bleed_gate_plan(
         wav_path,
         plan,

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_check_override import OVERRIDE_PARAM, active_override, stamp_params
 from podcast_mcp.edits.decisions import retire_unplayed_pending
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile
@@ -71,6 +72,7 @@ def run_mutation(
     label_after: str,
     mutate: Callable[[EpisodeProject], T],
     *,
+    defaults: EffectiveConfig,
     operation: str | None = None,
     params: dict | None = None,
     on_failure: Callable[[RollbackOutcome], None] | None = None,
@@ -82,6 +84,7 @@ def run_mutation(
             label_before,
             label_after,
             mutate,
+            defaults=defaults,
             operation=operation,
             params=params,
             on_failure=on_failure,
@@ -95,14 +98,15 @@ def _run_mutation_locked(
     label_after: str,
     mutate: Callable[[EpisodeProject], T],
     *,
+    defaults: EffectiveConfig,
     operation: str | None,
     params: dict | None,
     on_failure: Callable[[RollbackOutcome], None] | None,
 ) -> T:
     store = ProjectStore(path)
     mgr = HistoryManager(path)
-    track_hashes_before = dialogue_render_hashes(project)
-    fingerprint_before = audio_state_fingerprint(project, track_hashes_before)
+    track_hashes_before = dialogue_render_hashes(project, defaults=defaults)
+    fingerprint_before = audio_state_fingerprint(project, track_hashes_before, defaults=defaults)
     log_len_before = len(project.editorial.edit_log)
     pre_mutate = _PreMutateState.capture(project)
     with project_commit_lock(project):
@@ -128,6 +132,7 @@ def _run_mutation_locked(
             track_hashes_before=track_hashes_before,
             log_len_before=log_len_before,
             operation=operation,
+            defaults=defaults,
         )
         # record() and commit() each take the re-entrant lock; this outer hold makes
         # record(after) + commit one cross-process step so no other commit lands between them.
@@ -145,9 +150,10 @@ def _record_audio_changes(
     track_hashes_before: dict[str, str],
     log_len_before: int,
     operation: str | None,
+    defaults: EffectiveConfig,
 ) -> None:
-    hashes_after = dialogue_render_hashes(project)
-    if audio_state_fingerprint(project, hashes_after) == fingerprint_before:
+    hashes_after = dialogue_render_hashes(project, defaults=defaults)
+    if audio_state_fingerprint(project, hashes_after, defaults=defaults) == fingerprint_before:
         return
     retire_unplayed_pending(project)
     mark_reconciliation_stale(project)
@@ -158,6 +164,8 @@ def _record_audio_changes(
         operation=operation,
         new_edit_log=project.editorial.edit_log[log_len_before:],
     )
-    fresh_changed = [tid for tid in changed_tracks if stem_is_fresh(project, tid)]
+    fresh_changed = [
+        tid for tid in changed_tracks if stem_is_fresh(project, tid, defaults=defaults)
+    ]
     if fresh_changed:
-        maybe_auto_reconcile(project, track_ids=fresh_changed)
+        maybe_auto_reconcile(project, track_ids=fresh_changed, defaults=defaults)

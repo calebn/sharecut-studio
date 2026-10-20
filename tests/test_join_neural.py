@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import join_neural
 from podcast_mcp.edits.join_continuity import (
     JoinContinuityConfig,
@@ -92,7 +93,9 @@ def test_assess_existing_join_without_neural(minimal_project: Path, sample_wav: 
             return_value=None,
         ),
     ):
-        rep = assess_existing_join(project, "host", 1.0, timebase="source", config=cfg)
+        rep = assess_existing_join(
+            project, "host", 1.0, timebase="source", config=cfg, defaults=load_defaults()
+        )
     assert rep.neural is not None
     assert rep.neural.get("available") is False
     assert "disclaimer" in rep.to_dict()
@@ -134,7 +137,9 @@ def test_neural_hits_elevate_when_monkeypatched(minimal_project: Path, sample_wa
             return_value={"z": 6.0},
         ),
     ):
-        rep = assess_existing_join(project, "host", 1.0, timebase="source", config=cfg)
+        rep = assess_existing_join(
+            project, "host", 1.0, timebase="source", config=cfg, defaults=load_defaults()
+        )
     names = {h.name for h in rep.detectors}
     assert "nisqa_discontinuity" in names
     assert "wavlm_continuity" in names

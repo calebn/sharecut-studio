@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.join_modes import track_fade_max_ms
 from podcast_mcp.edits.speaker_split import split_for_track
@@ -70,7 +69,7 @@ def _raw_transcript(ws: ProjectWorkspace) -> dict[str, Any] | None:
         try:
             from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 
-            return ensure_combined_transcript(project).model_dump()
+            return ensure_combined_transcript(project, defaults=ws.effective_config()).model_dump()
         except (ValueError, TypeError):
             return None
     if project.combined_transcript is not None:
@@ -99,7 +98,7 @@ def build_track_views(
     svc = edit if edit is not None else EditService(ws)
     status = render_status if render_status is not None else svc.render_status()
     fx_map = effects_by_track if effects_by_track is not None else _effects_by_track(svc, ws)
-    defaults = load_defaults()
+    defaults = ws.effective_config()
     track_views: list[TrackView] = []
     for track in project.tracks:
         stem = status.get("tracks", {}).get(track.id, {})
@@ -322,7 +321,9 @@ def projection_dependencies(
         if track.media:
             paths.add(project.workspace_path() / track.media.path)
     paths.update(project.workspace_path() / source.path for source in project.sources)
-    defaults = hashlib.sha256(json.dumps(load_defaults(), sort_keys=True).encode()).hexdigest()
+    defaults = hashlib.sha256(
+        json.dumps(ws.effective_config(), sort_keys=True).encode()
+    ).hexdigest()
     return (
         *((str(path), file_certificate(path)) for path in sorted(paths)),
         ("defaults", defaults),

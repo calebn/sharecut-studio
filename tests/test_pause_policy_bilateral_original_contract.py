@@ -33,12 +33,7 @@ def _enabled(monkeypatch, mode):
     cfg["tighten"].update(leave_in_if_risky=True, join_continuity_gate=True)
     cfg["join_continuity"] = {"neural": False, "calibrate": False}
     configure(monkeypatch, cfg)
-    for target in (
-        "podcast_mcp.edits.inaudible_cuts.load_defaults",
-        "podcast_mcp.edits.cut_quality.load_defaults",
-        "podcast_mcp.edits.join_continuity.load_defaults",
-        "podcast_mcp.config.load_defaults",
-    ):
+    for target in ("podcast_mcp.config.load_defaults",):
         monkeypatch.setattr(target, lambda: copy.deepcopy(cfg))
     return cfg
 
@@ -100,7 +95,7 @@ def test_saved_and_suggested_retain_original_bilateral_air_without_a_pad(
     snapshot = ws.project.model_copy(deep=True)
 
     window = resolve_pending_preview(snapshot, "bilateral", pad_sec=0.7 if tail else 0.5)
-    assert apply_for_suggested(snapshot, window) == pytest.approx(preview_end)
+    assert apply_for_suggested(snapshot, window, defaults=cfg) == pytest.approx(preview_end)
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
     assert [(e.id, e.applied) for e in load_project(ws.path).edit_decisions] == [
@@ -183,7 +178,7 @@ def test_original_only_hold_preserves_saved_bytes_and_pending_preview_state(
     snapshot = ws.project.model_copy(deep=True)
 
     with pytest.raises(CodedError) as suggested_hold:
-        apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "bilateral"))
+        apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "bilateral"), defaults=cfg)
     assert [h.edit_id for h in suggested_hold.value.held] == ["bilateral"]
     assert snapshot.model_dump(mode="json") == before_model
     assert files(tmp_path) == before_files

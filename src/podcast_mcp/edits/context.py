@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.decisions import edit_impact_report
 from podcast_mcp.edits.transcript_cuts import (
     ensure_combined_transcript,
@@ -15,9 +16,10 @@ def build_edit_context(
     project: EpisodeProject,
     *,
     max_utterances: int = 200,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Compact context for LLM agents (Cursor, Copilot, Claude Code) driving edits."""
-    combined = ensure_combined_transcript(project)
+    combined = ensure_combined_transcript(project, defaults=defaults)
     utterances = combined.utterances[:max_utterances]
     tracks = [
         {
@@ -57,7 +59,7 @@ def build_edit_context(
             }
             for i, u in enumerate(utterances)
         ],
-        "transcript_timestamps": format_transcript_timestamps(project),
+        "transcript_timestamps": format_transcript_timestamps(project, defaults=defaults),
         "edit_decisions_pending": pending,
         "edit_impact": edit_impact_report(project),
         "tools_hint": (

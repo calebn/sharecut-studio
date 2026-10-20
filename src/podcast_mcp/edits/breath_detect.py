@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.room_model import BREATH_BELOW_SPEECH_DB
@@ -93,12 +93,8 @@ def breath_level_band(noise_floor_rms: float, speech_rms: float) -> LevelBand | 
     return LevelBand(lo=lo, hi=hi)
 
 
-def _breath_cfg(defaults: dict | None) -> dict:
-    cfg = (
-        (defaults if defaults is not None else load_defaults())
-        .get("tighten", {})
-        .get("breath_handling", {})
-    )
+def _breath_cfg(defaults: EffectiveConfig) -> dict:
+    cfg = defaults.get("tighten", {}).get("breath_handling", {})
     return {
         "enabled": bool(cfg.get("enabled", True)),
         "search_before_ms": int(cfg.get("search_before_ms", 400)),
@@ -479,7 +475,7 @@ def classify_breath_samples(
     *,
     sample_rate: int,
     vad_backend: str = "heuristic",
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     min_duration_sec: float = 0.08,
     max_duration_sec: float = 0.45,
     candidate_run: bool = False,
@@ -596,7 +592,7 @@ def detect_adjacent_breath(
     cut_start: float,
     cut_end: float,
     *,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
@@ -740,6 +736,7 @@ def _edge_evidence(
     profile: LevelProfile,
     cfg: dict,
     keep_out: Sequence[tuple[float, float]],
+    defaults: EffectiveConfig,
 ) -> _ClearEdge | _CompleteEdgeBreath | _UncertainEdge:
     band = breath_level_band(profile.room_rms, profile.speech_rms)
     if band is None or not samples.size or not np.all(np.isfinite(samples)):
@@ -771,6 +768,7 @@ def _edge_evidence(
             keep_out=keep_out,
             search_sec=(edge - max_duration, edge + max_duration),
             crossing_sec=edge,
+            defaults=defaults,
         )
         if hit is None:
             return _UncertainEdge("protected_activity")
@@ -864,7 +862,7 @@ def pause_air_span(
     start: float,
     end: float,
     *,
-    defaults: dict | None = None,
+    defaults: EffectiveConfig,
     sample_rate: int = 16000,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     word_indexes: Mapping[str, CutWordIndex] | None = None,
@@ -934,6 +932,7 @@ def _mostly_breath(
     profile: LevelProfile,
     cfg: dict,
     sample_rate: int,
+    defaults: EffectiveConfig,
 ) -> bool:
     """Whether a breath covers at least half of ``[start, end)``.
 
@@ -957,6 +956,7 @@ def _mostly_breath(
         profile=profile,
         cfg=cfg,
         keep_out=keep_out,
+        defaults=defaults,
     )
     if isinstance(evidence, _CompleteEdgeBreath):
         breath: BreathSpan | None = evidence.span
@@ -972,6 +972,7 @@ def _mostly_breath(
             noise_floor_rms=profile.room_rms,
             keep_out=keep_out,
             search_sec=(start, end),
+            defaults=defaults,
         )
     if breath is None:
         return False

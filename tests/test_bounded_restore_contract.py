@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.client import Client
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.edit_log import (
     LocalRestoreRequiresHistory,
     require_applied_edit_restore,
@@ -508,7 +509,10 @@ def test_restore_rejects_invalid_source_bounds(tmp_path, location, bounds):
     before = project.model_dump_json()
     for restore in (require_applied_edit_restore, revert_applied_edit):
         with pytest.raises(LocalRestoreRequiresHistory) as refused:
-            restore(project, record.id)
+            if restore is revert_applied_edit:
+                restore(project, record.id, defaults=load_defaults())
+            else:
+                restore(project, record.id)
         assert refused.value.code == "local_restore_requires_history"
         assert str(refused.value) == RESTORE_MESSAGE
         assert project.model_dump_json() == before
@@ -551,7 +555,7 @@ def test_restore_rejects_complete_malformed_mapping(tmp_path, mapping, monkeypat
 
     monkeypatch.setattr("podcast_mcp.edits.edit_log.subtract_source_mute", unexpected_subtraction)
     with pytest.raises(LocalRestoreRequiresHistory) as refused:
-        revert_applied_edit(project, "invalid-mapping")
+        revert_applied_edit(project, "invalid-mapping", defaults=load_defaults())
     assert str(refused.value) == RESTORE_MESSAGE
     assert project.model_dump_json() == before
 
@@ -582,7 +586,7 @@ def test_restore_removes_only_bounded_intersection(tmp_path, params):
         )
     ]
     assert require_applied_edit_restore(project, "bounded") is project.editorial.edit_log[0]
-    result = revert_applied_edit(project, "bounded")
+    result = revert_applied_edit(project, "bounded", defaults=load_defaults())
     assert result["operation"] == "revert_applied_edit"
     assert project.clips[0].mute_regions == [
         region.model_copy(update={"end_s": 1}),

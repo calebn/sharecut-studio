@@ -13,6 +13,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.word_boundary_metrics import measure_word_boundaries
 from podcast_mcp.util.atomic_json import write_json_atomic
@@ -33,7 +34,9 @@ def native_prediction(audio_path: Path, model: str) -> dict[str, Any]:
     is the transcribe time.
     """
     start = time.perf_counter()
-    transcript = TranscriptionEngine(model_size=model).transcribe_file(audio_path)
+    transcript = TranscriptionEngine(model_size=model, defaults=load_defaults()).transcribe_file(
+        audio_path
+    )
     runtime_sec = time.perf_counter() - start
     words = [{"text": word.text, "start": word.start, "end": word.end} for word in transcript.words]
     provenance = {

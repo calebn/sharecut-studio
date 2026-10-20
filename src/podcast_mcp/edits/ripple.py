@@ -14,6 +14,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.clips_ops import (
     clips_for_track,
     remove_timeline_range_from_clips,
@@ -107,21 +108,30 @@ class RippleRemoval:
 
 
 def ripple_remove_clips(
-    project: EpisodeProject, spans: Sequence[tuple[float, float]], track_ids: Iterable[str]
+    project: EpisodeProject,
+    spans: Sequence[tuple[float, float]],
+    track_ids: Iterable[str],
+    *,
+    defaults: EffectiveConfig,
 ) -> dict[str, list[Clip]]:
     """Remove disjoint ``spans`` from ``track_ids`` and close them up; returns clips before."""
     before: dict[str, list[Clip]] = {}
     for tid in track_ids:
         clips = before[tid] = clips_for_track(project, tid)
         for start, end in sorted(spans, reverse=True):
-            clips = remove_timeline_range_from_clips(clips, start, end)
+            clips = remove_timeline_range_from_clips(clips, start, end, defaults=defaults)
         set_track_clips(project, tid, clips)
     update_timeline_duration(project)
     return before
 
 
 def ripple_insert_clips(
-    project: EpisodeProject, at_time: float, duration_sec: float, track_ids: Iterable[str]
+    project: EpisodeProject,
+    at_time: float,
+    duration_sec: float,
+    track_ids: Iterable[str],
+    *,
+    defaults: EffectiveConfig,
 ) -> None:
     """Open ``duration_sec`` of silence at ``at_time`` on ``track_ids``, splitting a clip there."""
     if duration_sec <= 0:
@@ -132,7 +142,7 @@ def ripple_insert_clips(
         split: list[Clip] = []
         for clip in clips_for_track(project, tid):
             if clip.timeline_start + _EPS < at_time < clip.timeline_end - _EPS:
-                split.extend(split_clip_at(clip, at_time))
+                split.extend(split_clip_at(clip, at_time, defaults=defaults))
             else:
                 split.append(clip)
         shift_clips_timeline(split, at_time, duration_sec)
@@ -285,7 +295,9 @@ def plan_trim(
     )
 
 
-def apply_trim_geometry(project: EpisodeProject, plan: TrimPlan) -> dict[str, list[Clip]]:
+def apply_trim_geometry(
+    project: EpisodeProject, plan: TrimPlan, *, defaults: EffectiveConfig
+) -> dict[str, list[Clip]]:
     """Apply ``plan``'s clip geometry; returns the clips before for tracks that lost a span."""
     lanes = {
         move.track_id: _trim_edge_lane(
@@ -299,8 +311,8 @@ def apply_trim_geometry(project: EpisodeProject, plan: TrimPlan) -> dict[str, li
     rest = [tid for tid in plan.scope if tid not in moved_tracks]
     before: dict[str, list[Clip]] = {}
     if plan.removal is not None:
-        before = ripple_remove_clips(project, plan.removal.spans, rest)
+        before = ripple_remove_clips(project, plan.removal.spans, rest, defaults=defaults)
     elif plan.mode is EditMode.RIPPLE and plan.delta > 0 and rest:
-        ripple_insert_clips(project, plan.instant, plan.delta, rest)
+        ripple_insert_clips(project, plan.instant, plan.delta, rest, defaults=defaults)
     update_timeline_duration(project)
     return before

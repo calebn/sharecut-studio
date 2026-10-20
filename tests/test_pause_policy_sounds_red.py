@@ -14,6 +14,7 @@ from pause_policy_public_helpers import (
     voice,
     write_wav,
 )
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.breath_detect import PauseAir, pause_air_span
 from podcast_mcp.edits.cut_application import _apply_replace_gap_pad
 from podcast_mcp.edits.gate_fill import fill_gate_holes
@@ -115,7 +116,9 @@ def test_planned_pause_pad_stays_at_consumed_seam_despite_nearby_peer_join(tmp_p
     edit = pause()
 
     effects = []
-    _apply_replace_gap_pad(result, edit, 0.2, exact_seam=True, effects=effects)
+    _apply_replace_gap_pad(
+        result, edit, 0.2, exact_seam=True, effects=effects, defaults=load_defaults()
+    )
     assert len(effects) == 1
 
     for tid in ("host", "guest"):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audition_context import build_audition_context
 from podcast_mcp.models import (
     Clip,
@@ -86,7 +87,7 @@ def test_audition_context_captions_and_skew(minimal_project, sample_wav, tmp_wor
     # Align guest clip 0.6s later on timeline with same source → mid maps differently
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace, skew_sec=0.6)
     # Re-save via helper already done; use loaded path
-    ctx = build_audition_context(proj, 2.0, 6.0, skew_warn_sec=0.05)
+    ctx = build_audition_context(proj, 2.0, 6.0, skew_warn_sec=0.05, defaults=load_defaults())
     assert ctx["timeline_start"] == 2.0
     by_id = {t["track_id"]: t for t in ctx["tracks"]}
     assert "hello" in by_id["host"]["text"]
@@ -133,7 +134,13 @@ def test_single_track_trim_after_a_shared_join_is_clip_skew(
     # The geometry a one-track ripple trim left before ripples moved every track.
     next(c for c in proj.clips if c.id == "guest_b").source_start = 19.6
     ctx = build_audition_context(
-        proj, 10.0, 12.0, skew_warn_sec=0.05, include_dsp=False, include_prosody=False
+        proj,
+        10.0,
+        12.0,
+        skew_warn_sec=0.05,
+        include_dsp=False,
+        include_prosody=False,
+        defaults=load_defaults(),
     )
     (pair,) = ctx["clip_skew"]["pairs"]
     assert pair["skewed"] is True
@@ -161,7 +168,13 @@ def test_ripple_trim_at_a_shared_join_keeps_the_tracks_in_sync(
     proj = _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace)
     trim(proj, "guest_b", "in", 19.6)
     ctx = build_audition_context(
-        proj, 10.0, 12.0, skew_warn_sec=0.05, include_dsp=False, include_prosody=False
+        proj,
+        10.0,
+        12.0,
+        skew_warn_sec=0.05,
+        include_dsp=False,
+        include_prosody=False,
+        defaults=load_defaults(),
     )
     (pair,) = ctx["clip_skew"]["pairs"]
     assert pair["skewed"] is False
@@ -175,7 +188,7 @@ def test_audition_context_says_when_word_times_are_whisper_only(
 ):
     """#780: an agent must know whether word times came from the forced aligner."""
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace)
-    ctx = build_audition_context(proj, 2.0, 6.0)
+    ctx = build_audition_context(proj, 2.0, 6.0, defaults=load_defaults())
     assert "whisper_word_times" in ctx["limits"]
     assert {t["track_id"]: t["word_aligner"] for t in ctx["tracks"]} == {
         "host": None,
@@ -184,12 +197,12 @@ def test_audition_context_says_when_word_times_are_whisper_only(
 
     for tr in proj.transcripts:
         tr.word_aligner = "onnx-base"
-    aligned = build_audition_context(proj, 2.0, 6.0)
+    aligned = build_audition_context(proj, 2.0, 6.0, defaults=load_defaults())
     assert "whisper_word_times" not in aligned["limits"]
     assert {t["word_aligner"] for t in aligned["tracks"]} == {"onnx-base"}
 
     proj.transcripts[0].word_aligner = None
-    mixed = build_audition_context(proj, 2.0, 6.0)
+    mixed = build_audition_context(proj, 2.0, 6.0, defaults=load_defaults())
     assert "whisper_word_times" in mixed["limits"]
     assert {t["track_id"]: t["word_aligner"] for t in mixed["tracks"]} == {
         "host": None,
@@ -199,7 +212,7 @@ def test_audition_context_says_when_word_times_are_whisper_only(
 
 def test_audition_context_aligned_no_skew(minimal_project, sample_wav, tmp_workspace):
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace, skew_sec=0.0)
-    ctx = build_audition_context(proj, 2.0, 6.0)
+    ctx = build_audition_context(proj, 2.0, 6.0, defaults=load_defaults())
     assert ctx["clip_skew"]["any_skewed"] is False
 
 
@@ -253,7 +266,7 @@ def test_audition_context_includes_effects_and_comments(minimal_project, sample_
     )
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 2.0, 6.0)
+    ctx = build_audition_context(proj, 2.0, 6.0, defaults=load_defaults())
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert len(host["effects"]) == 1
     assert host["effects"][0]["effect"] == "gate"
@@ -265,7 +278,7 @@ def test_audition_context_includes_effects_and_comments(minimal_project, sample_
 def test_audition_context_rejects_bad_detail(minimal_project, sample_wav, tmp_workspace):
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace)
     with __import__("pytest").raises(ValueError, match="detail"):
-        build_audition_context(proj, 1.0, 2.0, detail="nope")  # type: ignore[arg-type]
+        build_audition_context(proj, 1.0, 2.0, detail="nope", defaults=load_defaults())  # type: ignore[arg-type]
 
 
 def test_audition_context_detail_full_includes_edits(minimal_project, sample_wav, tmp_workspace):
@@ -304,7 +317,7 @@ def test_audition_context_detail_full_includes_edits(minimal_project, sample_wav
     )
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 1.0, 5.0, detail="full")
+    ctx = build_audition_context(proj, 1.0, 5.0, detail="full", defaults=load_defaults())
     assert ctx["edits"]["pending"]
     assert ctx["edits"]["pending"][0]["source_start"] == 12.0
     assert ctx["edits"]["applied"]
@@ -328,7 +341,7 @@ def test_audition_context_visual_detail_mocks_diagnostics(
         "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
         fake_report,
     )
-    ctx = build_audition_context(proj, 1.0, 3.0, detail="visual")
+    ctx = build_audition_context(proj, 1.0, 3.0, detail="visual", defaults=load_defaults())
     assert ctx["visuals"]
     assert ctx["visuals"][0]["spectrogram_png"].endswith("_spec.png")
 
@@ -356,6 +369,7 @@ def test_audition_context_visual_can_skip_png_rendering_for_hypothesis_evaluatio
         3.0,
         detail="visual",
         render_visual_pngs=False,
+        defaults=load_defaults(),
     )
     assert "visuals" in ctx
     assert "events" in ctx["visuals"][0]
@@ -375,7 +389,7 @@ def test_audition_context_visual_surfaces_diagnostic_errors(
         "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
         boom,
     )
-    ctx = build_audition_context(proj, 1.0, 3.0, detail="visual")
+    ctx = build_audition_context(proj, 1.0, 3.0, detail="visual", defaults=load_defaults())
     assert ctx["visuals"]
     vis = ctx["visuals"][0]
     assert vis.get("dsp_unavailable") is True
@@ -388,7 +402,7 @@ def test_audition_context_rejects_inverted_window(minimal_project, sample_wav, t
 
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace)
     with pytest.raises(ValueError, match="timeline_end"):
-        build_audition_context(proj, 5.0, 1.0)
+        build_audition_context(proj, 5.0, 1.0, defaults=load_defaults())
 
 
 def test_audition_context_full_comments_and_suppressed_only(
@@ -426,7 +440,7 @@ def test_audition_context_full_comments_and_suppressed_only(
     )
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 1.0, 8.0, detail="full")
+    ctx = build_audition_context(proj, 1.0, 8.0, detail="full", defaults=load_defaults())
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert host["suppressed_only"] is True
     assert any(c["body"] == "Inside full" and "action_items" in c for c in ctx["comments"])
@@ -463,7 +477,7 @@ def test_audition_context_pending_edit_fallback_midpoint(
 
     monkeypatch.setattr(SessionTimeline, "map_source_span", empty_span)
     monkeypatch.setattr(SessionTimeline, "source_to_timeline", mid_in_window)
-    ctx = build_audition_context(proj, 1.0, 5.0, detail="summary")
+    ctx = build_audition_context(proj, 1.0, 5.0, detail="summary", defaults=load_defaults())
     assert ctx["edits"]["pending"]
     assert ctx["edits"]["pending"][0]["id"] == "cut_orphan"
 
@@ -485,7 +499,7 @@ def test_audition_context_skips_applied_without_timeline(
     )
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 1.0, 5.0)
+    ctx = build_audition_context(proj, 1.0, 5.0, defaults=load_defaults())
     assert ctx["edits"]["applied"] == []
 
 
@@ -629,7 +643,7 @@ def test_audition_context_includes_speaker_roles(
             return_value=score,
         ),
     ):
-        out = build_audition_context(proj, 1.0, 5.0, detail="full")
+        out = build_audition_context(proj, 1.0, 5.0, detail="full", defaults=load_defaults())
     assert "speaker_roles" in out
     assert out["speaker_roles"]["host"]["role"] == "own"
 
@@ -672,7 +686,7 @@ def test_speaker_roles_skips_track_without_source_map(
             return_value=score,
         ),
     ):
-        out = build_audition_context(proj, 1.0, 5.0, detail="full")
+        out = build_audition_context(proj, 1.0, 5.0, detail="full", defaults=load_defaults())
     assert "guest" in out["speaker_roles"]
     assert "host" not in out["speaker_roles"]
 
@@ -681,7 +695,7 @@ def test_audition_context_v2_schema_skew_hypothesis(minimal_project, sample_wav,
     from podcast_mcp.edits.audition_context import HYPOTHESIS_CATALOG, SCHEMA_ID
 
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace, skew_sec=0.6)
-    ctx = build_audition_context(proj, 2.0, 6.0, skew_warn_sec=0.05)
+    ctx = build_audition_context(proj, 2.0, 6.0, skew_warn_sec=0.05, defaults=load_defaults())
     assert ctx["schema"] == SCHEMA_ID
     assert ctx["window"] == {"clock": "timeline", "unit": "sec", "start": 2.0, "end": 6.0}
     assert "cannot_hear" in ctx["limits"]
@@ -766,7 +780,7 @@ def test_audition_context_muted_track_speaking(minimal_project, sample_wav, tmp_
 
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 2.0, 6.0)
+    ctx = build_audition_context(proj, 2.0, 6.0, defaults=load_defaults())
     assert any(h["code"] == "muted_track_speaking" for h in ctx["hypotheses"])
 
 
@@ -788,7 +802,7 @@ def test_audition_context_visual_includes_events_when_pngs_missing(
         "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
         fake_report,
     )
-    ctx = build_audition_context(proj, 1.0, 3.0, detail="visual")
+    ctx = build_audition_context(proj, 1.0, 3.0, detail="visual", defaults=load_defaults())
     assert ctx["visuals"][0]["plot"]["read_for"] == "degradation_not_asr"
     assert "events" in ctx["visuals"][0]
     assert "visuals_are_degradation_not_asr" in ctx["limits"]
@@ -814,7 +828,7 @@ def test_audition_context_summary_emits_windowed_dsp_without_pngs(
         "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
         fake_report,
     )
-    ctx = build_audition_context(proj, 1.0, 3.0, detail="summary")
+    ctx = build_audition_context(proj, 1.0, 3.0, detail="summary", defaults=load_defaults())
     assert "visuals" not in ctx
     codes = {h["code"] for h in ctx["hypotheses"]}
     assert "hum_in_window" in codes
@@ -831,7 +845,7 @@ def test_audition_context_caps_long_dsp_window(
         raise AssertionError("DSP must not run on windows longer than 60s")
 
     monkeypatch.setattr("podcast_mcp.edits.audio_quality.audio_diagnostics_report", boom)
-    ctx = build_audition_context(proj, 0.0, 90.0, detail="summary")
+    ctx = build_audition_context(proj, 0.0, 90.0, detail="summary", defaults=load_defaults())
     assert {h["code"] for h in ctx["hypotheses"]} >= {"dsp_unavailable"}
     assert any("dsp_unavailable" in w for w in ctx["warnings"])
 
@@ -846,7 +860,7 @@ def test_audition_context_dsp_failure_is_unavailable(
         raise RuntimeError(f"ffmpeg failed on {root}/secret.wav")
 
     monkeypatch.setattr("podcast_mcp.edits.audio_quality.audio_diagnostics_report", boom)
-    ctx = build_audition_context(proj, 1.0, 3.0, detail="summary")
+    ctx = build_audition_context(proj, 1.0, 3.0, detail="summary", defaults=load_defaults())
     dsp = [h for h in ctx["hypotheses"] if h["code"] == "dsp_unavailable"]
     assert dsp
     dumped = " ".join(h["evidence"]["reason"] for h in dsp)
@@ -856,7 +870,7 @@ def test_audition_context_dsp_failure_is_unavailable(
 
 def test_audition_context_prosody_missing_hint(minimal_project, tmp_workspace):
     proj = single_track_prosody_project(minimal_project)
-    ctx = build_audition_context(proj, 0.0, 2.0)
+    ctx = build_audition_context(proj, 0.0, 2.0, defaults=load_defaults())
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert host["prosody"]["status"] == "missing"
     assert "hint" in host["prosody"]
@@ -867,7 +881,7 @@ def test_audition_context_prosody_seeded_profile_maps_to_timeline(minimal_projec
     proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 0.0, 2.0)
+    ctx = build_audition_context(proj, 0.0, 2.0, defaults=load_defaults())
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert host["prosody"]["status"] == "fresh"
     segs = host["prosody"]["segments"]
@@ -885,7 +899,9 @@ def test_audition_context_prosody_stale_when_params_differ(minimal_project, tmp_
     proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 0.0, 2.0, prosody_params=ProsodyParams(pitch_floor_hz=90.0))
+    ctx = build_audition_context(
+        proj, 0.0, 2.0, prosody_params=ProsodyParams(pitch_floor_hz=90.0), defaults=load_defaults()
+    )
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert host["prosody"]["status"] == "stale"
     assert ctx["prosody_notes"] == []
@@ -953,7 +969,7 @@ def test_audition_context_prosody_skip_via_include_prosody_false(minimal_project
     proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 0.0, 2.0, include_prosody=False)
+    ctx = build_audition_context(proj, 0.0, 2.0, include_prosody=False, defaults=load_defaults())
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert "prosody" not in host
     assert ctx["prosody_notes"] == []
@@ -967,7 +983,7 @@ def test_audition_context_prosody_unavailable_on_error(minimal_project, tmp_work
         raise OSError(f"disk error under {root}/prosody")
 
     monkeypatch.setattr("podcast_mcp.edits.prosody_profile.prosody_window", boom)
-    ctx = build_audition_context(proj, 0.0, 2.0)
+    ctx = build_audition_context(proj, 0.0, 2.0, defaults=load_defaults())
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert host["prosody"]["status"] == "unavailable"
     assert "error" in host["prosody"]
@@ -987,7 +1003,7 @@ def test_audition_context_prosody_unavailable_on_malformed_profile(
         raise KeyError("start")
 
     monkeypatch.setattr("podcast_mcp.edits.prosody_profile.prosody_window", malformed)
-    ctx = build_audition_context(proj, 0.0, 2.0)
+    ctx = build_audition_context(proj, 0.0, 2.0, defaults=load_defaults())
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert host["prosody"]["status"] == "unavailable"
     assert ctx["prosody_notes"] == []
@@ -999,6 +1015,6 @@ def test_audition_context_prosody_no_workspace_path_leak(minimal_project, tmp_wo
     proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
-    ctx = build_audition_context(proj, 0.0, 2.0)
+    ctx = build_audition_context(proj, 0.0, 2.0, defaults=load_defaults())
     dumped = json_mod.dumps(ctx)
     assert str(tmp_workspace) not in dumped

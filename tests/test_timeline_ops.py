@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.timeline_ops import (
@@ -98,7 +99,7 @@ def test_ripple_delete_shortens_clips() -> None:
 
 def test_insert_gap_shifts_clips() -> None:
     p = _two_track_project()
-    insert_gap(p, 3.0, 1.0)
+    insert_gap(p, 3.0, 1.0, defaults=load_defaults())
     host = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
     assert len(host) == 2
     assert host[0].timeline_start == pytest.approx(0.0)
@@ -133,7 +134,7 @@ def test_insert_gap_at_clip_boundary_only_shifts_later() -> None:
             timeline_start=0.0,
         ),
     ]
-    insert_gap(p, 3.0, 0.5)
+    insert_gap(p, 3.0, 0.5, defaults=load_defaults())
     host = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
     assert host[0].timeline_start == pytest.approx(0.0)
     assert host[1].timeline_start == pytest.approx(3.5)
@@ -159,7 +160,7 @@ def test_fade_joins_sets_mode_and_caps_fades() -> None:
             fade_in_ms=0,
         ),
     ]
-    summary = fade_joins(p, fade_ms=30)
+    summary = fade_joins(p, fade_ms=30, defaults=load_defaults())
     assert summary["operation"] == "fade_joins"
     assert summary["join_count"] == 1
     a, b = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
@@ -187,7 +188,7 @@ def test_fade_joins_without_explicit_ms() -> None:
         ),
     ]
     with patch("podcast_mcp.edits.join_modes.recommend_cut_fade_ms", return_value=12):
-        summary = fade_joins(p)
+        summary = fade_joins(p, defaults=load_defaults())
     assert summary["join_count"] == 1
     b = next(c for c in p.clips if c.id == "b")
     assert b.join_in_mode == ClipJoinMode.FADE
@@ -212,7 +213,7 @@ def test_crossfade_joins_sets_mode() -> None:
             timeline_start=2.0,
         ),
     ]
-    summary = crossfade_joins(p, fade_ms=40)
+    summary = crossfade_joins(p, fade_ms=40, defaults=load_defaults())
     assert summary["operation"] == "crossfade_joins"
     b = next(c for c in p.clips if c.id == "b")
     assert b.join_in_mode == ClipJoinMode.CROSSFADE
@@ -273,7 +274,7 @@ def test_fade_joins_dry_run_and_speaker_scope() -> None:
             timeline_start=2.0,
         ),
     ]
-    dry = fade_joins(p, speaker="Host", dry_run=True)
+    dry = fade_joins(p, speaker="Host", dry_run=True, defaults=load_defaults())
     assert dry["join_count"] == 1
     assert dry["affected_tracks"] == ["host"]
     b = next(c for c in p.clips if c.id == "b")
@@ -299,7 +300,7 @@ def test_fade_joins_skips_non_abutting_clips() -> None:
             timeline_start=3.0,
         ),
     ]
-    assert fade_joins(p, fade_ms=10)["join_count"] == 0
+    assert fade_joins(p, fade_ms=10, defaults=load_defaults())["join_count"] == 0
 
 
 def test_fade_joins_music_track_not_capped() -> None:
@@ -328,7 +329,7 @@ def test_fade_joins_music_track_not_capped() -> None:
             timeline_start=2.0,
         ),
     ]
-    fade_joins(p, track_id="bed", fade_ms=40)
+    fade_joins(p, track_id="bed", fade_ms=40, defaults=load_defaults())
     a, b = p.clips
     assert a.fade_out_ms == 40
     assert b.fade_in_ms == 40
@@ -343,8 +344,8 @@ def test_list_clips() -> None:
 
 def test_ripple_delete_text() -> None:
     p = _two_track_project()
-    removal = plan_ripple_delete_text(p, "hello", use_inaudible_opt=False)
-    summary = _write_ripple_delete(p, removal)
+    removal = plan_ripple_delete_text(p, "hello", use_inaudible_opt=False, defaults=load_defaults())
+    summary = _write_ripple_delete(p, removal, defaults=load_defaults())
     assert summary["operation"] == "ripple_delete"
 
 
@@ -360,7 +361,7 @@ def test_move_segment_preserves_transcript_words() -> None:
             ],
         )
     ]
-    move_segment(p, 2.0, 3.0, 8.0)
+    move_segment(p, 2.0, 3.0, 8.0, defaults=load_defaults())
     words = p.transcript_for_track("host").words
     texts = [w.text for w in words]
     assert "middle" in texts
@@ -400,7 +401,7 @@ def test_move_by_text_prefers_tightest_match() -> None:
         ]
     )
     # Utterance match for "there" would be the whole 0-3s line; word match is tighter.
-    summary = move_by_text(p, "there", "world", position="before")
+    summary = move_by_text(p, "there", "world", position="before", defaults=load_defaults())
     assert summary["source_end"] - summary["source_start"] == pytest.approx(1.0, abs=0.05)
 
 
@@ -417,10 +418,10 @@ def test_move_resolve_falls_back_to_search_and_rejects_unmapped() -> None:
     assert _exact_phrase_match(p, "hello there friend world extra") is None
     # Combined-only fuzzy hit (no exact word phrase "hell")
     p.combined_transcript.utterances[0].text = "hello there"
-    match = _resolve_move_match(p, "hello", label="source")
+    match = _resolve_move_match(p, "hello", label="source", defaults=load_defaults())
     assert match.timeline_start is not None
     with pytest.raises(ValueError, match="no source match"):
-        _resolve_move_match(p, "zzznomatchzzz", label="source")
+        _resolve_move_match(p, "zzznomatchzzz", label="source", defaults=load_defaults())
     with pytest.raises(ValueError, match="removed timeline"):
         _tightest_timeline_match(
             [TranscriptMatch(track_id="host", source_id=None, start=0.0, end=1.0, text="x")],
@@ -440,7 +441,7 @@ def test_move_by_text() -> None:
             text="world",
         )
     )
-    summary = move_by_text(p, "hello", "world", position="before")
+    summary = move_by_text(p, "hello", "world", position="before", defaults=load_defaults())
     assert summary["operation"] == "move_segment"
 
 
@@ -479,7 +480,7 @@ def test_move_by_text_uses_timeline_clocks_not_source() -> None:
         ]
     )
     # Destination "keep" source ends 4.5; timeline ends ~2.5 after the 2s ripple.
-    summary = move_by_text(p, "move me", "keep", position="after")
+    summary = move_by_text(p, "move me", "keep", position="after", defaults=load_defaults())
     assert summary["operation"] == "move_segment"
     assert summary["insert_at"] == pytest.approx(2.5, abs=0.15)
     assert summary["source_start"] == pytest.approx(3.0, abs=0.15)
@@ -498,15 +499,15 @@ def test_move_by_text_rejects_destination_inside_source() -> None:
         )
     ]
     with pytest.raises(ValueError, match="inside the source span"):
-        move_by_text(p, "hello there world", "there", position="after")
+        move_by_text(p, "hello there world", "there", position="after", defaults=load_defaults())
 
 
 def test_split_clip_and_set_fade() -> None:
     p = _two_track_project()
-    split_clip(p, "host", 5.0)
+    split_clip(p, "host", 5.0, defaults=load_defaults())
     host_clips = [c for c in p.clips if c.track_id == "host"]
     assert len(host_clips) >= 2
-    fade = set_clip_fade(p, host_clips[0].id, 5, 10)
+    fade = set_clip_fade(p, host_clips[0].id, 5, 10, defaults=load_defaults())
     assert fade["operation"] == "set_clip_fade"
     assert host_clips[0].fade_in_ms == 5
 
@@ -514,7 +515,7 @@ def test_split_clip_and_set_fade() -> None:
 def test_set_clip_fade_caps_dialogue() -> None:
     p = _two_track_project()
     clip = next(c for c in p.clips if c.track_id == "host")
-    set_clip_fade(p, clip.id, 40, 50)
+    set_clip_fade(p, clip.id, 40, 50, defaults=load_defaults())
     assert clip.fade_in_ms == 40
     assert clip.fade_out_ms == 40
 
@@ -533,9 +534,9 @@ def test_set_clip_fade_bounds_fades_to_the_clip_length() -> None:
         Clip(id="bed_1", track_id="bed", source_start=0.0, source_end=2.0, timeline_start=0.0)
     )
     clip = next(c for c in p.clips if c.id == "bed_1")
-    set_clip_fade(p, "bed_1", 5000, 5000)
+    set_clip_fade(p, "bed_1", 5000, 5000, defaults=load_defaults())
     assert (clip.fade_in_ms, clip.fade_out_ms) == (2000, 0)
-    set_clip_fade(p, "bed_1", 1500, 1500)
+    set_clip_fade(p, "bed_1", 1500, 1500, defaults=load_defaults())
     assert (clip.fade_in_ms, clip.fade_out_ms) == (1500, 500)
 
 
@@ -544,7 +545,7 @@ def test_set_clip_fade_dialogue_fades_share_a_short_clip() -> None:
     p.timeline.clips = [
         Clip(id="short", track_id="host", source_start=0.0, source_end=0.06, timeline_start=0.0)
     ]
-    set_clip_fade(p, "short", 40, 40)
+    set_clip_fade(p, "short", 40, 40, defaults=load_defaults())
     assert (p.clips[0].fade_in_ms, p.clips[0].fade_out_ms) == (40, 20)
 
 
@@ -570,7 +571,7 @@ def test_set_clip_join_mode_unknown_id() -> None:
 
 def test_duplicate_segment() -> None:
     p = _two_track_project()
-    summary = duplicate_segment(p, 1.0, 2.0, 6.0)
+    summary = duplicate_segment(p, 1.0, 2.0, 6.0, defaults=load_defaults())
     assert summary["operation"] == "duplicate_segment"
 
 
@@ -593,7 +594,14 @@ def test_paste_segment_after_extract() -> None:
         },
     ]
     before = max((c.timeline_end for c in p.clips), default=0.0)
-    summary = paste_segment(p, insert_at=6.0, duration=1.0, extracts=extracts, mode=EditMode.RIPPLE)
+    summary = paste_segment(
+        p,
+        insert_at=6.0,
+        duration=1.0,
+        extracts=extracts,
+        mode=EditMode.RIPPLE,
+        defaults=load_defaults(),
+    )
     assert summary["operation"] == "paste_segment"
     after = max((c.timeline_end for c in p.clips), default=0.0)
     assert after >= before + 1.0 - 1e-6
@@ -632,7 +640,12 @@ def test_paste_segment_rejects_a_clipboard_the_project_cannot_take(extract, code
     good = _extract(track_id="guest")
     with pytest.raises(PasteRejectedError) as raised:
         paste_segment(
-            p, insert_at=6.0, duration=1.0, extracts=[good, extract], mode=EditMode.RIPPLE
+            p,
+            insert_at=6.0,
+            duration=1.0,
+            extracts=[good, extract],
+            mode=EditMode.RIPPLE,
+            defaults=load_defaults(),
         )
     assert raised.value.code == code
     assert str(raised.value).startswith(f"{code}: ")
@@ -651,6 +664,7 @@ def test_paste_segment_accepts_a_known_source_within_its_length() -> None:
         1.0,
         [_extract(source_id="take2", source_start=1.0, source_end=2.0)],
         mode=EditMode.RIPPLE,
+        defaults=load_defaults(),
     )
     pasted = [c for c in p.clips if c.source_id == "take2"]
     assert [(c.track_id, c.timeline_start) for c in pasted] == [("host", 6.0)]
@@ -808,7 +822,7 @@ def test_fill_with_room_tone_two_clips() -> None:
         "podcast_mcp.edits.timeline_ops.room_tone_span",
         return_value=OwnQuietSample(Sample(5.0, 5.25, -70.0, None)),
     ) as span:
-        summary = fill_with_room_tone(p, "host", sample_duration_sec=0.25)
+        summary = fill_with_room_tone(p, "host", sample_duration_sec=0.25, defaults=load_defaults())
     assert summary["operation"] == "fill_with_room_tone"
     span.assert_called_once_with(p, "host", near_sec=2.0, duration_sec=0.25)
     host = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
@@ -834,7 +848,7 @@ def test_ripple_delete_invalid_range() -> None:
 def test_set_clip_fade_unknown_id() -> None:
     p = _two_track_project()
     try:
-        set_clip_fade(p, "missing", 0, 0)
+        set_clip_fade(p, "missing", 0, 0, defaults=load_defaults())
     except ValueError as exc:
         assert "unknown clip_id" in str(exc)
     else:
@@ -844,7 +858,7 @@ def test_set_clip_fade_unknown_id() -> None:
 def test_ripple_delete_text_no_match() -> None:
     p = _two_track_project()
     try:
-        plan_ripple_delete_text(p, "missing phrase")
+        plan_ripple_delete_text(p, "missing phrase", defaults=load_defaults())
     except ValueError as exc:
         assert "no transcript match" in str(exc)
     else:
@@ -854,7 +868,7 @@ def test_ripple_delete_text_no_match() -> None:
 def test_insert_gap_invalid_duration() -> None:
     p = _two_track_project()
     try:
-        insert_gap(p, 1.0, 0.0)
+        insert_gap(p, 1.0, 0.0, defaults=load_defaults())
     except ValueError as exc:
         assert "duration_sec must be positive" in str(exc)
     else:
@@ -864,7 +878,7 @@ def test_insert_gap_invalid_duration() -> None:
 def test_move_segment_invalid_range() -> None:
     p = _two_track_project()
     try:
-        move_segment(p, 3.0, 3.0, 5.0)
+        move_segment(p, 3.0, 3.0, 5.0, defaults=load_defaults())
     except ValueError as exc:
         assert "source_end must be after source_start" in str(exc)
     else:
@@ -873,14 +887,14 @@ def test_move_segment_invalid_range() -> None:
 
 def test_move_segment_insert_within_source() -> None:
     p = _two_track_project()
-    summary = move_segment(p, 1.0, 3.0, 2.0)
+    summary = move_segment(p, 1.0, 3.0, 2.0, defaults=load_defaults())
     assert summary["operation"] == "move_segment"
 
 
 def test_move_by_text_no_source_match() -> None:
     p = _two_track_project()
     try:
-        move_by_text(p, "missing", "hello")
+        move_by_text(p, "missing", "hello", defaults=load_defaults())
     except ValueError as exc:
         assert "no source match" in str(exc)
     else:
@@ -890,7 +904,7 @@ def test_move_by_text_no_source_match() -> None:
 def test_move_by_text_no_destination_match() -> None:
     p = _two_track_project()
     try:
-        move_by_text(p, "hello", "missing")
+        move_by_text(p, "hello", "missing", defaults=load_defaults())
     except ValueError as exc:
         assert "no destination match" in str(exc)
     else:
@@ -900,7 +914,7 @@ def test_move_by_text_no_destination_match() -> None:
 def test_split_clip_no_clip_at_time() -> None:
     p = _two_track_project()
     try:
-        split_clip(p, "host", 10.0)
+        split_clip(p, "host", 10.0, defaults=load_defaults())
     except ValueError as exc:
         assert "no clip at timeline" in str(exc)
     else:
@@ -909,7 +923,7 @@ def test_split_clip_no_clip_at_time() -> None:
 
 def test_split_clip_applies_micro_fades() -> None:
     p = _two_track_project()
-    split_clip(p, "host", 5.0)
+    split_clip(p, "host", 5.0, defaults=load_defaults())
     host_clips = sorted(
         (c for c in p.clips if c.track_id == "host"),
         key=lambda c: c.timeline_start,
@@ -944,7 +958,7 @@ def test_shorten_word_gaps_merges_overlapping_ranges() -> None:
 
 def test_fill_with_room_tone_single_clip() -> None:
     p = _two_track_project()
-    summary = fill_with_room_tone(p, "host")
+    summary = fill_with_room_tone(p, "host", defaults=load_defaults())
     assert summary["operation"] == "fill_with_room_tone"
     assert len([c for c in p.clips if c.track_id == "host"]) == 1
 
@@ -969,7 +983,7 @@ def test_fill_with_room_tone_missing_track() -> None:
         ),
     ]
     with pytest.raises(ValueError, match="unknown track_id"):
-        fill_with_room_tone(p, "host")
+        fill_with_room_tone(p, "host", defaults=load_defaults())
 
 
 def test_fill_with_room_tone_no_media() -> None:
@@ -992,7 +1006,7 @@ def test_fill_with_room_tone_no_media() -> None:
         ),
     ]
     try:
-        fill_with_room_tone(p, "host")
+        fill_with_room_tone(p, "host", defaults=load_defaults())
     except ValueError as exc:
         assert "has no media" in str(exc)
     else:
@@ -1018,14 +1032,14 @@ def test_fill_with_room_tone_skips_small_gap() -> None:
         ),
     ]
     before = len(p.clips)
-    fill_with_room_tone(p, "host", min_gap_sec=0.05)
+    fill_with_room_tone(p, "host", min_gap_sec=0.05, defaults=load_defaults())
     assert len([c for c in p.clips if c.track_id == "host"]) == before
 
 
 def test_ripple_delete_median_fallback_when_inverted() -> None:
     p = _two_track_project()
 
-    def fake_opt(_project, tid, start, end, force_enabled=None):
+    def fake_opt(_project, tid, start, end, force_enabled=None, **_kw):
         if tid == "host":
             return type("R", (), {"start": end, "end": start})()
         return type("R", (), {"start": start, "end": end})()
@@ -1040,7 +1054,7 @@ def test_ripple_delete_median_fallback_when_inverted() -> None:
 
 def test_move_segment_insert_after_source() -> None:
     p = _two_track_project()
-    summary = move_segment(p, 1.0, 2.0, 8.0)
+    summary = move_segment(p, 1.0, 2.0, 8.0, defaults=load_defaults())
     assert summary["operation"] == "move_segment"
 
 
@@ -1053,7 +1067,7 @@ def test_insert_room_tone_pad_falls_back_without_bed() -> None:
         Clip(id="a", track_id="host", source_start=0.0, source_end=1.0, timeline_start=0.0),
         Clip(id="b", track_id="host", source_start=1.0, source_end=2.0, timeline_start=1.0),
     ]
-    insert_room_tone_pad(p, 1.0, 0.2)
+    insert_room_tone_pad(p, 1.0, 0.2, defaults=load_defaults())
     pads = [
         c for c in p.clips if c.track_id == "host" and c.source_id == room_tone_source_id("host")
     ]

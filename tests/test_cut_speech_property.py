@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,
@@ -229,6 +230,7 @@ class _Op:
             token = boundary_context(
                 load_project(self.path),
                 TrimBoundaryTarget(clip_id=self.clip.id, edge=self.edge, mode=EditMode.RIPPLE),
+                defaults=load_defaults(),
             ).token
             out = service.trim_clip_edge(
                 self.clip.id,

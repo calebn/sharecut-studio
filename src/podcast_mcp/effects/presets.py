@@ -16,7 +16,7 @@ import copy
 from collections.abc import Mapping
 from typing import Any
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.models import EpisodeProject, ProcessingChain, ProcessingEffect
 
@@ -67,24 +67,23 @@ def _preset_overlay(defaults: Mapping[str, Any]) -> dict[str, PresetSpec]:
     return dict(raw) if isinstance(raw, Mapping) else {}
 
 
-def resolve_presets(defaults: Mapping[str, Any] | None = None) -> dict[str, PresetSpec]:
+def resolve_presets(defaults: Mapping[str, Any]) -> dict[str, PresetSpec]:
     """Builtins merged with the defaults ``effects:`` overlay (overlay wins by name). Deep copies."""
-    cfg = load_defaults() if defaults is None else defaults
-    return copy.deepcopy({**_BUILTIN_PRESETS, **_preset_overlay(cfg)})
+    return copy.deepcopy({**_BUILTIN_PRESETS, **_preset_overlay(defaults)})
 
 
-def list_presets() -> list[str]:
+def list_presets(*, defaults: EffectiveConfig) -> list[str]:
     """Sorted preset names. Reloads pipeline defaults on every call."""
-    return sorted(resolve_presets())
+    return sorted(resolve_presets(defaults=defaults))
 
 
-def get_preset(name: str) -> PresetSpec:
+def get_preset(name: str, *, defaults: EffectiveConfig) -> PresetSpec:
     """One resolved preset (deep copy). Reloads pipeline defaults on every call.
 
     In loops or per-request hot paths, call ``resolve_presets(defaults)`` once
     and index the returned map instead.
     """
-    presets = resolve_presets()
+    presets = resolve_presets(defaults=defaults)
     if name not in presets:
         raise ValueError(f"unknown effect preset: {name!r}")
     return presets[name]
@@ -105,8 +104,10 @@ def apply_preset_to_chain(
     project: EpisodeProject,
     track_id: str,
     preset: str,
+    *,
+    defaults: EffectiveConfig,
 ) -> ProcessingChain:
-    specs = get_preset(preset)
+    specs = get_preset(preset, defaults=defaults)
     return apply_specs_to_chain(project, track_id, specs)
 
 

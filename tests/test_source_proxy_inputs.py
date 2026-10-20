@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import source_proxy_audio as proxy
 from podcast_mcp.engines import timeline_render, transcript_gated_play
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
@@ -74,18 +75,26 @@ def capture_project(tmp_path):
 
 
 def _capture(project, engine):
-    return proxy.SourceProxyInputs.capture_occurrence(project, project.clips[0].id, engine)
+    return proxy.SourceProxyInputs.capture_occurrence(
+        project, project.clips[0].id, engine, defaults=load_defaults()
+    )
 
 
 def test_legacy_selector_needs_no_occurrence_and_renders_exact_primary(capture_project, tmp_path):
     project, engine = capture_project
     project.clips = []
     before = project.model_dump_json()
-    captured = proxy.SourceProxyInputs.capture_legacy(project, "origin", engine)
+    captured = proxy.SourceProxyInputs.capture_legacy(
+        project, "origin", engine, defaults=load_defaults()
+    )
     expected = tmp_path / "expected.wav"
-    timeline_render.render_source_with_chain(project, project.tracks[0], expected, engine=engine)
+    timeline_render.render_source_with_chain(
+        project, project.tracks[0], expected, engine=engine, defaults=load_defaults()
+    )
     actual = tmp_path / "actual.wav"
-    proxy.render_source_proxy_inputs(project, captured, actual, engine=engine)
+    proxy.render_source_proxy_inputs(
+        project, captured, actual, engine=engine, defaults=load_defaults()
+    )
     assert actual.read_bytes() == expected.read_bytes()
     assert project.model_dump_json() == before
     assert captured.selector == "legacy" and captured.clip_id is None
@@ -98,11 +107,15 @@ def test_occurrence_selector_keeps_secondary_at_unity(capture_project, tmp_path,
         project.clips[0].bleed_restore.source_sha256 = "0" * 64
     captured = _capture(project, engine)
     actual = tmp_path / "actual.wav"
-    proxy.render_source_proxy_inputs(project, captured, actual, engine=engine)
+    proxy.render_source_proxy_inputs(
+        project, captured, actual, engine=engine, defaults=load_defaults()
+    )
     np.testing.assert_array_equal(_samples(actual), np.full(16000, 3000))
     assert captured.affected
     assert captured.source.name == "secondary.wav"
-    legacy = proxy.SourceProxyInputs.capture_legacy(project, "origin", engine)
+    legacy = proxy.SourceProxyInputs.capture_legacy(
+        project, "origin", engine, defaults=load_defaults()
+    )
     assert legacy.input_hash != captured.input_hash
 
 
@@ -137,7 +150,9 @@ def test_prepared_renderer_preserves_complete_baseline_context(
 
     monkeypatch.setattr(proxy, "render_source_with_chain", render_complete_context)
     output = tmp_path / "complete-context.wav"
-    proxy.render_source_proxy_inputs(project, captured, output, engine=engine)
+    proxy.render_source_proxy_inputs(
+        project, captured, output, engine=engine, defaults=load_defaults()
+    )
     np.testing.assert_array_equal(_samples(output), np.full(16000, 3000))
     assert project.model_dump_json() == expected
 
@@ -229,7 +244,7 @@ def test_path_relocation_preserves_identity_but_old_capture_refuses(capture_proj
     project.sources[0].path = "relocated.wav"
     assert _capture(project, engine).input_hash == captured.input_hash
     with pytest.raises(CodedValueError):
-        captured.validate(project, engine)
+        captured.validate(project, engine, defaults=load_defaults())
 
 
 @pytest.mark.parametrize("default", [False, True])
@@ -257,7 +272,7 @@ def test_model_paths_normalize_escaped_operand_and_content(
     assert relocated.recipe != captured.recipe
     assert str(first) not in captured.identity_json
     with pytest.raises(CodedValueError):
-        captured.validate(project, engine)
+        captured.validate(project, engine, defaults=load_defaults())
     second.write_bytes(b"second model")
     assert _capture(project, engine).input_hash != relocated.input_hash
 
@@ -285,11 +300,15 @@ def test_prepared_baseline_keeps_default_command_and_pcm(
     _write(tmp_path / "fill.wav", 200)
     fill = tmp_path / "fill.wav" if filled else None
     monkeypatch.setattr(timeline_render, "current_gate_fill_path", lambda *_: fill)
-    captured = proxy.SourceProxyInputs.capture_legacy(project, "origin", engine)
+    captured = proxy.SourceProxyInputs.capture_legacy(
+        project, "origin", engine, defaults=load_defaults()
+    )
     target = tmp_path / "same.wav"
     run = Mock(wraps=timeline_render.run)
     monkeypatch.setattr(timeline_render, "run", run)
-    timeline_render.render_source_with_chain(project, project.tracks[0], target, engine=engine)
+    timeline_render.render_source_with_chain(
+        project, project.tracks[0], target, engine=engine, defaults=load_defaults()
+    )
     command, expected = run.call_args, target.read_bytes()
     timeline_render.render_source_with_chain(
         project,
@@ -300,6 +319,7 @@ def test_prepared_baseline_keeps_default_command_and_pcm(
         processing=timeline_render.SourceChainProcessing(
             captured.recipe, captured.fill, captured.gate
         ),
+        defaults=load_defaults(),
     )
     assert run.call_args == command
     assert target.read_bytes() == expected
@@ -312,7 +332,9 @@ def test_prepared_renderer_consumes_captured_gate(capture_project, tmp_path, mon
     project.clips = []
     gate = BleedGatePlan(attenuation_spans=((0.2, 0.4),), fade_sec=0)
     monkeypatch.setattr(proxy, "build_bleed_gate_plan", lambda *_a, **_k: gate)
-    captured = proxy.SourceProxyInputs.capture_legacy(project, "origin", engine)
+    captured = proxy.SourceProxyInputs.capture_legacy(
+        project, "origin", engine, defaults=load_defaults()
+    )
     monkeypatch.setattr(
         proxy,
         "build_bleed_gate_plan",
@@ -324,7 +346,9 @@ def test_prepared_renderer_consumes_captured_gate(capture_project, tmp_path, mon
         lambda *_a, **_k: pytest.fail("Captured gate must be reused"),
     )
     target = tmp_path / "captured.wav"
-    proxy.render_source_proxy_inputs(project, captured, target, engine=engine)
+    proxy.render_source_proxy_inputs(
+        project, captured, target, engine=engine, defaults=load_defaults()
+    )
     expected = np.full(16000, 1000)
     expected[3200:6400] = 0
     np.testing.assert_array_equal(_samples(target), expected)
@@ -332,12 +356,16 @@ def test_prepared_renderer_consumes_captured_gate(capture_project, tmp_path, mon
 
 def test_legacy_and_occurrence_preparation_identities_are_independent(capture_project):
     project, engine = capture_project
-    legacy = proxy.SourceProxyInputs.capture_legacy(project, "origin", engine)
+    legacy = proxy.SourceProxyInputs.capture_legacy(
+        project, "origin", engine, defaults=load_defaults()
+    )
     occurrence = _capture(project, engine)
     project.clips[0].mute_regions = [ClipMuteRegion(start_s=0.2, end_s=0.8)]
     project.clips[0].bleed_restore.regions[0].end_s = 0.8
     assert (
-        proxy.SourceProxyInputs.capture_legacy(project, "origin", engine).input_hash
+        proxy.SourceProxyInputs.capture_legacy(
+            project, "origin", engine, defaults=load_defaults()
+        ).input_hash
         == legacy.input_hash
     )
     assert _capture(project, engine).input_hash != occurrence.input_hash
@@ -428,7 +456,7 @@ def test_model_equal_content_alias_preserves_key_and_seals_runtime_binding(
     alias.symlink_to(second.name)
     assert _capture(project, engine).input_hash == captured.input_hash
     with pytest.raises(CodedValueError):
-        captured.validate(project, engine)
+        captured.validate(project, engine, defaults=load_defaults())
 
 
 def test_history_is_excluded_from_semantics_but_included_in_validation(capture_project):
@@ -442,4 +470,4 @@ def test_history_is_excluded_from_semantics_but_included_in_validation(capture_p
     project.history.cursor = 0
     assert _capture(project, engine).input_hash == captured.input_hash
     with pytest.raises(CodedValueError):
-        captured.validate(project, engine)
+        captured.validate(project, engine, defaults=load_defaults())

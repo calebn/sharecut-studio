@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines import ungated_audio
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.mcp.tools.timeline import audibility_map_tool, reconcile_transcript_tool
@@ -91,7 +92,7 @@ def test_missing_raw_source_does_not_create_echo_evidence(tmp_path: Path) -> Non
     (project_path.parent / "raw" / "guest.wav").unlink()
     project = load_project(project_path)
 
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
 
     assert set(caches.caches) == {"host"}
     assert caches.echo_pairs() == []
@@ -105,7 +106,7 @@ def test_raw_cache_omits_zero_offset_cut_and_truncated_tail(tmp_path: Path) -> N
         Clip(id="host-last", track_id="host", source_start=10, source_end=20, timeline_start=10),
     ]
 
-    cache = build_track_rms_caches(project).get("host")
+    cache = build_track_rms_caches(project, defaults=load_defaults()).get("host")
 
     assert cache is not None
     assert cache.samples.size == 20 * cache.sample_rate
@@ -143,7 +144,7 @@ def _multi_source_project(tmp_path: Path) -> EpisodeProject:
 def test_raw_cache_plays_selected_files_and_sums_overlap(tmp_path: Path) -> None:
     project = _multi_source_project(tmp_path)
 
-    cache = build_track_rms_caches(project).get("host")
+    cache = build_track_rms_caches(project, defaults=load_defaults()).get("host")
 
     assert cache is not None
     assert cache.samples.size == 20000
@@ -162,7 +163,7 @@ def test_raw_cache_uses_extra_without_primary_media(tmp_path: Path, primary: str
     else:
         project.tracks[0].media = None
 
-    cache = build_track_rms_caches(project).get("host")
+    cache = build_track_rms_caches(project, defaults=load_defaults()).get("host")
 
     assert cache is not None
     np.testing.assert_array_equal(cache.window(1.5, 2.5), 0.25)
@@ -173,7 +174,7 @@ def test_unavailable_selected_extra_omits_entire_raw_cache(
     tmp_path: Path, unavailable: str
 ) -> None:
     project = _multi_source_project(tmp_path)
-    available = build_track_rms_caches(project).get("host")
+    available = build_track_rms_caches(project, defaults=load_defaults()).get("host")
     assert available is not None
     np.testing.assert_array_equal(available.window(2, 2.5), 0.25)
     extra = project.clips[1]
@@ -188,7 +189,7 @@ def test_unavailable_selected_extra_omits_entire_raw_cache(
     else:
         (tmp_path / "raw" / "extra.wav").write_bytes(b"not audio")
 
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
 
     assert caches.get("host") is None
     assert caches.echo_pairs() == []
@@ -209,7 +210,7 @@ def test_raw_cache_plays_moved_source_on_current_lane(tmp_path: Path) -> None:
         ),
     ]
 
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     guest = caches.get("guest")
     host = caches.get("host")
 
@@ -243,7 +244,7 @@ def test_repeated_media_decodes_once_across_lane_placements(
 
     monkeypatch.setattr(ungated_audio, "load_mono_full", record_decode)
 
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     host = caches.get("host")
     guest = caches.get("guest")
 

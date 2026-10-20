@@ -13,6 +13,7 @@ from starlette.websockets import WebSocketDisconnect
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.comments import (
     add_action_item,
     add_comment,
@@ -256,7 +257,7 @@ def test_kept_source_ranges_edges():
 def test_strip_silence_no_media_and_relative_path(tmp_path, sample_wav):
     p = EpisodeProject.create("strip2", str(tmp_path))
     with pytest.raises(ValueError, match="not found"):
-        strip_silence(p, "missing")
+        strip_silence(p, "missing", defaults=load_defaults())
 
     raw = tmp_path / "raw"
     raw.mkdir()
@@ -286,7 +287,9 @@ def test_strip_silence_no_media_and_relative_path(tmp_path, sample_wav):
                 SilenceInterval(start=1.5, end=1.8),
             ],
         )
-        result = strip_silence(p, "host", min_duration_sec=0.05, use_inaudible_opt=False)
+        result = strip_silence(
+            p, "host", min_duration_sec=0.05, use_inaudible_opt=False, defaults=load_defaults()
+        )
     assert result["clips_created"] >= 1
     assert result["silence_intervals"] == 2
 

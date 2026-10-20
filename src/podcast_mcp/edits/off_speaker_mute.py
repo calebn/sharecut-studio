@@ -27,7 +27,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.engines.level_profile import (
     LEVEL_FRAME_SEC,
     LevelProfile,
@@ -453,7 +453,12 @@ def _kept_gaps(
 
 
 def _timeline_levels(
-    project: EpisodeProject, track_id: str, scratch: Path, *, unmuted: bool = True
+    project: EpisodeProject,
+    track_id: str,
+    scratch: Path,
+    *,
+    unmuted: bool = True,
+    defaults: EffectiveConfig,
 ) -> tuple[np.ndarray, LevelProfile] | None:
     """10 ms levels of ``track_id`` on the timeline clock, before any bleed gate.
 
@@ -473,14 +478,18 @@ def _timeline_levels(
                 clip.mute_regions = []
                 clip.off_speaker_mute_regions = []
     out = scratch / f"{track_id}-{'unmuted' if unmuted else 'played'}.wav"
-    render_track_from_timeline(ungated, ungated_track, out, load_defaults())
+    render_track_from_timeline(ungated, ungated_track, out, defaults)
     samples = load_mono_full(out, sample_rate=_SAMPLE_RATE)
     levels = frame_levels_db(samples, _SAMPLE_RATE)
     return levels, track_profile(samples, _SAMPLE_RATE)
 
 
 def plan_off_speaker_mutes(
-    project: EpisodeProject, track_id: str, *, progress: ProgressReporter | None = None
+    project: EpisodeProject,
+    track_id: str,
+    *,
+    progress: ProgressReporter | None = None,
+    defaults: EffectiveConfig,
 ) -> OffSpeakerPlan:
     """The stretches of ``track_id`` where only another speaker is talking."""
     if project.track_by_id(track_id) is None:
@@ -504,19 +513,19 @@ def plan_off_speaker_mutes(
         tempfile.TemporaryDirectory(prefix="offspk-") as tmp,
     ):
         scratch = Path(tmp)
-        mine = _timeline_levels(project, track_id, scratch)
+        mine = _timeline_levels(project, track_id, scratch, defaults=defaults)
         task.advance(1, total=len(others) + 1)
         if mine is None:
             plan.refusal = "track_has_no_audio"
             return plan
         levels, profile = mine
-        shown = _timeline_levels(project, track_id, scratch, unmuted=False)
+        shown = _timeline_levels(project, track_id, scratch, unmuted=False, defaults=defaults)
         rendered = shown[0] if shown is not None else None
         duration = levels.size * LEVEL_FRAME_SEC
         peers: list[PeerEvidence] = []
         for pid in others:
             words = word_intervals(project, pid, 0.0, duration, merge_gap_sec=0.0)
-            theirs = _timeline_levels(project, pid, scratch) if words else None
+            theirs = _timeline_levels(project, pid, scratch, defaults=defaults) if words else None
             if theirs is not None:
                 peers.append(PeerEvidence(pid, theirs[0], theirs[1], words))
             task.advance(1, total=len(others) + 1)
@@ -593,7 +602,9 @@ def _overlap_sec(words: list[tuple[float, float]], regions: list[dict[str, Any]]
     return sum(max(0.0, min(b, r["end"]) - max(a, r["start"])) for a, b in words for r in regions)
 
 
-def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> dict[str, Any]:
+def apply_off_speaker_mutes(
+    project: EpisodeProject, plan: OffSpeakerPlan, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
     """Mute ``plan``'s regions as exact-range edits; a region the safety checks hold stays open.
 
     One batch, so History undoes the command whole; each region is its own archived edit,
@@ -659,6 +670,7 @@ def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> di
                 edits,
                 application_intent=CutIntent.HUMAN_BOUNDARIES,
                 mute_ownership=MuteOwnership.OFF_SPEAKER,
+                defaults=defaults,
             )
             break
         except ScopeChangedAtApproval as exc:

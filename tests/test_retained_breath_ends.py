@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import FillerPacingResult
@@ -586,6 +587,7 @@ def test_enabled_protection_suppresses_unavailable_or_incomplete_evidence(failur
                 "host",
                 *bounds,
                 audio_cache=None if failure == "missing" else cache,
+                defaults=load_defaults(),
             )
             is None
         )
@@ -598,7 +600,12 @@ def test_floor_only_and_unrelated_protected_activity_are_clear() -> None:
     cache = _cache_with_breaths()
     cache.waveform.samples[round(4.8 * 16000) : round(4.9 * 16000)] = _harmonic_tone(1600, 0.026)
     assert protect_cut_breaths(
-        _host_project(_fixture_words()), "host", 5.0, 5.4, audio_cache=cache
+        _host_project(_fixture_words()),
+        "host",
+        5.0,
+        5.4,
+        audio_cache=cache,
+        defaults=load_defaults(),
     ) == (5.0, 5.4)
 
 
@@ -611,7 +618,12 @@ def test_shrink_recomputes_kept_word_eligibility() -> None:
         Transcript(track_id="host", words=[TranscriptWord(text="kept", start=5.00, end=5.36)])
     ]
     cache = _cache_with_breaths((5.00, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
-    assert protect_cut_breaths(project, "host", 5.10, 5.40, audio_cache=cache) is None
+    assert (
+        protect_cut_breaths(
+            project, "host", 5.10, 5.40, audio_cache=cache, defaults=load_defaults()
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -649,7 +661,7 @@ def test_proposal_to_exact_approval_preserves_complete_breath_source(tmp_path) -
     result = _proposal(tmp_path, cache, 5.15, "heuristic", cut_start=4.3)
     assert not isinstance(result, CutRejected)
     project = _project_with_wav(tmp_path, cache)
-    decision = _apply_analyzed_cut(project, result)
+    decision = _apply_analyzed_cut(project, result, defaults=load_defaults())
     with patch(
         "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
@@ -670,7 +682,7 @@ def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
     # bounds, breath whole.
     assert (result.reason, result.review_required) == ("pause:candidate:air_edges", False)
     project = _project_with_wav(tmp_path, cache)
-    _apply_analyzed_cut(project, result)
+    _apply_analyzed_cut(project, result, defaults=load_defaults())
     with patch(
         "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
@@ -745,7 +757,9 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
         neighbor = (5.41, 5.44)
         breath = (5.0, 5.36)
     project = _project_with_wav(tmp_path, cache)
-    protected = protect_cut_breaths(project, "host", *requested, audio_cache=cache)
+    protected = protect_cut_breaths(
+        project, "host", *requested, audio_cache=cache, defaults=load_defaults()
+    )
     assert protected == pytest.approx(expected)
     assert protected is not None
     saved = append_remove_decision(
@@ -755,6 +769,7 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
         reason="filler:protected",
         review_required=False,
         boundary_mode="vocal_transcript_guided",
+        defaults=load_defaults(),
     )
     append_remove_decision(
         project,
@@ -763,13 +778,14 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
         reason="filler:um",
         review_required=False,
         boundary_mode=neighbor_mode,
+        defaults=load_defaults(),
     )
-    assert coalesce_edits(project, track_id="host") == 0
+    assert coalesce_edits(project, track_id="host", defaults=load_defaults()) == 0
     with patch(
         "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
-        assert apply_tighten_decisions(project) == 2
+        assert apply_tighten_decisions(project, defaults=load_defaults()) == 2
     assert any(
         clip.source_start <= breath[0] and clip.source_end >= breath[1] for clip in project.clips
     )
@@ -846,12 +862,24 @@ def test_a_faded_edge_never_removes_a_breath_run_whose_onset_runs_on() -> None:
     cache = _cache_with_breaths((4.40, 5.10, 0.0008), (5.10, 5.24, 0.026))
     assert (
         protect_cut_breaths(
-            _host_project(_fixture_words()), "host", 5.08, 5.26, audio_cache=cache, strict=False
+            _host_project(_fixture_words()),
+            "host",
+            5.08,
+            5.26,
+            audio_cache=cache,
+            strict=False,
+            defaults=load_defaults(),
         )
         is None
     )
     assert protect_cut_breaths(
-        _host_project(_fixture_words()), "host", 4.90, 5.26, audio_cache=cache, strict=False
+        _host_project(_fixture_words()),
+        "host",
+        4.90,
+        5.26,
+        audio_cache=cache,
+        strict=False,
+        defaults=load_defaults(),
     ) == (4.90, 5.26)
 
 
@@ -870,6 +898,7 @@ def test_a_faded_edge_may_sit_where_no_breath_is_found(evidence) -> None:
             5.40,
             audio_cache=None if evidence == "missing" else cache,
             strict=False,
+            defaults=load_defaults(),
         )
     assert actual == (5.12, 5.40)
 

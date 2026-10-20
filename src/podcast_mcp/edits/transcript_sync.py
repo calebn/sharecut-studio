@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.ranges import overlaps_remove_range
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
@@ -21,8 +22,8 @@ from podcast_mcp.models import ArchivedTranscriptWord, Clip, EpisodeProject, Tra
 from podcast_mcp.util.intervals import merge_intervals
 
 
-def rebuild_combined(project: EpisodeProject) -> None:
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+def rebuild_combined(project: EpisodeProject, *, defaults: EffectiveConfig) -> None:
+    project.combined_transcript = TranscriptionEngine(defaults=defaults).merge_transcripts(project)
 
 
 def apply_source_transcript_removes(
@@ -31,6 +32,7 @@ def apply_source_transcript_removes(
     | dict[TranscriptKey, list[tuple[float, float]]],
     *,
     rebuild: bool = True,
+    defaults: EffectiveConfig,
 ) -> None:
     """Archive words overlapping source-time removes; keep surviving times unchanged."""
     if not removes_by_track:
@@ -49,7 +51,7 @@ def apply_source_transcript_removes(
                 kept.append(word)
         tr.words = kept
     if rebuild:
-        rebuild_combined(project)
+        rebuild_combined(project, defaults=defaults)
 
 
 def timeline_removes_to_source_ranges(
@@ -126,6 +128,7 @@ def apply_batch_transcript_removes(
     clips_by_track: Mapping[str, list[Clip]],
     *,
     rebuild: bool = True,
+    defaults: EffectiveConfig,
 ) -> None:
     """Archive the words under timeline ``removes`` of each lane's pre-edit clips.
 
@@ -135,4 +138,4 @@ def apply_batch_transcript_removes(
     for clips in clips_by_track.values():
         for key, ranges in timeline_removes_by_transcript(project, clips, removes).items():
             removes_by_track.setdefault(key, []).extend(ranges)
-    apply_source_transcript_removes(project, removes_by_track, rebuild=rebuild)
+    apply_source_transcript_removes(project, removes_by_track, rebuild=rebuild, defaults=defaults)

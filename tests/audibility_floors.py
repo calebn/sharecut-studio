@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 
 
@@ -24,6 +25,7 @@ def floors_at(floor_db: float):
             caches=kwargs.get("caches"),
             floor_db=kwargs.get("floor_db", DIGITAL_SILENCE_DB),
             recorded_gain=kwargs.get("recorded_gain", True),
+            defaults=load_defaults(),
         )
 
     return patch.multiple(

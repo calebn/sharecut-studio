@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC
 from podcast_mcp.engines.audio import (
     At,
@@ -197,7 +198,9 @@ def test_render_applies_edit_in_clip(sample_wav: Path, tmp_path: Path) -> None:
     from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.models import CutIntent
 
-    approve_edits(project, ["cut1"], application_intent=CutIntent.HUMAN_BOUNDARIES)
+    approve_edits(
+        project, ["cut1"], application_intent=CutIntent.HUMAN_BOUNDARIES, defaults=load_defaults()
+    )
     assert project.edit_decisions == []
     assert len(project.editorial.edit_log) == 1
     out = ws / "artifacts" / "host_edited.wav"

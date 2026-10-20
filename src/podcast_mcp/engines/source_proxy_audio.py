@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.bleed_restore import (
     RESTORE_RENDER_REV,
     RestoreSupport,
@@ -146,11 +147,13 @@ class _Dependencies:
         paths: tuple[Path, ...],
         context_track_id: str,
         bindings: tuple[tuple[Path, Path], ...],
+        *,
+        defaults: EffectiveConfig,
     ) -> _Dependencies:
         track = project.track_by_id(context_track_id)
         gate_context = None
         if track is not None and track.transcript_gate:
-            payload = bleed_gate_payload(project, context_track_id)
+            payload = bleed_gate_payload(project, context_track_id, defaults=defaults)
             paths += tuple(
                 Path(media["path"]).resolve()
                 for lane in payload["inputs"]
@@ -186,7 +189,7 @@ class _Dependencies:
             bindings,
         )
 
-    def validate(self, project: EpisodeProject) -> None:
+    def validate(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> None:
         with project_state_lock(project):
             if project.model_dump_json() != self.project_json:
                 raise _inputs_changed()
@@ -194,7 +197,12 @@ class _Dependencies:
                 raise _inputs_changed()
             if self.gate_context is not None:
                 track_id, payload = self.gate_context
-                if json.dumps(bleed_gate_payload(project, track_id), sort_keys=True) != payload:
+                if (
+                    json.dumps(
+                        bleed_gate_payload(project, track_id, defaults=defaults), sort_keys=True
+                    )
+                    != payload
+                ):
                     raise _inputs_changed()
             for path, revision, digest in self.media:
                 try:
@@ -613,15 +621,25 @@ class SourceProxyInputs:
 
     @classmethod
     def capture_legacy(
-        cls, project: EpisodeProject, track_id: str, engine: FFmpegEngine
+        cls,
+        project: EpisodeProject,
+        track_id: str,
+        engine: FFmpegEngine,
+        *,
+        defaults: EffectiveConfig,
     ) -> SourceProxyInputs:
-        return cls._capture(project, engine, track_id=track_id)
+        return cls._capture(project, engine, track_id=track_id, defaults=defaults)
 
     @classmethod
     def capture_occurrence(
-        cls, project: EpisodeProject, clip_id: str, engine: FFmpegEngine
+        cls,
+        project: EpisodeProject,
+        clip_id: str,
+        engine: FFmpegEngine,
+        *,
+        defaults: EffectiveConfig,
     ) -> SourceProxyInputs:
-        return cls._capture(project, engine, clip_id=clip_id)
+        return cls._capture(project, engine, clip_id=clip_id, defaults=defaults)
 
     @classmethod
     def _capture(
@@ -631,6 +649,7 @@ class SourceProxyInputs:
         *,
         track_id: str | None = None,
         clip_id: str | None = None,
+        defaults: EffectiveConfig,
     ) -> SourceProxyInputs:
         snapshot = snapshot_project(project)
         clip = next((c for c in snapshot.clips if c.id == clip_id), None)
@@ -744,12 +763,14 @@ class SourceProxyInputs:
             if regions and clip is not None
             else ()
         )
-        dependencies = _Dependencies.capture(snapshot, paths, context.id, bindings)
+        dependencies = _Dependencies.capture(
+            snapshot, paths, context.id, bindings, defaults=defaults
+        )
         digests = {path: digest for path, _, digest in dependencies.media}
         for semantic_effect, model in models:
             semantic_effect.params["model"] = "sha256_" + str(digests[model])
         gate = (
-            build_bleed_gate_plan(snapshot, context.id, source_clock=True)
+            build_bleed_gate_plan(snapshot, context.id, source_clock=True, defaults=defaults)
             if context.transcript_gate
             else BleedGatePlan()
         )
@@ -841,11 +862,13 @@ class SourceProxyInputs:
             dependencies,
             _canonical(payload),
         )
-        captured.validate(project, engine)
+        captured.validate(project, engine, defaults=defaults)
         return captured
 
-    def validate(self, project: EpisodeProject, engine: FFmpegEngine) -> None:
-        self.dependencies.validate(project)
+    def validate(
+        self, project: EpisodeProject, engine: FFmpegEngine, *, defaults: EffectiveConfig
+    ) -> None:
+        self.dependencies.validate(project, defaults=defaults)
         if (
             engine.ffmpeg,
             engine.ffprobe,
@@ -871,6 +894,7 @@ def render_source_proxy_inputs(
     output_path: Path,
     *,
     engine: FFmpegEngine,
+    defaults: EffectiveConfig,
 ) -> Path:
     """Render precisely one sealed legacy or occurrence capture."""
     with render_lock(project):
@@ -886,7 +910,7 @@ def render_source_proxy_inputs(
             )
 
         def validate() -> None:
-            inputs.validate(project, engine)
+            inputs.validate(project, engine, defaults=defaults)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix=".source-proxy-", dir=output_path.parent) as temporary:
@@ -900,6 +924,7 @@ def render_source_proxy_inputs(
                 engine=engine,
                 selected_source_path=inputs.source,
                 processing=SourceChainProcessing(inputs.recipe, inputs.fill, inputs.gate),
+                defaults=defaults,
             )
             validate()
             if inputs.regions and inputs.gate.attenuation_spans and inputs.gate.floor_gain < 1:
@@ -937,10 +962,17 @@ def render_source_proxy_inputs(
 
 
 def render_source_proxy_restore(
-    project: EpisodeProject, clip_id: str, output_path: Path, *, engine: FFmpegEngine | None = None
+    project: EpisodeProject,
+    clip_id: str,
+    output_path: Path,
+    *,
+    engine: FFmpegEngine | None = None,
+    defaults: EffectiveConfig,
 ) -> Path:
     """Render one occurrence's bounded source variant without publishing a proxy manifest."""
     eng = engine or FFmpegEngine()
     with render_lock(project):
-        inputs = SourceProxyInputs.capture_occurrence(project, clip_id, eng)
-        return render_source_proxy_inputs(project, inputs, output_path, engine=eng)
+        inputs = SourceProxyInputs.capture_occurrence(project, clip_id, eng, defaults=defaults)
+        return render_source_proxy_inputs(
+            project, inputs, output_path, engine=eng, defaults=defaults
+        )

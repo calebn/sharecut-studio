@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 from bleed_helpers import RATE, delay, voices, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -146,13 +147,17 @@ def _project(tmp_path: Path, scene: Scene) -> EpisodeProject:
 
 def _reconcile(project: EpisodeProject, *, lag_known: bool = True) -> dict[float, str]:
     """Reconcile's verdict on each of Caleb's words, written onto the transcript as it does."""
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
         if lag_known:
-            rows = compute_word_audibility_map(project, policy=AnalysisPolicy(), caches=caches)
+            rows = compute_word_audibility_map(
+                project, policy=AnalysisPolicy(), caches=caches, defaults=load_defaults()
+            )
         else:
             with patch.object(TrackRmsCacheSet, "copy_path", lambda self, a, b: CopyPath()):
-                rows = compute_word_audibility_map(project, policy=AnalysisPolicy(), caches=caches)
+                rows = compute_word_audibility_map(
+                    project, policy=AnalysisPolicy(), caches=caches, defaults=load_defaults()
+                )
     verdicts = {}
     for row in rows:
         word = project.transcript_for_track(row["track_id"]).words[row["word_index"]]
@@ -224,7 +229,7 @@ def test_a_lagged_copy_is_not_the_hosts_filler(
 def test_an_unmeasured_lag_keeps_the_same_instant_verdict(tmp_path: Path, scene: Scene) -> None:
     """Without a confident lag the guest is read at 0 lag, as before the lag was measured."""
     project = _project(tmp_path, scene)
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, defaults=load_defaults())
     with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
         assert caches.copy_path("audra", "caleb") == CopyPath()
     assert _reconcile(project)[scene.copy_at[0]] == "audible"

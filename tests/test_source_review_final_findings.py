@@ -5,6 +5,7 @@ import wave
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.ripple import EditMode
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
@@ -258,7 +259,14 @@ def test_original_music_placement_stays_pending_before_real_inward_optimization(
     )
     original = inspect_source_remove(project, edit)
     assert isinstance(original, CutScopeHold) and original.reason == "operation_scope"
-    plan = plan_ripple_delete(project, 1.5, 2.03, edited_track_ids=["host"], use_inaudible_opt=True)
+    plan = plan_ripple_delete(
+        project,
+        1.5,
+        2.03,
+        edited_track_ids=["host"],
+        use_inaudible_opt=True,
+        defaults=load_defaults(),
+    )
     assert plan.spans[0] == pytest.approx((1.46, 1.99))
     ws = ProjectWorkspace.open(save_project(project))
     before = ws.path.read_bytes()

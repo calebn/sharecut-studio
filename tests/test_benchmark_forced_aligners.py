@@ -647,7 +647,7 @@ def test_native_prediction_provenance_is_prediction_compatible(monkeypatch) -> N
     bw = load_script("benchmark_word_boundaries")
 
     class Stub:
-        def __init__(self, model_size: str) -> None:
+        def __init__(self, model_size: str, **_kw) -> None:
             self.model_size = model_size
 
         def transcribe_file(self, path):

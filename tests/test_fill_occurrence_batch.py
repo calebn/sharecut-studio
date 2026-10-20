@@ -92,16 +92,34 @@ def test_every_subset_of_mute_fillers_applies_as_a_batch(fillers, intent: CutInt
     for size in (2, 3):
         for subset in itertools.combinations(ids, size):
             batch = project.model_copy(deep=True)
-            assert approve_edits(batch, list(subset), application_intent=intent) == size
+            assert (
+                approve_edits(
+                    batch, list(subset), application_intent=intent, defaults=load_defaults()
+                )
+                == size
+            )
 
 
 def test_a_batch_applies_the_fills_one_at_a_time_applies(fillers) -> None:
     project, ids = fillers
     batch = project.model_copy(deep=True)
-    assert approve_edits(batch, ids, application_intent=CutIntent.PROGRAMMATIC) == 3
+    assert (
+        approve_edits(
+            batch, ids, application_intent=CutIntent.PROGRAMMATIC, defaults=load_defaults()
+        )
+        == 3
+    )
     sequential = project.model_copy(deep=True)
     for edit_id in ids:
-        assert approve_edits(sequential, [edit_id], application_intent=CutIntent.PROGRAMMATIC) == 1
+        assert (
+            approve_edits(
+                sequential,
+                [edit_id],
+                application_intent=CutIntent.PROGRAMMATIC,
+                defaults=load_defaults(),
+            )
+            == 1
+        )
 
     def lane(p: EpisodeProject):
         return sorted(
@@ -121,7 +139,12 @@ def test_a_source_the_timeline_plays_twice_is_still_refused(fillers, intent: Cut
     )
     for selected in (ids[:1], ids):
         with pytest.raises(ScopeChangedAtApproval):
-            approve_edits(replayed.model_copy(deep=True), selected, application_intent=intent)
+            approve_edits(
+                replayed.model_copy(deep=True),
+                selected,
+                application_intent=intent,
+                defaults=load_defaults(),
+            )
 
 
 @pytest.fixture
@@ -165,6 +188,15 @@ def test_a_pad_borrowed_from_the_pause_quiet_does_not_veto_the_pause(
     project, filler, pause = pad_over_pause
     for selected in ([filler], [pause]):
         assert (
-            approve_edits(project.model_copy(deep=True), selected, application_intent=intent) == 1
+            approve_edits(
+                project.model_copy(deep=True),
+                selected,
+                application_intent=intent,
+                defaults=load_defaults(),
+            )
+            == 1
         )
-    assert approve_edits(project, [filler, pause], application_intent=intent) == 2
+    assert (
+        approve_edits(project, [filler, pause], application_intent=intent, defaults=load_defaults())
+        == 2
+    )

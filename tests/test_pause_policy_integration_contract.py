@@ -95,7 +95,7 @@ def test_enabled_saved_and_suggested_keep_the_same_original_suffix_and_next_word
     snapshot = ws.project.model_copy(deep=True)
 
     suggested_end = apply_for_suggested(
-        snapshot, resolve_pending_preview(snapshot, "pause", pad_sec=0.75)
+        snapshot, resolve_pending_preview(snapshot, "pause", pad_sec=0.75), defaults=cfg
     )
 
     assert suggested_end == pytest.approx(1.05)

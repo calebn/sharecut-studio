@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import roll_join_limits, trim_edge_limits
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
@@ -97,17 +98,21 @@ def test_visible_geometry_and_stale_apply_leave_history_untouched(
 ) -> None:
     ws = _project(minimal_project)
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    original = boundary_context(ws.project, target)
+    original = boundary_context(ws.project, target, defaults=load_defaults())
     assert (
-        boundary_context(ws.project, target, expected_geometry=original.geometry).token
+        boundary_context(
+            ws.project, target, expected_geometry=original.geometry, defaults=load_defaults()
+        ).token
         == original.token
     )
     with pytest.raises(DocumentConflictError):
-        boundary_context(ws.project, target, expected_geometry=[])
+        boundary_context(ws.project, target, expected_geometry=[], defaults=load_defaults())
     missing = ws.project.model_copy(deep=True)
     missing.clips = [clip for clip in missing.clips if clip.id != "right"]
     with pytest.raises(DocumentConflictError):
-        boundary_context(missing, target, expected_geometry=original.geometry)
+        boundary_context(
+            missing, target, expected_geometry=original.geometry, defaults=load_defaults()
+        )
     service = EditService(ws)
     history_before = len(ws.project.history.entries)
     assert service.roll_clip_join("left", "right", 0, expected_token=original.token)["unchanged"]
@@ -130,13 +135,13 @@ def test_token_changes_for_same_path_media_replacement(
     media = ws.project.workspace_path() / "raw" / "host.wav"
     media.parent.mkdir(parents=True, exist_ok=True)
     media.write_bytes(b"one")
-    first = boundary_context(ws.project, target).token
+    first = boundary_context(ws.project, target, defaults=load_defaults()).token
     before = media.stat()
     media.write_bytes(b"two")
     os.utime(media, ns=(before.st_atime_ns, before.st_mtime_ns))
     assert media.stat().st_size == before.st_size
     assert media.stat().st_mtime_ns == before.st_mtime_ns
-    assert boundary_context(ws.project, target).token != first
+    assert boundary_context(ws.project, target, defaults=load_defaults()).token != first
 
 
 def test_archived_word_change_invalidates_proposed_preview(minimal_project: Path) -> None:
@@ -154,10 +159,10 @@ def test_archived_word_change_invalidates_proposed_preview(minimal_project: Path
     ]
     ws.save()
     target = TrimBoundaryTarget(clip_id="left", edge="out")
-    first = boundary_context(ws.project, target).token
+    first = boundary_context(ws.project, target, defaults=load_defaults()).token
     ws.project.transcripts[0].archived_words[0].word.ignored = True
     ws.save()
-    assert boundary_context(ws.project, target).token != first
+    assert boundary_context(ws.project, target, defaults=load_defaults()).token != first
     with pytest.raises(DocumentConflictError):
         EditService(ws).trim_clip_edge(
             "left", "out", 5.2, mode=EditMode.RIPPLE, expected_token=first
@@ -167,7 +172,7 @@ def test_archived_word_change_invalidates_proposed_preview(minimal_project: Path
 def test_document_noop_apply_does_not_add_history(minimal_project: Path) -> None:
     ws = _project(minimal_project)
     target = TrimBoundaryTarget(clip_id="left", edge="out")
-    token = boundary_context(ws.project, target).token
+    token = boundary_context(ws.project, target, defaults=load_defaults()).token
     before = len(load_project(minimal_project).history.entries)
     project_before = minimal_project.read_bytes()
     result = DocumentSyncService.open(minimal_project).submit(

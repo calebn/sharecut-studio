@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.breath_detect import (
     BreathSpan,
     PauseAir,
@@ -1547,8 +1548,12 @@ def test_recommend_cut_fade_ms_pause_longer_than_filler():
         "podcast_mcp.edits.cut_quality.measure_join_jump_db",
         return_value=None,
     ):
-        filler = recommend_cut_fade_ms(project, "host", 1.0, 1.2, cut_kind="filler")
-        pause = recommend_cut_fade_ms(project, "host", 1.0, 2.5, cut_kind="pause")
+        filler = recommend_cut_fade_ms(
+            project, "host", 1.0, 1.2, cut_kind="filler", defaults=load_defaults()
+        )
+        pause = recommend_cut_fade_ms(
+            project, "host", 1.0, 2.5, cut_kind="pause", defaults=load_defaults()
+        )
     assert pause >= filler
 
 
@@ -1568,7 +1573,7 @@ def test_detect_adjacent_breath_disabled(defaults=None):
         "podcast_mcp.edits.breath_detect._breath_cfg",
         return_value={"enabled": False},
     ):
-        assert detect_adjacent_breath(project, "host", 1.0, 1.2) == []
+        assert detect_adjacent_breath(project, "host", 1.0, 1.2, defaults=defaults) == []
 
 
 def test_optimize_and_assess_integration():
@@ -1603,7 +1608,7 @@ def test_optimize_and_assess_integration():
             "podcast_mcp.edits.cut_quality.measure_join_jump_db",
             return_value=2.0,
         ):
-            result, risk = optimize_and_assess(project, "host", 1.0, 1.2)
+            result, risk = optimize_and_assess(project, "host", 1.0, 1.2, defaults=load_defaults())
     assert result.start == 1.0
     assert not risk.too_risky
 
@@ -1614,7 +1619,7 @@ def test_word_margin_violation_detects_close_boundary():
         TranscriptWord(text="b", start=0.52, end=1.0),
     ]
     project = _project_with_transcript(words)
-    violation = word_margin_violation_sec(project, "host", 0.51, 0.52)
+    violation = word_margin_violation_sec(project, "host", 0.51, 0.52, defaults=load_defaults())
     assert violation > 0
 
 
@@ -2090,7 +2095,7 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
             max_workers=1,
         )
 
-    shared_timeline.assert_called_once_with(project)
+    shared_timeline.assert_called_once_with(project, defaults=ANY)
     assert scope_caches
     assert all(cache is timeline_caches for cache in scope_caches)
 
@@ -3973,8 +3978,8 @@ def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
     assert decision.end < burst_at
     assert decision.next_burst_sec == pytest.approx(decision.end + 0.01)
     project.edit_decisions = [decision]
-    assert approve_edits(project, [decision.id]) == 1
-    rerender_preview(project, reconcile=False)
+    assert approve_edits(project, [decision.id], defaults=load_defaults()) == 1
+    rerender_preview(project, reconcile=False, defaults=load_defaults())
 
     def pcm(path) -> np.ndarray:
         with wave.open(str(path), "rb") as audio:
@@ -4027,7 +4032,7 @@ def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_
     assert decision.next_burst_sec - decision.end > 0.02
     headroom_ms = (decision.next_burst_sec - decision.end) * 1000.0
     project.edit_decisions = [decision]
-    assert approve_edits(project, [decision.id]) == 1
+    assert approve_edits(project, [decision.id], defaults=defaults) == 1
     resumed = next(c for c in project.clips if c.source_start >= decision.end - 1e-6)
     assert resumed.fade_in_ms <= headroom_ms + 1e-6
     assert recommend_post_pad_fade_in_ms(project, "host", decision.end, defaults=defaults) > (
@@ -4085,7 +4090,7 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
         "podcast_mcp.edits.timeline_ops.room_tone_span",
         return_value=OwnQuietSample(Sample(0.0, 0.2, -70.0, None)),
     ):
-        assert approve_edits(project, [decision.id]) == 1
+        assert approve_edits(project, [decision.id], defaults=defaults) == 1
     resumed = next(c for c in project.clips if c.source_start >= decision.end - 1e-6)
     assert resumed.fade_in_ms == recommended
 

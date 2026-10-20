@@ -23,6 +23,7 @@ from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.clips_ops import clips_for_track, is_session_join
 from podcast_mcp.edits.comments import list_comments
 from podcast_mcp.edits.join_speech import SpeechCrossing, speech_crossings_in_window
@@ -352,6 +353,7 @@ def build_audition_context(
     include_dsp: bool = True,
     include_prosody: bool = True,
     prosody_params: ProsodyParams | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     if timeline_end <= timeline_start:
         raise CodedValueError("timeline_end must be after timeline_start", code="invalid_range")
@@ -422,7 +424,7 @@ def build_audition_context(
     skew = _clip_skew_warnings(
         source_at_mid, mid=mid, alignment_shift=alignment_shift, skew_warn_sec=skew_warn_sec
     )
-    render = render_status_report(project)
+    render = render_status_report(project, defaults=defaults)
     comments = _comments_in_window(project, timeline_start, timeline_end, full=detail != "summary")
     edits = _edits_in_window(project, st, timeline_start, timeline_end, full=detail != "summary")
     render_status = {
@@ -468,6 +470,7 @@ def build_audition_context(
             timeline_start,
             timeline_end,
             pngs=detail == "visual" if render_visual_pngs is None else render_visual_pngs,
+            defaults=defaults,
         )
         if include_dsp
         else []
@@ -475,8 +478,14 @@ def build_audition_context(
     hypotheses.extend(_visual_hypotheses(window, dsp))
     echo_skipped = False
     if include_dsp:
-        hypotheses.extend(_speech_cut_hypotheses(project, track_ids, timeline_start, timeline_end))
-        echo_hyps, echo_skipped = _echo_hypotheses(project, window, timeline_start, timeline_end)
+        hypotheses.extend(
+            _speech_cut_hypotheses(
+                project, track_ids, timeline_start, timeline_end, defaults=defaults
+            )
+        )
+        echo_hyps, echo_skipped = _echo_hypotheses(
+            project, window, timeline_start, timeline_end, defaults=defaults
+        )
         hypotheses.extend(echo_hyps)
 
     visuals: list[dict[str, Any]] | None = None
@@ -784,6 +793,8 @@ def _speech_cut_hypotheses(
     track_ids: list[str],
     timeline_start: float,
     timeline_end: float,
+    *,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for c in speech_crossings_in_window(project, track_ids, timeline_start, timeline_end):
@@ -796,6 +807,7 @@ def _speech_cut_hypotheses(
             edge=edge,
             source_sec=c.suggested_source_sec,
             mode=EditMode(fix["mode"]),
+            defaults=defaults,
         )
         fix["source_sec"] = round(checked.source_sec, 3)
         out.append(
@@ -841,10 +853,14 @@ def _echo_hypotheses(
     window: dict[str, Any],
     timeline_start: float,
     timeline_end: float,
+    *,
+    defaults: EffectiveConfig,
 ) -> tuple[list[dict[str, Any]], bool]:
     """``echo_risk`` per directed mic pair, and whether any stem was skipped as stale."""
     cfg = EchoConfig()
-    profiles, skipped = echo_profiles(project, start_sec=timeline_start, end_sec=timeline_end)
+    profiles, skipped = echo_profiles(
+        project, start_sec=timeline_start, end_sec=timeline_end, defaults=defaults
+    )
     out = [
         _hypothesis(
             "echo_risk",
@@ -861,7 +877,11 @@ def _echo_hypotheses(
         analysis_span_sec=min(60.0, max(30.0, timeline_end - timeline_start)),
     )
     local_profiles, local_skipped = echo_profiles(
-        project, start_sec=timeline_start, end_sec=timeline_end, config=local_config
+        project,
+        start_sec=timeline_start,
+        end_sec=timeline_end,
+        config=local_config,
+        defaults=defaults,
     )
     for profile in local_profiles:
         local_rows = [
@@ -1204,6 +1224,7 @@ def _diagnostics_for_tracks(
     timeline_end: float,
     *,
     pngs: bool = True,
+    defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     from podcast_mcp.edits.audio_quality import DiagnosticsWindowError, audio_diagnostics_report
 
@@ -1223,6 +1244,7 @@ def _diagnostics_for_tracks(
                 start_sec=timeline_start,
                 end_sec=timeline_end,
                 pngs=pngs,
+                defaults=defaults,
             )
             row: dict[str, Any] = {
                 "track_id": tid,

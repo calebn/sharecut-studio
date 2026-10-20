@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.render import render_preview_result, rerender_preview
@@ -25,7 +26,7 @@ def test_rerender_preview_ok(tmp_path):
     ):
         runner_cls.return_value.run = MagicMock()
         auto_rec.return_value = {"status_updates": 0}
-        info = rerender_preview(proj)
+        info = rerender_preview(proj, defaults=load_defaults())
 
     assert info["ok"] is True
     assert info["path"] == str(premix)
@@ -57,7 +58,7 @@ def test_rerender_preview_nested_reconcile_does_not_blow_total(tmp_path):
         patch("podcast_mcp.render.maybe_auto_reconcile", side_effect=nested_reconcile),
     ):
         runner_cls.return_value.run = MagicMock()
-        info = rerender_preview(proj, progress=rec, reconcile=True)
+        info = rerender_preview(proj, progress=rec, reconcile=True, defaults=load_defaults())
 
     assert info["ok"] is True
     assert parent.total == 3
@@ -73,7 +74,7 @@ def test_rerender_preview_nested_reconcile_does_not_blow_total(tmp_path):
 def test_render_preview_result_without_file(tmp_path):
     proj = EpisodeProject.create("t", str(tmp_path))
     proj.ensure_dirs()
-    out = render_preview_result(proj, rerender=False)
+    out = render_preview_result(proj, rerender=False, defaults=load_defaults())
     assert '"ok": false' in out or '"ok": false' in out.replace(" ", "")
 
 
@@ -87,7 +88,7 @@ def test_render_preview_result_rerenders(tmp_path):
         patch("podcast_mcp.render.maybe_auto_reconcile", return_value={"status_updates": 1}),
     ):
         runner_cls.return_value.run = MagicMock()
-        out = render_preview_result(proj, rerender=True)
+        out = render_preview_result(proj, rerender=True, defaults=load_defaults())
     assert '"ok": true' in out.replace(" ", "") or '"ok": true' in out
     assert "reconciliation" in out
 
@@ -101,7 +102,7 @@ def test_rerender_preview_skips_reconcile_and_missing_premix(tmp_path):
         patch("podcast_mcp.render.mark_reconciliation_stale") as stale,
     ):
         runner_cls.return_value.run = MagicMock()
-        info = rerender_preview(proj, reconcile=False)
+        info = rerender_preview(proj, reconcile=False, defaults=load_defaults())
 
     assert info["ok"] is False
     assert info["path"] is None
@@ -112,14 +113,14 @@ def test_rerender_preview_skips_reconcile_when_fresh(tmp_path):
     proj = EpisodeProject.create("t", str(tmp_path))
     proj.ensure_dirs()
     (proj.artifacts_dir() / "premix.wav").write_bytes(b"x")
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=load_defaults())
 
     with (
         patch("podcast_mcp.render.PipelineRunner") as runner_cls,
         patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
     ):
         runner_cls.return_value.run = MagicMock()
-        info = rerender_preview(proj, reconcile=True)
+        info = rerender_preview(proj, reconcile=True, defaults=load_defaults())
 
     auto_rec.assert_not_called()
     assert info["ok"] is True
@@ -131,7 +132,7 @@ def test_rerender_preview_clears_stale_flag_after_mix_when_audio_unchanged(tmp_p
     proj = EpisodeProject.create("t", str(tmp_path))
     proj.ensure_dirs()
     (proj.artifacts_dir() / "premix.wav").write_bytes(b"x")
-    mark_reconciliation_fresh(proj)
+    mark_reconciliation_fresh(proj, defaults=load_defaults())
 
     def fake_run(project, *, only_step=None, progress=None, **kwargs):
         if only_step == "assemble_timeline":
@@ -142,7 +143,7 @@ def test_rerender_preview_clears_stale_flag_after_mix_when_audio_unchanged(tmp_p
         patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
     ):
         runner_cls.return_value.run = MagicMock(side_effect=fake_run)
-        rerender_preview(proj, reconcile=True)
+        rerender_preview(proj, reconcile=True, defaults=load_defaults())
 
     auto_rec.assert_not_called()
     assert proj.reconciliation_stale is False
@@ -158,7 +159,7 @@ def test_rerender_preview_missing_premix_keeps_reconciliation(tmp_path):
     ):
         runner_cls.return_value.run = MagicMock()
         auto_rec.return_value = {"status_updates": 2}
-        info = rerender_preview(proj, reconcile=True)
+        info = rerender_preview(proj, reconcile=True, defaults=load_defaults())
 
     assert info["ok"] is False
     assert info["reconciliation"] == {"status_updates": 2, "stale": False}

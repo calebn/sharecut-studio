@@ -3,6 +3,7 @@ from __future__ import annotations
 from math import isclose
 from pathlib import Path
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     abutting_pairs,
@@ -29,7 +30,7 @@ def _clip(tl_start: float, src_start: float, dur: float, tid: str = "host") -> C
 
 def test_split_clip_at() -> None:
     c = _clip(0.0, 0.0, 10.0)
-    before, after = split_clip_at(c, 4.0)
+    before, after = split_clip_at(c, 4.0, defaults=load_defaults())
     assert before.source_end == 4.0
     assert after.source_start == 4.0
     assert after.timeline_start == 4.0
@@ -37,7 +38,7 @@ def test_split_clip_at() -> None:
 
 def test_remove_timeline_range() -> None:
     clips = [_clip(0.0, 0.0, 5.0), _clip(5.0, 5.0, 5.0)]
-    out = remove_timeline_range_from_clips(clips, 2.0, 7.0)
+    out = remove_timeline_range_from_clips(clips, 2.0, 7.0, defaults=load_defaults())
     assert len(out) == 2
     assert out[0].source_end == 2.0
     assert out[1].timeline_start == 2.0
@@ -73,7 +74,7 @@ def test_ripple_trim_removal_at_peer_clip_start_does_not_split() -> None:
     ]
 
     plan = plan_trim(project, "t0_c0", "out", 31.3046, EditMode.RIPPLE)
-    apply_trim_geometry(project, plan)
+    apply_trim_geometry(project, plan, defaults=load_defaults())
 
     peer_clips = [clip for clip in project.clips if clip.track_id == "t1"]
     assert len(peer_clips) == 1

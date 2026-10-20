@@ -133,7 +133,7 @@ def _full_track_samples(project, out: Path) -> tuple[int, ...]:
 def test_boundary_audio_is_real_unsaved_crossfade_and_stale_safe(minimal_project: Path) -> None:
     ws = _project(minimal_project)
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    token = boundary_context(ws.project, target).token
+    token = boundary_context(ws.project, target, defaults=load_defaults()).token
     project_before = minimal_project.read_bytes()
     history_index = ws.project.history_dir() / "index.json"
     history_before = history_index.read_bytes() if history_index.is_file() else None
@@ -158,7 +158,7 @@ def test_boundary_audio_is_real_unsaved_crossfade_and_stale_safe(minimal_project
     # committed-track render at the seam, even though the draft is never saved.
     saved = ProjectWorkspace.open(minimal_project).project
     draft = saved.model_copy(deep=True)
-    roll_clip_join(draft, "left", "right", 0.1)
+    roll_clip_join(draft, "left", "right", 0.1, defaults=load_defaults())
     full_current = _full_track_samples(saved, ws.project.artifacts_dir() / "full_current.wav")
     full_proposed = _full_track_samples(draft, ws.project.artifacts_dir() / "full_proposed.wav")
     for window, heard, full in (
@@ -193,7 +193,7 @@ def test_boundary_cache_distinguishes_sub_centisecond_windows(minimal_project: P
 def test_outside_window_peak_controls_the_heard_seam_gain(minimal_project: Path) -> None:
     ws = _project(minimal_project, loud_outside=True, fader_db=6)
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    token = boundary_context(ws.project, target).token
+    token = boundary_context(ws.project, target, defaults=load_defaults()).token
     pair = PlayService(ws).audition_boundary(
         target,
         RollBoundaryEdit(left_clip_id="left", right_clip_id="right", delta_sec=0.1),
@@ -213,7 +213,7 @@ def test_edit_landing_during_render_cannot_issue_stale_audio(
 ) -> None:
     ws = _project(minimal_project)
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    token = boundary_context(ws.project, target).token
+    token = boundary_context(ws.project, target, defaults=load_defaults()).token
     service = PlayService(ws)
     render = service._boundary_render
     landed = False
@@ -252,7 +252,7 @@ def test_proposed_audio_mutes_restored_archived_ignored_word(minimal_project: Pa
     ]
     ws.save()
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    token = boundary_context(ws.project, target).token
+    token = boundary_context(ws.project, target, defaults=load_defaults()).token
     service = PlayService(ws)
     pair = service.audition_boundary(
         target,
@@ -262,7 +262,7 @@ def test_proposed_audio_mutes_restored_archived_ignored_word(minimal_project: Pa
     heard = _samples(service.boundary_audio_path(_id(pair.proposed.url), "proposed", token))
 
     restored = ws.project.model_copy(deep=True)
-    roll_clip_join(restored, "left", "right", 0.1)
+    roll_clip_join(restored, "left", "right", 0.1, defaults=load_defaults())
     assert [(word.text, word.ignored) for word in restored.transcripts[0].words] == [
         ("discard", True)
     ]
@@ -286,7 +286,10 @@ def test_host_routes_stream_issued_range_and_reject_stale_geometry(
 ) -> None:
     ws = _project(minimal_project)
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    geometry = [item.model_dump() for item in boundary_context(ws.project, target).geometry]
+    geometry = [
+        item.model_dump()
+        for item in boundary_context(ws.project, target, defaults=load_defaults()).geometry
+    ]
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.setenv("PODCAST_SESSION_TOKEN", "boundary-host-token")
     with TestClient(create_app(served_project=minimal_project)) as client:
@@ -330,7 +333,7 @@ def test_busy_boundary_render_uses_project_busy_response(
 ) -> None:
     ws = _project(minimal_project)
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    revision = boundary_context(ws.project, target).token
+    revision = boundary_context(ws.project, target, defaults=load_defaults()).token
 
     @contextmanager
     def busy(*_args, **_kwargs):
@@ -361,7 +364,7 @@ def test_edit_share_gets_guarded_context(
     ws = _project(minimal_project)
     premix = ws.project.artifacts_dir() / "premix.wav"
     premix.write_bytes((ws.project.workspace_path() / "raw" / "host.wav").read_bytes())
-    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0, defaults=load_defaults())
     version = ReviewService(ws).publish(label="boundary-share")
     view = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])
     comment = ShareService(ws).create(
@@ -372,7 +375,10 @@ def test_edit_share_gets_guarded_context(
     )
     blind = ShareService(ws).create(review_version_id=version["id"], capabilities=["edit"])
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
-    geometry = [item.model_dump() for item in boundary_context(ws.project, target).geometry]
+    geometry = [
+        item.model_dump()
+        for item in boundary_context(ws.project, target, defaults=load_defaults()).geometry
+    ]
     body = {"target": target.model_dump(), "expected_geometry": geometry}
     with TestClient(create_app()) as client:
         denied = client.post(f"/api/review/{view['token']}/daw/boundary/context", json=body)

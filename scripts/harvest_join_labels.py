@@ -23,6 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.join_continuity import (
     JoinContinuityConfig,
     assess_existing_join,
@@ -37,7 +38,9 @@ _DEFAULT_PROJECT = ROOT / "tests" / "fixtures" / "join_continuity"
 
 
 def _cfg() -> JoinContinuityConfig:
-    return replace(JoinContinuityConfig.from_defaults(), neural=False, calibrate=False)
+    return replace(
+        JoinContinuityConfig.from_defaults(load_defaults()), neural=False, calibrate=False
+    )
 
 
 def _feats(rep) -> dict:
@@ -72,6 +75,7 @@ def _resolve_project_path(raw: Path) -> Path:
 
 def _harvest_pass_joins(project, *, limit: int) -> int:
     cfg = _cfg()
+    defaults = load_defaults()
     n = 0
     for tid in dialogue_track_ids(project):
         clips = sorted(
@@ -86,7 +90,9 @@ def _harvest_pass_joins(project, *, limit: int) -> int:
             if gap < 1e-4:
                 continue
             join_t = float(cur.timeline_start)
-            rep = assess_existing_join(project, tid, join_t, timebase="timeline", config=cfg)
+            rep = assess_existing_join(
+                project, tid, join_t, timebase="timeline", config=cfg, defaults=defaults
+            )
             record_label(
                 project,
                 track_id=tid,
@@ -103,6 +109,7 @@ def _harvest_pass_joins(project, *, limit: int) -> int:
 
 def _harvest_fail_from_edit_log(project, *, limit: int) -> int:
     cfg = _cfg()
+    defaults = load_defaults()
     n = 0
     for rec in project.editorial.edit_log or []:
         if n >= limit:
@@ -124,7 +131,13 @@ def _harvest_fail_from_edit_log(project, *, limit: int) -> int:
             continue
         try:
             rep = assess_proposed_cut(
-                project, tid, float(start), float(end), timebase="source", config=cfg
+                project,
+                tid,
+                float(start),
+                float(end),
+                timebase="source",
+                config=cfg,
+                defaults=defaults,
             )
         except Exception:
             continue
@@ -147,6 +160,7 @@ def _harvest_fail_from_edit_log(project, *, limit: int) -> int:
 def _synthesize_fail_seeds(project, *, limit: int) -> int:
     """Pad fail labels with scored mid-clips, then bulk synthetic feature rows."""
     cfg = _cfg()
+    defaults = load_defaults()
     n = 0
     for tid in dialogue_track_ids(project):
         for clip in project.timeline.clips:
@@ -159,7 +173,9 @@ def _synthesize_fail_seeds(project, *, limit: int) -> int:
             mid = 0.5 * (float(clip.source_start) + float(clip.source_end))
             start, end = mid - 0.05, mid + 0.05
             try:
-                rep = assess_proposed_cut(project, tid, start, end, timebase="source", config=cfg)
+                rep = assess_proposed_cut(
+                    project, tid, start, end, timebase="source", config=cfg, defaults=defaults
+                )
             except Exception:
                 continue
             record_label(

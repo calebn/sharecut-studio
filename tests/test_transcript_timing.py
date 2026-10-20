@@ -5,6 +5,7 @@ import wave
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, Transcript, TranscriptWord
@@ -79,7 +80,7 @@ def context(svc, target):
 def test_exact_source_preserves_primary_and_choices_and_one_undo(minimal_project):
     ws = workspace(minimal_project)
     before = copy.deepcopy(ws.project.transcripts)
-    old_hash = track_render_hash(ws.project, "host")
+    old_hash = track_render_hash(ws.project, "host", defaults=load_defaults())
     svc = EditService(ws)
     target = WordTimingTarget("host", "extra", 1)
     shown = context(svc, target)
@@ -95,10 +96,10 @@ def test_exact_source_preserves_primary_and_choices_and_one_undo(minimal_project
     assert not changed.words[1].suspect_hallucination
     assert changed.user_edited
     assert "overlaps the next" in result["context"]["warnings"][0]
-    assert track_render_hash(ws.project, "host") != old_hash
+    assert track_render_hash(ws.project, "host", defaults=load_defaults()) != old_hash
     HistoryService(ws).undo(rerender=False)
     assert ws.project.transcripts == before
-    assert track_render_hash(ws.project, "host") == old_hash
+    assert track_render_hash(ws.project, "host", defaults=load_defaults()) == old_hash
     HistoryService(ws).redo(rerender=False)
     assert ws.project.transcripts[1].words[1].start == 1.25
 
@@ -213,7 +214,7 @@ def test_retiming_invalidates_automatic_verdict_but_preserves_choices(
     word.dominant_track = "guest"
     word.speaker_match_track = "guest"
     word.speaker_match_score = 0.8
-    rebuild_combined(ws.project)
+    rebuild_combined(ws.project, defaults=load_defaults())
     ws.save()
     before = copy.deepcopy(ws.project.transcripts)
     target = WordTimingTarget("host", None, 0)

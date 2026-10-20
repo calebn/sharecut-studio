@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.audition_context import HYPOTHESIS_CATALOG, build_audition_context
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import (
@@ -197,6 +198,7 @@ def score_labeled_windows(
     cases: list[dict[str, Any]],
     *,
     detail: str = "summary",
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Score per-code precision/recall over labeled windows.
 
@@ -226,6 +228,7 @@ def score_labeled_windows(
                 render_visual_pngs=False,
                 # Prosody feeds no hypothesis gate; skip the per-track cache lookups.
                 include_prosody=False,
+                defaults=defaults,
             )
             contexts[window] = ctx
         found = code in hypothesis_codes(ctx)

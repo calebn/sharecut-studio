@@ -8,6 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.conversation_align import (
     LOCKED_METHODS,
@@ -60,7 +61,7 @@ def load_align_artifact(project: EpisodeProject) -> dict[str, Any] | None:
     return _align_artifact_or_error(project)[0]
 
 
-def align_threshold_sec(payload: dict[str, Any] | None, defaults: dict[str, Any] | None) -> float:
+def align_threshold_sec(payload: dict[str, Any] | None, defaults: EffectiveConfig) -> float:
     """``large_move_sec`` the scorer ran with (artifact), else ``align.large_move_sec``."""
     if payload and payload.get("large_move_sec") is not None:
         return float(payload["large_move_sec"])
@@ -97,7 +98,7 @@ def large_align_moves(plans: list[dict[str, Any]], *, threshold: float) -> list[
     return [p for p in plans if p.get("method") not in skip and abs(_plan_move_sec(p)) > threshold]
 
 
-def _report_extras(project: EpisodeProject, defaults: dict[str, Any] | None) -> dict[str, Any]:
+def _report_extras(project: EpisodeProject, defaults: EffectiveConfig) -> dict[str, Any]:
     artifact = align_artifact_path(project)
     payload = load_align_artifact(project)
     plans = list((payload or {}).get("plans") or [])
@@ -291,7 +292,7 @@ def _align_findings(
 def alignment_drift_report(
     project: EpisodeProject,
     *,
-    defaults: dict[str, Any] | None = None,
+    defaults: EffectiveConfig,
 ) -> dict[str, Any]:
     """Per-clip relative drift vs the reference for export QC.
 
@@ -363,7 +364,7 @@ def alignment_drift_report(
 
 
 def _unattended_check(
-    project: EpisodeProject, data: dict[str, Any] | None, defaults: dict[str, Any] | None
+    project: EpisodeProject, data: dict[str, Any] | None, defaults: EffectiveConfig
 ) -> None:
     """Refuse the unattended auto-waive while a plan move or unlocked clip needs a person.
 
@@ -409,9 +410,7 @@ def _payload_extras(
     return extras
 
 
-def build_align_brief(
-    project: EpisodeProject, defaults: dict[str, Any] | None = None
-) -> dict[str, Any]:
+def build_align_brief(project: EpisodeProject, defaults: EffectiveConfig) -> dict[str, Any]:
     report = ALIGN_GATE.report(project, defaults)
     meta = project.meta.ingest_alignment or {}
     return {

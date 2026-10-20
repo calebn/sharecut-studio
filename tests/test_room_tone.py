@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
@@ -141,7 +142,7 @@ def test_ripple_pad_is_filled_from_the_floor_not_the_word_gap(tmp_path: Path) ->
         Clip(id="g", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0),
     ]
 
-    insert_room_tone_pad(project, 4.0, 0.3)
+    insert_room_tone_pad(project, 4.0, 0.3, defaults=load_defaults())
 
     host_pads = [
         (c.source_start, c.source_end)
@@ -198,7 +199,7 @@ def test_short_bed_is_tiled_across_a_ripple_pad(tmp_path: Path) -> None:
         Clip(id="b", track_id="host", source_start=4.5, source_end=10.0, timeline_start=4.0),
     ]
 
-    insert_room_tone_pad(project, 4.0, 0.5)
+    insert_room_tone_pad(project, 4.0, 0.5, defaults=load_defaults())
 
     pads = [c for c in project.clips if c.source_id == "room-tone-host"]
     assert [(c.timeline_start, c.source_start, c.source_end) for c in pads] == [
@@ -243,7 +244,7 @@ def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:
     ]
 
     # A 0.5 s sample tiled across a 1.3 s pad.
-    insert_room_tone_pad(project, 4.0, 1.3, sample_duration_sec=0.5)
+    insert_room_tone_pad(project, 4.0, 1.3, sample_duration_sec=0.5, defaults=load_defaults())
 
     pads = sorted(
         (c for c in project.clips if c.id not in {"a", "b"} and c.track_id == "host"),
@@ -458,7 +459,7 @@ def test_a_live_track_with_no_room_tone_gets_a_silent_pad(
         _padded_filler(next_burst_sec=4.55 if live_host is _chopped_by_speech else 4.6)
     ]
 
-    assert approve_edits(project, ["um"]) == 1
+    assert approve_edits(project, ["um"], defaults=load_defaults()) == 1
 
     record = project.editorial.edit_log[-1]
     assert record.params["pad_samples"] == []
@@ -495,7 +496,7 @@ def test_a_gated_track_keeps_its_silent_pad_while_the_live_track_gets_room_tone(
     project = _project(tmp_path, host=_host_audio(), guest=_gated_steady_word())
     project.edit_decisions = [_padded_filler()]
 
-    assert approve_edits(project, ["um"]) == 1
+    assert approve_edits(project, ["um"], defaults=load_defaults()) == 1
 
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host"}
@@ -507,7 +508,7 @@ def test_without_the_voice_detector_a_live_room_still_gets_its_pad(tmp_path: Pat
     project = _project(tmp_path, host=_host_audio(), guest=_gated_steady_word())
     project.edit_decisions = [_padded_filler()]
 
-    assert approve_edits(project, ["um"]) == 1
+    assert approve_edits(project, ["um"], defaults=load_defaults()) == 1
 
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host"}
@@ -517,7 +518,7 @@ def test_every_live_track_gets_its_own_room_tone_in_the_pad(tmp_path: Path) -> N
     project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
     project.edit_decisions = [_padded_filler()]
 
-    assert approve_edits(project, ["um"]) == 1
+    assert approve_edits(project, ["um"], defaults=load_defaults()) == 1
 
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host", "guest"}
@@ -526,7 +527,7 @@ def test_every_live_track_gets_its_own_room_tone_in_the_pad(tmp_path: Path) -> N
 def test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     project.edit_decisions = [_padded_filler()]
-    assert approve_edits(project, ["um"]) == 1
+    assert approve_edits(project, ["um"], defaults=load_defaults()) == 1
     sample = project.editorial.edit_log[-1].params["pad_samples"][0]
     replayed = (sample["source_start"], sample["source_end"])
     assert replayed == (pytest.approx(5.15), pytest.approx(5.45))
@@ -545,7 +546,7 @@ def test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull(tmp_path: Pat
     before = project.model_dump()
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, ["pause"])
+        approve_edits(project, ["pause"], defaults=load_defaults())
 
     assert held.value.held[0].reason == "source_geometry"
     assert project.model_dump() == before

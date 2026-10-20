@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.cut_safety import CutScopeHold, hold_is_overridable, inspect_source_remove
 from podcast_mcp.edits.cut_speech import assess_cut_speech
 from podcast_mcp.edits.timeline_ops import (
@@ -164,7 +165,9 @@ def require_source_remove(
         raise ScopeChangedAtApproval([assessment], {}, {edit.id: cut_label(project, edit)})
 
 
-def record_suggested_cut_speech(project: EpisodeProject, decision: EditDecision) -> None:
+def record_suggested_cut_speech(
+    project: EpisodeProject, decision: EditDecision, *, defaults: EffectiveConfig
+) -> None:
     """Record on a suggested session ripple the other speech it would cut.
 
     Programmatic approval holds that speech for trusted interactive review
@@ -185,5 +188,7 @@ def record_suggested_cut_speech(project: EpisodeProject, decision: EditDecision)
             float(span[1]),
             edited_track_ids=[decision.track_id],
             use_inaudible_opt=False,
+            defaults=defaults,
         ),
+        defaults=defaults,
     )

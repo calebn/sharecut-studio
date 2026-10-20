@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import clipped_onsets
 from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts
 from podcast_mcp.edits.comments import add_reply, resolve_comment
@@ -176,7 +177,7 @@ def test_a_word_whole_but_late_on_its_own_track_is_not_flagged(tmp_path: Path) -
     lanes = [t.id for t in ws.project.tracks if t.role == TrackRole.DIALOGUE]
     levels = clipped_onsets.timeline_levels(ws.project, lanes)
     leads = clipped_onsets.copy_leads(levels, clipped_onsets.copy_paths(levels), tolerance_sec=0.04)
-    report = flag_clipped_word_starts(ws.project)
+    report = flag_clipped_word_starts(ws.project, defaults=load_defaults())
 
     [lead] = [x for x in leads if x.track_id == "audra" and abs(x.copy_sec - turn) < 0.04]
     assert lead.late_sec == pytest.approx(LANE_LATE_SEC, abs=0.01)
@@ -337,11 +338,11 @@ def test_the_pass_depends_only_on_where_the_lanes_sit_now(
     fresh, _ = _gated_ws(tmp_path / "fresh")
 
     _place_audra(rerun, aligned=first_aligned)
-    flag_clipped_word_starts(rerun.project)
+    flag_clipped_word_starts(rerun.project, defaults=load_defaults())
     _place_audra(rerun, aligned=not first_aligned)
-    flag_clipped_word_starts(rerun.project)
+    flag_clipped_word_starts(rerun.project, defaults=load_defaults())
     _place_audra(fresh, aligned=not first_aligned)
-    flag_clipped_word_starts(fresh.project)
+    flag_clipped_word_starts(fresh.project, defaults=load_defaults())
 
     assert _state(rerun) == _state(fresh)
     # Only the aligned placement shows the clipped start.
@@ -370,7 +371,7 @@ def test_unreadable_audio_leaves_flags_and_starts_alone(
     before = _state(ws)
     (Path(ws.project.meta.workspace_dir) / "raw" / "caleb.wav").write_bytes(b"not audio")
 
-    report = flag_clipped_word_starts(ws.project)
+    report = flag_clipped_word_starts(ws.project, defaults=load_defaults())
     assert report.flagged == []
     assert _state(ws) == before
 

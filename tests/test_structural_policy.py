@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from pause_policy_public_helpers import RATE, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
@@ -108,7 +109,7 @@ def test_authorize_structural_commands():
 
 def test_split_clips_at_multi_track(minimal_project, dialogue_wav):
     ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
-    report = split_clips_at(ws.project, 5.0, ["host", "guest"])
+    report = split_clips_at(ws.project, 5.0, ["host", "guest"], defaults=load_defaults())
     assert report["operation"] == "split_clips_at"
     assert set(report["affected_tracks"]) == {"host", "guest"}
     assert any(r.operation == "split_clips_at" for r in ws.project.editorial.edit_log)
@@ -290,7 +291,9 @@ def test_update_pending_split_and_skipped_track(minimal_project, dialogue_wav):
     assert updated.track_ids == ["host"]
 
     # Guest track has no clip past 10 - skip that id when applying multi-split mid-clip
-    report = split_clips_at(svc.ws.project, 2.0, ["host", "nope"], record_log=True)
+    report = split_clips_at(
+        svc.ws.project, 2.0, ["host", "nope"], record_log=True, defaults=load_defaults()
+    )
     assert "host" in report["affected_tracks"]
 
 
@@ -335,4 +338,4 @@ def test_delete_clip_via_clip_ids_payload(minimal_project, dialogue_wav):
 def test_split_clips_at_none_raises(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError, match="no tracks"):
-        split_clips_at(ws.project, 1.0, [])
+        split_clips_at(ws.project, 1.0, [], defaults=load_defaults())

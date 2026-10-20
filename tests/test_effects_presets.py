@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from podcast_mcp.config import repo_root
+from podcast_mcp.config import load_defaults, repo_root
 from podcast_mcp.effects.presets import (
     _BUILTIN_PRESETS,
     apply_preset_to_chain,
@@ -21,21 +21,21 @@ from podcast_mcp.models import EpisodeProject
 
 
 def test_list_and_apply_preset() -> None:
-    names = list_presets()
+    names = list_presets(defaults=load_defaults())
     assert "noise_reduction" in names
     assert "noise_reduction_rnnoise" in names
-    effects = get_preset("deess")
+    effects = get_preset("deess", defaults=load_defaults())
     assert effects[0]["effect"] == "deesser"
-    rnnoise = get_preset("noise_reduction_rnnoise")
+    rnnoise = get_preset("noise_reduction_rnnoise", defaults=load_defaults())
     assert rnnoise[0]["effect"] == "arnndn"
     # Removed preset: gone from builtins, and repo YAMLs cannot redefine it.
     assert "deess_legacy_notch" not in names
     with pytest.raises(ValueError, match="unknown effect preset"):
-        get_preset("deess_legacy_notch")
+        get_preset("deess_legacy_notch", defaults=load_defaults())
 
     p = EpisodeProject.create("fx", "/tmp")
     p.timeline.tracks = []
-    chain = apply_preset_to_chain(p, "host", "gate")
+    chain = apply_preset_to_chain(p, "host", "gate", defaults=load_defaults())
     assert any(e.effect == "agate" for e in chain.effects)
 
 
@@ -236,21 +236,21 @@ def test_defaults_overlay_overrides_and_extends_by_name(tmp_path, monkeypatch) -
     )
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(custom))
 
-    names = list_presets()
+    names = list_presets(defaults=load_defaults())
     assert "my_chain" in names
     for builtin_name in _BUILTIN_PRESETS:
         assert builtin_name in names
 
-    assert get_preset("deess")[0]["effect"] == "bandreject"
-    assert get_preset("my_chain")[0]["params"] == {"frequency": 100}
-    assert get_preset("gate") == _BUILTIN_PRESETS["gate"]
+    assert get_preset("deess", defaults=load_defaults())[0]["effect"] == "bandreject"
+    assert get_preset("my_chain", defaults=load_defaults())[0]["params"] == {"frequency": 100}
+    assert get_preset("gate", defaults=load_defaults()) == _BUILTIN_PRESETS["gate"]
 
 
 def test_get_preset_returns_independent_copy() -> None:
-    preset = get_preset("gate")
+    preset = get_preset("gate", defaults=load_defaults())
     preset[0]["params"]["threshold_db"] = 0
     assert _BUILTIN_PRESETS["gate"][0]["params"]["threshold_db"] == -30
-    assert get_preset("gate")[0]["params"]["threshold_db"] == -30
+    assert get_preset("gate", defaults=load_defaults())[0]["params"]["threshold_db"] == -30
 
 
 def test_resolve_presets_ignores_malformed_overlay() -> None:

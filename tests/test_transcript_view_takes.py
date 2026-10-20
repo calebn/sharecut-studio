@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline
 from podcast_mcp.models import (
@@ -59,7 +60,9 @@ def _two_take_project(tmp_path: Path) -> EpisodeProject:
         ),
         Transcript(track_id="dani", words=_words("d", [16.0])),
     ]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     return project
 
 
@@ -108,7 +111,9 @@ def test_suppressed_only_second_take_keeps_source_identity_and_deleted_placement
     project = _two_take_project(tmp_path)
     take3 = project.transcripts[1]
     take3.words = [word.model_copy(update={"suppressed": True}) for word in take3.words]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
 
     rows = _view(project)
     suppressed = [row for row in rows if row.get("suppressed_only")]
@@ -160,7 +165,9 @@ def test_edge_suppressed_word_attaches_within_its_own_take(tmp_path: Path) -> No
     project = _two_take_project(tmp_path)
     take3 = project.transcripts[1]
     take3.words[1] = take3.words[1].model_copy(update={"suppressed": True})
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     rows = _view(project)
     owners = {
         row["text"]: row.get("edge_suppressed_word_indices", [])
@@ -197,7 +204,9 @@ def test_one_recording_under_two_source_spellings_maps_through_both(tmp_path: Pa
         ),
     ]
     project.transcripts = [Transcript(track_id="host", words=_words("h", [1.0, 12.0]))]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     rows = _view(project)
     assert [(row["text"], row["timeline_start"]) for row in rows] == [("h0", 1.0), ("h1", 12.0)]
     assert [w["timeline_start"] for w in rows[1]["words"]] == [12.0]
@@ -257,7 +266,9 @@ def test_clip_moved_off_a_multi_take_lane_keeps_its_row(tmp_path: Path) -> None:
         Transcript(track_id="vicky", words=_words("v", [1.0, 12.0])),
         Transcript(track_id="vicky", source_id="T2", words=_words("t", [1.0])),
     ]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     rows = {row["text"]: row for row in _view(project)}
     assert rows["v1"]["mappable"] is True
     assert rows["v1"]["timeline_start"] == 32.0
@@ -275,7 +286,9 @@ def test_pasted_repeat_on_a_single_take_lane_keeps_source_order(tmp_path: Path) 
         Clip(id="body", track_id="host", source_start=0.0, source_end=20.0, timeline_start=5.0),
     ]
     project.transcripts = [Transcript(track_id="host", words=_words("w", [6.0, 12.0]))]
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     assert [row["text"] for row in _view(project)] == ["w0", "w1"]
 
 
@@ -284,7 +297,9 @@ def test_stale_row_does_not_duplicate_an_edge_suppressed_word(tmp_path: Path) ->
     words = _words("a", [1.0, 4.5, 8.0])
     words[1] = words[1].model_copy(update={"suppressed": True})
     project.transcripts[0] = Transcript(track_id="vicky", source_id="take2", words=words)
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     assert project.combined_transcript is not None
     utterances = project.combined_transcript.utterances
     position = next(i for i, u in enumerate(utterances) if u.text == "a0")
@@ -314,7 +329,9 @@ def test_identical_lines_in_two_takes_each_keep_their_own_take(tmp_path: Path) -
     project.transcripts[1] = Transcript(
         track_id="vicky", source_id="take3", words=_words("okay", [1.0, 8.0])
     )
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     rows = [row for row in _view(project) if row["track_id"] == "vicky"]
     assert [row["text"] for row in rows] == ["okay0", "okay0", "okay1"]
     assert [row["timeline_start"] for row in rows] == [1.0, 11.0, 18.0]
@@ -330,7 +347,9 @@ def test_offset_lane_orders_with_the_takes_by_timeline(tmp_path: Path) -> None:
     # Dani's recording starts 100 s into the session: source 3.0 plays at timeline 103.
     project.clips[2] = project.clips[2].model_copy(update={"timeline_start": 100.0})
     project.transcripts[2] = Transcript(track_id="dani", words=_words("d", [3.0]))
-    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
+        project
+    )
     starts = [row["timeline_start"] for row in _view(project)]
     assert starts == sorted(starts)
     assert _view(project)[-1]["text"] == "d0"

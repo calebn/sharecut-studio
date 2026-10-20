@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.context import build_edit_context
 from podcast_mcp.models import CombinedTranscript, CombinedUtterance, EpisodeProject
 
@@ -17,7 +18,7 @@ def test_build_edit_context_includes_tools_hint():
             )
         ]
     )
-    ctx = build_edit_context(proj)
+    ctx = build_edit_context(proj, defaults=load_defaults())
     assert ctx["tools_hint"]
     assert "inaudible-cuts" in ctx["tools_hint"]
     assert ctx["doc_refs"]["inaudible_cuts"] == "docs/inaudible-cuts.md"

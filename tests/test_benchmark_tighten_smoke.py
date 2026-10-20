@@ -93,9 +93,9 @@ def test_each_kind_of_decision_stays_within_the_rebuild_bound_alone(project, kin
                 moved_pad_checked.append(tile.id)
         return held
 
-    def apply(project):
+    def apply(project, **_kw):
         assert all(e.boundary_intent is CutIntent.PROGRAMMATIC for e in project.edit_decisions)
-        count = automatic(project)
+        count = automatic(project, **_kw)
         automatic_applied.append(count)
         return count
 

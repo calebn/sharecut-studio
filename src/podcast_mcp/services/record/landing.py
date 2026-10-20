@@ -835,7 +835,9 @@ class RecordLandingService:
         for track_id in {str(item["track_id"]) for item in clips}:
             track = self.workspace.project.track_by_id(track_id)
             if track is not None and track.media is not None:
-                schedule_track_waveforms(self.workspace.project, track)
+                schedule_track_waveforms(
+                    self.workspace.project, track, defaults=self.workspace.effective_config()
+                )
 
         after_agent_mutation(self.workspace)
         return {

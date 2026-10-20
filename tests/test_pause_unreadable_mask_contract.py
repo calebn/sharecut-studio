@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, files, pause, project, workspace
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.models import ClipMuteRegion, Transcript, TranscriptWord
 from podcast_mcp.services.document import EditService
@@ -35,7 +36,9 @@ def test_unreadable_masked_peer_holds_without_mutating(tmp_path, monkeypatch, de
                 EditService(ws).approve(["unreadable-mask"])
             else:
                 apply_for_suggested(
-                    ws.project, resolve_pending_preview(ws.project, "unreadable-mask")
+                    ws.project,
+                    resolve_pending_preview(ws.project, "unreadable-mask"),
+                    defaults=load_defaults(),
                 )
         assert held.value.code == "cut_scope_changed"
     assert ws.project.model_dump(mode="json") == before

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.utterance_runs import (
     transcript_word_runs,
@@ -166,7 +167,11 @@ def test_merge_transcripts_uses_shared_runs() -> None:
         project = _minimal()
         project.transcripts = [Transcript(track_id="host", words=_random_track_words(rng))]
         expected = brute_force_merge(project)
-        actual = TranscriptionEngine().merge_transcripts(project).model_dump()["utterances"]
+        actual = (
+            TranscriptionEngine(defaults=load_defaults())
+            .merge_transcripts(project)
+            .model_dump()["utterances"]
+        )
         actual_compare = [
             {
                 "track_id": u["track_id"],

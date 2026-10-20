@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from history_helpers import history_move
 from podcast_mcp.cli.main import app
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import crossfade_ms_at_join, roll_clip_join
 from podcast_mcp.edits.join_modes import (
     default_join_length_ms,
@@ -65,7 +66,7 @@ def _project(gap: float = 0.0, *, dur: float = 4.0) -> EpisodeProject:
 
 def test_crossfade_sets_both_fades_to_default():
     p = _project()
-    out = set_clip_join(p, "c1", "c2", "crossfade")
+    out = set_clip_join(p, "c1", "c2", "crossfade", defaults=load_defaults())
     c1, c2 = p.clips
     assert (c1.fade_out_ms, c2.fade_in_ms) == (25, 25)
     assert c2.join_in_mode == ClipJoinMode.CROSSFADE
@@ -77,20 +78,20 @@ def test_crossfade_sets_both_fades_to_default():
 
 def test_crossfade_length_is_clamped_and_zero_rejected():
     p = _project()
-    set_clip_join(p, "c1", "c2", ClipJoinMode.CROSSFADE, length_ms=500)
+    set_clip_join(p, "c1", "c2", ClipJoinMode.CROSSFADE, length_ms=500, defaults=load_defaults())
     assert p.clips[0].fade_out_ms == 40  # dialogue cap
     assert p.clips[1].fade_in_ms == 40
     with pytest.raises(ValueError, match="> 0"):
-        set_clip_join(p, "c1", "c2", "crossfade", length_ms=0)
+        set_clip_join(p, "c1", "c2", "crossfade", length_ms=0, defaults=load_defaults())
     with pytest.raises(ValueError, match=">= 0"):
-        set_clip_join(p, "c1", "c2", "fade", length_ms=-1)
+        set_clip_join(p, "c1", "c2", "fade", length_ms=-1, defaults=load_defaults())
 
 
 def test_cut_zeroes_both_fades():
     p = _project()
     p.clips[0].fade_out_ms = 20
     p.clips[1].fade_in_ms = 20
-    out = set_clip_join(p, "c1", "c2", "cut")
+    out = set_clip_join(p, "c1", "c2", "cut", defaults=load_defaults())
     assert (p.clips[0].fade_out_ms, p.clips[1].fade_in_ms) == (0, 0)
     assert p.clips[1].join_in_mode == ClipJoinMode.CUT
     assert out["crossfade_blocked"] is None
@@ -98,20 +99,20 @@ def test_cut_zeroes_both_fades():
 
 def test_fade_defaults_keep_or_seed():
     p = _project()
-    set_clip_join(p, "c1", "c2", "fade")
+    set_clip_join(p, "c1", "c2", "fade", defaults=load_defaults())
     assert (p.clips[0].fade_out_ms, p.clips[1].fade_in_ms) == (10, 10)
     p.clips[0].fade_out_ms = 30
     p.clips[1].fade_in_ms = 5
-    set_clip_join(p, "c1", "c2", "fade")
+    set_clip_join(p, "c1", "c2", "fade", defaults=load_defaults())
     assert (p.clips[0].fade_out_ms, p.clips[1].fade_in_ms) == (30, 5)
-    set_clip_join(p, "c1", "c2", "fade", length_ms=12)
+    set_clip_join(p, "c1", "c2", "fade", length_ms=12, defaults=load_defaults())
     assert (p.clips[0].fade_out_ms, p.clips[1].fade_in_ms) == (12, 12)
-    assert default_join_length_ms(ClipJoinMode.CUT) == 0
+    assert default_join_length_ms(ClipJoinMode.CUT, defaults=load_defaults()) == 0
 
 
 def test_non_abutting_crossfade_reports_blocked():
     p = _project(gap=1.0)
-    out = set_clip_join(p, "c1", "c2", "crossfade")
+    out = set_clip_join(p, "c1", "c2", "crossfade", defaults=load_defaults())
     assert out["crossfade_blocked"] == "not_abutting"
     assert out["crossfade_ms"] == 0
 
@@ -119,7 +120,7 @@ def test_non_abutting_crossfade_reports_blocked():
 def test_non_neighbours_rejected():
     p = _project()
     with pytest.raises(ValueError, match="next clip"):
-        set_clip_join(p, "c2", "c1", "cut")
+        set_clip_join(p, "c2", "c1", "cut", defaults=load_defaults())
 
 
 def test_service_is_one_undo_step(minimal_project):
@@ -150,7 +151,7 @@ def test_render_bug_mode_alone_does_not_crossfade_but_set_clip_join_does():
     p = _project()
     p.clips[1].join_in_mode = ClipJoinMode.CROSSFADE
     assert crossfade_ms_at_join(p.clips[0], p.clips[1]) == 0
-    set_clip_join(p, "c1", "c2", "crossfade", length_ms=20)
+    set_clip_join(p, "c1", "c2", "crossfade", length_ms=20, defaults=load_defaults())
     assert crossfade_ms_at_join(p.clips[0], p.clips[1]) == 20
 
 
@@ -174,7 +175,7 @@ def test_render_uses_acrossfade_after_set_clip_join(sample_wav: Path, tmp_path: 
         Clip(id="c1", track_id="host", source_start=0.0, source_end=0.4, timeline_start=0.0),
         Clip(id="c2", track_id="host", source_start=0.6, source_end=1.0, timeline_start=0.4),
     ]
-    set_clip_join(p, "c1", "c2", "crossfade", length_ms=20)
+    set_clip_join(p, "c1", "c2", "crossfade", length_ms=20, defaults=load_defaults())
     import podcast_mcp.engines.ffmpeg as ff
 
     real_run = ff.run
@@ -296,23 +297,23 @@ def test_cross_track_join_rejected_with_shared_message():
         Clip(id="g1", track_id="guest", source_start=0.0, source_end=4.0, timeline_start=4.0)
     )
     with pytest.raises(ValueError, match="join requires clips on the same track"):
-        set_clip_join(p, "c1", "g1", "cut")
+        set_clip_join(p, "c1", "g1", "cut", defaults=load_defaults())
     with pytest.raises(ValueError, match="join requires clips on the same track"):
         roll_clip_join(p, "c1", "g1", 0.1)
 
 
 def test_cut_then_fade_reseeds_the_default():
     p = _project()
-    set_clip_join(p, "c1", "c2", "fade", length_ms=30)
-    set_clip_join(p, "c1", "c2", "cut")
-    set_clip_join(p, "c1", "c2", "fade")
+    set_clip_join(p, "c1", "c2", "fade", length_ms=30, defaults=load_defaults())
+    set_clip_join(p, "c1", "c2", "cut", defaults=load_defaults())
+    set_clip_join(p, "c1", "c2", "fade", defaults=load_defaults())
     assert (p.clips[0].fade_out_ms, p.clips[1].fade_in_ms) == (10, 10)
 
 
 def test_clamped_crossfade_reports_the_shorter_overlap():
     p = _project(dur=0.05)  # two 50 ms clips
     p.clips[0].fade_in_ms = 30  # leaves 20 ms for the left fade-out
-    out = set_clip_join(p, "c1", "c2", "crossfade", length_ms=25)
+    out = set_clip_join(p, "c1", "c2", "crossfade", length_ms=25, defaults=load_defaults())
     assert p.clips[0].fade_out_ms == 20
     assert p.clips[1].fade_in_ms == 25
     assert out["crossfade_ms"] == 20  # max(min(20, 25), 25 // 2)

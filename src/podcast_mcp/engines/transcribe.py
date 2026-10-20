@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import numpy as np
 from filelock import FileLock, Timeout
 
-from podcast_mcp.config import whisper_cache_dir
+from podcast_mcp.config import EffectiveConfig, whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
@@ -461,10 +461,14 @@ class TranscriptionEngine:
         model_size: str = DEFAULT_WHISPER_MODEL,
         device: str = "cpu",
         options: AsrOptions | None = None,
+        *,
+        defaults: EffectiveConfig,
     ) -> None:
         self.model_size = validate_whisper_model(model_size)
         self.device = device
-        self.options = options if options is not None else AsrOptions.from_defaults()
+        self.options = (
+            options if options is not None else AsrOptions.from_defaults(defaults=defaults)
+        )
         self._model = None
         # Job labels whose silence filter could not decode the audio (step summary).
         self.silence_filter_skipped: list[str] = []

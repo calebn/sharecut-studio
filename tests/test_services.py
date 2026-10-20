@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.models import (
     Clip,
     CombinedTranscript,
@@ -108,7 +109,7 @@ def test_clip_service_propose_builds_track_refs_only(minimal_project):
         "podcast_mcp.services.document.clip.ensure_project_waveforms", return_value=0
     ) as ensure:
         ClipService(ws).propose(max_clips=3)
-    ensure.assert_called_once_with(ws.project, sources=False)
+    ensure.assert_called_once_with(ws.project, sources=False, defaults=ANY)
 
 
 def test_clip_service_propose_builds_missing_track_pyramids(minimal_project):
@@ -189,22 +190,22 @@ def test_history_moves_keep_content_addressed_stem_hashes(minimal_project, sampl
     stem_dir = ws.project.artifacts_dir() / "tracks"
     stem_dir.mkdir(parents=True, exist_ok=True)
     (stem_dir / "host.wav").write_bytes(sample_wav.read_bytes())
-    write_stem_hash(ws.project, "host")
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
     assert stem_hash_path(ws.project, "host").is_file()
 
     ws.mutate("before trim", "after trim", lambda p: setattr(p.clips[0], "source_end", 1.0))
-    assert stem_is_fresh(ws.project, "host") is False
+    assert stem_is_fresh(ws.project, "host", defaults=load_defaults()) is False
     assert stem_hash_path(ws.project, "host").is_file()
 
     HistoryService(ws).undo()
     assert stem_hash_path(ws.project, "host").is_file()
-    assert stem_is_fresh(ws.project, "host") is True
+    assert stem_is_fresh(ws.project, "host", defaults=load_defaults()) is True
     assert ws.project.render.invalidations == []
     assert ws.project.reconciliation_stale is True
 
     HistoryService(ws).redo()
     assert stem_hash_path(ws.project, "host").is_file()
-    assert stem_is_fresh(ws.project, "host") is False
+    assert stem_is_fresh(ws.project, "host", defaults=load_defaults()) is False
     assert len(ws.project.render.invalidations) == 1
     inv = ws.project.render.invalidations[0]
     assert inv.track_ids == ["host"]
@@ -283,7 +284,7 @@ def test_transcript_service_resolves_model_for_standalone_transcribe(minimal_pro
     resolve.assert_called_once_with(requested="base.en")
     engine.assert_called_once()
     assert engine.call_args.args == ("base.en",)
-    assert engine.call_args.kwargs == {}
+    assert set(engine.call_args.kwargs) <= {"defaults"}
 
 
 def test_transcript_service_transcribe_fails_when_alignment_is_forced_without_the_model(

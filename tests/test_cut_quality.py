@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import cut_quality
 from podcast_mcp.edits.cut_quality import (
     _measure_join_jump_cached,
@@ -638,8 +639,16 @@ def test_optimize_and_assess_shares_jump_cache_with_fade_recommendation():
             details={},
         )
         cache: dict = {}
-        result, _risk = optimize_and_assess(project, "host", 1.0, 1.2, cache=cache)
+        result, _risk = optimize_and_assess(
+            project, "host", 1.0, 1.2, cache=cache, defaults=load_defaults()
+        )
         recommend_cut_fade_ms(
-            project, "host", result.start, result.end, cut_kind="filler", cache=cache
+            project,
+            "host",
+            result.start,
+            result.end,
+            cut_kind="filler",
+            cache=cache,
+            defaults=load_defaults(),
         )
     assert measure.call_count == 2

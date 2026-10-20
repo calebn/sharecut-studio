@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_bleed_mute import _track_duration, apply_transcript_bleed_mute
 from podcast_mcp.engines.play_audit import (
     read_stem_hash,
@@ -68,7 +69,7 @@ def _project_with_stem(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
             ],
         )
     ]
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     return project
 
 
@@ -95,7 +96,7 @@ def test_apply_transcript_bleed_mute_skips_non_dialogue(tmp_path: Path, sample_w
             media=MediaAsset(path="raw/music.wav", duration_sec=2.0),
         )
     )
-    result = apply_transcript_bleed_mute(project, dry_run=True)
+    result = apply_transcript_bleed_mute(project, dry_run=True, defaults=load_defaults())
     assert result["candidate_count"] == 1
     assert result["candidates"][0]["track_id"] == "host"
 
@@ -112,21 +113,23 @@ def test_apply_transcript_bleed_mute_cleans_temp_on_failure(
         pytest.raises(RuntimeError, match="gate failed"),
         render_lock(project),
     ):
-        apply_transcript_bleed_mute(project, dry_run=False)
+        apply_transcript_bleed_mute(project, dry_run=False, defaults=load_defaults())
     assert list((project.artifacts_dir() / "tracks").glob("*.partial*")) == []
     assert not project.track_by_id("host").transcript_gate
 
 
 def test_apply_transcript_bleed_mute_scoped_track(tmp_path: Path, sample_wav: Path) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
-    result = apply_transcript_bleed_mute(project, track_id="host", dry_run=True)
+    result = apply_transcript_bleed_mute(
+        project, track_id="host", dry_run=True, defaults=load_defaults()
+    )
     assert result["candidate_count"] == 1
     assert result["candidates"][0]["track_id"] == "host"
 
 
 def test_apply_transcript_bleed_mute_dry_run(tmp_path: Path, sample_wav: Path) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
-    result = apply_transcript_bleed_mute(project, dry_run=True)
+    result = apply_transcript_bleed_mute(project, dry_run=True, defaults=load_defaults())
     assert result["dry_run"] is True
     assert result["candidate_count"] == 1
     assert result["candidates"][0]["interval_count"] == 1
@@ -134,14 +137,16 @@ def test_apply_transcript_bleed_mute_dry_run(tmp_path: Path, sample_wav: Path) -
 
 def test_apply_transcript_bleed_mute_invalid_window(tmp_path: Path, sample_wav: Path) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
-    result = apply_transcript_bleed_mute(project, dry_run=True, start_sec=5.0, end_sec=1.0)
+    result = apply_transcript_bleed_mute(
+        project, dry_run=True, start_sec=5.0, end_sec=1.0, defaults=load_defaults()
+    )
     assert result["candidate_count"] == 0
 
 
 def test_apply_transcript_bleed_mute_skips_missing_stem(tmp_path: Path, sample_wav: Path) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
     (project.artifacts_dir() / "tracks" / "host.wav").unlink()
-    result = apply_transcript_bleed_mute(project, dry_run=True)
+    result = apply_transcript_bleed_mute(project, dry_run=True, defaults=load_defaults())
     assert result["candidate_count"] == 0
     assert any(s["reason"] == "missing_stem" for s in result["skipped"])
 
@@ -153,8 +158,8 @@ def test_apply_transcript_bleed_mute_skips_stale_stem(tmp_path: Path, sample_wav
     long.write_bytes(sample_wav.read_bytes())
     # Stretch expectation: clip ends at 1.0s timeline while stem stays ~2s.
     project.timeline.clips[0].source_end = 1.0
-    write_stem_hash(project, "host")
-    result = apply_transcript_bleed_mute(project, dry_run=True)
+    write_stem_hash(project, "host", defaults=load_defaults())
+    result = apply_transcript_bleed_mute(project, dry_run=True, defaults=load_defaults())
     assert result["candidate_count"] == 0
     assert any(s["reason"] == "stem_not_fresh" for s in result["skipped"])
 
@@ -182,20 +187,22 @@ def test_apply_transcript_bleed_mute_writes_stem(tmp_path: Path, sample_wav: Pat
         patch("podcast_mcp.edits.transcript_bleed_mute.probe_wav_duration_sec", return_value=2.0),
         render_lock(project),
     ):
-        result = apply_transcript_bleed_mute(project, dry_run=False)
+        result = apply_transcript_bleed_mute(project, dry_run=False, defaults=load_defaults())
     gate.assert_called_once()
     kwargs = gate.call_args.kwargs
     assert kwargs.get("duration_sec") == 2.0
     assert kwargs.get("win_start") == 0.0
     assert kwargs.get("win_end") == 2.0
     assert result["applied_count"] == 1
-    assert read_stem_hash(project, "host") == track_render_hash(project, "host")
+    assert read_stem_hash(project, "host") == track_render_hash(
+        project, "host", defaults=load_defaults()
+    )
     assert project.track_by_id("host").transcript_gate is True
 
 
 def test_apply_transcript_bleed_mute_skips_grown_stem(tmp_path: Path, sample_wav: Path) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     before_hash = read_stem_hash(project, "host")
     stem = project.artifacts_dir() / "tracks" / "host.wav"
     before_bytes = stem.read_bytes()
@@ -216,7 +223,7 @@ def test_apply_transcript_bleed_mute_skips_grown_stem(tmp_path: Path, sample_wav
         patch("podcast_mcp.edits.transcript_bleed_mute.stem_is_fresh", return_value=True),
         render_lock(project),
     ):
-        result = apply_transcript_bleed_mute(project, dry_run=False)
+        result = apply_transcript_bleed_mute(project, dry_run=False, defaults=load_defaults())
     assert result["applied_count"] == 0
     skipped = [s for s in result["skipped"] if s["reason"] == "duration_mismatch_after_gate"]
     assert len(skipped) == 1
@@ -231,7 +238,7 @@ def test_apply_bleed_mute_drops_the_hash_before_swapping_the_stem(
     tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
     hash_while_gating: list[bool] = []
 
     def _gate(_src, _intervals, dest, **_kwargs) -> None:
@@ -257,13 +264,15 @@ def test_apply_bleed_mute_drops_the_hash_before_swapping_the_stem(
         patch("podcast_mcp.edits.transcript_bleed_mute.stem_is_fresh", return_value=True),
         render_lock(project),
     ):
-        result = apply_transcript_bleed_mute(project, dry_run=False)
+        result = apply_transcript_bleed_mute(project, dry_run=False, defaults=load_defaults())
     tracks = project.artifacts_dir() / "tracks"
     assert hash_while_gating == [True]
     assert hash_at_swap == [False]
     assert (tracks / "host.wav").read_bytes() == b"gated"
     assert result["applied_count"] == 1
-    assert read_stem_hash(project, "host") == track_render_hash(project, "host")
+    assert read_stem_hash(project, "host") == track_render_hash(
+        project, "host", defaults=load_defaults()
+    )
     assert project.track_by_id("host").transcript_gate is True
     assert list(tracks.glob("*.partial*")) == []
 
@@ -272,7 +281,7 @@ def test_apply_bleed_mute_hash_failure_after_swap_restores_the_gate_and_leaves_t
     tmp_path: Path, sample_wav: Path
 ) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
-    write_stem_hash(project, "host")
+    write_stem_hash(project, "host", defaults=load_defaults())
 
     def _gate(_src, _intervals, dest, **_kwargs) -> None:
         Path(dest).write_bytes(b"gated")
@@ -292,11 +301,11 @@ def test_apply_bleed_mute_hash_failure_after_swap_restores_the_gate_and_leaves_t
         render_lock(project),
         pytest.raises(OSError, match="disk full"),
     ):
-        apply_transcript_bleed_mute(project, dry_run=False)
+        apply_transcript_bleed_mute(project, dry_run=False, defaults=load_defaults())
     tracks = project.artifacts_dir() / "tracks"
     assert (tracks / "host.wav").read_bytes() == b"gated"
     assert read_stem_hash(project, "host") is None
-    assert not stem_is_fresh(project, "host")
+    assert not stem_is_fresh(project, "host", defaults=load_defaults())
     assert not project.track_by_id("host").transcript_gate
     assert list(tracks.glob("*.partial*")) == []
 
@@ -304,18 +313,25 @@ def test_apply_bleed_mute_hash_failure_after_swap_restores_the_gate_and_leaves_t
 def test_apply_bleed_mute_requires_the_render_lock(tmp_path: Path, sample_wav: Path) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
     with pytest.raises(RuntimeError, match="render_lock"):
-        apply_transcript_bleed_mute(project, dry_run=False)
-    assert apply_transcript_bleed_mute(project, dry_run=True)["dry_run"] is True
+        apply_transcript_bleed_mute(project, dry_run=False, defaults=load_defaults())
+    assert (
+        apply_transcript_bleed_mute(project, dry_run=True, defaults=load_defaults())["dry_run"]
+        is True
+    )
 
 
 def test_apply_transcript_bleed_mute_window_scoped_intervals(
     tmp_path: Path, sample_wav: Path
 ) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
-    result = apply_transcript_bleed_mute(project, dry_run=True, start_sec=0.0, end_sec=0.4)
+    result = apply_transcript_bleed_mute(
+        project, dry_run=True, start_sec=0.0, end_sec=0.4, defaults=load_defaults()
+    )
     assert result["candidates"][0]["interval_count"] == 1
     assert result["candidates"][0]["window_end"] == 0.4
-    empty = apply_transcript_bleed_mute(project, dry_run=True, start_sec=1.2, end_sec=1.8)
+    empty = apply_transcript_bleed_mute(
+        project, dry_run=True, start_sec=1.2, end_sec=1.8, defaults=load_defaults()
+    )
     assert empty["candidates"][0]["interval_count"] == 0
 
 
@@ -365,7 +381,7 @@ def test_bleed_mute_reports_uncertain_audio_without_speaker_gap_extension(
             return_value=[(0.0, 2.0)],
         ) as extend,
     ):
-        result = apply_transcript_bleed_mute(project, dry_run=True)
+        result = apply_transcript_bleed_mute(project, dry_run=True, defaults=load_defaults())
     extend.assert_not_called()
     assert result["candidates"][0]["interval_count"] == 1
     assert result["candidates"][0]["attenuation_count"] == 0
@@ -378,5 +394,5 @@ def test_bleed_mute_swallows_speaker_extension_errors(tmp_path: Path, sample_wav
         "podcast_mcp.engines.speaker_id.load_all_profiles",
         side_effect=RuntimeError("profiles"),
     ):
-        result = apply_transcript_bleed_mute(project, dry_run=True)
+        result = apply_transcript_bleed_mute(project, dry_run=True, defaults=load_defaults())
     assert result["candidate_count"] == 1

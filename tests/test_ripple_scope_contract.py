@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from contract_project_helpers import contract_project
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim, ripple_track_ids
 from podcast_mcp.models import Clip, EditMode
 from podcast_mcp.util.coded_error import CodedValueError
@@ -52,11 +53,11 @@ def test_trim_lanes(case: dict) -> None:
     if "error" in case:
         before = p.model_dump()
         with pytest.raises(CodedValueError) as caught:
-            apply_trim_geometry(p, plan)
+            apply_trim_geometry(p, plan, defaults=load_defaults())
         assert caught.value.code == case["error"]
         assert p.model_dump() == before
         return
-    apply_trim_geometry(p, plan)
+    apply_trim_geometry(p, plan, defaults=load_defaults())
     lanes = {
         tid: [
             [c.timeline_start, c.timeline_end, c.source_start, c.source_end]

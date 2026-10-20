@@ -38,7 +38,7 @@ def test_excluded_original_cannot_supply_the_pause_floor(tmp_path, monkeypatch, 
     before_model = ws.project.model_dump(mode="json")
     snapshot = ws.project.model_copy(deep=True)
     with pytest.raises(CodedError) as suggested:
-        apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "excluded"))
+        apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "excluded"), defaults=cfg)
     assert [(h.edit_id, h.reason, h.detail) for h in suggested.value.held] == [
         ("excluded", "pause_air", "no_air")
     ]

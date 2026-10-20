@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.mcp.tools import timeline
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
@@ -12,7 +13,7 @@ from test_retained_bleed_alignment import _episode
 
 def _workspace(tmp_path: Path) -> ProjectWorkspace:
     project = _episode(tmp_path)
-    rerender_preview(project, reconcile=False)
+    rerender_preview(project, reconcile=False, defaults=load_defaults())
     ws = ProjectWorkspace(tmp_path / "episode.project.json", project)
     ws.save()
     return ws

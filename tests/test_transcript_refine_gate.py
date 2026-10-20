@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.edits.transcript_refine_status import (
     REFINE_GATE,
@@ -303,9 +304,9 @@ def test_is_unattended_env(monkeypatch, minimal_project):
     from podcast_mcp.edits.pipeline_unattended import is_unattended
 
     monkeypatch.delenv("PODCAST_BATCH", raising=False)
-    assert is_unattended() is False
+    assert is_unattended(defaults=load_defaults()) is False
     monkeypatch.setenv("PODCAST_BATCH", "1")
-    assert is_unattended() is True
+    assert is_unattended(defaults=load_defaults()) is True
 
 
 @pytest.mark.refine_gate
@@ -345,7 +346,7 @@ def test_brief_reads_precorrect_report_and_low_conf(minimal_project):
         "{bad",
         encoding="utf-8",
     )
-    brief_bad = build_refine_brief(proj)
+    brief_bad = build_refine_brief(proj, defaults=load_defaults())
     assert brief_bad["deferred_queue_count"] == 0
     (art / "transcript_precorrect_report.json").write_text(
         json.dumps(
@@ -356,7 +357,7 @@ def test_brief_reads_precorrect_report_and_low_conf(minimal_project):
         ),
         encoding="utf-8",
     )
-    brief = build_refine_brief(proj)
+    brief = build_refine_brief(proj, defaults=load_defaults())
     assert brief["deferred_queue_count"] == 1
     assert brief["garble_hits_count"] == 1
     assert brief["low_confidence_open_words"] == 1
@@ -383,7 +384,7 @@ def test_brief_limits_suspect_record_materialization(minimal_project, monkeypatc
         return original(transcript, index)
 
     monkeypatch.setattr(transcript_correct, "transcript_word_record", record)
-    brief = build_refine_brief(proj)
+    brief = build_refine_brief(proj, defaults=load_defaults())
     assert brief["suspect_hallucination_open_words"] == 25
     assert len(brief["suspect_hallucination_sample"]) == 10
     assert called == list(range(10))
