@@ -83,7 +83,7 @@ describe("Inspector clip lookup", () => {
         name: "guest clip, 00:04.000 to 00:06.000",
       }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("c1").length).toBeGreaterThan(0);
+    expect(screen.queryByText("c1")).toBeNull();
     expect(screen.getByText(/0\.200–0\.800 s/)).toBeInTheDocument();
   });
 

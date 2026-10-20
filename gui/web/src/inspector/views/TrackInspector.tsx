@@ -268,9 +268,7 @@ export function TrackInspector({
               args={{ trackId: track.id }}
               variant="danger"
               disabledReason={busy ? BUSY_REASON : undefined}
-            >
-              Remove track
-            </CommandButton>
+            />
           </div>
           {hostCanSplit && splitBlocker && !canReviewSplit ? (
             <p className="modifier-note">{splitBlocker}</p>
@@ -278,7 +276,6 @@ export function TrackInspector({
         </>
       ) : (
         <DefinitionList>
-          <DefItem label="ID">{track.id}</DefItem>
           <DefItem label="Role">{track.role}</DefItem>
         </DefinitionList>
       )}

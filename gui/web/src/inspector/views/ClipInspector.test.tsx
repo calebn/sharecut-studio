@@ -50,11 +50,11 @@ function hydrateClipProject(
   );
 }
 
-async function dragFade(edge: "in" | "out", value: number) {
-  const input = screen.getByLabelText(`Fade ${edge} ms`);
-  fireEvent.pointerDown(input, { pointerId: 1 });
-  fireEvent.change(input, { target: { value: String(value) } });
-  fireEvent.pointerUp(input, { pointerId: 1 });
+async function applyFade(edge: "in" | "out", value: number) {
+  fireEvent.change(screen.getByLabelText(`Fade ${edge} ms`), {
+    target: { value: String(value) },
+  });
+  fireEvent.click(screen.getByRole("button", { name: `Apply fade ${edge}` }));
   await waitFor(() => expect(setClipFade).toHaveBeenCalled());
 }
 
@@ -91,7 +91,7 @@ describe("ClipInspector presentation", () => {
       regionKey: null,
     });
   });
-  it("names the origin speaker and timeline range with the ID shown once", async () => {
+  it("names the origin speaker and timeline range without the raw clip id", async () => {
     const moved = {
       ...clip,
       id: "internal-clip-id",
@@ -118,11 +118,12 @@ describe("ClipInspector presentation", () => {
         name: "Host clip, 00:04.000 to 00:10.000",
       }),
     ).toBeVisible();
-    expect(screen.getAllByText("internal-clip-id")).toHaveLength(1);
+    expect(screen.queryByText("internal-clip-id")).toBeNull();
+    expect(screen.queryByText("ID")).toBeNull();
     await expectNoA11yViolations(container);
   });
 
-  it("preserves placement after invalid trim and cancels it for a valid fade gesture", () => {
+  it("preserves placement after an invalid trim and cancels it for a valid fade", async () => {
     hydrateClipProject(sampleTrack({ speaker: "Host" }));
     useDawStore.setState({
       toolMode: "select",
@@ -138,14 +139,9 @@ describe("ClipInspector presentation", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Apply source start" }));
     expect(screen.getByLabelText("Timeline start (seconds)")).toHaveValue(0.01);
-    fireEvent.pointerDown(screen.getByLabelText("Fade in ms"), {
-      pointerId: 9,
-    });
+    await applyFade("in", 20);
     expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
     expect(screen.getByRole("button", { name: "Move clip" })).toBeVisible();
-    fireEvent.pointerCancel(screen.getByLabelText("Fade in ms"), {
-      pointerId: 9,
-    });
   });
 
   it("places delete actions in a named section after constructive controls", () => {
@@ -233,12 +229,12 @@ describe("ClipInspector fades", () => {
     vi.mocked(setClipFade).mockReset().mockResolvedValue(null);
   });
 
-  it("clamps to the dialogue track's cap and has no axe violations", async () => {
+  it("limits a fade to the dialogue track's cap and has no axe violations", async () => {
     hydrateClipProject(sampleTrack({ fade_max_ms: 40 }));
     const { container } = render(<ClipInspector clip={clip} />);
     expect(screen.getByLabelText("Fade in ms")).toHaveAttribute("max", "40");
     expect(screen.getByText("max 40 ms")).toBeInTheDocument();
-    await dragFade("in", 40);
+    await applyFade("in", 40);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 40, 0, {
       fade_in_ms: 0,
       fade_out_ms: 0,
@@ -246,34 +242,46 @@ describe("ClipInspector fades", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("clamps an uncapped track to the clip length", async () => {
+  it("limits an uncapped track to the clip length", async () => {
     const shortClip = { ...clip, source_end: 0.2 };
     hydrateClipProject(
       sampleTrack({ role: "music", fade_max_ms: null }),
       shortClip,
     );
     render(<ClipInspector clip={shortClip} />);
-    await dragFade("in", 200);
+    await applyFade("in", 200);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 200, 0, {
       fade_in_ms: 0,
       fade_out_ms: 0,
     });
   });
 
-  it("previews a fade edge, commits one pair, and preserves the stationary edge", async () => {
+  it("refuses a length past the limit and names it", () => {
+    hydrateClipProject(sampleTrack({ fade_max_ms: 40 }));
+    render(<ClipInspector clip={clip} />);
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "41" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply fade in" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Fade in must be a whole number of ms from 0 to 40.",
+    );
+    expect(setClipFade).not.toHaveBeenCalled();
+  });
+
+  it("saves one pair and keeps the other edge", async () => {
     const shortClip = { ...clip, source_end: 0.2, fade_out_ms: 30 };
     hydrateClipProject(
       sampleTrack({ role: "music", fade_max_ms: null }),
       shortClip,
     );
     render(<ClipInspector clip={shortClip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
-    fireEvent.change(fadeIn, { target: { value: "150" } });
-    expect(fadeIn).toHaveValue("150");
-    expect(screen.getByLabelText("Fade out ms")).toHaveValue("30");
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "150" },
+    });
+    expect(screen.getByLabelText("Fade out ms")).toHaveValue(30);
     expect(setClipFade).not.toHaveBeenCalled();
-    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Apply fade in" }));
     await waitFor(() => {
       expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 150, 30, {
         fade_in_ms: 0,
@@ -282,7 +290,19 @@ describe("ClipInspector fades", () => {
     });
   });
 
-  it("keeps an in-flight fade owner while showing a fresh same-clip pair", async () => {
+  it("offers Apply only for a changed length", () => {
+    hydrateClipProject(sampleTrack());
+    render(<ClipInspector clip={clip} />);
+    const apply = screen.getByRole("button", { name: "Apply fade in" });
+    expect(apply).toBeDisabled();
+    expect(apply).toHaveAttribute("title", "Type a length to apply.");
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "20" },
+    });
+    expect(apply).toBeEnabled();
+  });
+
+  it("holds the fields while a save runs and shows the saved pair after", async () => {
     hydrateClipProject(sampleTrack());
     let resolveSave: (() => void) | undefined;
     vi.mocked(setClipFade).mockImplementationOnce(
@@ -292,14 +312,15 @@ describe("ClipInspector fades", () => {
         }),
     );
     const view = render(<ClipInspector clip={clip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
-    fireEvent.change(fadeIn, { target: { value: "20" } });
-    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "20" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply fade in" }));
     await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
-    expect(fadeIn).toBeDisabled();
+    expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
+    expect(screen.getByLabelText("Fade out ms")).toBeDisabled();
 
-    const freshClip = { ...clip, fade_in_ms: 7, fade_out_ms: 4 };
+    const saved = { ...clip, fade_in_ms: 20 };
     const project = useDawStore.getState().project;
     if (!project) throw new Error("expected hydrated project");
     useDawStore.setState({
@@ -307,81 +328,42 @@ describe("ClipInspector fades", () => {
         ...project,
         clips: {
           ...project.clips,
-          tracks: { ...project.clips.tracks, host: [freshClip] },
+          tracks: { ...project.clips.tracks, host: [saved] },
         },
       },
     });
-    view.rerender(<ClipInspector clip={freshClip} />);
-    expect(screen.getByLabelText("Fade in ms")).toHaveValue("7");
-    expect(screen.getByLabelText("Fade out ms")).toHaveValue("4");
-    expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
-    fireEvent.pointerDown(screen.getByLabelText("Fade out ms"), {
-      pointerId: 2,
-    });
-    expect(setClipFade).toHaveBeenCalledTimes(1);
-
+    view.rerender(<ClipInspector clip={saved} />);
     await act(async () => resolveSave?.());
     await waitFor(() => {
       expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
     });
-    expect(screen.getByLabelText("Fade in ms")).toHaveValue("7");
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue(20);
   });
 
-  it("shows a stale fade refusal after recovery and saves a fresh gesture", async () => {
-    const old = { ...clip, fade_in_ms: 1 };
-    hydrateClipProject(sampleTrack(), old);
-    let refuse!: (error: Error) => void;
-    vi.mocked(setClipFade).mockImplementationOnce(
-      () =>
-        new Promise<null>((_resolve, reject) => {
-          refuse = reject;
-        }),
+  it("shows a refusal and keeps the typed length for another try", async () => {
+    hydrateClipProject(sampleTrack({ fade_max_ms: 40 }));
+    vi.mocked(setClipFade).mockRejectedValueOnce(
+      new Error("This clip changed. Nothing was saved. Adjust the fade again."),
     );
-    const view = render(<ClipInspector clip={old} />);
-    await dragFade("out", 1);
-    expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep.json", "c1", 1, 1, {
-      fade_in_ms: 1,
-      fade_out_ms: 0,
-    });
-    const current = useDawStore.getState().project!;
-    act(() =>
-      useDawStore.setState({
-        project: {
-          ...current,
-          clips: { ...current.clips, tracks: { host: [clip] } },
-        },
-      }),
-    );
-    view.rerender(<ClipInspector clip={clip} />);
-    await act(async () =>
-      refuse(
-        new Error(
-          "This clip changed. Nothing was saved. Adjust the fade again.",
-        ),
-      ),
-    );
+    render(<ClipInspector clip={clip} />);
+    await applyFade("in", 40);
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Adjust the fade again.",
     );
-    expect(screen.getByLabelText("Fade in ms")).toHaveValue("0");
-    expect(screen.getByLabelText("Fade out ms")).toHaveValue("0");
-    await dragFade("out", 1);
-    expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep.json", "c1", 0, 1, {
-      fade_in_ms: 0,
-      fade_out_ms: 0,
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue(40);
+  });
+
+  it("drops a typed length when the saved one changes underneath it", () => {
+    hydrateClipProject(sampleTrack());
+    const view = render(<ClipInspector clip={clip} />);
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "20" },
     });
+    view.rerender(<ClipInspector clip={{ ...clip, fade_in_ms: 7 }} />);
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue(7);
   });
 
-  it("keeps the typed value when the save fails", async () => {
-    hydrateClipProject(sampleTrack({ fade_max_ms: 40 }));
-    vi.mocked(setClipFade).mockRejectedValueOnce(new Error("boom"));
-    render(<ClipInspector clip={clip} />);
-    await dragFade("in", 40);
-    expect(await screen.findByRole("alert")).toHaveTextContent("boom");
-    expect(screen.getByLabelText("Fade in ms")).toHaveValue("0");
-  });
-
-  it("waits for the clip's track before offering Apply", () => {
+  it("waits for the clip's track before offering the fields", () => {
     useDawStore
       .getState()
       .hydrate(
@@ -393,45 +375,34 @@ describe("ClipInspector fades", () => {
     expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
   });
 
-  it("cancels a pointer-cancelled preview and skips unchanged clicks", () => {
-    hydrateClipProject(sampleTrack());
+  it("nudges a fade by the same steps as the arrow keys and saves once on release", async () => {
+    hydrateClipProject(sampleTrack({ fade_max_ms: 100 }));
     render(<ClipInspector clip={clip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
-    fireEvent.change(fadeIn, { target: { value: "20" } });
-    fireEvent.pointerCancel(fadeIn, { pointerId: 1 });
-    expect(fadeIn).toHaveValue("0");
-    fireEvent.pointerDown(fadeIn, { pointerId: 2 });
-    fireEvent.pointerUp(fadeIn, { pointerId: 2 });
-    expect(setClipFade).not.toHaveBeenCalled();
-  });
-
-  it("commits a keyboard range adjustment on key release", async () => {
-    hydrateClipProject(sampleTrack());
-    render(<ClipInspector clip={clip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
-    fireEvent.change(fadeIn, { target: { value: "1" } });
-    expect(setClipFade).not.toHaveBeenCalled();
-    fireEvent.keyUp(fadeIn, { key: "ArrowRight" });
+    const group = screen.getByRole("group", { name: "Nudge fade in" });
+    const longer = within(group).getByRole("button", { name: "10 ms longer" });
+    expect(
+      within(group).getByRole("button", { name: "1 ms shorter" }),
+    ).toBeInTheDocument();
+    fireEvent.pointerDown(longer, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(longer, { pointerId: 1 });
     await waitFor(() => {
-      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 1, 0, {
+      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 10, 0, {
         fade_in_ms: 0,
         fade_out_ms: 0,
       });
     });
   });
 
-  it("ignores a key release unrelated to the active range adjustment", async () => {
+  it("holds the nudges while a typed length is waiting for Apply", () => {
     hydrateClipProject(sampleTrack());
     render(<ClipInspector clip={clip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
-    fireEvent.change(fadeIn, { target: { value: "1" } });
-    fireEvent.keyUp(fadeIn, { key: "Tab" });
-    expect(setClipFade).not.toHaveBeenCalled();
-    fireEvent.keyUp(fadeIn, { key: "ArrowRight" });
-    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
+    const group = screen.getByRole("group", { name: "Nudge fade in" });
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "20" },
+    });
+    expect(
+      within(group).getByRole("button", { name: "10 ms longer" }),
+    ).toBeDisabled();
   });
 
   it("ignores a rejected write after switching projects", async () => {
@@ -444,10 +415,10 @@ describe("ClipInspector fades", () => {
         }),
     );
     const view = render(<ClipInspector clip={clip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
-    fireEvent.change(fadeIn, { target: { value: "20" } });
-    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "20" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply fade in" }));
     await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
 
     useDawStore
@@ -457,21 +428,10 @@ describe("ClipInspector fades", () => {
     await act(async () => rejectSave?.(new Error("old project failed")));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
-    expect(screen.getByLabelText("Fade in ms")).toHaveValue("0");
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue(0);
   });
 
-  it("cancels a keyboard preview with Escape", () => {
-    hydrateClipProject(sampleTrack());
-    render(<ClipInspector clip={clip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
-    fireEvent.change(fadeIn, { target: { value: "1" } });
-    fireEvent.keyDown(fadeIn, { key: "Escape" });
-    expect(fadeIn).toHaveValue("0");
-    expect(setClipFade).not.toHaveBeenCalled();
-  });
-
-  it("does not close the inspector sheet when Escape cancels a fade", () => {
+  it("closes the inspector sheet when Escape is pressed in a fade field", () => {
     hydrateClipProject(sampleTrack());
     const onClose = vi.fn();
     render(
@@ -484,53 +444,8 @@ describe("ClipInspector fades", () => {
         <ClipInspector clip={clip} />
       </BottomSheet>,
     );
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
-    fireEvent.change(fadeIn, { target: { value: "1" } });
-    fireEvent.keyDown(fadeIn, { key: "Escape" });
-    expect(fadeIn).toHaveValue("0");
-    expect(onClose).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("dialog", { name: "Inspector" }),
-    ).toBeInTheDocument();
-  });
-
-  it("closes the inspector sheet when idle Escape hits a fade slider", () => {
-    hydrateClipProject(sampleTrack());
-    const onClose = vi.fn();
-    render(
-      <BottomSheet
-        open
-        onClose={onClose}
-        backgroundPolicy="interactive"
-        title="Inspector"
-      >
-        <ClipInspector clip={clip} />
-      </BottomSheet>,
-    );
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.keyDown(fadeIn, { key: "Escape" });
+    fireEvent.keyDown(screen.getByLabelText("Fade in ms"), { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
-  });
-
-  it("commits an ordinary blur once and ignores a completion after project switch", async () => {
-    hydrateClipProject(sampleTrack());
-    render(<ClipInspector clip={clip} />);
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
-    fireEvent.change(fadeIn, { target: { value: "20" } });
-    fireEvent.blur(fadeIn);
-    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
-    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
-
-    vi.mocked(setClipFade).mockClear();
-    fireEvent.pointerDown(fadeIn, { pointerId: 2 });
-    fireEvent.change(fadeIn, { target: { value: "30" } });
-    useDawStore
-      .getState()
-      .hydrate("/tmp/other.json", minimalProject({ tracks: [sampleTrack()] }));
-    fireEvent.pointerUp(fadeIn, { pointerId: 2 });
-    expect(setClipFade).not.toHaveBeenCalled();
   });
 
   it("no longer offers a track-wide fade button", () => {
@@ -649,10 +564,10 @@ describe("ClipInspector join", () => {
     );
     render(<ClipInspector clip={second} />);
     await user.type(screen.getByLabelText("Transition length ms"), "25");
-    const fadeIn = screen.getByLabelText("Fade in ms");
-    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
-    fireEvent.change(fadeIn, { target: { value: "1" } });
-    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    fireEvent.change(screen.getByLabelText("Fade in ms"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply fade in" }));
     await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
 
     expect(screen.getByLabelText("Incoming transition")).toBeDisabled();
@@ -773,7 +688,7 @@ describe("ClipInspector join", () => {
     expect(
       screen.getByText(/Fade out ignored.* · max 40 ms/),
     ).toBeInTheDocument();
-    await dragFade("in", 40);
+    await applyFade("in", 40);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 40, 0, {
       fade_in_ms: 0,
       fade_out_ms: 0,
@@ -785,7 +700,7 @@ describe("ClipInspector join", () => {
     hydrateCutAfter(null, left);
     vi.mocked(setClipFade).mockClear();
     render(<ClipInspector clip={left} />);
-    await dragFade("in", 20);
+    await applyFade("in", 20);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30, {
       fade_in_ms: 0,
       fade_out_ms: 30,
@@ -798,7 +713,7 @@ describe("ClipInspector join", () => {
     vi.mocked(setClipFade).mockClear();
     render(<ClipInspector clip={left} />);
     expect(screen.getByLabelText("Fade in ms")).toHaveAttribute("max", "20");
-    await dragFade("in", 20);
+    await applyFade("in", 20);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30, {
       fade_in_ms: 0,
       fade_out_ms: 30,
