@@ -16,6 +16,7 @@ import pytest
 
 from podcast_mcp.edits.share_registry import SqliteShareRegistry
 from podcast_mcp.services.session_sync import sqlite as session_sqlite
+from podcast_mcp.util import sqlite_open
 from process_helpers import reap
 from test_share_registry import _share_template
 from test_share_registry_recovery import ProbeConnection
@@ -507,7 +508,7 @@ def test_session_wal_interrupt_closes_real_connection_and_propagates_interrupt(
 
     monkeypatch.setattr(session_sqlite.sqlite3, "connect", open_connection)
     if stage == "retry_sleep":
-        monkeypatch.setattr(session_sqlite.time, "sleep", interrupt_sleep)
+        monkeypatch.setattr(sqlite_open.time, "sleep", interrupt_sleep)
     try:
         with pytest.raises(KeyboardInterrupt) as caught:
             session_sqlite.connect_session_db(tmp_path / "session.db")
