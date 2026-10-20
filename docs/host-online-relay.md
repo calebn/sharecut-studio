@@ -752,6 +752,14 @@ deploy/relay/
   desktop.yml             # FOSS Tauri scaffold + web dist
   release-desktop-build.yml # reusable installer-artifact builder
 src/podcast_relay/         # FOSS relay server (FastAPI + WebSocket tunnel)
+  app.py                   # create_relay_app(): builds RelayState, includes the routers; main()
+  state.py                 # RelayState, TunnelSession, PendingHttp (per-app state on app.state.relay)
+  routes/                  # one APIRouter factory per concern, each taking the RelayState
+    status.py              # /healthz, /llms.txt
+    tunnel.py              # /tunnel host websocket
+    proxy.py               # /r, /rec, /api/review, /api/rec, /mcp guest HTTP proxy
+    guest_ws.py            # guest DAW and recording websockets bridged over the tunnel
+  reports.py               # /api/reports intake router
 src/podcast_mcp/
   util/relay_protocol/                  # tunnel frames, share claims, guest WS close log; shared by relay and host, never imports either
   services/collaboration/tunnel.py      # TunnelClient + run_tunnel_sync

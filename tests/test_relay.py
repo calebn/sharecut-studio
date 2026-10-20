@@ -7,7 +7,8 @@ import asyncio
 from fastapi.testclient import TestClient
 
 from podcast_mcp.util.relay_protocol.protocol import msg
-from podcast_relay.app import RelayState, TunnelSession, create_relay_app
+from podcast_relay.app import create_relay_app
+from podcast_relay.state import RelayState, TunnelSession
 
 # ---------------------------------------------------------------------------
 # RelayState unit tests (no real WebSocket needed)
@@ -178,7 +179,7 @@ def test_relay_malformed_claim_length_does_not_abort_register():
 
 
 def test_response_headers_allowlist_drops_set_cookie():
-    from podcast_relay.app import _response_headers
+    from podcast_relay.routes.proxy import _response_headers
 
     out = _response_headers(
         {

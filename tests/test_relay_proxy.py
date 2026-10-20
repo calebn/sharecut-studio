@@ -7,7 +7,8 @@ import asyncio
 from fastapi.testclient import TestClient
 
 from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
-from podcast_relay.app import RelayState, TunnelSession, create_relay_app
+from podcast_relay.app import create_relay_app
+from podcast_relay.state import RelayState, TunnelSession
 
 _SECRET = "test-host-secret"
 
