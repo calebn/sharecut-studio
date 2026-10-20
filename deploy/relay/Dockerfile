@@ -21,6 +21,7 @@ COPY src/podcast_mcp/util/review.py podcast_mcp/util/review.py
 COPY src/podcast_mcp/util/text.py podcast_mcp/util/text.py
 COPY src/podcast_mcp/util/rate_limit.py podcast_mcp/util/rate_limit.py
 COPY src/podcast_mcp/util/rate_limit_http.py podcast_mcp/util/rate_limit_http.py
+COPY src/podcast_mcp/util/file_locks.py podcast_mcp/util/file_locks.py
 COPY src/podcast_mcp/util/body_limits.py podcast_mcp/util/body_limits.py
 COPY src/podcast_mcp/util/proxy_paths.py podcast_mcp/util/proxy_paths.py
 COPY src/podcast_mcp/util/ws_limits.py podcast_mcp/util/ws_limits.py
