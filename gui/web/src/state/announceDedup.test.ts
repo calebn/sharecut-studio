@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "./dawStore";
+import { justAnnounced } from "./uiSlice";
 
 const say = (message: string, options = {}) =>
   useDawStore.getState().announceStatus(message, options);
@@ -44,5 +45,20 @@ describe("announceStatus repeats", () => {
     say("Deleted clip", { undo: "h1" });
     say("Deleted clip", { undo: "h2" });
     expect(toast()?.undo).toBe("h2");
+  });
+
+  it("knows a message was spoken only inside the window", () => {
+    say("Can't undo", { toast: false, tone: "error" });
+    expect(justAnnounced("Can't undo")).toBe(true);
+    vi.advanceTimersByTime(1100);
+    expect(justAnnounced("Can't undo")).toBe(false);
+  });
+
+  it("absorbs a toast repeat of a message spoken without one", () => {
+    say("Moved clips", { undo: "h1" });
+    const standing = toast();
+    say("Nothing to do", { toast: false });
+    say("Nothing to do");
+    expect(toast()).toBe(standing);
   });
 });

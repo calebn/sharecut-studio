@@ -13,6 +13,7 @@ import {
   headLandedSince,
   savesLandedMark,
 } from "../state/documentSendOrder";
+import { justAnnounced } from "../state/uiSlice";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { execute, registerCommand } from "./execute";
@@ -207,8 +208,7 @@ export function runHistoryAction(
     .then((result) => {
       if (result.status === "ok") return;
       if (result.status === "disabled") {
-        if (useDawStore.getState().statusAnnouncement !== result.reason)
-          report(result.reason);
+        if (!justAnnounced(result.reason)) report(result.reason);
         return;
       }
       report("unavailable");
