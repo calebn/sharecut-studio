@@ -37,7 +37,11 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
     recommend_micro_fades,
 )
-from podcast_mcp.edits.mute_regions import mute_regions_overlapping, mute_regions_payload
+from podcast_mcp.edits.mute_regions import (
+    IgnoredWordRegions,
+    mute_regions_overlapping,
+    mute_regions_payload,
+)
 from podcast_mcp.edits.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.edits.ripple import (
     RippleRemoval,
@@ -1095,8 +1099,10 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
     sources = {s.id: s for s in project.sources}
     prev_by_track: dict[str, Clip] = {}
     recordings: dict[tuple[str, str | None], tuple[float | None, str | None]] = {}
+    ignored_words = IgnoredWordRegions(project)
     for c in sorted(clips, key=lambda x: (x.track_id, x.timeline_start)):
         src = sources.get(c.source_id) if c.source_id else None
+        ignored = ignored_words.for_clip(c)
         if (c.track_id, c.source_id) not in recordings:
             known = c.source_id is None or src is not None
             recordings[c.track_id, c.source_id] = (
@@ -1123,6 +1129,8 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
                 "recording_key": key,
                 "origin_track_id": origin_track_id_for_clip(project, c),
                 "mute_regions": mute_regions_payload(c.mute_regions),
+                # Transcript-ignored words render as mutes without being stored on the clip.
+                **({"ignored_word_regions": mute_regions_payload(ignored)} if ignored else {}),
                 **nonempty_off_speaker_regions_payload(c),
                 "clipping_regions": clip_clipping_payload(src, c.source_start, c.source_end),
                 "clipping_truncated": clip_clipping_truncated(src, c.source_end),

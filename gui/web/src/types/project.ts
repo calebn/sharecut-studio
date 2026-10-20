@@ -65,6 +65,8 @@ export interface ClipRow {
   recording_key: string | null;
   origin_track_id?: string | null;
   mute_regions?: ClipMuteRegion[];
+  /** Mutes the render adds for transcript-ignored words (#633); derived, not stored on the clip. */
+  ignored_word_regions?: ClipMuteRegion[];
   /** Source spans where the recording clipped, inside this clip window. */
   clipping_regions?: ClippingRegion[];
   /** The recording hit its clip-region cap; clipping after this clip's last flag was not recorded. */

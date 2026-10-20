@@ -88,7 +88,9 @@ def _render_unit_mute(case: dict) -> np.ndarray:
     )
     chain = FFmpegEngine()._mute_chain(
         end - start,
-        mute_spans_for_source_window(clip, start, end),
+        mute_spans_for_source_window(
+            clip, start, end, [ClipMuteRegion(**region) for region in case.get("ignored", [])]
+        ),
         sample_rate=_SAMPLE_RATE,
         source_start=start,
         origin=round(start * _SAMPLE_RATE),

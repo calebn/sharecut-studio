@@ -678,6 +678,31 @@ describe("immutable playback snapshots", () => {
     engine.dispose();
   });
 
+  it("plays a clip through the track of the lane it sits on", async () => {
+    const { ctx, created, gains } = makeCtx();
+    const engine = new ProxyEngine(
+      ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+    );
+    const next = snapshot("a".repeat(16), "legacy", 30);
+    Object.assign(next.clipsByTrack.host[0], {
+      track_id: "guest",
+      origin_track_id: "host",
+    });
+    next.tracks = [
+      { id: "host", gain_db: 0, muted: false },
+      { id: "guest", gain_db: 0, muted: true },
+    ];
+    engine.setSnapshot(next);
+    engine.play(1);
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    const [, hostTrack, guestTrack, clipGain] = gains;
+    expect(clipGain.connect).toHaveBeenCalledWith(guestTrack);
+    expect(clipGain.connect).not.toHaveBeenCalledWith(hostTrack);
+    engine.dispose();
+  });
+
   it("ramps down over a mute region, holds silent, and back up", async () => {
     const { ctx, created, gains } = makeCtx();
     const engine = new ProxyEngine(
