@@ -213,6 +213,7 @@ export function useNudgeRun() {
       next.stop.kind === "boundary"
         ? `${r.name} stopped at ${next.stop.boundary.label}`
         : `${r.name} is at its limit`,
+      { gesture: true },
     );
   };
 

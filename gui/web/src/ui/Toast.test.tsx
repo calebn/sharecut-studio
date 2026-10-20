@@ -289,7 +289,7 @@ describe("Toast", () => {
   it("keeps Undo pressable and describes why it will not act at once with undoNote, paused while shown", async () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
-    render(
+    const { container } = render(
       <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
@@ -308,7 +308,7 @@ describe("Toast", () => {
     });
     expect(onDismiss).not.toHaveBeenCalled();
     vi.useRealTimers();
-    await expectNoA11yViolations(document.body);
+    await expectNoA11yViolations(container);
   });
 
   it("pauses the timer while Undo is disabled and restarts it after", () => {
