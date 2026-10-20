@@ -239,6 +239,24 @@ describe("TranscriptPanel", () => {
       expect(correctToggle(container)).toHaveAttribute("aria-pressed", "true");
     });
 
+    it("keeps Correct and the tapped word when the panel remounts on rotation, and closing returns to seek-on-tap", () => {
+      const first = render(<TranscriptPanel />);
+      tap(word(first.container, "there"));
+      tap(word(first.container, "there"));
+      first.unmount();
+      expect(useDawStore.getState().transcriptCorrecting).toBe(false);
+
+      const { container } = render(<TranscriptPanel />);
+      expect(useDawStore.getState().selection).toEqual(thereWord);
+      expect(correctToggle(container)).toHaveAttribute("aria-pressed", "true");
+      expect(useDawStore.getState().transcriptCorrecting).toBe(true);
+
+      act(() => {
+        useDawStore.getState().setSelection(null);
+      });
+      expect(correctToggle(container)).toHaveAttribute("aria-pressed", "false");
+    });
+
     it("scopes Correct to the gesture: closing restores seek-on-tap", () => {
       vi.useFakeTimers();
       const { container } = render(<TranscriptPanel />);
