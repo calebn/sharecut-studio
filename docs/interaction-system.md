@@ -76,6 +76,10 @@ Each thing is declared once. A second map from the same key is a bug.
 Shipped: `state/selectionSlice.ts` is the only writer of `selection`, and
 `state/selection.ts` derives the clip and track sets from it. `selectionSurface.tsx`
 is the one table for phone, tablet and desktop (#1792).
+The tracks ticked for a range not yet formed live in `rangeScopeTrackIds`; they
+are draft UI state, not a selection.
+The tracks ticked for a range not yet formed live in `rangeScopeTrackIds`; they
+are draft UI state, not a selection.
 
 ## Targets
 

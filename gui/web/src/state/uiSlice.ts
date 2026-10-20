@@ -370,9 +370,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     rangeScopeTrackIds: null as readonly string[] | null,
     rangeBusy: false,
     setRangeArmed: (rangeArmed) =>
-      set(
-        rangeArmed ? { rangeArmed } : { rangeArmed, rangeScopeTrackIds: null },
-      ),
+      set({ rangeArmed, rangeScopeTrackIds: null }),
     setRangeScopeTrackIds: (rangeScopeTrackIds) => set({ rangeScopeTrackIds }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
     activeTab: "transcript" as DawTab,
