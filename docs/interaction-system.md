@@ -181,6 +181,11 @@ There are three overlay primitives.
 7. **Internals stay out of copy.** No environment variable names, ids, file
    paths or stack text in a toast, banner or empty state. A truncated sentence
    is a bug.
+8. **A toast clears itself.** It stays 8 seconds (60 with Undo) and waits
+   while hovered, focused, or with Undo unable to act. A card the browser
+   reports as clipped waits at most 8 seconds more, so a short viewport or
+   an expanded Safari toolbar never strands it. A ratio of 0.95 or more counts
+   as fully shown.
 
 ## Keyboard and touch equivalents
 

@@ -19,6 +19,14 @@ export const TOAST_MS = 8000;
 
 export const TOAST_UNDO_MS = 60_000;
 
+/**
+ * Most a toast waits, in total, while it reports as clipped. It protects
+ * reading time while a sheet or the browser toolbar settles; a card that stays
+ * clipped (a short viewport, an expanded Safari toolbar) then runs out its
+ * lifetime like any other.
+ */
+export const TOAST_CLIPPED_MAX_MS = TOAST_MS;
+
 function subscribeToFocus(notify: () => void): () => void {
   document.addEventListener("focusin", notify);
   document.addEventListener("focusout", notify);
@@ -61,7 +69,8 @@ type Props = {
  * message `announceStatus` sends, and `feedback/FeedbackToast` is the only
  * caller. The auto-dismiss timer pauses while a mouse or pen
  * pointer is over the toast, while focus is inside it, and while Undo is
- * disabled. Touch contact does not pause it (touch has no persistent hover).
+ * disabled. It also pauses while the card is clipped, for at most
+ * `TOAST_CLIPPED_MAX_MS` in all. Touch contact does not pause it (touch has no persistent hover).
  * If the toast closes with focus inside it, or after focus fell from it to
  * `<body>` (the browser blurs a focused Undo when it becomes disabled), focus
  * moves to `returnFocusRef`.
@@ -111,12 +120,14 @@ function ToastCard({
     subscribeToFocus,
     () => cardRef.current?.contains(document.activeElement) ?? false,
   );
+  const [clippedSpentFor, setClippedSpentFor] = useState<number | null>(null);
+  const clipBudget = useRef({ id: toast.id, remaining: TOAST_CLIPPED_MAX_MS });
   const paused =
     hovered ||
     focused ||
     (onUndo != null &&
       (undoDisabledReason !== undefined || undoNote !== undefined)) ||
-    visibility === "clipped";
+    (visibility === "clipped" && clippedSpentFor !== toast.id);
   const toastId = toast.id;
   const dismiss = useEffectEvent(onDismiss);
   const lifetime = useRef({ id: toastId, remaining: timeoutMs });
@@ -141,6 +152,25 @@ function ToastCard({
       );
     };
   }, [toastId, paused, timeoutMs]);
+  const clippedWaiting =
+    visibility === "clipped" && clippedSpentFor !== toastId;
+  useEffect(() => {
+    if (clipBudget.current.id !== toastId)
+      clipBudget.current = { id: toastId, remaining: TOAST_CLIPPED_MAX_MS };
+    if (!clippedWaiting) return;
+    const started = Date.now();
+    const timer = window.setTimeout(
+      () => setClippedSpentFor(toastId),
+      clipBudget.current.remaining,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      clipBudget.current.remaining = Math.max(
+        0,
+        clipBudget.current.remaining - (Date.now() - started),
+      );
+    };
+  }, [toastId, clippedWaiting]);
   useLayoutEffect(() => {
     const el = cardRef.current;
     const inside = focusInside;
