@@ -46,7 +46,13 @@ function PeopleList({
 }
 
 type Props = {
-  variant?: "inline" | "menu";
+  /**
+   * `inline`: the status bar's avatars. `menu`: a People section inside a menu
+   * that is already open. `popup`: its own menu behind a People button.
+   */
+  variant?: "inline" | "menu" | "popup";
+  /** Class for the `popup` variant's button, so the host row can style it. */
+  triggerClassName?: string;
   others: readonly SessionClient[];
   self?: SessionClient;
   names: ReadonlyMap<string, string>;
@@ -57,6 +63,7 @@ type Props = {
 /** Props-only avatar stack, shared by the desktop status bar and the People menu. */
 export function AvatarStackView({
   variant = "inline",
+  triggerClassName,
   others,
   self,
   names,
@@ -64,6 +71,36 @@ export function AvatarStackView({
   onFollow,
 }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
+
+  if (variant === "popup") {
+    if (others.length === 0) {
+      return null;
+    }
+    return (
+      <Menu
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        label="People"
+        trigger={(t) => (
+          <button
+            type="button"
+            className={triggerClassName ?? "ui-control"}
+            {...t}
+          >
+            People · {others.length}
+          </button>
+        )}
+      >
+        <PeopleList
+          others={others}
+          names={names}
+          followingClientId={followingClientId}
+          onFollow={onFollow}
+          onSelect={() => setMoreOpen(false)}
+        />
+      </Menu>
+    );
+  }
 
   if (variant === "menu") {
     if (others.length === 0) {

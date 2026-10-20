@@ -118,4 +118,45 @@ describe("AvatarStackView", () => {
     );
     expect(container.querySelector(".ui-menu-section")).toBeNull();
   });
+
+  it("opens People as a keyboard-reachable menu in the popup variant", async () => {
+    const onFollow = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AvatarStackView
+        variant="popup"
+        others={[
+          sessionClient({ client_id: "a" }),
+          sessionClient({ client_id: "b" }),
+        ]}
+        names={NAMES}
+        followingClientId={null}
+        onFollow={onFollow}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: "People · 2" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(screen.queryByRole("menu")).toBeNull();
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    const menu = screen.getByRole("menu", { name: "People" });
+    await expectNoA11yViolations(menu);
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(onFollow).toHaveBeenCalledWith("b");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("renders nothing in the popup variant when no one is there", () => {
+    const { container } = render(
+      <AvatarStackView
+        variant="popup"
+        others={[]}
+        names={NAMES}
+        followingClientId={null}
+        onFollow={vi.fn()}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
 });

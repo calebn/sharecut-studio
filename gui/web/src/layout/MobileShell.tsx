@@ -196,8 +196,8 @@ function MoreHub({
           <p className="mobile-more-hint">{HOME_SCREEN_HINT}</p>
         ) : null}
       </div>
-      <div role="menu" aria-label="People">
-        <AvatarStack variant="menu" />
+      <div className="mobile-more-group">
+        <AvatarStack variant="popup" triggerClassName="mobile-more-item" />
       </div>
     </div>
   );
