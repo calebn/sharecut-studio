@@ -367,7 +367,7 @@ export function registerTrackMixCommands(): void {
     const track = s.project?.tracks.find((t) => t.id === trackId);
     if (!evaluateWhen("canEditMix", ctx).ok) {
       if (track?.muted) {
-        s.announceStatus(SAVED_MUTE_READ_ONLY);
+        s.announceStatus(SAVED_MUTE_READ_ONLY, { tone: "error" });
         return { status: "disabled", reason: SAVED_MUTE_READ_ONLY };
       }
       s.toggleViewerMute(trackId);

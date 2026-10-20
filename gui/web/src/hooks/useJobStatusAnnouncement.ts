@@ -7,6 +7,7 @@ import {
   pipelineKindLabel,
   pipelineStatusLabel,
 } from "../utils/pipelineProgress";
+import { plainError } from "../utils/plainError";
 
 /**
  * Speak the Activity/Pipeline chip's status in the shell's polite live region,
@@ -65,7 +66,7 @@ export function useJobStatusAnnouncement(): void {
       `${pipelineKindLabel(jobKind)}: ${pipelineStatusLabel(jobStatus)}`,
     ];
     if (jobMessage) {
-      parts.push(jobMessage);
+      parts.push(jobStatus === "error" ? plainError(jobMessage) : jobMessage);
     }
     if (activityRunningCount > 1) {
       parts.push(`${activityRunningCount} activities`);

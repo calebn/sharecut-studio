@@ -74,7 +74,11 @@ describe("edit.addChapter", () => {
   it("announces and reports the failure, clearing chapterAddPending", async () => {
     vi.mocked(api.addChapter).mockRejectedValue(new Error("locked"));
     const result = await execute("edit.addChapter", {}, { skipWhen: true });
-    expect(result).toEqual({ status: "disabled", reason: "locked" });
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "locked",
+      announced: true,
+    });
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Add chapter failed: locked",
     );

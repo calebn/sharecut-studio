@@ -473,6 +473,7 @@ describe("tighten commands", () => {
       expect(result).toEqual({
         status: "disabled",
         reason: "Nothing to revise",
+        announced: true,
       });
       expect(useDawStore.getState().feedbackToast?.message).toBe(
         "Change failed: Nothing to revise",

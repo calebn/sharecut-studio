@@ -23,6 +23,16 @@ export function clearRegisteredCommands(): void {
 }
 
 /**
+ * A refusal the handler spoke about while it ran is marked `announced`, so no
+ * caller says it again (a second, raw copy would also skip the error filter).
+ */
+function markAnnounced(result: ExecuteResult, spoke: boolean): ExecuteResult {
+  return spoke && result.status === "disabled" && !result.announced
+    ? { ...result, announced: true }
+    : result;
+}
+
+/**
  * Run a UX command by stable id.
  * @param skipWhen When true (button click), skip keyboard when-clauses.
  */
@@ -46,7 +56,11 @@ export async function execute(
       return { status: "disabled", reason: gate.reason };
     }
   }
-  const result = await handler(args, ctx);
+  const spokenBefore = useDawStore.getState().statusAnnouncementSeq;
+  const result = markAnnounced(
+    await handler(args, ctx),
+    useDawStore.getState().statusAnnouncementSeq !== spokenBefore,
+  );
   if (def.breaksFollow && result.status === "ok" && !isProgrammaticUi()) {
     useDawStore.getState().stopFollow("local");
   }
