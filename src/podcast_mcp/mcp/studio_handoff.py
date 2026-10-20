@@ -67,7 +67,12 @@ def _progress_relay(context: Any) -> Any:
     The client opts in with a ``progressToken``; without one nothing is sent, as when the tool
     runs in this process. A relay that fails never fails the call.
     """
-    if mcp_progress_sink(context) is None:
+    try:
+        opted_in = mcp_progress_sink(context) is not None
+    except Exception:  # an odd request context must not decide whether the call is sent
+        log.debug("could not tell whether the client asked for progress", exc_info=True)
+        return None
+    if not opted_in:
         return None
 
     async def relay(progress: float, total: float | None, message: str | None) -> None:
@@ -83,6 +88,7 @@ async def _run_in_studio(
     host: StudioHost, name: str, arguments: dict[str, Any], context: Any = None
 ) -> Any:
     """Run one tool call in Studio; ``None`` means nothing was sent, so the caller runs it here."""
+    relay = _progress_relay(context)
     sent = False
     try:
         url = f"http://{host.host}:{host.port}{HOST_MCP_PATH}"
@@ -92,7 +98,6 @@ async def _run_in_studio(
         ):
             await session.initialize()
             sent = True
-            relay = _progress_relay(context)
             if relay is None:
                 return await session.call_tool(name, arguments)
             return await session.call_tool(name, arguments, progress_callback=relay)

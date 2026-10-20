@@ -325,3 +325,23 @@ def test_a_client_that_stops_listening_does_not_fail_the_call(
     )
     assert isinstance(result, CallToolResult)
     assert not result.is_error
+
+
+def test_a_context_that_cannot_say_if_progress_was_asked_still_sends_the_call(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class _Outside:
+        @property
+        def request_context(self) -> Any:
+            raise ValueError("Context is not available outside of a request")
+
+    seen: dict[str, Any] = {}
+    _fake_studio_session(monkeypatch, seen, ticks=1)
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("list_clips_tool", {"project_path": str(studio)}, _Outside())
+    )
+    assert isinstance(result, CallToolResult)
+    assert not result.is_error
+    assert server.calls == []
+    assert "progress_callback" not in seen["kwargs"]
