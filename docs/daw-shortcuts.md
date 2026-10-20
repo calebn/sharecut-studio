@@ -89,7 +89,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `M` | Toggle track mute (`track.muteToggle`) | Project loaded | M mutes the targeted track; while the record panel is open, M drops a marker instead |
 | `S` | Toggle track solo (`track.soloToggle`) | Project loaded |  |
 | `Mod+Shift+T` | New track (`track.add`) | Media ingest allowed | Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T) |
-| `Mod+I` | Import audio (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
+| `Mod+I` | Import audio… (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
 
 ## view
 
@@ -111,8 +111,8 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
 | `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: bounce dialog (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
-| `Mod+N` | New project (`project.new`) | Host project management | Mod+N |
-| `Mod+O` | Open project (`project.open`) | Host project management | Mod+O: OS dialog via local engine; paste path fallback |
+| `Mod+N` | New project… (`project.new`) | Host project management | Mod+N |
+| `Mod+O` | Open project… (`project.open`) | Host project management | Mod+O: OS dialog via local engine; paste path fallback |
 
 ## presence
 
@@ -149,7 +149,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Resume recording | `record.resume` | Host project management |  |
 | Stop recording | `record.stop` | Host project management |  |
 | Land recording on timeline | `record.land` | Host project management |  |
-| Record panel | `record.openPanel` | Loaded host project |  |
+| Record room… | `record.openPanel` | Loaded host project |  |
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Split speakers… | `track.splitSpeakers` | canSplitSpeakers | Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
