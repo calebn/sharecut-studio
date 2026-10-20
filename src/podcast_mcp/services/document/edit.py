@@ -41,6 +41,7 @@ from podcast_mcp.edits.audio_quality import (
 from podcast_mcp.edits.audio_quality import (
     low_audibility_words as audit_low_audibility_words,
 )
+from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.chapters import (
     add_chapter,
     delete_chapter,
@@ -193,6 +194,12 @@ from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.bleed_inspection import (
+    BleedRestoreResult,
+    ClipBleedInspection,
+    inspect_clip_bleed,
+    restore_clip_bleed,
+)
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
@@ -1281,6 +1288,12 @@ class EditService:
                 "fade_ms": fade_ms,
             },
         )
+
+    def inspect_clip_bleed(self, clip_id: str, *, track_id: str) -> ClipBleedInspection:
+        return inspect_clip_bleed(self.ws, clip_id, track_id=track_id)
+
+    def restore_clip_bleed(self, target: BleedRestoreTarget) -> BleedRestoreResult:
+        return restore_clip_bleed(self.ws, target)
 
     def set_clip_fade(
         self,
@@ -2378,8 +2391,9 @@ class EditService:
     ) -> dict:
         """Mute a track wherever another speaker talks and its own speaker does not (#1740).
 
-        Preview with ``apply=False``. Applied stretches are exact-range mute edits, one
-        undo step in History and one Restore each; stretches the cut safety checks hold stay open.
+        Preview with ``apply=False``. Applied stretches retain separate automatic ownership.
+        One History Undo reverses the command. Equivalent reapply adds no history.
+        Stretches held by cut safety checks stay open.
         """
         from podcast_mcp.edits.off_speaker_mute import (
             apply_off_speaker_mutes,
@@ -2387,17 +2401,26 @@ class EditService:
         )
 
         tid = self._resolve(track_id, speaker)
-        plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
-        result = {"dry_run": not apply, **plan.summary()}
-        if not apply or not plan.regions:
-            return result
+        if not apply:
+            plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
+            return {"dry_run": True, **plan.summary()}
 
-        def mutate(p: EpisodeProject) -> dict:
-            return apply_off_speaker_mutes(p, plan)
+        from podcast_mcp.project_merge import adopt_project_state
 
-        with render_lock(self.ws.project, timeout=lock_timeout):
-            applied = self.ws.mutate("before mute off speaker", "after mute off speaker", mutate)
-        return {**result, **applied}
+        with render_lock(self.ws.project, timeout=lock_timeout), self.ws.transaction():
+            plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
+            result = {"dry_run": False, **plan.summary()}
+            if not plan.regions:
+                return result
+            candidate = self.ws.project.model_copy(deep=True)
+            applied = apply_off_speaker_mutes(candidate, plan)
+            if applied["applied_count"]:
+                self.ws.mutate(
+                    "before mute off speaker",
+                    "after mute off speaker",
+                    lambda p: adopt_project_state(p, candidate),
+                )
+            return {**result, **applied}
 
     def gate_overreach(
         self,

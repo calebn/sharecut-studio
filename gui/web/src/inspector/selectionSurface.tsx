@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { rangeClips } from "../edit/rangeSelection";
 import type { MobileMode, MoreDestination } from "../state/types";
 import { RangeActions } from "../timeline/RangeActions";
 import type { ProjectView, Selection } from "../types/project";
 import { AppliedEditInspector } from "./views/AppliedEditInspector";
 import { ChapterInspector } from "./views/ChapterInspector";
+import { ClipBleedHost } from "./views/ClipBleedHost";
 import { ClipInspector } from "./views/ClipInspector";
 import { CommentInspector } from "./views/CommentInspector";
 import { EnvelopeWorkspace } from "./views/EnvelopeWorkspace";
@@ -76,6 +78,27 @@ export const SELECTION_SURFACES: {
         .flat()
         .find((c) => c.id === sel.id);
       return clip ? <ClipInspector clip={clip} /> : notFound("Clip not found");
+    },
+  },
+  bleedAttenuation: {
+    phoneScreens: ANYWHERE,
+    body: (sel, { project }) => {
+      const clip = rangeClips(project).find(
+        (row) => row.id === sel.id && row.track_id === sel.trackId,
+      );
+      return clip ? (
+        <ClipBleedHost
+          key={JSON.stringify([sel.trackId, sel.id])}
+          trackId={sel.trackId}
+          clipId={sel.id}
+          clipLabel={
+            project.tracks.find((track) => track.id === sel.trackId)?.label ??
+            sel.trackId
+          }
+        />
+      ) : (
+        notFound("Clip not found")
+      );
     },
   },
   pending: {

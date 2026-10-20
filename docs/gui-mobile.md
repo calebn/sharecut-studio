@@ -261,6 +261,9 @@ fields and track picks hold the floor too, and the same sweep measures them (a s
 track for the first two, the Comments panel on tablet and desktop, and Listen on a phone,
 for the last).
 
+In short windows with a fine pointer, Transcript uses less vertical spacing around
+its content and hint.
+
 Round 9 (#1181) moved the strip above the tool rail after an Undo tap could
 nudge a pending edit. Issue #1205 moves the shared Undo and Redo controls into
 the compact inspector header at peek, half and full height, then lets the strip

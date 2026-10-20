@@ -97,3 +97,13 @@ capability. Its local preview shares `computeClipMoves` and `laneMovePreview` wi
 dragging. Only **Apply move** submits `MoveClips`; Cancel and no-op submit nothing.
 The local owner token is checked again inside the existing track mutation queue.
 This adds an inspector GUI entry without a new server command or MCP name.
+
+The host Clip inspector opens **Automatic reduction**. Its **Restore original
+audio** action is `edit.restoreClipBleed` and capability
+`daw.edit.restoreClipBleed`, with the distinct `restoreClipBleed` GUI surface.
+The existing `clipInspector` surface remains mapped to `daw.edit.moveClips`.
+Restore has a host-project gate, no guest mutation surface, no default keyboard
+shortcut and no command-palette entry. Host agents use `inspect_clip_bleed_tool`
+and `restore_clip_bleed_tool` through the same inspection and document service.
+The explicit inspection returns an opaque current-occurrence target; ordinary
+project and session selection payloads do not carry it.

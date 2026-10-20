@@ -59,6 +59,38 @@ async function dragFade(edge: "in" | "out", value: number) {
 }
 
 describe("ClipInspector presentation", () => {
+  it("inspects the current placed occurrence after cancelling its placement preview", () => {
+    const moved = {
+      ...clip,
+      id: "current-copy",
+      track_id: "guest",
+      origin_track_id: "host",
+      source_start: 30,
+      source_end: 32,
+      timeline_start: 4,
+      timeline_end: 6,
+    };
+    hydrateClipProject(sampleTrack({ id: "guest" }), moved);
+    useDawStore.setState({
+      toolMode: "select",
+      commentMode: false,
+      timelineDragging: false,
+      joinMutationInFlight: false,
+    });
+    render(<ClipInspector clip={moved} />);
+    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Later 10 ms" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Inspect automatic audio reduction" }),
+    );
+    expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "bleedAttenuation",
+      id: "current-copy",
+      trackId: "guest",
+      regionKey: null,
+    });
+  });
   it("names the origin speaker and timeline range with the ID shown once", async () => {
     const moved = {
       ...clip,

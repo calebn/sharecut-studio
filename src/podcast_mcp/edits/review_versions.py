@@ -32,6 +32,7 @@ from podcast_mcp.engines.play_audit import (
     read_mastered_hash,
 )
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
+from podcast_mcp.util.atomic_directory import rename_noreplace
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError, CodedValueError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
@@ -171,26 +172,6 @@ def _created_dir_identity(version_dir: Path) -> DirectoryIdentity:
         os.close(root_fd)
 
 
-def _rename_noreplace(src: str, dst: str, root_fd: int) -> None:
-    """Atomically promote or restore a directory without replacing its destination."""
-    libc = ctypes.CDLL(None, use_errno=True)
-    if sys.platform.startswith("linux"):
-        operation = getattr(libc, "renameat2", None)
-        if operation is None:
-            raise OSError(errno.ENOTSUP, "atomic no-replace rename is unavailable")
-        result = operation(root_fd, os.fsencode(src), root_fd, os.fsencode(dst), 1)
-    elif sys.platform == "darwin":
-        operation = getattr(libc, "renameatx_np", None)
-        if operation is None:
-            raise OSError(errno.ENOTSUP, "atomic no-replace rename is unavailable")
-        result = operation(root_fd, os.fsencode(src), root_fd, os.fsencode(dst), 4)
-    else:
-        raise OSError(errno.ENOTSUP, "atomic no-replace rename is unavailable")
-    if result != 0:
-        code = ctypes.get_errno()
-        raise OSError(code, os.strerror(code), dst)
-
-
 def promote_staged_version(
     staging_dir: Path,
     identity: DirectoryIdentity,
@@ -208,7 +189,7 @@ def promote_staged_version(
         current = os.stat(staging_dir.name, dir_fd=root_fd, follow_symlinks=False)
         if not _is_created_dir(current, identity) or not _trusted_dir(current, private=True):
             raise RuntimeError("review staging directory changed before publication")
-        _rename_noreplace(staging_dir.name, version_id, root_fd)
+        rename_noreplace(staging_dir.name, version_id, root_fd)
         promoted_fd = open_nofollow_dir(version_id, dir_fd=root_fd)
         try:
             promoted = os.fstat(promoted_fd)
@@ -465,7 +446,7 @@ def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity
             with suppress(OSError):
                 # Return a replacement to its public name only when vacant. Never
                 # overwrite the directory another writer may have placed there.
-                _rename_noreplace(f"{quarantine_name}/{_QUARANTINE_ENTRY}", public, root_fd)
+                rename_noreplace(f"{quarantine_name}/{_QUARANTINE_ENTRY}", public, root_fd)
                 restored = True
             if restored:
                 os.unlink(_CLEANUP_MARKER, dir_fd=quarantine_fd)

@@ -1062,3 +1062,37 @@ bounds without rewriting the preference. Buttons, keyboard, drag clamps, and
 separator values use the same measured geometry. **Reset panel size** clears the
 browser preference. These controls do not change the episode or History. Phone uses the sheet's **Expand** and
 **Collapse** controls and has no desktop splitter.
+
+## Current-occurrence automatic reduction
+
+`GET /api/clips/{clip_id}/bleed` is an explicit host inspection with project path
+and track identity. The adapter validates its DTO and keeps the exact returned
+opaque Restore target. Timeline spans are already editorial seconds; source
+bounds are shown separately. Inspection is scoped to one active occurrence,
+project opening and dependency snapshot. It is not an all-visible-clip cache.
+
+`clipBleedSession` owns read generations, selected region, action state and exact
+acknowledged Undo. The shared selection registry mounts `ClipBleedHost` on desktop
+and phone. Local `bleedAttenuation` selections carry occurrence and region keys,
+never the target, and are omitted from session wire state. Refresh, reopening or
+changed occurrence inputs retire old targets. Restore uses the existing command
+bus and track mutation queue, rechecks admission inside that queue, and sends the
+unchanged target through `RestoreClipBleed`.
+
+Proxy manifests now pair complete legacy and occurrence artifact descriptors
+with the exact displayed project basis. A nonempty occurrence choice always
+binds its artifact, including inactive or unity choices. The atomic client
+snapshot owns fetch, decode and scheduling identities. A mismatched variant pair
+holds timeline audio instead of falling back to stale premix audio. Source
+preview retains its existing explicit transport ownership. A compatible snapshot
+with unchanged schedule identity avoids restarting sources unnecessarily.
+
+Derived manifest publication changes the project file certificate without
+advancing editable History. Existing document recovery admits that certificate;
+it must not trigger an endless manifest refresh or proxy save cycle.
+
+Host share preparation publishes the complete manifest after all track upload
+attempts, including their metadata mutations. After successful publication, an
+unchanged guest manifest read reuses that generation without saving or rendering.
+Failed preparation remains best-effort and logs a host warning. A later edit can
+require a new generation.

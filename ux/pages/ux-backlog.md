@@ -8,6 +8,21 @@ Status key: **Now** (shape decisions) · **Next** (after Now) · **Later** (stra
 
 ## Now — highest leverage
 
+### Visible automatic attenuation and occurrence Restore (#1737)
+
+The approved outcome is labeled, selectable automatic reduction regions with
+**Restore original audio** for the selected clip occurrence. Choices must survive
+reapply, preserve overlaps and other copies, support processed proxies, and Undo
+in one step. The core [project state](../../docs/episode-format-v2.md) and
+[timeline render contract](../../docs/architecture.md#layers) now support durable
+content-bound choices and a joint shared-bus correction. Dedicated automatic
+off-speaker envelopes preserve ordinary Lower, mute, ignored-word, and fill state.
+Explicit Restore bypasses only the automatic factor inside its saved window.
+Equivalent reapply keeps that choice without an extra Undo entry. Host commands, region UI,
+occurrence proxy variants, native interaction, and listening acceptance remain
+pending. This entry records an approved direction, not shipped UI or a completed
+issue.
+
 ### 1. Listen-first edit suggestions — shipped
 
 **Decision (2026-08-26):** Review stays on the **current timeline + pending inspector** (no modal). Default preview is **Suggested** (session-scope `remove` only). Modes: Current | Suggested | A/B (~0.4s gap). One `TimelineComment` thread per pending decision (`edit_decision_id`; first Ask = root, later notes = replies). Mobile Listen **Pending** chip selects the first review-required pending and switches to Timeline.

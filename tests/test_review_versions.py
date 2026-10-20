@@ -739,7 +739,7 @@ def test_other_process_claims_public_name_before_promotion(
 ):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     monkeypatch.setattr(review_versions, "_new_id", lambda: "claimed")
-    real_promote = review_versions._rename_noreplace
+    real_promote = review_versions.rename_noreplace
 
     def claim_then_promote(src, dst, root_fd):
         subprocess.run(
@@ -754,7 +754,7 @@ def test_other_process_claims_public_name_before_promotion(
         )
         real_promote(src, dst, root_fd)
 
-    monkeypatch.setattr(review_versions, "_rename_noreplace", claim_then_promote)
+    monkeypatch.setattr(review_versions, "rename_noreplace", claim_then_promote)
     with pytest.raises(FileExistsError):
         publish_version(project, label="race")
     assert (art / "review" / "claimed" / "mix.wav").read_bytes() == b"other process"
@@ -972,7 +972,7 @@ def test_direct_publish_cleans_promoted_media_after_attach_failure(
 @requires_safe_failed_cleanup
 def test_promotion_detects_replaced_staging_directory(minimal_project, sample_wav, monkeypatch):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
-    real_promote = review_versions._rename_noreplace
+    real_promote = review_versions.rename_noreplace
 
     def replace_source(src, dst, root_fd):
         review_root = art / "review"
@@ -981,7 +981,7 @@ def test_promotion_detects_replaced_staging_directory(minimal_project, sample_wa
         (review_root / src / "mix.wav").write_bytes(b"attacker")
         real_promote(src, dst, root_fd)
 
-    monkeypatch.setattr(review_versions, "_rename_noreplace", replace_source)
+    monkeypatch.setattr(review_versions, "rename_noreplace", replace_source)
     with pytest.raises(RuntimeError, match="changed during publication"):
         publish_version(project, label="new")
     assert not project.review.versions
@@ -990,13 +990,13 @@ def test_promotion_detects_replaced_staging_directory(minimal_project, sample_wa
 @requires_safe_failed_cleanup
 def test_promotion_rejects_changed_wav_bytes(minimal_project, sample_wav, monkeypatch):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
-    real_promote = review_versions._rename_noreplace
+    real_promote = review_versions.rename_noreplace
 
     def alter_after_rename(src, dst, root_fd):
         real_promote(src, dst, root_fd)
         (art / "review" / dst / "mix.wav").write_bytes(b"changed")
 
-    monkeypatch.setattr(review_versions, "_rename_noreplace", alter_after_rename)
+    monkeypatch.setattr(review_versions, "rename_noreplace", alter_after_rename)
     with pytest.raises(RuntimeError, match="mix changed during publication"):
         publish_version(project, label="new")
     assert not project.review.versions

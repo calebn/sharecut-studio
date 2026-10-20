@@ -48,6 +48,27 @@ history snapshots. Each selection names `start_s`, `end_s`, and optional
 applies union their source selections so repeats converge to the same state.
 Derived acoustic plans use raw selected sources and are not a new durable store.
 
+`timeline.clips[].off_speaker_mute_regions` stores automatic SOURCE envelopes
+separately from ordinary mute, Lower, and room-tone state. Each element retains
+its full original bounds and fade lengths. History snapshots carry this array
+with each occurrence. Reapply keeps saved Restore choices and skips equivalent
+writes without adding history. Empty arrays stay outside acoustic plan cache
+serialization and direct clip dependency payloads, preserving existing keys.
+Nonempty automatic state participates in those dependencies. Historical archive
+geometry and reason strings never classify existing ordinary masks.
+
+`timeline.clips[].bleed_restore` stores a nullable content-bound object with a
+`source_sha256` and canonical source `regions`. Editable history snapshots retain
+it with clip geometry. It introduces no sidecar. Recording SHA-256 validation uses
+streamed reads and the existing revision-keyed batch memo during affected renders.
+The memo includes resolved path, device, inode, size, and mtime. Hashing checks
+revision stability, so atomic replacements with unchanged size and mtime miss it.
+Ordinary project and render-identity projections never hash or decode media.
+Automatic gate payloads and their immutable plan cache exclude this manual state.
+The timeline stem hash includes the persisted choices explicitly.
+Affected renders revalidate all bus, fill, and gate-evidence revisions before
+publication. A refused publication retains the previous artifact and hash.
+
 ```mermaid
 flowchart TB
   subgraph host [Host_laptop]

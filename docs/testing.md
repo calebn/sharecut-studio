@@ -2880,3 +2880,28 @@ private writer imports outside the operation owner. Renderer tests prove pending
 or applied decision labels cannot bypass publication by removing audio at render
 time. These checks supplement the public pause and original mixed-mode PCM
 contracts; they do not replace Lab parity or listening acceptance.
+
+## Occurrence automatic-reduction coverage
+
+`clipBleed.test.ts` validates host inspection DTOs and exact opaque targets.
+`clipBleedSession.test.ts` exercises opening generations, materialization,
+recording replacement, stale reads, peer-head round trips and exact Undo receipts.
+Command and host-inspector tests cover queue admission, access and current-target
+checks. Timeline and selection-surface tests cover mounting, placement
+cancellation, current-region geometry and phone selection. Central input-contract,
+hit-candidate and real-router grammar tests guard direct activation, touch scroll,
+long press and second-finger rollback without governance allowlists.
+
+`test_proxy_variants.py` covers whole-generation retention, actual encoded chunk
+identity, partial or damaged destinations, derived saves, concurrent render
+publication and namespace synchronization failures. `test_atomic_directory.py`
+checks real no-replace promotion and occupied destination preservation.
+`test_review_versions.py` retains its publication and quarantine race coverage
+through that extracted helper. The episode shape lock is regenerated and replayed
+with `scripts/project_compat.py lock --base <trusted-main-ref>`.
+
+Synthetic PCM, browser and schema checks establish their measured behavior only.
+They do not replace owner listening, supported native interaction, independent
+Shipping, exact-head CI or the full action-transcript audit. Registry-backed
+guest/recovery acceptance requires the application's real trusted directory
+ownership checks to pass; tests must not bypass those checks to manufacture a pass.

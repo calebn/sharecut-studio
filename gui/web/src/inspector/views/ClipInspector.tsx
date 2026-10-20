@@ -622,6 +622,24 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
             busy={clipMutationBusy || trimRun.running}
           />
         </DefItem>
+        <DefItem label="Automatic audio reduction">
+          <Button
+            disabledReason={
+              clipMutationBusy || trimRun.running ? BUSY_REASON : undefined
+            }
+            onClick={() => {
+              cancelClipPlacement();
+              useDawStore.getState().setSelection({
+                kind: "bleedAttenuation",
+                id: clip.id,
+                trackId: clip.track_id,
+                regionKey: null,
+              });
+            }}
+          >
+            Inspect automatic audio reduction
+          </Button>
+        </DefItem>
         {renderTrimField("in")}
         {renderTrimField("out")}
         <DefItem label="Fades">

@@ -71,6 +71,8 @@ export interface HitKindContract {
    * create menu. It drags as a whole: both its ends meet soft boundaries.
    */
   body: boolean;
+  /** Broad activation targets participate only when the browser hits them. */
+  directOnly?: boolean;
   /**
    * `row`: a marker-lane target that reaches sideways along its own row only.
    * A finger on the ruler or a clip beside the lane is never taken by it.
@@ -80,6 +82,18 @@ export interface HitKindContract {
 
 /** Every hit-testable timeline target kind and its input contract. */
 export const HIT_KINDS = {
+  "bleed-attenuation": {
+    priority: 0,
+    label: "Automatic audio reduction",
+    axis: "none",
+    nudges: [],
+    soft: false,
+    keys: "activate",
+    command: null,
+    outranks: [],
+    body: false,
+    directOnly: true,
+  },
   join: {
     priority: 10,
     label: "Join",
@@ -266,6 +280,11 @@ export const HIT_KINDS = {
 } as const satisfies Record<string, HitKindContract>;
 
 export type HitKind = keyof typeof HIT_KINDS;
+
+export function needsDirectHit(kind: HitKind): boolean {
+  const contract: HitKindContract = HIT_KINDS[kind];
+  return contract.directOnly === true;
+}
 
 export const HIT_KIND_NAMES = Object.keys(HIT_KINDS) as HitKind[];
 

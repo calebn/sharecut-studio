@@ -470,6 +470,7 @@ def _timeline_levels(
         for clip in ungated.clips:
             if clip.track_id == track_id:
                 clip.mute_regions = []
+                clip.off_speaker_mute_regions = []
     out = scratch / f"{track_id}-{'unmuted' if unmuted else 'played'}.wav"
     render_track_from_timeline(ungated, ungated_track, out, load_defaults())
     samples = load_mono_full(out, sample_rate=_SAMPLE_RATE)
@@ -597,9 +598,16 @@ def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> di
     from uuid import uuid4
 
     from podcast_mcp.edits.cut_application import apply_ranges
+    from podcast_mcp.edits.off_speaker_regions import MuteOwnership
     from podcast_mcp.edits.range_edits import build_range_target
     from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-    from podcast_mcp.models import CutIntent, EditDecision, EditDecisionType
+    from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
+    from podcast_mcp.models import (
+        ClipOffSpeakerMuteRegion,
+        CutIntent,
+        EditDecision,
+        EditDecisionType,
+    )
     from podcast_mcp.models.episode import RangeInterval
 
     edits: list[EditDecision] = []
@@ -610,6 +618,15 @@ def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> di
             [plan.track_id],
         )
         if not target.clips:
+            continue
+        if all(
+            ClipOffSpeakerMuteRegion(start_s=bounds[0], end_s=bounds[1])
+            in clip.off_speaker_mute_regions
+            for clip in target.clips
+            for interval in target.intervals
+            if (bounds := clip_timeline_overlap_to_source(clip, interval.start, interval.end))
+            is not None
+        ):
             continue
         edits.append(
             EditDecision(
@@ -633,7 +650,12 @@ def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> di
         try:
             # The plan's own audio evidence (copy envelope, leak ratio, own-energy check)
             # is the audio check, so its chosen edges stand; scope and geometry holds still hold.
-            apply_ranges(project, edits, application_intent=CutIntent.HUMAN_BOUNDARIES)
+            apply_ranges(
+                project,
+                edits,
+                application_intent=CutIntent.HUMAN_BOUNDARIES,
+                mute_ownership=MuteOwnership.OFF_SPEAKER,
+            )
             break
         except ScopeChangedAtApproval as exc:
             held_ids = set(exc.ids) & {e.id for e in edits}

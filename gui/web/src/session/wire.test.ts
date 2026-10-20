@@ -32,6 +32,22 @@ const project = minimalProject({
 });
 
 describe("selection wire", () => {
+  it("keeps automatic reduction selections local and rejects them from the wire", () => {
+    expect(
+      selectionToWire({
+        kind: "bleedAttenuation",
+        id: "clip-1",
+        trackId: "host",
+        regionKey: "local-region",
+      }),
+    ).toBeNull();
+    const wire = { kind: "bleedAttenuation", id: "clip-1", track_id: "host" };
+    expect(selectionFromWire(wire, project)).toBeNull();
+    expect(wireSelectionPatch(wire, project)).toEqual({
+      selection: null,
+      pendingWireSelection: null,
+    });
+  });
   it("sends a session-wide applied selection without a track id", () => {
     const local = { kind: "applied" as const, id: "alog_1" };
     const wire = selectionToWire(local);

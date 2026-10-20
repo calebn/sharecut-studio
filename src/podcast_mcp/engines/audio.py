@@ -5,6 +5,9 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from podcast_mcp.engines.media_seek import MediaSeek
+from podcast_mcp.util.coded_error import CodedValueError
+
 
 @dataclass(frozen=True)
 class MuteSampleEnvelope:
@@ -106,7 +109,44 @@ class SilenceAudio:
     duration_sec: float
 
 
-Audio = SourceAudio | SequenceAudio | CrossfadeAudio | MixAudio | SilenceAudio
+@dataclass(frozen=True)
+class MaskAudio:
+    """Remove source-clock windows from a prepared body on its primary source grid."""
+
+    body: Audio
+    source_start: float
+    windows: tuple[tuple[float, float], ...]
+    clock: BoundaryClock | None = None
+    first_source_frame: int | None = None
+    source_rate: int | None = None
+    source_transforms: tuple[FrameTransform, ...] = ()
+
+
+@dataclass(frozen=True)
+class SourceMuteEnvelope:
+    start: float
+    end: float
+    fade_out_sec: float
+    fade_in_sec: float
+
+
+@dataclass(frozen=True)
+class OffSpeakerAudio:
+    body: Audio
+    primary: SourceAudio
+    envelopes: tuple[SourceMuteEnvelope, ...]
+    bypass_windows: tuple[tuple[float, float], ...] = ()
+
+
+Audio = (
+    SourceAudio
+    | SequenceAudio
+    | CrossfadeAudio
+    | MixAudio
+    | SilenceAudio
+    | MaskAudio
+    | OffSpeakerAudio
+)
 
 
 @dataclass(frozen=True)
@@ -173,6 +213,8 @@ def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
                     visit(placed.audio, at + placed.start_sec, ramps)
             case SilenceAudio():
                 pass
+            case MaskAudio() | OffSpeakerAudio():
+                visit(node.body, at, ramps)
 
     visit(audio, 0.0, ())
     return result
@@ -188,6 +230,8 @@ def _audio_children(audio: Audio) -> tuple[Audio, ...]:
             return audio.left, audio.right
         case MixAudio():
             return (audio.head.audio, *(at.audio for at in audio.tail))
+        case MaskAudio() | OffSpeakerAudio():
+            return (audio.body,)
 
 
 def postorder(audio: Audio) -> Iterator[Audio]:
@@ -228,6 +272,8 @@ def duration(audio: Audio) -> float:
                 )
             case SilenceAudio():
                 durations.append(node.duration_sec)
+            case MaskAudio() | OffSpeakerAudio():
+                pass
     return durations[0]
 
 
@@ -237,3 +283,214 @@ def sources(audio: Audio) -> list[SourceAudio]:
         if isinstance(node, SourceAudio):
             leaves.append(node)
     return leaves
+
+
+def delay_milliseconds(seconds: float) -> int:
+    return round(seconds * 1000)
+
+
+def rescale_frames(frames: int, source_rate: int, target_rate: int) -> int:
+    magnitude = (abs(frames) * target_rate + source_rate // 2) // source_rate
+    return magnitude if frames >= 0 else -magnitude
+
+
+@dataclass(frozen=True)
+class ObservedAudio:
+    sample_rate: int
+    frames: int
+    sample_fmt: str
+    channel_layout: str
+
+
+@dataclass(frozen=True)
+class BoundaryClock:
+    producer: ObservedAudio
+    consumer: ObservedAudio
+
+
+@dataclass(frozen=True)
+class RenderClock:
+    trims: tuple[BoundaryClock, ...]
+    nodes: tuple[BoundaryClock, ...]
+    seek_us: tuple[int, ...]
+    output: ObservedAudio
+    delays: tuple[tuple[int, int, BoundaryClock], ...] = ()
+
+
+@dataclass(frozen=True)
+class FrameTransform:
+    source_rate: int
+    target_rate: int
+    offset: int = 0
+
+    def apply(self, frame: int) -> int:
+        return rescale_frames(frame, self.source_rate, self.target_rate) + self.offset
+
+
+@dataclass(frozen=True)
+class SourceFrameMapping:
+    sample_rate: int
+    origin: int
+    transforms: tuple[FrameTransform, ...]
+
+    def endpoint(self, seconds: float, *, ceil: bool = False) -> int:
+        frame = (
+            math.ceil(seconds * self.sample_rate)
+            if ceil
+            else math.floor(seconds * self.sample_rate + 0.5)
+        ) - self.origin
+        for transform in self.transforms:
+            frame = transform.apply(frame)
+        return frame
+
+
+@dataclass(frozen=True)
+class RenderedSource:
+    source: SourceAudio
+    source_first_frame: int
+    source_last_frame: int
+    source_sample_rate: int
+    transforms: tuple[FrameTransform, ...]
+
+    def frame(self, source_frame: int) -> int:
+        for transform in self.transforms:
+            source_frame = transform.apply(source_frame)
+        return source_frame
+
+
+@dataclass(frozen=True)
+class _FrameLayout:
+    clock: ObservedAudio
+    sources: tuple[RenderedSource, ...]
+
+
+def rendered_sources(audio: Audio, clock: RenderClock) -> tuple[RenderedSource, ...]:
+    """Carry source coordinates through observed prepared counts and ordered placements."""
+    expected = tuple(node for node in postorder(audio) if not isinstance(node, MaskAudio))
+    if (
+        len(clock.nodes) != len(expected)
+        or len(clock.trims) != len(sources(audio))
+        or len(clock.seek_us) != len(clock.trims)
+    ):
+        raise CodedValueError(
+            "Bleed Restore clock entries are missing", code="bleed_restore_clock_invalid"
+        )
+    layouts: list[_FrameLayout] = []
+    leaf_index = 0
+    node_index = 0
+    delays = {(node, child): boundary for node, child, boundary in clock.delays}
+
+    def translated(
+        placed: tuple[RenderedSource, ...], source_rate: int, rate: int, offset: int = 0
+    ) -> tuple[RenderedSource, ...]:
+        return tuple(
+            RenderedSource(
+                source.source,
+                source.source_first_frame,
+                source.source_last_frame,
+                source.source_sample_rate,
+                (*source.transforms, FrameTransform(source_rate, rate, offset)),
+            )
+            for source in placed
+        )
+
+    def require_rate(actual: int, expected: int) -> None:
+        if actual != expected:
+            raise CodedValueError(
+                "Bleed Restore consumer clock differs", code="bleed_restore_clock_invalid"
+            )
+
+    for node in postorder(audio):
+        if isinstance(node, MaskAudio):
+            continue
+        boundary = clock.nodes[node_index]
+        current_index = node_index
+        node_index += 1
+        rate = boundary.producer.sample_rate
+        placed: tuple[RenderedSource, ...]
+        entries: list[RenderedSource] = []
+        match node:
+            case SourceAudio():
+                trim = clock.trims[leaf_index].producer
+                trim_rate = trim.sample_rate
+                seek = MediaSeek(0, clock.seek_us[leaf_index])
+                first = seek.first_sample(node.src_start, trim_rate)
+                last = min(seek.first_sample(node.src_end, trim_rate), first + trim.frames)
+                leaf_index += 1
+                placed = (
+                    RenderedSource(
+                        node,
+                        first,
+                        last,
+                        trim_rate,
+                        (
+                            FrameTransform(trim_rate, trim_rate, -first),
+                            FrameTransform(
+                                trim_rate, clock.trims[leaf_index - 1].consumer.sample_rate
+                            ),
+                            FrameTransform(clock.trims[leaf_index - 1].consumer.sample_rate, rate),
+                        ),
+                    ),
+                )
+            case SilenceAudio():
+                placed = ()
+            case OffSpeakerAudio():
+                child = layouts.pop()
+                require_rate(child.clock.sample_rate, rate)
+                placed = translated(child.sources, child.clock.sample_rate, rate)
+            case SequenceAudio():
+                count = len(node.tail) + 1
+                children = layouts[-count:]
+                del layouts[-count:]
+                offset = 0
+                entries = []
+                for child in children:
+                    require_rate(child.clock.sample_rate, rate)
+                    entries.extend(translated(child.sources, child.clock.sample_rate, rate, offset))
+                    offset += child.clock.frames
+                placed = tuple(entries)
+            case CrossfadeAudio():
+                right, left = layouts.pop(), layouts.pop()
+                require_rate(left.clock.sample_rate, rate)
+                require_rate(right.clock.sample_rate, rate)
+                overlap = MediaSeek.at(0).first_sample(node.overlap_sec, rate)
+                placed = (
+                    *translated(left.sources, left.clock.sample_rate, rate),
+                    *translated(
+                        right.sources, right.clock.sample_rate, rate, left.clock.frames - overlap
+                    ),
+                )
+            case MixAudio():
+                ats = (node.head, *node.tail)
+                children = layouts[-len(ats) :]
+                del layouts[-len(ats) :]
+                entries = []
+                for child_index, (at, child) in enumerate(zip(ats, children, strict=True)):
+                    if at.start_sec > 0:
+                        delay = delays[current_index, child_index]
+                        require_rate(child.clock.sample_rate, delay.producer.sample_rate)
+                        offset = int(
+                            delay_milliseconds(at.start_sec) * delay.producer.sample_rate / 1000
+                        )
+                        delayed = translated(
+                            child.sources,
+                            child.clock.sample_rate,
+                            delay.producer.sample_rate,
+                            offset,
+                        )
+                        delayed = translated(
+                            delayed, delay.producer.sample_rate, delay.consumer.sample_rate
+                        )
+                        require_rate(delay.consumer.sample_rate, rate)
+                        entries.extend(translated(delayed, delay.consumer.sample_rate, rate))
+                    else:
+                        require_rate(child.clock.sample_rate, rate)
+                        entries.extend(translated(child.sources, child.clock.sample_rate, rate))
+                placed = tuple(entries)
+        layouts.append(
+            _FrameLayout(
+                boundary.consumer,
+                translated(placed, rate, boundary.consumer.sample_rate),
+            )
+        )
+    return layouts[0].sources

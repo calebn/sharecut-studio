@@ -1588,14 +1588,20 @@ def test_proxy_manifest_lazy_ensure_failure(
         review_version_id=ver["id"],
         capabilities=["play", "view"],
     )
+    from podcast_mcp.util.coded_error import CodedValueError
+
     monkeypatch.setattr(
-        "podcast_mcp.services.media.ensure_track_proxy",
-        MagicMock(side_effect=RuntimeError("lazy fail")),
+        "podcast_mcp.services.media.ensure_proxy_manifest",
+        MagicMock(
+            side_effect=CodedValueError(
+                "Proxy artifact is incomplete or damaged", code="proxy_artifact_damaged"
+            )
+        ),
     )
     client = TestClient(create_app())
     r = client.get(f"/api/review/{share['token']}/daw/proxy/manifest")
-    assert r.status_code == 200
-    assert r.json()["tracks"] == {}
+    assert r.status_code == 400
+    assert r.headers["X-Sharecut-Error-Code"] == "proxy_artifact_damaged"
 
 
 def test_share_proxy_manifest_play_denied(monkeypatch, minimal_project, sample_wav, tmp_workspace):

@@ -44,6 +44,7 @@ from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
+from podcast_mcp.edits.off_speaker_regions import MuteOwnership, add_off_speaker_mute
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.source_removals import (
     STALE_REASON,
@@ -73,6 +74,7 @@ from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
     ClipMuteRegion,
+    ClipOffSpeakerMuteRegion,
     CutIntent,
     CutSpeech,
     EditDecision,
@@ -1121,6 +1123,7 @@ def _range_candidate(
     edits: list[EditDecision],
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    mute_ownership: MuteOwnership = MuteOwnership.ORDINARY,
 ) -> EpisodeProject:
     published = project
     project = project.model_copy(deep=True)
@@ -1165,7 +1168,12 @@ def _range_candidate(
                     source_span = clip_timeline_overlap_to_source(clip, a, b)
                     if source_span is not None and source_span[1] > source_span[0]:
                         start_s, end_s = source_span
-                        add_source_mute(clip, ClipMuteRegion(start_s=start_s, end_s=end_s))
+                        if mute_ownership is MuteOwnership.OFF_SPEAKER:
+                            add_off_speaker_mute(
+                                clip, ClipOffSpeakerMuteRegion(start_s=start_s, end_s=end_s)
+                            )
+                        else:
+                            add_source_mute(clip, ClipMuteRegion(start_s=start_s, end_s=end_s))
                 else:
                     cuts.append((a, b))
             if not cuts:
@@ -1223,8 +1231,11 @@ def apply_ranges(
     edits: list[EditDecision],
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    mute_ownership: MuteOwnership = MuteOwnership.ORDINARY,
 ) -> None:
-    candidate = _range_candidate(project, edits, application_intent=application_intent)
+    candidate = _range_candidate(
+        project, edits, application_intent=application_intent, mute_ownership=mute_ownership
+    )
     adopt_project_state(project, candidate)
 
 

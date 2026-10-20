@@ -196,6 +196,37 @@ available.
 
 Approved range mutes become occurrence-local, source-clock `mute_regions`. Rendering a shorter window preserves the original envelope endpoints so playback does not restart a fade inside an existing mute. Reviewed bleed proposals use this same exact-range contract. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
 
+`Clip.off_speaker_mute_regions` is an optional array, empty by default. Each
+`ClipOffSpeakerMuteRegion` stores nonnegative SOURCE `start_s`, greater `end_s`,
+and original `fade_out_ms` and `fade_in_ms`. It cannot contain Lower or fill.
+Loading sorts and deduplicates identical envelopes without merging fade anchors.
+Only the trusted current off-speaker application writes this ownership. Existing
+unclassified `mute_regions` remain ordinary, regardless of archived reasons.
+Automatic gain surrounds ordinary prepared content. Content-valid Restore
+bypasses it only inside the saved windows. Split, trim, extraction, duplication,
+clipboard, and source pinning retain complete anchors independently. A roll
+never unions a neighbor's automatic ownership. Empty automatic state is omitted
+from detector and render cache payloads to preserve legacy identities.
+
+`Clip.bleed_restore` is null or `{source_sha256, regions}`. Each region is a
+`SourceSpan` with nonnegative `start_s` and a greater finite `end_s`.
+Loading sorts regions and unions overlapping or adjacent intervals. The containing
+clip selects the recording. The lowercase SHA-256 binds choices to its exact bytes.
+Relocation and source pinning preserve choices. Changed bytes deactivate them.
+These choices affect timeline attenuation rendering and do not alter automatic
+gate evidence, source scope, transcript words, or manual `mute_regions`.
+
+For both automatic fields, an absent default remains absent in project JSON and
+editable History snapshots. Explicitly stored empty arrays and null values retain
+their presence. Nonempty choices persist, including list changes made in place.
+
+Split, extract, duplicate, and clipboard operations copy the object independently
+and retain full saved source intervals. Trims retain intervals for later extension.
+A roll retains each neighbor's own choices. Fresh media clips start with null.
+History snapshots carry the object with the timeline. The core model and timeline
+renderer support this state. Host Restore commands and occurrence proxy variants
+require separate integration.
+
 `timeline.duration_sec` retains the pre-punch extent when a range Cut removes the
 last clips; duration and default Bounce still include the resulting silence.
 `TimelineComment.timeline_spans` optionally carries ordered selected islands;

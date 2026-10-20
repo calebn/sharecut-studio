@@ -552,6 +552,18 @@ html[data-shell="phone"] .guest-attention-dismiss {
   font-size: var(--font-size-caption);
 }
 
+@media (pointer: fine) {
+  @container app (max-height: 40rem) {
+    .tab-content:has(> .transcript-panel) {
+      padding-block: 0;
+    }
+
+    .transcript-mode-hint {
+      margin-block-end: 0;
+    }
+  }
+}
+
 .transcript-inline-failure {
   display: flex;
   flex-wrap: wrap;

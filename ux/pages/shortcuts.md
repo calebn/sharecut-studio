@@ -128,6 +128,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 
 | Command | Id | When | Notes |
 |---------|----|------|-------|
+| Restore original audio | `edit.restoreClipBleed` | Loaded host project | Restore the selected automatic region in this clip. Host only. |
 | Seek playhead | `transport.seek` | Always (when not typing in an input) | Args: { sec: number } |
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |

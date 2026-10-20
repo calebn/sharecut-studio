@@ -2179,7 +2179,9 @@
           "apply_transcript_gate_tool",
           "mute_off_speaker_tool",
           "align_retained_bleed_tool",
-          "set_retained_bleed_alignment_mode_tool"
+          "set_retained_bleed_alignment_mode_tool",
+          "inspect_clip_bleed_tool",
+          "restore_clip_bleed_tool"
         ],
         "cli": "podcast edit",
         "skill": "podcast-audio-cleanup"
@@ -2904,6 +2906,34 @@
       },
       "presence": {
         "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.restoreClipBleed",
+      "label": "Restore original audio",
+      "effect": "project",
+      "tooltip": "Restore one selected automatic reduction in this clip occurrence",
+      "service": "Sharecut Studio → RestoreClipBleed document command",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "edit.restoreClipBleed",
+        "mcp": [
+          "restore_clip_bleed_tool"
+        ],
+        "gui": [
+          "restoreClipBleed"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Select a region in the Bleed reductions inspector; no default shortcut",
+        "guest": true
+      },
+      "presence": {
+        "cursor": "none",
         "follow": "none"
       }
     },
