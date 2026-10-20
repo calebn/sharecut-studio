@@ -434,6 +434,7 @@ def apply_suggested_actions_tool(
                 "revise": revise,
                 "override_audio_checks": override_audio_checks,
             },
+            client_id="mcp:host",
         )
     )
 
@@ -467,6 +468,7 @@ def update_pending_edit_tool(
             "snap": snap,
             "override_audio_checks": override_audio_checks,
         },
+        client_id="mcp:host",
     )
     return to_json({"operation": "update_pending_edit", "edit": result["edit"]})
 
