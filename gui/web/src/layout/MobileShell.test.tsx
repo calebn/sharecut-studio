@@ -20,7 +20,6 @@ import {
   recordSnapshot,
   sampleTrack,
 } from "../test/fixtures";
-import type { Selection } from "../types/project";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
@@ -104,46 +103,6 @@ describe("MobileShell", () => {
       screen.getByRole("region", { name: heading.textContent ?? "" }),
     ).toHaveClass("listen-hero");
     await expectNoA11yViolations(nav);
-  });
-
-  describe("arriving with a selection (rotating a tablet to portrait)", () => {
-    const mountWith = (selection: Selection) => {
-      useDawStore.getState().setSelection(selection);
-      return render(
-        <DawProvider
-          projectPath="/tmp/p.json"
-          initialProject={minimalProject()}
-        >
-          <MobileShell />
-        </DawProvider>,
-      );
-    };
-
-    it("opens on Timeline so the selection is visible", () => {
-      mountWith({ kind: "track", trackId: "host" });
-      expect(useDawStore.getState().mobileMode).toBe("timeline");
-    });
-
-    it("opens a transcript range on Text", () => {
-      mountWith({
-        kind: "transcriptRange",
-        trackId: "host",
-        startWordIndex: 1,
-        endWordIndex: 2,
-      });
-      expect(useDawStore.getState().mobileMode).toBe("text");
-    });
-
-    it("leaves Listen alone without a selection", () => {
-      mountWith(null);
-      expect(useDawStore.getState().mobileMode).toBe("listen");
-    });
-
-    it("keeps a mode the person already chose", () => {
-      useDawStore.getState().setMobileMode("more");
-      mountWith({ kind: "track", trackId: "host" });
-      expect(useDawStore.getState().mobileMode).toBe("more");
-    });
   });
 
   it("places the transport wrapper in the shell grid outside Listen", () => {

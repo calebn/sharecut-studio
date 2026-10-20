@@ -16,7 +16,7 @@ test("a selected clip stays on the Timeline screen when a tablet is rotated to p
   await expect(page.locator(".clip-block.selected").first()).toBeVisible();
 
   await page.setViewportSize({ width: 834, height: 1194 });
-  await expect(page.locator(".daw-shell--phone, .daw-shell")).toBeVisible();
+  await expect(page.locator(".daw-shell")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
 
   await expect(

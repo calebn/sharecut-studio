@@ -31,7 +31,6 @@ import {
   canManageProjects,
   guestShareBannerLabel,
 } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
 import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
@@ -489,22 +488,6 @@ function MobileShellAdapter({
       setSheetExpanded(false);
     }
   }, [selection, setSheetExpanded]);
-
-  // Rotating a tablet or desktop window to portrait mounts this shell on its default
-  // Listen screen, which shows no selection. Open where the selection can be seen.
-  useEffect(() => {
-    const {
-      selection: held,
-      mobileMode: mode,
-      setMobileMode,
-    } = useDawStore.getState();
-    if (held == null || mode !== "listen") return;
-    setMobileMode(
-      held.kind === "transcriptRange" || held.kind === "transcriptWord"
-        ? "text"
-        : "timeline",
-    );
-  }, []);
 
   const moreContent =
     moreDestination === "hub" ? (

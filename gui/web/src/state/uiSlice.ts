@@ -686,6 +686,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setBladeConfirmSec: (bladeConfirmSec: number | null) =>
       set({ bladeConfirmSec }),
     setShellBreakpoint: (shellBreakpoint) => {
+      const before = get();
       set({
         shellBreakpoint,
         // The phone shell has no layouts: never carry one into it or back out.
@@ -693,6 +694,24 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           ? { layoutMode: "default" as LayoutMode }
           : {}),
       });
+      // Rotating a tablet or desktop window to portrait arrives on the phone shell's
+      // default Listen screen, which shows no selection. Open where it can be seen,
+      // unless Listen is deliberate (the comment composer lives there).
+      if (
+        shellBreakpoint === "phone" &&
+        before.shellBreakpoint !== "phone" &&
+        before.selection != null &&
+        before.mobileMode === "listen" &&
+        !before.commentMode &&
+        !before.rangeArmed
+      ) {
+        get().setMobileMode(
+          before.selection.kind === "transcriptRange" ||
+            before.selection.kind === "transcriptWord"
+            ? "text"
+            : "timeline",
+        );
+      }
       // Re-derive from the live timeline: a registered scrollport that measures
       // 0 (a remount mid shell switch) and no timeline at all both store the
       // new shell's estimate, never the previous shell's.
