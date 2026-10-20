@@ -132,7 +132,7 @@ def apply_fade_recommendations(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[
 
 
 def add_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).add_effect(
+    return AnalysisService(ws).add_effect(
         track_id=str(p["track_id"]),
         preset=p.get("preset"),
         effect=p.get("effect"),
@@ -141,7 +141,7 @@ def add_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def remove_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).remove_effect(track_id=str(p["track_id"]), effect=p.get("effect"))
+    return AnalysisService(ws).remove_effect(track_id=str(p["track_id"]), effect=p.get("effect"))
 
 
 def set_effect_bypass(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
