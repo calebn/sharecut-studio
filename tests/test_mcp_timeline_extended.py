@@ -519,3 +519,23 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
 
     svc.fill_room_tone.assert_called_once_with(track_id="host", speaker=None)
     svc.remove_effect.assert_called_once_with(track_id=None, speaker="Host", effect=None)
+
+
+def test_transcript_word_tools_journal_through_the_document_plane(tmp_path, sample_wav):
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_project(path, sample_wav)
+    mcp_timeline.correct_transcript_tool(path, "host", 0, "Hi")
+    mcp_timeline.correct_transcript_phrase_tool(path, "host", 0, 1, "good bye")
+    mcp_timeline.set_word_suppressed_tool(path, "host", 0, True)
+    mcp_timeline.set_word_automatic_tool(path, "host", 0)
+    mcp_timeline.set_words_ignored_tool(path, "host", 0, 1, True)
+    types = [r["type"] for r in DocumentSyncService.open(path).store.commands_after(0)]
+    assert types == [
+        "CorrectTranscriptWord",
+        "CorrectTranscriptPhrase",
+        "SetTranscriptWordSuppressed",
+        "SetTranscriptWordAutomatic",
+        "SetTranscriptWordsIgnored",
+    ]
