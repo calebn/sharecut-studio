@@ -277,3 +277,21 @@ def test_cli_delete_clips_is_undoable(tmp_path, ten_second_silence_wav):
     assert _journal_types(path) == ["DeleteClip"]
     assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
     assert _clip_starts(path) == {"c1": 0.0, "c2": 4.0}
+
+
+def test_timeline_edit_tools_journal_through_the_document_plane(tmp_path, ten_second_silence_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, ten_second_silence_wav)
+    mcp_timeline.set_join_mode_tool(path, "c2", "cut")
+    mcp_timeline.set_clip_join_tool(path, "c1", "c2", "fade", 20)
+    mcp_timeline.add_chapter_tool(path, 2.0, "Intro")
+    mcp_timeline.move_segment_tool(path, 0.0, 1.0, 3.0)
+    mcp_timeline.duplicate_segment_tool(path, 0.0, 1.0, 5.0)
+    assert _journal_types(path) == [
+        "SetJoinMode",
+        "SetClipJoin",
+        "AddChapter",
+        "MoveSegment",
+        "DuplicateSegment",
+    ]
+    assert [c.title for c in load_project(Path(path)).chapters] == ["Intro"]

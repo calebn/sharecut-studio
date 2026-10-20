@@ -14,6 +14,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, RollBoundaryTarget, TrimBoundaryTarget
 from podcast_mcp.services.document_sync import (
     host_command_result,
+    submit_host_command_result,
     submit_host_document_command,
     submit_paste_segment,
 )
@@ -138,8 +139,13 @@ def move_segment_tool(
     insert_at: float,
 ) -> str:
     """Cut a timeline segment and reinsert it at a new time (ripple move)."""
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).move_segment(source_start, source_end, insert_at))
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "MoveSegment",
+            {"source_start": source_start, "source_end": source_end, "insert_at": insert_at},
+        )
+    )
 
 
 def move_clips_tool(project_path: str, clips: JsonObjectList) -> str:
@@ -243,8 +249,11 @@ def set_join_mode_tool(
     Mode only: fades are untouched, so a crossfade with no fades renders as a plain
     join; the result's ``join_crossfade_blocked`` says why. Prefer ``set_clip_join_tool``.
     """
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).set_join_mode(clip_id, join_in_mode))
+    return to_json(
+        submit_host_command_result(
+            project_path, "SetJoinMode", {"clip_id": clip_id, "join_in_mode": join_in_mode}
+        )
+    )
 
 
 def set_clip_join_tool(
@@ -261,8 +270,18 @@ def set_clip_join_tool(
     (or keeps them). Prefer this over ``set_join_mode_tool``, which changes the mode only
     and leaves a crossfade with no fades to blend.
     """
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).set_clip_join(left_clip_id, right_clip_id, mode, length_ms))
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "SetClipJoin",
+            {
+                "left_clip_id": left_clip_id,
+                "right_clip_id": right_clip_id,
+                "mode": mode,
+                "length_ms": length_ms,
+            },
+        )
+    )
 
 
 def trim_clip_edge_tool(
@@ -433,8 +452,13 @@ def duplicate_segment_tool(
     insert_at: float,
 ) -> str:
     """Duplicate a timeline segment at a new time."""
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).duplicate_segment(source_start, source_end, insert_at))
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "DuplicateSegment",
+            {"source_start": source_start, "source_end": source_end, "insert_at": insert_at},
+        )
+    )
 
 
 def copy_segment_tool(
@@ -513,8 +537,9 @@ def fill_with_room_tone_tool(
 
 def add_chapter_tool(project_path: str, at_time: float, title: str) -> str:
     """Add a chapter marker at a timeline time."""
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).add_chapter(at_time, title))
+    return to_json(
+        submit_host_command_result(project_path, "AddChapter", {"time": at_time, "title": title})
+    )
 
 
 def remove_chapter_tool(project_path: str, title: str) -> str:

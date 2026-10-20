@@ -50,6 +50,19 @@ def host_command_result(reply: dict[str, Any]) -> dict[str, Any]:
     return ((reply.get("command") or {}).get("payload") or {}).get("result") or {}
 
 
+def submit_host_command_result(
+    project_path: str | Path,
+    command_type: DocumentCommandType,
+    payload: dict[str, Any] | None = None,
+    *,
+    client_id: str = "mcp-agent",
+) -> dict[str, Any]:
+    """Submit one host command and return the handler's own result."""
+    return host_command_result(
+        submit_host_document_command(project_path, command_type, payload, client_id=client_id)
+    )
+
+
 def submit_paste_segment(
     project_path: str | Path,
     insert_at: float,
@@ -68,6 +81,4 @@ def submit_paste_segment(
         "extracts": clipboard.get("extracts"),
         "mode": mode.value,
     }
-    return host_command_result(
-        submit_host_document_command(project_path, "PasteSegment", payload, client_id=client_id)
-    )
+    return submit_host_command_result(project_path, "PasteSegment", payload, client_id=client_id)
