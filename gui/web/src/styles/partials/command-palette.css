@@ -932,7 +932,7 @@ html[data-shell="phone"]
 }
 
 .ui-dialog-root--anchored .command-palette-header {
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .ui-dialog-root--anchored .command-palette-header h2 {
