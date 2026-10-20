@@ -87,6 +87,6 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 _Generated 52 command types._
 
 - Regenerate: `make schema-export`
-- CI / pre-commit: `make schema-check`
+- CI / pre-commit: `make generated-check`
 
 <!-- /document-commands:generated -->

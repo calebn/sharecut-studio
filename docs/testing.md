@@ -125,9 +125,7 @@ Local mirrors of the CI `pytest` job’s static checks (config in `pyproject.tom
 make lint-py          # ruff check + absolute-level lint + bandit -ll + vulture + deptry + scripts/check_coded_errors.py (no bare PermissionError/ValueError in services/)
 make format-py        # ruff format (write)
 make format-py-check  # ruff format --check
-make capabilities-check
-make progress-check   # progress framework compliance (warn by default)
-make decisions-index-check  # decision blocks in docs/ are valid and docs/decisions/README.md is current
+make generated-check  # every generated artifact and contract check (tests/test_generated_artifacts.py), plus the two Biome-formatted exporters
 make hooks            # lint-staged formats staged Ruff/Biome; check-only pre-commit hooks (incl. service-boundaries)
 make worktree-setup   # new git worktree: hooks + venv + gui/web node_modules (pre-commit self-provisions)
 make typecheck        # mypy (strict on timebase modules)
@@ -866,7 +864,7 @@ Best practice: **one Pydantic source of truth**, publish + assert at every adapt
 1. Change fields in `services/document_sync/payloads.py`.
 2. Run `make schema-export` (updates `schemas/document-commands.schema.json`, `docs-site/schemas/…`, `docs-site/pages/document-commands.md`, share/MCP generated tables, and guest OpenAPI).
 3. Keep human docs pointing at that file / the live catalog ([session-sync.md](session-sync.md) § Document plane, [docs.sharecut.studio/#/document-commands](https://docs.sharecut.studio/#/document-commands)) — do not re-list every field in engineer markdown.
-4. CI/pre-commit (`make schema-check`) fails if the checked-in schema or docs-site outputs drift.
+4. CI/pre-commit (`make generated-check`) fails if the checked-in schema or docs-site outputs drift.
 5. `test_document_command_boundary.py` fails if OpenAPI or MCP `inputSchema` drift, or if any submit path stops rejecting bad payloads at the boundary.
 
 TypeScript codegen uses the web project's Biome configuration; a formatter failure

@@ -514,7 +514,7 @@ remote MCP is a thin façade (`guest_submit_document_command`, `guest_pending_pr
 `guest_audition_context`, …). Named MCP exists only for agent-shaped jobs. Peaks, proxy
 chunks, and guest session WS stay HTTP (no named MCP). Record room WS
 (`WS /api/rec/{token}/ws`) is the same: **http-only by design**. Parity CI
-(`check_share_http_mcp_parity` / `make schema-check`) discovers guest WebSockets
+(`check_share_http_mcp_parity` / `make generated-check`) discovers guest WebSockets
 and fails if any `/api/rec/` or `/api/review/` route lacks a curated note.
 Host agents stay richer (local MCP + CLI + skills + filesystem); guest agents
 never get host CLI, pipeline, ingest, or `afplay` on the host laptop.

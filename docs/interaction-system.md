@@ -51,7 +51,7 @@ Each thing is declared once. A second map from the same key is a bug.
 | Shortcut | `gui/web/src/keymap/registry.ts` (`KEYMAP_COMMANDS`); the only window `keydown` listener is `keymap/listener.ts` | `commands/governance.test.ts` (second listener fails), `make cheatsheet-check` |
 | Touch hit kind and gesture | `gui/web/src/timeline/inputContract.ts` (`HIT_KINDS`, `TOUCH_GESTURES`), routing in `timeline/hitRouting*.ts`, thresholds in `hooks/gestureConstants.ts` | `timeline/gestureGovernance.test.ts`, `inputContract.conformance.test.ts`, `inputContract.manifest.test.ts` |
 | Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body` and `phoneScreens`) | `selectionSurface` tests, `layout/useSelectionSheet.test.tsx` |
-| Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make capabilities-check` |
+| Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check` |
 | Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
 | Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
 

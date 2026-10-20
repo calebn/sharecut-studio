@@ -389,7 +389,7 @@ Handlers live in `services/document_sync/handlers/` (registry in `__init__.py`).
 **Payload schemas** are Pydantic models in `services/document_sync/payloads.py`
 (discriminated on `type`). Published JSON Schema:
 [`schemas/document-commands.schema.json`](../schemas/document-commands.schema.json)
-(regenerate with `make schema-export`; CI: `make schema-check`).
+(regenerate with `make schema-export`; CI: `make generated-check`).
 Human-readable catalog (auto-generated):
 [https://docs.sharecut.studio/#/document-commands](https://docs.sharecut.studio/#/document-commands)
 (source pack: [`docs-site/`](../docs-site/README.md)).
@@ -402,8 +402,8 @@ models before `DocumentSyncService.submit`.
 | Layer | Where it lives | How it stays in sync |
 |-------|----------------|----------------------|
 | Code models | `services/document_sync/payloads.py` | Edit here first |
-| Checked-in schema | `schemas/document-commands.schema.json` | `make schema-export`; stale → `make schema-check` / pre-commit `document-command-schema` / `make ci` fail |
-| Public docs catalog | `docs-site/pages/document-commands.md` + `docs-site/schemas/` | Same `make schema-export` / `schema-check`; operators publish the generated pack from their deployment repository. |
+| Checked-in schema | `schemas/document-commands.schema.json` | `make schema-export`; stale → `make generated-check` / pre-commit `document-command-schema` / `make ci` fail |
+| Public docs catalog | `docs-site/pages/document-commands.md` + `docs-site/schemas/` | Same `make schema-export` / `make generated-check`; operators publish the generated pack from their deployment repository. |
 | Live OpenAPI | Host GUI `GET /openapi.json` (`POST /api/document/command`); disable with `PODCAST_GUI_OPENAPI=0` | Generated from the same Pydantic models; `tests/test_document_command_boundary.py` asserts `oneOf` command set matches the published schema |
 | Guest OpenAPI artifact | `docs-site/schemas/guest-share.openapi.json` | Static export only — **not** served as Swagger on the relay |
 | Guest MCP `inputSchema` | `guest_submit_document_command` | Loaded via `document_command_json_schema()`; unit test equality vs export |

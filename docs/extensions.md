@@ -38,7 +38,7 @@ surfaces must name both extensions explicitly.
 1. Implement `ExtensionBackend` (`api_version`, `name`, `compatible()`, `contribute(registry)`).
 2. Register an entry point under group `podcast_mcp.extensions`.
 3. Contribute only known feature IDs (unknown IDs are ignored).
-4. MCP/CLI registrars **must** use the host `mcp` / Typer `app` instance passed into the registrar. The host wraps those objects for the shared progress framework ([progress.md](progress.md)); registering on a private `MCPServer()` bypasses progress and `progress-check`.
+4. MCP/CLI registrars **must** use the host `mcp` / Typer `app` instance passed into the registrar. The host wraps those objects for the shared progress framework ([progress.md](progress.md)); registering on a private `MCPServer()` bypasses progress and `make generated-check`.
 
 Example (shipped, documentation only, no entry point): [`podcast_mcp.extensions.example`](../src/podcast_mcp/extensions/example.py). It contributes `extension.status.0` and loads only when `PODCAST_EXTENSIONS` names `example`.
 

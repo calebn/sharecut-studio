@@ -123,7 +123,7 @@ enforced-by:
 - gui/web/src/ui/BottomSheet.test.tsx::follows the finger by transform, a frame at a time, with no render
 - gui/web/src/ui/drawerMotion.test.ts::sends a quick flick all the way, however short the drag
 - tests/test_guest_document_gate.py::test_an_editor_edits_volume_envelopes_and_other_roles_cannot
-- make capabilities-check
+- make generated-check
 supersedes: D-sheet-no-drag
 -->
 
@@ -174,7 +174,7 @@ The checks (#1096) live with the code:
   are now the `social-clip` kind.
 - **A touch column.** `surfaces.touch` in
   `contracts/capabilities.manifest.json` names the gestures that run each
-  command. `make capabilities-check` keeps its vocabulary equal to
+  command. `make generated-check` keeps its vocabulary equal to
   `TOUCH_GESTURES`, and `inputContract.manifest.test.ts` derives each
   command's column from the grammar (the create menu, the kinds' commands
   and the Gestures sheet).
