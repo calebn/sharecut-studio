@@ -231,6 +231,16 @@ for (const width of [1280, 390]) {
       expect(commands.filter((c) => c.type === "SetClipJoin")).toHaveLength(2);
       await expectPageAxeClean(page, ".command-palette-panel");
       await expectPageAxeClean(page, ".join-edit-rail");
+      const shape = await panel.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return {
+          top: style.borderTopLeftRadius,
+          bottom: style.borderBottomLeftRadius,
+          width: el.getBoundingClientRect().width,
+        };
+      });
+      expect(shape.bottom).toBe(shape.top);
+      expect(shape.width).toBeLessThanOrEqual(21 * 16);
       await page.keyboard.press("Escape");
       await page.keyboard.press("ControlOrMeta+Z");
       const savedPair = async () => {

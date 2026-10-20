@@ -75,12 +75,12 @@
 /* Phone and tablet raise a Dialog from the bottom edge so its footer sits in
    the thumb zone. A tablet sheet keeps a readable measure and stays centered. */
 :is(html[data-shell="phone"], html[data-shell="tablet"])
-.ui-dialog-root:not(.ui-dialog-root--centered) {
+.ui-dialog-root:not(.ui-dialog-root--anchored) {
   place-items: end center;
 }
 
 :is(html[data-shell="phone"], html[data-shell="tablet"])
-  .ui-dialog-root:not(.ui-dialog-root--centered)
+  .ui-dialog-root:not(.ui-dialog-root--anchored)
   > .command-palette-panel {
   width: min(100%, 42rem);
   max-height: 92dvh;
@@ -91,14 +91,14 @@
 }
 
 html[data-shell="phone"]
-  .ui-dialog-root:not(.ui-dialog-root--centered)
+  .ui-dialog-root:not(.ui-dialog-root--anchored)
   > .command-palette-panel {
   width: 100%;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   :is(html[data-shell="phone"], html[data-shell="tablet"])
-    .ui-dialog-root:not(.ui-dialog-root--centered)
+    .ui-dialog-root:not(.ui-dialog-root--anchored)
     > .command-palette-panel {
     animation: bottom-sheet-up var(--motion-panel) var(--motion-ease-out) both;
   }

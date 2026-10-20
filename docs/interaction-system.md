@@ -99,7 +99,8 @@ are draft UI state, not a selection.
    take a command id. A plain `Button` with an inline handler is for local UI
    state only (open, close, expand) and never for a project change.
 2. **One menu primitive.** `ui/Menu` with `MenuItem` and `MenuSection` is the
-   only `role="menu"`. It lives in the top layer (`ui/topLayerFloor.ts`),
+   menu primitive; the two hand-built menus left are listed under Shipped
+   gaps. It lives in the top layer (`ui/topLayerFloor.ts`),
    supports arrow keys, Home and End (`ui/useMenuKeyboard.ts`), closes on
    choose and on Escape, and returns focus to its anchor.
 3. **Context menus come from one descriptor.** The create menu a long press
@@ -137,11 +138,12 @@ There are three overlay primitives.
    does not keep its own list of dialogs.
 4. **Dismissal is the same everywhere.** Escape, the Close button and a tap on
    the scrim all cancel. Focus returns to the control that opened the overlay.
-5. **One confirm primitive each.** `askConfirm` is the only confirm dialog
-   and `InlineConfirm` the only in-place confirm. The blade cut confirms
-   through `askConfirm` on phone and tablet. A dialog that must stay centered
-   passes `centeredReason`; a dialog anchored beside its control (the join
-   editor) passes `anchor` with a reason.
+5. **One confirm primitive each.** `askConfirm` is the confirm dialog and
+   `InlineConfirm` the in-place confirm; the one confirm-shaped dialog that
+   is not `askConfirm` is listed under Shipped gaps. The blade cut confirms
+   through `askConfirm` on phone and tablet. A dialog anchored beside its
+   control (the join editor) passes `anchor`; it is non-modal, in the top
+   layer, and closes when a modal opens.
 6. **Confirms say the consequence.** The primary names the outcome ("Remove
    track"), the secondary is "Keep", and the body names what is lost. A
    `window.confirm` fails lint (`no-alert`).
@@ -300,6 +302,8 @@ consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
+| Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` hand-roll `role="menu"` (in the top layer); desktop has no right-click menu (`hooks/useLongPress.ts` only suppresses the native one). |
+| Confirms: one primitive | `WhisperDownloadDialog` (`panels/WhisperModelPicker.tsx`) is a hand-built confirm-shaped `Dialog` that also runs the download with progress; it is not `askConfirm`. |
 | Names: one label | Select / Select tool, Search commands / Commands and shortcuts, Zoom − / Zoom out. |
 | Shells: bottom zone for doing | The tablet Select range instruction card with In, Out and Select range sits at the top. |
 | Touch: one grammar across `src/` | The governance scan walks `timeline/` only; comment swipe, splitter, reorder grip, fader and ruler keep their own gestures. |

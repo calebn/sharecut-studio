@@ -157,7 +157,7 @@ export function useDialogModal({
         onCloseRef.current();
         return;
       }
-      if (mode !== "modal" || e.key !== "Tab") {
+      if (mode !== "modal" || e.key !== "Tab" || !isInnermostOverlay(layer)) {
         return;
       }
       const panel = panelRef.current;

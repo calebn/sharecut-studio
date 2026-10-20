@@ -1,8 +1,9 @@
-import { type ReactNode, useId, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CloseButton } from "./CloseButton";
 import { type DialogAnchor, useAnchoredPanel } from "./useAnchoredPanel";
 import { useDialogModal } from "./useDialogModal";
+import { useModalOpen } from "./useModalOpen";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
 import { useTopLayerPanel } from "./useTopLayerPanel";
 
@@ -20,14 +21,10 @@ type Props = {
   /** Actions pinned below the scrolling body, such as the primary action. */
   footer?: ReactNode;
   /**
-   * Phone and tablet raise a dialog as a bottom sheet. A dialog that must stay
-   * a centered card there says why; the reason is for the next reader.
-   */
-  centeredReason?: string;
-  /**
    * A dialog about a spot the person must keep seeing (the join under the
    * timeline) stays a non-modal panel beside it on every shell, in the top
-   * layer. It closes on a press outside; the page behind stays usable.
+   * layer. It closes on a press outside or when a modal opens; the page
+   * behind stays usable.
    */
   anchor?: DialogAnchor;
   /** `id` of the panel, for a trigger's `aria-controls`. */
@@ -53,7 +50,6 @@ export function Dialog({
   initialFocusRef,
   closeDisabled = false,
   footer,
-  centeredReason,
   anchor,
   panelId,
   descriptionId,
@@ -65,6 +61,10 @@ export function Dialog({
   const dismiss = closeDisabled ? () => undefined : onClose;
 
   const anchored = anchor != null;
+  const modalOpen = useModalOpen();
+  useEffect(() => {
+    if (anchored && open && modalOpen) dismiss();
+  }, [anchored, open, modalOpen, dismiss]);
   const topLayer = useTopLayerPanel();
 
   useDialogModal({
@@ -98,9 +98,7 @@ export function Dialog({
       className={
         anchored
           ? "ui-dialog-root ui-dialog-root--anchored"
-          : centeredReason
-            ? "ui-dialog-root command-palette-root ui-dialog-root--centered"
-            : "ui-dialog-root command-palette-root"
+          : "ui-dialog-root command-palette-root"
       }
       role={anchored ? undefined : "dialog"}
       aria-modal={anchored ? undefined : true}

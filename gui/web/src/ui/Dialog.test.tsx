@@ -44,8 +44,8 @@ it("keeps a dialog usable outside inert application chrome", async () => {
   expect(trigger).toHaveFocus();
 });
 
-it("pins a footer below the scrolling body and lets a caller opt out of the sheet with a reason", async () => {
-  const { baseElement, rerender } = render(
+it("pins a footer below the scrolling body", async () => {
+  const { baseElement } = render(
     <Dialog
       open
       onClose={() => undefined}
@@ -56,7 +56,6 @@ it("pins a footer below the scrolling body and lets a caller opt out of the shee
     </Dialog>,
   );
   const dialog = screen.getByRole("dialog", { name: "Share" });
-  expect(dialog).not.toHaveClass("ui-dialog-root--centered");
   const panel = dialog.querySelector(".command-palette-panel") as HTMLElement;
   expect([...panel.children].map((child) => child.className)).toEqual([
     "command-palette-header",
@@ -67,21 +66,6 @@ it("pins a footer below the scrolling body and lets a caller opt out of the shee
     screen.getByRole("button", { name: "Create review link" }),
   );
   await expectNoA11yViolations(baseElement);
-
-  rerender(
-    <Dialog
-      open
-      onClose={() => undefined}
-      title="Share"
-      centeredReason="Holds a waveform the person must see around it"
-    >
-      <p>Body</p>
-    </Dialog>,
-  );
-  expect(screen.getByRole("dialog", { name: "Share" })).toHaveClass(
-    "ui-dialog-root--centered",
-  );
-  expect(document.querySelector(".command-palette-footer")).toBeNull();
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -125,7 +109,7 @@ it("keeps an anchored dialog non-modal, beside its anchor, closing on an outside
           onClose={onClose}
           title="Fade join at 0:05.0"
           panelId="join-panel"
-          anchor={{ ref: anchorRef, reason: "The seam stays in view." }}
+          anchor={{ ref: anchorRef }}
         >
           <p>Body</p>
         </Dialog>
@@ -146,4 +130,60 @@ it("keeps an anchored dialog non-modal, beside its anchor, closing on an outside
   expect(onClose).not.toHaveBeenCalled();
   fireEvent.pointerDown(screen.getByRole("button", { name: "Elsewhere" }));
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it("closes an anchored dialog when a modal opens over it", () => {
+  function Both({ modal }: { modal: boolean }) {
+    const anchorRef = useRef<HTMLButtonElement>(null);
+    const [anchoredOpen, setAnchoredOpen] = useState(true);
+    return (
+      <main data-daw-app-chrome>
+        <button ref={anchorRef} type="button">
+          Join badge
+        </button>
+        <Dialog
+          open={anchoredOpen}
+          onClose={() => setAnchoredOpen(false)}
+          title="Fade join"
+          anchor={{ ref: anchorRef }}
+        >
+          <p>Body</p>
+        </Dialog>
+        <Dialog open={modal} onClose={() => undefined} title="Palette">
+          <p>Commands</p>
+        </Dialog>
+      </main>
+    );
+  }
+  const { rerender } = render(<Both modal={false} />);
+  expect(screen.getByRole("dialog", { name: "Fade join" })).toBeInTheDocument();
+  rerender(<Both modal />);
+  expect(screen.queryByRole("dialog", { name: "Fade join" })).toBeNull();
+  expect(screen.getByRole("dialog", { name: "Palette" })).toBeInTheDocument();
+});
+
+it("lets Tab reach the inner dialog's buttons when two modals are stacked", async () => {
+  const user = userEvent.setup();
+  render(
+    <>
+      <Dialog open onClose={() => undefined} title="Outer">
+        <button type="button">Outer action</button>
+      </Dialog>
+      <Dialog open onClose={() => undefined} title="Inner">
+        <button type="button">Inner action</button>
+      </Dialog>
+    </>,
+  );
+  const inner = screen.getByRole("dialog", { name: "Inner" });
+  const innerAction = within(inner).getByRole("button", {
+    name: "Inner action",
+  });
+  const outer = screen.getByRole("dialog", { name: "Outer" });
+  const outerFocus = vi.fn();
+  outer.addEventListener("focusin", outerFocus);
+  innerAction.focus();
+  await user.tab();
+  await user.tab();
+  expect(inner.contains(document.activeElement)).toBe(true);
+  expect(outerFocus).not.toHaveBeenCalled();
 });

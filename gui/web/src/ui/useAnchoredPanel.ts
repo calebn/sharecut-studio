@@ -11,8 +11,6 @@ export type DialogAnchor = {
   avoidRef?: RefObject<HTMLElement | null>;
   /** A value that moves the anchor without a scroll or resize, such as the seam time. */
   moves?: unknown;
-  /** Why this dialog is not a bottom sheet on phone and tablet. */
-  reason: string;
 };
 
 /**
