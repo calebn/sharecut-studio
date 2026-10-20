@@ -10,7 +10,7 @@ from pathlib import Path
 from biome_format import biome_format_ts
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "gui" / "web" / "src" / "edit" / "limits.generated.ts"
+OUT = ROOT / "gui" / "web" / "src" / "types" / "limits.generated.ts"
 
 # (contract file, key under "constants", exported TS constant)
 EXPORTS: tuple[tuple[str, str, str], ...] = (

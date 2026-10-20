@@ -33,7 +33,7 @@ def test_ripple_edge_epsilon_constant() -> None:
 
 
 def test_gui_constants_are_the_server_constants() -> None:
-    ts = (ROOT / "gui/web/src/edit/limits.generated.ts").read_text(encoding="utf-8")
+    ts = (ROOT / "gui/web/src/types/limits.generated.ts").read_text(encoding="utf-8")
     generated = {
         name: float(value) for name, value in re.findall(r"export const (\w+) = ([\d.e-]+);", ts)
     }

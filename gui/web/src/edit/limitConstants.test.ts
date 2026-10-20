@@ -7,7 +7,7 @@ import {
   MIN_EDGE_SPAN_SEC,
   RIPPLE_EDGE_EPS_SEC,
   TIME_EPS_SEC,
-} from "./limits.generated";
+} from "../types/limits.generated";
 
 function constants(name: string): Record<string, number> {
   const text = readFileSync(join(SRC_ROOT, "../../../contracts", name), "utf8");
