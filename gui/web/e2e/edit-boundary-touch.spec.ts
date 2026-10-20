@@ -163,7 +163,7 @@ for (const { cell: width, theme } of withAppearance([1440, 360])) {
       });
       applied = true;
       await page
-        .getByRole("button", {
+        .getByRole(width < 720 ? "button" : "tab", {
           name: width < 720 ? "Text" : "Transcript",
           exact: true,
         })

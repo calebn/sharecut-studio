@@ -156,7 +156,7 @@ test("idle desktop reaches an edit in removed audio through the status chip", as
       );
       await page
         .getByRole("button", {
-          name: "Edits in removed audio (1)",
+          name: "1 edit in removed audio",
           exact: true,
         })
         .click();
