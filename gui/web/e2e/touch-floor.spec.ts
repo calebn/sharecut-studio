@@ -110,7 +110,7 @@ for (const size of SIZES) {
         );
       }
     } else {
-      const tabs = page.getByRole("tablist", { name: "Editor panels" });
+      const tabs = page.getByRole("tablist", { name: "Panel tabs" });
       for (const name of PANEL_TABS) {
         await tabs.getByRole("tab", { name, exact: true }).click();
         found.push(

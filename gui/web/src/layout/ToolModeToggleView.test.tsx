@@ -20,7 +20,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -45,7 +45,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -66,7 +66,7 @@ describe("ToolModeToggleView", () => {
         commentMode
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -88,7 +88,7 @@ describe("ToolModeToggleView", () => {
         selectAriaKeyShortcuts="V"
         bladeTitle="Blade tool (C)"
         bladeAriaKeyShortcuts="C"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         commentAriaKeyShortcuts="Meta+Shift+C"
         {...actions()}
       />,
@@ -105,7 +105,7 @@ describe("ToolModeToggleView", () => {
     const comment = screen.getByRole("button", { name: "Toggle comment mode" });
     expect(comment).toHaveAttribute(
       "title",
-      "Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)",
+      "Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)",
     );
     expect(comment).toHaveAttribute("aria-keyshortcuts", "Meta+Shift+C");
   });
@@ -117,7 +117,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -134,7 +134,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -153,7 +153,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -177,7 +177,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
-        commentTitle="Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
+        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
         {...cbs}
       />,
     );

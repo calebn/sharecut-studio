@@ -482,6 +482,10 @@ html[data-shell="phone"] .guest-attention-dismiss {
   font-size: inherit;
 }
 
+.tab-bar button.ui-control:focus-visible {
+  outline-offset: -2px;
+}
+
 .tab-content {
   flex: 1;
   min-height: 0;
