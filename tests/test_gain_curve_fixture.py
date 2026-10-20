@@ -65,3 +65,59 @@ def test_render_gain_matches_the_fixture_the_preview_is_tested_against(case: dic
     for at, expected in case["samples"]:
         index = min(rendered.size - 1, round((at - case["clip"]["start"]) * _SAMPLE_RATE))
         assert rendered[index] == pytest.approx(expected, abs=2e-3, rel=1e-2), (case["name"], at)
+
+
+_MUTE_FIXTURE = json.loads(
+    (Path(__file__).parent / "fixtures" / "gain_curve" / "mute_cases.json").read_text()
+)
+
+
+def _render_unit_mute(case: dict) -> np.ndarray:
+    """What the render does to a clip of constant 1.0 under its mute regions."""
+    from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
+    from podcast_mcp.models import Clip, ClipMuteRegion
+
+    start, end = case["clip"]["source_start"], case["clip"]["source_end"]
+    clip = Clip(
+        id="c",
+        track_id="t",
+        source_start=start,
+        source_end=end,
+        timeline_start=0.0,
+        mute_regions=[ClipMuteRegion(**region) for region in case["regions"]],
+    )
+    chain = FFmpegEngine()._mute_chain(
+        end - start,
+        mute_spans_for_source_window(clip, start, end),
+        sample_rate=_SAMPLE_RATE,
+        source_start=start,
+        origin=round(start * _SAMPLE_RATE),
+    )
+    raw = subprocess.run(
+        [
+            resolve_ffmpeg(),
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"aevalsrc=1:d={end - start}:s={_SAMPLE_RATE}",
+            "-af",
+            ",".join(chain) or "anull",
+            "-f",
+            "f32le",
+            "-",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    return np.frombuffer(raw, dtype="<f4")
+
+
+@pytest.mark.parametrize("case", _MUTE_FIXTURE["cases"], ids=lambda case: case["name"])
+def test_render_mute_gain_matches_the_fixture_the_preview_is_tested_against(case: dict) -> None:
+    rendered = _render_unit_mute(case)
+    start = case["clip"]["source_start"]
+    for at, expected in case["samples"]:
+        index = min(rendered.size - 1, round((at - start) * _SAMPLE_RATE))
+        assert rendered[index] == pytest.approx(expected, abs=2e-3), (case["name"], at)
