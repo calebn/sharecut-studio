@@ -204,7 +204,7 @@ def test_wal_init_lock_is_dropped_after_successful_switch(tmp_path: Path) -> Non
     assert session_sqlite._wal_init_key(db_path) not in session_sqlite._WAL_INIT_LOCKS
 
 
-def test_wal_init_lock_is_kept_when_the_switch_fails(
+def test_wal_init_lock_is_dropped_when_the_switch_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     connection = Mock()
@@ -213,8 +213,15 @@ def test_wal_init_lock_is_kept_when_the_switch_fails(
     db_path = tmp_path / "sync.db"
     with pytest.raises(sqlite3.OperationalError):
         session_sqlite.connect_session_db(db_path)
-    assert session_sqlite._wal_init_key(db_path) in session_sqlite._WAL_INIT_LOCKS
-    session_sqlite._WAL_INIT_LOCKS.discard_idle(session_sqlite._wal_init_key(db_path))
+    assert session_sqlite._wal_init_key(db_path) not in session_sqlite._WAL_INIT_LOCKS
+
+
+def test_wal_init_lock_is_dropped_when_the_database_is_missing(tmp_path: Path) -> None:
+    db_path = tmp_path / "missing.db"
+    for _ in range(3):
+        with pytest.raises(sqlite3.OperationalError):
+            session_sqlite.connect_session_db(db_path, create=False)
+    assert session_sqlite._wal_init_key(db_path) not in session_sqlite._WAL_INIT_LOCKS
 
 
 def test_connect_session_db_without_create_never_creates_the_file(tmp_path) -> None:
