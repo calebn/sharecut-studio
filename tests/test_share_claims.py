@@ -1,10 +1,10 @@
-"""Unit coverage for podcast_relay.share_claims helpers."""
+"""Unit coverage for podcast_mcp.util.relay_protocol.share_claims helpers."""
 
 from __future__ import annotations
 
 import pytest
 
-from podcast_relay.share_claims import (
+from podcast_mcp.util.relay_protocol.share_claims import (
     attach_share_claims,
     parse_host_token_map,
     resolve_tunnel_secret,

@@ -436,7 +436,7 @@ def test_cli_share_commands_gated_in_subprocess() -> None:
 
 
 def test_protocol_version_exported() -> None:
-    from podcast_relay.protocol import PROTOCOL_VERSION, msg
+    from podcast_mcp.util.relay_protocol.protocol import PROTOCOL_VERSION, msg
 
     assert PROTOCOL_VERSION >= 1
     h = msg("hello", protocol_version=PROTOCOL_VERSION)

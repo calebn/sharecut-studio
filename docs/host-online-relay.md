@@ -1,6 +1,6 @@
 # Host-online relay
 
-> **Packaging:** the edge lives in the `podcast_relay` package (`podcast-relay` CLI). Share/record/remote-MCP/guest surfaces (HTTP, MCP mint, `podcast review share*` CLI) mount through the FOSS `collaboration` [Sharecut Studio Extension](extensions.md) (`PODCAST_EXTENSIONS=` disables them). An independently installed `online` provider can mount account/auth surfaces. Document/session APIs stay in FOSS core. See [extension-seams.md](extension-seams.md).
+> **Packaging:** the edge lives in the `podcast_relay` package (`podcast-relay` CLI). `podcast_mcp` never imports it: the tunnel frames (`protocol.py`), share claims (`share_claims.py`) and guest WS close log (`guest_ws_log.py`) both sides use live in `podcast_mcp.util.relay_protocol`, which the relay image copies as a package (`tests/test_relay_dockerfile.py`, `tests/test_service_boundaries.py`). Share/record/remote-MCP/guest surfaces (HTTP, MCP mint, `podcast review share*` CLI) mount through the FOSS `collaboration` [Sharecut Studio Extension](extensions.md) (`PODCAST_EXTENSIONS=` disables them). An independently installed `online` provider can mount account/auth surfaces. Document/session APIs stay in FOSS core. See [extension-seams.md](extension-seams.md).
 
 Share your podcast project with guests or remote MCP clients while your laptop is
 online — no port-forwarding required.
@@ -753,6 +753,7 @@ deploy/relay/
   release-desktop-build.yml # reusable installer-artifact builder
 src/podcast_relay/         # FOSS relay server (FastAPI + WebSocket tunnel)
 src/podcast_mcp/
+  util/relay_protocol/                  # tunnel frames, share claims, guest WS close log; shared by relay and host, never imports either
   services/collaboration/tunnel.py      # TunnelClient + run_tunnel_sync
   services/collaboration/tunnel_status.py   # phases, status lines, snapshot
   services/collaboration/tunnel_failure.py  # failure classification

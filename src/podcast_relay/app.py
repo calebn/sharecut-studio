@@ -33,10 +33,11 @@ from podcast_mcp.util.body_limits import (
 from podcast_mcp.util.proxy_paths import proxy_path_is_safe
 from podcast_mcp.util.rate_limit import is_review_audio_path
 from podcast_mcp.util.rate_limit_http import rate_limited_response
+from podcast_mcp.util.relay_protocol.guest_ws_log import log_guest_ws_close
+from podcast_mcp.util.relay_protocol.protocol import msg, new_id
 from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue, ws_close_details
 from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
-from podcast_relay.guest_ws_log import log_guest_ws_close
 from podcast_relay.limits import (
     check_proxy_rpm,
     check_register,
@@ -45,7 +46,6 @@ from podcast_relay.limits import (
     relay_rate_limit_enabled,
 )
 from podcast_relay.offline import offline_page
-from podcast_relay.protocol import msg, new_id
 from podcast_relay.reports import router as reports_router
 from podcast_relay.reports import start_report_worker
 from podcast_relay.version import read_relay_git_sha, read_relay_version
@@ -224,7 +224,7 @@ class RelayState:
             return False
         if not self.host_tokens and not self.host_secrets:
             return self.allow_open_tunnel
-        from podcast_relay.share_claims import resolve_tunnel_secret
+        from podcast_mcp.util.relay_protocol.share_claims import resolve_tunnel_secret
 
         return (
             resolve_tunnel_secret(
@@ -237,7 +237,7 @@ class RelayState:
         )
 
     def secret_for_session(self, session: TunnelSession) -> str | None:
-        from podcast_relay.share_claims import resolve_tunnel_secret
+        from podcast_mcp.util.relay_protocol.share_claims import resolve_tunnel_secret
 
         if self.allow_open_tunnel and not self.host_tokens and not self.host_secrets:
             # Dev open tunnel: sign/verify with the presented token (may be empty → skip claims).
@@ -312,7 +312,7 @@ class RelayState:
         *,
         expected_session: TunnelSession | None = None,
     ) -> None:
-        from podcast_relay.share_claims import verify_share_claim
+        from podcast_mcp.util.relay_protocol.share_claims import verify_share_claim
 
         async with self._lock:
             session = self.tunnels.get(host_id)
@@ -376,7 +376,7 @@ class RelayState:
 
 
 def _parse_host_tokens() -> tuple[set[str], dict[str, str]]:
-    from podcast_relay.share_claims import parse_host_token_map
+    from podcast_mcp.util.relay_protocol.share_claims import parse_host_token_map
 
     raw = os.environ.get("PODCAST_RELAY_HOST_TOKENS", "").strip()
     if not raw:

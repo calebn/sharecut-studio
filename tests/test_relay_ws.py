@@ -20,6 +20,8 @@ from httpx import ASGITransport, AsyncClient
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as ws_connect
 
+from podcast_mcp.util.relay_protocol.protocol import new_id
+from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
 from podcast_relay.app import (
     GuestWsStream,
     RelayState,
@@ -28,8 +30,6 @@ from podcast_relay.app import (
     create_relay_app,
     main,
 )
-from podcast_relay.protocol import new_id
-from podcast_relay.share_claims import attach_share_claims
 
 
 @contextlib.contextmanager

@@ -15,7 +15,7 @@ from podcast_mcp.extensions.features import (
     EXPERIMENTAL_FEATURE_IDS,
     STABLE_FEATURE_IDS,
 )
-from podcast_relay.protocol import PROTOCOL_VERSION
+from podcast_mcp.util.relay_protocol.protocol import PROTOCOL_VERSION
 
 
 def main() -> int:

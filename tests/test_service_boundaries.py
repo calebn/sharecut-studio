@@ -516,3 +516,50 @@ for export in facade.__all__:
     assert value is getattr(facade, export), (name, export)
 """
         subprocess.run([sys.executable, "-c", script], check=True, cwd=_ROOT)
+
+
+def _relay_references(source: str) -> set[str]:
+    found: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            found.update(a.name for a in node.names if a.name.split(".")[0] == "podcast_relay")
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0 and (node.module or "").split(".")[0] == "podcast_relay":
+                found.add(node.module or "")
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and "podcast_relay" in node.value
+        ):
+            found.add(node.value)
+    return found
+
+
+def test_podcast_mcp_never_references_podcast_relay() -> None:
+    """The relay is a separate deployable; shared wire code lives in util/relay_protocol."""
+    violations = [
+        f"{path.relative_to(_ROOT)}: {ref}"
+        for path in sorted((_ROOT / "src/podcast_mcp").rglob("*.py"))
+        for ref in sorted(_relay_references(path.read_text()))
+    ]
+    assert not violations, (
+        "podcast_mcp must not reference podcast_relay (move shared code to "
+        "podcast_mcp.util.relay_protocol):\n" + "\n".join(violations)
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import podcast_relay",
+        "from podcast_relay.protocol import msg",
+        "def f():\n    from podcast_relay.share_claims import sign_share_claim",
+        "importlib.import_module('podcast_relay.app')",
+    ],
+)
+def test_relay_reference_guard_fails_on_a_synthetic_edge(source: str) -> None:
+    assert _relay_references(source)
+
+
+def test_relay_reference_guard_allows_the_neutral_package() -> None:
+    assert not _relay_references("from podcast_mcp.util.relay_protocol.protocol import msg")

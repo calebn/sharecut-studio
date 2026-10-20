@@ -66,7 +66,7 @@ share minting, guest routes, or remote MCP.
 
 Experimental: `extension.more.0`, `extension.status.0` (may change in minors).
 
-`contracts/caps.json` pins the stable and experimental IDs, the capability enum and the relay `protocol_version`. `scripts/check_extension_contracts.py` compares it with `extensions/features.py`, `extensions/caps.py` and `podcast_relay.protocol`; `tests/test_generated_artifacts.py` runs it, so `make generated-check` fails on drift.
+`contracts/caps.json` pins the stable and experimental IDs, the capability enum and the relay `protocol_version`. `scripts/check_extension_contracts.py` compares it with `extensions/features.py`, `extensions/caps.py` and `podcast_mcp.util.relay_protocol.protocol`; `tests/test_generated_artifacts.py` runs it, so `make generated-check` fails on drift.
 
 Removing/renaming a stable slot = FOSS major version. Host API version: `podcast_mcp.extensions.api_version.HOST_API_VERSION`.
 
