@@ -69,9 +69,19 @@ def setup(
 
     typer.echo(f"Cache: {cache_dir()}")
     typer.echo(f"Python: {sys.version.split()[0]}")
-    typer.echo(f"MCP config: {repo_root() / '.agents' / 'mcp.json'}")
+    mcp_config = repo_root() / ".agents" / "mcp.json"
+    if mcp_config.is_file():
+        typer.echo(f"MCP config: {mcp_config}")
+    else:
+        typer.echo('MCP server entry: {"command": "podcast-mcp", "args": []}')
 
     if global_skills:
+        if not _skills_root().is_dir():
+            typer.echo(
+                "No skills to link: skills ship with the repository checkout, not the installed package.",
+                err=True,
+            )
+            raise typer.Exit(1)
         _link_global_skills()
         typer.echo("Linked skills to ~/.agents/skills/")
 
@@ -253,8 +263,12 @@ def _report_silero_component() -> bool:
     return True
 
 
+def _skills_root() -> Path:
+    return repo_root() / ".agents" / "skills"
+
+
 def _link_global_skills() -> None:
-    src_root = repo_root() / ".agents" / "skills"
+    src_root = _skills_root()
     dest_root = Path.home() / ".agents" / "skills"
     dest_root.mkdir(parents=True, exist_ok=True)
     for skill_dir in src_root.iterdir():
