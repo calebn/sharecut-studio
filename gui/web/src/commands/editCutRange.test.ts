@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
+import { wordSelection } from "../utils/rangeSelect";
 import { clearRegisteredCommands, execute } from "./execute";
 import { runRangeAction } from "./rangeActions";
 import { registerDawCommands } from "./register";

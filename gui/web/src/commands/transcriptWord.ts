@@ -1,6 +1,6 @@
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { oneWordOf } from "../transcript/rangeSelect";
+import { oneWordOf } from "../utils/rangeSelect";
 import { findTranscriptWord, wordSeekSec } from "../utils/transcript";
 import { registerCommand } from "./execute";
 

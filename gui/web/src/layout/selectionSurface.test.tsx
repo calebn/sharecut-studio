@@ -22,8 +22,8 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
 import type { Selection } from "../types/project";
+import { wordSelection } from "../utils/rangeSelect";
 import { StudioShell } from "./StudioShell";
 
 const viewport = vi.hoisted(() => ({ shell: "tablet" as ShellBreakpoint }));

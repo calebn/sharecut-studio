@@ -1,4 +1,3 @@
-import { wordSelection } from "../transcript/rangeSelect";
 import type {
   AutomationEnvelope,
   ProjectView,
@@ -6,6 +5,7 @@ import type {
 } from "../types/project";
 import type { SessionSelection, ViewerSessionSnapshot } from "../types/session";
 import { sortedVolumePoints } from "../utils/envelopes";
+import { wordSelection } from "../utils/rangeSelect";
 
 export function selectionToWire(
   sel: Selection,

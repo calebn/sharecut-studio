@@ -1,9 +1,6 @@
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import {
-  oneWordOf,
-  type TranscriptRangeSelection,
-} from "../transcript/rangeSelect";
+import { oneWordOf, type TranscriptRangeSelection } from "../utils/rangeSelect";
 import { TranscriptWordInspector } from "./views/TranscriptWordInspector";
 
 export function OneWordEditor({

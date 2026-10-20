@@ -260,7 +260,6 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "commands/trackMix.ts -> tracks/trackMuteCopy (static)",
     "commands/transcriptIgnore.ts -> transcript/ignoredWords (static)",
     "commands/transcriptIgnore.ts -> transcript/transcriptModeCopy (static)",
-    "commands/transcriptRange.ts -> transcript/rangeSelect (static)",
     "commands/transcriptReview.ts -> transcript/lowConfidence (static)",
     "edit/clipMove.ts -> timeline/snapOverlay (static)",
     "edit/nudge.ts -> timeline/pendingEdgeDrag (static)",
@@ -305,10 +304,10 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "services -> commands/edit": 2,
   "services -> views": 2,
   "commands/edit -> hooks": 2,
-  "commands/edit -> views": 19,
+  "commands/edit -> views": 18,
   "hooks -> views": 10,
 };
-const ALLOWLIST_SIZE = 74;
+const ALLOWLIST_SIZE = 73;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

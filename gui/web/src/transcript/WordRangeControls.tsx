@@ -6,15 +6,15 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { Button } from "../ui";
 import { CommandButton } from "../ui/CommandButton";
-import { findTranscriptWord, transcriptSpanText } from "../utils/transcript";
-import { selectionAllIgnored } from "./ignoredWords";
 import {
   RANGE_STEP_CONTROLS,
   type RangeStep,
   stepWordSpan,
   type TranscriptRangeSelection,
   wordCountOf,
-} from "./rangeSelect";
+} from "../utils/rangeSelect";
+import { findTranscriptWord, transcriptSpanText } from "../utils/transcript";
+import { selectionAllIgnored } from "./ignoredWords";
 
 const PREVIEW_CHARS = 72;
 

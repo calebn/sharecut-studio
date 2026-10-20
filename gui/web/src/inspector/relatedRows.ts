@@ -1,7 +1,7 @@
 import { COMMANDS } from "../commands/catalog";
 import { type CommandContext, evaluateWhen } from "../commands/context";
-import { oneWordOf } from "../transcript/rangeSelect";
 import type { ProjectView, Selection } from "../types/project";
+import { oneWordOf } from "../utils/rangeSelect";
 
 export type RelatedCommandDescriptor = {
   /** Related actions always honor the command catalog's availability gate. */

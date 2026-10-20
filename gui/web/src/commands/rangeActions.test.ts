@@ -4,7 +4,7 @@ import { getClipboard, setClipboard } from "../edit/clipboard";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
+import { wordSelection } from "../utils/rangeSelect";
 import { clearRegisteredCommands, execute } from "./execute";
 import {
   rangeActionDescriptors,

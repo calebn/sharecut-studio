@@ -4,8 +4,8 @@ import type {
   Selection,
   TranscriptWordView,
 } from "../types/project";
+import { wordSelection } from "../utils/rangeSelect";
 import { ignoredRuns, ignoreTarget, selectionAllIgnored } from "./ignoredWords";
-import { wordSelection } from "./rangeSelect";
 
 function words(spec: Array<[number, boolean]>): TranscriptWordView[] {
   return spec.map(([word_index, ignored]) => ({
