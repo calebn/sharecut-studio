@@ -73,7 +73,7 @@ describe("README rule: api.ts is the facade", () => {
     "transcript/boundaryPresentation.ts -> api/boundary",
   ];
   const ALLOWLIST_PAIRS = 32;
-  const ALLOWLIST_FILES = 24;
+  const ALLOWLIST_FILES = 28;
 
   it("imports an api/ adapter directly only from the allowlist", () => {
     expect(adapterImports(sourceFiles())).toEqual(ALLOWLIST);
