@@ -885,4 +885,108 @@ describe("FeedbackToast", () => {
       expect(useDawStore.getState().feedbackToast?.message).toBe("Trim saved");
     },
   );
+
+  describe("returnFocus", () => {
+    function panelAndElsewhere() {
+      const panel = document.createElement("div");
+      panel.tabIndex = -1;
+      const elsewhere = document.createElement("button");
+      elsewhere.textContent = "Elsewhere";
+      document.body.append(panel, elsewhere);
+      return { panel, elsewhere };
+    }
+    const resolved = (
+      panel: HTMLElement | null,
+      run: () => Promise<boolean> = async () => true,
+    ) =>
+      useDawStore.getState().announceStatus("Resolved comment", {
+        reverse: { run, done: "Comment reopened" },
+        returnFocus: () => panel,
+      });
+
+    it("focuses the panel after Undo", async () => {
+      const { panel } = panelAndElsewhere();
+      render(<FeedbackToast />);
+      act(() => resolved(panel));
+      await userEvent
+        .setup()
+        .click(screen.getByRole("button", { name: "Undo" }));
+      expect(panel).toHaveFocus();
+    });
+
+    it("does not steal focus after Undo when the person moved on", async () => {
+      const { panel, elsewhere } = panelAndElsewhere();
+      let finish: (value: boolean) => void = () => {};
+      render(<FeedbackToast />);
+      act(() =>
+        resolved(
+          panel,
+          () =>
+            new Promise<boolean>((resolve) => {
+              finish = resolve;
+            }),
+        ),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      act(() => elsewhere.focus());
+      await act(async () => finish(true));
+      expect(elsewhere).toHaveFocus();
+    });
+
+    it("focuses the panel when Dismiss closes the toast with focus inside", async () => {
+      const { panel } = panelAndElsewhere();
+      render(<FeedbackToast />);
+      act(() => resolved(panel));
+      const dismiss = screen.getByRole("button", { name: "Dismiss" });
+      act(() => dismiss.focus());
+      await userEvent.setup().keyboard("{Enter}");
+      expect(panel).toHaveFocus();
+    });
+
+    it("leaves focus alone when Dismiss is pressed from elsewhere", () => {
+      const { panel, elsewhere } = panelAndElsewhere();
+      render(<FeedbackToast />);
+      act(() => resolved(panel));
+      act(() => elsewhere.focus());
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+      expect(elsewhere).toHaveFocus();
+    });
+
+    it("leaves focus alone when the toast expires", () => {
+      vi.useFakeTimers();
+      const { panel, elsewhere } = panelAndElsewhere();
+      render(<FeedbackToast />);
+      act(() => resolved(panel));
+      act(() => elsewhere.focus());
+      act(() => {
+        vi.advanceTimersByTime(TOAST_UNDO_MS);
+      });
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+      expect(elsewhere).toHaveFocus();
+    });
+
+    it("does not fail when the panel is gone", async () => {
+      const detached = document.createElement("div");
+      render(<FeedbackToast />);
+      act(() => resolved(detached));
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      act(() => resolved(null));
+      const dismiss = screen.getByRole("button", { name: "Dismiss" });
+      act(() => dismiss.focus());
+      await user.keyboard("{Enter}");
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+    });
+
+    it("forgets the panel once a toast without one replaces it", async () => {
+      const { panel } = panelAndElsewhere();
+      render(<FeedbackToast />);
+      act(() => resolved(panel));
+      act(() => useDawStore.getState().announceStatus("Saved"));
+      const dismiss = screen.getByRole("button", { name: "Dismiss" });
+      act(() => dismiss.focus());
+      await userEvent.setup().keyboard("{Enter}");
+      expect(panel).not.toHaveFocus();
+    });
+  });
 });

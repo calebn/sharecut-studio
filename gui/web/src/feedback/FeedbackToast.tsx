@@ -186,9 +186,17 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       target.focus({ preventScroll: true });
   });
 
+  const toastReturn = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const target = toast?.returnFocus?.() ?? null;
-    if (target) returnFocusRef.current = target;
+    if (target) {
+      toastReturn.current = target;
+      returnFocusRef.current = target;
+    } else if (toast && toastReturn.current) {
+      if (returnFocusRef.current === toastReturn.current)
+        returnFocusRef.current = null;
+      toastReturn.current = null;
+    }
   }, [toast]);
 
   useEffect(() => {
@@ -223,7 +231,9 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     try {
       if (await run()) {
         useDawStore.getState().announceStatus(done);
-        returnFocus?.()?.focus({ preventScroll: true });
+        const active = document.activeElement;
+        if (!active || active === document.body || portal.contains(active))
+          returnFocus?.()?.focus({ preventScroll: true });
       } else
         useDawStore
           .getState()
