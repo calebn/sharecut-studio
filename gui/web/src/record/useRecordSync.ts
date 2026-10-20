@@ -168,7 +168,7 @@ export function useRecordSync(
     };
 
     const socket = openPlaneSocket<RecordMsg>({
-      url: recordWsUrl(token, clientIdRef.current, nameRef.current),
+      url: () => recordWsUrl(token, clientIdRef.current, nameRef.current),
       prepare: async () => {
         cached = skipLeaseRef.current
           ? undefined
@@ -278,6 +278,8 @@ export function useRecordSync(
     return () => {
       socket.stop();
       stopHeartbeat();
+      setConnected(false);
+      sendRef.current = null;
     };
   }, [token, enabled]);
 

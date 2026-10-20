@@ -109,6 +109,31 @@ describe("openPlaneSocket", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  it("ignores plane names that are only inherited object keys", () => {
+    const handle = vi.fn();
+    open({ fallback: { handle } });
+    FakeWebSocket.instances[0].emit({ plane: "constructor", type: "x" });
+    expect(handle).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads a function url on every reconnect", () => {
+    let name = "a";
+    open({ url: () => `ws://test?name=${name}` });
+    FakeWebSocket.instances[0].close(1006);
+    name = "b";
+    vi.advanceTimersByTime(500);
+    expect(FakeWebSocket.instances[1].url).toBe("ws://test?name=b");
+  });
+
+  it("drops frames once isActive turns false", () => {
+    let active = true;
+    const handle = vi.fn();
+    open({ isActive: () => active, fallback: { handle } });
+    active = false;
+    FakeWebSocket.instances[0].emit({ type: "x" });
+    expect(handle).not.toHaveBeenCalled();
+  });
+
   it("stops for good when prepare returns false", () => {
     open({ prepare: () => false });
     expect(FakeWebSocket.instances).toHaveLength(0);

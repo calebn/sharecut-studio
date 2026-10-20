@@ -334,6 +334,21 @@ describe("useRecordSync", () => {
     }
   });
 
+  it("reports disconnected and refuses sends once the hook is disabled", async () => {
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useRecordSync("tok", "Ava", enabled),
+      { initialProps: { enabled: true } },
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.connected).toBe(true);
+    rerender({ enabled: false });
+    expect(result.current.connected).toBe(false);
+    expect(result.current.send("Heartbeat")).toBe(false);
+  });
+
   it("persists Join client_seq across remounts", async () => {
     const { unmount } = renderHook(() => useRecordSync("tok", "Ava"));
     await act(async () => {

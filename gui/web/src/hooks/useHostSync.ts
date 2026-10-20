@@ -409,6 +409,7 @@ export function useHostSync(
     };
     const socket = openPlaneSocket<HostWireMsg>({
       url: () => wsUrl(projectPath, clientIdRef.current),
+      isActive: () => isCurrentDocumentScope(scope),
       prepare: () => !cancelled && isCurrentDocumentScope(scope),
       onOpen: (ctx) => {
         initialized.clear();
