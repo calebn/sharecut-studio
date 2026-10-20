@@ -23,3 +23,11 @@ def load_contract(name: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{name} must be a JSON object")
     return data
+
+
+def contract_constant(name: str, key: str) -> Any:
+    """``constants[key]`` of ``contracts/<name>``; a missing block or key names the file and key."""
+    constants = load_contract(name).get("constants")
+    if not isinstance(constants, dict) or key not in constants:
+        raise RuntimeError(f"contracts/{name} has no constants.{key}; regenerate or restore it")
+    return constants[key]
