@@ -58,7 +58,7 @@ from podcast_mcp.gui.static_assets import (
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.runtime_config import normalize_exact_origin
 from podcast_mcp.services.document import cross_process_bridge
-from podcast_mcp.services.jobs import shared_bootstrap_job_manager, shared_job_manager
+from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError
@@ -244,7 +244,6 @@ def create_app(
 
     reset_guest_progress_hub()
     register_guest_progress_sink(guest_ws_progress_sink)
-    bootstrap_jobs = shared_bootstrap_job_manager(reset=True)
     # OpenAPI/Swagger stay available for local DX; set PODCAST_GUI_OPENAPI=0 to disable
     # (recommended for any non-loopback bind). Public relay never serves Swagger.
     enable_openapi = settings.text("PODCAST_GUI_OPENAPI", "1").lower() not in {
@@ -261,7 +260,6 @@ def create_app(
         lifespan=_gui_lifespan,
     )
     app.state.jobs = jobs
-    app.state.bootstrap_jobs = bootstrap_jobs
     app.state.diagnostics_bundles = {}
     app.state.studio_host = handoff.StudioHostState(bind_host)
     handoff.set_served_project(

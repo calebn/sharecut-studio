@@ -60,7 +60,7 @@ def short_fail_message(message: str | None, phase: str | None = None) -> str | N
 
 
 class JobSlotBusyError(CodedError, RuntimeError):
-    """Another pipeline-slot job (pipeline run, render preview, export) is still running."""
+    """Another job is still running in the slot: pipeline, render preview or export, or a download."""
 
     code = "job_running"
 
@@ -86,6 +86,7 @@ KIND_META: dict[str, KindMeta] = {
         "Split speakers cancelled", "Split speakers", frozenset({"speaker-split"})
     ),
     "agent": KindMeta("Activity cancelled", "Activity", frozenset()),
+    "bootstrap": KindMeta("Bootstrap cancelled", "Bootstrap", frozenset({"bootstrap"})),
 }
 
 

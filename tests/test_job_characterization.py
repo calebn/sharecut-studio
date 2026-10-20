@@ -9,7 +9,8 @@ from __future__ import annotations
 import pytest
 
 from job_event_helpers import JobEventTap
-from podcast_mcp.services.jobs import BootstrapJobManager, Job, JobManager, guest_render_job
+from podcast_mcp.services.jobs import Job, JobManager, guest_render_job
+from podcast_mcp.services.jobs.job import cancelled_copy
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 PIPELINE_SNAPSHOT_KEYS = {
@@ -300,11 +301,11 @@ def test_bootstrap_lifecycle_event_order_and_fields(monkeypatch) -> None:
         progress.end("bootstrap", message="fin")
         return {"ok": True, "results": {}}
 
-    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", fake_run)
-    mgr = BootstrapJobManager()
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
+    mgr = JobManager()
     job = Job.bootstrap("boot-1", ["whisper"])
     with JobEventTap(job.id) as tap:
-        mgr._run_job(job)
+        mgr._run_bootstrap_job(job)
         events = tap.drain()
     assert [e["type"] for e in events] == ["status", "progress", "progress", "progress", "done"]
     assert [e["kind"] for e in events if e["type"] == "progress"] == ["start", "update", "end"]
@@ -323,32 +324,52 @@ def test_bootstrap_lifecycle_event_order_and_fields(monkeypatch) -> None:
 
 def test_bootstrap_failed_component_sets_error(monkeypatch) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.jobs.bootstrap.run_bootstrap",
+        "podcast_mcp.services.jobs.manager.run_bootstrap",
         lambda *_a, **_k: {"ok": False, "results": {"whisper": {"ok": False, "error": "no net"}}},
     )
     job = Job.bootstrap("boot-2", ["whisper"])
-    BootstrapJobManager()._run_job(job)
+    JobManager()._run_bootstrap_job(job)
     assert (job.status, job.error, job.message) == ("error", "whisper: no net", "whisper: no net")
 
 
 def test_bootstrap_single_flight_and_archive(monkeypatch) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.jobs.bootstrap.run_bootstrap",
+        "podcast_mcp.services.jobs.manager.run_bootstrap",
         lambda *_a, **_k: {"ok": True, "results": {}},
     )
-    mgr = BootstrapJobManager()
+    mgr = JobManager()
     live = Job.bootstrap("live", ["whisper", "ffmpeg"])
     live.status = "running"
-    mgr._job = live
+    mgr._catalog._bootstrap_job = live
     with pytest.raises(
         RuntimeError, match=r"Another download is already running \(whisper, ffmpeg\)"
     ):
-        mgr.start()
+        mgr.start_bootstrap()
     live.status = "ok"
-    nxt = mgr.start(components=["whisper"])
+    nxt = mgr.start_bootstrap(components=["whisper"])
     assert nxt.id != "live"
-    assert mgr.get_job() is nxt
-    assert mgr.get_job("live") is live
-    assert mgr.get_job("missing") is None
-    assert mgr.cancel("live") is None
-    assert mgr.cancel() is nxt
+    assert mgr.get_bootstrap_job() is nxt
+    assert mgr.get_bootstrap_job("live") is live
+    assert mgr.get_bootstrap_job("missing") is None
+    assert mgr.cancel_bootstrap("live") is None
+    assert mgr.cancel_bootstrap() is nxt
+
+
+def test_bootstrap_slot_is_independent_of_the_pipeline_slot(monkeypatch) -> None:
+    from podcast_mcp.services.jobs import JobSlotBusyError
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.run_bootstrap",
+        lambda *_a, **_k: {"ok": True, "results": {}},
+    )
+    mgr = JobManager()
+    pipeline = Job(id="p1", project_path="/tmp/p.json", status="running")
+    mgr._catalog._job = pipeline
+    download = mgr.start_bootstrap(components=["whisper"])
+    assert download.kind == "bootstrap"
+    assert mgr.get_job() is pipeline
+    assert mgr.get_bootstrap_job() is download
+    download.status = "running"
+    with pytest.raises(JobSlotBusyError, match="Another download is already running"):
+        mgr.start_bootstrap()
+    assert cancelled_copy("bootstrap") == "Bootstrap cancelled"

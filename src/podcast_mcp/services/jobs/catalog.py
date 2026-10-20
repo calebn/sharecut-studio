@@ -31,6 +31,9 @@ class JobCatalog:
         self._agent_claims: dict[str, Job] = {}
         self._agent_latest: Job | None = None
         self._served_project: str | None = None
+        # The download slot is independent of the pipeline slot: neither blocks the other.
+        self._bootstrap_job: Job | None = None
+        self._bootstrap_finished: dict[str, Job] = {}
 
     def set_served_project(self, project_path: Path | str | None) -> None:
         """Set the project identity used by standalone agent-progress wraps."""
@@ -157,6 +160,14 @@ class JobCatalog:
             if self._agent_latest is not None and self._agent_latest.id == job_id:
                 return self._agent_latest
             return self._finished.get(job_id)
+
+    def get_bootstrap_job(self, job_id: str | None = None) -> Job | None:
+        with self._lock:
+            if job_id is None:
+                return self._bootstrap_job
+            if self._bootstrap_job is not None and self._bootstrap_job.id == job_id:
+                return self._bootstrap_job
+            return self._bootstrap_finished.get(job_id)
 
     def adopt_agent_job(
         self,

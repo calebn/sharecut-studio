@@ -15,19 +15,15 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
-from podcast_mcp.services.jobs import BootstrapJobManager, shared_bootstrap_job_manager
+from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.pipeline import component_status
 from podcast_mcp.whisper_models import resolve_whisper_model
 
 router = APIRouter()
 
 
-def _jobs(request: Request) -> BootstrapJobManager:
-    mgr = getattr(request.app.state, "bootstrap_jobs", None)
-    if mgr is None:
-        mgr = shared_bootstrap_job_manager()
-        request.app.state.bootstrap_jobs = mgr
-    return mgr
+def _jobs(request: Request) -> JobManager:
+    return request.app.state.jobs
 
 
 @router.get("/api/bootstrap/status")
@@ -55,7 +51,7 @@ def bootstrap_run(
     mgr = _jobs(request)
     try:
         model = resolve_whisper_model(requested=req.whisper_model)
-        job = mgr.start(
+        job = mgr.start_bootstrap(
             components=req.components,
             whisper_model=model,
             force=req.force,
@@ -75,7 +71,7 @@ def bootstrap_cancel(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    job = _jobs(request).cancel(req.job_id)
+    job = _jobs(request).cancel_bootstrap(req.job_id)
     if job is None:
         raise coded_http_error(404, "No bootstrap job", code="bootstrap_job_not_found")
     return {"job": job.snapshot()}
@@ -89,7 +85,7 @@ def bootstrap_job_status(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    job = _jobs(request).get_job(job_id)
+    job = _jobs(request).get_bootstrap_job(job_id)
     if job is None:
         return {"job": None}
     return {"job": job.snapshot()}
@@ -103,7 +99,7 @@ def bootstrap_events(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> StreamingResponse:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    job = _jobs(request).get_job(job_id)
+    job = _jobs(request).get_bootstrap_job(job_id)
     if job is None:
         raise coded_http_error(404, "No bootstrap job", code="bootstrap_job_not_found")
     return job_events_response(job)

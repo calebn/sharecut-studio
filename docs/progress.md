@@ -99,7 +99,7 @@ with resolve_progress_task("transcribe", "Transcribing tracks", total=n, prefer_
 
 `util/` imports no adapter. The CLI command wrap (`cli_progress_task`, `install_cli_progress`) lives in [`cli/progress.py`](../src/podcast_mcp/cli/progress.py), next to the reporter it binds.
 
-**Every class that implements the protocol derives from `ElapsedProgressMixin`.** The mixin supplies no-op bodies for `start` / `update` / `message` / `end` / `fail` / `cancel`, the open-task bookkeeping, and the single per-sink heartbeat (its thread starts with the first registered task, so `NullProgress` costs no thread). A reporter overrides only the events it acts on. Studio's `JobProgressReporter`, `SsePublishReporter`, `AgentJobFanInReporter` and `BootstrapProgressReporter`, and the guest `GuestWsProgressReporter` and `GuestMcpProgressContext`, follow the same rule. `tests/test_progress_compliance.py` finds protocol implementers by AST and fails any without the mixin among its ancestors.
+**Every class that implements the protocol derives from `ElapsedProgressMixin`.** The mixin supplies no-op bodies for `start` / `update` / `message` / `end` / `fail` / `cancel`, the open-task bookkeeping, and the single per-sink heartbeat (its thread starts with the first registered task, so `NullProgress` costs no thread). A reporter overrides only the events it acts on. Studio's `JobProgressReporter`, `SsePublishReporter` and `AgentJobFanInReporter`, and the guest `GuestWsProgressReporter` and `GuestMcpProgressContext`, follow the same rule. `tests/test_progress_compliance.py` finds protocol implementers by AST and fails any without the mixin among its ancestors.
 
 ### Update cadence
 

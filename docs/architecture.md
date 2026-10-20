@@ -105,12 +105,12 @@ The projection guard remains in
 reporters that feed them (`reporter.py`). A job's `kind` selects its snapshot
 shape, so the pipeline-slot and bootstrap payloads keep the keys their
 consumers read. `JobCatalog` (`catalog.py`) holds job identity, live agent
-claims and the bounded finished-job lookup; `BootstrapJobManager`
-(`bootstrap.py`) runs the at-most-one first-run download. Bootstrap keeps its own
-manager and reporter on purpose: its slot is independent of the pipeline slot
-(a download never blocks a run, and the reverse), and its events keep the
-bootstrap labels and zero elapsed seconds the setup screen already reads.
-Events go out through
+claims, the bounded finished-job lookup and the download slot. The first-run
+download is a `bootstrap` job on the same `JobManager` (`start_bootstrap`), in a
+second slot: a download never blocks a run, and the reverse. Its snapshot keeps the
+bootstrap keys the setup screen reads, a second download is refused with
+`JobSlotBusyError` and the same "Another download is already running" text, and
+its events use the one `JobProgressReporter`. Events go out through
 the job-id-keyed hub in `events.py`. `gui/job_events.py` stays the SSE adapter:
 it frames those queues for `/api/pipeline/events` and `/api/bootstrap/events`
 and builds the two progress sinks `create_app` registers. `mcp/tools/pipeline.py`

@@ -3,10 +3,6 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
-    from podcast_mcp.services.jobs.bootstrap import (
-        BootstrapJobManager,
-        shared_bootstrap_job_manager,
-    )
     from podcast_mcp.services.jobs.events import (
         JOB_EVENT_QUEUE_MAX,
         LIVE_JOB_STATUSES,
@@ -34,7 +30,6 @@ __all__ = [
     "LIVE_JOB_STATUSES",
     "TERMINAL_JOB_STATUSES",
     "AgentJobFanInReporter",
-    "BootstrapJobManager",
     "Job",
     "JobKind",
     "JobManager",
@@ -45,7 +40,6 @@ __all__ = [
     "job_events_hub",
     "job_listener_count",
     "publish_job_event",
-    "shared_bootstrap_job_manager",
     "shared_job_manager",
     "studio_job_manager",
 ]
@@ -55,7 +49,6 @@ _MODULE_BY_NAME = {
     "LIVE_JOB_STATUSES": "events",
     "TERMINAL_JOB_STATUSES": "events",
     "AgentJobFanInReporter": "reporter",
-    "BootstrapJobManager": "bootstrap",
     "Job": "job",
     "JobKind": "job",
     "JobManager": "manager",
@@ -66,7 +59,6 @@ _MODULE_BY_NAME = {
     "job_events_hub": "events",
     "job_listener_count": "events",
     "publish_job_event": "events",
-    "shared_bootstrap_job_manager": "bootstrap",
     "shared_job_manager": "manager",
     "studio_job_manager": "manager",
 }
