@@ -14,13 +14,14 @@ from podcast_mcp.edits.breath_detect import (
     detect_adjacent_breath,
     extend_cut_for_breaths,
 )
+from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.cut_quality import (
     CutRisk,
     assess_cut_risk,
     recommend_cut_fade_ms,
     word_margin_violation_sec,
 )
-from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
+from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.tighten import analyze_fillers_and_pauses
 from podcast_mcp.models import (
@@ -3340,7 +3341,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
 def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
-    from podcast_mcp.edits.cut_safety import CutRejected
+    from podcast_mcp.edits.cut_placement import CutRejected
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.plan import _between_kept_voices, _CutPlan
 

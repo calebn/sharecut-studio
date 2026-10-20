@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
-from podcast_mcp.edits import cut_safety
+from podcast_mcp.edits import cut_effects
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
@@ -161,15 +161,15 @@ def _batch_receipts(project, filler, pause, *, accepted_ids, widen_pad=0.0, shif
             defaults=load_defaults(),
         )
         if widen_pad:
-            pad = next(c for c in after.clips if c.id in cut_safety.native_pad_origins())
+            pad = next(c for c in after.clips if c.id in cut_effects.native_pad_origins())
             pad.source_end += widen_pad
         if shift_window:
-            origins = cut_safety.native_pad_origins()
+            origins = cut_effects.native_pad_origins()
             for clip_id, effect in list(origins.items()):
                 moved = dataclasses.replace(effect.plan, at_time=effect.plan.at_time + shift_window)
                 origins[clip_id] = dataclasses.replace(effect, plan=moved)
         accepted = [e for e in project.edit_decisions if e.id in accepted_ids]
-        return cut_safety.complete_effect_receipts(project, after, accepted)
+        return cut_effects.complete_effect_receipts(project, after, accepted)
 
 
 def test_the_filler_that_laid_the_pad_in_the_batch_owns_it(proposed) -> None:

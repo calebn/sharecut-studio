@@ -14,7 +14,7 @@ import wave
 import pytest
 
 import benchmark_tighten as bench
-from podcast_mcp.edits import cut_safety
+from podcast_mcp.edits import cut_effects
 from podcast_mcp.edits.clips_ops import clip_split_origin
 from podcast_mcp.models import CutIntent
 
@@ -58,14 +58,14 @@ def test_ripple_benchmark_runs_on_a_tiny_project(project):
 def test_each_kind_of_decision_stays_within_the_rebuild_bound_alone(project, kind, monkeypatch):
     automatic = bench.apply_tighten_decisions
     automatic_applied = []
-    receipts = cut_safety.complete_effect_receipts
+    receipts = cut_effects.complete_effect_receipts
     moved_pad_checked = []
 
     def check_receipts(before, candidate, accepted=(), **kwargs):
         held = receipts(before, candidate, accepted, **kwargs)
         if kind == "fillers" and len(accepted) == 4:
             assert not held
-            origins = cut_safety.native_pad_origins()
+            origins = cut_effects.native_pad_origins()
             for row in candidate.editorial.edit_log:
                 tile = next(
                     c
@@ -100,7 +100,7 @@ def test_each_kind_of_decision_stays_within_the_rebuild_bound_alone(project, kin
         return count
 
     monkeypatch.setattr(bench, "apply_tighten_decisions", apply)
-    monkeypatch.setattr(cut_safety, "complete_effect_receipts", check_receipts)
+    monkeypatch.setattr(cut_effects, "complete_effect_receipts", check_receipts)
     result = bench.run_tighten_benchmark(
         project, fillers=kind == "fillers", pauses=kind == "pauses"
     )
@@ -110,7 +110,7 @@ def test_each_kind_of_decision_stays_within_the_rebuild_bound_alone(project, kin
     assert automatic_applied == [4 if kind == "fillers" else 0]
     assert all(r.reason.startswith(kind[:-1] + ":") for r in project.editorial.edit_log)
     assert bool(moved_pad_checked) is (kind == "fillers")
-    assert cut_safety.native_pad_origins() == {}
+    assert cut_effects.native_pad_origins() == {}
     assert (
         0
         < result.rebuild_combined_calls

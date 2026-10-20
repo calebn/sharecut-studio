@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Any
 from podcast_mcp.config import join_micro_fade_ms
 from podcast_mcp.edits import cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.cut_quality import (
     post_pad_fade_in_bounds_ms,
     recommend_prev_word_lead_out_ms,
 )
-from podcast_mcp.edits.cut_safety import CutRejected
 from podcast_mcp.edits.filler_pacing import (
     MIN_PACED_CUT_SEC,
     PacedPad,

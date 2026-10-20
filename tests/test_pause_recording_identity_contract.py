@@ -15,7 +15,7 @@ from pause_policy_public_helpers import (
     project,
     workspace,
 )
-from podcast_mcp.edits.cut_safety import CutRejected, original_pause_support
+from podcast_mcp.edits.cut_placement import CutRejected, original_pause_support
 from podcast_mcp.edits.edit_log import archive_timeline_op
 from podcast_mcp.edits.session_air import GeometricPause
 from podcast_mcp.models import Clip, SourceRecording, load_project

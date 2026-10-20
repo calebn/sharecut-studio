@@ -135,11 +135,11 @@ def test_an_unreadable_peer_check_leaves_the_sound_pending_not_recorded(
 def test_lowering_a_pending_remove_uses_the_mute_policy_row(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
-    from podcast_mcp.edits import cut_safety
+    from podcast_mcp.edits import cut_placement, cut_safety
 
     path = _project(tmp_path, sample_wav)
     service = EditService(ProjectWorkspace.open(path))
-    hold = cut_safety.CutScopeHold("laugh", (), "source_geometry")
+    hold = cut_placement.CutScopeHold("laugh", (), "source_geometry")
     monkeypatch.setattr(cut_safety, "complete_effect_placement", lambda *a, **k: hold)
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     mute_key = ("source_geometry", "mute")

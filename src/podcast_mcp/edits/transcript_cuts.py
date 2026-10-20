@@ -318,12 +318,8 @@ def add_remove_decision(
             "end must be greater than start. Pick an end after the start.",
             code="range_end_before_start",
         )
-    from podcast_mcp.edits.cut_safety import (
-        CutScopeHold,
-        CutScopeUnavailable,
-        inspect_source_remove_placement,
-        resolve_cut_scope,
-    )
+    from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
+    from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
     from podcast_mcp.edits.filler_pacing import apply_filler_pacing
     from podcast_mcp.edits.source_removals import (
         ScopeChangedAtApproval,
@@ -357,7 +353,7 @@ def add_remove_decision(
         len(initial_spans) != 1
         or abs(float(initial_spans[0][1] - initial_spans[0][0]) - (end - start)) > 1e-6
     ):
-        from podcast_mcp.edits.cut_safety import CutScopeHold
+        from podcast_mcp.edits.cut_placement import CutScopeHold
         from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
@@ -432,7 +428,7 @@ def add_remove_decision(
         len(final_spans) != 1
         or abs(float(final_spans[0][1] - final_spans[0][0]) - (cut_end - cut_start)) > 1e-6
     ):
-        from podcast_mcp.edits.cut_safety import CutScopeHold
+        from podcast_mcp.edits.cut_placement import CutScopeHold
         from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
@@ -647,7 +643,7 @@ def coalesce_edits(
     owned_ids = {row.id for row in owned}
     result = [row for row in project.edit_decisions if row.id not in owned_ids]
     merged_count = 0
-    from podcast_mcp.edits.cut_safety import CutScopeHold
+    from podcast_mcp.edits.cut_placement import CutScopeHold
     from podcast_mcp.edits.source_removals import (
         ScopeChangedAtApproval,
         inspect_source_remove,

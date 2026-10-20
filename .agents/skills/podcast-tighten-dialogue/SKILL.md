@@ -108,7 +108,7 @@ podcast propose-edits --project episode.project.json --json
 ```
 
 MCP `propose_edits` returns `{operation, edits, skip_counts, summary}`
-(`operation` is `propose_edits`; not a bare array). Each edit also has a `label` ("Laugh", "Filler word") and a `suggested_action` (cut / shorten / lower / leave) from one table in `edits/cut_safety.py`; it is a suggestion, not an applied change. CLI `propose-edits --json`
+(`operation` is `propose_edits`; not a bare array). Each edit also has a `label` ("Laugh", "Filler word") and a `suggested_action` (cut / shorten / lower / leave) from one table in `edits/cut_policy.py`; it is a suggestion, not an applied change. CLI `propose-edits --json`
 prints the same payload (`TightenProposal.to_payload()`); without `--json` it
 prints the summary text only. Report `skip_counts`
 (`discourse:like`, …) as “N discourse uses kept”, `backchannel:uh huh` as “N

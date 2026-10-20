@@ -7,13 +7,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from podcast_mcp.edits import cut_policy, cut_safety
+from podcast_mcp.edits import cut_placement, cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import (
     PauseAirSkip,
     detect_adjacent_breath,
     extend_cut_for_breaths,
 )
+from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
 from podcast_mcp.edits.cut_quality import (
     assess_cut_risk,
@@ -21,7 +22,6 @@ from podcast_mcp.edits.cut_quality import (
     post_pad_fade_in_bounds_ms,
     recommend_cut_fade_ms,
 )
-from podcast_mcp.edits.cut_safety import CutRejected
 from podcast_mcp.edits.filler_pacing import (
     apply_filler_pacing,
     pause_trim_is_imperceptible,
@@ -266,7 +266,7 @@ def _prepare_candidate(
         observation = air.pause_observation(*observation_span, acoustic=acoustic)
         if isinstance(observation, PauseAirSkip):
             return CutRejected(observation.value)
-        original = cut_safety.original_pause_support(project, track_id, words, observation)
+        original = cut_placement.original_pause_support(project, track_id, words, observation)
         if isinstance(original, CutRejected):
             return original
         quiet = merge_intervals(

@@ -5,7 +5,7 @@ import os
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, files, project, workspace
-from podcast_mcp.edits.cut_safety import CutRejected
+from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.edit_log import archive_timeline_op
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import SourceRecording, load_project

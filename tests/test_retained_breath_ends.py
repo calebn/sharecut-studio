@@ -6,7 +6,8 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
-from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
+from podcast_mcp.edits.cut_placement import CutRejected
+from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import FillerPacingResult
 from podcast_mcp.edits.tighten.candidate import _CutCandidate
 from podcast_mcp.edits.tighten.prepare import _analyze_candidate

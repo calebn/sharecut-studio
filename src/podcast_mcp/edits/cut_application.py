@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config import EffectiveConfig
-from podcast_mcp.edits import cut_policy, cut_safety
+from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.clips_ops import (
@@ -18,8 +18,8 @@ from podcast_mcp.edits.clips_ops import (
     punch_timeline_range_from_clips,
     set_track_clips,
 )
+from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
-from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     SourceExtent,
@@ -102,16 +102,16 @@ def _completed_holds(
     *,
     defaults: dict,
     manual_ids: frozenset[str] = frozenset(),
-    pauses: Mapping[str, cut_safety.HeldPause | cut_safety.CutRejected | None] | None = None,
+    pauses: Mapping[str, cut_safety.HeldPause | cut_placement.CutRejected | None] | None = None,
     contributors_by_clip: Mapping[str, frozenset[str]] | None = None,
     join: cut_policy.CutJoin | None = None,
     observation: cut_safety.SourceCutObservations | None = None,
-    pads: Sequence[cut_safety.PadEffect] = (),
+    pads: Sequence[cut_effects.PadEffect] = (),
     peers: cut_safety.PeerObservations | None = None,
     owned: bool = True,
     exact_ranges: Mapping[str, ExactRangeTarget] | None = None,
     mode: cut_policy.CutMode | None = None,
-) -> list[cut_safety.CutScopeHold]:
+) -> list[cut_placement.CutScopeHold]:
     placement = [
         hold
         for edit_id in sorted(ids)
@@ -148,7 +148,7 @@ def _completed_holds(
         return []
     unavailable: frozenset[str] = frozenset()
     try:
-        effects = cut_safety.completed_audio_effects(
+        effects = cut_effects.completed_audio_effects(
             before,
             candidate,
             ids,
@@ -156,10 +156,10 @@ def _completed_holds(
             contributors_by_clip=contributors_by_clip,
             introduced_clips=frozenset(clip_id for pad in pads for clip_id in pad.clip_ids),
         )
-    except cut_safety.DuplicateSourceOccurrence:
+    except cut_placement.DuplicateSourceOccurrence:
         return cut_safety.apply_safety_actions(
             before,
-            [cut_safety.CutScopeHold(edit_id, (), "source_geometry") for edit_id in ids],
+            [cut_placement.CutScopeHold(edit_id, (), "source_geometry") for edit_id in ids],
             manual_ids=manual_ids,
             mode=mode,
         )
@@ -206,7 +206,9 @@ def _checked_trim(
     )
     if held:
         return candidate, report, held
-    receipts = cut_safety.complete_effect_receipts(project, candidate, operation_ids=ids, trim=plan)
+    receipts = cut_effects.complete_effect_receipts(
+        project, candidate, operation_ids=ids, trim=plan
+    )
     return candidate, report, list(receipts)
 
 
@@ -295,7 +297,7 @@ def apply_timeline_cut(
     )
     if held:
         raise ScopeChangedAtApproval(held, {})
-    receipts = cut_safety.complete_effect_receipts(
+    receipts = cut_effects.complete_effect_receipts(
         project, candidate, operation_ids=ids, removal=request.removal, clip_ids=request.clip_ids
     )
     if receipts:
@@ -327,7 +329,7 @@ def _apply_replace_gap_pad(
     *,
     exact_seam: bool = False,
     source_audio_caches: Mapping[str, TrackAudioCache] | None = None,
-    effects: list[cut_safety.PadEffect],
+    effects: list[cut_effects.PadEffect],
     defaults: EffectiveConfig,
 ) -> list[dict]:
     gap = edit.replace_gap_sec
@@ -341,7 +343,7 @@ def _apply_replace_gap_pad(
         else _nearest_ripple_join_time(project, tl_start)
     )
     if filler_pad_mode(defaults=defaults) == "room_tone":
-        from podcast_mcp.edits.cut_safety import pending_pad_source_spans
+        from podcast_mcp.edits.cut_placement import pending_pad_source_spans
 
         plan = room_tone_pad(
             project,
@@ -352,13 +354,13 @@ def _apply_replace_gap_pad(
         )
         before_ids = {clip.id for clip in project.clips}
         report = insert_bound_room_tone_pad(project, plan, defaults=defaults)
-        effect = cut_safety.PadEffect(
+        effect = cut_effects.PadEffect(
             edit.id,
             plan,
             frozenset(clip.id for clip in project.clips if clip.id not in before_ids),
         )
         effects.append(effect)
-        cut_safety.native_pad_origins().update((clip_id, effect) for clip_id in effect.clip_ids)
+        cut_effects.native_pad_origins().update((clip_id, effect) for clip_id in effect.clip_ids)
         samples = report["pad_samples"]
     else:
         insert_gap(project, pad_start_sec, gap, defaults=defaults)
@@ -413,7 +415,7 @@ def _apply_source_remove(
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
 
     candidate = project.model_copy(deep=True)
-    pads: list[cut_safety.PadEffect] = []
+    pads: list[cut_effects.PadEffect] = []
     manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
     with ExitStack() as proof:
         proof.enter_context(frozen_state())
@@ -488,7 +490,7 @@ def _write_source_remove(
     speech: CutSpeech | None,
     source_audio_caches: Mapping[str, TrackAudioCache],
     record_log: bool,
-    pads: list[cut_safety.PadEffect],
+    pads: list[cut_effects.PadEffect],
     defaults: EffectiveConfig,
 ) -> tuple[float, float, list[str], dict]:
     from podcast_mcp.edits.track_media import full_span_clip
@@ -558,7 +560,7 @@ def _write_source_remove(
     matches = [
         (edge, clips[0])
         for edge in effects
-        if (clips := cut_safety.pause_edge_clips(project, edge))
+        if (clips := cut_effects.pause_edge_clips(project, edge))
     ]
     for edge, clip in matches:
         if edge.side == "left":
@@ -613,7 +615,7 @@ def _write_join_fades(
     *,
     defaults: EffectiveConfig,
 ) -> dict:
-    pad_origins = cut_safety.native_pad_origins()
+    pad_origins = cut_effects.native_pad_origins()
     pad_origin_ids: set[str | None] = {*pad_origins}
     by_track: dict[str, list[EditDecision]] = {}
     for d in decisions:
@@ -691,7 +693,7 @@ def _apply_mute_edit(
         )
         or MUTE_FADE_MS
     )
-    placement = cut_safety.inspect_source_remove_placement(published, edit)
+    placement = cut_placement.inspect_source_remove_placement(published, edit)
     observed = cut_safety.SourceCutObservations(
         (TimelineSec(edit.start), TimelineSec(edit.end))
         if isinstance(placement, CutScopeHold)
@@ -834,7 +836,7 @@ def approve_edits(
             track_ids=track_ids,
             params=params,
         )
-        receipts = cut_safety.complete_effect_receipts(previous, project, [edit])
+        receipts = cut_effects.complete_effect_receipts(previous, project, [edit])
         if receipts:
             held.extend(receipts)
             project = previous
@@ -904,7 +906,7 @@ def approve_edits(
                 track_ids=track_ids,
                 params=params,
             )
-            receipts = cut_safety.complete_effect_receipts(previous, project, [edit])
+            receipts = cut_effects.complete_effect_receipts(previous, project, [edit])
             if receipts:
                 held.extend(receipts)
                 newly_held.add(edit.id)
@@ -979,7 +981,7 @@ def approve_edits(
 
     before = len(project.edit_decisions)
     project.edit_decisions = [e for e in project.edit_decisions if e.id not in applied_ids]
-    receipts = cut_safety.complete_effect_receipts(
+    receipts = cut_effects.complete_effect_receipts(
         published, project, [e for e in published.edit_decisions if e.id in applied_ids]
     )
     if receipts:
@@ -1031,7 +1033,7 @@ def _apply_auto_removes(
             track_ids=track_ids,
             params={**params, "config_key": config_key},
         )
-        if cut_safety.complete_effect_receipts(previous, project, [edit]):
+        if cut_effects.complete_effect_receipts(previous, project, [edit]):
             held.add(edit.id)
             batch.pop(edit.id)
             project = previous
@@ -1095,7 +1097,7 @@ def apply_prefix_edits(
             track_ids=track_ids,
             params=params,
         )
-        if cut_safety.complete_effect_receipts(previous, project, [edit]):
+        if cut_effects.complete_effect_receipts(previous, project, [edit]):
             held_mutes.add(edit.id)
             project = previous
     remove_ids = {e.id for e in removes}
@@ -1144,7 +1146,7 @@ def apply_prefix_edits(
     id_set = {e.id for e in applied_decisions}
     before = len(project.edit_decisions)
     project.edit_decisions = [e for e in project.edit_decisions if e.id not in id_set]
-    receipts = cut_safety.complete_effect_receipts(
+    receipts = cut_effects.complete_effect_receipts(
         published, project, [e for e in published.edit_decisions if e.id in id_set]
     )
     if receipts:
@@ -1266,7 +1268,7 @@ def _range_candidate(
     )
     if held:
         raise ScopeChangedAtApproval(held, {})
-    receipts = cut_safety.complete_effect_receipts(published, project, edits)
+    receipts = cut_effects.complete_effect_receipts(published, project, edits)
     if receipts:
         raise ScopeChangedAtApproval(receipts, {})
     return project
@@ -1324,7 +1326,7 @@ def apply_lower(
 ) -> bool:
     published = project
     project = project.model_copy(deep=True)
-    mapped = cut_safety.inspect_source_remove_placement(
+    mapped = cut_placement.inspect_source_remove_placement(
         project, decision.model_copy(update={"type": EditDecisionType.MUTE})
     )
     observation = cut_safety.SourceCutObservations(
@@ -1389,7 +1391,7 @@ def apply_lower(
     )
     if held:
         return False
-    receipts = cut_safety.complete_effect_receipts(published, project, [decision])
+    receipts = cut_effects.complete_effect_receipts(published, project, [decision])
     if receipts:
         return False
     adopt_project_state(published, project)

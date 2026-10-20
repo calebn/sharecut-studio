@@ -7,7 +7,7 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
-from podcast_mcp.edits.cut_safety import CutScopeHold
+from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.pending_preview import _timeline_span
