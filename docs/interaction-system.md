@@ -50,7 +50,7 @@ Each thing is declared once. A second map from the same key is a bug.
 | Command (`id`, `label`, `category`, `when`, `paletteRunnable`, `breaksFollow`) | `gui/web/src/commands/catalog.ts` (`COMMANDS`), types in `commands/types.ts`, predicates in `commands/context.ts` | `commands/governance.test.ts` |
 | Shortcut | `gui/web/src/keymap/registry.ts` (`KEYMAP_COMMANDS`); the only window `keydown` listener is `keymap/listener.ts` | `commands/governance.test.ts` (second listener fails), `make cheatsheet-check` |
 | Touch hit kind and gesture | `gui/web/src/timeline/inputContract.ts` (`HIT_KINDS`, `TOUCH_GESTURES`), routing in `timeline/hitRouting*.ts`, thresholds in `hooks/gestureConstants.ts` | `timeline/gestureGovernance.test.ts`, `inputContract.conformance.test.ts`, `inputContract.manifest.test.ts` |
-| Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body` and `phoneScreens`) | `selectionSurface` tests, `layout/useSelectionSheet.test.tsx` |
+| Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body`, `screens`, `peek`, `related` and `more`) | `selectionSurface` tests, `layout/useSelectionSheet.test.tsx` |
 | Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check` |
 | Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
 | Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
@@ -73,8 +73,9 @@ Each thing is declared once. A second map from the same key is a bug.
    canvas and names itself in the inspector header or sheet title using the
    Terminology table word.
 
-Shipped: `selectionSurface.tsx` is the table for phone (#1445). `commands/targets.ts`
-reads selection then `selectedTrackIds`. The rest is a gap (see below).
+Shipped: `state/selectionSlice.ts` is the only writer of `selection`, and
+`state/selection.ts` derives the clip and track sets from it. `selectionSurface.tsx`
+is the one table for phone, tablet and desktop (#1792).
 
 ## Targets
 
@@ -284,9 +285,6 @@ consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
-| Selection: one store | `selection`, `selectedTrackIds` and `selectedClipIds` are three stores. |
-| Selection: one kind per target | A tapped word is `transcriptWord` and `transcriptRange`. |
-| Selection: one table | `peekTarget.ts` and `relatedCommandDescriptors.ts` are second and third maps; tablet opens every kind where phone reads `phoneScreens`. |
 | Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` are hand-rolled `role="menu"` outside the top layer; desktop has no right-click menu (`hooks/useLongPress.ts` only suppresses the native one). |
 | Dialogs: sheet on phone | `Dialog` sheets only with `phoneSheet`; Bounce, Host MCP, Help, Gestures, Record, Precision, Whisper and pipeline step params center on phone. |
 | Dialogs: one gate | `keymap/listener.ts` early returns, `ui/modalGate.ts` and `competingDialogOpen` cover different dialogs. |
