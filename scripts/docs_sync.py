@@ -22,6 +22,11 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from path_vocab import Glob, GlobError
+
 CONTRACT_PATH = "contracts/docs-sync.json"
 AGENTS_PATH = "AGENTS.md"
 BEGIN = "<!-- docs-sync:generated -->"
@@ -45,46 +50,14 @@ class ContractError(ValueError):
     """contracts/docs-sync.json or AGENTS.md markers are malformed. Message names the path."""
 
 
+def _glob(text: str) -> Glob:
+    try:
+        return Glob.parse(text)
+    except GlobError as exc:
+        raise ContractError(str(exc)) from exc
+
+
 # ---------------------------------------------------------------- contract (domain types)
-
-
-@dataclass(frozen=True)
-class Glob:
-    """Repo-relative POSIX glob. ``**`` spans directories, ``*`` and ``?`` stay in one
-    segment, a trailing ``/`` means everything below that directory. Full-match only."""
-
-    text: str
-    pattern: re.Pattern[str]
-
-    @classmethod
-    def parse(cls, text: str) -> Glob:
-        if not text or text.startswith("/") or text.startswith("./") or "\\" in text:
-            raise ContractError(
-                f"invalid glob {text!r}: must be repo-relative, no leading /, ./ or backslash"
-            )
-        body = text + "**" if text.endswith("/") else text
-        out: list[str] = []
-        i, n = 0, len(body)
-        while i < n:
-            if body[i : i + 3] == "**/":
-                out.append("(?:.*/)?")
-                i += 3
-            elif body[i : i + 2] == "**":
-                out.append(".*")
-                i += 2
-            elif body[i] == "*":
-                out.append("[^/]*")
-                i += 1
-            elif body[i] == "?":
-                out.append("[^/]")
-                i += 1
-            else:
-                out.append(re.escape(body[i]))
-                i += 1
-        return cls(text=text, pattern=re.compile("^" + "".join(out) + "$"))
-
-    def matches(self, path: str) -> bool:
-        return self.pattern.match(path) is not None
 
 
 @dataclass(frozen=True)
@@ -138,8 +111,8 @@ def _parse_trigger(value: object, rule_id: str, field_name: str) -> Trigger:
     include_raw = value.get("include")
     if not isinstance(include_raw, list) or not include_raw:
         raise ContractError(f"rule {rule_id!r}: {field_name} needs a non-empty include list")
-    include = tuple(Glob.parse(g) for g in include_raw)
-    exclude = tuple(Glob.parse(g) for g in value.get("exclude", []))
+    include = tuple(_glob(g) for g in include_raw)
+    exclude = tuple(_glob(g) for g in value.get("exclude", []))
     extra = set(value) - {"include", "exclude"}
     if extra:
         raise ContractError(f"rule {rule_id!r}: {field_name} has unknown field(s) {sorted(extra)}")
@@ -158,7 +131,7 @@ def parse_contract(raw: object) -> Contract:
         raise ContractError("contract root must be an object")
     if raw.get("api_version") != 1:
         raise ContractError(f"contract api_version must be 1, got {raw.get('api_version')!r}")
-    ignore = tuple(Glob.parse(g) for g in raw.get("ignore", []))
+    ignore = tuple(_glob(g) for g in raw.get("ignore", []))
     rules_raw = raw.get("rules")
     if not isinstance(rules_raw, list):
         raise ContractError("contract.rules must be a list")
@@ -185,7 +158,7 @@ def parse_contract(raw: object) -> Contract:
         docs_raw = rr.get("docs", [])
         if not isinstance(docs_raw, list):
             raise ContractError(f"rules[{i}] ({rule_id}): docs must be a list")
-        docs = tuple(Glob.parse(g) for g in docs_raw)
+        docs = tuple(_glob(g) for g in docs_raw)
 
         has_gate = "gate" in rr
         has_advisory = "advisory" in rr

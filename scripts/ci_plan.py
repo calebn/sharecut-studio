@@ -28,7 +28,7 @@ from typing import Literal
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from docs_sync import Glob
+from path_vocab import Glob
 
 ROOT = Path(__file__).resolve().parents[1]
 PULL_REQUEST = "pull_request"

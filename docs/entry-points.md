@@ -8,7 +8,7 @@ It is **not** the share ACL. Token bits live in [`share_capabilities.py`](../src
 ## Architecture
 
 ```text
-Capability Manifest  →  make capabilities-check (CI / pre-commit)
+Capability Manifest  →  make generated-check (CI / pre-commit)
         │
         ├─ Sharecut Studio: COMMANDS + keymap → execute(id) → services / document sync
         ├─ MCP / CLI: thin wrappers → same services
@@ -20,13 +20,13 @@ Rules:
 1. **Service first** — never put mix/encode/edit logic in GUI, skill markdown, or MCP adapters.
 2. **Command bus for Sharecut Studio** — if the capability has GUI chrome, it must have a `surfaces.command` and call `execute(id)`.
 3. **Keyboard** — required when `industry_standard_key: true`; otherwise set `omit.keyboard_reason`.
-4. **Agent (enforced)** — every row declares `effect`. `project` means the action changes the saved episode project, review state, transcripts or artifacts (record take state in `artifacts/session/sync.db` counts, so record start, pause, resume and stop are `project`); `session` means live, unsaved working state (transport, playhead, selection, solo, presence, clipboard); `view` means only how this client shows things (layout, zoom, panels, modes, dialogs). An `effect: project` row must list `surfaces.mcp` or `surfaces.cli`, or carry an owner-approved `omit.agent_reason`; `make capabilities-check` fails otherwise, and also fails a reason left beside an agent surface. Every `surfaces.mcp` name must be a registered tool, and every `surfaces.cli` entry (a string or a list, one command per entry, such as `podcast edit delete-clips --mode ripple`) must resolve in the real Typer tree, options included. An agent twin calls the same service as the GUI; where the GUI sends a document command, the twin submits that command with `submit_host_document_command` (`services/document_sync`), so open tabs see it and History can undo it. One tool may serve several rows (`approve_edits_tool` covers Apply hit, and `apply_suggested_actions_tool` covers Apply suggested actions, through the same `edits/tighten_hits` and `edits/sound_actions` rules the Tighten tab reads). Add `skill` only for multi-step procedures.
+4. **Agent (enforced)** — every row declares `effect`. `project` means the action changes the saved episode project, review state, transcripts or artifacts (record take state in `artifacts/session/sync.db` counts, so record start, pause, resume and stop are `project`); `session` means live, unsaved working state (transport, playhead, selection, solo, presence, clipboard); `view` means only how this client shows things (layout, zoom, panels, modes, dialogs). An `effect: project` row must list `surfaces.mcp` or `surfaces.cli`, or carry an owner-approved `omit.agent_reason`; `make generated-check` fails otherwise, and also fails a reason left beside an agent surface. Every `surfaces.mcp` name must be a registered tool, and every `surfaces.cli` entry (a string or a list, one command per entry, such as `podcast edit delete-clips --mode ripple`) must resolve in the real Typer tree, options included. An agent twin calls the same service as the GUI; where the GUI sends a document command, the twin submits that command with `submit_host_document_command` (`services/document_sync`), so open tabs see it and History can undo it. One tool may serve several rows (`approve_edits_tool` covers Apply hit, and `apply_suggested_actions_tool` covers Apply suggested actions, through the same `edits/tighten_hits` and `edits/sound_actions` rules the Tighten tab reads). Add `skill` only for multi-step procedures.
 5. **Guest** — share/remote MCP stays on the guest allowlist (`allowlist.py`). Host capabilities with `omit.guest: true` are documented as host-only; runtime share gates use `has_capability` + document-command allowlists.
 6. **Presence** — every GUI surface declares `presence` (Look / Hear / Do rubric in [`docs/session-sync.md`](session-sync.md) § Follow scope); `cursor: anchor` surfaces must render `data-presence-anchor` via `presenceAnchorProps`.
 
 **Focused clip handles:** `edit.setClipFade` and `edit.trimClipEdge` route Left/Right nudges through the sole keymap listener before playhead navigation. Their focused-handle predicates describe focus ownership; handlers separately require `canApplyPass12`, so a denied edit still consumes the focused arrow. Clip-local previews share pointer clamping and save once through the existing document commands on key release or normal blur. Escape cancels locally. The manifest keeps the canonical first key (`ArrowLeft`); generated shortcut notes name both Left/Right directions.
 
-**Touch column:** `surfaces.touch` names the touch gestures that run a command: `long-press-arm-drag`, `long-press-empty` (the create menu), `hold-nudge`, `double-tap`, `swipe-left`, `pinch` and `two-finger-tap`. The vocabulary is `TOUCH_GESTURES` in [`gui/web/src/timeline/inputContract.ts`](../gui/web/src/timeline/inputContract.ts), the touch grammar's single source; `make capabilities-check` keeps the schema's enum equal to it and refuses a touch value on a row without a command. Which commands carry which gesture is derived, not hand-kept: `inputContract.manifest.test.ts` fails unless each row's column equals what the create menu, each hit kind's `command` and the Gestures sheet say runs it. The docs catalog shows it as the Touch column.
+**Touch column:** `surfaces.touch` names the touch gestures that run a command: `long-press-arm-drag`, `long-press-empty` (the create menu), `hold-nudge`, `double-tap`, `swipe-left`, `pinch` and `two-finger-tap`. The vocabulary is `TOUCH_GESTURES` in [`gui/web/src/timeline/inputContract.ts`](../gui/web/src/timeline/inputContract.ts), the touch grammar's single source; `make generated-check` keeps the schema's enum equal to it and refuses a touch value on a row without a command. Which commands carry which gesture is derived, not hand-kept: `inputContract.manifest.test.ts` fails unless each row's column equals what the create menu, each hit kind's `command` and the Gestures sheet say runs it. The docs catalog shows it as the Touch column.
 
 **Long-press exemption:** the mobile Long-press gesture opens different existing selection or correction actions according to its target (clip, comment, track, or transcript word). It has no single command ID. The gesture cheatsheet keeps that behavior as a documented exception; swipe-left comment resolution has the command ID `comment.resolve` and capability `daw.review.resolveComment`.
 
@@ -43,7 +43,7 @@ Rules:
    - MCP: `mcp/tools/` + `register_all`
    - CLI: `cli/` twin
    - Skill: `.agents/skills/` only if agents need a workflow
-4. Run `make capabilities-check` and `make schema-export` (and `make cheatsheet` when keys change). New MCP/CLI/pipeline ids also appear on `make progress-check` automatically ([progress.md](progress.md)).
+4. Run `make generated-check` and `make schema-export` (and `make cheatsheet` when keys change). New MCP/CLI/pipeline ids also appear on `make generated-check` automatically ([progress.md](progress.md)).
 
 `agent.transcript` includes host vocabulary read/write tools. CLI removal flags
 and MCP replacement writes use `TranscriptPrecorrectService`; revision checks
@@ -54,7 +54,7 @@ and prompt limits stay in the service rather than adapters.
 | Gate | Command |
 |------|---------|
 | Local | pre-commit hook `capabilities-manifest` (adapters + docs catalog) |
-| CI / `make ci` | `make capabilities-check` |
+| CI / `make ci` | `make generated-check` |
 | Frontend | `gui/web/src/commands/governance.test.ts` (single keydown listener), `gui/web/src/timeline/gestureGovernance.test.ts` (one gesture router), `gui/web/src/timeline/inputContract.manifest.test.ts` (touch column) |
 | Unit | `tests/test_capabilities_manifest.py` |
 

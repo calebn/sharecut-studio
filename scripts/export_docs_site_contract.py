@@ -33,7 +33,7 @@ REMOTE_END = "<!-- /remote-mcp-tools:generated -->"
 # Curated notes keyed by (METHOD, path) after normalizing {token} paths.
 # Keep in sync with gui/routes/review_share.py and gui/routes/record_share.py
 # (+ remote MCP mounts). Every /api/rec/ and /api/review/ HTTP or WS route
-# must have a note — schema-check fails without one.
+# must have a note — generated-check fails without one.
 _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ("POST", "/api/review/{token}/daw/range-audio"): (
         "play",

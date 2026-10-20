@@ -77,8 +77,10 @@ def test_glob_table(pattern: str, path: str, expected: bool) -> None:
 
 def test_glob_rejects_absolute_and_relative_and_backslash() -> None:
     for bad in ("/abs/path", "./rel", "a\\b"):
-        with pytest.raises(ds.ContractError):
+        with pytest.raises(ds.GlobError):
             ds.Glob.parse(bad)
+        with pytest.raises(ds.ContractError):
+            ds._glob(bad)
 
 
 # ---------------------------------------------------------------- parse_contract

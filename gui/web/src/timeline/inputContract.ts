@@ -375,7 +375,7 @@ export function softMover(
 
 /**
  * The touch gestures the capabilities manifest's `surfaces.touch` column may
- * name (`contracts/capabilities.manifest.json`). `make capabilities-check`
+ * name (`contracts/capabilities.manifest.json`). `make generated-check`
  * keeps the manifest schema's enum equal to these keys, and
  * `inputContract.manifest.test.ts` derives each command's column from the
  * grammar: the create menu, the kinds' commands and the Gestures sheet.

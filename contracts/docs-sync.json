@@ -711,7 +711,7 @@
     {
       "id": "capability-registration",
       "when": "Capability registration (GUI / keys / MCP / CLI / skills)",
-      "update": "`contracts/capabilities.manifest.json`, `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make capabilities-check` / pre-commit `capabilities-manifest`",
+      "update": "`contracts/capabilities.manifest.json`, `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make generated-check` / pre-commit `capabilities-manifest`",
       "docs": [
         "contracts/capabilities.manifest.json",
         "docs/entry-points.md"
@@ -882,7 +882,7 @@
     {
       "id": "document-command-schema-developer-docs-pack",
       "when": "Document-command schema / developer docs pack",
-      "update": "`schemas/document-commands.schema.json`, `docs-site/` (live https://docs.sharecut.studio/); regenerate with `make schema-export` (also capabilities catalog + share/MCP tables + guest OpenAPI); stale → `make schema-check` / pre-commit; deployment is private operations work; alpha — no public changelog yet",
+      "update": "`schemas/document-commands.schema.json`, `docs-site/` (live https://docs.sharecut.studio/); regenerate with `make schema-export` (also capabilities catalog + share/MCP tables + guest OpenAPI); stale → `make generated-check` / pre-commit; deployment is private operations work; alpha — no public changelog yet",
       "docs": [
         "schemas/document-commands.schema.json",
         "docs-site/"
@@ -1014,7 +1014,7 @@
     {
       "id": "progress-framework",
       "when": "Progress framework (long-running UX)",
-      "update": "`docs/progress.md`, `contracts/progress-exemptions.json`, `contracts/progress-richness.json`, `src/podcast_mcp/util/progress.py`; CLI adapter `docs/cli-progress.md`; `make progress-check` / pre-commit `progress-compliance` (warn → later error)",
+      "update": "`docs/progress.md`, `contracts/progress-exemptions.json`, `contracts/progress-richness.json`, `src/podcast_mcp/util/progress.py`; CLI adapter `docs/cli-progress.md`; `make generated-check` / pre-commit `progress-compliance` (warn → later error)",
       "docs": [
         "docs/progress.md",
         "contracts/progress-exemptions.json",

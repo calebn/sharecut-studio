@@ -33,8 +33,8 @@ Engineer depth stays under [`docs/`](../docs/). Product UX pack: [ux.sharecut.st
 Seams: [docs/extensions.md](../docs/extensions.md), [docs/extension-seams.md](../docs/extension-seams.md).
 
 **Generated artifacts:** `make schema-export` refreshes the capabilities catalog, document-command
-catalog, share/MCP tables, and guest OpenAPI. Stale output fails `make schema-check` /
-`make capabilities-check` / pre-commit / `make ci`.
+catalog, share/MCP tables, and guest OpenAPI. Stale output fails `make generated-check` /
+`make generated-check` / pre-commit / `make ci`.
 
 Public API is **alpha** — no dated changelog yet; pin git SHAs if experimenting.
 

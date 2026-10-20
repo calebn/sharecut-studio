@@ -84,7 +84,7 @@ doc ([contributing.md § Docs in sync](../contributing.md#docs-in-sync)).
 ## Checks
 
 - `make decisions-index` rewrites the table below.
-- `make decisions-index-check` and the `decisions-index` pre-commit hook fail
+- `make generated-check` and the `decisions-index` pre-commit hook fail
   when a block is invalid or the table is stale.
 - `tests/test_decision_records.py` runs the same checks in CI. It fails when an
   accepted decision names no enforcement, a listed test, rule or make target

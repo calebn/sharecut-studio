@@ -170,7 +170,7 @@ def _render_markdown(schema: dict[str, Any]) -> str:
             f"_Generated {len(commands)} command types._",
             "",
             "- Regenerate: `make schema-export`",
-            "- CI / pre-commit: `make schema-check`",
+            "- CI / pre-commit: `make generated-check`",
             "",
             END,
             "",
