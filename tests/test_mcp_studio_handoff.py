@@ -352,3 +352,43 @@ def test_a_context_that_cannot_say_if_progress_was_asked_still_sends_the_call(
     assert not result.is_error
     assert server.calls == []
     assert "progress_callback" not in seen["kwargs"]
+
+
+def test_a_stdio_mutation_appears_on_an_open_studio_socket(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The J8 bar (#1848): an agent's edit reaches an open tab at once, not on a poll."""
+    import urllib.parse
+
+    from websockets.sync.client import connect
+
+    from podcast_mcp.services.app import read_studio_host
+
+    host = read_studio_host(studio)
+    assert host is not None
+    url = (
+        f"ws://127.0.0.1:{host.port}/api/host/ws?document_client_id=tab&client_id=tab-1"
+        f"&role=viewer&path={urllib.parse.quote(str(studio))}"
+    )
+    server = _wrapped()
+    with connect(url, open_timeout=10) as tab:
+
+        def next_document_frame() -> dict[str, Any]:
+            for _ in range(40):
+                frame = json.loads(tab.recv(timeout=10))
+                if frame.get("plane") == "document":
+                    return frame
+            raise AssertionError("no document frame")
+
+        assert next_document_frame()["type"] == "Snapshot"
+        result = asyncio.run(
+            server.call_tool(
+                "add_chapter_tool", {"project_path": str(studio), "at_time": 1.0, "title": "Intro"}
+            )
+        )
+        assert isinstance(result, CallToolResult) and not result.is_error
+        assert server.calls == []  # it ran in Studio, not in the stdio process
+        frame = next_document_frame()
+
+    assert frame["type"] == "Applied"
+    assert frame["command"]["type"] == "AddChapter"
