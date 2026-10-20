@@ -41,9 +41,7 @@ from podcast_mcp.util.timebase import SourceSec
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
-from podcast_mcp.edits.tighten.acoustic_scan import (
-    _PeerTrackSpeechIndex,
-)
+from podcast_mcp.edits.pause_floor import PeerTrackSpeechIndex, retained_pause_floor_sec
 from podcast_mcp.edits.tighten.candidate import (
     _AnalyzedCut,
     _clamp_to_candidate,
@@ -51,9 +49,6 @@ from podcast_mcp.edits.tighten.candidate import (
     _CutCandidate,
     _edit_mode,
     _SpeakerCutContext,
-)
-from podcast_mcp.edits.tighten.collect import (
-    _retained_pause_floor_sec,
 )
 from podcast_mcp.edits.tighten.gate import (
     _AIR_EDGES_FLAG,
@@ -91,7 +86,7 @@ def _prepare_candidate(
     audio_cache: TrackAudioCache | None = None,
     speaker_context: _SpeakerCutContext | None = None,
     word_index: CutWordIndex | None = None,
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
+    peer_indexes: dict[str, PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     session_air: SessionAir | None = None,
     timeline_caches: TrackRmsCacheSet | None = None,
@@ -278,7 +273,7 @@ def _prepare_candidate(
             (float(piece.source_start), float(piece.source_end)) for piece in original.pieces
         )
         retained = sum(hi - lo for lo, hi in subtract_intervals(quiet, [(plan.start, plan.end)]))
-        floor, _solo = _retained_pause_floor_sec(
+        floor, _solo = retained_pause_floor_sec(
             project, track_id, before.end, after.start, defaults, peer_indexes
         )
         shortfall = max(0.0, floor - retained)
@@ -555,7 +550,7 @@ def _analyze_candidate(
     audio_cache: TrackAudioCache | None = None,
     speaker_context: _SpeakerCutContext | None = None,
     word_index: CutWordIndex | None = None,
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
+    peer_indexes: dict[str, PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     session_air: SessionAir | None = None,
     timeline_caches: TrackRmsCacheSet | None = None,
@@ -584,7 +579,7 @@ def analyze_candidates(
     *,
     audio_caches: Mapping[str, TrackAudioCache],
     speaker_context: _SpeakerCutContext | None,
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None,
+    peer_indexes: dict[str, PeerTrackSpeechIndex] | None,
     word_indexes: Mapping[str, CutWordIndex],
     max_workers: int | None = None,
 ) -> list[_AnalyzedCut | CutRejected]:

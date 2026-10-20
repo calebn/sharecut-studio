@@ -41,6 +41,7 @@ from podcast_mcp.edits.filler_pacing import pause_trim_is_imperceptible
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.join_continuity import JoinContinuityConfig, JoinContinuityReport
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions
+from podcast_mcp.edits.pause_floor import retained_pause_floor_sec
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
 from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
@@ -1712,7 +1713,6 @@ def assess_held_pause(
     from podcast_mcp.edits.cut_quality import post_pad_fade_in_bounds_ms
     from podcast_mcp.edits.ripple import TrackExtent
     from podcast_mcp.edits.session_air import SessionAir
-    from podcast_mcp.edits.tighten.collect import _retained_pause_floor_sec
     from podcast_mcp.edits.timeline_ops import LaneUnavailable, bind_pause_effects
 
     words = pause_words(project, edit.track_id, edit.start, edit.end)
@@ -1768,7 +1768,7 @@ def assess_held_pause(
             (float(piece.source_start), float(piece.source_end)) for piece in original.pieces
         )
         retained = sum(hi - lo for lo, hi in subtract_intervals(quiet, [(edit.start, edit.end)]))
-        floor, _solo = _retained_pause_floor_sec(
+        floor, _solo = retained_pause_floor_sec(
             project, edit.track_id, before.end, after.start, defaults, None
         )
         if retained < floor - 1e-6:

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import math
-from bisect import bisect_left
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
@@ -19,7 +18,6 @@ from podcast_mcp.edits.acoustic_gap import (
 from podcast_mcp.edits.acoustic_phrase import phrase_hit_indexes, word_step_ceiling
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
-from podcast_mcp.edits.session_air import SessionAir
 from podcast_mcp.edits.tighten_reasons import (
     ACOUSTIC_FILLER_REASON,
 )
@@ -27,7 +25,6 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_runs,
 )
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
-from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     EpisodeProject,
     Transcript,
@@ -35,7 +32,6 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.dsp import db_to_amplitude, rms_db
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
-from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
@@ -46,36 +42,6 @@ from podcast_mcp.edits.tighten.candidate import (
     _CutCandidate,
     _word_not_owner,
 )
-
-
-def _peer_speaking_in_gap(
-    project: EpisodeProject,
-    track_id: str,
-    gap_start: float,
-    gap_end: float,
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
-) -> bool:
-    """True when another dialogue transcript has audible words in the gap.
-
-    Transcript evidence only, which is enough for the pause floor (a turn gap
-    versus a thinking pause). Whether a peer is audibly voiced in a gap is
-    :func:`_peer_voiced_at`. A peer muted in the mix still counts: the mute
-    is a listening choice, and a cut here ripples the muted track too.
-    """
-    indexes = peer_indexes if peer_indexes is not None else _peer_speech_indexes(project)
-    index = indexes.get(track_id)
-    if index is None:
-        shared = next(iter(indexes.values()), None)
-        if shared is None:
-            return False
-        index = _PeerTrackSpeechIndex(shared.shared, track_id)
-    return any(
-        index.overlaps(float(start), float(end))
-        for start, end in SessionTimeline(project).map_source_span(
-            track_id, SourceSec(gap_start), SourceSec(gap_end)
-        )
-    )
-
 
 # A voiced run needs three voiced probes, so a window that clips a peer's run short can lose it.
 _PEER_VOICE_CONTEXT_SEC = 0.1
@@ -147,65 +113,6 @@ _ACOUSTIC_RUN_PAD_SEC = 0.05
 
 
 _ACOUSTIC_MIN_CUT_SEC = 0.1
-
-
-@dataclass(frozen=True)
-class _PeerSpeechIndex:
-    """One sorted speech sweep with the two longest distinct-track prefixes."""
-
-    starts: tuple[float, ...]
-    first: tuple[tuple[str | None, float], ...]
-    second: tuple[tuple[str | None, float], ...]
-
-    @classmethod
-    def build(cls, spans: Iterable[tuple[float, float, str]]) -> _PeerSpeechIndex:
-        ordered = sorted((start, end, track_id) for start, end, track_id in spans)
-        first_track: str | None = None
-        second_track: str | None = None
-        first_end = second_end = float("-inf")
-        first: list[tuple[str | None, float]] = []
-        second: list[tuple[str | None, float]] = []
-        for _start, end, track_id in ordered:
-            if track_id == first_track:
-                first_end = max(first_end, end)
-            elif track_id == second_track:
-                second_end = max(second_end, end)
-                if second_end > first_end:
-                    first_track, second_track = second_track, first_track
-                    first_end, second_end = second_end, first_end
-            elif end > first_end:
-                second_track, second_end = first_track, first_end
-                first_track, first_end = track_id, end
-            elif end > second_end:
-                second_track, second_end = track_id, end
-            first.append((first_track, first_end))
-            second.append((second_track, second_end))
-        return cls(tuple(start for start, _end, _track in ordered), tuple(first), tuple(second))
-
-    def overlaps_except(self, track_id: str, start: float, end: float) -> bool:
-        if end <= start:
-            return False
-        before = bisect_left(self.starts, end)
-        if before == 0:
-            return False
-        first_track, first_end = self.first[before - 1]
-        if first_track == track_id:
-            return self.second[before - 1][1] > start
-        return first_end > start
-
-
-@dataclass(frozen=True)
-class _PeerTrackSpeechIndex:
-    shared: _PeerSpeechIndex
-    track_id: str
-
-    def overlaps(self, start: float, end: float) -> bool:
-        return self.shared.overlaps_except(self.track_id, start, end)
-
-
-def _peer_speech_indexes(project: EpisodeProject) -> dict[str, _PeerTrackSpeechIndex]:
-    shared = _PeerSpeechIndex.build(SessionAir(project).placed_word_spans())
-    return {tr.track_id: _PeerTrackSpeechIndex(shared, tr.track_id) for tr in project.transcripts}
 
 
 def _acoustic_scan_gaps(

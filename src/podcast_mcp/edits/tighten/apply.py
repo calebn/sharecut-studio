@@ -33,10 +33,8 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
     pass
-from podcast_mcp.edits.tighten.acoustic_scan import (
-    _add_acoustic_candidates,
-    _peer_speech_indexes,
-)
+from podcast_mcp.edits.pause_floor import peer_speech_indexes
+from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
 from podcast_mcp.edits.tighten.candidate import (
     _AnalyzedCut,
     _count_skip,
@@ -257,7 +255,7 @@ def analyze_fillers_and_pauses(
     Resolves ``tighten.intensity`` the same way (:func:`~podcast_mcp.edits.tighten_intensity.with_tighten_intensity`).
     """
     defaults = with_tighten_intensity(defaults)
-    peer_indexes = _peer_speech_indexes(project)
+    peer_indexes = peer_speech_indexes(project)
     candidates = _collect_candidates(
         transcript,
         defaults,
