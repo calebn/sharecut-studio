@@ -83,7 +83,7 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     },
     "podcast_mcp.gui.mapper": {
         "podcast_mcp.edits.clips_ops",
-        "podcast_mcp.edits.cut_safety",
+        "podcast_mcp.edits.cut_policy",
         "podcast_mcp.edits.pending_preview",
         "podcast_mcp.edits.range_edits",
         "podcast_mcp.edits.tighten_hits",
