@@ -62,8 +62,9 @@ from podcast_mcp.edits.voiced_runs import (
 )
 from podcast_mcp.edits.word_onset import (
     OnsetKind,
+    decay_valley_onset,
     edge_in_valley,
-    is_one_hum,
+    next_kept_word,
     next_onset,
     voice_end,
     voice_onset,
@@ -1580,6 +1581,8 @@ def _shrink_to_next_onset(
     if onset is None:
         return plan
     burst = onset.sec if onset.kind is OnsetKind.BURST else None
+    # A cut that ends in a valley already carries the foot of the word's rise (#1358).
+    burst = min((b for b in (burst, plan.next_burst) if b is not None), default=None)
     if onset.sec >= plan.end + guard:
         return replace(plan, next_burst=burst)
     end = min(plan.end, onset.sec - guard)
@@ -1665,16 +1668,13 @@ def _kept_neighbours(
 ) -> tuple[TranscriptWord | None, TranscriptWord | None]:
     """The kept words that end last before the candidate and start first after it."""
     before: TranscriptWord | None = None
-    after: TranscriptWord | None = None
     tr = project.transcript_for_source(candidate.track_id, None)
     for w in tr.words if tr else ():
         if w.suppressed or w.end <= w.start:
             continue
         if w.end <= candidate.start and (before is None or w.end > before.end):
             before = w
-        if w.start >= candidate.end and (after is None or w.start < after.start):
-            after = w
-    return before, after
+    return before, next_kept_word(tr, candidate.end)
 
 
 def _cut_minimum_sec(candidate: _CutCandidate) -> float:
@@ -1729,6 +1729,7 @@ def _between_kept_voices(
             # A word cut's own onset edge sits at the start of a quiet frame (#1061),
             # one hop before the voiced-run edge ``voice_end`` reports.
             start = max(start, ends + cut_safety.VOICE_EDGE_PAD_SEC if wordless else ends - HOP_SEC)
+    next_burst = plan.next_burst
     if after is not None:
         floor = start if wordless else max(start, candidate.end)
         onset = voice_onset(audio_cache, after.start, floor)
@@ -1739,10 +1740,11 @@ def _between_kept_voices(
             # voice floor, 19 dB deep, 13 dB under the speech level (lab 646.88, #1358):
             # the word's voice does not run back through that. The edge sits in the
             # valley, where the air is, not 60 ms before the word. A sound with several
-            # bursts of level before the valley (two syllables, a phrase, "uh-huh") may
-            # be speech whose own dip this is, so it keeps the word's voice.
-            apart = voice_onset(audio_cache, after.start, floor, heard_apart=True)
-            if apart is not None and apart != onset and is_one_hum(audio_cache, start, apart):
+            # bursts of level before the valley (two syllables, a phrase, "uh-huh"), or a
+            # quiet plateau before a louder syllable, may be speech whose own dip this
+            # is, so it keeps the word's voice.
+            apart = decay_valley_onset(audio_cache, after.start, start)
+            if apart is not None:
                 onset, air, valley = apart, _onset_guard_sec(defaults), True
         if onset is not None and onset < after.start:
             end = min(end, onset - air)
@@ -1750,13 +1752,22 @@ def _between_kept_voices(
         # decay, well before the valley, keeps the plain voiced-edge check. The valley
         # can end at the word start itself, past the run's end (lab 647.285).
         in_valley = in_valley or (valley and edge_in_valley(audio_cache, start, end, after.start))
-    if (start, end, in_valley) == (plan.start, plan.end, plan.end_in_valley):
+        if valley and in_valley and onset is not None:
+            # The word's voice rises out of the valley, so a mute's fade-in ends before
+            # that, not over the word's first syllable (the fade-in cap of a plosive burst).
+            next_burst = onset
+    if (start, end, in_valley, next_burst) == (
+        plan.start,
+        plan.end,
+        plan.end_in_valley,
+        plan.next_burst,
+    ):
         return plan
     if end - start + 1e-9 < _cut_minimum_sec(candidate) or (
         candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, start, end)
     ):
         return CutRejected("kept_voice")
-    return replace(plan, start=start, end=end, end_in_valley=in_valley)
+    return replace(plan, start=start, end=end, end_in_valley=in_valley, next_burst=next_burst)
 
 
 def _covered_kept_word(
@@ -1925,7 +1936,7 @@ def _gate_cut_edges(
             selected_end=candidate.end,
             pause=candidate.cut_kind == "pause",
             accept_nudge=lambda before, start, end: _accept_nudge(candidate, before, start, end),
-            split_own_at_valleys=plan.end_in_valley,
+            end_in_valley=plan.end_in_valley,
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
@@ -2065,7 +2076,7 @@ def _gate_cut_edges(
             selected_end=candidate.end,
             pause=candidate.cut_kind == "pause",
             accept_nudge=lambda before, start, end: _accept_nudge(candidate, before, start, end),
-            split_own_at_valleys=plan.end_in_valley,
+            end_in_valley=plan.end_in_valley,
         )
         if (settled.start, settled.end) != protected:
             return CutRejected("unsettled_edges")

@@ -58,6 +58,7 @@ import numpy as np
 from podcast_mcp.edits.acoustic_laugh import BURST_DIP_DB, burst_count
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HEARD_APART_DEPTH_DB, HOP_SEC
+from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.util.dsp import frame_band_db, frame_rms_db, is_valley, valley_basins
 
 # The bottom of a dip this deep on both sides ends a voice even when it misses the
@@ -193,6 +194,40 @@ def edge_in_valley(cache: TrackAudioCache, start: float, edge: float, word_start
     )
     k = math.floor((edge - t0) / HOP_SEC + 1e-9)
     return 0 <= k < basin.size and bool(basin[k])
+
+
+def decay_valley_onset(cache: TrackAudioCache, word_start: float, start: float) -> float | None:
+    """Where a hum from ``start`` ends in a valley before a kept word, or ``None``.
+
+    The kept word's voice walks back from ``word_start`` through a valley that stays over
+    the voice floor into the sound before it (#1358). When that sound, from ``start`` to
+    the valley, is one hum that decays (:func:`is_one_hum`), this is the frame after the
+    valley's bottom, where the word's own voice begins; any other sound keeps the plain
+    :func:`voice_onset` walk. The one rule for propose time and for approval time.
+    """
+    apart = voice_onset(cache, word_start, start, heard_apart=True)
+    if apart is None or apart == voice_onset(cache, word_start, start):
+        return None
+    return apart if is_one_hum(cache, start, apart) else None
+
+
+def edge_decays_into_valley(
+    cache: TrackAudioCache, start: float, edge: float, word_start: float
+) -> bool:
+    """Whether a cut from ``start`` ends at ``edge`` in the valley a hum decays into before the word."""
+    return decay_valley_onset(cache, word_start, start) is not None and edge_in_valley(
+        cache, start, edge, word_start
+    )
+
+
+def next_kept_word(transcript: Transcript | None, end: float) -> TranscriptWord | None:
+    """The kept word that starts first at or after ``end``."""
+    kept = [
+        w
+        for w in (transcript.words if transcript else ())
+        if not w.suppressed and w.end > w.start and w.start >= end
+    ]
+    return min(kept, key=lambda w: w.start, default=None)
 
 
 def is_one_hum(cache: TrackAudioCache, start: float, end: float) -> bool:
