@@ -404,4 +404,4 @@ def test_every_required_check_is_a_job_in_its_workflow() -> None:
 
 def test_the_merge_gate_reads_the_same_required_checks() -> None:
     gate = load_script("poteto_issue_gate")
-    assert gate.REQUIRED_CHECKS == tuple(check.name for check in cp.REQUIRED_CHECKS)
+    assert tuple(check.name for check in cp.REQUIRED_CHECKS) == gate.REQUIRED_CHECKS
