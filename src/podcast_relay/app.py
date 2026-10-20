@@ -7,7 +7,6 @@ import base64
 import contextlib
 import json
 import logging
-import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,6 +20,7 @@ from fastapi.responses import (
     StreamingResponse,
 )
 
+from podcast_mcp import settings
 from podcast_mcp.util.body_limits import (
     BodyTooLarge,
     is_record_upload_path,
@@ -378,15 +378,14 @@ class RelayState:
 def _parse_host_tokens() -> tuple[set[str], dict[str, str]]:
     from podcast_relay.share_claims import parse_host_token_map
 
-    raw = os.environ.get("PODCAST_RELAY_HOST_TOKENS", "").strip()
+    raw = settings.text("PODCAST_RELAY_HOST_TOKENS")
     if not raw:
         return set(), {}
     return parse_host_token_map(raw)
 
 
 def _allow_open_tunnel() -> bool:
-    raw = os.environ.get("PODCAST_RELAY_ALLOW_OPEN_TUNNEL", "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return settings.flag("PODCAST_RELAY_ALLOW_OPEN_TUNNEL")
 
 
 def create_relay_app() -> FastAPI:
@@ -961,8 +960,8 @@ def main() -> None:
 
     # Bind-all is intentional for the public relay edge; override via env for local.
     default_host = "0.0.0.0"  # nosec B104
-    host = os.environ.get("PODCAST_RELAY_HOST", default_host)
-    port = int(os.environ.get("PODCAST_RELAY_PORT", "8081"))
+    host = settings.value("PODCAST_RELAY_HOST", default_host)
+    port = int(settings.value("PODCAST_RELAY_PORT", "8081"))
     ws_max_size = relay_ws_max_size()
     uvicorn.run(
         "podcast_relay.app:create_relay_app",
@@ -971,7 +970,7 @@ def main() -> None:
         port=port,
         log_level="info",
         ws_max_size=ws_max_size,
-        forwarded_allow_ips=os.environ.get("PODCAST_RELAY_FORWARDED_ALLOW_IPS", "127.0.0.1"),
+        forwarded_allow_ips=settings.value("PODCAST_RELAY_FORWARDED_ALLOW_IPS", "127.0.0.1"),
     )
 
 

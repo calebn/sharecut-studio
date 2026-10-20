@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from podcast_mcp import settings
 from podcast_mcp.util.diagnostics_bundle_contract import (
     validate_diagnostics_bundle,
 )
@@ -58,9 +59,9 @@ class ReportRequest(BaseModel):
 
 
 def _settings() -> tuple[Path, str, str]:
-    root = os.environ.get("PODCAST_REPORT_STORE", "").strip()
-    public = os.environ.get("PODCAST_REPORT_PUBLIC_BASE_URL", "").rstrip("/")
-    token = os.environ.get("PODCAST_REPORT_GITHUB_TOKEN", "")
+    root = settings.text("PODCAST_REPORT_STORE")
+    public = settings.value("PODCAST_REPORT_PUBLIC_BASE_URL").rstrip("/")
+    token = settings.value("PODCAST_REPORT_GITHUB_TOKEN")
     parsed = urlparse(public)
     if (
         not root
