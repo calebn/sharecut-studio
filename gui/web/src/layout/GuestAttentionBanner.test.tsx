@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import {
   recordVolatileOutcome,
@@ -70,6 +72,15 @@ function getActionButton(name: string) {
   openDetails();
   return screen.getByRole("button", { name });
 }
+
+beforeEach(() => {
+  clearRegisteredCommands();
+  registerDawCommands();
+});
+
+afterEach(() => {
+  clearRegisteredCommands();
+});
 
 describe("GuestAttentionBanner", () => {
   beforeEach(() => {

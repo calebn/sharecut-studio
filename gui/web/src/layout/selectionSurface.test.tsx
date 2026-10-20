@@ -545,7 +545,6 @@ describe("automatic reduction occurrence lookup", () => {
         {
           project: project(),
           projectEpoch: 1,
-          setPlayheadSec: vi.fn(),
           placement: "sheet",
         },
       ),

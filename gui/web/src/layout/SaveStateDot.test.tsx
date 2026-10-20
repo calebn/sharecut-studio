@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { beginDocumentSend } from "../state/documentSendOrder";
 import { recordVolatileOutcome } from "../state/offlineAttention";
@@ -71,6 +73,15 @@ function getActionButton(name: string) {
   openDetails();
   return screen.getByRole("button", { name });
 }
+
+beforeEach(() => {
+  clearRegisteredCommands();
+  registerDawCommands();
+});
+
+afterEach(() => {
+  clearRegisteredCommands();
+});
 
 describe("SaveStateDot", () => {
   beforeEach(() => {

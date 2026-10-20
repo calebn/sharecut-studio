@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { executePointerCommand } from "../commands/pointer";
+import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { Button, Dialog } from "../ui";
@@ -106,7 +107,6 @@ export function RecordPanel({
     setShareDialogOpen,
     project,
     selectClip,
-    setPlayheadSec,
   } = useDaw((s) => ({
     recordPanelOpen: s.recordPanelOpen,
     setRecordPanelOpen: s.setRecordPanelOpen,
@@ -115,7 +115,6 @@ export function RecordPanel({
     setShareDialogOpen: s.setShareDialogOpen,
     project: s.project,
     selectClip: s.selectClip,
-    setPlayheadSec: s.setPlayheadSec,
   }));
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const takeClipping = useRecordHostStore((s) => s.takeClipping);
@@ -502,7 +501,7 @@ export function RecordPanel({
                 }
                 return () => {
                   selectClip(hit.clip.id, hit.trackId);
-                  setPlayheadSec(hit.timelineSec);
+                  void seekTransport(hit.timelineSec);
                   setRecordPanelOpen(false);
                 };
               }}

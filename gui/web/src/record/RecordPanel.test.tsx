@@ -2,6 +2,8 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
 import {
@@ -123,6 +125,15 @@ async function settleDialogFocus() {
     expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
   );
 }
+
+beforeEach(() => {
+  clearRegisteredCommands();
+  registerDawCommands();
+});
+
+afterEach(() => {
+  clearRegisteredCommands();
+});
 
 describe("RecordPanel", () => {
   afterEach(() => {
@@ -330,7 +341,11 @@ describe("RecordPanel", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: /Jump to/ }),
     );
-    expect(useDawStore.getState().playheadSec).toBe(105);
+    expect(exec).toHaveBeenCalledWith(
+      "transport.seek",
+      { sec: 105 },
+      { skipWhen: true },
+    );
     expect(useDawStore.getState().recordPanelOpen).toBe(false);
   });
 

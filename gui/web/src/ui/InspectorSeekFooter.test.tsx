@@ -1,10 +1,21 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { InspectorSeekFooter } from "./InspectorSeekFooter";
+
+beforeEach(() => {
+  clearRegisteredCommands();
+  registerDawCommands();
+});
+
+afterEach(() => {
+  clearRegisteredCommands();
+});
 
 describe("InspectorSeekFooter", () => {
   beforeEach(() => {

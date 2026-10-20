@@ -19,7 +19,6 @@ describe("playTimelineRange", () => {
       end: 12,
       padSec: 0.5,
       beginAudition,
-      setPlayheadSec: vi.fn(),
       setPlayUntilSec: vi.fn(),
       setIsPlaying: vi.fn(),
     });

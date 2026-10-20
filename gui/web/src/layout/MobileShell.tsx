@@ -208,7 +208,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     project,
     isPlaying,
     playStartSec,
-    setActiveTab,
     setSelection,
     pipelineJob,
     activityJob,
@@ -217,7 +216,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     project: s.project,
     isPlaying: s.isPlaying,
     playStartSec: s.playStartSec,
-    setActiveTab: s.setActiveTab,
     setSelection: s.setSelection,
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
@@ -363,7 +361,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
                   onClick={() => {
                     seekListen(c.timeline_start);
                     setSelection({ kind: "comment", id: c.id });
-                    setActiveTab("comments");
+                    runPointerCommand("view.setTab", { tab: "comments" });
                   }}
                 >
                   <span className="mobile-comment-time">
@@ -405,7 +403,6 @@ function MobileShellAdapter({
     setSelection,
     mobileMode,
     moreDestination,
-    setMoreDestination,
     setSheetExpanded,
     setTimelineFocused,
     guestMode,
@@ -424,7 +421,6 @@ function MobileShellAdapter({
     setSelection: s.setSelection,
     mobileMode: s.mobileMode,
     moreDestination: s.moreDestination,
-    setMoreDestination: s.setMoreDestination,
     setSheetExpanded: s.setSheetExpanded,
     setTimelineFocused: s.setTimelineFocused,
     guestMode: s.guestMode,
@@ -538,7 +534,10 @@ function MobileShellAdapter({
               content: moreContent,
               onBack: () => {
                 setMixRequest(null);
-                setMoreDestination("hub");
+                runPointerCommand("view.setMobileMode", {
+                  mode: "more",
+                  destination: "hub",
+                });
               },
             };
 
