@@ -12,7 +12,6 @@ WORKFLOWS = (
     "desktop",
     "storybook",
     "extras-import",
-    "release-wheel",
     "secret-scan",
     "registry-backup-windows",
     "relay-ci",
@@ -37,13 +36,15 @@ for (const [workflow, expressions] of Object.entries(settings)) {
     ['pull_request', 'refs/pull/12/merge', 12, 100, 2],
     ['push', 'refs/heads/main', null, 103, 1],
     ['push', 'refs/heads/main', null, 104, 1],
+    ['push', 'refs/heads/main', null, 103, 2],
+    ['push', 'refs/heads/main', null, 104, 2],
     ['schedule', 'refs/heads/main', null, 105, 1],
     ['schedule', 'refs/heads/main', null, 106, 1],
     ['workflow_dispatch', 'refs/heads/main', null, 107, 1],
     ['workflow_dispatch', 'refs/heads/main', null, 108, 1],
     ['workflow_dispatch', 'refs/heads/release', null, 109, 1],
   ]) {
-    const github = {workflow: 'reusable-caller', event_name, ref, run_id, run_attempt,
+    const github = {workflow, event_name, ref, run_id, run_attempt,
       event: number === null ? {} : {pull_request: {number}}};
     const evaluate = value => typeof value === 'string'
       ? Function('github', 'format', `return (${value.slice(3, -2)});`)(github, format)
@@ -74,4 +75,4 @@ process.stdout.write(JSON.stringify(results));
         isolated = [groups[3], *groups[6:]]
         assert len(set(isolated)) == len(isolated), workflow
         assert set(isolated).isdisjoint((groups[0], groups[2], groups[4])), workflow
-        assert [cancel for _, cancel in cases] == [True, True, True, *([False] * 8)]
+        assert [cancel for _, cancel in cases] == [True, True, True, *([False] * 10)]
