@@ -242,8 +242,9 @@ def dump_project_projection(
     ``tracks`` + ``render_status`` so stem freshness updates with the slice; MIX
     is just those two (a fader or mute change stales the premix).
     ``TRANSCRIPT_AUDIO`` is DETAIL plus that same ``tracks``/``render_status``
-    freshness patch, for a transcript-audio mutation (ignore/restore, #633) whose
-    stem the GUI must know to re-render.
+    freshness patch and the clip rows (an ignored word is a mute on them), for a
+    transcript-audio mutation (ignore/restore, #633) whose stem the GUI must know to
+    re-render.
     """
     proj = (
         projection
@@ -294,7 +295,9 @@ def dump_project_projection(
                 },
             }
         if proj is ViewProjection.TRANSCRIPT_AUDIO:
-            return _freshness_patch(ws, base)
+            # An ignored word is a mute the render adds to the clips (``ignored_word_regions``).
+            edit = EditService(ws)
+            return _freshness_patch(ws, {**base, "clips": edit.list_clips()}, edit=edit)
         return base
     # A view build is read-only, so each recording's path is resolved once, not per clip.
     with batch_scope():
