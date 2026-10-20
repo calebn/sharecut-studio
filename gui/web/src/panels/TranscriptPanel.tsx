@@ -43,6 +43,7 @@ import {
 } from "../transcript/TranscriptTurnView";
 import {
   TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
+  TRANSCRIPT_CORRECT_TOUCH_HINT,
   TRANSCRIPT_CUT_AWAY_WORD_TIP,
   TRANSCRIPT_GUEST_SELECT_HINT,
   TRANSCRIPT_GUEST_SELECT_TOUCH_HINT,
@@ -162,6 +163,7 @@ export function TranscriptPanel() {
     setTranscriptScrollRequest,
     setTranscriptViewAnchor,
     pointerKind,
+    shellBreakpoint,
     transcriptInlineEditRequest,
     setTranscriptInlineEditRequest,
     transcriptInlineCommitPending,
@@ -191,6 +193,7 @@ export function TranscriptPanel() {
     setTranscriptScrollRequest: s.setTranscriptScrollRequest,
     setTranscriptViewAnchor: s.setTranscriptViewAnchor,
     pointerKind: s.pointerKind,
+    shellBreakpoint: s.shellBreakpoint,
     transcriptInlineEditRequest: s.transcriptInlineEditRequest,
     setTranscriptInlineEditRequest: s.setTranscriptInlineEditRequest,
     transcriptInlineCommitPending: s.transcriptInlineCommitPending,
@@ -945,12 +948,14 @@ export function TranscriptPanel() {
   // pending, so no line is inserted and the list never shifts under the
   // pointer. Only the saving status is live (the visually hidden role=status
   // below), so mode toggles and pointer changes are not announced.
+  const touch = pointerKind === "coarse" || shellBreakpoint === "phone";
   let toolbarHint = TRANSCRIPT_MODE_HINT[intent];
-  if (intent === "navigate" && pointerKind === "coarse") {
-    toolbarHint = TRANSCRIPT_NAVIGATE_TOUCH_HINT;
-  }
-  if (intent === "select" && pointerKind === "coarse") {
-    toolbarHint = TRANSCRIPT_SELECT_TOUCH_HINT;
+  if (touch) {
+    toolbarHint = {
+      navigate: TRANSCRIPT_NAVIGATE_TOUCH_HINT,
+      correct: TRANSCRIPT_CORRECT_TOUCH_HINT,
+      select: TRANSCRIPT_SELECT_TOUCH_HINT,
+    }[intent];
   }
   if (transcriptInlineCommitPending) {
     toolbarHint = TRANSCRIPT_INLINE_SAVING_STATUS;
@@ -1141,7 +1146,7 @@ export function TranscriptPanel() {
       {!hostEditable && rangeMode !== "none" && intent === "select" ? (
         <p className="transcript-mode-hint">
           {
-            (pointerKind === "coarse"
+            (touch
               ? TRANSCRIPT_GUEST_SELECT_TOUCH_HINT
               : TRANSCRIPT_GUEST_SELECT_HINT)[rangeMode]
           }

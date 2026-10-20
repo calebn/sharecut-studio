@@ -1623,6 +1623,13 @@ button.history-row {
   min-block-size: var(--control-height);
 }
 
+@media (pointer: coarse) {
+  .tighten-toolbar :where(input, select),
+  .tighten-toolbar .tighten-check {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .tighten-check {
   display: flex;
   align-items: center;

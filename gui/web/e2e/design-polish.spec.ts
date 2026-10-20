@@ -271,13 +271,13 @@ test("transport zones never overlap across desktop widths", async ({
       await page.setViewportSize({ width: 1280, height: 900 });
       const transport = page.locator("header.transport");
       await transport
-        .getByRole("button", { name: "Blade", exact: true })
+        .getByRole("button", { name: "Blade tool", exact: true })
         .click();
       await transport
         .getByRole("button", { name: "Menu", exact: true })
         .click();
       await expect(
-        page.getByRole("menuitem", { name: "Cut at playhead", exact: true }),
+        page.getByRole("menuitem", { name: "Blade cut", exact: true }),
       ).toBeVisible();
       await page.keyboard.press("Escape");
       for (const width of [

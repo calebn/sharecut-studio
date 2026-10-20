@@ -41,7 +41,7 @@ export async function postHostComment(page: Page, body: string): Promise<void> {
     .getByRole("tab", { name: "Comments" })
     .click();
   await page.getByRole("button", { name: "Comment mode" }).click();
-  await page.getByRole("slider", { name: "Comment time anchor" }).click();
+  await page.getByRole("slider", { name: "Comment time" }).click();
   await expect(page.getByText("Commenting as")).toContainText("Host");
   await page.getByPlaceholder("Add a comment…").fill(body);
   await page.getByRole("button", { name: "Post comment" }).click();

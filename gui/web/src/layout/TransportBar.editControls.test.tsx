@@ -180,8 +180,8 @@ describe("TransportBar desktop edit controls", () => {
               );
           });
           for (const [direct, menuLabel, command] of [
-            ["Select", "Select tool", "tool.select"],
-            ["Blade", "Blade tool", "tool.blade"],
+            ["Select tool", "Select tool", "tool.select"],
+            ["Blade tool", "Blade tool", "tool.blade"],
             ["Blade cut", "Blade cut", "edit.bladeCut"],
           ]) {
             let control = screen.queryByRole("button", {
@@ -296,7 +296,7 @@ describe("TransportBar desktop edit controls", () => {
     },
   );
 
-  it("keeps Cut at playhead conditional on Blade outside Comment mode", async () => {
+  it("keeps Blade cut conditional on Blade outside Comment mode", async () => {
     const user = userEvent.setup();
     useDawStore.setState({ toolMode: "select", commentMode: false });
     render(<TransportBar />);

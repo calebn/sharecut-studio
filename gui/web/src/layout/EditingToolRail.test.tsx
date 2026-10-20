@@ -28,17 +28,13 @@ describe("EditingToolRail", () => {
   it("hides cut-at-playhead while comment mode is on", () => {
     useDawStore.setState({ toolMode: "blade", commentMode: true });
     render(<EditingToolRail />);
-    expect(
-      screen.queryByRole("button", { name: /Cut at playhead/i }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /Blade cut/i })).toBeNull();
   });
 
   it("shows cut-at-playhead in blade mode when comment mode is off", () => {
     useDawStore.setState({ toolMode: "blade", commentMode: false });
     render(<EditingToolRail />);
-    expect(
-      screen.getByRole("button", { name: /Cut at playhead/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Blade cut/i })).toBeTruthy();
   });
 
   it("routes Undo through the command bus and follows project history", async () => {

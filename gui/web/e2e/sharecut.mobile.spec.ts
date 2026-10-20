@@ -102,7 +102,10 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await expect(page.locator(".mobile-more-hub")).toBeVisible();
 
     // Primary chrome stays in viewport (not cropped)
-    const comment = page.getByRole("button", { name: "Comment", exact: true });
+    const comment = page.getByRole("button", {
+      name: "Toggle comment mode",
+      exact: true,
+    });
     const menu = page.getByRole("button", { name: "Menu", exact: true });
     await expect(comment).toBeVisible();
     await expect(menu).toBeVisible();

@@ -352,10 +352,9 @@ export const Loading: Story = {
       "aria-disabled",
       "true",
     );
-    await expect(canvas.getByRole("button", { name: "Stop" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    await expect(
+      canvas.getByRole("button", { name: "Stop playback" }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 };
 

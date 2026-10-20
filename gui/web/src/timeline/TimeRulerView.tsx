@@ -148,7 +148,7 @@ export function TimeRulerView({
       role="slider"
       tabIndex={0}
       {...presenceAnchorProps(presenceAnchor("ruler"))}
-      aria-label={commentMode ? "Comment time anchor" : "Timeline position"}
+      aria-label={commentMode ? "Comment time" : "Timeline position"}
       aria-valuemin={0}
       aria-valuemax={sessionEnd}
       aria-valuenow={valueSec}

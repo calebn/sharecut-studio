@@ -102,7 +102,9 @@ export const Ready: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Play" }));
     await expect(canvas.getByRole("button", { name: "Pause" })).toBeVisible();
     await expect(args.onTogglePlay).toHaveBeenCalledOnce();
-    await userEvent.click(canvas.getByRole("button", { name: "Stop" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Stop playback" }),
+    );
     await expect(canvas.getByRole("button", { name: "Play" })).toBeVisible();
     await expect(args.onStop).toHaveBeenCalledOnce();
   },
@@ -127,10 +129,9 @@ export const EmptyProject: Story = {
       "aria-disabled",
       "true",
     );
-    await expect(canvas.getByRole("button", { name: "Stop" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    await expect(
+      canvas.getByRole("button", { name: "Stop playback" }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 };
 
@@ -157,10 +158,10 @@ export const PausedEmptyProject: Story = {
       canvas.getByRole("button", { name: "Play" }),
     ).toHaveAccessibleDescription("Import audio to play.");
     await expect(
-      canvas.getByRole("button", { name: "Stop" }),
+      canvas.getByRole("button", { name: "Stop playback" }),
     ).not.toHaveAttribute("aria-disabled");
     await expect(
-      canvas.getByRole("button", { name: "Stop" }),
+      canvas.getByRole("button", { name: "Stop playback" }),
     ).not.toHaveAttribute("aria-describedby");
   },
 };

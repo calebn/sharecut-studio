@@ -33,7 +33,7 @@ test.describe("Chrome-first bootstrap", () => {
 
     await expect(page.getByText("Loading episode…").first()).toBeVisible();
     const play = page.getByRole("button", { name: "Play" });
-    const stop = page.getByRole("button", { name: "Stop" });
+    const stop = page.getByRole("button", { name: "Stop playback" });
     await expect(
       page.getByText("Loading project…", { exact: true }),
     ).toBeVisible();

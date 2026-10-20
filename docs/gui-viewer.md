@@ -591,7 +591,7 @@ A project with no source media or timeline clips stays **Mix up to date** despit
 
 While a coupled join change is still saving, competing clip fade, trim, roll, and move gestures wait. The existing join save flag guards gesture starts and commits, including commits after an asynchronous boundary read. This prevents an older individual fade from overwriting one side of a coupled crossfade.
 
-Clip labels use the originating speaker when available, otherwise a human track label or role, followed by a readable duration such as `Avery · 17m 26s`. Accessible names include identity, timeline position, and full duration. The Clip inspector title includes identity and timeline bounds. Its details show the internal clip ID once. Delete and Ripple delete follow the constructive controls in a separate group.
+Clip labels use the originating speaker when available, otherwise a human track label or role, followed by a readable duration such as `Avery · 17m 26s`. Accessible names include identity, timeline position, and full duration. The Clip inspector title includes identity and timeline bounds. Delete and Ripple delete follow the constructive controls in a separate group.
 
 Clip Inspector fade ranges preview a paired fade value and send one `SetClipFade` when the pointer or keyboard gesture ends, or when focus leaves ordinarily. Escape and pointer cancellation discard the preview. **Incoming transition** names the join from the previous clip into the selected clip. **Track actions → Smooth all joins** runs the existing track-wide recommendation command. The seam line rolls the join below its top badge. Pending hatch regions cover the complete lane height.
 
