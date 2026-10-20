@@ -15,8 +15,14 @@ from typing import Concatenate, ParamSpec, TypeVar
 
 from filelock import Timeout
 
-from podcast_mcp.models import EpisodeProject, project_file_path, workspace_artifacts_dir
+from podcast_mcp.models import (
+    EpisodeProject,
+    project_file_path,
+    record_artifacts_dir,
+    workspace_artifacts_dir,
+)
 from podcast_mcp.util.file_locks import file_lock_holder_pid, shared_file_lock
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import CancelledProgress
 
@@ -120,6 +126,40 @@ def render_lock_path(project: EpisodeProject) -> Path:
     return workspace_artifacts_dir(project.workspace_path().resolve()) / "render.lock"
 
 
+def transcript_context_lock_path(workspace: Path) -> Path:
+    """Writer lock for ``transcript_context.yaml``; stores nothing."""
+    return workspace_artifacts_dir(workspace) / "transcript_context.yaml.lock"
+
+
+def asr_cache_lock_path(project: EpisodeProject, family: str) -> Path:
+    """Publication/pruning lock for one ASR cache family (``{id}_{audio16}``); stores nothing."""
+    return workspace_artifacts_dir(project.workspace_path()) / f"transcript-cache-{family}.lock"
+
+
+def prosody_lock_path(prosody_dir: Path, safe_track_id: str) -> Path:
+    """Per-track prosody profile writer lock inside ``transcripts/prosody/``; stores nothing."""
+    return prosody_dir / f"{safe_track_id}.lock"
+
+
+def waveform_lock_path(peaks_dir: Path) -> Path:
+    """Lock for pyramid reuse, publication, pruning and GC in ``artifacts/peaks/``."""
+    return peaks_dir / ".waveform.lock"
+
+
+def play_cache_lock_path(play_cache_dir: Path) -> Path:
+    """Lock for ``artifacts/play_cache/`` lease refresh and pruning; stores nothing."""
+    return play_cache_dir / ".cache.lock"
+
+
+def record_land_lock_path(workspace_dir: Path, session_id: str) -> Path:
+    """Cross-process land/discard lock for one record room; stores nothing.
+
+    Per session, like the in-process lock, so overlapping rooms in one workspace do not
+    block each other.
+    """
+    return record_artifacts_dir(workspace_dir) / f"land-{session_id}.lock"
+
+
 def project_state_lock(project: EpisodeProject) -> RLock:
     """Return the in-process lock shared by this workspace's mutations and reads."""
     return _locks.get(_workspace_key(project))
@@ -135,6 +175,11 @@ def file_revision(path: Path) -> FileRevision:
     """Identity of a file that may be atomically replaced."""
     stat = path.stat()
     return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+def file_revision_key(path: Path) -> str:
+    """``file_revision`` as a 16-hex string, for cache file names and persisted staleness keys."""
+    return short_digest(repr(file_revision(path)))
 
 
 def project_file_revision(project: EpisodeProject) -> FileRevision | None:

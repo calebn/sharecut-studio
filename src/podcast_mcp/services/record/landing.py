@@ -8,11 +8,10 @@ import threading
 import time
 import wave
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import ExitStack, contextmanager, suppress
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any
 
-from filelock import FileLock
 from filelock import Timeout as FileLockTimeout
 
 from podcast_mcp.edits.clipping_regions import clipping_regions_from_ms
@@ -75,15 +74,19 @@ from podcast_mcp.services.record.upload import (
     parse_participant_id,
     parse_session_id,
     parse_upload_index,
-    record_artifacts_dir,
 )
 from podcast_mcp.util.atomic_json import copy_file_atomic
 from podcast_mcp.util.coded_error import CodedError
-from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock, unlink_if_unheld
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import resolve_progress_task
-from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
+from podcast_mcp.util.project_state import (
+    FileRevision,
+    file_revision,
+    project_state_lock,
+    record_land_lock_path,
+)
 from podcast_mcp.util.wav import open_wav
 
 log = logging.getLogger(__name__)
@@ -116,15 +119,6 @@ def release_session_land_lock(session_id: str) -> None:
     _LAND_LOCKS.discard_idle(session_id)
 
 
-def record_land_lock_path(workspace_dir: Path, session_id: str) -> Path:
-    """Cross-process land/discard lock for one room (only coordinates, stores nothing).
-
-    Per session, like the in-process lock, so overlapping rooms in one workspace do not
-    block each other.
-    """
-    return record_artifacts_dir(workspace_dir) / f"land-{session_id}.lock"
-
-
 def remove_session_land_lock_file(workspace_dir: Path, session_id: str) -> None:
     """Best-effort delete of a room's land lock file once the room has ended.
 
@@ -134,16 +128,7 @@ def remove_session_land_lock_file(workspace_dir: Path, session_id: str) -> None:
     path = record_land_lock_path(workspace_dir, session_id)
     if not path.exists():
         return
-    probe = FileLock(str(path), thread_local=False)
-    try:
-        probe.acquire(timeout=0)
-    except FileLockTimeout:
-        return
-    try:
-        with suppress(OSError):
-            path.unlink()
-    finally:
-        probe.release()
+    unlink_if_unheld(path)
 
 
 @contextmanager

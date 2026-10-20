@@ -73,7 +73,7 @@ from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
-from podcast_mcp.util.project_state import FileRevision, file_revision
+from podcast_mcp.util.project_state import FileRevision, file_revision, waveform_lock_path
 from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from podcast_mcp.util.timeline_zoom import (
     max_tiles_per_request,
@@ -245,7 +245,7 @@ def _drop_pyramid(path: Path, key: str) -> None:
     _META.pop((str(path), key))
     with (
         contextlib.suppress(OSError, FileLockTimeout),
-        hold_shared_file_lock(path.parent / ".waveform.lock", timeout=PYRAMID_LOCK_TIMEOUT_SEC),
+        hold_shared_file_lock(waveform_lock_path(path.parent), timeout=PYRAMID_LOCK_TIMEOUT_SEC),
     ):
         try:
             read_meta(path)
@@ -495,7 +495,7 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
         peaks = (
             index.artifacts_dir if index is not None else _artifacts_dir(project_path)
         ) / "peaks"
-        with hold_shared_file_lock(peaks / ".waveform.lock", timeout=PYRAMID_LOCK_TIMEOUT_SEC):
+        with hold_shared_file_lock(waveform_lock_path(peaks), timeout=PYRAMID_LOCK_TIMEOUT_SEC):
             index = media_index(project_path)
             live = {ref_slug(*parse_ref(ref)) for ref in (*index.refs, *index.unavailable)}
             for path in peaks.glob("*.wfpk"):

@@ -1359,6 +1359,11 @@ def workspace_artifacts_dir(workspace: Path | str) -> Path:
     return Path(workspace) / "artifacts"
 
 
+def record_artifacts_dir(workspace: Path | str) -> Path:
+    """``artifacts/record/`` in a workspace: keeper uploads, ACKed WAVs and land locks."""
+    return workspace_artifacts_dir(workspace) / "record"
+
+
 def project_not_found(path: Path | str) -> CodedFileNotFoundError:
     """The refusal for a project file that does not exist (raise it)."""
     return CodedFileNotFoundError(

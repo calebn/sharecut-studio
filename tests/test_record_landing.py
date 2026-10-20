@@ -28,7 +28,6 @@ from podcast_mcp.services.record.landing import (
     _upsert_source,
     measure_keeper_drifts,
     purge_session_land_rollbacks,
-    record_land_lock_path,
     release_session_land_lock,
     remove_session_land_lock_file,
     rollback_retry_after_ns,
@@ -68,6 +67,7 @@ from podcast_mcp.services.record.upload import (
     RecordUploadService,
     sha256_hex,
 )
+from podcast_mcp.util.project_state import record_land_lock_path
 from podcast_mcp.util.wav import pcm_wav_header
 
 
