@@ -6,13 +6,16 @@ import pytest
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.word_onset import (
     OnsetKind,
+    edge_decays_into_valley,
     is_one_hum,
+    next_kept_word,
     next_onset,
     voice_end,
     voice_onset,
     voice_separates,
 )
 from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.models import Transcript, TranscriptWord
 
 RATE = 16_000
 
@@ -450,3 +453,36 @@ def test_an_edge_the_plan_places_in_a_valley_is_one_the_voiced_edge_check_reads_
             assert run_straddling(runs, edge) is None, (start, edge)
     # The flag is not vacuous: the valley's bottom half (about 1.35-1.47) is flagged.
     assert flagged >= 4 * 5
+
+
+@pytest.mark.parametrize(("edge", "decays"), [(1.40, True), (1.45, True), (1.15, False)])
+def test_an_edge_decays_into_the_valley_only_when_it_lies_in_the_valley(edge, decays):
+    # The sound from 1.0 is one hum that decays into the valley before the word at 1.52,
+    # so the plan would end a cut there. An edge in the hum, before the valley, is not it.
+    cache = _uh_decaying_into_a_word(20.0)
+
+    assert edge_decays_into_valley(cache, 1.0, edge, 1.52) is decays
+
+
+def _words(*spans: tuple[str, float, float, bool]) -> Transcript:
+    return Transcript(
+        track_id="t",
+        words=[TranscriptWord(text=t, start=a, end=b, suppressed=s) for t, a, b, s in spans],
+    )
+
+
+def test_the_next_kept_word_starts_at_or_after_the_end_and_is_not_suppressed():
+    transcript = _words(
+        ("before", 0.5, 0.9, False),
+        ("at", 1.0, 1.25, False),
+        ("later", 1.5, 1.75, False),
+    )
+
+    assert next_kept_word(transcript, 1.0).text == "at"
+    assert next_kept_word(transcript, 1.25).text == "later"
+    assert next_kept_word(transcript, 1.75) is None
+    assert next_kept_word(None, 0.0) is None
+
+    hidden = _words(("hidden", 1.0, 1.25, True), ("kept", 1.5, 1.75, False))
+
+    assert next_kept_word(hidden, 0.0).text == "kept"
