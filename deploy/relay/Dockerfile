@@ -14,7 +14,7 @@ ENV PODCAST_RELAY_VERSION=${PODCAST_RELAY_VERSION}
 ENV PODCAST_RELAY_GIT_SHA=${PODCAST_RELAY_GIT_SHA}
 
 # Relay package + the FOSS util modules it imports (rate limits, body caps, proxy path checks,
-# and shared guest WebSocket protocol limits).
+# shared guest WebSocket protocol limits, and the tunnel frame/claim package util/relay_protocol).
 # util/__init__.py pulls review/text, so copy those too.
 COPY src/podcast_mcp/__init__.py podcast_mcp/__init__.py
 COPY src/podcast_mcp/util/__init__.py podcast_mcp/util/__init__.py
@@ -31,6 +31,7 @@ COPY src/podcast_mcp/util/diagnostics_bundle_contract.py podcast_mcp/util/diagno
 COPY src/podcast_mcp/util/sqlite_tx.py podcast_mcp/util/sqlite_tx.py
 COPY src/podcast_mcp/util/sqlite_open.py podcast_mcp/util/sqlite_open.py
 COPY src/podcast_mcp/util/sqlite_wal.py podcast_mcp/util/sqlite_wal.py
+COPY src/podcast_mcp/util/relay_protocol/ podcast_mcp/util/relay_protocol/
 COPY src/podcast_relay/ podcast_relay/
 COPY deploy/relay/VERSION podcast_relay/VERSION
 

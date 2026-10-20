@@ -19,7 +19,7 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 | D1 | Cap enum | contract | `extensions/caps.py` + `contracts/caps.json` |
 | D2 | Document allowlist by cap | contract | FOSS schemas and existing tests |
 | D3 | Remote MCP cap→tool matrix | contract | FOSS generated catalog and tests |
-| E1 | Tunnel protocol frames | contract + unit | `podcast_relay.protocol` |
+| E1 | Tunnel protocol frames | contract + unit | `podcast_mcp.util.relay_protocol.protocol` |
 | E2 | protocol_version | unit | `tests/test_extensions.py` |
 | E3 | Proxy path allowlist | contract | `util/proxy_paths.py` |
 | G1–G3 | Guest HTTP/WS/object storage | integration | existing share tests (with extension on) |

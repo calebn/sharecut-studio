@@ -5,6 +5,7 @@ on:
     paths:
       - 'deploy/relay/**'
       - 'src/podcast_relay/**'
+      - 'src/podcast_mcp/util/relay_protocol/**'
       - '.github/workflows/relay-ci.yml'
 
 jobs:

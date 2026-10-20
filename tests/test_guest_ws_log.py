@@ -1,4 +1,4 @@
-from podcast_relay.guest_ws_log import log_guest_ws_close, redact_share_token
+from podcast_mcp.util.relay_protocol.guest_ws_log import log_guest_ws_close, redact_share_token
 
 
 def test_redact_share_token_masks_middle():
@@ -9,7 +9,7 @@ def test_redact_share_token_masks_middle():
 def test_log_guest_ws_close_emits_info(caplog):
     import logging
 
-    caplog.set_level(logging.INFO, logger="podcast_relay.guest_ws_log")
+    caplog.set_level(logging.INFO, logger="podcast_mcp.util.relay_protocol.guest_ws_log")
     log_guest_ws_close(
         "relay",
         "relay.host_offline",

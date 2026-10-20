@@ -6,8 +6,8 @@ import asyncio
 
 from fastapi.testclient import TestClient
 
+from podcast_mcp.util.relay_protocol.protocol import msg
 from podcast_relay.app import RelayState, TunnelSession, create_relay_app
-from podcast_relay.protocol import msg
 
 # ---------------------------------------------------------------------------
 # RelayState unit tests (no real WebSocket needed)
@@ -93,7 +93,7 @@ def test_relay_refuses_cross_host_token_remap():
 
 def test_relay_refuses_steal_after_disconnect():
     """Bindings survive unregister; another host cannot advertise the same token."""
-    from podcast_relay.share_claims import attach_share_claims
+    from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
 
     secret_a = "secret-a"
     secret_b = "secret-b"
@@ -126,7 +126,7 @@ def test_relay_refuses_steal_after_disconnect():
 
 
 def test_relay_drops_bad_hmac_claim():
-    from podcast_relay.share_claims import attach_share_claims, sign_share_claim
+    from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims, sign_share_claim
 
     secret = "good-secret"
     state = RelayState({secret})
@@ -149,7 +149,7 @@ def test_relay_drops_bad_hmac_claim():
 
 def test_relay_malformed_claim_length_does_not_abort_register():
     """Unequal claim length must drop that row, not raise and wipe siblings."""
-    from podcast_relay.share_claims import attach_share_claims, verify_share_claim
+    from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims, verify_share_claim
 
     secret = "good-secret"
     assert (

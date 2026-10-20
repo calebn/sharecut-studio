@@ -327,7 +327,7 @@ async def test_relay_proxy_returns_429(monkeypatch):
     ws._session = session
 
     await state.register_tunnel(session)
-    from podcast_relay.share_claims import attach_share_claims
+    from podcast_mcp.util.relay_protocol.share_claims import attach_share_claims
 
     await state.update_shares(
         "h1",

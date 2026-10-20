@@ -27,7 +27,7 @@ Each layer owns one concern. Per-module ownership notes, caches and the FFmpeg p
 9. **MCP** (`podcast_mcp.mcp`) — tool registration in `server.py`, handlers in `mcp/tools/`, typed parameters validated at the boundary. See [contributing.md](contributing.md) and [mcp-setup.md](mcp-setup.md).
 10. **GUI** (`podcast_mcp.gui`) — HTTP/WebSocket adapter over services (`server.py` + `routes/`); never duplicates path or render logic. See [gui-integration.md](gui-integration.md) and [gui-viewer.md](gui-viewer.md).
 11. **Extensions** (`podcast_mcp.extensions`) — feature registry and soft-load SPI; the FOSS `collaboration` extension. See [extensions.md](extensions.md).
-12. **Relay** (`podcast_relay`) — host-online reverse tunnel edge; the host connects with `podcast tunnel`. See [host-online-relay.md](host-online-relay.md).
+12. **Relay** (`podcast_relay`) — imports `podcast_mcp.util` only; `podcast_mcp` never imports it (wire code shared with `services/collaboration/tunnel.py` lives in `util/relay_protocol/`). host-online reverse tunnel edge; the host connects with `podcast tunnel`. See [host-online-relay.md](host-online-relay.md).
 
 **Episode state:** `episode.project.json` v2 is the single source of truth. See [episode-format-v2.md](episode-format-v2.md).
 
