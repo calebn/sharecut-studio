@@ -264,7 +264,7 @@ def test_update_pending_and_revert_mcp_tools(tmp_path, monkeypatch):
     path = mcp_server.episode_create(str(tmp_path / "pending_ws"))
     fake = EditDecision(id="e1", track_id="host", start=0.2, end=0.4, reason="filler:um")
 
-    def _update(self, edit_id, start, end, snap=True):
+    def _update(self, edit_id, start, end, snap=True, **_):
         assert edit_id == "e1"
         return fake.model_copy(update={"start": start, "end": end})
 

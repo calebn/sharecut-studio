@@ -13,7 +13,11 @@ from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
-from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
+from podcast_mcp.services.document_sync import (
+    host_command_result,
+    submit_host_command_result,
+    submit_host_document_command,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -420,19 +424,24 @@ def apply_suggested_actions_tool(
     with that change, as one undo step. Otherwise it refuses with
     ``no_suggested_batch_to_revise``.
     """
-    ws = ProjectWorkspace.open(project_path)
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        result = EditService(ws).apply_suggested_actions(ids, overrides=overrides, revise=revise)
-    agent_mutated(ws)
-    return to_json(result)
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "ApplySuggestedActions",
+            {
+                "ids": ids,
+                "overrides": overrides or {},
+                "revise": revise,
+                "override_audio_checks": override_audio_checks,
+            },
+        )
+    )
 
 
 def reject_edits_tool(project_path: str, ids: list[str]) -> str:
     """Reject pending edits by id, discarding them without applying."""
-    ws = ProjectWorkspace.open(project_path)
-    n = EditService(ws).reject(ids)
-    agent_mutated(ws)
-    return to_json({"operation": "reject_edits", "rejected_count": n, "ids": ids})
+    result = submit_host_command_result(project_path, "RejectEdits", {"ids": ids})
+    return to_json({"operation": "reject_edits", "rejected_count": result["count"], "ids": ids})
 
 
 def update_pending_edit_tool(
@@ -448,19 +457,25 @@ def update_pending_edit_tool(
     ``override_audio_checks=true`` keeps the exact bounds given (no snapping or holds from the
     automatic cut-position checks) and records the override.
     """
-    ws = ProjectWorkspace.open(project_path)
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        edit = EditService(ws).update_pending(edit_id, start=start, end=end, snap=snap)
-    agent_mutated(ws)
-    return to_json({"operation": "update_pending_edit", "edit": edit.model_dump()})
+    result = submit_host_command_result(
+        project_path,
+        "UpdatePendingEdit",
+        {
+            "id": edit_id,
+            "start": start,
+            "end": end,
+            "snap": snap,
+            "override_audio_checks": override_audio_checks,
+        },
+    )
+    return to_json({"operation": "update_pending_edit", "edit": result["edit"]})
 
 
 def revert_applied_edit_tool(project_path: str, record_id: str) -> str:
     """Restore an ordinary source mute; clip removals require whole-action History Undo."""
-    ws = ProjectWorkspace.open(project_path)
-    result = EditService(ws).revert_applied(record_id)
-    agent_mutated(ws)
-    return to_json(result)
+    return to_json(
+        submit_host_command_result(project_path, "RestoreAppliedEdit", {"id": record_id})
+    )
 
 
 def edit_impact_report_tool(project_path: str, markdown: bool = False) -> str:
