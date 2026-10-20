@@ -69,7 +69,7 @@ segments, chapters), `TranscriptService` (transcription, export and word
 edits), `AnalysisService` (effects, loudness, bleed, audibility, reconcile and
 cut-boundary previews). They share `WorkspaceService` and `CutMutatingService`
 from `service_base.py`; `tests/test_module_size_budget.py` holds the budgets.
-All eleven service contexts expose explicit typed names through lazy package
+All twelve service contexts expose explicit typed names through lazy package
 facades using `util/lazy_exports.py`. Importing a facade does not load its
 implementation modules or optional integrations.
 
@@ -80,12 +80,31 @@ It requires the root `services/__init__.py` to stay empty, forbids flat service
 modules, and requires every context directory to be registered. All services
 are barred from `gui.routes` imports.
 The current narrow GUI dependencies are app GUI launch to `gui.bind` and
-`gui.static_assets`, document sync projection to `gui.assembler`, remote MCP
-tools to `gui.jobs`, and collaboration share projection and playback to
-`gui.mapper` and `gui.audio`. Other service imports of CLI, MCP, or GUI
+`gui.static_assets`, document sync projection to `gui.assembler`, and collaboration share
+projection and playback to `gui.mapper` and `gui.audio`. Other service imports of CLI, MCP, or GUI
 adapters are rejected.
 The projection guard remains in
 `tests/test_import_direction.py`.
+
+### Jobs
+
+`services/jobs/` owns Studio's background work: one `Job` record
+(`job.py`) for pipeline-slot, agent and bootstrap jobs, one `JobManager`
+(`manager.py`) that starts, waits on and cancels them, and the progress
+reporters that feed them (`reporter.py`). A job's `kind` selects its snapshot
+shape, so the pipeline-slot and bootstrap payloads keep the keys their
+consumers read. `JobCatalog` (`catalog.py`) holds job identity, live agent
+claims and the bounded finished-job lookup; `BootstrapJobManager`
+(`bootstrap.py`) runs the at-most-one first-run download. Bootstrap keeps its own
+manager and reporter on purpose: its slot is independent of the pipeline slot
+(a download never blocks a run, and the reverse), and its events keep the
+bootstrap labels and zero elapsed seconds the setup screen already reads.
+Events go out through
+the job-id-keyed hub in `events.py`. `gui/job_events.py` stays the SSE adapter:
+it frames those queues for `/api/pipeline/events` and `/api/bootstrap/events`
+and builds the two progress sinks `create_app` registers. `mcp/tools/pipeline.py`
+and `services/remote_mcp/tools.py` import `podcast_mcp.services.jobs`, not
+`gui`. Per-module detail: [layer-reference.md](layer-reference.md).
 
 ## Data flow
 
