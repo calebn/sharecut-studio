@@ -120,6 +120,9 @@ _STUDIO_COLOR_ALIASES = (
     "shadow",
     "shadow-soft",
 )
+_STUDIO_COLOR_ALIAS_REF = re.compile(
+    r"(?<![\w-])--(" + "|".join(map(re.escape, _STUDIO_COLOR_ALIASES)) + r")(?![\w-])"
+)
 _PRIMITIVE_REF = re.compile(r"var\(\s*--primitive-")
 _CSS_VAR_REF = re.compile(r"var\(\s*--")
 _CSS_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
@@ -494,14 +497,60 @@ def test_studio_color_aliases_are_removed_after_consumers_migrate() -> None:
             if not path.is_file() or path.suffix not in {".css", ".ts", ".tsx", ".html"}:
                 continue
             text = path.read_text()
+            used = set(_STUDIO_COLOR_ALIAS_REF.findall(text))
             for name in _STUDIO_COLOR_ALIASES:
-                if re.search(rf"(?<![\w-])--{re.escape(name)}(?![\w-])", text):
+                if name in used:
                     references.append(f"{path.relative_to(ROOT)}: --{name}")
             if re.search(r"--presence-\$\{", text):
                 references.append(f"{path.relative_to(ROOT)}: dynamic --presence- lookup")
 
     assert not remaining_definitions, f"legacy alias declarations remain: {remaining_definitions}"
     assert not references, "legacy Studio alias references remain:\n" + "\n".join(references)
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "--text-muted --border-strong --border --text --border --text-muted",
+            ["--border", "--border-strong", "--text", "--text-muted"],
+        ),
+        ("x--text _--border --text_ --text-new --border-stronger", []),
+        ("(--text) /--border; --text-muted.", ["--border", "--text", "--text-muted"]),
+        ("var(--presence-${index})", ["dynamic --presence- lookup"]),
+    ],
+)
+def test_legacy_alias_scan_preserves_boundaries_uniqueness_and_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, expected: list[str]
+) -> None:
+    tokens = tmp_path / "tokens.css"
+    tokens.write_text("", encoding="utf-8")
+    source_root = tmp_path / "gui/web/src"
+    source_root.mkdir(parents=True)
+    (source_root / "planted.ts").write_text(source, encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
+    monkeypatch.setattr(sys.modules[__name__], "_TOKENS_CSS", tokens)
+    if expected:
+        with pytest.raises(AssertionError) as caught:
+            test_studio_color_aliases_are_removed_after_consumers_migrate()
+        lines = str(caught.value).splitlines()
+        assert lines[0] == "legacy Studio alias references remain:"
+        assert [line.strip() for line in lines if line.strip().startswith("gui/")] == [
+            f"gui/web/src/planted.ts: {name}" for name in expected
+        ]
+    else:
+        test_studio_color_aliases_are_removed_after_consumers_migrate()
+
+
+def test_legacy_alias_declarations_still_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tokens = tmp_path / "tokens.css"
+    tokens.write_text(":root {\n--text: red;\n}", encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
+    monkeypatch.setattr(sys.modules[__name__], "_TOKENS_CSS", tokens)
+    with pytest.raises(AssertionError, match="legacy alias declarations remain: "):
+        test_studio_color_aliases_are_removed_after_consumers_migrate()
 
 
 class _Declaration(NamedTuple):
