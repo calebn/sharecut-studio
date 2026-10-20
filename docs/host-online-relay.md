@@ -614,6 +614,25 @@ cannot make a read path audio. Waveform status remains a read request, and host
 response streaming. A file that disappears before pinning returns 404 and releases
 its slot immediately; response setup failures release the slot as well.
 
+**One table per composite.** `HostLimiters` (`services/remote_mcp/limits.py`) and
+`RelayLimiters` (`podcast_relay/limits.py`) subclass `util.rate_limit.LimiterSet`. Each
+lists its limiters as `TABLE` rows: a `RateSpec` (attribute, bucket name, env prefix,
+default RPM, default burst; `<prefix>_RPM` and `<prefix>_BURST` override the defaults)
+or a `GateSpec` (attribute, bucket name, env name, default in-flight limit). The base
+class builds one `KeyedLimiter` or `ConcurrencyGate` per row and `reset()` walks the
+rows, so a new limiter is one row plus one annotated attribute.
+`tests/test_limiter_table.py` pins every env name and default and fails when an
+attribute and its row disagree. The host table holds 20 env names, the relay table 14.
+`podcast_relay` is a separate deployable but already imports `podcast_mcp.util`, so
+both composites share the one `LimiterSet`.
+
+**One 429 shape.** `util.rate_limit_http` builds every denied-decision response:
+`rate_limited_error` (host routes, an `HTTPException` whose detail is
+`rate_limit_detail`) and `rate_limited_response` (the relay proxy and the MCP JSON-RPC
+bridge, a bare JSON body). Both set status 429 and `Retry-After` from
+`RateLimitDecision.retry_after_header`. The waveform decoder-busy refusal is a 503
+`WaveformBusyError` that reuses the same header value, not a 429.
+
 Guest WS fanout (host→guest) is unlimited; only inbound guest→host text frames hit
 `PODCAST_RELAY_WS_MSG_RPM`. Responses: HTTP **429** + `Retry-After`; WS close
 **4429**; MCP JSON-RPC error **`-32029`**.
