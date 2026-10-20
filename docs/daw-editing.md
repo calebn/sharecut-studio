@@ -619,7 +619,7 @@ Bounce stems retain the ordinary output-gain path.
 
 #### Registry backup boundary
 
-`edits/share_registry.py` owns the current main/WAL/SHM/journal privacy scope,
+`services/collaboration/share_registry.py` owns the current main/WAL/SHM/journal privacy scope,
 connection recovery, and durable secret. `util/registry_privacy.py` selects the
 native operation-scoped admission check. Source and backup reuse the same native
 ACL predicates and ancestry walk in `registry_backup_posix.py` and
@@ -635,7 +635,7 @@ query, never a descriptor: closing any descriptor on a file releases every POSIX
 the process holds on it, which lets a peer reset the WAL shared memory this process
 still maps (SIGBUS). `tests/test_share_registry_wal_locks.py` pins this.
 
-`edits/share_registry.py` owns the online SQLite snapshot and registry transaction
+`services/collaboration/share_registry.py` owns the online SQLite snapshot and registry transaction
 recovery. Its narrow `util/registry_backup.py` publisher creates a private disk
 snapshot, then streams bytes into a new single-file backup. Platform helpers pin
 and verify POSIX directory descriptors/ACLs or Windows NTFS handles/DACLs. SQLite

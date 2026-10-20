@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # Re-export stable cap strings shared by FOSS collaboration and provider policy.
-from podcast_mcp.edits.share_capabilities import (  # noqa: F401
+from podcast_mcp.services.collaboration import (  # noqa: F401
     ALL_CAPABILITIES,
     CAP_ACTION,
     CAP_COMMENT,

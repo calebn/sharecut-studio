@@ -96,7 +96,7 @@ $proof = Join-Path $root 'proof'
 New-Item -ItemType Directory -Path $proof | Out-Null
 Set-Acl -LiteralPath $proof -AclObject $acl
 $env:SHARECUT_PROOF_ROOT = $proof
-python -c "import os; from pathlib import Path; from podcast_mcp.util.registry_backup_windows import BackupDirectory; from podcast_mcp.edits.share_registry import SqliteShareRegistry; p=Path(os.environ['SHARECUT_PROOF_ROOT']); d=BackupDirectory(p); d.close(); r=SqliteShareRegistry(p/'preflight'/'registry.sqlite'); assert len(r.recording_key_secret()) == 32; r.close(); print('Owned NTFS ancestry and source admission passed')"
+python -c "import os; from pathlib import Path; from podcast_mcp.util.registry_backup_windows import BackupDirectory; from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry; p=Path(os.environ['SHARECUT_PROOF_ROOT']); d=BackupDirectory(p); d.close(); r=SqliteShareRegistry(p/'preflight'/'registry.sqlite'); assert len(r.recording_key_secret()) == 32; r.close(); print('Owned NTFS ancestry and source admission passed')"
 if ($LASTEXITCODE -ne 0) { throw 'Owned NTFS storage failed production admission' }
 @(
     "SHARECUT_PROOF_ROOT=$proof",

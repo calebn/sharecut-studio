@@ -22,12 +22,12 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits import review_versions
-from podcast_mcp.edits.review_versions import publish_version, stage_version
 from podcast_mcp.gui.routes.deps import host_setup_exception_handler
 from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import load_project
+from podcast_mcp.services.collaboration import review_versions
+from podcast_mcp.services.collaboration.review_versions import publish_version, stage_version
 from podcast_mcp.services.remote_mcp.protocol import _capability_denial, _tool_failure
 from podcast_mcp.util.coded_error import CodedError, HostSetupError
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER

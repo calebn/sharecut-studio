@@ -16,9 +16,20 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.comments import add_comment
-from podcast_mcp.edits.review_versions import (
+from podcast_mcp.engines.mastering import MasterTarget
+from podcast_mcp.engines.play_audit import (
+    master_fingerprint,
+    mastered_is_fresh,
+    write_mastered_hash,
+)
+from podcast_mcp.history import HistoryManager
+from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration import review_versions
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.review_versions import (
     REVIEW_ARTIFACTS_RELDIR,
     NoMixError,
     StaleMixError,
@@ -32,17 +43,6 @@ from podcast_mcp.edits.review_versions import (
     version_audio_path,
     version_mp3_path,
 )
-from podcast_mcp.engines.mastering import MasterTarget
-from podcast_mcp.engines.play_audit import (
-    master_fingerprint,
-    mastered_is_fresh,
-    write_mastered_hash,
-)
-from podcast_mcp.history import HistoryManager
-from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
-from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.media.review_media import review_guest_audio_path
 from podcast_mcp.util import atomic_file
@@ -1086,7 +1086,9 @@ def test_clean_created_version_missing_directory_is_noop(tmp_path, caplog):
     version_dir, identity = _created_version_dir(tmp_path)
     shutil.rmtree(version_dir)
 
-    with caplog.at_level(logging.DEBUG, logger="podcast_mcp.edits.review_versions"):
+    with caplog.at_level(
+        logging.DEBUG, logger="podcast_mcp.services.collaboration.review_versions"
+    ):
         review_versions.clean_created_version(version_dir, identity)
 
     assert not os.path.lexists(version_dir)
@@ -1726,7 +1728,7 @@ def test_review_artifacts_dir_matches_writer_reldir(minimal_project, sample_wav,
 def test_shares_sidecar_lives_under_review_artifacts_dir(
     minimal_project, sample_wav, tmp_workspace
 ):
-    from podcast_mcp.edits.review_shares import shares_path
+    from podcast_mcp.services.collaboration.review_shares import shares_path
 
     p, _vid = _publish(minimal_project, sample_wav)
     assert shares_path(p) == review_artifacts_dir(p) / "shares.json"

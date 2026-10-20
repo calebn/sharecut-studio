@@ -245,7 +245,7 @@ def test_share_token_never_lands_in_the_workspace(
 ):
     import json
 
-    from podcast_mcp.edits.review_shares import shares_path
+    from podcast_mcp.services.collaboration.review_shares import shares_path
 
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
     ws = _seed_premix(minimal_project, sample_wav)

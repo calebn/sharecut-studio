@@ -9,7 +9,10 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.share_capabilities import (
+from podcast_mcp.models import load_project, save_project
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share_capabilities import (
     RECORD_ROLE_PRESETS,
     REVIEW_ROLE_CAPABILITIES,
     ReviewRole,
@@ -19,9 +22,6 @@ from podcast_mcp.edits.share_capabilities import (
     record_role_for_capabilities,
     review_role_for_capabilities,
 )
-from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 
 COMMENTER = ["play", "view", "comment", "reply", "action", "suggest"]
@@ -87,7 +87,7 @@ def test_known_capabilities_normalize_with_view_implying_play() -> None:
 def test_share_creation_rejects_malformed_capabilities(
     minimal_project, sample_wav, tmp_workspace, caps
 ) -> None:
-    from podcast_mcp.edits.review_shares import create_share, list_shares
+    from podcast_mcp.services.collaboration.review_shares import create_share, list_shares
     from podcast_mcp.services.collaboration.share import ShareService
 
     ws = _seed_premix(minimal_project, sample_wav)
@@ -114,7 +114,7 @@ def test_share_creation_without_capabilities_is_a_commenter_link(
 def test_host_share_creation_rejects_unknown_roles(
     minimal_project, sample_wav, tmp_workspace, role
 ) -> None:
-    from podcast_mcp.edits.review_shares import list_shares
+    from podcast_mcp.services.collaboration.review_shares import list_shares
     from podcast_mcp.services.collaboration.share import ShareService
 
     ws = _seed_premix(minimal_project, sample_wav)
@@ -128,7 +128,7 @@ def test_host_share_creation_rejects_unknown_roles(
 def test_cli_share_rejects_unknown_roles_without_minting(
     minimal_project, sample_wav, tmp_workspace, role
 ) -> None:
-    from podcast_mcp.edits.review_shares import list_shares
+    from podcast_mcp.services.collaboration.review_shares import list_shares
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="cli-role")
@@ -151,8 +151,8 @@ def test_cli_share_rejects_unknown_roles_without_minting(
 
 
 def test_create_review_share_tool_rejects_unknown_roles(minimal_project, sample_wav) -> None:
-    from podcast_mcp.edits.review_shares import list_shares
     from podcast_mcp.mcp.tools.review import create_review_share_tool
+    from podcast_mcp.services.collaboration.review_shares import list_shares
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="tool-bad-role")

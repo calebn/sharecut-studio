@@ -41,7 +41,7 @@ _ADAPTER_EXCEPTIONS = {
 
 _DOMAIN_PACKAGES = ("podcast_mcp.edits", "podcast_mcp.engines", "podcast_mcp.pipeline")
 _ADAPTER_NAMES = ("gui", "cli", "mcp")
-_ADAPTER_DOMAIN_ALLOWLIST_SIZE = 49
+_ADAPTER_DOMAIN_ALLOWLIST_SIZE = 40
 _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     "podcast_mcp.cli.cut_speech": {
         "podcast_mcp.edits.audio_check_override",
@@ -57,10 +57,6 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     },
     "podcast_mcp.cli.pipeline": {
         "podcast_mcp.pipeline.meta",
-    },
-    "podcast_mcp.cli.review": {
-        "podcast_mcp.edits.share_capabilities",
-        "podcast_mcp.edits.share_registry",
     },
     "podcast_mcp.cli.setup_cmd": {
         "podcast_mcp.engines",
@@ -99,20 +95,6 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     "podcast_mcp.gui.routes.pipeline": {
         "podcast_mcp.pipeline",
     },
-    "podcast_mcp.gui.routes.record_share": {
-        "podcast_mcp.edits.share_capabilities",
-        "podcast_mcp.edits.share_registry",
-    },
-    "podcast_mcp.gui.routes.review_share": {
-        "podcast_mcp.edits.share_capabilities",
-        "podcast_mcp.edits.share_registry",
-    },
-    "podcast_mcp.gui.routes.share_common": {
-        "podcast_mcp.edits.share_registry",
-    },
-    "podcast_mcp.gui.routes.shares": {
-        "podcast_mcp.edits.review_versions",
-    },
     "podcast_mcp.gui.routes.transcript": {
         "podcast_mcp.edits.transcript_timing",
     },
@@ -124,9 +106,6 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     },
     "podcast_mcp.mcp.tools.pipeline": {
         "podcast_mcp.edits.envelopes",
-    },
-    "podcast_mcp.mcp.tools.review": {
-        "podcast_mcp.edits.share_capabilities",
     },
     "podcast_mcp.mcp.tools.timeline": {
         "podcast_mcp.edits.audio_check_override",

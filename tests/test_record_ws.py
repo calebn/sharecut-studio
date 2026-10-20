@@ -895,10 +895,10 @@ def test_guest_ws_invalid_lease_and_room_full(
 def test_record_ws_reject_paths(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
-    from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
     from podcast_mcp.gui.routes import guest_ws_common as gwc
     from podcast_mcp.gui.routes import record_share as rec_mod
     from podcast_mcp.services.collaboration.share import lookup_share
+    from podcast_mcp.services.collaboration.share_registry import SHARE_KIND_RECORD
 
     row = lookup_share(token, kind=SHARE_KIND_RECORD)
 
@@ -1329,13 +1329,13 @@ def test_host_refcount_touch_stale_connection_and_sid_cache(
 def test_share_common_token_and_manifest(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from fastapi import HTTPException
 
-    from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
     from podcast_mcp.gui.routes.share_common import (
         check_share_token,
         rate_limit_share,
         share_features_manifest,
     )
     from podcast_mcp.services.collaboration.share import ShareService
+    from podcast_mcp.services.collaboration.share_registry import SHARE_KIND_RECORD
     from podcast_mcp.util.coded_error import AccessDeniedError, UnknownShareError
     from podcast_mcp.util.rate_limit import RateLimitDecision
 

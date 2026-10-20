@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.config import repo_root
-from podcast_mcp.edits.share_registry import SqliteShareRegistry
+from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.services.share_auth.store import ShareIdentityStore
 from podcast_mcp.util.sqlite_open import open_sqlite
@@ -107,6 +107,6 @@ def test_only_the_opener_and_the_registry_backup_target_call_sqlite_connect() ->
         if "sqlite3.connect(" in path.read_text(encoding="utf-8")
     )
     assert callers == [
-        "podcast_mcp/edits/share_registry.py",
+        "podcast_mcp/services/collaboration/share_registry.py",
         "podcast_mcp/util/sqlite_open.py",
     ]

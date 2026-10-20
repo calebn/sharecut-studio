@@ -1,6 +1,6 @@
 """Shared skip markers and autouse fixture for review-publication platform tests.
 
-``podcast_mcp.edits.review_versions`` fails closed on platforms without safe,
+``podcast_mcp.services.collaboration.review_versions`` fails closed on platforms without safe,
 descriptor-relative directory operations (Windows): staging, quarantine and
 stale-cleanup paths all require ``_SAFE_STALE_CLEANUP_SUPPORTED`` /
 ``_SAFE_FAILED_CLEANUP_SUPPORTED``. Tests that exercise those paths import the
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits import review_versions
+from podcast_mcp.services.collaboration import review_versions
 
 # Import-time values: the autouse helper below patches the module flags per test.
 REVIEW_STALE_CLEANUP_SUPPORTED = review_versions._SAFE_STALE_CLEANUP_SUPPORTED

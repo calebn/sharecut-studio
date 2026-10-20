@@ -7,9 +7,9 @@ import logging
 import re
 from typing import Any
 
-from podcast_mcp.edits.review_versions import get_version
-from podcast_mcp.edits.share_capabilities import CAP_PLAY, has_capability
 from podcast_mcp.runtime_config import load_relay_config
+from podcast_mcp.services.collaboration.review_versions import get_version
+from podcast_mcp.services.collaboration.share_capabilities import CAP_PLAY, has_capability
 
 log = logging.getLogger(__name__)
 
@@ -221,8 +221,8 @@ def render_record_spa_html(
     description = "You have been invited to record with Sharecut Studio. Use headphones."
     page_url = f"{public_origin.rstrip('/')}/rec/{token}"
     try:
-        from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
         from podcast_mcp.services.collaboration.share import open_share_workspace
+        from podcast_mcp.services.collaboration.share_registry import SHARE_KIND_RECORD
 
         row, ws = open_share_workspace(token, kind=SHARE_KIND_RECORD)
         producer = str(row.get("role") or "") == "producer"

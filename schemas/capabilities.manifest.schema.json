@@ -94,7 +94,7 @@
           "properties": {
             "guest": {
               "type": "boolean",
-              "description": "Documentation-only Host-only column on the capabilities catalog. Not the runtime share ACL (edits/share_capabilities.py has_capability)."
+              "description": "Documentation-only Host-only column on the capabilities catalog. Not the runtime share ACL (services/collaboration/share_capabilities.py has_capability)."
             },
             "keyboard_reason": { "type": ["string", "null"] },
             "agent_reason": {

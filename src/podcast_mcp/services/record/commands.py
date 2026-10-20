@@ -9,7 +9,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
-from podcast_mcp.edits.share_capabilities import CAP_COMMENT, CAP_JOIN
+from podcast_mcp.services.collaboration import CAP_COMMENT, CAP_JOIN
 from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     parse_comment_id,

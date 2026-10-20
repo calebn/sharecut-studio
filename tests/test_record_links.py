@@ -10,24 +10,29 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.review_shares import create_share, drop_share, list_room_shares, list_shares
-from podcast_mcp.edits.share_capabilities import RECORD_ROLE_PRESETS
-from podcast_mcp.edits.share_registry import (
-    RECORD_REVIEW_VERSION_SENTINEL,
-    get_share_registry,
-    share_is_usable,
-)
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool, revoke_record_room_tool
 from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.record_share import lookup_record_share, record_bootstrap
 from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.review_shares import (
+    create_share,
+    drop_share,
+    list_room_shares,
+    list_shares,
+)
 from podcast_mcp.services.collaboration.share import (
     ShareService,
     lookup_share,
     open_share_workspace,
     present_share,
+)
+from podcast_mcp.services.collaboration.share_capabilities import RECORD_ROLE_PRESETS
+from podcast_mcp.services.collaboration.share_registry import (
+    RECORD_REVIEW_VERSION_SENTINEL,
+    get_share_registry,
+    share_is_usable,
 )
 from podcast_mcp.services.record import RecordSessionService, RecordStateError
 from podcast_mcp.services.record.commands import RecordCommand

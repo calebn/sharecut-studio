@@ -25,7 +25,6 @@ from typer.testing import CliRunner
 from play_patch import patch_play
 from podcast_mcp.cli.main import app
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
 from podcast_mcp.engines.balance import balance_basis_digest
@@ -69,6 +68,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB
 from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import (
     AnalysisService,
     EditService,

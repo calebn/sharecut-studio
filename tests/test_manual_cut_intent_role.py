@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -15,6 +14,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 
 
 @pytest.fixture

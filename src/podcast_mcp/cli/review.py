@@ -5,9 +5,8 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration import ReviewService, ShareService
+from podcast_mcp.services.collaboration import ReviewService, ShareService, capabilities_for_role
 from podcast_mcp.util.coded_error import CodedError, describe_error
 
 review_app = typer.Typer(
@@ -346,7 +345,7 @@ def review_backup_registry_cmd(
     ),
 ) -> None:
     """Create a new private standalone registry backup; existing destinations are refused."""
-    from podcast_mcp.edits.share_registry import (
+    from podcast_mcp.services.collaboration import (
         backup_share_registry,
         default_share_registry_db_path,
     )

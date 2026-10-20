@@ -7,7 +7,7 @@ import stat
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.review_shares import _load, _save
+from podcast_mcp.services.collaboration.review_shares import _load, _save
 
 ROWS: list[dict[str, Any]] = [
     {"id": "s1", "token": "secret-token", "label": "Café review", "capabilities": ["view"]},

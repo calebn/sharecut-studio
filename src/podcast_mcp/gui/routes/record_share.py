@@ -14,8 +14,6 @@ from fastapi import APIRouter, Header, Query, Request, WebSocket, WebSocketDisco
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
 
-from podcast_mcp.edits.share_capabilities import CAP_JOIN, CAP_MONITOR, has_capability
-from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     admit_guest_ws,
@@ -34,7 +32,15 @@ from podcast_mcp.gui.routes.share_common import (
     share_features_manifest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration import lookup_share, open_share_workspace, record_bootstrap
+from podcast_mcp.services.collaboration import (
+    CAP_JOIN,
+    CAP_MONITOR,
+    SHARE_KIND_RECORD,
+    has_capability,
+    lookup_share,
+    open_share_workspace,
+    record_bootstrap,
+)
 from podcast_mcp.services.record import (
     CLIENT_VISIBLE_AUTHZ_CODES,
     UPLOAD_KIND_ROOM_TONE,

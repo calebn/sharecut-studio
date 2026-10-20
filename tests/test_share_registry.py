@@ -12,14 +12,18 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.edits.review_shares import (
+from podcast_mcp.models import load_project, save_project
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.review_shares import (
     create_share,
     list_shares,
     list_usable_shares,
     revoke_share,
     shares_path_for_workspace,
 )
-from podcast_mcp.edits.share_registry import (
+from podcast_mcp.services.collaboration.share import ShareService, lookup_share
+from podcast_mcp.services.collaboration.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
     SHARE_COOLDOWN_DAYS,
     SqliteShareRegistry,
@@ -27,10 +31,6 @@ from podcast_mcp.edits.share_registry import (
     get_share_registry,
     share_is_usable,
 )
-from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.review import ReviewService
-from podcast_mcp.services.collaboration.share import ShareService, lookup_share
 from review_platform import requires_safe_failed_cleanup
 from review_platform import (
     unmarked_tests_run_as_unsupported_platform as unmarked_tests_run_as_unsupported_platform,
@@ -111,7 +111,9 @@ def test_claim_with_mint_retry_skips_active_and_cooldown(registry: SqliteShareRe
     def _fake_slug(_n: int = 3) -> str:
         return next(seq)
 
-    with patch("podcast_mcp.edits.share_registry.generate_slug", side_effect=_fake_slug):
+    with patch(
+        "podcast_mcp.services.collaboration.share_registry.generate_slug", side_effect=_fake_slug
+    ):
         token = claim_with_mint_retry(_share_template(), registry=registry, max_attempts=8)["token"]
     assert token == "fresh-unique-slug"
     assert registry.get_active("fresh-unique-slug") is not None
@@ -344,14 +346,14 @@ def test_lookup_demotes_hard_expired(minimal_project, sample_wav, tmp_workspace,
     )
     with pytest.raises(KeyError):
         lookup_share(row["token"])
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
     assert get_share_registry().get_active(row["token"]) is None
     assert get_share_registry().is_reserved(row["token"])
 
 
 def test_override_path_used_verbatim(monkeypatch, tmp_path: Path):
-    from podcast_mcp.edits import share_registry as sr
+    from podcast_mcp.services.collaboration import share_registry as sr
 
     override = tmp_path / "idx.json"
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(override))
@@ -372,7 +374,7 @@ def test_json_override_revoke_is_seen_by_lookup(
     minimal_project, sample_wav, tmp_path: Path, monkeypatch
 ):
     """Regression: revoke and resolve must hit the same file for a *.json override."""
-    from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
+    from podcast_mcp.services.collaboration.share_registry import reset_share_registry_for_tests
 
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_path / "shares.json"))
     reset_share_registry_for_tests()
@@ -386,7 +388,7 @@ def test_json_override_revoke_is_seen_by_lookup(
 
 
 def test_explicit_non_default_path_is_separate_registry(tmp_path: Path):
-    from podcast_mcp.edits import share_registry as sr
+    from podcast_mcp.services.collaboration import share_registry as sr
 
     other = sr.get_share_registry(tmp_path / "other.sqlite")
     try:
@@ -448,7 +450,7 @@ def test_bad_capabilities_json(registry: SqliteShareRegistry):
 
 def test_generate_token_exhausted(registry: SqliteShareRegistry):
     with patch(
-        "podcast_mcp.edits.share_registry.generate_slug",
+        "podcast_mcp.services.collaboration.share_registry.generate_slug",
         return_value="always-taken-slug",
     ):
         registry.claim_active(
@@ -467,7 +469,7 @@ def test_generate_token_exhausted(registry: SqliteShareRegistry):
 
 
 def test_reset_singleton(monkeypatch, tmp_path: Path):
-    from podcast_mcp.edits import share_registry as sr
+    from podcast_mcp.services.collaboration import share_registry as sr
 
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_path / "a.sqlite"))
     a = sr.get_share_registry()
@@ -483,8 +485,8 @@ def test_reset_singleton(monkeypatch, tmp_path: Path):
 def test_create_share_save_failure_releases(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.edits import review_shares as rs
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration import review_shares as rs
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="FailSave")
@@ -561,7 +563,7 @@ def test_demote_leaves_cooldown_not_active(registry: SqliteShareRegistry):
 
 
 def test_claim_with_mint_retry_on_collision(registry: SqliteShareRegistry):
-    from podcast_mcp.edits.share_registry import claim_with_mint_retry
+    from podcast_mcp.services.collaboration.share_registry import claim_with_mint_retry
 
     now = datetime.now(UTC)
     registry.claim_active(
@@ -580,7 +582,9 @@ def test_claim_with_mint_retry_on_collision(registry: SqliteShareRegistry):
     def _fake_slug(_n: int = 3) -> str:
         return next(seq)
 
-    with patch("podcast_mcp.edits.share_registry.generate_slug", side_effect=_fake_slug):
+    with patch(
+        "podcast_mcp.services.collaboration.share_registry.generate_slug", side_effect=_fake_slug
+    ):
         row = claim_with_mint_retry(
             {
                 "id": "share-id",
@@ -599,7 +603,7 @@ def test_claim_with_mint_retry_on_collision(registry: SqliteShareRegistry):
 
 
 def test_backup_share_registry(registry: SqliteShareRegistry, tmp_path: Path):
-    from podcast_mcp.edits.share_registry import backup_share_registry
+    from podcast_mcp.services.collaboration.share_registry import backup_share_registry
 
     secret = registry.recording_key_secret()
     now = datetime.now(UTC)
@@ -673,7 +677,7 @@ def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
     registry: SqliteShareRegistry,
 ) -> None:
     with patch(
-        "podcast_mcp.edits.share_registry.secrets.token_bytes",
+        "podcast_mcp.services.collaboration.share_registry.secrets.token_bytes",
         side_effect=OSError("entropy unavailable"),
     ):
         with pytest.raises(OSError, match="entropy unavailable"):
@@ -736,7 +740,7 @@ def test_release_claim(registry: SqliteShareRegistry):
 
 @requires_safe_failed_cleanup
 def test_touch_share_and_register_paths(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    from podcast_mcp.edits.review_shares import (
+    from podcast_mcp.services.collaboration.review_shares import (
         register_share_globally,
         resolve_share,
         touch_share_last_used,
@@ -745,7 +749,7 @@ def test_touch_share_and_register_paths(minimal_project, sample_wav, tmp_workspa
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Touch")
     row = create_share(ws.project, review_version_id=ver["id"])
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
     # Age last_used so the next touch_share_last_used writes the sidecar.
     aged = _iso(datetime.now(UTC) - timedelta(hours=2))
@@ -787,12 +791,14 @@ def test_touch_share_and_register_paths(minimal_project, sample_wav, tmp_workspa
 
 
 def test_resolve_share_exception(monkeypatch, tmp_path: Path):
-    from podcast_mcp.edits.review_shares import resolve_share
+    from podcast_mcp.services.collaboration.review_shares import resolve_share
 
     def _boom(_path=None):
         raise RuntimeError("db dead")
 
-    monkeypatch.setattr("podcast_mcp.edits.review_shares.get_share_registry", _boom)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.review_shares.get_share_registry", _boom
+    )
     assert resolve_share("x", registry_path=tmp_path / "x.sqlite") is None
 
 
@@ -850,7 +856,7 @@ def test_lookup_touch_exception_fallback(minimal_project, sample_wav, tmp_worksp
         "podcast_mcp.services.collaboration.share.touch_share_last_used_for_workspace", _boom
     )
     # Age so registry touch path in lookup still runs after exception
-    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
     aged = _iso(datetime.now(UTC) - timedelta(hours=2))
     get_share_registry()._conn.execute(

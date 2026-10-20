@@ -164,8 +164,8 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/edits/share_registry.py",
-          "src/podcast_mcp/edits/review_shares.py",
+          "src/podcast_mcp/services/collaboration/share_registry.py",
+          "src/podcast_mcp/services/collaboration/review_shares.py",
           "src/podcast_mcp/services/collaboration/share.py",
           "src/podcast_mcp/cli/review.py",
           "src/podcast_mcp/util/registry_privacy_error.py",
@@ -223,7 +223,7 @@
           "src/podcast_mcp/services/session_sync/log.py",
           "src/podcast_mcp/services/share_auth/store.py",
           "src/podcast_mcp/services/media/media_store.py",
-          "src/podcast_mcp/edits/share_registry.py"
+          "src/podcast_mcp/services/collaboration/share_registry.py"
         ]
       }
     },
@@ -800,7 +800,7 @@
           "src/podcast_mcp/util/body_limits.py",
           "src/podcast_mcp/util/ws_limits.py",
           "src/podcast_mcp/cli/tunnel.py",
-          "src/podcast_mcp/edits/share_capabilities.py",
+          "src/podcast_mcp/services/collaboration/share_capabilities.py",
           "src/podcast_mcp/extensions/collaboration.py",
           "src/podcast_relay/",
           "deploy/relay/",
@@ -1110,8 +1110,8 @@
         "include": [
           "src/podcast_mcp/services/document_sync/policy.py",
           "src/podcast_mcp/services/document_sync/capabilities.py",
-          "src/podcast_mcp/edits/share_capabilities.py",
-          "src/podcast_mcp/edits/review_shares.py",
+          "src/podcast_mcp/services/collaboration/share_capabilities.py",
+          "src/podcast_mcp/services/collaboration/review_shares.py",
           "gui/web/src/shareMode.ts"
         ]
       }

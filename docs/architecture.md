@@ -83,6 +83,17 @@ The current narrow GUI dependencies are app GUI launch to `gui.bind` and
 `gui.static_assets`, document sync projection to `gui.assembler`, and collaboration share
 projection and playback to `gui.mapper` and `gui.audio`. Other service imports of CLI, MCP, or GUI
 adapters are rejected.
+
+The collaboration context owns the share and review stores: the sqlite share
+registry (`share_registry.py`), review share lifecycle and sidecars
+(`review_shares.py`), review mix versions (`review_versions.py`) and the share
+capability ACL (`share_capabilities.py`). `edits/` is pure domain logic and
+opens no sqlite, so the one former domain-to-services edge
+(`review_shares` importing `share_auth`) is gone. CLI, GUI, MCP, scripts and
+sibling contexts reach these names through the `podcast_mcp.services.collaboration`
+facade (for example `SHARE_KIND_RECORD`, `get_share_registry`, `has_capability`,
+`capabilities_for_role`, `list_shares`, `get_version`); focused tests may import
+the implementation modules.
 The projection guard remains in
 `tests/test_import_direction.py`.
 

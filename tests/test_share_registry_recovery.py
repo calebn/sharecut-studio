@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from podcast_mcp.edits import share_registry
+from podcast_mcp.services.collaboration import share_registry
 
 
 def _assert_private(path: Path, *, directory: bool = False) -> None:

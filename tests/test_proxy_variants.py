@@ -671,7 +671,7 @@ def test_symlink_escape_refuses(workspace, tmp_path):
 def test_basis_explicit_geometry_and_registry_free(workspace, monkeypatch):
     ws = workspace
     monkeypatch.setattr(
-        "podcast_mcp.edits.share_registry.get_share_registry",
+        "podcast_mcp.services.collaboration.share_registry.get_share_registry",
         lambda: pytest.fail("Registry was opened"),
     )
     assert pv.project_basis(ws.project, defaults=load_defaults()).clips == {}

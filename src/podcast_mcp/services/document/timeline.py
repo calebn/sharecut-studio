@@ -41,7 +41,6 @@ from podcast_mcp.edits.join_modes import (
     set_clip_join_mode,
 )
 from podcast_mcp.edits.ripple import TrimEdge, plan_trim
-from podcast_mcp.edits.share_registry import get_share_registry
 from podcast_mcp.edits.timeline_ops import (
     copy_segment,
     duplicate_segment,
@@ -63,6 +62,7 @@ from podcast_mcp.edits.transcript_cuts import (
     append_split_decision,
 )
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
+from podcast_mcp.services.collaboration import get_share_registry
 from podcast_mcp.services.document.bleed_inspection import (
     BleedRestoreResult,
     ClipBleedInspection,

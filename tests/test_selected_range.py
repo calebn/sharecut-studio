@@ -14,7 +14,6 @@ from podcast_mcp.edits.range_edits import (
     range_geometry,
     range_media_seal,
 )
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.models import (
     Clip,
     CutIntent,
@@ -27,6 +26,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import (
     INTERACTIVE_COMMAND,

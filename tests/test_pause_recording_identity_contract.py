@@ -26,7 +26,9 @@ def _deny_registry(monkeypatch):
     def unavailable():
         raise AssertionError("Internal pause identity reached the public secret registry")
 
-    monkeypatch.setattr("podcast_mcp.edits.share_registry.get_share_registry", unavailable)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share_registry.get_share_registry", unavailable
+    )
 
 
 def _assert_private_archive(result, tmp_path):

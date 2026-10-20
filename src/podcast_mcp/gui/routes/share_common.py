@@ -7,9 +7,8 @@ from typing import Any
 
 from fastapi import Request
 
-from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.routes.guest_errors import guest_http_error
-from podcast_mcp.services.collaboration import lookup_share
+from podcast_mcp.services.collaboration import SHARE_KIND_REVIEW, lookup_share
 from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
 )

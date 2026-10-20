@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from podcast_mcp.edits.share_capabilities import (
+from podcast_mcp.services.collaboration import (
     CAP_ACTION,
     CAP_COMMENT,
     CAP_PLAY,

@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.edits.share_registry import SqliteShareRegistry
+from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
 from podcast_mcp.services.session_sync import sqlite as session_sqlite
 from podcast_mcp.util import sqlite_open
 from process_helpers import reap
@@ -355,7 +355,9 @@ def _run_construction_actor(path: str, barrier: Any, sender: Connection) -> None
     try:
         try:
             sender.send(("progress", "constructing registry"))
-            with patch("podcast_mcp.edits.share_registry.sqlite3.connect", open_connection):
+            with patch(
+                "podcast_mcp.services.collaboration.share_registry.sqlite3.connect", open_connection
+            ):
                 registry = SqliteShareRegistry(Path(path))
             sender.send(("progress", "reading registry state"))
             secret = registry.recording_key_secret()

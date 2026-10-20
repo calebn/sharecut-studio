@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from podcast_mcp.edits.share_registry import SqliteShareRegistry
+from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
 from podcast_mcp.util import registry_backup as publisher
 from podcast_mcp.util import registry_backup_windows as windows
 
@@ -265,7 +265,7 @@ def test_public_windows_security_descriptor_free_failure_owns_created_handle(
 def test_public_windows_source_validation_failure_releases_known_new_main(
     tmp_path, monkeypatch, kind
 ):
-    from podcast_mcp.edits import share_registry
+    from podcast_mcp.services.collaboration import share_registry
 
     path = tmp_path / "registry.sqlite"
     failure = kind("source native validation interrupted")

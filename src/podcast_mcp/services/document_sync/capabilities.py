@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from podcast_mcp.edits.share_capabilities import ReviewRole, review_role_for_capabilities
+from podcast_mcp.services.collaboration import ReviewRole, review_role_for_capabilities
 from podcast_mcp.util.coded_error import CodedPermissionError
 
 # Structural ops share one command type; policy chooses apply vs propose.

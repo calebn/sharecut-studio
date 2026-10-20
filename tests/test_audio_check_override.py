@@ -113,7 +113,10 @@ def test_suggested_preview_plays_a_held_cut_as_approving_it_anyway_would(tmp_pat
 
 
 def test_share_override_needs_the_editor_capability(tmp_path, monkeypatch):
-    from podcast_mcp.edits.share_capabilities import REVIEW_ROLE_CAPABILITIES, ReviewRole
+    from podcast_mcp.services.collaboration.share_capabilities import (
+        REVIEW_ROLE_CAPABILITIES,
+        ReviewRole,
+    )
     from podcast_mcp.util.coded_error import CodedPermissionError
 
     result, _decision = _blocked_filler(tmp_path, monkeypatch)

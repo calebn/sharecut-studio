@@ -927,7 +927,7 @@ async def test_publish_review_version_with_a_stale_mix_returns_the_stale_mix_cod
     pytest.importorskip("mcp.client")
     from mcp.client import Client
 
-    from podcast_mcp.edits.review_versions import StaleMixError
+    from podcast_mcp.services.collaboration.review_versions import StaleMixError
 
     def _stale(self, **kwargs):
         raise StaleMixError("premix.wav is out of date; Refresh", code="stale_mix")

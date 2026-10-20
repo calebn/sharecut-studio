@@ -3,7 +3,7 @@
 Product capabilities are registered in [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json).
 That file is the contract for **which host surfaces** exist (Sharecut Studio command / GUI / keyboard / **host** MCP / CLI / skill). Adapters stay thin; business logic stays in `services/`.
 
-It is **not** the share ACL. Token bits live in [`share_capabilities.py`](../src/podcast_mcp/edits/share_capabilities.py); guest MCP tools in [`remote_mcp/allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py); share HTTP in the guest OpenAPI export. The capabilities catalog MCP column lists **host stdio / local GUI Streamable HTTP** names (`split_clip_tool`, `play_audio_tool`) — the same `MCPServer` on `podcast-mcp` stdio and on `http://127.0.0.1:8765/mcp`. Share agents call guest HTTP / `guest_submit_document_command`, never those host names. `omit.guest` is a documentation Host-only annotation — not `has_capability`. Do not add `guest_*` to `surfaces.mcp`.
+It is **not** the share ACL. Token bits live in [`share_capabilities.py`](../src/podcast_mcp/services/collaboration/share_capabilities.py); guest MCP tools in [`remote_mcp/allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py); share HTTP in the guest OpenAPI export. The capabilities catalog MCP column lists **host stdio / local GUI Streamable HTTP** names (`split_clip_tool`, `play_audio_tool`) — the same `MCPServer` on `podcast-mcp` stdio and on `http://127.0.0.1:8765/mcp`. Share agents call guest HTTP / `guest_submit_document_command`, never those host names. `omit.guest` is a documentation Host-only annotation — not `has_capability`. Do not add `guest_*` to `surfaces.mcp`.
 
 ## Architecture
 

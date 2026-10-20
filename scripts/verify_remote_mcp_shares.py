@@ -27,10 +27,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.project_io import copy_relocated_workspace
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration import ReviewService, ShareService
+from podcast_mcp.services.collaboration import ReviewService, ShareService, capabilities_for_role
 from podcast_mcp.services.remote_mcp import tools_for_capabilities
 
 _ROOT = Path(__file__).resolve().parents[1]

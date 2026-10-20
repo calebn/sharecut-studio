@@ -10,11 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from podcast_mcp.edits.share_capabilities import ALL_CAPABILITIES
 from podcast_mcp.extensions.features import (
     EXPERIMENTAL_FEATURE_IDS,
     STABLE_FEATURE_IDS,
 )
+from podcast_mcp.services.collaboration import ALL_CAPABILITIES
 from podcast_mcp.util.relay_protocol.protocol import PROTOCOL_VERSION
 
 

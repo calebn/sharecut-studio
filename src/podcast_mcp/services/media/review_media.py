@@ -7,15 +7,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.review_shares import effective_review_version_id, list_shares
-from podcast_mcp.edits.review_versions import (
+from podcast_mcp.models import EpisodeProject
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration import (
+    effective_review_version_id,
     encode_version_mp3,
     get_version,
+    list_shares,
     version_audio_path,
     version_mp3_path,
 )
-from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,

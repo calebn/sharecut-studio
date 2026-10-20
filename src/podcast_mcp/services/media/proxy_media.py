@@ -7,12 +7,11 @@ import math
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.review_shares import list_shares
-from podcast_mcp.edits.share_capabilities import CAP_PLAY, CAP_VIEW, has_capability
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.models import EpisodeProject, TrackProxy
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration import CAP_PLAY, CAP_VIEW, has_capability, list_shares
 from podcast_mcp.services.media.review_media import presign_ttl_seconds
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
