@@ -11,7 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
 import { type DisabledReasonProps, unavailableReason } from "./disabledReason";
-import { enterTopLayerPanel } from "./topLayerFloor";
+import { popoverSupported, showInTopLayer } from "./topLayerFloor";
 import { useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
 
@@ -97,22 +97,15 @@ export function Menu({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const mode = useMemo<"native" | "fallback" | null>(() => {
     if (!open) return null;
-    const proto =
-      typeof window === "undefined" ? null : window.HTMLElement.prototype;
-    return typeof proto?.showPopover === "function" &&
-      typeof proto.hidePopover === "function"
-      ? "native"
-      : "fallback";
+    return popoverSupported() ? "native" : "fallback";
   }, [open]);
   const attachPanel = useCallback(
     (panel: HTMLDivElement) => {
       if (!mode) return;
       panelRef.current = panel;
-      if (mode === "native") panel.showPopover();
-      const leave = mode === "native" ? enterTopLayerPanel() : null;
+      const leave = mode === "native" ? showInTopLayer(panel) : null;
       return () => {
         leave?.();
-        if (mode === "native") panel.hidePopover();
         if (panelRef.current === panel) panelRef.current = null;
       };
     },
@@ -313,10 +306,15 @@ export function MenuItem({
       }}
     >
       {body}
-      {shortcut || detail ? (
+      {shortcut ? (
         <kbd className="ui-menu-shortcut" aria-hidden="true">
-          {shortcut ?? detail}
+          {shortcut}
         </kbd>
+      ) : null}
+      {detail ? (
+        <span className="ui-menu-detail" aria-hidden="true">
+          {detail}
+        </span>
       ) : null}
     </button>
   );

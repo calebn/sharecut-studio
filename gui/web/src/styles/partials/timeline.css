@@ -1440,12 +1440,6 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 /* Touch target chooser (#1051): portaled to <body> above the shell like
    a menu. Chips are 44 px (--touch-min) and placed at computed px centres
    (chooserLayout.ts); the arc, leaders and rings are viewport geometry. */
-.target-chooser {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-menu);
-}
-
 .target-chooser.is-closing {
   pointer-events: none;
 }
@@ -1815,10 +1809,24 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
    time on its lane; the menu sits above the finger (below it near the top,
    beside it on a short screen) and never over it, beside the fixed playhead
    when there is room. */
-.create-menu-layer {
+.create-menu-layer,
+.target-chooser {
   position: fixed;
   inset: 0;
   z-index: var(--z-menu);
+}
+
+/* In the top layer these are popovers: undo the UA's centered, bordered,
+   scrolling box so the layer stays a full-viewport sheet of geometry. */
+:is(.create-menu-layer, .target-chooser)[popover] {
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
 }
 
 .create-menu-scrim {
@@ -1891,36 +1899,6 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   min-block-size: var(--touch-min);
   user-select: none;
   -webkit-touch-callout: none;
-}
-
-/* Under the sliding finger: lifting here picks it. */
-.create-menu-item.is-over {
-  background: var(--color-hover);
-}
-
-.create-menu-item[aria-disabled="true"] {
-  color: var(--color-text-secondary);
-  cursor: default;
-}
-
-.create-menu-item-text {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: flex-start;
-  min-inline-size: 0;
-}
-
-.create-menu-reason {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-micro);
-}
-
-.create-menu-detail {
-  margin-inline-start: auto;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-  font-variant-numeric: tabular-nums;
 }
 
 .create-menu-separator {

@@ -87,6 +87,19 @@ describe("CreateMenu", () => {
     expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 
+  it("enters the top layer as a popover and leaves it on close", () => {
+    const show = vi.spyOn(HTMLElement.prototype, "showPopover");
+    const hide = vi.spyOn(HTMLElement.prototype, "hidePopover");
+    const { unmount } = open("/tmp/ep.project.json");
+    const layer = document.body.querySelector(".create-menu-layer");
+    expect(layer).not.toBeNull();
+    expect(show.mock.contexts).toContain(layer);
+    unmount();
+    expect(hide.mock.contexts).toContain(layer);
+    show.mockRestore();
+    hide.mockRestore();
+  });
+
   it("says Blade cut cuts the selected tracks, not the held lane, and sets it apart from the lane's entry", () => {
     useDawStore.getState().selectTracks(["guest", "host"]);
     const { container } = open("/tmp/ep.project.json", null, [

@@ -61,3 +61,27 @@ export function enterTopLayerPanel(): () => void {
     settleFloor();
   };
 }
+
+export function popoverSupported(): boolean {
+  const proto =
+    typeof window === "undefined" ? null : window.HTMLElement.prototype;
+  return (
+    typeof proto?.showPopover === "function" &&
+    typeof proto.hidePopover === "function"
+  );
+}
+
+/**
+ * Put `panel` (rendered with `popover="manual"`) in the top layer and keep the
+ * toast above it; the returned cleanup hides it again. Every floating overlay
+ * that is not a modal `Dialog` goes through here: `Menu`, the create menu and
+ * the target chooser.
+ */
+export function showInTopLayer(panel: HTMLElement): () => void {
+  panel.showPopover();
+  const leave = enterTopLayerPanel();
+  return () => {
+    leave();
+    panel.hidePopover();
+  };
+}

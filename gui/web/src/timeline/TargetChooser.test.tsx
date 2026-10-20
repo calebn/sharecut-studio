@@ -104,6 +104,27 @@ function show(overrides: Partial<ChooserView> = {}) {
 }
 
 describe("TargetChooser", () => {
+  it("enters the top layer as a popover and leaves it on close", () => {
+    const show = vi.spyOn(HTMLElement.prototype, "showPopover");
+    const hide = vi.spyOn(HTMLElement.prototype, "hidePopover");
+    const { unmount } = render(
+      <TargetChooser
+        view={view}
+        router={router}
+        bounds={{ left: 0, top: 0, right: 360, bottom: 640 }}
+        closing={false}
+        onClosed={() => undefined}
+      />,
+    );
+    const layer = document.body.querySelector(".target-chooser");
+    expect(layer).not.toBeNull();
+    expect(show.mock.contexts).toContain(layer);
+    unmount();
+    expect(hide.mock.contexts).toContain(layer);
+    show.mockRestore();
+    hide.mockRestore();
+  });
+
   it("shows a whole-track flat-line glyph without a false time at a late touch position", () => {
     const line = target(
       hitTargetProps("envelope-line", "host-line", 0, { detail: "0.80" }),

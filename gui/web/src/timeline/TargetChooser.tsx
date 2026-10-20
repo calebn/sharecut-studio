@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 import { JOIN_GLYPH_PATH, type JoinGlyph } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
+import { useTopLayerPanel } from "../ui/useTopLayerPanel";
 import { formatTime } from "../utils/time";
 import {
   type ChooserBounds,
@@ -255,6 +256,7 @@ export function TargetChooser({
   onClosed,
 }: TargetChooserProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const topLayer = useTopLayerPanel();
   const [chipPx, setChipPx] = useState(44);
   const [focused, setFocused] = useState<number | null>(null);
   const candidates = view.hits.map((h) => h.candidate);
@@ -368,6 +370,8 @@ export function TargetChooser({
 
   return createPortal(
     <div
+      ref={topLayer.ref}
+      popover={topLayer.popover}
       className={`target-chooser${closing ? " is-closing" : ""}`}
       data-placement={layout.placement}
       inert={closing}

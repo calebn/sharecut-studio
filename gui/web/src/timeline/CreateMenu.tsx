@@ -11,14 +11,16 @@
  * scrim, Escape and a second finger close it with no change. A dashed line
  * marks the held time on its lane, so the menu reads as "here".
  */
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { runPointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
+import { MenuItem } from "../ui/Menu";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
+import { useTopLayerPanel } from "../ui/useTopLayerPanel";
 import { bladeCutNote } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
 import { type ChooserBounds, layoutMenu, naturalSize } from "./chooserLayout";
@@ -97,7 +99,7 @@ export function CreateMenu({
 }: CreateMenuProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const titleId = useId();
+  const topLayer = useTopLayerPanel();
   const [size, setSize] = useState<{ width: number; height: number } | null>(
     null,
   );
@@ -137,51 +139,38 @@ export function CreateMenu({
     router.close();
     runPointerCommand(item.entry.command, item.args);
   };
-  const render = (item: Item, index: number) => {
-    const reasonId = `${titleId}-${item.entry.id}`;
-    const caption = item.reason ?? item.note;
-    const detail =
-      item.entry.id === "envelope-point" && place.level != null
-        ? `${place.level.toFixed(2)}×`
-        : null;
-    return (
-      <button
-        key={item.entry.id}
-        type="button"
-        role="menuitem"
-        tabIndex={-1}
-        className={`ui-control ui-control--quiet create-menu-item${view.over === index ? " is-over" : ""}`}
-        aria-disabled={item.reason ? true : undefined}
-        aria-describedby={caption ? reasonId : undefined}
-        {...{ [CREATE_ITEM_ATTR]: String(index) }}
-        onPointerDown={(e) => {
-          // No compatibility mousedown: it would pull focus to the timeline
-          // once the menu unmounts.
-          e.preventDefault();
-        }}
-        onClick={() => pick(item)}
-      >
-        <span className="create-menu-item-text">
-          <span className="ui-menu-item-label">{item.entry.label}</span>
-          {caption ? (
-            <span id={reasonId} className="create-menu-reason">
-              {caption}
-            </span>
-          ) : null}
-        </span>
-        {detail ? (
-          <span className="create-menu-detail" aria-hidden="true">
-            {detail}
-          </span>
-        ) : null}
-      </button>
-    );
-  };
+  const render = (item: Item, index: number) => (
+    <MenuItem
+      key={item.entry.id}
+      over={view.over === index}
+      dataAttrs={{ [CREATE_ITEM_ATTR]: String(index) }}
+      disabledReason={item.reason ?? undefined}
+      description={item.note ?? undefined}
+      detail={
+        item.entry.id === "envelope-point" && place.level != null
+          ? `${place.level.toFixed(2)}×`
+          : undefined
+      }
+      onPointerDown={(e) => {
+        // No compatibility mousedown: it would pull focus to the timeline
+        // once the menu unmounts.
+        e.preventDefault();
+      }}
+      onSelect={() => pick(item)}
+    >
+      {item.entry.label}
+    </MenuItem>
+  );
   const track = list.filter((item) => item.entry.scope === "track");
   const episode = list.filter((item) => item.entry.scope === "episode");
 
   return createPortal(
-    <div className="create-menu-layer" data-placement={layout.placement}>
+    <div
+      ref={topLayer.ref}
+      popover={topLayer.popover}
+      className="create-menu-layer"
+      data-placement={layout.placement}
+    >
       <div
         className="create-menu-scrim"
         onPointerDown={(e) => {
