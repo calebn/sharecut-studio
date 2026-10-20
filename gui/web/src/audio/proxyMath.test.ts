@@ -317,6 +317,67 @@ describe("proxyMath", () => {
     expect(c.whenTimelineSec).toBeCloseTo(4.3, 9);
   });
 
+  it("places a crossfaded clip and the clock shift from the render's frontier, not from authored starts", () => {
+    const join = {
+      join_in_mode: "crossfade" as const,
+      join_crossfade_ms: 200,
+      fade_in_ms: 400,
+      fade_out_ms: 400,
+    };
+    const rows = (bStart: number) => [
+      clip({ id: "a", timeline_start: 0, timeline_end: 2, fade_out_ms: 400 }),
+      clip({
+        id: "b",
+        source_start: 2,
+        source_end: 4,
+        timeline_start: bStart,
+        timeline_end: bStart + 2,
+        join_left_clip_id: "a",
+        ...join,
+      }),
+      clip({
+        id: "c",
+        source_start: 4,
+        source_end: 6,
+        timeline_start: 4.5,
+        timeline_end: 6.5,
+      }),
+    ];
+    // b authored 0.1 s early: render puts b at 1.8, then c at 4.5 - (3.9 - 3.8).
+    const early = buildSchedule(rows(1.9), 0, 20, manifest());
+    expect(early.map((s) => s.whenTimelineSec)).toEqual([
+      0,
+      expect.closeTo(1.8, 9),
+      expect.closeTo(4.4, 9),
+    ]);
+    // b authored 0.04 s late (inside the join tolerance) still starts at 1.8.
+    const late = buildSchedule(rows(2.04), 0, 20, manifest());
+    expect(late[1].whenTimelineSec).toBeCloseTo(1.8, 9);
+  });
+
+  it("closes a plain join gap inside the tolerance and carries it as render does", () => {
+    const slices = buildSchedule(
+      [
+        clip({ id: "a", timeline_start: 0, timeline_end: 2 }),
+        clip({
+          id: "b",
+          timeline_start: 2.04,
+          timeline_end: 4.04,
+          join_left_clip_id: "a",
+        }),
+        clip({ id: "c", timeline_start: 5, timeline_end: 6 }),
+      ],
+      0,
+      20,
+      manifest(),
+    );
+    expect(slices.map((s) => s.whenTimelineSec)).toEqual([
+      0,
+      2,
+      expect.closeTo(4.96, 9),
+    ]);
+  });
+
   it("leaves a blocked or other-lane crossfade join where it was authored", () => {
     const rows = [
       clip({ id: "a", timeline_start: 0, timeline_end: 2, fade_out_ms: 100 }),

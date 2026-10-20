@@ -4,6 +4,7 @@ import {
   isCutJoin,
 } from "../edit/joinRender";
 import { DocumentCommand } from "../types/documentCommands.generated";
+import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow, ProjectView } from "../types/project";
 import { originTrackId } from "../utils/timebase";
 import { type MuteSpan, muteSpansOf, type VolumePoint } from "./gainCurve";
@@ -345,41 +346,62 @@ function placeLikeRender(clips: readonly ClipRow[]): {
 } {
   const overlapIn = new Map<string, number>();
   const overlapOut = new Map<string, number>();
-  const shiftOf = new Map<string, number>();
+  const placedStart = new Map<string, number>();
   const byTrack = new Map<string, ClipRow[]>();
   for (const clip of clips) {
     const lane = byTrack.get(clip.track_id);
     if (lane) lane.push(clip);
     else byTrack.set(clip.track_id, [clip]);
   }
+  // `timeline_render._place_clips`: a clip's start is its authored start less
+  // the clock shift so far (snapped to the frontier inside the join
+  // tolerance); a blending join starts it `overlap` before the left clip ends.
   for (const lane of byTrack.values()) {
     const ordered = [...lane].sort(
       (a, b) => a.timeline_start - b.timeline_start,
     );
-    let shift = 0;
     let prev: ClipRow | undefined;
+    let componentEnd = Number.NaN;
+    let frontier = 0;
+    let authoredFrontier = 0;
+    let clockShift = 0;
     for (const clip of ordered) {
+      const body = Math.max(0, clip.timeline_end - clip.timeline_start);
       const overlap =
         prev && clip.join_left_clip_id === prev.id
           ? crossfadeOverlapSec(clip)
           : 0;
+      let start: number;
       if (overlap > 0 && prev) {
         overlapIn.set(clip.id, overlap);
         overlapOut.set(prev.id, overlap);
-        shift += overlap;
+        start = componentEnd - overlap;
+        componentEnd += body - overlap;
+      } else {
+        start = Math.max(0, clip.timeline_start - clockShift);
+        if (Math.abs(start - frontier) <= JOIN_GAP_TOLERANCE_SEC)
+          start = frontier;
+        if (prev && Math.abs(start - componentEnd) < 1e-9) {
+          componentEnd += body;
+        } else {
+          componentEnd = start + body;
+        }
       }
-      shiftOf.set(clip.id, shift);
+      placedStart.set(clip.id, start);
+      frontier = Math.max(frontier, componentEnd);
+      authoredFrontier = Math.max(authoredFrontier, clip.timeline_end);
+      clockShift = authoredFrontier - frontier;
       prev = clip;
     }
   }
   const placed = clips.map((clip) => {
-    const shift = shiftOf.get(clip.id) ?? 0;
-    return shift === 0
+    const start = placedStart.get(clip.id) ?? clip.timeline_start;
+    return start === clip.timeline_start
       ? clip
       : {
           ...clip,
-          timeline_start: clip.timeline_start - shift,
-          timeline_end: clip.timeline_end - shift,
+          timeline_start: start,
+          timeline_end: start + (clip.timeline_end - clip.timeline_start),
         };
   });
   return { placed, overlapIn, overlapOut };
