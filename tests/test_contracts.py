@@ -52,3 +52,14 @@ def test_non_object_contract_is_refused(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setattr(contracts, "contracts_dir", lambda: tmp_path)
     with pytest.raises(ValueError, match=r"list\.json must be a JSON object"):
         contracts.load_contract("list.json")
+
+
+def test_contract_constant_names_the_missing_file_and_key(tmp_path, monkeypatch):
+    (tmp_path / "x.json").write_text('{"constants": {"a": 1}}', encoding="utf-8")
+    (tmp_path / "bare.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(contracts, "contracts_dir", lambda: tmp_path)
+    assert contracts.contract_constant("x.json", "a") == 1
+    with pytest.raises(RuntimeError, match=r"contracts/x\.json has no constants\.b"):
+        contracts.contract_constant("x.json", "b")
+    with pytest.raises(RuntimeError, match=r"contracts/bare\.json has no constants\.a"):
+        contracts.contract_constant("bare.json", "a")

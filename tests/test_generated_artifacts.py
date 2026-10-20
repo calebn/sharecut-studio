@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from script_loader import load_script
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
@@ -62,3 +64,10 @@ def test_every_checkable_exporter_is_covered() -> None:
 @pytest.mark.parametrize("command", FRONTEND_JOB_CHECKS)
 def test_biome_formatted_exporters_run_in_the_frontend_job(command: str) -> None:
     assert f"python3 {command}" in WORKFLOW.read_text(encoding="utf-8")
+
+
+def test_project_type_generator_fails_on_a_schema_shape_it_cannot_express() -> None:
+    gen = load_script("export_project_types")
+    assert gen._ts({"title": "Any"}) == "unknown"
+    with pytest.raises(ValueError, match="unhandled JSON-schema shape"):
+        gen._ts({"not": {"type": "string"}})
