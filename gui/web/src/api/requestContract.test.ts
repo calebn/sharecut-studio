@@ -19,6 +19,11 @@ import {
 } from "./project";
 import { loadWaveformSnap, loadWaveformStatus } from "./waveform";
 
+function urlOf(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  return input instanceof URL ? input.href : input.url;
+}
+
 vi.mock("../sessionAuth", () => ({
   getSessionToken: () => "host-secret",
   authHeaders: (extra?: HeadersInit) => {
@@ -43,9 +48,9 @@ beforeEach(() => {
   seen = [];
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: string, init?: RequestInit) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       seen.push({
-        url: input,
+        url: urlOf(input),
         method: init?.method ?? "GET",
         token: new Headers(init?.headers).get("X-Podcast-Token"),
       });
@@ -190,16 +195,16 @@ describe("share guest requests go to the review base without the host token", ()
 describe("record guest requests use the record base and lease headers", () => {
   it("sends participant and lease, never the host token", async () => {
     const headers: Array<[string | null, string | null]> = [];
-    (fetch as ReturnType<typeof vi.fn>).mockImplementation(
-      async (input: string, init?: RequestInit) => {
+    vi.mocked(fetch).mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
         const h = new Headers(init?.headers);
         seen.push({
-          url: input,
+          url: urlOf(input),
           method: init?.method ?? "GET",
           token: h.get("X-Podcast-Token"),
         });
         headers.push([h.get("X-Record-Participant"), h.get("X-Record-Lease")]);
-        return respond({ segments: [], acked: true });
+        return Promise.resolve(respond({ segments: [], acked: true }));
       },
     );
     await loadRecordBootstrap("tok/1");
@@ -226,14 +231,14 @@ describe("record guest requests use the record base and lease headers", () => {
 describe("proxy chunks", () => {
   it("fetch the server-issued url as given", async () => {
     vi.stubGlobal("caches", undefined);
-    (fetch as ReturnType<typeof vi.fn>).mockImplementation(
-      async (input: string, init?: RequestInit) => {
+    vi.mocked(fetch).mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
         seen.push({
-          url: input,
+          url: urlOf(input),
           method: init?.method ?? "GET",
           token: new Headers(init?.headers).get("X-Podcast-Token"),
         });
-        return new Response(new Uint8Array([1, 2]));
+        return Promise.resolve(new Response(new Uint8Array([1, 2])));
       },
     );
     const buf = await cachedFetchArrayBuffer(
@@ -257,8 +262,8 @@ describe("refusals keep the host message and code", () => {
     ["host session meta", () => loadSessionMeta(HOST)],
     ["host pipeline steps", () => loadPipelineSteps()],
   ])("%s", async (_name, call) => {
-    (fetch as ReturnType<typeof vi.fn>).mockImplementation(
-      async () =>
+    vi.mocked(fetch).mockImplementation(() =>
+      Promise.resolve(
         new Response(
           JSON.stringify({
             detail: "This share is read-only. Ask the host for edit access.",
@@ -268,6 +273,7 @@ describe("refusals keep the host message and code", () => {
             headers: { "X-Sharecut-Error-Code": "share_read_only" },
           },
         ),
+      ),
     );
     await expect(call()).rejects.toMatchObject({
       name: "ApiError",
