@@ -108,6 +108,7 @@ export function TrackInspector({
       start: 0,
       end: 0,
       padSec: 1.5,
+      setPlayheadSec: (sec) => void seekTransport(sec),
       setPlayUntilSec,
       setIsPlaying,
     });
