@@ -8,7 +8,6 @@ import {
   isCrossfadeJoin,
   isCutJoin,
   isDrawnJoin,
-  JOIN_GAP_TOLERANCE_SEC,
   JOIN_GLYPHS,
   JOIN_MODE_OPTIONS,
   JOIN_MODE_SHORT,
@@ -20,6 +19,7 @@ import {
   joinVisual,
   MIN_JOIN_CLIP_PX,
 } from "./joinRender";
+import { JOIN_GAP_TOLERANCE_SEC } from "./limits.generated";
 
 const clip: ClipRow = {
   id: "c2",

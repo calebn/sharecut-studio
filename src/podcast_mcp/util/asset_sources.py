@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import ipaddress
-import json
 import logging
 import urllib.error
 import urllib.parse
@@ -17,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.util.atomic_file import publish_completed_file
+from podcast_mcp.util.contracts import load_contract
 from podcast_mcp.util.hashing import sha256_file
 
 logger = logging.getLogger(__name__)
@@ -84,25 +84,14 @@ def _sanitize_cdn_base(value: str | None) -> str | None:
     return base
 
 
-def manifest_path() -> Path:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "contracts" / _MANIFEST_NAME
-        if candidate.is_file():
-            return candidate
-    bundled = here.parent / _MANIFEST_NAME
-    if bundled.is_file():
-        return bundled
-    raise AssetSourceError(f"bootstrap manifest not found: contracts/{_MANIFEST_NAME}")
-
-
 @lru_cache(maxsize=1)
 def _read_manifest() -> dict[str, Any]:
-    path = manifest_path()
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        raise AssetSourceError(f"invalid manifest: {path}")
-    return raw
+    try:
+        return load_contract(_MANIFEST_NAME)
+    except FileNotFoundError as exc:
+        raise AssetSourceError(f"bootstrap manifest not found: contracts/{_MANIFEST_NAME}") from exc
+    except ValueError as exc:
+        raise AssetSourceError(f"invalid manifest: contracts/{_MANIFEST_NAME}") from exc
 
 
 def load_manifest() -> dict[str, Any]:

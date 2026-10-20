@@ -18,11 +18,14 @@ from podcast_mcp.engines.session_timeline import (
 from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
 from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
+from podcast_mcp.util.contracts import load_contract
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.tracks import recording_audio_path, unknown_track
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
-JOIN_GAP_TOLERANCE_SEC = 0.05
+JOIN_GAP_TOLERANCE_SEC: float = load_contract("join-length-limits.json")["constants"][
+    "join_gap_tolerance_sec"
+]
 """Largest timeline gap (seconds) between neighbouring clips still treated as a join."""
 
 
@@ -335,7 +338,7 @@ def update_timeline_duration(project: EpisodeProject) -> None:
     project.timeline.duration_sec = end if end > 0 else project.timeline.duration_sec
 
 
-_MIN_CLIP_SPAN_SEC = 0.05
+_MIN_CLIP_SPAN_SEC: float = load_contract("trim-edge-limits.json")["constants"]["min_clip_span_sec"]
 
 
 def source_duration_sec(project: EpisodeProject, clip: Clip) -> float | None:
@@ -406,7 +409,9 @@ def trim_edge_limits(
             hi = min(hi, float(nxt.source_start))
         if mode is EditMode.GAP:
             following = [
-                c.timeline_start for c in others if c.timeline_start >= clip.timeline_end - 1e-9
+                c.timeline_start
+                for c in others
+                if c.timeline_start >= clip.timeline_end - SPAN_EPS_S
             ]
             if following:
                 room = min(following) - clip.timeline_end
@@ -419,7 +424,7 @@ def trim_edge_limits(
     )
     if mode is EditMode.GAP:
         preceding = max(
-            (c.timeline_end for c in others if c.timeline_end <= clip.timeline_start + 1e-9),
+            (c.timeline_end for c in others if c.timeline_end <= clip.timeline_start + SPAN_EPS_S),
             default=0.0,
         )
         room = clip.timeline_start - preceding

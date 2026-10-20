@@ -23,13 +23,10 @@ def _source_tree(root: Path, *, web_build: bool) -> Path:
     for name in ("pyproject.toml", "hatch_build.py"):
         shutil.copy(_ROOT / name, root / name)
     (root / "README.md").write_text("readme\n", encoding="utf-8")
-    (root / "contracts").mkdir()
-    shutil.copy(_ROOT / "contracts/ffmpeg-build.json", root / "contracts/ffmpeg-build.json")
+    shutil.copytree(_ROOT / "contracts", root / "contracts")
     for package in ("podcast_mcp", "podcast_mcp/gui", "podcast_relay"):
         (root / "src" / package).mkdir(parents=True, exist_ok=True)
         (root / "src" / package / "__init__.py").write_text("", encoding="utf-8")
-    (root / "src/podcast_mcp/util").mkdir()
-    (root / "src/podcast_mcp/util/bootstrap-assets.json").write_text("{}", encoding="utf-8")
     if web_build:
         assets = root / "gui/web/dist/assets"
         assets.mkdir(parents=True)
@@ -47,7 +44,13 @@ def _wheel_names(root: Path, out: Path, version: str = "standard") -> set[str]:
 def test_wheel_ships_web_build_where_the_server_looks(tmp_path: Path) -> None:
     root = _source_tree(tmp_path / "src-tree", web_build=True)
     names = _wheel_names(root, tmp_path / "out")
-    assert "podcast_mcp/util/ffmpeg-build.json" in names
+    shipped = {
+        f"podcast_mcp/contracts/{path.name}" for path in (_ROOT / "contracts").glob("*.json")
+    }
+    assert shipped <= names
+    assert not [
+        name for name in names if name.startswith("podcast_mcp/util/") and name.endswith(".json")
+    ]
     assert "podcast_mcp/gui/web_dist/index.html" in names
     assert "podcast_mcp/gui/web_dist/assets/index-abc123.js" in names
     site_packages = Path(podcast_mcp.__file__).resolve().parents[1]

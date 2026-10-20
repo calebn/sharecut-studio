@@ -1,4 +1,5 @@
 {
+  "constants": { "edge_eps_sec": 1e-3 },
   "scope_cases": [
     {
       "name": "every dialogue track in project order",

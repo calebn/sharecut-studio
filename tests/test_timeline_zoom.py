@@ -38,17 +38,6 @@ def test_zoom_getters():
     assert snap_tick_decimals() == 6
 
 
-def test_packaged_timeline_zoom_matches_contract():
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parents[1]
-    contract = (root / "contracts" / "timeline-zoom.json").read_text(encoding="utf-8")
-    bundled = (root / "src" / "podcast_mcp" / "util" / "timeline-zoom.json").read_text(
-        encoding="utf-8"
-    )
-    assert contract == bundled
-
-
 def test_waveform_contract_keys():
     waveform = load_timeline_zoom()["waveform"]
     assert waveform == {

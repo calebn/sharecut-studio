@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import urllib.request
 from pathlib import Path
 from unittest.mock import patch
@@ -24,7 +25,6 @@ from podcast_mcp.util.asset_sources import (
     cdn_url_for,
     download_first_ok,
     load_manifest,
-    manifest_path,
     ordered_http_urls,
 )
 
@@ -147,14 +147,9 @@ def test_cdn_base_env_survives_missing_manifest(monkeypatch: pytest.MonkeyPatch)
     assert cdn_base_configured() is True
 
 
-def test_packaged_bootstrap_assets_matches_contract() -> None:
-    root = Path(__file__).resolve().parents[1]
-    contract = (root / "contracts" / "bootstrap-assets.json").read_text(encoding="utf-8")
-    bundled = (root / "src" / "podcast_mcp" / "util" / "bootstrap-assets.json").read_text(
-        encoding="utf-8"
-    )
-    assert contract == bundled
-    assert manifest_path().name == "bootstrap-assets.json"
+def test_manifest_is_the_contract() -> None:
+    contract = Path(__file__).resolve().parents[1] / "contracts" / "bootstrap-assets.json"
+    assert load_manifest() == json.loads(contract.read_text(encoding="utf-8"))
 
 
 def test_load_manifest_returns_isolated_copies() -> None:
@@ -280,31 +275,23 @@ def test_copy_bounded_writes_chunks() -> None:
     assert dest.getvalue() == b"ok"
 
 
-def test_manifest_path_falls_back_to_bundled(monkeypatch: pytest.MonkeyPatch) -> None:
-    from podcast_mcp.util import asset_sources as sources
-
-    real_is_file = Path.is_file
-
-    def fake_is_file(self: Path) -> bool:
-        if self.name == "bootstrap-assets.json" and "contracts" in self.parts:
-            return False
-        return real_is_file(self)
-
-    monkeypatch.setattr(Path, "is_file", fake_is_file)
-    sources._read_manifest.cache_clear()
-    path = sources.manifest_path()
-    assert path.parent.name == "util"
-    sources._read_manifest.cache_clear()
-
-
 def test_invalid_manifest_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from podcast_mcp.util import asset_sources as sources
 
-    bad = tmp_path / "bootstrap-assets.json"
-    bad.write_text("[]", encoding="utf-8")
-    monkeypatch.setattr(sources, "manifest_path", lambda: bad)
+    (tmp_path / "bootstrap-assets.json").write_text("[]", encoding="utf-8")
+    monkeypatch.setattr("podcast_mcp.util.contracts.contracts_dir", lambda: tmp_path)
     sources._read_manifest.cache_clear()
     with pytest.raises(AssetSourceError, match="invalid manifest"):
+        sources.load_manifest()
+    sources._read_manifest.cache_clear()
+
+
+def test_missing_manifest_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from podcast_mcp.util import asset_sources as sources
+
+    monkeypatch.setattr("podcast_mcp.util.contracts.contracts_dir", lambda: tmp_path)
+    sources._read_manifest.cache_clear()
+    with pytest.raises(AssetSourceError, match="not found"):
         sources.load_manifest()
     sources._read_manifest.cache_clear()
 

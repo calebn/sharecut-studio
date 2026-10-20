@@ -30,7 +30,7 @@ ISOLATED: dict[str, str] = {
         "Key is empty; the value depends on is_available(), which tests patch."
     ),
     "podcast_mcp.util.asset_sources:_read_manifest": (
-        "Key is empty; the value depends on manifest_path(), which tests patch."
+        "Key is empty; the value depends on contracts_dir(), which tests patch."
     ),
     "podcast_mcp.engines.media_probe:_cached_media_probe": (
         "Tests mock the probe result for a path another test may probe for real."

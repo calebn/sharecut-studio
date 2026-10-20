@@ -66,6 +66,8 @@ share minting, guest routes, or remote MCP.
 
 Experimental: `extension.more.0`, `extension.status.0` (may change in minors).
 
+`contracts/caps.json` pins the stable and experimental IDs, the capability enum and the relay `protocol_version`. `scripts/check_extension_contracts.py` compares it with `extensions/features.py`, `extensions/caps.py` and `podcast_relay.protocol`; `tests/test_generated_artifacts.py` runs it, so `make generated-check` fails on drift.
+
 Removing/renaming a stable slot = FOSS major version. Host API version: `podcast_mcp.extensions.api_version.HOST_API_VERSION`.
 
 The SPI is `podcast_mcp.extensions`, the stable slot IDs above and `HOST_API_VERSION`. Host helpers under `podcast_mcp.util` are internal: they may change signature without a `HOST_API_VERSION` bump, so an out-of-tree extension that imports one must move with the host. For example, #494 removed `timeout` from `util.file_locks.shared_file_lock`: a caller that needs to wait now uses `hold_shared_file_lock(path, timeout=...)`, and a bare `with shared_file_lock(path):` fails fast with `filelock.Timeout` on contention.

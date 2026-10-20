@@ -234,7 +234,7 @@ def build_payload(
         modules.mkdir(parents=True)
         (modules.parent / "__init__.py").write_text("")
         (modules / "__init__.py").write_text("")
-        for module in ("atomic_file.py", "ffmpeg_policy.py", "hashing.py"):
+        for module in ("atomic_file.py", "contracts.py", "ffmpeg_policy.py", "hashing.py"):
             shutil.copy2(ROOT / "src/podcast_mcp/util" / module, modules / module)
         shutil.copy2(Path(__file__), rebuild / "scripts/build_ffmpeg.py")
         shutil.copy2(ROOT / "scripts/ffmpeg_payload.py", rebuild / "scripts/ffmpeg_payload.py")

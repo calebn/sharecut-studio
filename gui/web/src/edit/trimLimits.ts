@@ -5,12 +5,8 @@
  * the save would refuse. `contracts/trim-edge-limits.json` pins it to the server.
  */
 import type { ClipRow } from "../types/project";
-import { TIME_EPS_SEC } from "../utils/timebase";
-import {
-  type EditMode,
-  MIN_EDGE_SPAN_SEC,
-  type TrimEdge,
-} from "./clipEdgePreview";
+import { type EditMode, type TrimEdge } from "./clipEdgePreview";
+import { MIN_EDGE_SPAN_SEC, TIME_EPS_SEC } from "./limits.generated";
 import { sameRecording } from "./recordingIdentity";
 
 /** `trim_edge_limits`' own tolerance when it looks for the next or previous clip in time. */

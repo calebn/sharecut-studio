@@ -124,8 +124,7 @@ wheel-web-dist = "podcast_mcp/gui/web_dist"
 packages = ["src/podcast_mcp", "src/podcast_relay"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"contracts/ffmpeg-build.json" = "podcast_mcp/util/ffmpeg-build.json"
-"src/podcast_mcp/util/bootstrap-assets.json" = "podcast_mcp/util/bootstrap-assets.json"
+"contracts" = "podcast_mcp/contracts"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

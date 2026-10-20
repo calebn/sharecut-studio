@@ -9,32 +9,15 @@ pyramid (``engines/waveform_pyramid.py``, ``docs/waveform.md``).
 
 from __future__ import annotations
 
-import json
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
-_CONTRACT_NAME = "timeline-zoom.json"
-
-
-def _contract_path() -> Path:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "contracts" / _CONTRACT_NAME
-        if candidate.is_file():
-            return candidate
-    bundled = here.parent / _CONTRACT_NAME
-    if bundled.is_file():
-        return bundled
-    raise FileNotFoundError(f"timeline zoom contract not found ({_CONTRACT_NAME})")
+from podcast_mcp.util.contracts import load_contract
 
 
 @lru_cache(maxsize=1)
 def load_timeline_zoom() -> dict[str, Any]:
-    data = json.loads(_contract_path().read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError("timeline-zoom.json must be an object")
-    return data
+    return load_contract("timeline-zoom.json")
 
 
 def _waveform() -> dict[str, Any]:

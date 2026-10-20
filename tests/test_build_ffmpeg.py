@@ -185,7 +185,7 @@ def test_windows_builder_requests_and_stages_executable_targets(tmp_path, monkey
         ).read_bytes()
     rebuild = output / "rebuild"
     assert (rebuild / "scripts/build_ffmpeg.py").read_bytes() == Path(builder.__file__).read_bytes()
-    for name in ("atomic_file.py", "ffmpeg_policy.py", "hashing.py"):
+    for name in ("atomic_file.py", "contracts.py", "ffmpeg_policy.py", "hashing.py"):
         assert (rebuild / "src/podcast_mcp/util" / name).read_bytes() == (
             builder.ROOT / "src/podcast_mcp/util" / name
         ).read_bytes()

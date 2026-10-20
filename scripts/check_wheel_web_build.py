@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Assert a release wheel ships the Sharecut Studio web build (#1085).
+"""Assert a release wheel ships the Sharecut Studio web build (#1085) and its contracts.
 
 Checks that ``index.html`` and every ``./`` file it references sit under the
-packaged web root. With ``--podcast``, also starts that installed ``podcast gui``
-and requires ``/`` to return the wheel's ``index.html`` and each asset to load.
+packaged web root, and that the runtime-loaded ``contracts/*.json`` ship as
+``podcast_mcp/contracts``. With ``--podcast``, also loads those contracts from the
+installed package, then starts that installed ``podcast gui`` and requires ``/`` to
+return the wheel's ``index.html`` and each asset to load.
 
     python scripts/check_wheel_web_build.py dist/podcast_mcp-*.whl
     python scripts/check_wheel_web_build.py dist/podcast_mcp-*.whl --podcast venv/bin/podcast
@@ -25,6 +27,34 @@ _PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 _HOOK = tomllib.loads(_PYPROJECT.read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["hooks"]
 WHEEL_WEB_DIST = _HOOK["custom"]["wheel-web-dist"]
 
+PACKAGED_CONTRACTS = "podcast_mcp/contracts"
+# Contracts the runtime reads (util/contracts.py): ffmpeg_policy, asset_sources,
+# timeline_zoom and the edit geometry constants.
+RUNTIME_CONTRACTS = (
+    "bootstrap-assets.json",
+    "ffmpeg-build.json",
+    "join-length-limits.json",
+    "ripple-scope.json",
+    "timeline-zoom.json",
+    "trim-edge-limits.json",
+)
+_LOAD_CONTRACTS = """
+import sys
+from podcast_mcp.edits import clips_ops, ranges, ripple
+from podcast_mcp.util import contracts
+from podcast_mcp.util.asset_sources import load_manifest
+from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
+from podcast_mcp.util.timeline_zoom import min_zoom_px_per_sec
+
+where = contracts.contracts_dir()
+assert where.name == "contracts" and where.parent.name == "podcast_mcp", where
+assert "site-packages" in where.parts, where
+assert load_manifest()["assets"] and ffmpeg_policy()["version"] and min_zoom_px_per_sec() > 0
+assert clips_ops._MIN_CLIP_SPAN_SEC == 0.05 and ranges.SPAN_EPS_S == 1e-9
+assert ripple._EDGE_EPS_SEC == 1e-3 and clips_ops.JOIN_GAP_TOLERANCE_SEC == 0.05
+print(where)
+"""
+
 _LOCAL_REF = re.compile(r'(?:src|href)="\./([^"]+)"')
 
 
@@ -41,6 +71,30 @@ def wheel_web_build(wheel: Path) -> tuple[bytes, list[str]]:
     if not refs or missing:
         raise SystemExit(f"{wheel.name}: index.html refs {refs}, missing from wheel {missing}")
     return index, refs
+
+
+def wheel_contracts(wheel: Path) -> None:
+    """Require the runtime contracts under ``podcast_mcp/contracts`` and no JSON beside the code."""
+    with zipfile.ZipFile(wheel) as archive:
+        names = set(archive.namelist())
+    missing = [n for n in RUNTIME_CONTRACTS if f"{PACKAGED_CONTRACTS}/{n}" not in names]
+    stray = sorted(n for n in names if n.startswith("podcast_mcp/util/") and n.endswith(".json"))
+    if missing or stray:
+        raise SystemExit(f"{wheel.name}: contracts missing {missing}, stray util JSON {stray}")
+
+
+def installed_contracts(podcast: Path) -> None:
+    """Load the contracts through the installed package, not the checkout."""
+    python = podcast.parent / "python"
+    result = subprocess.run(
+        [str(python), "-I", "-c", _LOAD_CONTRACTS],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"installed package cannot load its contracts:\n{result.stderr}")
+    print(f"contracts load from the installed package: {result.stdout.strip()}")
 
 
 def _get(url: str) -> tuple[int, bytes]:
@@ -94,7 +148,12 @@ def main() -> None:
     args = parser.parse_args()
     index, refs = wheel_web_build(args.wheel)
     print(f"{args.wheel.name}: {WHEEL_WEB_DIST}/index.html plus {len(refs)} referenced files")
+    wheel_contracts(args.wheel)
+    print(
+        f"{args.wheel.name}: {len(RUNTIME_CONTRACTS)} runtime contracts under {PACKAGED_CONTRACTS}"
+    )
     if args.podcast:
+        installed_contracts(args.podcast)
         serve_check(args.podcast, args.port, index, refs)
 
 
