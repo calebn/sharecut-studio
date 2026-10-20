@@ -89,8 +89,6 @@ def _resolve_param_fields(
     for spec in specs:
         value = get_by_path(defaults, spec.path)
         kind = _inferred_type(spec, value)
-        if kind == "number" and isinstance(value, int) and not isinstance(value, bool):
-            value = float(value)
         fields.append(
             ParamField(
                 path=spec.path,

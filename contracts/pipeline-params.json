@@ -56,7 +56,7 @@
       "type": "number"
     },
     {
-      "default": 0.0,
+      "default": 0,
       "path": "align.max_offset_sec",
       "type": "number"
     },
@@ -341,12 +341,12 @@
       "type": "boolean"
     },
     {
-      "default": 500.0,
+      "default": 500,
       "path": "transcribe.vad.min_silence_duration_ms",
       "type": "number"
     },
     {
-      "default": 300.0,
+      "default": 300,
       "path": "transcribe.vad.speech_pad_ms",
       "type": "number"
     },

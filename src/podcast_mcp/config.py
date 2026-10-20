@@ -76,8 +76,11 @@ def _parsed_defaults(path: Path) -> dict[str, Any]:
 
 
 def bundled_defaults() -> dict[str, Any]:
-    """The repo's pipeline YAML as shipped, ignoring ``PODCAST_MCP_PIPELINE_DEFAULTS`` and overlays."""
-    return _parsed_defaults(_DEFAULTS_PATH)
+    """The repo's pipeline YAML as shipped, ignoring ``PODCAST_MCP_PIPELINE_DEFAULTS`` and overlays.
+
+    ``{}`` when the file is absent (an install without the repo tree), as ``load_defaults`` does.
+    """
+    return _parsed_defaults(_DEFAULTS_PATH) if _DEFAULTS_PATH.is_file() else {}
 
 
 def load_defaults() -> dict[str, Any]:
