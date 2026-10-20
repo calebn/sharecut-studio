@@ -198,37 +198,6 @@ html[data-shell="phone"]
   border-bottom: 1px solid var(--color-border);
 }
 
-.clip-fade-controls {
-  display: grid;
-  gap: var(--space-1);
-  inline-size: 100%;
-  min-inline-size: 0;
-}
-
-.clip-fade-control {
-  display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 4rem);
-  align-items: center;
-  gap: var(--space-1);
-  min-inline-size: 0;
-  font-size: var(--font-size-small);
-}
-
-.clip-fade-control input[type="range"] {
-  inline-size: 100%;
-  min-block-size: var(--touch-min);
-  min-inline-size: 0;
-}
-
-.clip-fade-control output {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-mono);
-  font-variant-numeric: tabular-nums;
-  text-align: end;
-}
-
 .pending-snap-option {
   display: inline-flex;
   align-items: center;
@@ -266,7 +235,6 @@ html[data-shell="phone"]
 .track-fader-value {
   min-inline-size: 4.5rem;
   text-align: end;
-  font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -442,7 +410,6 @@ html[data-shell="phone"]
 
 .inspector dd {
   margin: var(--space-1) 0 0;
-  font-family: var(--font-family-mono);
   font-size: var(--font-size-small);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
