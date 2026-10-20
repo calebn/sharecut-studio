@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clipRow } from "../test/fixtures";
+import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import {
   clipIdsBeforeCut,
@@ -19,7 +20,6 @@ import {
   joinVisual,
   MIN_JOIN_CLIP_PX,
 } from "./joinRender";
-import { JOIN_GAP_TOLERANCE_SEC } from "./limits.generated";
 
 const clip: ClipRow = {
   id: "c2",

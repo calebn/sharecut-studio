@@ -1,6 +1,6 @@
+import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow, JoinMode } from "../types/project";
 import { formatRulerTime } from "../utils/time";
-import { JOIN_GAP_TOLERANCE_SEC } from "./limits.generated";
 
 export const JOIN_MODE_OPTIONS: { value: JoinMode; label: string }[] = [
   { value: "cut", label: "Cut (no fade)" },

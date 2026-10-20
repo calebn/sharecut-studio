@@ -1,4 +1,4 @@
-import { MIN_EDGE_SPAN_SEC } from "../edit/limits.generated";
+import { MIN_EDGE_SPAN_SEC } from "../types/limits.generated";
 
 export type SocialDragMode = "move" | "start" | "end";
 

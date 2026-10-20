@@ -1,4 +1,4 @@
-import { TIME_EPS_SEC as EPS } from "../edit/limits.generated";
+import { TIME_EPS_SEC as EPS } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 
 /**

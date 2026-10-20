@@ -33,7 +33,7 @@ The geometry constants both sides share (minimum clip span, time epsilon, join
 gap tolerance, ripple edge epsilon) sit in the `constants` block of
 `contracts/trim-edge-limits.json`, `join-length-limits.json` and
 `ripple-scope.json`. Python reads them through `util/contracts.py`; the GUI reads
-`gui/web/src/edit/limits.generated.ts`, written by
+`gui/web/src/types/limits.generated.ts`, written by
 `scripts/export_limit_contracts.py` (`make schema-export`).
 A trim that newly moves a whole follower below timeline zero by more than 1 ns
 raises `ripple_before_zero` before any lane changes. This preserves the rendered

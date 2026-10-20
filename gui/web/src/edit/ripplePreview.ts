@@ -10,9 +10,13 @@
  * limits a peer's edge moves within come from `trimEdgeLimits`
  * (`contracts/trim-edge-limits.json`).
  */
+
+import {
+  TIME_EPS_SEC as EPS,
+  RIPPLE_EDGE_EPS_SEC,
+} from "../types/limits.generated";
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
-import { TIME_EPS_SEC as EPS, RIPPLE_EDGE_EPS_SEC } from "./limits.generated";
 import { trimEdgeLimits } from "./trimLimits";
 
 export type Span = { start: number; end: number };

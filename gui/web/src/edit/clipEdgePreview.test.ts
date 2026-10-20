@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { MIN_EDGE_SPAN_SEC } from "../types/limits.generated";
 import {
   clampTrimSourceSec,
   clipGeometryDuringRoll,
   clipRowDuringRoll,
   sourceSecFromTimelineDelta,
 } from "./clipEdgePreview";
-import { MIN_EDGE_SPAN_SEC } from "./limits.generated";
 
 describe("clipEdgePreview", () => {
   it("clamps out edge to next source start", () => {

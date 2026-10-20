@@ -4,9 +4,10 @@
  * peer a ripple preview moves all clamp here, so none of them previews a place
  * the save would refuse. `contracts/trim-edge-limits.json` pins it to the server.
  */
+
+import { MIN_EDGE_SPAN_SEC, TIME_EPS_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import { type EditMode, type TrimEdge } from "./clipEdgePreview";
-import { MIN_EDGE_SPAN_SEC, TIME_EPS_SEC } from "./limits.generated";
 import { sameRecording } from "./recordingIdentity";
 
 /** `trim_edge_limits`' own tolerance when it looks for the next or previous clip in time. */

@@ -1,6 +1,6 @@
 /** Shared clip-edge trim / roll preview math (timeline + transcript). */
 
-import { MIN_EDGE_SPAN_SEC } from "./limits.generated";
+import { MIN_EDGE_SPAN_SEC } from "../types/limits.generated";
 
 export type TrimEdge = "in" | "out";
 /** What an edit does to the time after it: ripple closes or opens it on every dialogue track; gap moves nothing else. */
