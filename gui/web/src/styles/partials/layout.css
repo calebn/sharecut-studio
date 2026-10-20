@@ -483,7 +483,7 @@ html[data-shell="phone"] .guest-attention-dismiss {
 }
 
 .tab-bar button.ui-control:focus-visible {
-  outline-offset: -2px;
+  outline-offset: -0.125rem;
 }
 
 .tab-content {
