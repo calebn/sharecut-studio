@@ -42,7 +42,7 @@ probes also abstain; three agreeing survivors cannot authorize unresolved portio
 of a whole phrase. Equivalent primary/explicit references to the same recording
 retain saved local choices through source pinning and reopening.
 
-After `transcribe_tracks`, the default-on **`align_tracks`** step places dialogue clips on one session clock (bleed phrase Δt, else own-speech/VAD gaps; N speakers). **`require_align_accept`** gates later steps until listen/`podcast align done` (or unattended waive; never for moves above `align.large_move_sec`). Equal-length and manifest-pinned stems are locked (`hold`/`manual`) unless `align.realign`. Uncheck Align in the Pipeline pane when files are not one conversation. See [pipeline.md](pipeline.md) and skill **podcast-align-audio**.
+After `transcribe_tracks`, the default-on **`align_tracks`** step places dialogue clips on one session clock (bleed phrase Δt, else own-speech/VAD gaps; N speakers). **`require_align_accept`** gates later steps until listen/`podcast align done` (or unattended waive; never for moves above `align.large_move_sec`). Equal-length and manifest-pinned stems are locked (`hold`/`manual`) unless `align.realign`. Uncheck Align in the Pipeline pane when files are not one conversation. The accept sidecar `artifacts/align_accept_status.json` is a `edits/review_gate.ReviewGate` (`ALIGN_GATE` in `edits/align_accept_status.py`), the same gate transcript refine uses; the align module adds only the plan-digest, accepted-drift and unattended-findings policy. See [pipeline.md](pipeline.md) and skill **podcast-align-audio**.
 
 ### Recorder latency from bleed
 

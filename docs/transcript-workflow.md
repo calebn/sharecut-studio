@@ -138,7 +138,7 @@ See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alig
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
 | `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (words the plausibility trim could not reach; no time rewrite) + `forced_alignment` per-job outcomes (each freshly-aligned job also carries `align_sec`, the wall time `WordAligner.align` took; a cache hit or a kept-Whisper failure has no `align_sec`; `no_evidence_words` counts words below `min_word_score` when the floor is on, #195) |
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
-| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + `transcript_fingerprint` of the reviewed word text |
+| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + `transcript_fingerprint` of the reviewed word text. The same `edits/review_gate.ReviewGate` as `align_accept_status.json`; `REFINE_GATE` in `edits/transcript_refine_status.py` supplies only the fingerprint and brief |
 
 The Studio Pipeline tab edits per-project **Terms** and **Guest names** in
 `transcript_context.yaml`. These values join the show title in Whisper's
@@ -552,7 +552,7 @@ Focus/tighten/NL service entry points also call the same assert so agents cannot
 
 ### What stales a refine decision
 
-`done` and `waived` record `transcript_fingerprint`, a digest of the text the refine pass reviewed (`reviewed_transcript_fingerprint` in `edits/transcript_refine_status.py`, the one function every gate check uses). It hashes, per transcript (track ID and source ID), each word's text in original order. Words a cut archived (`archived_words`) still count at their original positions.
+`done` and `waived` record `transcript_fingerprint`, a digest of the text the refine pass reviewed (`reviewed_transcript_fingerprint` in `edits/transcript_refine_status.py`, the one function every `REFINE_GATE` check uses). It hashes, per transcript (track ID and source ID), each word's text in original order. Words a cut archived (`archived_words`) still count at their original positions.
 
 | Change | Stales the decision? |
 |--------|----------------------|
