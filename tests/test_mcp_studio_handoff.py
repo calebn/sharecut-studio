@@ -1,0 +1,182 @@
+"""Stdio MCP tool calls run in the Studio serving the project (#1753).
+
+A real Studio (uvicorn on a loopback socket) serves a project. The stdio server's
+``call_tool`` is wrapped by ``install_studio_handoff``; its own implementation raises, so a
+result can only have come from Studio. A project no Studio serves still runs here.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import threading
+import time
+from collections.abc import Callable, Iterator
+from pathlib import Path
+from typing import Any
+
+import pytest
+import uvicorn
+from mcp.types import CallToolResult
+
+from podcast_mcp.gui.bind import exclusive_listen_socket
+from podcast_mcp.gui.server import create_app
+from podcast_mcp.mcp.server import mcp as real_mcp
+from podcast_mcp.mcp.studio_handoff import install_studio_handoff
+from podcast_mcp.models import EpisodeProject, save_project
+
+pytestmark = pytest.mark.timeout(120)
+
+
+def _wait_until(condition: Callable[[], bool], what: str, timeout: float = 20.0) -> None:
+    deadline = time.monotonic() + timeout
+    tick = threading.Event()
+    while not condition():
+        assert time.monotonic() < deadline, what
+        tick.wait(0.02)
+
+
+class _Direct:
+    """What the stdio server would run locally; a handed-off call must never reach it."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self._tool_manager = real_mcp._tool_manager
+
+    async def call_tool(self, name: str, arguments: dict[str, Any], *_a: Any, **_k: Any) -> Any:
+        self.calls.append((name, dict(arguments)))
+        return "ran here"
+
+
+@pytest.fixture
+def minimal_project(tmp_workspace: Path) -> Path:
+    project = EpisodeProject.create("test_episode", str(tmp_workspace))
+    project.ensure_dirs()
+    return save_project(project)
+
+
+@pytest.fixture
+def studio(minimal_project: Path) -> Iterator[Path]:
+    run_app = create_app(served_project=minimal_project, bind_host="127.0.0.1")
+    sock = exclusive_listen_socket("127.0.0.1", 0)
+    run_app.state.listen_port = sock.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(run_app, log_level="warning"))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    _wait_until(lambda: server.started, "Studio did not start")
+    try:
+        yield minimal_project
+    finally:
+        server.should_exit = True
+        thread.join(20)
+        sock.close()
+
+
+def _wrapped() -> _Direct:
+    server = _Direct()
+    install_studio_handoff(server)
+    return server
+
+
+def test_tool_call_runs_in_the_studio_serving_the_project(studio: Path) -> None:
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
+    assert isinstance(result, CallToolResult)
+    assert not result.is_error
+    assert server.calls == []
+    assert json.loads(result.content[0].text) is not None  # type: ignore[union-attr]
+
+
+def test_the_default_project_env_is_handed_off_too(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_PROJECT", str(studio))
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("list_clips_tool", {}))
+    assert isinstance(result, CallToolResult)
+    assert server.calls == []
+
+
+def test_a_project_no_studio_serves_runs_here(minimal_project: Path) -> None:
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+    )
+    assert result == "ran here"
+    assert server.calls == [("list_clips_tool", {"project_path": str(minimal_project)})]
+
+
+def test_opting_out_runs_here_even_with_a_studio(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_NO_STUDIO_HANDOFF", "1")
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
+    assert result == "ran here"
+
+
+def test_a_tool_without_a_project_runs_here(studio: Path) -> None:
+    server = _wrapped()
+    names = [t.name for t in real_mcp._tool_manager.list_tools()]
+    no_project = next(
+        n
+        for n in names
+        if "project_path"
+        not in (real_mcp._tool_manager.get_tool(n).parameters or {}).get("properties", {})
+    )
+    assert asyncio.run(server.call_tool(no_project, {})) == "ran here"
+
+
+def test_studio_that_stops_answering_after_the_send_reports_a_possible_change(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    class _Session:
+        def __init__(self, *_a: Any) -> None: ...
+
+        async def __aenter__(self) -> _Session:
+            return self
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+        async def initialize(self) -> None:
+            return None
+
+        async def call_tool(self, *_a: Any) -> Any:
+            raise ConnectionError("Studio went away")
+
+    class _Streams:
+        async def __aenter__(self) -> tuple[None, None]:
+            return None, None
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+    monkeypatch.setattr(handoff, "ClientSession", _Session)
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    assert "may have changed the project" in result.content[0].text  # type: ignore[union-attr]
+    assert server.calls == []
+
+
+def test_studio_that_cannot_be_reached_before_the_send_falls_back_here(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    class _Unreachable:
+        async def __aenter__(self) -> Any:
+            raise ConnectionRefusedError("nobody home")
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Unreachable())
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
+    assert result == "ran here"

@@ -226,6 +226,9 @@ def main() -> None:
     if any(arg in ("-V", "--version") for arg in sys.argv[1:]):
         print(f"podcast-mcp {__version__}")
         return
+    from podcast_mcp.mcp.studio_handoff import install_studio_handoff
+
+    install_studio_handoff(mcp)
     mcp.run(transport="stdio")
 
 

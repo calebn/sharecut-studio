@@ -5,7 +5,7 @@ covers the two local connection modes:
 
 | Mode | Use it when | Episode selection |
 | --- | --- | --- |
-| **stdio** | The agent works independently on a project | Pass `project_path`, or set a default with `PODCAST_MCP_PROJECT`. |
+| **stdio** | The agent works independently on a project | Pass `project_path`, or set a default with `PODCAST_MCP_PROJECT`. While Sharecut Studio serves that project, the tool call runs in Studio (one writer, no "Project is busy"); otherwise it runs in the stdio process. |
 | **GUI-attached Streamable HTTP** | You are editing with Sharecut Studio open | Tools use the episode currently open in the GUI. |
 
 Both modes are local. They do not require an API key or account. The GUI MCP
