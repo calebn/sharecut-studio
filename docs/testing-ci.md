@@ -297,9 +297,8 @@ test; other rows are whole tests.
 | no shell row draws over the strip, nor the strip over it: portrait-360 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: landscape-636 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| live waiver draft survives compact to regular tablet transition | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
+| live waiver draft survives a short to tall tablet resize | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
 | docks in the inspector sheet | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| docks in the regular inspector sheet | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | floats between the ruler and the bottom panel | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | leaves Approve and Reject to the inspector | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending card: a marker lane that grows while it floats moves the card clear of the lane | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |

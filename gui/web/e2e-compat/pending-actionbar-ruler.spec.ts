@@ -17,12 +17,11 @@ import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import { save } from "../e2e/touchTimeline";
 
 const CLIENT_ID = "e2e-actionbar-ruler";
-type Outcome = "docked" | "docked-regular" | "floating" | "inline";
+type Outcome = "docked" | "floating" | "inline";
 
 /**
- * Where the review actions end up: docked in the compact sheet; docked in the
- * tablet's regular inspector sheet, where a floating card would sit under it;
- * floating between the sticky ruler and the bottom panel; or, when the card
+ * Where the review actions end up: docked in the compact sheet, on the phone
+ * and the tablet alike; floating between the sticky ruler and the bottom panel; or, when the card
  * cannot fit between ruler and panel, left to the inspector's inline controls.
  */
 const VIEWPORTS: Record<
@@ -31,12 +30,12 @@ const VIEWPORTS: Record<
 > = {
   phone: { width: 360, height: 800, outcome: "docked" },
   "tablet-short": { width: 768, height: 500, outcome: "docked" },
-  tablet: { width: 820, height: 1180, outcome: "docked-regular" },
-  "tablet-768": { width: 768, height: 1024, outcome: "docked-regular" },
+  tablet: { width: 820, height: 1180, outcome: "docked" },
+  "tablet-768": { width: 768, height: 1024, outcome: "docked" },
   "tablet-landscape-1194": {
     width: 1194,
     height: 820,
-    outcome: "docked-regular",
+    outcome: "docked",
   },
   "desktop-1195": { width: 1195, height: 820, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
@@ -110,17 +109,14 @@ async function expectCardOutcome(
   await settle(page);
   save(info, `${browserName}-${name}-${theme}.png`, await page.screenshot());
 
-  if (outcome === "docked" || outcome === "docked-regular") {
+  if (outcome === "docked") {
     await expect(bar).toHaveClass(/pending-actionbar--docked/);
     expect(
       await bar.evaluate((el) => ({
         inspectorSheet: el.closest(".bottom-sheet--inspector") !== null,
         compactSheet: el.closest(".bottom-sheet--compact") !== null,
       })),
-    ).toEqual({
-      inspectorSheet: true,
-      compactSheet: outcome === "docked",
-    });
+    ).toEqual({ inspectorSheet: true, compactSheet: true });
     await expectHitTestable(bar.getByRole("button", { name: "Approve" }));
     await expectHitTestable(bar.getByRole("button", { name: "Reject" }));
     return;
@@ -175,11 +171,6 @@ function run(name: string) {
 for (const name of named("docked")) {
   test.describe(`pending actions at ${name}`, () => {
     test("docks in the inspector sheet", run(name));
-  });
-}
-for (const name of named("docked-regular")) {
-  test.describe(`pending actions at ${name}`, () => {
-    test("docks in the regular inspector sheet", run(name));
   });
 }
 for (const name of named("floating")) {

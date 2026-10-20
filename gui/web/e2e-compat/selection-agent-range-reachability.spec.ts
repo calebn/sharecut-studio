@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "../e2e/overlayReachability";
+import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 
 async function sendSessionCommand(
   page: Page,
@@ -77,6 +78,7 @@ test.use({
 test("agent range controls stay reachable from a tablet clip sheet", async ({
   page,
 }) => {
+  await rememberInspectorDetent(page, "full");
   await openHostProject(page);
   const clientId = fixtureClientId(page, "clip");
   await clearAgentRange(page, clientId, 1);
@@ -104,7 +106,6 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   await expect(sheet).toBeVisible();
   await expect(sheet.locator(".modifier-badge")).toHaveText("Clip");
 
-  await sheet.getByRole("button", { name: "Expand", exact: true }).click();
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
   await expect(barActions).toHaveCount(0);
 
