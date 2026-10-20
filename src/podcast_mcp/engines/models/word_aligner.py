@@ -141,7 +141,7 @@ def word_aligner_model(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerModel
             return model
     ids = ", ".join(m.id for m in WORD_ALIGNER_CATALOG)
     raise CodedValueError(
-        f"Unknown word aligner {model_id!r}. Choose from: {ids}", code="unknown_word_aligner"
+        f"Unknown word aligner {model_id!r}. Choose from: {ids}", code="invalid_request"
     )
 
 

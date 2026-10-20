@@ -191,7 +191,7 @@ def prefs_path() -> Path:
 def normalize_whisper_model(model: str) -> str:
     raw = (model or "").strip()
     if not raw:
-        raise CodedValueError("Whisper model is empty", code="whisper_model_empty")
+        raise CodedValueError("Whisper model is empty", code="invalid_request")
     key = raw.lower()
     return _ALIASES.get(key, key)
 
@@ -203,7 +203,7 @@ def validate_whisper_model(model: str) -> str:
         allowed = ", ".join(WHISPER_SIZE_ENUM)
         raise CodedValueError(
             f"Unknown Whisper model {model!r}. Choose from: {allowed}",
-            code="unknown_whisper_model",
+            code="invalid_request",
         )
     return normalized
 
