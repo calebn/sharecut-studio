@@ -25,6 +25,7 @@ from podcast_mcp.services.document_sync import (
     submit_host_document_command,
     submit_paste_segment,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 from podcast_mcp.util.tracks import resolve_track
 
@@ -244,7 +245,21 @@ def set_clip_fade_tool(
     fade-out is limited to what fade-in leaves.
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(TimelineService(ws).set_clip_fade(clip_id, fade_in_ms, fade_out_ms))
+    clip = next((c for c in ws.project.clips if c.id == clip_id), None)
+    if clip is None:
+        raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "SetClipFade",
+            {
+                "clip_id": clip_id,
+                "fade_in_ms": fade_in_ms,
+                "fade_out_ms": fade_out_ms,
+                "expected": {"fade_in_ms": clip.fade_in_ms, "fade_out_ms": clip.fade_out_ms},
+            },
+        )
+    )
 
 
 def set_join_mode_tool(
@@ -317,23 +332,27 @@ def trim_clip_edge_tool(
     """
     edit_mode = EditMode(mode)
     ws = ProjectWorkspace.open(project_path)
-    with (
-        audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks),
-        ws.transaction(),
-    ):
-        service = EditService(ws)
-        revision = service.boundary_context(
-            TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=edit_mode)
-        ).token
-        return to_json(
-            TimelineService(service.ws).trim_clip_edge(
-                clip_id,
-                edge,
-                source_sec,
-                mode=edit_mode,
-                expected_token=revision,
-            )
+    with ws.transaction():
+        revision = (
+            EditService(ws)
+            .boundary_context(TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=edit_mode))
+            .token
         )
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "TrimClipEdge",
+            {
+                "clip_id": clip_id,
+                "edge": edge,
+                "source_sec": source_sec,
+                "mode": edit_mode.value,
+                "expected_token": revision,
+                "override_audio_checks": override_audio_checks,
+            },
+            client_id="mcp:host",
+        )
+    )
 
 
 def roll_clip_join_tool(
