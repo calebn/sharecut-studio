@@ -199,13 +199,13 @@ describe("keymap registry", () => {
       "edit.clearSelection",
     ]);
     expect(matchKeymapCommand(keyEvent({ key: "m", code: "KeyM" }))?.id).toBe(
-      "track.muteToggle",
+      "record.marker",
     );
     expect(
       matchKeymapCommands(keyEvent({ key: "m", code: "KeyM" })).map(
         (c) => c.id,
       ),
-    ).toEqual(["track.muteToggle", "record.marker"]);
+    ).toEqual(["record.marker", "track.muteToggle"]);
     expect(matchKeymapCommand(keyEvent({ key: "s", code: "KeyS" }))?.id).toBe(
       "track.soloToggle",
     );
