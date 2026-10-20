@@ -54,7 +54,6 @@ export function JoinPopover({
         ref: anchorRef,
         avoidRef: railRef,
         moves: `${seamSec}|${right.join_in_mode}`,
-        reason: "The seam being edited must stay in view beside the panel.",
       }}
       footer={
         <InspectorSeekFooter

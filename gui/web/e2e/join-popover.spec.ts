@@ -94,6 +94,14 @@ test.describe("Join badge popover", () => {
       await page.keyboard.press("Escape");
       await expect(popover).toBeHidden();
       await expect(badge).toBeFocused();
+      await badge.click();
+      await expect(popover).toBeVisible();
+      await page.keyboard.press("?");
+      await expect(
+        page.getByRole("dialog", { name: "Commands and shortcuts" }),
+      ).toBeVisible();
+      await expect(popover).toBeHidden();
+      await page.keyboard.press("Escape");
     } finally {
       await page.keyboard.press("Escape");
       if (modeChanged) {

@@ -116,7 +116,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `useCommand` | Catalog label / enabled / `run` |
 | `Field` / `FieldRow` | Labeled control + hint; horizontal nudge row |
 | `InlineError` | Inline failure text |
-| `Dialog` | Modal scrim + panel + header; uses `useDialogModal`. `footer` pins actions under the scrolling body; it is a bottom sheet on phone and tablet unless `centeredReason` opts out, and `anchor` places it beside its trigger (with a reason) on those shells |
+| `Dialog` | Modal scrim + panel + header; uses `useDialogModal`. `footer` pins actions under the scrolling body; it is a bottom sheet on phone and tablet, and `anchor` makes it a non-modal top-layer panel beside its trigger that closes when a modal opens |
 | `InlineConfirm` | Two-step destructive confirmation in place of its trigger: the consequence, **Keep** (focused) then a danger action; use it inside an open `Dialog` instead of stacking a second one |
 | `Menu` / `CommandMenuItem` / `MenuSection` / `MenuSeparator` | Popup menu + command items; labeled groups, and a divider between related items inside one group |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) with optional Expand/Collapse controls; sizes `peek` (content-height strip), `half`, `full`, and `stowed` slides it away during a drag. A `drawer` prop (the compact inspector) adds a drag handle: the header follows the finger by transform, a flick or slow drag lands on a detent (`useDrawerSwipe`, `drawerMotion.ts`), Expand/Collapse stay, and a visually hidden range input gives keys and screen readers the same detents. A sheet that loses its `drawer` mid-drag drops the drag styles. Fixed sheets without a `drawer` show no handle |
