@@ -265,8 +265,7 @@ def review_share_cmd(
             )
         else:
             typer.echo(
-                "Cursor remote MCP: set url to the MCP URL above "
-                "(host: PODCAST_REMOTE_MCP=1 + podcast tunnel).",
+                "Cursor remote MCP: set url to the MCP URL above (host: podcast tunnel).",
                 err=True,
             )
             typer.echo(

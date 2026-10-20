@@ -369,7 +369,6 @@ def test_document_commands_need_view(role, command_type):
 
 
 def _mcp_share(minimal_project, sample_wav, monkeypatch, caps: list[str]) -> str:
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = ProjectWorkspace.open(minimal_project)
     artifacts = Path(ws.project.workspace_dir) / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)

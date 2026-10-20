@@ -30,6 +30,7 @@ MODES = ("none", "collaboration", "default")
 COLLABORATION_FEATURES = {
     FEATURE_SHARE_CLI,
     FEATURE_SHARE_MCP_TOOLS,
+    FEATURE_SHARE_REMOTE_MCP,
     FEATURE_SHARE_ROUTES,
     FEATURE_SHARE_UI_BANNER,
     FEATURE_SHARE_UI_MENU,
@@ -65,19 +66,6 @@ def test_each_feature_id_is_contributed_once_per_source(extensions_mode: str) ->
     for feature_id in ids:
         sources = [c.source for c in registry.get(feature_id)]
         assert len(sources) == len(set(sources)), feature_id
-
-
-@pytest.mark.parametrize("extensions_mode", MODES, indirect=True)
-def test_remote_mcp_feature_needs_collaboration_and_the_host_switch(
-    extensions_mode: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("PODCAST_REMOTE_MCP", raising=False)
-    assert not loader.load_extensions().has(FEATURE_SHARE_REMOTE_MCP)
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
-    registry = loader.load_extensions()
-    assert registry.has(FEATURE_SHARE_REMOTE_MCP) is (extensions_mode != "none")
-    if extensions_mode != "none":
-        assert [c.source for c in registry.get(FEATURE_SHARE_REMOTE_MCP)] == ["collaboration"]
 
 
 def test_example_extension_loads_only_when_named(monkeypatch: pytest.MonkeyPatch) -> None:

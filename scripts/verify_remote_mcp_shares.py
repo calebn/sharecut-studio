@@ -3,7 +3,7 @@
 
 Assumes::
 
-    PODCAST_REMOTE_MCP=1 podcast gui --project <episode.project.json> --no-open
+    podcast gui --project <episode.project.json> --no-open
 
 Example::
 
@@ -580,14 +580,9 @@ def _run(project: Path, base: str, *, revoke: bool) -> int:
                 _assert(
                     report,
                     "info_ok",
-                    st == 200 and bool((info or {}).get("remote_mcp_enabled")),
+                    st == 200 and bool((info or {}).get("ok")),
                     f"status={st} info={info!r}",
                 )
-                if st == 200 and not (info or {}).get("remote_mcp_enabled"):
-                    print(
-                        "ERROR: GUI is running but PODCAST_REMOTE_MCP is not set on the host.",
-                        file=sys.stderr,
-                    )
                 verify_mcp_tier(base, token, caps, report, track_id=track_id)
         except Exception as exc:
             _assert(report, "tier_exception", False, str(exc))

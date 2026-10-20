@@ -45,7 +45,7 @@ Personas are **jobs**, not demographics.
 |--|--|
 | **Goal** | Same powers as the person the review link went to, via tools |
 | **Fears** | Over-privileged tools; silent failure when host is offline |
-| **Surface** | `{base}/mcp/{token}/mcp` (requires share `mcp` + host `PODCAST_REMOTE_MCP=1`) |
+| **Surface** | `{base}/mcp/{token}/mcp` (requires share `mcp`) |
 | **Scenario** | Host creates a Commenter link with **Allow AI assistants (MCP)** (CLI `--with-mcp`) and pastes its MCP URL into Claude; the assistant lists comments and suggests a cut |
 
 ### Local agent (Cursor, etc.)

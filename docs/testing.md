@@ -2138,7 +2138,7 @@ Open `http://127.0.0.1:8080/r/<token>` and post a normal comment. Optionally low
 
 Capability → tool matrix and JSON-RPC bridge: `tests/test_remote_mcp.py` (plus share routing in `tests/test_review_share.py`). See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 
-Live host matrix (requires `PODCAST_REMOTE_MCP=1` GUI already running): `scripts/verify_remote_mcp_shares.py` — see [host-online-relay.md](host-online-relay.md) § Manual verification.
+Live host matrix (requires a GUI already running): `scripts/verify_remote_mcp_shares.py` — see [host-online-relay.md](host-online-relay.md) § Manual verification.
 
 Rate limits (host + relay): `tests/test_rate_limit.py`.
 

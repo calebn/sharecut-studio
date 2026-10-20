@@ -368,7 +368,6 @@ async def test_handle_mcp_jsonrpc_progress_token_uses_guest_context(
         "podcast_mcp.services.remote_mcp.protocol.GuestMcpProgressContext",
         Capturing,
     )
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="McpProgress")
     share = ShareService(ws).create(
@@ -554,7 +553,6 @@ def _sse_payloads(text: str) -> list[dict]:
 def test_mcp_progress_token_streams_sse_notifications(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="SseProgress")
     share = ShareService(ws).create(
@@ -754,7 +752,6 @@ _CRASH_TEXT = "ffmpeg exploded reading /Users/host/Podcasts/Secret Show/raw.wav 
 
 
 def _guest_share(minimal_project, sample_wav, monkeypatch, label: str) -> str:
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label=label)
     share = ShareService(ws).create(

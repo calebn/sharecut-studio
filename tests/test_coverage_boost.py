@@ -243,8 +243,6 @@ def test_review_share_route_errors(minimal_project, sample_wav, tmp_workspace, m
     assert client.get(f"/api/review/{tok}/audio").status_code == 200
 
     # MCP enabled JSON-RPC ping
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
-    client = TestClient(create_app())
     assert client.get(f"/mcp/{tok}").status_code == 200
     ping = client.post(
         f"/mcp/{tok}/mcp",
