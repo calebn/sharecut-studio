@@ -836,6 +836,8 @@ class DocumentSyncService:
         except KeyError as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
+            if isinstance(exc, CodedError):
+                raise DocumentConflictError.wrapping(exc, code=exc.code) from exc
             raise DocumentConflictError("target not found") from exc
         except ValueError as exc:
             if names_missing_target(exc):
@@ -843,7 +845,7 @@ class DocumentSyncService:
                     DocumentConflictError,
                 )
 
-                raise DocumentConflictError.wrapping(exc) from exc
+                raise DocumentConflictError.wrapping(exc, code=exc.code) from exc
             raise
         except HISTORY_RERENDER_ERRORS as exc:
             # A history move with rerender=true is saved before these are raised. A 409
