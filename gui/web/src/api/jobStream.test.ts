@@ -25,16 +25,19 @@ describe("openJobStream", () => {
     vi.useRealTimers();
   });
 
-  it("parses frames, drops malformed ones and forwards errors", () => {
+  it("parses frames, survives malformed or throwing ones and forwards errors", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
-    const onFrame = vi.fn();
+    const onFrame = vi.fn((frame: { n: number } | null) => {
+      if (frame === null) throw new Error("null frame");
+    });
     const onError = vi.fn();
     openJobStream<{ n: number }>({ url: "/x", onFrame, onError });
     const es = FakeEventSource.instances[0];
     es.onmessage?.({ data: "{nope" });
     es.onmessage?.({ data: '{"n":1}' });
+    es.onmessage?.({ data: "null" });
     es.onerror?.();
-    expect(onFrame).toHaveBeenCalledTimes(1);
+    expect(onFrame).toHaveBeenCalledTimes(2);
     expect(onFrame.mock.calls[0][0]).toEqual({ n: 1 });
     expect(onError).toHaveBeenCalledTimes(1);
   });

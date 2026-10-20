@@ -52,13 +52,11 @@ export function openJobStream<Frame, Job = never>(
     ? startJobStatusRecheck(options.recheck.check, options.recheck.onResult)
     : null;
   source.onmessage = (ev) => {
-    let frame: Frame;
     try {
-      frame = JSON.parse(ev.data) as Frame;
+      options.onFrame(JSON.parse(ev.data) as Frame, source);
     } catch {
-      return;
+      /* a malformed frame or a throwing handler must not break the stream */
     }
-    options.onFrame(frame, source);
   };
   source.onerror = () => options.onError?.(source);
   return {
