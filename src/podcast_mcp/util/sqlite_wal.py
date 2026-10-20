@@ -1,10 +1,33 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
+
+
+def _transient_readonly(connection: sqlite3.Connection, exc: sqlite3.OperationalError) -> bool:
+    """True for ``SQLITE_READONLY`` on a database file this process may write.
+
+    Two processes making a fresh file WAL at once can leave one with ``attempt to write a
+    readonly database`` while the other holds the switch (seen on Windows, #1880); it clears
+    once the other connection is done. A file the process cannot write stays an error.
+    """
+    code = getattr(exc, "sqlite_errorcode", None)
+    if code is None:
+        if "readonly" not in str(exc).lower():
+            return False
+    elif (code & 0xFF) != sqlite3.SQLITE_READONLY:
+        return False
+    try:
+        rows = connection.execute("PRAGMA database_list").fetchall()
+    except sqlite3.Error:
+        return False
+    path = next((row[2] for row in rows if row[1] == "main"), "")
+    return bool(path) and (not Path(path).exists() or os.access(path, os.W_OK))
 
 
 def ensure_wal(
@@ -15,7 +38,11 @@ def ensure_wal(
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> None:
-    """Switch *connection*'s database to WAL, retrying while another process holds the lock."""
+    """Switch *connection*'s database to WAL, retrying while another process holds the lock.
+
+    A concurrent first open can answer busy or, transiently, readonly (#1880); both are
+    retried until *timeout_sec*.
+    """
     deadline = monotonic() + timeout_sec
     while True:
         try:
@@ -24,6 +51,8 @@ def ensure_wal(
                 connection.execute("PRAGMA journal_mode=WAL")
             return
         except sqlite3.OperationalError as exc:
-            if not is_sqlite_busy(exc) or monotonic() >= deadline:
+            if not (is_sqlite_busy(exc) or _transient_readonly(connection, exc)):
+                raise
+            if monotonic() >= deadline:
                 raise
             sleep(retry_sec)
