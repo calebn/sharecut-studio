@@ -261,7 +261,9 @@ export function TranscriptPanel() {
   const dragExtendedRef = useRef(false);
   /** A tapped word outlives the shell swap on rotation (#1792), so its Correct sheet does too. */
   const [intent, setIntentState] = useState<TranscriptIntent>(() =>
-    oneWordOf(selection) !== null && !isShareProjectKey(projectPath)
+    oneWordOf(selection) !== null &&
+    !isShareProjectKey(projectPath) &&
+    project?.meta.hydration?.transcript_words !== false
       ? "correct"
       : "navigate",
   );

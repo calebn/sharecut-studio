@@ -187,6 +187,29 @@ describe("TranscriptPanel", () => {
     ).toHaveAttribute("title", "Wait for the transcript words to load.");
   });
 
+  it("does not open in Correct for a selected word while words are not hydrated", () => {
+    const base = project();
+    useDawStore.setState({
+      project: {
+        ...base,
+        meta: {
+          ...base.meta,
+          hydration: { transcript_words: false, history_groups: false },
+        },
+      },
+      selection: wordSelection({
+        trackId: "host",
+        sourceId: null,
+        wordIndex: 1,
+      }),
+    });
+    const { container } = render(<TranscriptPanel />);
+    expect(
+      within(container).getByRole("button", { name: /^Correct/ }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(useDawStore.getState().transcriptCorrecting).toBe(false);
+  });
+
   it("docks word editor in text focus when Correct selects a word", () => {
     useDawStore.setState({ layoutMode: "text" });
     const { container } = render(<TranscriptPanel />);
