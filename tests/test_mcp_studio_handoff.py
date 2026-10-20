@@ -253,7 +253,7 @@ def test_studio_progress_reaches_the_client_that_asked_for_it(studio: Path) -> N
     assert isinstance(result, CallToolResult)
     assert not result.is_error
     assert server.calls == []
-    assert context.reports, "Studio's progress notifications were not forwarded"
+    assert [r[2] for r in context.reports] == ["list_clips_tool", "done"], context.reports
 
 
 def _fake_studio_session(monkeypatch: pytest.MonkeyPatch, seen: dict[str, Any], ticks: int) -> None:
@@ -271,9 +271,15 @@ def _fake_studio_session(monkeypatch: pytest.MonkeyPatch, seen: dict[str, Any], 
         async def initialize(self) -> None:
             return None
 
-        async def call_tool(self, name: str, arguments: dict[str, Any], **kwargs: Any) -> Any:
-            seen["kwargs"] = kwargs
-            callback = kwargs.get("progress_callback")
+        async def call_tool(
+            self,
+            name: str,
+            arguments: dict[str, Any],
+            read_timeout_seconds: float | None = None,
+            progress_callback: Any = None,
+        ) -> Any:
+            seen["kwargs"] = {} if progress_callback is None else {"progress_callback": 1}
+            callback = progress_callback
             for step in range(ticks):
                 if callback is not None:
                     await callback(float(step), float(ticks), f"step {step}")
@@ -309,9 +315,10 @@ def test_no_progress_is_asked_for_without_a_client_token(
     server = _wrapped()
     asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
     assert "progress_callback" not in seen["kwargs"]
+    seen.clear()
     bare = type("Bare", (), {"report_progress": _Context.report_progress})()
     asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}, bare))
-    assert "progress_callback" not in seen["kwargs"]
+    assert seen["kwargs"] == {}
 
 
 def test_a_client_that_stops_listening_does_not_fail_the_call(
