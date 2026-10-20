@@ -337,7 +337,9 @@ def test_every_dialogue_track_is_decoded_for_a_pause_trim_a_transcript_or_not() 
         Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.3)])
     ]
 
-    with patch("podcast_mcp.edits.tighten.propose.build_track_audio_caches", return_value={}) as build:
+    with patch(
+        "podcast_mcp.edits.tighten.propose.build_track_audio_caches", return_value={}
+    ) as build:
         propose_tighten_edits(project, {"tighten": {}})
 
     assert set(build.call_args.args[1]) == {"host", "guest"}
