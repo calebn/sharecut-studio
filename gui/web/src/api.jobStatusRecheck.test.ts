@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { JOB_STREAM_RECHECK_MS, startJobStatusRecheck } from "./api/pipeline";
+import { JOB_STREAM_RECHECK_MS, startJobStatusRecheck } from "./api/jobStream";
 
 describe("startJobStatusRecheck", () => {
   afterEach(() => {

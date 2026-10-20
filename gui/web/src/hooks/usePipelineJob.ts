@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef } from "react";
-import { loadPipelineStatus, pipelineEventsUrl } from "../api";
+import { loadPipelineStatus, openJobStream, pipelineEventsUrl } from "../api";
 import type {
   PipelineEvent,
   PipelineJobSnapshot,
@@ -204,7 +204,11 @@ export function usePipelineJob(
     }
     closeStream();
     attachedJobId.current = jobId;
-    const es = new EventSource(pipelineEventsUrl(jobId));
+    const es = openJobStream<PipelineEvent>({
+      url: pipelineEventsUrl(jobId),
+      onFrame: (data) => onFrame(data),
+      onError: () => onStreamDown(),
+    }).source;
     esRef.current = es;
 
     // `onerror`, or a stream that stays open but goes silent (buffering
@@ -264,60 +268,54 @@ export function usePipelineJob(
     };
     armSilenceWatchdog();
 
-    es.onmessage = (ev) => {
+    const onFrame = (data: PipelineEvent) => {
       if (esRef.current !== es) {
         return;
       }
       // Any frame proves the stream is live again: drop the socket-down poll.
       armSilenceWatchdog();
       stopPoll();
-      try {
-        const data = JSON.parse(ev.data) as PipelineEvent;
-        if (data.job) {
-          if (isPipelineKindJob(data.job)) {
-            setJobRef.current(data.job);
-          }
-          const primary = activityRef.current;
-          if (
-            primary == null ||
-            primary.id === data.job.id ||
-            !isPipelineRunning(primary)
-          ) {
-            setActivityRef.current?.(data.job);
-          }
+      if (data.job) {
+        if (isPipelineKindJob(data.job)) {
+          setJobRef.current(data.job);
         }
-        if (data.type === "done") {
-          closeStream();
-          void loadPipelineStatus({ signal: abortRef.current?.signal })
-            .then((st) => {
-              // Same rule as pollStatusOnce / onStreamDown: a stream that
-              // attached while this refetch was in flight (discover tick, or a
-              // prop switch to another job) owns the chrome now, so a stale
-              // result must not overwrite it or reattach and close it.
-              if (!mountedRef.current || streamOwnsChrome()) {
-                return;
-              }
-              apply(st);
-              if (!st.running) {
-                stopPoll();
-                return;
-              }
-              const next = attachTargetId(st);
-              if (next) {
-                attachEvents(next);
-              }
-            })
-            .catch((err: unknown) => {
-              if (isAbortError(err)) {
-                return;
-              }
-            });
+        const primary = activityRef.current;
+        if (
+          primary == null ||
+          primary.id === data.job.id ||
+          !isPipelineRunning(primary)
+        ) {
+          setActivityRef.current?.(data.job);
         }
-      } catch {
-        // ignore malformed events
+      }
+      if (data.type === "done") {
+        closeStream();
+        void loadPipelineStatus({ signal: abortRef.current?.signal })
+          .then((st) => {
+            // Same rule as pollStatusOnce / onStreamDown: a stream that
+            // attached while this refetch was in flight (discover tick, or a
+            // prop switch to another job) owns the chrome now, so a stale
+            // result must not overwrite it or reattach and close it.
+            if (!mountedRef.current || streamOwnsChrome()) {
+              return;
+            }
+            apply(st);
+            if (!st.running) {
+              stopPoll();
+              return;
+            }
+            const next = attachTargetId(st);
+            if (next) {
+              attachEvents(next);
+            }
+          })
+          .catch((err: unknown) => {
+            if (isAbortError(err)) {
+              return;
+            }
+          });
       }
     };
-    es.onerror = onStreamDown;
   });
 
   // Bootstrap + discover jobs started outside this viewer (host MCP fan-in).

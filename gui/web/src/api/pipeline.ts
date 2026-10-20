@@ -8,6 +8,7 @@ import type {
 } from "../types/pipeline";
 import { isTerminalJobStatus, jobResultPaths } from "../utils/pipeline";
 import { apiFetch, HOST_KEY } from "./http";
+import { openJobStream } from "./jobStream";
 
 export async function loadPipelineSteps(): Promise<string[]> {
   const res = await apiFetch(HOST_KEY, { host: "/api/pipeline/steps" });
@@ -328,35 +329,6 @@ export async function followExportJob(
   return jobResultPaths(await followJobToOk(jobId, failLabel, opts));
 }
 
-/** Slow status re-check while a job SSE stream is open: backstop for a stream that stays OPEN but goes silent (buffering proxy, half-open socket, backgrounded webview). */
-export const JOB_STREAM_RECHECK_MS = 15_000;
-
-/**
- * Re-check a job every `JOB_STREAM_RECHECK_MS` while its SSE stream is open
- * (backstop for a stream that stays open but goes silent). Transient fetch
- * errors are ignored; null results are skipped. Returns a stop function.
- * Session-wide hooks that poll only while their stream is down
- * (`usePipelineJob`, `useGuestSync`) use `createFallbackPoll` in
- * `utils/fallbackPoll.ts` instead.
- */
-export function startJobStatusRecheck<T>(
-  check: () => Promise<T | null | undefined>,
-  onResult: (result: T) => void,
-): () => void {
-  const id = window.setInterval(() => {
-    void check()
-      .then((result) => {
-        if (result != null) {
-          onResult(result);
-        }
-      })
-      .catch(() => {
-        /* ignore transient */
-      });
-  }, JOB_STREAM_RECHECK_MS);
-  return () => window.clearInterval(id);
-}
-
 /**
  * Wait until a Studio job reaches ok|error|cancelled.
  *
@@ -403,7 +375,34 @@ export async function waitForPipelineJob(
 
   return new Promise<PipelineJobSnapshot>((resolve, reject) => {
     let settled = false;
-    const es = new EventSource(pipelineEventsUrl(jobId));
+    const stream = openJobStream<PipelineEvent, PipelineJobSnapshot>({
+      url: pipelineEventsUrl(jobId),
+      recheck: { check: fromStatus, onResult: (job) => finish(job) },
+      onFrame: (data) => {
+        const job = data.job;
+        if (job?.id === jobId && isTerminalJobStatus(job.status)) {
+          finish(job);
+        }
+      },
+      onError: (es) => {
+        if (settled) {
+          return;
+        }
+        void fromStatus()
+          .then((job) => {
+            if (job) {
+              finish(job);
+              return;
+            }
+            if (es.readyState === EventSource.CLOSED) {
+              fail(new Error("Lost connection while waiting for job"));
+            }
+          })
+          .catch(() => {
+            /* ignore transient */
+          });
+      },
+    });
 
     const finish = (job: PipelineJobSnapshot) => {
       if (settled) {
@@ -411,8 +410,7 @@ export async function waitForPipelineJob(
       }
       settled = true;
       window.clearTimeout(timeout);
-      stopRecheck();
-      es.close();
+      stream.close();
       signal?.removeEventListener("abort", onAbort);
       resolve(job);
     };
@@ -423,8 +421,7 @@ export async function waitForPipelineJob(
       }
       settled = true;
       window.clearTimeout(timeout);
-      stopRecheck();
-      es.close();
+      stream.close();
       signal?.removeEventListener("abort", onAbort);
       reject(err);
     };
@@ -437,43 +434,10 @@ export async function waitForPipelineJob(
       fail(new Error("Timed out waiting for job"));
     }, timeoutMs);
 
-    const stopRecheck = startJobStatusRecheck(fromStatus, finish);
-
     signal?.addEventListener("abort", onAbort);
     if (signal?.aborted) {
       onAbort();
     }
-
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data) as PipelineEvent;
-        const job = data.job;
-        if (job?.id === jobId && isTerminalJobStatus(job.status)) {
-          finish(job);
-        }
-      } catch {
-        /* ignore malformed */
-      }
-    };
-
-    es.onerror = () => {
-      if (settled) {
-        return;
-      }
-      void fromStatus()
-        .then((job) => {
-          if (job) {
-            finish(job);
-            return;
-          }
-          if (es.readyState === EventSource.CLOSED) {
-            fail(new Error("Lost connection while waiting for job"));
-          }
-        })
-        .catch(() => {
-          /* ignore transient */
-        });
-    };
   });
 }
 

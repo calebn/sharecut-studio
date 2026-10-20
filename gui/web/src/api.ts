@@ -88,6 +88,7 @@ export {
   startBounceJob,
   startExportJob,
 } from "./api/exportJobs";
+export { openJobStream } from "./api/jobStream";
 export {
   audioUrl,
   loadProxyManifest,

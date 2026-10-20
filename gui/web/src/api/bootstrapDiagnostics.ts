@@ -1,7 +1,7 @@
 import type { PipelineComponentStatus } from "../types/pipeline";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { apiFetch, HOST_KEY } from "./http";
-import { startJobStatusRecheck } from "./pipeline";
+import { openJobStream } from "./jobStream";
 
 /** Bootstrap status adds first-run / source detail on top of the shared component status. */
 export type BootstrapComponentStatus = PipelineComponentStatus & {
@@ -174,11 +174,56 @@ export function waitForBootstrapJob(
 ): Promise<BootstrapJobSnapshot> {
   return new Promise<BootstrapJobSnapshot>((resolve, reject) => {
     let settled = false;
-    const es = new EventSource(bootstrapEventsUrl(jobId));
+    const stream = openJobStream<
+      { type?: string; job?: BootstrapJobSnapshot },
+      BootstrapJobSnapshot
+    >({
+      url: bootstrapEventsUrl(jobId),
+      recheck: {
+        check: () => fetchBootstrapJob(jobId),
+        onResult: (job) => considerTerminal(job),
+      },
+      onFrame: (data) => {
+        if (data.job) {
+          consider(data.job);
+        } else if (data.type === "done") {
+          void fetchBootstrapJob(jobId)
+            .then((job) => {
+              if (job) {
+                consider(job);
+              } else {
+                finishOk({
+                  id: jobId,
+                  kind: "bootstrap",
+                  components: [],
+                  whisper_model: "",
+                  status: "ok",
+                });
+              }
+            })
+            .catch((e: unknown) => {
+              finishErr(e instanceof Error ? e : new Error(String(e)));
+            });
+        }
+      },
+      onError: (es) => {
+        void fetchBootstrapJob(jobId)
+          .then((job) => {
+            considerTerminal(job);
+            if (!settled && es.readyState === EventSource.CLOSED) {
+              finishErr(
+                new Error("Lost connection while waiting for bootstrap job"),
+              );
+            }
+          })
+          .catch(() => {
+            /* ignore transient */
+          });
+      },
+    });
 
     const cleanup = () => {
-      stopRecheck();
-      es.close();
+      stream.close();
     };
 
     const finishOk = (job: BootstrapJobSnapshot) => {
@@ -219,58 +264,6 @@ export function waitForBootstrapJob(
       if (job && isTerminalJobStatus(job.status)) {
         consider(job);
       }
-    };
-
-    const stopRecheck = startJobStatusRecheck(
-      () => fetchBootstrapJob(jobId),
-      considerTerminal,
-    );
-
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data) as {
-          type?: string;
-          job?: BootstrapJobSnapshot;
-        };
-        if (data.job) {
-          consider(data.job);
-        } else if (data.type === "done") {
-          void fetchBootstrapJob(jobId)
-            .then((job) => {
-              if (job) {
-                consider(job);
-              } else {
-                finishOk({
-                  id: jobId,
-                  kind: "bootstrap",
-                  components: [],
-                  whisper_model: "",
-                  status: "ok",
-                });
-              }
-            })
-            .catch((e: unknown) => {
-              finishErr(e instanceof Error ? e : new Error(String(e)));
-            });
-        }
-      } catch {
-        /* ignore malformed SSE */
-      }
-    };
-
-    es.onerror = () => {
-      void fetchBootstrapJob(jobId)
-        .then((job) => {
-          considerTerminal(job);
-          if (!settled && es.readyState === EventSource.CLOSED) {
-            finishErr(
-              new Error("Lost connection while waiting for bootstrap job"),
-            );
-          }
-        })
-        .catch(() => {
-          /* ignore transient */
-        });
     };
   });
 }
