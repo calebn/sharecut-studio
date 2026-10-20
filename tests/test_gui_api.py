@@ -2201,12 +2201,13 @@ def test_api_pipeline_status_idle() -> None:
 
 def test_pipeline_status_scoped_to_project(tmp_path) -> None:
     """status(project_path=...) hides jobs from other projects (#170)."""
-    from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager
+    from podcast_mcp.gui.jobs import PipelineJobManager
+    from podcast_mcp.services.jobs import Job
 
     mgr = PipelineJobManager()
     project_a = (tmp_path / "proj-a" / "episode.project.json").resolve()
     project_b = (tmp_path / "proj-b" / "episode.project.json").resolve()
-    job_a = PipelineJob(
+    job_a = Job(
         id="jobaaa",
         project_path=str(project_a),
         from_step=None,
@@ -2242,14 +2243,14 @@ def test_api_pipeline_status_scopes_to_served_project(minimal_project, tmp_path)
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from podcast_mcp.gui.jobs import PipelineJob
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs import Job
 
     other = tmp_path / "other" / "episode.project.json"
     other.parent.mkdir()
     other.write_text(minimal_project.read_text())
     client = TestClient(create_app(served_project=other))
-    other_job = PipelineJob(
+    other_job = Job(
         id="other-job",
         project_path=str(other.resolve()),
         from_step=None,
@@ -2257,7 +2258,7 @@ def test_api_pipeline_status_scopes_to_served_project(minimal_project, tmp_path)
         kind="export",
         status="ok",
     )
-    hidden_job = PipelineJob(
+    hidden_job = Job(
         id="hidden-job",
         project_path=str(minimal_project.resolve()),
         from_step=None,
@@ -2646,15 +2647,15 @@ def test_api_export_bounce_conflict_when_pipeline_running(minimal_project, monke
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from podcast_mcp.gui.jobs import PipelineJob
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.jobs import Job
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.bounce.BounceService.bounce",
         lambda self, req=None, **_k: [self.ws.project.export_dir() / "bounces" / "x.wav"],
     )
     app = create_app()
-    app.state.jobs._job = PipelineJob(
+    app.state.jobs._job = Job(
         id="pipe",
         project_path=str(minimal_project),
         from_step=None,

@@ -12,10 +12,11 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, SpeakerTurn
-from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager, _JobProgressReporter
+from podcast_mcp.gui.jobs import PipelineJobManager, _JobProgressReporter
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
+from podcast_mcp.services.jobs import Job
 
 SCRIPTED = SpeakerAttribution(
     speaker_count=2,
@@ -69,7 +70,7 @@ def room(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return ws.path
 
 
-def _wait(job: PipelineJob) -> None:
+def _wait(job: Job) -> None:
     for _ in range(100):
         if job.status in ("ok", "error", "cancelled"):
             return
@@ -283,7 +284,7 @@ def test_cancel_after_split_commit_keeps_the_job_result_and_history_head(
 
 
 def test_the_determinate_bar_follows_the_attribution_task(room: Path) -> None:
-    job = PipelineJob(
+    job = Job(
         id="s1",
         project_path=str(room),
         from_step=None,
@@ -340,7 +341,7 @@ def test_the_route_hands_the_enrollment_to_the_service_unchanged(
         return real(self, *args, **kwargs)
 
     monkeypatch.setattr(SpeakerService, "split_speakers", spy)
-    started: list[PipelineJob] = []
+    started: list[Job] = []
     start = PipelineJobManager.start_split_speakers
 
     def capture(self, *args, **kwargs):
@@ -526,7 +527,7 @@ def test_the_route_conflicts_while_another_slot_job_runs(room: Path) -> None:
     from fastapi.testclient import TestClient
 
     app = create_app()
-    app.state.jobs._job = PipelineJob(
+    app.state.jobs._job = Job(
         id="pipe", project_path=str(room), from_step=None, only_step=None, status="running"
     )
     res = TestClient(app).post(

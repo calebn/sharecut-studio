@@ -5,58 +5,15 @@ from __future__ import annotations
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
-from typing import Any
 
-from podcast_mcp.services.jobs import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES, publish_job_event
+from podcast_mcp.services.jobs import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES, Job
 from podcast_mcp.services.pipeline import run_bootstrap
 from podcast_mcp.util.progress import ElapsedProgressMixin, ProgressEvent
-from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL, resolve_whisper_model
-
-
-@dataclass
-class BootstrapJob:
-    id: str
-    components: list[str]
-    whisper_model: str = DEFAULT_WHISPER_MODEL
-    force: bool = False
-    status: str = "queued"  # queued | running | ok | error | cancelled
-    started_at: float | None = None
-    finished_at: float | None = None
-    error: str | None = None
-    current: int | None = None
-    total: int | None = None
-    message: str | None = None
-    result: dict[str, Any] | None = None
-    cancel_requested: bool = False
-    _lock: threading.Lock = field(default_factory=threading.Lock)
-
-    def snapshot(self) -> dict[str, Any]:
-        with self._lock:
-            elapsed = 0.0
-            if self.started_at is not None:
-                end = self.finished_at if self.finished_at is not None else time.monotonic()
-                elapsed = max(0.0, end - self.started_at)
-            return {
-                "id": self.id,
-                "kind": "bootstrap",
-                "components": list(self.components),
-                "whisper_model": self.whisper_model,
-                "status": self.status,
-                "current": self.current,
-                "total": self.total,
-                "message": self.message,
-                "error": self.error,
-                "elapsed_sec": round(elapsed, 2),
-                "result": self.result,
-            }
-
-    def publish(self, event: dict[str, Any]) -> None:
-        publish_job_event(self.id, event)
+from podcast_mcp.whisper_models import resolve_whisper_model
 
 
 class _BootstrapProgressReporter(ElapsedProgressMixin):
-    def __init__(self, job: BootstrapJob) -> None:
+    def __init__(self, job: Job) -> None:
         super().__init__()
         self._job = job
 
@@ -188,10 +145,10 @@ class BootstrapJobManager:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._job: BootstrapJob | None = None
-        self._finished: dict[str, BootstrapJob] = {}
+        self._job: Job | None = None
+        self._finished: dict[str, Job] = {}
 
-    def get_job(self, job_id: str | None = None) -> BootstrapJob | None:
+    def get_job(self, job_id: str | None = None) -> Job | None:
         with self._lock:
             if job_id is None:
                 return self._job
@@ -205,7 +162,7 @@ class BootstrapJobManager:
         components: list[str] | None = None,
         whisper_model: str | None = None,
         force: bool = False,
-    ) -> BootstrapJob:
+    ) -> Job:
         model = resolve_whisper_model(requested=whisper_model)
         with self._lock:
             if self._job is not None and self._job.status in LIVE_JOB_STATUSES:
@@ -215,9 +172,9 @@ class BootstrapJobManager:
                 )
             if self._job is not None and self._job.status in TERMINAL_JOB_STATUSES:
                 self._finished[self._job.id] = self._job
-            job = BootstrapJob(
-                id=uuid.uuid4().hex[:12],
-                components=list(components) if components else [],
+            job = Job.bootstrap(
+                uuid.uuid4().hex[:12],
+                list(components) if components else [],
                 whisper_model=model,
                 force=force,
             )
@@ -232,7 +189,7 @@ class BootstrapJobManager:
         thread.start()
         return job
 
-    def cancel(self, job_id: str | None = None) -> BootstrapJob | None:
+    def cancel(self, job_id: str | None = None) -> Job | None:
         with self._lock:
             job = self._job
             if job is None:
@@ -245,7 +202,7 @@ class BootstrapJobManager:
             job.message = "Cancel requested…"
             return job
 
-    def _run_job(self, job: BootstrapJob) -> None:
+    def _run_job(self, job: Job) -> None:
         job.status = "running"
         job.started_at = time.monotonic()
         job.publish({"type": "status", "job": job.snapshot()})

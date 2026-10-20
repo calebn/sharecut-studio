@@ -6,17 +6,21 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs import (
+    KIND_META,
     LIVE_JOB_STATUSES,
     TERMINAL_JOB_STATUSES,
-    job_listener_count,
-    publish_job_event,
+    Job,
+    JobKind,
+    JobSlotBusyError,
+    StepTiming,
+    cancelled_copy,
+    short_fail_message,
 )
 from podcast_mcp.services.media import (
     BounceRequest,
@@ -25,7 +29,6 @@ from podcast_mcp.services.media import (
     coerce_enrollment,
 )
 from podcast_mcp.services.pipeline import PipelineService
-from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.progress import (
     PROGRESS_LAZY_CHIP_SEC,
     ElapsedProgressMixin,
@@ -33,174 +36,15 @@ from podcast_mcp.util.progress import (
     bind_progress,
 )
 
-JobKind = Literal[
-    "pipeline", "render_preview", "bounce", "export", "analyze", "split_speakers", "agent"
-]
-
-_GUI_FAIL_MAX = 200
 _AGENT_LIVE_LIMIT = 8
 _PIPELINE_OWNED_WRAPS = frozenset({"pipeline_run"})
 _DOMAIN_PROGRESS_KINDS = frozenset({"start", "update", "message", "heartbeat"})
 
 
-def _token_looks_like_abs_path(token: str) -> bool:
-    s = token.strip(".,:;()[]\"'")
-    if not s:
-        return False
-    if s.startswith("/") and not s.startswith("//"):
-        return True
-    return len(s) >= 3 and s[1] == ":" and s[2] in ("\\", "/")
-
-
-def _gui_fail_message(message: str | None, phase: str | None = None) -> str | None:
-    """First non-traceback line for the GUI; never a stack trace or host path."""
-    if message is None:
-        return None
-    line = message.strip().splitlines()[0] if message.strip() else ""
-    if line.lower().startswith("traceback"):
-        line = ""
-    line = " ".join(tok for tok in line.split() if not _token_looks_like_abs_path(tok))
-    if not line and phase:
-        line = phase
-    if not line:
-        return None
-    return line[:_GUI_FAIL_MAX]
-
-
-class JobSlotBusyError(CodedError, RuntimeError):
-    """Another pipeline-slot job (pipeline run, render preview, export) is still running."""
-
-    code = "job_running"
-
-
-@dataclass(frozen=True)
-class _KindMeta:
-    cancelled: str
-    event_label: str
-    unit_tasks: frozenset[str]
-
-
-# Per-kind chrome + determinate-bar ownership (unit_tasks match progress_task ids).
-# Analyze owns both per-track children, so the bar restarts at 0/N for the silence phase.
-_KIND_META: dict[str, _KindMeta] = {
-    "pipeline": _KindMeta("Pipeline cancelled", "Pipeline", frozenset({"pipeline"})),
-    "bounce": _KindMeta("Bounce cancelled", "Bounce", frozenset({"bounce"})),
-    "export": _KindMeta("Export cancelled", "Export", frozenset({"export"})),
-    "render_preview": _KindMeta(
-        "Render preview cancelled", "Render preview", frozenset({"render"})
-    ),
-    "analyze": _KindMeta(
-        "Analyze cancelled", "Analyze", frozenset({"analyze_health", "analyze_silence"})
-    ),
-    "split_speakers": _KindMeta(
-        "Split speakers cancelled", "Split speakers", frozenset({"speaker-split"})
-    ),
-    "agent": _KindMeta("Activity cancelled", "Activity", frozenset()),
-}
-
-
-def _cancelled_copy(kind: str) -> str:
-    meta = _KIND_META.get(kind)
-    return meta.cancelled if meta is not None else "Pipeline cancelled"
-
-
-def _job_owns_task(job: PipelineJob, task_id: str) -> bool:
-    if job.kind == "agent":
-        return bool(job.tool_id) and task_id == job.tool_id
-    meta = _KIND_META.get(job.kind)
-    units = meta.unit_tasks if meta is not None else frozenset({job.kind})
-    return task_id in units
-
-
-@dataclass
-class StepTiming:
-    name: str
-    started_at: float
-    finished_at: float | None = None
-    status: str = "running"
-    error: str | None = None
-    summary: str | None = None
-
-    @property
-    def elapsed_sec(self) -> float:
-        end = self.finished_at if self.finished_at is not None else time.monotonic()
-        return max(0.0, end - self.started_at)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "status": self.status,
-            "elapsed_sec": round(self.elapsed_sec, 2),
-            "error": self.error,
-            "summary": self.summary,
-        }
-
-
-@dataclass
-class PipelineJob:
-    id: str
-    project_path: str
-    from_step: str | None
-    only_step: str | None
-    status: str = "queued"  # queued | running | ok | error | cancelled
-    kind: JobKind = "pipeline"
-    label: str | None = None
-    tool_id: str | None = None
-    result: dict[str, Any] | None = None
-    started_at: float | None = None
-    finished_at: float | None = None
-    last_progress_at: float | None = None
-    error: str | None = None
-    current: int | None = None
-    total: int | None = None
-    message: str | None = None
-    unattended: bool = False
-    skip_steps: list[str] = field(default_factory=list)
-    config: dict[str, Any] | None = None
-    cancel_requested: bool = False
-    steps: list[StepTiming] = field(default_factory=list)
-    result_step: str | None = None
-    _lock: threading.Lock = field(default_factory=threading.Lock)
-
-    def snapshot(self) -> dict[str, Any]:
-        with self._lock:
-            elapsed = 0.0
-            if self.started_at is not None:
-                end = self.finished_at if self.finished_at is not None else time.monotonic()
-                elapsed = max(0.0, end - self.started_at)
-            payload: dict[str, Any] = {
-                "id": self.id,
-                "project_path": "" if self.kind == "agent" else self.project_path,
-                "from_step": self.from_step,
-                "only_step": self.only_step,
-                "kind": self.kind,
-                "label": self.label,
-                "tool_id": self.tool_id,
-                "status": self.status,
-                "current": self.current,
-                "total": self.total,
-                "message": self.message,
-                "error": self.error,
-                "result": dict(self.result) if self.result else None,
-                "last_progress_at": self.last_progress_at,
-                "elapsed_sec": round(elapsed, 2),
-                "unattended": self.unattended,
-                "skip_steps": list(self.skip_steps),
-                "steps": [s.to_dict() for s in self.steps],
-            }
-            return payload
-
-    def has_listeners(self) -> bool:
-        return job_listener_count(self.id) > 0
-
-    def publish(self, event: dict[str, Any]) -> None:
-        publish_job_event(self.id, event)
-
-
 class _JobProgressReporter(ElapsedProgressMixin):
-    """ProgressReporter that updates a PipelineJob and fans out SSE events."""
+    """ProgressReporter that updates a Job and fans out SSE events."""
 
-    def __init__(self, job: PipelineJob) -> None:
+    def __init__(self, job: Job) -> None:
         self._job = job
         self._closed = False
         super().__init__(heartbeat_sec=5.0)
@@ -210,12 +54,12 @@ class _JobProgressReporter(ElapsedProgressMixin):
         super().close()
 
     def _owns_units(self, task_id: str) -> bool:
-        return _job_owns_task(self._job, task_id)
+        return self._job.owns_task(task_id)
 
     def _event_label(self) -> str:
         if self._job.kind == "agent":
             return self._job.label or "Activity"
-        meta = _KIND_META.get(self._job.kind)
+        meta = KIND_META.get(self._job.kind)
         return meta.event_label if meta is not None else "Pipeline"
 
     def _ensure_task(
@@ -357,7 +201,7 @@ class _JobProgressReporter(ElapsedProgressMixin):
         if self._closed:
             return
         now = time.monotonic()
-        short = _gui_fail_message(message, phase)
+        short = short_fail_message(message, phase)
         owns = self._owns_units(task_id)
         with self._job._lock:
             if short is not None and owns:
@@ -458,10 +302,10 @@ class _SsePublishReporter(ElapsedProgressMixin):
         super().__init__()
         self._manager = manager
 
-    def _live_job(self, task_id: str) -> PipelineJob | None:
+    def _live_job(self, task_id: str) -> Job | None:
         """Return the live job that owns this wrap's ``task_id``, if any."""
         with self._manager._catalog._lock:
-            candidates: list[PipelineJob] = []
+            candidates: list[Job] = []
             if self._manager._catalog._job is not None:
                 candidates.append(self._manager._catalog._job)
             candidates.extend(self._manager._catalog._agent_live.values())
@@ -469,7 +313,7 @@ class _SsePublishReporter(ElapsedProgressMixin):
                 if (
                     job.status in LIVE_JOB_STATUSES
                     and job.has_listeners()
-                    and _job_owns_task(job, task_id)
+                    and job.owns_task(task_id)
                 ):
                     return job
             return None
@@ -590,14 +434,14 @@ class _JobCatalog:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._job: PipelineJob | None = None
-        self._finished: dict[str, PipelineJob] = {}
+        self._job: Job | None = None
+        self._finished: dict[str, Job] = {}
         self._finished_order: list[str] = []
         self._finished_limit = 8
         self._agent_live_limit = _AGENT_LIVE_LIMIT
-        self._agent_live: dict[str, PipelineJob] = {}
-        self._agent_claims: dict[str, PipelineJob] = {}
-        self._agent_latest: PipelineJob | None = None
+        self._agent_live: dict[str, Job] = {}
+        self._agent_claims: dict[str, Job] = {}
+        self._agent_latest: Job | None = None
         self._served_project: str | None = None
 
     def set_served_project(self, project_path: Path | str | None) -> None:
@@ -607,15 +451,15 @@ class _JobCatalog:
                 str(Path(project_path).expanduser().resolve()) if project_path is not None else None
             )
 
-    def _running_jobs_locked(self) -> list[PipelineJob]:
-        running: list[PipelineJob] = []
+    def _running_jobs_locked(self) -> list[Job]:
+        running: list[Job] = []
         if self._job is not None and self._job.status in LIVE_JOB_STATUSES:
             running.append(self._job)
         running.extend(job for job in self._agent_live.values() if job.status in LIVE_JOB_STATUSES)
         return running
 
-    def _visible_jobs_locked(self) -> list[PipelineJob]:
-        seen: dict[str, PipelineJob] = {}
+    def _visible_jobs_locked(self) -> list[Job]:
+        seen: dict[str, Job] = {}
         if self._job is not None:
             seen[self._job.id] = self._job
         for job in self._agent_live.values():
@@ -623,14 +467,14 @@ class _JobCatalog:
         if self._agent_latest is not None:
             seen.setdefault(self._agent_latest.id, self._agent_latest)
         # Recent archives so status poll can resolve a job after a successor
-        # replaced ``_job`` (waitForPipelineJob / followExportJob).
+        # replaced ``_job`` (waitForJob / followExportJob).
         for job_id in reversed(self._finished_order):
             archived = self._finished.get(job_id)
             if archived is not None:
                 seen.setdefault(archived.id, archived)
         return list(seen.values())
 
-    def _primary_job_locked(self, scope: str | None = None) -> PipelineJob | None:
+    def _primary_job_locked(self, scope: str | None = None) -> Job | None:
         running = [
             job for job in self._running_jobs_locked() if scope is None or job.project_path == scope
         ]
@@ -678,7 +522,7 @@ class _JobCatalog:
     def recent_snapshots(self, *, limit: int = 10) -> list[dict[str, Any]]:
         """Last ≤ ``limit`` job snapshots for a diagnostics bundle."""
         with self._lock:
-            ordered: list[PipelineJob] = []
+            ordered: list[Job] = []
             seen: set[str] = set()
             for job_id in reversed(self._finished_order):
                 archived = self._finished.get(job_id)
@@ -697,7 +541,7 @@ class _JobCatalog:
                     ordered.append(job)
             return [job.snapshot() for job in ordered[:limit]]
 
-    def get_job(self, job_id: str | None = None) -> PipelineJob | None:
+    def get_job(self, job_id: str | None = None) -> Job | None:
         with self._lock:
             if job_id is None:
                 return self._job
@@ -717,9 +561,9 @@ class _JobCatalog:
         label: str,
         claim: str,
         project_path: str = "",
-    ) -> PipelineJob:
+    ) -> Job:
         """Create or reuse an agent job. Does not take the pipeline single-flight lock."""
-        evicted: list[PipelineJob] = []
+        evicted: list[Job] = []
         with self._lock:
             existing = self._agent_claims.get(claim)
             if existing is not None:
@@ -737,7 +581,7 @@ class _JobCatalog:
                 self._forget_agent_locked(oldest)
                 self._archive_job(oldest)
                 evicted.append(oldest)
-            job = PipelineJob(
+            job = Job(
                 id=uuid.uuid4().hex[:12],
                 project_path=path,
                 from_step=None,
@@ -765,7 +609,7 @@ class _JobCatalog:
 
     def complete_agent_job(
         self,
-        job: PipelineJob,
+        job: Job,
         *,
         status: str,
         message: str | None = None,
@@ -790,13 +634,13 @@ class _JobCatalog:
             self._archive_job(job)
         job.publish({"type": "done", "job": job.snapshot()})
 
-    def _forget_agent_locked(self, job: PipelineJob) -> None:
+    def _forget_agent_locked(self, job: Job) -> None:
         self._agent_live.pop(job.id, None)
         drop = [key for key, claimed in self._agent_claims.items() if claimed is job]
         for key in drop:
             self._agent_claims.pop(key, None)
 
-    def _archive_job(self, job: PipelineJob) -> None:
+    def _archive_job(self, job: Job) -> None:
         """Keep a finished job findable by id (caller holds ``_lock``)."""
         if job.id in self._finished:
             return
@@ -815,15 +659,15 @@ class PipelineJobManager:
         self._lock = self._catalog._lock
 
     @property
-    def _job(self) -> PipelineJob | None:
+    def _job(self) -> Job | None:
         return self._catalog._job
 
     @_job.setter
-    def _job(self, value: PipelineJob | None) -> None:
+    def _job(self, value: Job | None) -> None:
         self._catalog._job = value
 
     @property
-    def _finished(self) -> dict[str, PipelineJob]:
+    def _finished(self) -> dict[str, Job]:
         return self._catalog._finished
 
     @property
@@ -839,7 +683,7 @@ class PipelineJobManager:
         self._catalog._finished_limit = value
 
     @property
-    def _agent_live(self) -> dict[str, PipelineJob]:
+    def _agent_live(self) -> dict[str, Job]:
         return self._catalog._agent_live
 
     @property
@@ -850,7 +694,7 @@ class PipelineJobManager:
     def _agent_live_limit(self, value: int) -> None:
         self._catalog._agent_live_limit = value
 
-    def _archive_job(self, job: PipelineJob) -> None:
+    def _archive_job(self, job: Job) -> None:
         self._catalog._archive_job(job)
 
     def set_served_project(self, project_path: Path | str | None) -> None:
@@ -862,18 +706,18 @@ class PipelineJobManager:
     def recent_snapshots(self, *, limit: int = 10) -> list[dict[str, Any]]:
         return self._catalog.recent_snapshots(limit=limit)
 
-    def get_job(self, job_id: str | None = None) -> PipelineJob | None:
+    def get_job(self, job_id: str | None = None) -> Job | None:
         return self._catalog.get_job(job_id)
 
     def adopt_agent_job(
         self, *, tool_id: str, label: str, claim: str, project_path: str = ""
-    ) -> PipelineJob:
+    ) -> Job:
         return self._catalog.adopt_agent_job(
             tool_id=tool_id, label=label, claim=claim, project_path=project_path
         )
 
     def complete_agent_job(
-        self, job: PipelineJob, *, status: str, message: str | None = None, error: str | None = None
+        self, job: Job, *, status: str, message: str | None = None, error: str | None = None
     ) -> None:
         self._catalog.complete_agent_job(job, status=status, message=message, error=error)
 
@@ -887,7 +731,7 @@ class PipelineJobManager:
                 return None
         return _SsePublishReporter(self)
 
-    def wait(self, job: PipelineJob, *, timeout: float | None = None) -> PipelineJob:
+    def wait(self, job: Job, *, timeout: float | None = None) -> Job:
         """Block until ``job`` leaves queued/running (host MCP pipeline_run)."""
         deadline = None if timeout is None else time.monotonic() + timeout
         while job.status in LIVE_JOB_STATUSES:
@@ -905,7 +749,7 @@ class PipelineJobManager:
         skip_steps: list[str] | None = None,
         unattended: bool = False,
         config: dict[str, Any] | None = None,
-    ) -> PipelineJob:
+    ) -> Job:
         return self._spawn(
             project_path,
             kind="pipeline",
@@ -916,11 +760,11 @@ class PipelineJobManager:
             config=config,
         )
 
-    def start_render_preview(self, project_path: Path) -> PipelineJob:
+    def start_render_preview(self, project_path: Path) -> Job:
         """Rebuild stems/premix via ``PipelineService.render_preview``."""
         return self._spawn(project_path, kind="render_preview", label="Render preview")
 
-    def start_analyze(self, project_path: Path, *, apply: bool) -> PipelineJob:
+    def start_analyze(self, project_path: Path, *, apply: bool) -> Job:
         """Heuristic Analyze via ``analyze_working_set`` (same single-flight slot as pipeline)."""
         return self._spawn(project_path, kind="analyze", label="Analyze", config={"apply": apply})
 
@@ -932,7 +776,7 @@ class PipelineJobManager:
         speaker_count: int,
         names: list[str] | None = None,
         enrollment: dict[str, list[tuple[float, float]]] | None = None,
-    ) -> PipelineJob:
+    ) -> Job:
         """Split a one-track recording into a lane per speaker via ``SpeakerService``.
 
         ``enrollment`` holds each named speaker's source-second spans, as the CLI and MCP take them.
@@ -968,7 +812,7 @@ class PipelineJobManager:
         end_s: float | None = None,
         formats: list[str] | None = None,
         exact_range: ExactRangeTarget | None = None,
-    ) -> PipelineJob:
+    ) -> Job:
         """Bounce stems/range via ``BounceService`` (same single-flight slot as pipeline)."""
         req = BounceRequest(
             track_ids=track_ids,
@@ -1000,7 +844,7 @@ class PipelineJobManager:
         project_path: Path,
         *,
         formats: list[dict[str, Any]] | None = None,
-    ) -> PipelineJob:
+    ) -> Job:
         """Mastered deliverables via ``PipelineService.export_audio``."""
         return self._spawn(
             project_path,
@@ -1009,7 +853,7 @@ class PipelineJobManager:
             config={"formats": formats},
         )
 
-    def cancel(self, job_id: str | None = None) -> PipelineJob | None:
+    def cancel(self, job_id: str | None = None) -> Job | None:
         with self._catalog._lock:
             job = self._catalog._job
             if job is None:
@@ -1034,7 +878,7 @@ class PipelineJobManager:
         config: dict[str, Any] | None = None,
         label: str | None = None,
         validate: Callable[[], None] | None = None,
-    ) -> PipelineJob:
+    ) -> Job:
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
                 raise JobSlotBusyError("A pipeline-slot job is already running")
@@ -1046,7 +890,7 @@ class PipelineJobManager:
             current = self._catalog._job
             if current is not None and current.status in TERMINAL_JOB_STATUSES:
                 self._catalog._archive_job(current)
-            job = PipelineJob(
+            job = Job(
                 id=uuid.uuid4().hex[:12],
                 project_path=str(project_path.resolve()),
                 from_step=from_step,
@@ -1068,7 +912,7 @@ class PipelineJobManager:
         thread.start()
         return job
 
-    def _run_job(self, job: PipelineJob) -> None:
+    def _run_job(self, job: Job) -> None:
         with job._lock:
             job.status = "running"
             job.started_at = time.monotonic()
@@ -1082,7 +926,7 @@ class PipelineJobManager:
                 with job._lock:
                     if job.cancel_requested:
                         job.status = "cancelled"
-                        job.message = _cancelled_copy(job.kind)
+                        job.message = cancelled_copy(job.kind)
                         if result is not None:
                             # Work finished (or wrote files) before cancel took effect.
                             job.result = result
@@ -1106,9 +950,9 @@ class PipelineJobManager:
                     )
                     job.status = "cancelled" if cancelled else "error"
                     job.finished_at = time.monotonic()
-                    short = None if cancelled else _gui_fail_message(str(exc))
+                    short = None if cancelled else short_fail_message(str(exc))
                     job.error = short
-                    job.message = _cancelled_copy(job.kind) if cancelled else (short or str(exc))
+                    job.message = cancelled_copy(job.kind) if cancelled else (short or str(exc))
                     if job.steps and job.steps[-1].status == "running":
                         job.steps[-1].status = "error"
                         job.steps[-1].error = short
@@ -1122,7 +966,7 @@ class PipelineJobManager:
 
     def _execute_job(
         self,
-        job: PipelineJob,
+        job: Job,
         reporter: _JobProgressReporter,
     ) -> tuple[str, dict[str, Any] | None]:
         ws = ProjectWorkspace.open(Path(job.project_path))
@@ -1132,7 +976,7 @@ class PipelineJobManager:
             return job.cancel_requested
 
         if job.cancel_requested:
-            raise CancelledProgress(_cancelled_copy(job.kind))
+            raise CancelledProgress(cancelled_copy(job.kind))
         if job.kind == "bounce":
             cfg = job.config or {}
             paths = BounceService(ws).bounce(
@@ -1178,7 +1022,7 @@ class PipelineJobManager:
             return "Export complete", export.job_result()
         if job.kind == "render_preview":
             if job.cancel_requested:
-                raise CancelledProgress(_cancelled_copy(job.kind))
+                raise CancelledProgress(cancelled_copy(job.kind))
             info = svc.render_preview(rerender=True, progress=reporter, cancel_check=cancel_check)
             if isinstance(info, dict) and not info.get("ok", True):
                 raise RuntimeError(
@@ -1216,7 +1060,7 @@ class AgentJobFanInReporter(ElapsedProgressMixin):
         self._wrap_task_id: str | None = None
         self._wrap_label = ""
         self._closed = False
-        self._job: PipelineJob | None = None
+        self._job: Job | None = None
         self._job_reporter: _JobProgressReporter | None = None
         self._timer: threading.Timer | None = None
         self._current: int | None = None
@@ -1243,7 +1087,7 @@ class AgentJobFanInReporter(ElapsedProgressMixin):
             return
         self.heartbeat(task_id)
 
-    def _ensure_job(self) -> PipelineJob | None:
+    def _ensure_job(self) -> Job | None:
         with self._state_lock:
             if self._closed or self._wrap_task_id is None:
                 return None
@@ -1257,9 +1101,9 @@ class AgentJobFanInReporter(ElapsedProgressMixin):
             current = self._current
             total = self._total
             message = self._message
-        job: PipelineJob | None = None
+        job: Job | None = None
         owned = False
-        extra: PipelineJob | None = None
+        extra: Job | None = None
         extra_reporter: _JobProgressReporter | None = None
         try:
             job = self._manager.adopt_agent_job(
@@ -1437,7 +1281,7 @@ class AgentJobFanInReporter(ElapsedProgressMixin):
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        short = _gui_fail_message(message, phase)
+        short = short_fail_message(message, phase)
         reporter = self._reporter_if_open()
         if not self._is_wrap(task_id):
             if reporter is not None:
@@ -1461,7 +1305,7 @@ class AgentJobFanInReporter(ElapsedProgressMixin):
 _SHARED_JOBS: PipelineJobManager | None = None
 
 
-def guest_render_job(job: PipelineJob | None, project_path: Path) -> dict[str, Any] | None:
+def guest_render_job(job: Job | None, project_path: Path) -> dict[str, Any] | None:
     """Expose only safe status for a render belonging to this guest project."""
     if (
         job is None

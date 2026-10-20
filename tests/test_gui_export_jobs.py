@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager
+from podcast_mcp.gui.jobs import PipelineJobManager
+from podcast_mcp.services.jobs import Job
 from podcast_mcp.services.pipeline import AudioExportResult
 
 
@@ -67,7 +68,7 @@ def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, mon
         lambda self, req=None, **_k: [Path("/tmp/x.wav")],
     )
     mgr = PipelineJobManager()
-    pipeline = PipelineJob(
+    pipeline = Job(
         id="pipe",
         project_path=str(minimal_project),
         from_step=None,
@@ -114,14 +115,15 @@ def test_status_includes_recent_finished_jobs(minimal_project, monkeypatch) -> N
 
 
 def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch) -> None:
-    from podcast_mcp.gui.jobs import _cancelled_copy, _JobProgressReporter
+    from podcast_mcp.gui.jobs import _JobProgressReporter
+    from podcast_mcp.services.jobs import cancelled_copy
 
-    assert _cancelled_copy("bounce") == "Bounce cancelled"
-    assert _cancelled_copy("export") == "Export cancelled"
-    assert _cancelled_copy("render_preview") == "Render preview cancelled"
-    assert _cancelled_copy("agent") == "Activity cancelled"
+    assert cancelled_copy("bounce") == "Bounce cancelled"
+    assert cancelled_copy("export") == "Export cancelled"
+    assert cancelled_copy("render_preview") == "Render preview cancelled"
+    assert cancelled_copy("agent") == "Activity cancelled"
 
-    bounce = PipelineJob(
+    bounce = Job(
         id="b1",
         project_path=str(minimal_project),
         from_step=None,
@@ -138,7 +140,7 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
     assert bounce.message == "Mixing bounce…"
     reporter.close()
 
-    preview = PipelineJob(
+    preview = Job(
         id="r1",
         project_path=str(minimal_project),
         from_step=None,
@@ -152,7 +154,7 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
     assert preview.current == 1
     assert prev._event_label() == "Render preview"
 
-    export = PipelineJob(
+    export = Job(
         id="e1",
         project_path=str(minimal_project),
         from_step=None,
@@ -185,11 +187,12 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
 
 
 def test_analyze_job_reporter_counts_tracks_per_phase(minimal_project) -> None:
-    from podcast_mcp.gui.jobs import _cancelled_copy, _JobProgressReporter
+    from podcast_mcp.gui.jobs import _JobProgressReporter
+    from podcast_mcp.services.jobs import cancelled_copy
 
-    assert _cancelled_copy("analyze") == "Analyze cancelled"
+    assert cancelled_copy("analyze") == "Analyze cancelled"
 
-    job = PipelineJob(
+    job = Job(
         id="a1",
         project_path=str(minimal_project),
         from_step=None,
@@ -235,7 +238,7 @@ def test_start_analyze_runs_working_set_and_takes_slot(minimal_project, monkeypa
     assert snap["result"]["applied"] is True
     assert snap["label"] == "Analyze"
 
-    running = PipelineJob(
+    running = Job(
         id="running-pipe",
         project_path=str(minimal_project),
         from_step=None,

@@ -5,14 +5,9 @@ import sys
 import pytest
 
 from job_event_helpers import JobEventTap
-from podcast_mcp.gui.bootstrap_jobs import BootstrapJob, _BootstrapProgressReporter
-from podcast_mcp.gui.jobs import (
-    PipelineJob,
-    PipelineJobManager,
-    StepTiming,
-    _JobProgressReporter,
-    _SsePublishReporter,
-)
+from podcast_mcp.gui.bootstrap_jobs import _BootstrapProgressReporter
+from podcast_mcp.gui.jobs import PipelineJobManager, _JobProgressReporter, _SsePublishReporter
+from podcast_mcp.services.jobs import Job, StepTiming
 from podcast_mcp.util.progress import (
     CancelledProgress,
     RecordingProgress,
@@ -21,7 +16,7 @@ from podcast_mcp.util.progress import (
 
 
 def test_job_progress_reporter_fail_and_cancel() -> None:
-    job = PipelineJob(
+    job = Job(
         id="j1",
         project_path="/tmp/p.json",
         from_step=None,
@@ -60,7 +55,7 @@ def test_job_progress_reporter_fail_and_cancel() -> None:
 
 
 def test_job_progress_reporter_child_fail_does_not_mark_pipeline_step() -> None:
-    job = PipelineJob(
+    job = Job(
         id="j-probe",
         project_path="/tmp/p.json",
         from_step=None,
@@ -94,7 +89,7 @@ def test_job_progress_reporter_child_fail_does_not_mark_pipeline_step() -> None:
 
 
 def test_bootstrap_progress_reporter_fail_and_cancel() -> None:
-    job = BootstrapJob(id="b1", components=["whisper"])
+    job = Job.bootstrap("b1", ["whisper"])
     reporter = _BootstrapProgressReporter(job)
     reporter.start("bootstrap", "Bootstrap", total=3)
     reporter.update("bootstrap", 1, message="downloading", phase="fetch")
@@ -173,7 +168,8 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
 
 
 def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager, StepTiming, shared_job_manager
+    from podcast_mcp.gui.jobs import PipelineJobManager, shared_job_manager
+    from podcast_mcp.services.jobs import Job, StepTiming
     from podcast_mcp.util.progress import CancelledProgress
 
     proj = tmp_path / "ep.json"
@@ -181,7 +177,7 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
     mgr = PipelineJobManager()
     mgr._finished_limit = 1
 
-    job = PipelineJob(
+    job = Job(
         id="jcancel",
         project_path=str(proj),
         from_step=None,
@@ -209,21 +205,21 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
 
     order: list[str] = []
     orig_close = _JobProgressReporter.close
-    orig_publish = PipelineJob.publish
+    orig_publish = Job.publish
 
     def _close(self: _JobProgressReporter) -> None:
         order.append("close")
         orig_close(self)
 
-    def _publish(self: PipelineJob, event: dict | None) -> None:
+    def _publish(self: Job, event: dict | None) -> None:
         if isinstance(event, dict) and event.get("type") == "done":
             order.append("done")
         orig_publish(self, event)
 
     monkeypatch.setattr(_JobProgressReporter, "close", _close)
-    monkeypatch.setattr(PipelineJob, "publish", _publish)
+    monkeypatch.setattr(Job, "publish", _publish)
 
-    job_order = PipelineJob(
+    job_order = Job(
         id="jorder",
         project_path=str(proj),
         from_step=None,
@@ -234,7 +230,7 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
     assert job_order.started_at is not None
     assert job_order.last_progress_at is not None
 
-    job2 = PipelineJob(
+    job2 = Job(
         id="jerr",
         project_path=str(proj),
         from_step=None,
@@ -261,7 +257,7 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
     assert mgr.get_job() is job2
     shared_job_manager(reset=True)
     busy = shared_job_manager()
-    busy._job = PipelineJob(
+    busy._job = Job(
         id="busy",
         project_path=str(proj),
         from_step=None,
@@ -275,7 +271,7 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
         assert "already running" in str(exc)
 
     # Successful run that was cancel-requested mid-flight
-    job3 = PipelineJob(
+    job3 = Job(
         id="jok",
         project_path=str(proj),
         from_step=None,
@@ -484,7 +480,7 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
     assert mgr.cancel() is None
     assert mgr.get_job() is None
 
-    job = BootstrapJob(id="b2", components=["whisper"])
+    job = Job.bootstrap("b2", ["whisper"])
     job.status = "running"
     mgr._job = job
     assert mgr.get_job() is job
@@ -493,12 +489,14 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
     assert mgr.cancel("b2") is job
     assert job.cancel_requested is True
 
-    done = BootstrapJob(id="b3", components=["whisper"], status="ok")
+    done = Job.bootstrap("b3", ["whisper"])
+    done.status = "ok"
     mgr._job = done
     assert mgr.cancel("b3") is done
     assert mgr.get_job("missing") is None
 
-    pre = BootstrapJob(id="b-pre", components=["whisper"], cancel_requested=True)
+    pre = Job.bootstrap("b-pre", ["whisper"])
+    pre.cancel_requested = True
     mgr._run_job(pre)
     assert pre.status == "cancelled"
 
@@ -506,14 +504,14 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
         raise RuntimeError("bootstrap exploded")
 
     monkeypatch.setattr("podcast_mcp.gui.bootstrap_jobs.run_bootstrap", boom)
-    err_job = BootstrapJob(id="b4", components=["whisper"])
+    err_job = Job.bootstrap("b4", ["whisper"])
     mgr._run_job(err_job)
     assert err_job.status == "error"
     assert "exploded" in (err_job.error or "")
 
 
 def test_job_progress_reporter_non_pipeline_task() -> None:
-    job = PipelineJob(
+    job = Job(
         id="j2",
         project_path="/tmp/p.json",
         from_step=None,
@@ -545,7 +543,7 @@ def test_sse_sink_requires_live_job_and_subscribers() -> None:
     mgr = PipelineJobManager()
     assert mgr.listening_progress_reporter() is None
 
-    live = PipelineJob(
+    live = Job(
         id="live",
         project_path="/tmp/p.json",
         from_step=None,
@@ -595,7 +593,7 @@ def test_bootstrap_result_not_ok(monkeypatch) -> None:
             "results": {"whisper": {"ok": False, "error": "model download failed"}},
         },
     )
-    job = BootstrapJob(id="b-fail", components=["whisper"])
+    job = Job.bootstrap("b-fail", ["whisper"])
     BootstrapJobManager()._run_job(job)
     assert job.status == "error"
     assert "model download failed" in (job.error or "")
@@ -637,13 +635,11 @@ def test_last_progress_at_ignores_snapshot_keepalive(monkeypatch) -> None:
     from podcast_mcp.gui import jobs as jobs_module
 
     clock = [5.0]
-    monkeypatch.setattr(
-        jobs_module,
-        "time",
-        SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 100.0),
-    )
+    fake_time = SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 100.0)
+    monkeypatch.setattr(jobs_module, "time", fake_time)
+    monkeypatch.setattr("podcast_mcp.services.jobs.job.time", fake_time)
 
-    job = PipelineJob(
+    job = Job(
         id="stale",
         project_path="/tmp/p.json",
         from_step=None,
@@ -693,7 +689,7 @@ def test_last_progress_at_ignores_snapshot_keepalive(monkeypatch) -> None:
 def test_job_reporter_mixin_heartbeat_bumps_last_progress_at(monkeypatch) -> None:
     import time
 
-    job = PipelineJob(
+    job = Job(
         id="hb",
         project_path="/tmp/p.json",
         from_step=None,
@@ -726,7 +722,7 @@ def test_job_reporter_mixin_heartbeat_bumps_last_progress_at(monkeypatch) -> Non
 def test_mixin_heartbeat_does_not_reregister_finished_task() -> None:
     import time
 
-    job = PipelineJob(
+    job = Job(
         id="dead",
         project_path="/tmp/p.json",
         from_step=None,
@@ -754,7 +750,7 @@ def test_mixin_heartbeat_does_not_reregister_finished_task() -> None:
 def test_job_reporter_refuses_emit_after_close() -> None:
     import time
 
-    job = PipelineJob(
+    job = Job(
         id="closed",
         project_path="/tmp/p.json",
         from_step=None,
