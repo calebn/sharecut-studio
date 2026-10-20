@@ -642,6 +642,9 @@ export function attachHitRouting(
     if (phase.kind !== "idle" || !(event.target instanceof Element)) {
       return;
     }
+    // Only the primary button routes: a right press is the context menu's, and
+    // replaying it as a left press would start a drag (#1793).
+    if (event.pointerType === "mouse" && event.button !== 0) return;
     const part = partOf(event.target);
     if (!part) return;
     const hit = closestHitTarget(event.target);
