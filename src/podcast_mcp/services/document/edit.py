@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import math
-import subprocess
 from collections.abc import Callable
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -834,15 +833,24 @@ class EditService:
         ids = [d.id for d in proposal.decisions]
         if not ids:
             return proposal
+        reasons: dict[str, str] = {}
         try:
-            held, asked = self.held_by_checks(ids)
-        except (OSError, ValueError, subprocess.SubprocessError, UnconfirmedCutSpeech):
+            remaining = ids
+            # A hold leaves its neighbours out of the listing (they wait with it), so the rest
+            # are checked again without it until a pass finds nothing more.
+            while remaining:
+                held, asked = self.held_by_checks(remaining)
+                found = {h.edit_id: h.reason for h in held}
+                for group in asked:
+                    for edit_id in group.edit_ids:
+                        found.setdefault(edit_id, group.confirmation.message)
+                if not found:
+                    break
+                reasons.update(found)
+                remaining = [i for i in remaining if i not in reasons]
+        except Exception:  # advisory: the proposals are saved, the check must not fail the call
             log.warning("propose_edits: could not run the approval check", exc_info=True)
             return proposal
-        reasons = {h.edit_id: h.reason for h in held}
-        for group in asked:
-            for edit_id in group.edit_ids:
-                reasons.setdefault(edit_id, group.confirmation.message)
         return replace(proposal, held=reasons, checked=True)
 
     def apply_auto(self) -> int:

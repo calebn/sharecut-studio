@@ -63,3 +63,39 @@ def test_an_unreadable_check_never_claims_clean(tmp_path, monkeypatch):
 
     assert len(payload["edits"]) == 1
     assert "audio_check" not in payload["edits"][0]
+
+
+def test_any_failure_of_the_check_leaves_the_saved_proposal_unchecked(tmp_path, monkeypatch):
+    ws, _decision = _proposal(tmp_path, monkeypatch)
+
+    def broken(self, ids=None):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(EditService, "held_by_checks", broken)
+
+    payload = EditService(ws).propose_tighten().to_payload()
+
+    assert len(payload["edits"]) == 1
+    assert "audio_check" not in payload["edits"][0]
+
+
+def test_edits_a_hold_left_out_of_the_listing_are_checked_again(tmp_path, monkeypatch):
+    from podcast_mcp.edits.decisions import HeldEdit
+
+    ws, decision = _proposal(tmp_path, monkeypatch)
+    calls: list[list[str]] = []
+
+    def listing(self, ids=None):
+        calls.append(list(ids))
+        return (
+            ([HeldEdit(decision.id, "um", "held for the test")], [])
+            if len(calls) == 1
+            else ([], [])
+        )
+
+    monkeypatch.setattr(EditService, "held_by_checks", listing)
+
+    proposal = EditService(ws).propose_tighten()
+
+    assert proposal.held == {decision.id: "held for the test"}
+    assert len(calls) == 1  # nothing remained after the only proposal was held
