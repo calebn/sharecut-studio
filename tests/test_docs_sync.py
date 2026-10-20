@@ -658,6 +658,20 @@ def test_lint_contract_reports_dead_globs_unlisted_and_dead_references() -> None
     ]
 
 
+def test_lint_contract_rejects_code_paths_as_docs_satisfiers() -> None:
+    rule = make_rule(
+        "share",
+        docs=("docs/share.md", "src/pkg/share.py", "gui/web/src/share/"),
+        advisory=("src/pkg/share.py",),
+    )
+    tracked = ("docs/share.md", "src/pkg/share.py", "gui/web/src/share/a.ts")
+    problems = ds.lint_contract(ds.Contract(ignore=(), rules=(rule,)), tracked)
+    assert problems == [
+        "share: docs lists code path 'src/pkg/share.py'; move it to the gate/advisory include",
+        "share: docs lists code path 'gui/web/src/share/'; move it to the gate/advisory include",
+    ]
+
+
 def test_lint_contract_clean_on_the_real_repo() -> None:
     contract = ds.load_contract(None)
     assert ds.lint_contract(contract, ds.tracked_files()) == []

@@ -44,6 +44,8 @@ _LEGACY_RE = re.compile(r"\[skip (?P<id>[a-z0-9-]+)\]")
 # A backticked prose token may be root-relative or (like the rest of AGENTS.md's SOLID/DRY
 # section) shorthand for a path under the package root; try both before giving up.
 _PACKAGE_PREFIX = "src/podcast_mcp/"
+# Code never satisfies a docs rule; a code path belongs in the rule's gate/advisory include.
+_CODE_PREFIXES = ("src/", "gui/web/src/")
 
 
 class ContractError(ValueError):
@@ -202,6 +204,9 @@ def _resolve_prose_path(token: str, tracked: frozenset[str]) -> str | None:
 def lint_contract(contract: Contract, tracked: Iterable[str]) -> list[str]:
     """Repo-state problems, empty when clean.
 
+    - a ``docs`` glob must name documentation, not code: a path under ``src/`` or
+      ``gui/web/src/`` moves to the rule's gate/advisory ``include``, so a code-only PR
+      cannot satisfy its own rule;
     - every include/exclude/docs/ignore glob must match at least one tracked file, so a
       renamed doc or dead trigger fails CI instead of going quiet;
     - every backticked token in a rule's ``update`` that resolves to a tracked path must be
@@ -218,6 +223,11 @@ def lint_contract(contract: Contract, tracked: Iterable[str]) -> list[str]:
     all_globs: list[Glob] = list(contract.ignore)
     for rule in contract.rules:
         all_globs.extend(rule.docs)
+        problems.extend(
+            f"{rule.id}: docs lists code path {glob.text!r}; move it to the gate/advisory include"
+            for glob in rule.docs
+            if glob.text.startswith(_CODE_PREFIXES)
+        )
         if rule.enforcement.trigger is not None:
             all_globs.extend(rule.enforcement.trigger.include)
             all_globs.extend(rule.enforcement.trigger.exclude)

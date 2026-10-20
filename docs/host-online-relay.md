@@ -975,3 +975,7 @@ through `GuestWsGuard`; authorization gates still
 run inside the serialized write. Host-side local stream sends have the same
 five-second deadline. These are delivery limits, not a claim that every
 application event fits in one small frame.
+
+## Docs-sync companions
+
+This page is the owner for its docs-sync row. Also see: [Review share timeline comments](timeline-comments.md#public-review-share)

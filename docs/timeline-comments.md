@@ -26,7 +26,7 @@ Comment and reply **body** text is capped at **8000** characters (`COMMENT_BODY_
 
 See [episode-format-v2.md](episode-format-v2.md) § Review comments.
 
-## MCP tools
+## Comment MCP tools
 
 | Tool | Purpose |
 |------|---------|
@@ -42,7 +42,7 @@ See [episode-format-v2.md](episode-format-v2.md) § Review comments.
 
 All mutations go through `CommentService` → `ProjectWorkspace.mutate` (history-safe). Times are **timeline** seconds (`TOOL_TIMEBASE`).
 
-## CLI
+## Comment CLI
 
 ```bash
 podcast comment add --project episode.project.json \

@@ -1324,3 +1324,254 @@ A short (0.6 s or less), isolated (0.6 s from any other own word) unsuppressed w
 Levels are measured against each recording's own room and speech levels, not a dBFS value (#1443). Only the parts where the lane sounds (6 dB over its room, 100 ms either side) become regions; regions under 150 ms and already-quiet stretches are not written. `audible_muted_sec` and `quiet_muted_sec` split the total, and `own_word_overlap_sec` re-checks, on the same timeline clock, that no region covers an unsuppressed word of the lane (always 0). `still_audible_sec` is the post-check on what plays now: seconds where another speaker talks, the lane has no word and still sounds after the regions (it includes turns left open for want of copy evidence); `still_audible_copy_sec` counts confirmed copies left unmuted that no rule explains (own-energy frames, already in `kept_own_energy_sec`, are not counted) and should be near 0. Copy evidence is read from the track with its earlier mutes removed, so re-running after an apply only closes what still sounds; `kept_gaps` names the rule that left each audible gap under a second open. A gap under 0.5 s inside a turn is held closed unless it holds an own word or own-voice energy, and a loud non-word sound on the other speaker's track (a clap) joins the turn it sits beside.
 
 Each confirmed region is a trusted exact-range MUTE application stored in `Clip.off_speaker_mute_regions`. Ordinary mute and fill ownership remains separate. One History Undo reverses the command. Individual reopening requires a guarded occurrence Restore choice; an archive record alone cannot choose a clip copy. The plan's audio evidence is the audio check, so it applies with trusted boundary intent: the cut-edge audition that guards a ripple cut would hold every edge here, because the lane has no clean edge under a voice that is not its own. Scope and geometry holds still hold a region; they are listed under `held`.
+
+## Bleed render internals
+
+## Layers
+
+Occurrence attenuation choices live in `Clip.bleed_restore`. Automatic SOURCE
+mutes live separately in `Clip.off_speaker_mute_regions`. Ordinary mute, Lower,
+ignored-word, and fill state remains independently authored. `OffSpeakerAudio`
+applies automatic gain around the complete prepared body. Its primary
+`SourceAudio` is clock metadata, not a second child. A content-valid Restore
+bypasses only that automatic factor inside its saved source windows.
+
+For automatic recovery, the renderer evaluates authored input `U` and bypassed
+input `W` through the same continuous track FX. Late-gate recovery also evaluates
+`V`, which removes the joint selected windows from complete bypassed bodies.
+With `B = legacyGate(U)` and `L = legacyGate(W)`, the PCM16 result is
+`saturate16(B + h*((L-B) + (1-g)*(W-V)))`. Legacy gate truncation stays separate
+from widened residual arithmetic. Zero corrections copy `B` exactly. Late-only
+Restore retains two FX evaluations. Combined recovery uses three, and automatic
+recovery with a unity or disabled late gate uses two.
+
+The output ramp `h` uses the plan's fade duration at complete saved source bounds,
+capped to half the interval. Splits and crops retain the original automatic fade
+anchors. `engines/render_clock.py` observes actual trim, prepared body,
+composition, and delay counts, including both sides of conversions. The compiler
+first configures the same automatic `aeval` topology with a placeholder gain.
+It then maps absolute SOURCE endpoints through the configured primary trim,
+leaf, prepared body, and evaluator clocks with the shared `MediaSeek` origin.
+Only numeric expressions change before the actual authored pass validates those
+associations. Configuration adds no complete FX evaluation.
+
+`MaskAudio` preserves the full observed producer format before and after binary
+removal, then restores the observed consumer format. Every rendered branch must
+have matching clocks, formats, and extents. Malformed observations or changed
+media refuse publication and retain the previous artifact. Private clock files
+stay inside the render directory. `RenderDependencies` captures primary media,
+room tone, gate fill, peer evidence, and render metadata around every pass.
+Automatic-only recovery also captures dependencies when the late gate is disabled.
+
+This is a joint marginal of quantized shared bus renders. Shared nonlinear FX
+interactions belong to that marginal. Full renders and segments retain their
+existing contexts and staging rules. Empty automatic state leaves the legacy
+commands, PCM, and render identities unchanged. Detector cache serialization and
+direct clip payloads omit empty automatic fields and always exclude Restore.
+Nonempty automatic state participates in detector and render dependencies.
+Changed recording bytes deactivate bypass while retaining authored automatic mutes.
+
+`inspect_clip_bleed` reports the late plan, artifact freshness, and
+saved choice separately. It maps actual automatic regions into the selected
+occurrence and partitions saved coverage from remaining actionable SOURCE
+intervals. Unity late plans expose no late-gate target. Authored speaker mutes
+remain eligible independently. Ordinary project projections do not perform this
+explicit inspection or hash recording bytes.
+
+`services/document/bleed_inspection.py` owns the guarded mutation. Its transaction
+adopts external changes, checks the opening history, occurrence, selected recording
+bytes, file revisions, relevant track state, and current candidate, then saves one
+Undoable choice. The helper does not render audio or reconcile transcripts.
+
+`BleedAttenuationInspector` and `BleedAttenuationOverlay` are controlled React
+leaves. They consume supplied targets, eligibility, receipts, and geometry. Their
+timeline and inspector host integration uses the current-occurrence session and
+shared selection registry described below.
+
+Whole-lane recorder latency is the last stage of pipeline `align_tracks`.
+`engines/envelope_lag.py` finds the lag between a voice's direct track and its copy
+on another mic from level envelopes, tested against shifted nulls. It abstains
+when the best lag sits on the search boundary or is not a strict peak. Reuse it for
+any other copy-lag measurement instead of a private estimator.
+`edits/bleed_latency.py` measures every ordered lane pair in windows, rejects
+scattered or drifting pairs (a window settles when it agrees with the median or a
+neighbour, and drift is a trend inside runs between steps, so a long step is not
+drift), and solves one latency per lane by weighted least
+squares with a residual per pair. Each lane gets one decision from its reason
+(`DECISIONS`): `apply` only when pairs a path delay cannot explain (the direct
+track trails its copy) connect it to the reference, `propose` when only later
+copies do, `flag` on conflict or drift, else `keep`. `edits/conversation_align.py`
+loads the lane envelopes near their planned placement (`measure_bleed_latency`
+reports lags back where each lane sits, where direction is judged), folds the
+decisions into the plans (`bleed_lag`, or `candidate_offset_sec` with a `proposal`), and keeps a lane
+whose corrected placement is within `align.bleed_lag_deadband_sec` of where it
+sits (`bleed_lag_kept`). `edits/bleed_lag_segments.py` then finds where such a
+lane's latency steps from every latency-explained pair it shares with a track on the
+reference clock (`BleedPair`, each searched around its `steady_lag` measured on the
+lane's media), in the lane's source time, with each step in a silence of its
+full-band envelope (RMS and sample peak both under their gates) and the step cost
+chosen per lane by cross-validation (`LagSteps.step_cost`). `conversation_align.py`
+(`_stepped_lanes`) places lanes on the clock outward from the reference, turns the
+segments into per-clip plans with `steps`, and `apply_alignment_plans` splits those
+clips (`split_clip_at`) before slipping each piece; a clip already at its recorded
+placement keeps its `meta.ingest_alignment` entry, so a re-run changes nothing.
+Once the clips are placed, the
+`align_tracks` step calls `edits/clipped_onsets.py`, which measures the copy paths
+again where the lanes now sit (`measure_pair`) and checks every opening whose sound
+reached another mic first. An opening that jumps straight to the word's level, in step
+with the copy (`envelope_lag.shift_correlations` at zero shift), is a clipped start: the
+word's start moves (old start in `snapped_from`, restored and judged again on every run)
+and gets its own `Align tracks` comment. An opening whose sound matches the copy shifted
+back by the lead is a late track, which is alignment's to fix: nothing is flagged or
+moved. Comments stay in step through
+`edits/comments.py`. A word a person re-timed (`TranscriptWord.retime(..., by_person=True)`, via
+`apply_word_timing`) carries `timing_edited` and is never judged. It reads only the project and audio, never the solver's internals.
+
+Retained mixed bleed has a separate, conservative local alignment path.
+`engines/bleed_delay.py` measures signed copy delays with extended reference
+context and shifted null controls; it never claims that the lane owner is absent.
+`edits/retained_bleed_alignment.py` plans immutable complete direct-source phrase
+moves, validates quiet seams in every source channel, and applies existing split
+and move operations on a working copy. Services own workspace history and render
+publication. The mixed lane is unchanged. Declared crossfade joins abstain with
+`unsupported_crossfade_evidence_clock`, because their rendered clock can differ
+from raw clip placement. Supported windows must cover the inferred copy phrase
+endpoints as well as independent interior probes. All known retained-copy peers in
+the region must corroborate one offset; uncertain or conflicting evidence abstains.
+Source-scoped user choices live in `editorial.retained_bleed_alignments`.
+Destination overlap is removed only from verified quiet source material using
+existing clip geometry, with source ranges and reason in the move edit log.
+Any reduction of retained-word source coverage abstains. Saved mix-muted lanes
+are excluded from automatic alignment; muted secondary copies cannot veto it.
+Planning, trim guards, and bleed gates share `selected_source_transcripts`.
+An explicitly selected bleed lane with finite start/end also discovers candidates
+from retained owner phrases on selected direct recordings, without inventing copy
+transcript words. Both origins exclude retained words explicitly marked bleed,
+dominant on another lane or speaker-matched to another lane from owner seeds.
+Manual text retention does not override those ownership exclusions; unattributed
+and own-lane words remain eligible for the acoustic validator.
+Both discovery origins use one complete-phrase validator. It also refuses a
+completed direct interval overlapping explicit foreign attribution on that
+selected recording, including gaps between seeds and completion margins. Foreign
+rows veto even when suppressed or ignored because raw evidence includes their
+samples. Attribution on another recording or outside that source interval does
+not veto it. A lane with neither a transcript seed nor an eligible bounded owner
+phrase reports
+`no_retained_bleed_candidate`; this is unmeasured alignment, not acoustic clearance.
+Examined candidates retain their specific abstention reasons.
+`transcript_for_source` prefers an exact recording transcript; track-level words
+apply only to primary media or a physically equivalent explicit source alias.
+An unrelated source without a transcript supplies no phrase or gate authorization,
+and a destination trim touching it abstains. Its complete selected placement is
+protected from lane-wide attenuation, including overlaps with authorized clips;
+when candidate planning proceeds, the gate reports
+`untranscribed_source_protected`. Earlier abstentions preserve the whole lane
+without an attenuation plan. Transcript enrollment, including empty transcripts,
+is part of the persistent gate fingerprint. Disjoint authorized bleed
+remains eligible for attenuation. Selected transcript words map only
+through that recording's placements using
+`SessionTimeline.map_selected_source_span(s)`. Implicit primary lanes keep the
+identity source-to-timeline clock, independent of copies parked on other lanes.
+Phrase indexes retain selected recording identity and are built once per direct
+lane. Unbounded runs retain the 64-phrase transcript-seeded workflow. Explicit
+lane/start/end requests have one 64-unit budget for phrase attempts, directed pair
+measurements and quiet reads. Completed envelopes cannot exceed 30 seconds. The
+bounded path does not build fresh whole-recording bleed gate plans or assume hard
+attenuation to exclude peers. Every other unmuted placed lane in the possible
+copy footprint must be measured quiet in every channel or corroborate the full
+phrase delay; known retained-copy peers always participate. Missing, active
+unverified or conflicting peers veto the candidate. No proposal survives an
+unmeasured required peer when the budget is exhausted.
+Local delay reads include bounded lag and shifted-null context with an explicit
+timeline origin, rather than decoding complete recordings. Overlapping old/new
+correction footprints, including quiet trim and seam fades, abstain as a batch.
+Each immutable proposal records every retained-copy reference lane used in its
+evidence. A batch also abstains when another correction would move a referenced
+copy region. Repeated transcript seeds expanding to identical complete source
+geometry produce one correction. Measured unsupported probes intersecting the
+copy phrase prevent whole-phrase approval, even if endpoints and other probes agree.
+Implicit full-media timelines remain playable but local retiming abstains until
+explicit clip placements exist. Missing or unmatched direct phrases are reported.
+`set_track_clips` carries manual per-clip ingest metadata onto surviving
+same-source subclips, so a split or scoped override preserves other placement locks.
+Replacing explicit placements with an empty list sets `timeline_empty`. Adding
+placements clears it. Empty-to-empty replacement preserves the flag, including
+implicit primary-media playback. Project-aware raw timeline readers silence
+flagged lanes without placements while retaining decoded sample shapes and
+shared source PCM. Raw source audition remains available.
+Saved choices include an optional opaque digest of the normalized recording path;
+primary media and equivalent explicit source references share that identity.
+No host path is added to editorial metadata. Legacy choices resolve through their
+existing source/primary media references.
+
+Transcript bleed gating plans bounded foreign reduction in
+`engines/bleed_gate.py` from ungated selected media, mapped by
+`engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
+verified reduction spans, the lane's resolved reduction (`mute` or `attenuate`, from
+`analysis.heuristics.bleed_handling` read through `AnalysisPolicy`; `auto` picks per
+lane from its bed, the median level away from its own speech and the copies), the
+attenuation in dB, that bed, and abstention reasons. Evidence is each lane's level envelope; the copy lag comes from
+the shared `engines/envelope_lag.py` estimator over the peer's own speech and holds
+only when the copy's timbre confirms it (`copy_timbre.confirmed_likeness`), every frame
+the peer's direct track reaches at that lag is foreign, and own speech is sound over
+the copy's expected level by more than the copy's own spread, or nearer it, a fifth
+of a second whose fine spectrum is not the peer's (`engines/copy_timbre.py`).
+Reconciliation reuses both: `TrackRmsCacheSet.copy_path` measures each bleed pair's
+copy lag and likeness once, and `compute_word_audibility_map` reads the source mic
+at that lag, taking a word from its speaker only when its fine spectrum is the copy's
+([transcript-reconcile.md](transcript-reconcile.md#words-are-judged-at-the-copy-lag-1052)).
+Project playback and rendering apply those conservative plans to rendered audio.
+
+`engines/transcript_gated_play.py` uses absolute transition positions so segment
+requests add no word-edge fades. `edits/transcript_bleed_mute.py` persists the
+track's source selection and publishes a fresh source render through the existing
+render lock and history mutation path. ASR coverage is not an exhaustive audio
+whitelist. A process-local LRU retains at most 16 immutable gate plans keyed by
+serialized relevant metadata, selected media revisions, and policy; it retains
+neither live projects nor PCM. Initial evidence still decodes selected sources.
+Owner phrases and unresolved activity retain full gain.
+
+`engines/media_probe.py` shares successful `AudioProbe` metadata by resolved path
+and file revision in a bounded process-local cache. Rendered-media audit retains
+its container-duration policy. Reviewed bleed discovery requires a known, finite,
+unestimated first-audio-stream extent and memoizes unavailable extents within each
+receiving-lane discovery call. Declared extent is not proof of decodable PCM or
+owner absence.
+
+## Occurrence proxy publication
+
+`SourceProxyInputs.capture_legacy` and `capture_occurrence` share source,
+processing, fill, gate, dependency capture and validation. An occurrence binds
+its selected recording before unity, inactive-choice or other shortcut checks.
+The legacy selector requires no manufactured clip or replacement track media.
+
+Source proxies preserve an independently rendered legacy baseline `B0`.
+Continuous whole-source passes produce `W` with the selected automatic reduction
+bypassed and `V` with the joint selected windows removed before the same FX.
+The proxy correction is `saturate16(B0 + (1-g0)*h*(W-V))`. It never substitutes
+a second approximation for `B0`. The observed native, producer, consumer and
+packed-output clocks map saved source bounds, including conversion round trips.
+Existing clip fades and output gains apply once in the client after decoding.
+
+`services/media/proxy_variants.py` owns complete manifest publication under the
+render lock. `RenderSection.proxy_manifests` retains the current and one previous
+complete generation. Ordered chunk digests bind new public hashes to actual
+encoded bytes. Publication uses the shared `util/atomic_directory.py` no-replace
+rename, synchronizes files and the namespace before one derived metadata save,
+and revalidates captured inputs before accepting the generation. It adds no
+History step. Existing accepted URLs are never overwritten or purged on refusal.
+A complete unaccepted directory alone grants no read authority.
+
+Host `ensure_and_upload_all_proxies` publishes the complete generation after its
+independent track ensure and upload attempts, so its basis includes the final
+upload metadata History head. Successful preparation lets unchanged guest reads
+reuse the accepted generation without saving or rendering. Preparation failures
+log a host warning and preserve best-effort sharing. Later edits can require a new
+generation. Standalone `ensure_track_proxy` still grants no aggregate authority.
+
+The manifest's project basis binds history head, render hashes and complete clip
+geometry to occurrence artifact references. The client admits one complete
+playback snapshot. Changed or unavailable variant generations pause timeline
+audio until a matching snapshot arrives. An offline legacy-only exception
+requires exact replay of validated, locally queued MoveClips geometry; an empty
+variant map alone does not permit a mismatched project.

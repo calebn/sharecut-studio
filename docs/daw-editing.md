@@ -230,7 +230,7 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 - MCP `set_word_suppressed_tool` / `set_word_automatic_tool` for agent parity (optional `expected_text` guard, #744, #824); listen-first audition stays MCP-only (`podcast-transcript-audition`)
 - **Ignore / Restore (#633):** non-destructive strikethrough-and-mute for review passes, no cut or pending edit. Ignored words render with a double strikethrough in `--color-transcript-ignored` (a neutral secondary-text ink, not the danger red; Suppress keeps a single dimmed strikethrough), so the two read differently without opening the inspector. `transcript.ignoreWords` command (`daw.transcript.ignore`) → `SetTranscriptWordsIgnored` → `EditService.set_words_ignored`; entry points are a Select-mode toolbar button for the active `transcriptRange`, the primary action (Ignore/Restore) in `TranscriptWordInspector`, beside a secondary text-only Suppress/Unsuppress; each action's title says whether it changes audio, and a hover/focus-visible **Restore** control after each contiguous ignored run (overlaid without reserving line space on fine pointers, hanging just below the run's last word and right-aligned to it, anchored to that word's wrapper inside the scrolling `.transcript-list`, so it follows its run and never adds horizontal overflow; always visible and inline under `pointer: coarse`). A second `transcript.ignoreWords` while one is in flight is dropped (one undo step per double click). Host-only — no keyboard shortcut (#649), not available to guests. MCP `set_words_ignored_tool` gives agents the same parity (optional `expected_text` guard, #744).
 - **Low-confidence walkthrough (#634):** under Annotate, the transcript toolbar shows **Previous / i/n low-confidence / Next** (`transcript.prevLowConfidence` / `transcript.nextLowConfidence`, `daw.transcript.*LowConfidence`). The stops are the underlined words (`confidence < 0.7`, the same threshold as `low_confidence_words_tool`), in transcript order, and the walk wraps at both ends. A step seeks to the word, scrolls to it, marks it (`aria-current`, dashed outline) and announces it. In Correct mode it also selects the word into the word editor. The commands turn Annotate on when run from the palette. There is no keyboard shortcut (#649), and the controls work for guests too (seek and scroll only). A word-editor action still in flight when you step keeps its own result: the next word opens with a fresh editor, and a late failure shows in the transcript's failure banner (Dismiss), not under the new word. The banner clears on its own once the word's text changes or, for a failed Suppress / Ignore, once that flag changes (a retry succeeded).
-- **Prosody emphasis (#719):** with View › Layers **Prosody** on (host only), the words `analyze_prosody` ranked prominent (top `prosody.top_prominent_words` per segment, matched to transcript `word_index` server-side by exact source timing, else the nearest same-text word starting within 0.25 s) render bold with a `--color-prosody-prominent` top rule; the rule is left off suppressed, ignored and suspect-hallucination words so their strike / dotted underline stays. They get a hover tip "Emphasized (prosody)" and an sr-only "emphasized". Independent of Annotate; stale profiles still mark words, including ones a re-alignment re-timed; the timeline overlay is in [gui-integration.md § Timeline layers](gui-integration.md#timeline-layers-bottom--top).
+- **Prosody emphasis (#719):** with View › Layers **Prosody** on (host only), the words `analyze_prosody` ranked prominent (top `prosody.top_prominent_words` per segment, matched to transcript `word_index` server-side by exact source timing, else the nearest same-text word starting within 0.25 s) render bold with a `--color-prosody-prominent` top rule; the rule is left off suppressed, ignored and suspect-hallucination words so their strike / dotted underline stays. They get a hover tip "Emphasized (prosody)" and an sr-only "emphasized". Independent of Annotate; stale profiles still mark words, including ones a re-alignment re-timed; the timeline overlay is in [gui-integration.md § Timeline layers](gui-viewer.md#timeline-layers-bottom--top).
 
 **Done when:** correcting a word in the Transcript tab persists to `transcripts.per_track` and survives reload.
 
@@ -602,6 +602,89 @@ Fully removed lanes retain their timeline extent as silence.
 
 Reviewed bleed targets reuse the exact occurrence-local MUTE workflow; they preserve gaps and do not affect another placement of the same recording. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
 
+### Implementation notes
+
+Exact selected ranges use `edits/range_edits.py`. The sealed target names timeline intervals, destination lanes, clip occurrences, and opaque media revisions. Approval and pending audition use that kernel. Cut leaves holes and later placements stay aligned. A whole range action uses one workspace mutation and one History Undo. `Track.timeline_empty` distinguishes a fully removed lane from implicit raw media.
+
+`edits/bleed_review.py` subtracts protected selected-source word coverage before building bounded exact-range hypotheses with this kernel. The MCP adapter submits a pending mute through the existing document command service. Interactive host approval applies it through the same range mutation and history path. Discovery does not establish acoustic ownership.
+
+Batch approval validates before mutation, combining mutes and canonical punches
+per original clip with the existing microfade policy. Only lanes with validated
+occurrences mutate. Clipless media with unknown duration rejects selection.
+Stored duration retains fully removed lane extent, including moved media.
+`services/media/range_audio.py`, exported by the media facade, owns FFmpeg
+orchestration for islands and silence; domain code owns geometry and validation.
+Selected segments bake staging gain, so their mix adds fader gain only. Full
+Bounce stems retain the ordinary output-gain path.
+
+#### Registry backup boundary
+
+`edits/share_registry.py` owns the current main/WAL/SHM/journal privacy scope,
+connection recovery, and durable secret. `util/registry_privacy.py` selects the
+native operation-scoped admission check. Source and backup reuse the same native
+ACL predicates and ancestry walk in `registry_backup_posix.py` and
+`registry_backup_windows.py`. The publisher alone owns snapshot names, staging,
+and no-replace publication. Backend workspace, created-file, and reader contexts
+own acquisition and cleanup before metadata, validation, or CRT conversion.
+The publisher borrows paths and descriptors without recapturing creation identity.
+`util/registry_cleanup.py` preserves initiating errors and drains independent
+releases, including snapshot SQLite close. Unknown creation identity permits
+resource release but not name deletion. Completed final backups are never cleanup targets.
+POSIX source admission of the main/WAL/SHM/journal files uses `lstat` and a path ACL
+query, never a descriptor: closing any descriptor on a file releases every POSIX lock
+the process holds on it, which lets a peer reset the WAL shared memory this process
+still maps (SIGBUS). `tests/test_share_registry_wal_locks.py` pins this.
+
+`edits/share_registry.py` owns the online SQLite snapshot and registry transaction
+recovery. Its narrow `util/registry_backup.py` publisher creates a private disk
+snapshot, then streams bytes into a new single-file backup. Platform helpers pin
+and verify POSIX directory descriptors/ACLs or Windows NTFS handles/DACLs. SQLite
+never opens a destination staging pathname. Publication is atomic no-replace on
+the destination filesystem; the helper does not manage other stores or review
+leases. See [backup/restore](share-tokens.md#backup--restore) for operator rules.
+
+#### Applied Restore ownership
+
+`edits/edit_log.py` owns one Restore eligibility query and the existing source MUTE subtraction. `EditService.revert_applied` calls that query under its workspace transaction before creating history, and the domain mutator reuses it. All clip-inserting archives and exact ranges raise the coded `local_restore_requires_history` refusal. History Undo remains the owner of whole-action editable restoration. No removed-material schema or recording-identity inference is added. Archive seam clocks still drive applied ticks and MUTE Restore. See [History](history.md#individual-restore-and-whole-action-undo).
+
+#### Complete cut application
+
+`edits/cut_application.py` owns the finite source, exact-range, mute, timeline delete,
+trim, automatic, selected and suggested cut operations. It runs the existing writers
+on copies, including room-tone tiles, mute ramps, late join fades and provisional
+archives. `cut_safety.py` reads the completed source and envelope graph through the
+same `placed_track_audio` and fade-duration rules as rendering. CUT suppression,
+crossfade placement/curve and source identity therefore come from the actual graph.
+The renderer reads published clips and mute regions; a decision's `applied` label
+cannot remove audio during rendering. Live applied entries in an MCP edit plan go
+through the same cut owner.
+
+The native split kernel records child-to-parent clip IDs in the current edit batch.
+Completed effects follow those links to the nearest BEFORE clip, then qualify its
+recording, source and fill phase. This preserves occurrence identity when a range
+cut gives both survivors new IDs while another play uses identical source bounds.
+A surviving leaf binds only to a BEFORE leaf whose source span contains it, so two mute
+fills of one clip that sit at the same lead from their holes stay two occurrences.
+The links expire with the batch and are not project metadata. An untraced graph
+with multiple possible BEFORE occurrences still refuses assessment.
+Native pad insertion also records tile IDs and originating edits in that batch.
+Archive checks follow those tiles through native splits and later ripples while
+checking their archived source samples and original insertion window. Historical
+archive timeline positions do not describe a tile's position after another cut.
+Unattributed copies cannot use the pad exception to retain consumed source.
+Mute deltas compare the native source-sample envelope (bounds, fade lengths and gain),
+not its clip-local seconds. Splitting or shifting a clip therefore does not attribute
+an unchanged inherited mute, or a surviving portion of its native recipe, to the new
+cut; genuinely changed envelopes still receive
+assessment on that physical occurrence.
+
+Placement and archive integrity always apply. Only trusted interactive intent or the
+logged `override_audio_checks` override bypasses acoustic edges and peers. Partial batches discard failed copies, exclude held IDs from
+chosen speech, and rebuild survivors from the accepted mute base. Shared join fades
+carry every contributing accepted ID. Temporary measurement audio may be rendered in
+`TemporaryDirectory`; rejection publishes no render, export, source pool or history.
+`ProjectWorkspace.mutate` still owns history and persistence.
+
 ## Move clips without dragging
 
 Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
@@ -610,11 +693,23 @@ For an exact destination, enter **Timeline start (seconds)**. Review the timelin
 preview, then choose **Apply move** or **Cancel**. A selected group moves together,
 with each clip clamped at zero and the outer tracks. Exact input does not snap.
 Apply uses one existing move History action. Cancel and unchanged Apply save
-nothing. A refused save keeps a current draft and an error so you can retry.
+nothing. The preview stays visible while Apply waits for an earlier edit to finish.
+A refused save keeps a current draft and an error so you can retry. The
+**Moved clips** feedback offers **Undo** for the saved move, including the whole
+selected group. Queued or unchanged replies offer no Undo. Late move feedback
+cannot replace the status after another episode opens or this one reopens.
+
+The panel size buttons sit beside the editor tabs. The tabs scroll horizontally
+when the controls and labels need more room.
 
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
-by 1 rem. **Reset panel size** clears the browser preference. These controls do
-not change the episode or History. Phone uses the sheet's **Expand** and
+by a 1 rem request, subject to the current available bounds. Steps start at the
+visible height even when a saved preference is taller than the space available,
+so the first step can clamp by more than 1 rem. A disabled direction explains
+the size limit and saves nothing. Banners and root-text changes refresh the
+bounds without rewriting the preference. Buttons, keyboard, drag clamps, and
+separator values use the same measured geometry. **Reset panel size** clears the
+browser preference. These controls do not change the episode or History. Phone uses the sheet's **Expand** and
 **Collapse** controls and has no desktop splitter.
 
 ## Restore an automatic reduction in one occurrence

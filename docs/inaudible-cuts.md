@@ -167,7 +167,7 @@ inserted sample tiles. See [filler cut quality](filler-cut-quality.md#policy).
 | `absorb_trailing_silence_quiet_over_floor_db` | Max RMS in the gap, in dB over the selected recording's voice floor, to treat as absorbable silence (default `-3`) |
 | `weights.energy` / `zero_cross` / `continuity` | Candidate scoring weights |
 
-## CLI
+## Inaudible-cuts CLI
 
 ```bash
 podcast edit preview-cut --project episode.project.json --track host --start 32.4 --end 34.8

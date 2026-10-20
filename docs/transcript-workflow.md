@@ -71,7 +71,7 @@ podcast pipeline run --project episode.project.json --unattended              # 
 
 **Fixes:** Words tagged `bleed` or `inaudible` get `suppressed: true` and are **omitted** from `combined.json` and search/play gating. Raw per-track JSON still retains all words.
 
-The reconciliation engine applies status, suppression, and reattribution together for each word, from one target per word (acoustic verdict, overridden by the identical-text loser verdict on a mic pair with a measured bleed path, #774), and reports only the fields that differ from the stored word. A repeat run on an unchanged project reports zero changes (#782). A track or time-window scope leaves out-of-scope words untouched but still judges in-scope words against out-of-scope partners by their computed target, so a scoped pass reaches the same target as a full pass (#805); dry runs report proposed changes without applying suppression.
+Reconcile computes one target per word, so a repeat run on an unchanged project reports zero changes and a scoped pass reaches the same target as a full pass. The rules are in [transcript-reconcile.md](transcript-reconcile.md).
 
 **Does not:** Revert a word's `suppressed` once a person or agent set it directly (`audibility_locked: true`, #768). `set_word_suppressed_tool`, `apply_bleed_suppression_tool` / `suppress-bleed` called with an explicit word list, and `apply_low_audibility_suppression_tool` called with an explicit `words` list all lock the word the same way `ignored` already does; reconcile — including pass 2 after `assemble_timeline` and the text-match overlap pass — skips a locked word entirely instead of recomputing its audibility over the decision. A heuristic `suppress-bleed` or low-audibility apply (no explicit list) does not lock, since it is just reconcile's own verdict recomputed (#781). Speaker attribution's automatic suppression (`run_speaker_attribution`, the home-speaker gate) also leaves a locked word's `suppressed` value alone. `set_word_automatic_tool` / `podcast transcript suppress-word --automatic` / the `SetTranscriptWordAutomatic` document command / Studio's "Return to automatic" button clear the lock without changing `suppressed`, so the **next** reconcile pass recomputes the word (#824). See [episode-format-v2.md](episode-format-v2.md) for the field.
 
@@ -93,7 +93,7 @@ duration_errors_sec` over `matched_word_pairs`). Keep the default only while
 and nothing measured supports a smaller cap for unaligned words. Measured
 2026-09-28: L = 0.76 s (longest aligned word) + 0.22 s (worst duration error)
 = 0.98 s, so `0.98 + 0.5 = 1.48 <= 2.0` and the cap stays at **2.0 s**. See
-[docs/testing.md § Shipped pass results (#715)](testing.md#shipped-pass-results-715)
+[docs/testing.md § Shipped pass results (#715)](testing.mdtest-results.md#shipped-pass-results-715)
 for the full measured tables, including the 1.0-2.5 s lab duration-count
 sensitivity table this rule leans on.
 
@@ -108,7 +108,7 @@ than 150 ms. The initial three-clip faster-whisper `base` CPU/int8 baseline is
 **82.3 ms** MAE over 42/48 reference words, with **15/42 (35.7%)** matched
 words over 150 ms; six reference words were missed and four predictions were
 extra. This read-speech baseline cannot establish accuracy on conversational
-podcast audio. See [testing.md](testing.md#word-boundary-benchmark) for the
+podcast audio. See [testing.md](testing.mdtest-results.md#word-boundary-benchmark) for the
 reproduction command and fixture provenance. The metric also reports a signed
 bias, `mean_start_error_ms`/`mean_end_error_ms` (prediction minus reference),
 for tuning boundary padding. `scripts/benchmark_forced_aligners.py` runs
@@ -122,7 +122,7 @@ the model is downloaded, [#780](https://github.com/calebn/sharecut-studio/issues
 the model download remains opt-in, and a saved explicit request can be turned off
 in Studio while the model is missing; shipped in [#714](https://github.com/calebn/sharecut-studio/issues/714)); measured
 pipeline results are [#715](https://github.com/calebn/sharecut-studio/issues/715).
-See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alignment-testing-grounds).
+See [testing.md § Lab tape: alignment testing grounds](testing.mdtest-results.md#lab-tape-alignment-testing-grounds).
 
 **Does not fix:**
 

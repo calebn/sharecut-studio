@@ -173,7 +173,9 @@ Only **`version: "2.0"`** is supported. Older flat layouts are rejected at load 
 
 Influenced by OpenTimelineIO (tracks/clips), Descript (transcript-first edits), and REAPER-style declarative session + render—without reading DAW project files.
 
-## Exact selected ranges
+## Selected-range stored shape
+
+Owner: [daw-editing.md § Exact selected ranges](daw-editing.md#exact-selected-ranges). This section keeps only the selected-range stored shape facet.
 
 `EditDecision.proposal_origin` records who established the proposal (`programmatic` or
 `human`); `boundary_intent` records current boundary intent separately.
