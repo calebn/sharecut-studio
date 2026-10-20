@@ -307,14 +307,10 @@ def projection_dependencies(
     import hashlib
     import json
 
-    from podcast_mcp.engines.play_audit import (
-        premix_hash_path,
-        premix_path,
-        stem_hash_path,
-        stem_path,
-    )
+    from podcast_mcp.engines.play_audit import premix_hash_path, premix_path, stem_hash_path
     from podcast_mcp.project_store import history_index_path
     from podcast_mcp.services.document_sync import file_certificate
+    from podcast_mcp.util.tracks import stem_path
 
     project = ws.project
     paths = {history_index_path(project), premix_path(project), premix_hash_path(project)}

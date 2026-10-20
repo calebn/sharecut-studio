@@ -9,7 +9,7 @@ from contextlib import contextmanager
 import pytest
 from filelock import Timeout
 
-from podcast_mcp.engines.play_audit import publish_stem, stem_path
+from podcast_mcp.engines.play_audit import publish_stem
 from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.pipeline.runner import PipelineRunner
 from podcast_mcp.services.app import ProjectWorkspace
@@ -24,6 +24,7 @@ from podcast_mcp.util.project_state import (
     render_lock,
     render_lock_held,
 )
+from podcast_mcp.util.tracks import stem_path
 
 
 @contextmanager

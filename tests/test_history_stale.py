@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
-from podcast_mcp.engines.play_audit import stem_path, write_stem_hash
+from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
+from podcast_mcp.util.tracks import stem_path
 
 
 def _project(tmp_path, track_ids=("host",)):
