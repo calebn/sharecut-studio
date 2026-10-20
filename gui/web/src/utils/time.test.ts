@@ -3,6 +3,7 @@ import {
   clampToSession,
   clockLabel,
   formatDurationLabel,
+  formatIngestDuration,
   formatRulerTime,
   formatTime,
   formatTimecodeCompact,
@@ -255,5 +256,15 @@ describe("parseTimecode", () => {
     for (const sec of [0, 2.38, 61.005, 3723.5]) {
       expect(parseTimecode(formatTimeMs(sec))).toBeCloseTo(sec, 3);
     }
+  });
+});
+
+describe("formatIngestDuration", () => {
+  it("formats status durations", () => {
+    expect(formatIngestDuration(0.5)).toBe("0.5s");
+    expect(formatIngestDuration(60)).toBe("1:00");
+    expect(formatIngestDuration(59.96)).toBe("1:00");
+    expect(formatIngestDuration(119.7)).toBe("2:00");
+    expect(formatIngestDuration(125.4)).toBe("2:05");
   });
 });

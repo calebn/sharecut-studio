@@ -8,11 +8,8 @@ import { addTrackCommand, setTrackMediaCommand, uploadMediaFile } from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { askConfirm } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
-import {
-  formatIngestDuration,
-  replaceAudioQuestion,
-  trackHasMedia,
-} from "./dropLabels";
+import { formatIngestDuration } from "../utils/time";
+import { replaceAudioQuestion, trackHasMedia } from "./dropLabels";
 
 export type IngestTarget = { kind: "track"; id: string } | { kind: "new" };
 
