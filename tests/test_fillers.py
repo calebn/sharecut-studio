@@ -3536,6 +3536,70 @@ def test_acoustic_mute_ends_in_a_valley_only_after_one_sustained_hum(
         assert found == {"acoustic:kept_voice": 1}
 
 
+# A quiet plateau (a breath, a murmur, a held "n") and then a much louder syllable: one burst
+# by the burst measure (the level only rises), but a decaying hum only ever falls into the
+# valley, so the louder syllable is speech, not the tail of a filler (#1358).
+_PLATEAU_THEN_SYLLABLE = (
+    (0.88, -70.0),
+    (0.91, -41.0),
+    (1.2, -41.0),
+    (1.22, -21.0),
+    (1.38, -21.0),
+)
+
+
+@pytest.mark.parametrize("gain_db", _GAINS_DB)
+def test_a_quiet_plateau_then_a_louder_syllable_is_not_a_hum_decaying_into_the_valley(
+    tmp_path, gain_db
+):
+    project = _sound_then_word_project(tmp_path, "plateau", _PLATEAU_THEN_SYLLABLE, -41.0, gain_db)
+    found: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _acoustic_mute_defaults(), skip_counts=found
+    )
+
+    assert decisions == []
+    assert found == {"acoustic:kept_voice": 1}
+
+
+@pytest.mark.parametrize("gain_db", [-18.0, -12.0, 0.0, 6.0])
+def test_a_real_word_the_transcript_dropped_is_not_proposed_as_a_filler_decaying_into_a_word(
+    tmp_path, gain_db
+):
+    """LibriSpeech guest.wav: drop "antonia" (43.49-44.04) from the transcript. Its "an"
+    is -17 dBFS after 0.5 s of -37 dBFS, with the an|to syllable break at 43.69 as the
+    valley: the plateau and the syllable are two sounds, not one hum."""
+    import shutil
+    import wave
+
+    import numpy as np
+
+    from podcast_mcp.e2e_fixture import FIXTURES_DIR
+    from podcast_mcp.models import load_project
+
+    workspace = tmp_path / "fx"
+    shutil.copytree(FIXTURES_DIR / "aligned_dialogue", workspace)
+    guest = workspace / "raw" / "guest.wav"
+    with wave.open(str(guest), "rb") as handle:
+        params, frames = handle.getparams(), handle.readframes(handle.getnframes())
+    scaled = np.frombuffer(frames, dtype="<i2") * 10 ** (gain_db / 20)
+    with wave.open(str(guest), "wb") as handle:
+        handle.setparams(params)
+        handle.writeframes(np.clip(np.round(scaled), -32768, 32767).astype("<i2").tobytes())
+    project = load_project(workspace / "episode.project.json")
+    transcript = next(t for t in project.transcripts if t.track_id == "guest")
+    transcript.words = [w for w in transcript.words if w.text.strip(".,") != "antonia"]
+    found: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, transcript, _acoustic_mute_defaults(), skip_counts=found
+    )
+
+    assert [d for d in decisions if d.reason == "filler:acoustic"] == []
+    assert found == {"acoustic:kept_voice": 1}
+
+
 def test_the_plan_flags_the_valley_when_the_word_time_falls_in_it(tmp_path):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
