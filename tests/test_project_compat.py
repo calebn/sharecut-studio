@@ -393,8 +393,16 @@ def test_every_pr_runs_compatibility_outside_pytest_scope() -> None:
     assert "tests/test_project_compat.py" in guard["run"]
     assert (
         guard["env"]["COMPAT_BASE"]
-        == "${{ github.event.pull_request.base.sha || github.event.before || github.sha }}"
+        == "${{ inputs.compatibility-base || github.event.pull_request.base.sha || github.event.before || github.sha }}"
     )
+    identity = next(
+        step for step in steps if step.get("name") == "Verify final release integration identity"
+    )
+    assert (
+        identity["if"]
+        == "github.event_name == 'workflow_dispatch' && inputs.compatibility-base != ''"
+    )
+    assert steps.index(identity) < steps.index(guard)
     scoped = [step for step in steps if "steps.plan.outputs.pytest" in step.get("if", "")]
     assert all(steps.index(guard) < steps.index(step) for step in scoped)
 
