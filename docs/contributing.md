@@ -82,7 +82,7 @@ Sharecut Studio is in beta and has no users. Breaking changes are allowed. Prefe
 ## Adding a feature
 
 1. Implement domain logic (or extend an existing module).
-2. Expose via a method on the appropriate service (`EditService`, `ClipService`, `CommentService`, `PlayService`, etc.).
+2. Expose via a method on the appropriate service (`EditService`, `TimelineService`, `TranscriptService`, `AnalysisService`, `ClipService`, `CommentService`, `PlayService`, etc.).
 3. Add a thin CLI command in `cli/<area>.py` and an MCP handler in `mcp/tools/<area>.py`. If the DAW viewer needs it, add a thin route under `gui/routes/` (`project.py` / `session.py` / `pipeline.py`) that calls the same service method; keep `gui/server.py` as `create_app` wiring only. Gate owner routes with `require_host` from `gui/routes/deps.py` (host role); never copy a per-module `_auth` helper.
 4. Register the MCP tool in `mcp/tools/__init__.py` via `register_all`. A new `MCPServer.call_tool` wrapper (progress, busy errors, project injection, …) uses `util.mcp_call_tool.wrap_call_tool` instead of re-declaring the forwarding signature.
 5. Re-export the handler from `mcp/server.py` if tests call it directly.

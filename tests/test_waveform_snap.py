@@ -9,7 +9,7 @@ from podcast_mcp.edits.silence_islands import SilenceIsland
 from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import AnalysisService
 
 
 def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
@@ -19,11 +19,11 @@ def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
     wait_pyramid_jobs()
     with patch.object(
-        EditService,
+        AnalysisService,
         "preview_inaudible_cut",
         return_value={"start": 1.01, "end": 1.2, "mode": "word"},
     ):
-        out = EditService(ws).waveform_snap_window(
+        out = AnalysisService(ws).waveform_snap_window(
             track_id="host",
             start=1.0,
             end=1.3,
@@ -31,7 +31,7 @@ def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
         )
     assert out["ticks"]
     assert out["end"] - out["start"] <= 2.0 + 1e-9
-    focused = EditService(ws).waveform_snap_window(
+    focused = AnalysisService(ws).waveform_snap_window(
         track_id="host",
         start=0.0,
         end=10.0,
@@ -43,20 +43,20 @@ def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
     # Ticks round to 1 µs: 20 µs apart stays two ticks (at 48,000 px/s that
     # is about a pixel); sub-µs noise still merges.
     with patch.object(
-        EditService,
+        AnalysisService,
         "preview_inaudible_cut",
         return_value={"start": 1.01002, "end": 1.0100204, "mode": "word"},
     ):
-        fine = EditService(ws).waveform_snap_window(
+        fine = AnalysisService(ws).waveform_snap_window(
             track_id="host", start=1.0, end=1.3, timeline=False
         )
     assert fine["ticks"] == [1.01002]
     with patch.object(
-        EditService,
+        AnalysisService,
         "preview_inaudible_cut",
         return_value={"start": 1.01, "end": 1.01002, "mode": "word"},
     ):
-        apart = EditService(ws).waveform_snap_window(
+        apart = AnalysisService(ws).waveform_snap_window(
             track_id="host", start=1.0, end=1.3, timeline=False
         )
     assert apart["ticks"] == [1.01, 1.01002]
@@ -72,17 +72,17 @@ def test_waveform_snap_window_island_ticks_keep_microseconds(minimal_project, sa
     island = SilenceIsland(start=1.000002, end=1.100012)
     with (
         patch.object(
-            EditService,
+            AnalysisService,
             "preview_inaudible_cut",
             return_value={"start": 1.2, "end": 1.25, "mode": "word"},
         ),
-        patch("podcast_mcp.services.document.edit.timeline_floor_hops", return_value=[]),
+        patch("podcast_mcp.services.document.analysis.timeline_floor_hops", return_value=[]),
         patch(
-            "podcast_mcp.services.document.edit.silence_islands_from_hops",
+            "podcast_mcp.services.document.analysis.silence_islands_from_hops",
             return_value=[island],
         ),
     ):
-        out = EditService(ws).waveform_snap_window(
+        out = AnalysisService(ws).waveform_snap_window(
             track_id="host", start=1.0, end=1.3, timeline=True
         )
     assert out["islands"][0]["midpoint"] == 1.05
@@ -96,7 +96,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
     wait_pyramid_jobs()
-    swapped = EditService(ws).waveform_snap_window(
+    swapped = AnalysisService(ws).waveform_snap_window(
         track_id="host",
         start=1.3,
         end=1.0,
@@ -104,7 +104,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
     )
     assert swapped["start"] == pytest.approx(1.0)
     assert swapped["end"] == pytest.approx(1.3)
-    tiny = EditService(ws).waveform_snap_window(
+    tiny = AnalysisService(ws).waveform_snap_window(
         track_id="host",
         start=1.0,
         end=1.01,
@@ -112,8 +112,8 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
     )
     assert tiny["start"] == pytest.approx(1.0)
     assert tiny["end"] == pytest.approx(1.05)
-    with patch.object(EditService, "preview_inaudible_cut", side_effect=RuntimeError("nope")):
-        skipped = EditService(ws).waveform_snap_window(
+    with patch.object(AnalysisService, "preview_inaudible_cut", side_effect=RuntimeError("nope")):
+        skipped = AnalysisService(ws).waveform_snap_window(
             track_id="host",
             start=1.0,
             end=1.3,
@@ -123,17 +123,17 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
     island = SilenceIsland(start=1.0, end=1.2)
     with (
         patch.object(
-            EditService,
+            AnalysisService,
             "preview_inaudible_cut",
             return_value={"start": 1.01, "end": 1.2, "mode": "word"},
         ),
-        patch("podcast_mcp.services.document.edit.timeline_floor_hops", return_value=[]),
+        patch("podcast_mcp.services.document.analysis.timeline_floor_hops", return_value=[]),
         patch(
-            "podcast_mcp.services.document.edit.silence_islands_from_hops",
+            "podcast_mcp.services.document.analysis.silence_islands_from_hops",
             return_value=[island],
         ),
     ):
-        timed = EditService(ws).waveform_snap_window(
+        timed = AnalysisService(ws).waveform_snap_window(
             track_id="host",
             start=1.0,
             end=1.3,
@@ -142,10 +142,10 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
     assert timed["islands"] == [{"start": 1.0, "end": 1.2, "duration": 0.2, "midpoint": 1.1}]
     assert 1.1 in timed["ticks"]
     with patch(
-        "podcast_mcp.services.document.edit.timeline_floor_hops",
+        "podcast_mcp.services.document.analysis.timeline_floor_hops",
         side_effect=RuntimeError("hops"),
     ):
-        hop_fail = EditService(ws).waveform_snap_window(
+        hop_fail = AnalysisService(ws).waveform_snap_window(
             track_id="host",
             start=1.0,
             end=1.3,
@@ -206,7 +206,7 @@ def test_api_waveform_snap_route(minimal_project, sample_wav):
     wait_pyramid_jobs()
     client = TestClient(create_app())
     with patch(
-        "podcast_mcp.services.document.edit.EditService.preview_inaudible_cut",
+        "podcast_mcp.services.document.analysis.AnalysisService.preview_inaudible_cut",
         return_value={"start": 0.1, "end": 0.2, "mode": "x"},
     ):
         res = client.get(

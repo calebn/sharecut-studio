@@ -35,7 +35,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync import (
     INTERACTIVE_COMMAND,
@@ -173,7 +173,7 @@ def _trim(
         TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=mode),
         defaults=load_defaults(),
     ).token
-    return EditService(ws).trim_clip_edge(
+    return TimelineService(ws).trim_clip_edge(
         clip_id,
         edge,
         source_sec,
@@ -326,7 +326,7 @@ def test_deleting_touching_clips_on_two_tracks_asks_for_an_unselected_clips_word
         for cid, s, e in (("gA", 0.0, 8.0), ("gB", 8.0, 12.0), ("gC", 12.0, 20.0))
     ]
     save_project(project)
-    service = EditService(ProjectWorkspace.open(episode))
+    service = TimelineService(ProjectWorkspace.open(episode))
     before = _geometry(episode)
 
     out = service.delete_clips(["h1", "gB"], mode=EditMode.RIPPLE)
@@ -574,7 +574,7 @@ def test_a_soft_word_edge_in_the_cut_asks_while_the_cutting_speaker_talks(
 
 
 def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):
-    service = EditService(ProjectWorkspace.open(episode))
+    service = TimelineService(ProjectWorkspace.open(episode))
     before = _geometry(episode)
 
     out = service.delete_clips(["h2"], mode=EditMode.RIPPLE)
@@ -665,7 +665,7 @@ def test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech(
 
 
 def test_ripple_delete_clip_closes_the_span_on_every_track(episode):
-    out = EditService(ProjectWorkspace.open(episode)).delete_clips(["h1"], mode=EditMode.RIPPLE)
+    out = TimelineService(ProjectWorkspace.open(episode)).delete_clips(["h1"], mode=EditMode.RIPPLE)
 
     assert out["operation"] == "ripple_delete_clips"
     _assert_in_sync(episode, (8.5, 10.2, 19.0), -8.0)
@@ -687,7 +687,7 @@ def test_ripple_cut_range_closes_the_span_on_every_track(episode):
 
 def test_ripple_paste_opens_time_on_every_track(episode):
     extract = {"track_id": "host", "source_start": 1.0, "source_end": 3.0}
-    EditService(ProjectWorkspace.open(episode)).paste_segment(
+    TimelineService(ProjectWorkspace.open(episode)).paste_segment(
         5.0, 2.0, [extract], mode=EditMode.RIPPLE
     )
 
@@ -708,7 +708,7 @@ def test_ripple_paste_opens_time_on_every_track(episode):
             [("host", 0.0, 8.0, 0.0), ("host", 9.0, 20.0, 9.0)],
         ),
         (
-            lambda path: EditService(ProjectWorkspace.open(path)).delete_clips(
+            lambda path: TimelineService(ProjectWorkspace.open(path)).delete_clips(
                 ["h1"], mode=EditMode.GAP
             ),
             [("host", 8.0, 20.0, 8.0)],
@@ -720,7 +720,7 @@ def test_ripple_paste_opens_time_on_every_track(episode):
             [("host", 0.0, 2.0, 0.0), ("host", 4.0, 8.0, 4.0), ("host", 8.0, 20.0, 8.0)],
         ),
         (
-            lambda path: EditService(ProjectWorkspace.open(path)).paste_segment(
+            lambda path: TimelineService(ProjectWorkspace.open(path)).paste_segment(
                 2.0,
                 2.0,
                 [{"track_id": "host", "source_start": 12.0, "source_end": 14.0}],
@@ -854,7 +854,9 @@ def test_gap_trim_undoes_in_one_step(episode):
 
 def test_a_commenters_ripple_suggestion_records_that_approval_must_confirm(episode):
     service = EditService(ProjectWorkspace.open(episode))
-    suggestion = service.delete_clips(["h2"], mode=EditMode.RIPPLE, propose=True)
+    suggestion = TimelineService(service.ws).delete_clips(
+        ["h2"], mode=EditMode.RIPPLE, propose=True
+    )
     (edit,) = suggestion["edits"]
     assert edit["scope"] == "session"
     assert [w["text"] for w in edit["cut_speech"]["tracks"][0]["words"]] == ["so", "the", "plan"]

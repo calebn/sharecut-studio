@@ -98,7 +98,11 @@ def test_history_undo_rerender(tmp_path):
 def test_preview_inaudible_cut_tool(tmp_path):
     path = mcp_server.episode_create(str(tmp_path / "ws6"))
     _project(Path(path))
-    with patch("podcast_mcp.mcp.tools.edits.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.mcp.tools.edits.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.edits.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.edits.AnalysisService", svc_cls),
+    ):
         svc_cls.return_value.preview_inaudible_cut.return_value = {
             "track_id": "host",
             "timeline_mode": True,
@@ -133,7 +137,11 @@ def test_preview_inaudible_cut_tool(tmp_path):
 def test_suggest_handoff_cut_tool(tmp_path):
     path = mcp_server.episode_create(str(tmp_path / "ws_handoff"))
     _project(Path(path))
-    with patch("podcast_mcp.mcp.tools.edits.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.mcp.tools.edits.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.edits.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.edits.AnalysisService", svc_cls),
+    ):
         svc_cls.return_value.suggest_handoff_cut.return_value = {
             "track_id": "host",
             "timebase": "timeline",
@@ -171,7 +179,11 @@ def test_suggest_handoff_cut_tool(tmp_path):
 def test_join_quality_and_sweep_tools(tmp_path):
     path = mcp_server.episode_create(str(tmp_path / "ws_jq"))
     _project(Path(path))
-    with patch("podcast_mcp.mcp.tools.edits.EditService") as svc_cls:
+    with (
+        patch("podcast_mcp.mcp.tools.edits.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.edits.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.edits.AnalysisService", svc_cls),
+    ):
         svc_cls.return_value.join_quality.return_value = {
             "track_id": "host",
             "verdict": "pass",

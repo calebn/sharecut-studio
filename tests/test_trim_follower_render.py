@@ -25,7 +25,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TimelineService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
 
 
@@ -120,7 +120,7 @@ def test_saved_ripple_trim_renders_single_source_at_saved_positions(tmp_path: Pa
     project_path = save_project(project)
     workspace = ProjectWorkspace.open(project_path)
     target = TrimBoundaryTarget(clip_id="anchor", edge="out", mode=EditMode.RIPPLE)
-    EditService(workspace).trim_clip_edge(
+    TimelineService(workspace).trim_clip_edge(
         "anchor",
         "out",
         6,
@@ -220,7 +220,7 @@ def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
     project_path = save_project(project)
     workspace = ProjectWorkspace.open(project_path)
     target = TrimBoundaryTarget(clip_id="anchor", edge="out", mode=EditMode.RIPPLE)
-    EditService(workspace).trim_clip_edge(
+    TimelineService(workspace).trim_clip_edge(
         "anchor",
         "out",
         6,

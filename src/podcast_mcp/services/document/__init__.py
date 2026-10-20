@@ -4,6 +4,7 @@ from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
     from podcast_mcp.services.document.align_accept import AlignAcceptService
+    from podcast_mcp.services.document.analysis import AnalysisService
     from podcast_mcp.services.document.boundary import (
         BoundaryEdit,
         BoundaryTarget,
@@ -30,12 +31,15 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.history import HISTORY_RERENDER_ERRORS, HistoryService
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
+    from podcast_mcp.services.document.timeline import TimelineService
+    from podcast_mcp.services.document.transcript import TranscriptService
 
 __all__ = [
     "DEFAULT_LIMIT",
     "HISTORY_RERENDER_ERRORS",
     "LISTEN_DIRNAME",
     "AlignAcceptService",
+    "AnalysisService",
     "BoundaryEdit",
     "BoundaryTarget",
     "ClipGeometry",
@@ -47,6 +51,8 @@ __all__ = [
     "PlayRequest",
     "PlayService",
     "RollBoundaryTarget",
+    "TimelineService",
+    "TranscriptService",
     "TransportPath",
     "TrimBoundaryTarget",
     "build_golden_ear",
@@ -58,6 +64,7 @@ __all__ = [
 
 _MODULE_BY_NAME = {
     "AlignAcceptService": "align_accept",
+    "AnalysisService": "analysis",
     "BoundaryEdit": "boundary",
     "BoundaryTarget": "boundary",
     "ClipGeometry": "boundary",
@@ -79,6 +86,8 @@ _MODULE_BY_NAME = {
     "PlayRequest": "play",
     "PlayService": "play",
     "TransportPath": "play",
+    "TimelineService": "timeline",
+    "TranscriptService": "transcript",
 }
 
 

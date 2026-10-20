@@ -163,13 +163,13 @@ infer a recording from clip placement or word time.
 
 `POST /api/transcript/word-timing-context` accepts `{path, target, expected_word}`.
 `expected_word` contains the displayed `text`, `start`, and `end`. The host-only
-route delegates to `EditService.word_timing_context` and returns authoritative raw
+route delegates to `TranscriptService.word_timing_context` and returns authoritative raw
 media, neighboring words, a source-clock window, and a stale dependency token.
 A changed word returns 409. Missing raw media returns 404. Existing finite import
 timings may be negative or reversed so the host can open their repair context.
 
 `SetTranscriptWordTiming` accepts `{target, expected_token, start, end}` and saves
-through `EditService.set_word_timing`. Its Applied delta includes changes to transcript words,
+through `TranscriptService.set_word_timing`. Its Applied delta includes changes to transcript words,
 tracks, clip rows (an ignored word is a mute on them), and render status through `TRANSCRIPT_AUDIO`. Stale timing dependencies
 become document conflicts. Guest shares cannot submit this command.
 

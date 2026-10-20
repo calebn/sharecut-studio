@@ -23,7 +23,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TranscriptService
 from podcast_mcp.services.pipeline.service import PipelineService
 
 # A gate that opens this far into a word cuts that much of its start off.
@@ -462,7 +462,7 @@ def test_a_third_speaker_in_the_lead_is_not_flagged(tmp_path: Path) -> None:
 
 def _edit_by_service(ws: ProjectWorkspace, start: float, end: float) -> None:
     target = WordTimingTarget("audra", None, 0)
-    service = EditService(ws)
+    service = TranscriptService(ws)
     context = service.word_timing_context(target)
     service.set_word_timing(target, context["expected_token"], start, end)
 
@@ -516,11 +516,11 @@ def _gated_with_filler(path: Path) -> tuple[ProjectWorkspace, float]:
 
 
 def _correct_phrase(ws: ProjectWorkspace, last_index: int, text: str) -> None:
-    EditService(ws).correct_phrase("audra", 0, last_index, text)
+    TranscriptService(ws).correct_phrase("audra", 0, last_index, text)
 
 
 def _find_replace(ws: ProjectWorkspace, search: str, text: str) -> None:
-    service = EditService(ws)
+    service = TranscriptService(ws)
     preview = service.preview_transcript_replacement(search, text, match_case=True)
     assert service.replace_transcript_matches(
         search, text, preview["preview_token"], match_case=True

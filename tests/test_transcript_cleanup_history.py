@@ -11,7 +11,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TranscriptService
 
 
 def _project_with_transcript(tmp_path) -> ProjectWorkspace:
@@ -36,7 +36,7 @@ def _project_with_transcript(tmp_path) -> ProjectWorkspace:
 
 def test_apply_transcript_cleanup_records_undo_step(tmp_path) -> None:
     ws = _project_with_transcript(tmp_path)
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     payload = {
         "words": [{"word_index": 0, "text": "the"}],
         "phrases": [{"start_word_index": 1, "end_word_index": 1, "text": "Shot of Truth"}],

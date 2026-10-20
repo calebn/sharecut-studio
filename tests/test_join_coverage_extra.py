@@ -507,7 +507,7 @@ def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> N
         TranscriptWord,
     )
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import TimelineService
 
     project = load_project(minimal_project)
     raw = project.workspace_path() / "raw"
@@ -552,18 +552,18 @@ def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> N
     )
     save_project(project, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.document.edit.assess_existing_join") as assess:
+    with patch("podcast_mcp.services.document.timeline.assess_existing_join") as assess:
         assess.return_value.to_dict.return_value = {
             "track_id": "host",
             "risk": 0.5,
             "detectors": [{"name": "click", "score": 0.6}],
             "neural": None,
         }
-        out = EditService(ws).join_label(
+        out = TimelineService(ws).join_label(
             track_id="host", join_sec=1.0, verdict="fail", note="t", play=False
         )
     assert out["label"]["verdict"] == "fail"
-    trained = EditService(ws).join_train()
+    trained = TimelineService(ws).join_train()
     assert trained["n_labels"] >= 1
     assert Path(trained["path"]).is_file()
 

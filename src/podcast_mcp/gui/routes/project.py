@@ -261,10 +261,10 @@ def get_waveform_snap(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     try:
-        return EditService(ws).waveform_snap_window(
+        return AnalysisService(ws).waveform_snap_window(
             track_id=track_id,
             start=start,
             end=end,

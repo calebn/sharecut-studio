@@ -69,7 +69,12 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB
 from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, EpisodeService, HistoryService
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    EpisodeService,
+    HistoryService,
+)
 from podcast_mcp.services.document.play import PlayRequest, PlayService, _compose_gain_db
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
@@ -231,7 +236,7 @@ def test_real_wav_export_refreshes_music_fx_and_media_once(
 
     first = service.export_audio([{"ext": "wav"}]).paths[0].read_bytes()
     first_premix = premix_path(ws.project).read_bytes()
-    EditService(ws).add_effect(track_id="music", effect="highpass", params={"frequency": 3000})
+    AnalysisService(ws).add_effect(track_id="music", effect="highpass", params={"frequency": 3000})
     assert premix_is_stale(ws.project, defaults=load_defaults()) is True
     assert EditService(ws).render_status()["needs_rerender"] is True
     second = service.export_audio([{"ext": "wav"}]).paths[0].read_bytes()

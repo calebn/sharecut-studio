@@ -43,7 +43,7 @@ from podcast_mcp.models import (
     TranscriptWord,
     load_project,
 )
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.util.coded_error import CodedError
 
 
@@ -206,7 +206,7 @@ def test_final_padded_to_splice_runs_enabled_policies_and_preserves_the_full_nex
     result.edit_decisions = [prepare_pause(result, pause("retained", start=0.3, end=4.7), cfg)]
     result.edit_decisions[0].applied = False
     ws = workspace(result)
-    report = EditService(ws).join_quality(
+    report = TimelineService(ws).join_quality(
         track_id="host", cut_start=0.3, cut_end=4.45, timebase="source"
     )
     assert report["verdict"] == "pass"
@@ -704,7 +704,7 @@ def test_exact_occurrence_and_direct_clip_actions_preserve_the_other_source_copy
         assert applied["action_id"] == "selected-occurrence"
         assert applied["proposed"] is False
     else:
-        applied = service.delete_clips(["selected-copy"], mode=EditMode.GAP)
+        applied = TimelineService(service.ws).delete_clips(["selected-copy"], mode=EditMode.GAP)
         assert applied["operation"] == "delete_clips"
     saved = load_project(ws.path)
     assert [

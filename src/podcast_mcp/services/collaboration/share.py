@@ -1029,10 +1029,10 @@ def share_daw_waveform_snap(
     timeline: bool = False,
     focus: float | None = None,
 ) -> dict[str, Any]:
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     _row, ws = require_share_command(token, "EditSelectedRange")
-    return EditService(ws).waveform_snap_window(
+    return AnalysisService(ws).waveform_snap_window(
         track_id=track_id,
         start=start,
         end=end,

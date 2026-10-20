@@ -814,7 +814,7 @@ def test_concurrent_guarded_corrections_apply_exactly_one(minimal_project):
     import threading
 
     from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import TranscriptService
 
     _seed_host_words(minimal_project, ["teh", "quick", "fox"])
     barrier = threading.Barrier(2)
@@ -823,7 +823,7 @@ def test_concurrent_guarded_corrections_apply_exactly_one(minimal_project):
         ws = ProjectWorkspace.open(minimal_project)
         barrier.wait(timeout=10)
         try:
-            EditService(ws).correct_word("host", 0, text, expected_text="teh")
+            TranscriptService(ws).correct_word("host", 0, text, expected_text="teh")
         except TranscriptTextChangedError:
             return "conflict"
         return text
@@ -851,7 +851,7 @@ def test_concurrent_guarded_toggle_and_correction_apply_consistently(minimal_pro
     import threading
 
     from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import TranscriptService
 
     _seed_host_words(minimal_project, ["teh", "quick", "fox"])
     barrier = threading.Barrier(2)
@@ -860,7 +860,7 @@ def test_concurrent_guarded_toggle_and_correction_apply_consistently(minimal_pro
         ws = ProjectWorkspace.open(minimal_project)
         barrier.wait(timeout=10)
         try:
-            EditService(ws).correct_word("host", 0, "the", expected_text="teh")
+            TranscriptService(ws).correct_word("host", 0, "the", expected_text="teh")
         except TranscriptTextChangedError:
             return "conflict"
         return "applied"
@@ -868,7 +868,7 @@ def test_concurrent_guarded_toggle_and_correction_apply_consistently(minimal_pro
     def run_toggle() -> str:
         ws = ProjectWorkspace.open(minimal_project)
         barrier.wait(timeout=10)
-        svc = EditService(ws)
+        svc = TranscriptService(ws)
         try:
             if kind == "set_word_suppressed":
                 svc.set_word_suppressed("host", 0, True, expected_text="teh")
@@ -901,8 +901,8 @@ def test_guarded_correction_check_and_edit_share_one_outer_transaction(
 ):
     """The stale-text check and the mutation run inside one outer transaction, for every
     guarded transcript edit (#650, #742, #744)."""
-    import podcast_mcp.services.document.edit as edit_mod
-    from podcast_mcp.services.document import EditService
+    import podcast_mcp.services.document.transcript as edit_mod
+    from podcast_mcp.services.document import TranscriptService
 
     _seed_host_words(minimal_project, ["teh", "quikc", "fox"])
     ws = ProjectWorkspace.open(minimal_project)
@@ -933,7 +933,7 @@ def test_guarded_correction_check_and_edit_share_one_outer_transaction(
 
         monkeypatch.setattr(edit_mod, name, spy_edit)
 
-    svc = EditService(ws)
+    svc = TranscriptService(ws)
     if kind == "correct_word":
         svc.correct_word("host", 0, "the", expected_text="teh")
     elif kind == "correct_phrase":

@@ -9,7 +9,7 @@ import pytest
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, Transcript, TranscriptWord
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import AnalysisService
 
 
 def stereo_project(tmp_path: Path) -> ProjectWorkspace:
@@ -68,7 +68,7 @@ def stereo_project(tmp_path: Path) -> ProjectWorkspace:
 
 def test_stereo_refusal_offers_exact_review_without_stem(tmp_path: Path) -> None:
     ws = stereo_project(tmp_path)
-    result = EditService(ws).apply_bleed_mute(
+    result = AnalysisService(ws).apply_bleed_mute(
         track_id="host", apply=False, align_retained_bleed=False
     )
     assert result["applied_count"] == 0
@@ -88,7 +88,7 @@ def test_stereo_refusal_offers_exact_review_without_stem(tmp_path: Path) -> None
 
 
 def review(ws: ProjectWorkspace, start: float = 0, end: float = 3) -> dict:
-    return EditService(ws).apply_bleed_mute(
+    return AnalysisService(ws).apply_bleed_mute(
         track_id="host", start_sec=start, end_sec=end, apply=False, align_retained_bleed=False
     )
 

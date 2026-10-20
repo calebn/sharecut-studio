@@ -37,7 +37,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
 from podcast_mcp.util.timebase import SourceSec
 
@@ -206,7 +206,7 @@ class _Op:
         """Run the ripple; ``True`` when it asked to confirm instead."""
         service = EditService(ProjectWorkspace.open(self.path))
         if self.kind == "delete":
-            out = service.delete_clips(
+            out = TimelineService(service.ws).delete_clips(
                 [c.id for c in self.clips],
                 mode=EditMode.RIPPLE,
                 application_intent=CutIntent.HUMAN_BOUNDARIES
@@ -232,7 +232,7 @@ class _Op:
                 TrimBoundaryTarget(clip_id=self.clip.id, edge=self.edge, mode=EditMode.RIPPLE),
                 defaults=load_defaults(),
             ).token
-            out = service.trim_clip_edge(
+            out = TimelineService(service.ws).trim_clip_edge(
                 self.clip.id,
                 self.edge,
                 self.source_sec,

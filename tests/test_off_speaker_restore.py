@@ -317,7 +317,7 @@ def test_automatic_joint_recovery_matches_bounded_pcm_formula(
 def test_service_adopts_external_commit_then_reapplies_without_extra_history(tmp_path, monkeypatch):
     from podcast_mcp.project_store import load_project, save_project
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.document.edit import EditService
+    from podcast_mcp.services.document.analysis import AnalysisService
     from podcast_mcp.services.document.history import HistoryService
 
     project = _project(tmp_path)
@@ -342,13 +342,13 @@ def test_service_adopts_external_commit_then_reapplies_without_extra_history(tmp
         )
 
     monkeypatch.setattr("podcast_mcp.edits.off_speaker_mute.plan_off_speaker_mutes", plan)
-    result = EditService(stale).mute_off_speaker(track_id="host")
+    result = AnalysisService(stale).mute_off_speaker(track_id="host")
     assert result["applied_count"] == 1
     assert seen == ["External label"]
     assert load_project(path).tracks[0].label == "External label"
     head = stale.project.history.head_id()
     count = len(stale.project.history.entries)
-    assert EditService(stale).mute_off_speaker(track_id="host")["applied_count"] == 0
+    assert AnalysisService(stale).mute_off_speaker(track_id="host")["applied_count"] == 0
     assert stale.project.history.head_id() == head
     assert len(stale.project.history.entries) == count
     reopened = ProjectWorkspace.open(path)

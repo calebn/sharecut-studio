@@ -32,7 +32,7 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TimelineService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.payloads import SetClipJoinPayload
 from podcast_mcp.services.document_sync.projections import ViewProjection, projection_for_command
@@ -128,7 +128,7 @@ def test_service_is_one_undo_step(minimal_project):
     ws.project.timeline.tracks = _project().timeline.tracks
     ws.project.timeline.clips = _project().timeline.clips
     ws.save()
-    svc = EditService(ProjectWorkspace.open(minimal_project))
+    svc = TimelineService(ProjectWorkspace.open(minimal_project))
     out = svc.set_clip_join("c1", "c2", "crossfade", 20)
     assert out["crossfade_ms"] == 20
     from podcast_mcp.services.document import HistoryService
@@ -259,7 +259,11 @@ def test_mcp_tool_submits_the_document_command():
 def test_cli_set_clip_join(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    with patch("podcast_mcp.cli.edit.EditService") as service:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as service,
+        patch("podcast_mcp.cli.edit.TimelineService", service),
+        patch("podcast_mcp.cli.edit.AnalysisService", service),
+    ):
         service.return_value.set_clip_join.return_value = {"operation": "set_clip_join"}
         result = runner.invoke(
             app,

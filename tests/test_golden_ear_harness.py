@@ -11,7 +11,7 @@ from podcast_mcp.edits.pending_preview import PendingPreviewWindow
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EditDecision, EditDecisionType
 from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.services.document.golden_ear import (
     LISTEN_DIRNAME,
     _equalize_clip_lengths,
@@ -123,7 +123,7 @@ def _patch_harness(
 
     monkeypatch.setattr(EditService, "propose_tighten", propose)
     monkeypatch.setattr(PlayService, "play_pending_preview", preview)
-    monkeypatch.setattr(EditService, "join_quality", join_quality)
+    monkeypatch.setattr(TimelineService, "join_quality", join_quality)
     monkeypatch.setattr(PlayService, "audition_context", audition_context)
     monkeypatch.setattr(
         "podcast_mcp.services.document.golden_ear.measure_astats",

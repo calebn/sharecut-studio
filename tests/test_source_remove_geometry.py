@@ -36,7 +36,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import ClipMuteRegion, RangeInterval, SourceRecording
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import EditService, TimelineService
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -119,7 +119,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
                 TrimBoundaryTarget(clip_id="host", edge="out", mode=EditMode.GAP),
                 defaults=load_defaults(),
             ).token
-            return EditService(ws).trim_clip_edge(
+            return TimelineService(ws).trim_clip_edge(
                 "host", "out", 2, mode=EditMode.GAP, expected_token=token
             )
     elif operation == "live_plan":

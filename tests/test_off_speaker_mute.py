@@ -152,7 +152,7 @@ def test_service_mutes_the_copy_and_leaves_the_guests_words(tmp_path):
     )
     from podcast_mcp.project_store import save_project
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.document.edit import EditService
+    from podcast_mcp.services.document.analysis import AnalysisService
 
     rate, seconds = 16000, 12
     rng = np.random.default_rng(7)
@@ -204,11 +204,11 @@ def test_service_mutes_the_copy_and_leaves_the_guests_words(tmp_path):
     path = save_project(project)
     ws = ProjectWorkspace.open(path)
 
-    preview = EditService(ws).mute_off_speaker(track_id="guest", apply=False)
+    preview = AnalysisService(ws).mute_off_speaker(track_id="guest", apply=False)
     assert preview["dry_run"] is True and preview["region_count"] >= 1
     assert preview["own_word_overlap_sec"] == 0
 
-    result = EditService(ws).mute_off_speaker(track_id="guest", apply=True)
+    result = AnalysisService(ws).mute_off_speaker(track_id="guest", apply=True)
     assert result["applied_count"] == preview["region_count"]
     assert result["held"] == []
 

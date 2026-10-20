@@ -21,7 +21,7 @@ from podcast_mcp.models import (
     load_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TimelineService
 from podcast_mcp.services.document.boundary import (
     RollBoundaryTarget,
     TrimBoundaryTarget,
@@ -113,7 +113,7 @@ def test_visible_geometry_and_stale_apply_leave_history_untouched(
         boundary_context(
             missing, target, expected_geometry=original.geometry, defaults=load_defaults()
         )
-    service = EditService(ws)
+    service = TimelineService(ws)
     history_before = len(ws.project.history.entries)
     assert service.roll_clip_join("left", "right", 0, expected_token=original.token)["unchanged"]
     assert len(load_project(minimal_project).history.entries) == history_before
@@ -164,7 +164,7 @@ def test_archived_word_change_invalidates_proposed_preview(minimal_project: Path
     ws.save()
     assert boundary_context(ws.project, target, defaults=load_defaults()).token != first
     with pytest.raises(DocumentConflictError):
-        EditService(ws).trim_clip_edge(
+        TimelineService(ws).trim_clip_edge(
             "left", "out", 5.2, mode=EditMode.RIPPLE, expected_token=first
         )
 
@@ -205,7 +205,7 @@ def test_boundary_commands_refuse_nonfinite_positions(minimal_project: Path, bad
         RollClipJoinPayload(
             left_clip_id="a", right_clip_id="b", delta_sec=bad, expected_token="revision"
         )
-    service = EditService(_project(minimal_project))
+    service = TimelineService(_project(minimal_project))
     with pytest.raises(ValueError, match="finite"):
         service.trim_clip_edge("left", "out", bad, mode=EditMode.RIPPLE, expected_token="invalid")
     with pytest.raises(ValueError, match="finite"):

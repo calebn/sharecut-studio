@@ -725,17 +725,17 @@ def test_apply_fade_recommendations(tmp_path: Path):
 
 def test_edit_service_analyze_cleanup(minimal_project, tmp_workspace):
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     ws = ProjectWorkspace.open(minimal_project)
-    report = EditService(ws).analyze_cleanup()
+    report = AnalysisService(ws).analyze_cleanup()
     assert "summary" in report
 
 
 def test_edit_service_suppress_low_audibility(minimal_project, tmp_workspace):
     from podcast_mcp.models import Transcript, TranscriptWord
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     proj = load_project(minimal_project)
     proj.transcripts = [
@@ -746,7 +746,9 @@ def test_edit_service_suppress_low_audibility(minimal_project, tmp_workspace):
     ]
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
-    out = EditService(ws).suppress_low_audibility(word_keys=[{"track_id": "host", "word_index": 0}])
+    out = AnalysisService(ws).suppress_low_audibility(
+        word_keys=[{"track_id": "host", "word_index": 0}]
+    )
     assert out["suppressed_count"] == 1
 
 

@@ -28,7 +28,12 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, HistoryService, TrimBoundaryTarget
+from podcast_mcp.services.document import (
+    EditService,
+    HistoryService,
+    TimelineService,
+    TrimBoundaryTarget,
+)
 from ripple_helpers import ripple_cut, ripple_cut_spans, trim
 
 
@@ -241,7 +246,7 @@ def test_history_undo_redo_restores_archive_and_active_words(
     revision = service.boundary_context(
         TrimBoundaryTarget(clip_id=join["right_clip_id"], edge="in")
     ).token
-    service.trim_clip_edge(
+    TimelineService(service.ws).trim_clip_edge(
         join["right_clip_id"], "in", 5, mode=EditMode.RIPPLE, expected_token=revision
     )
     assert [w.text for w in load_project(minimal_project).transcripts[0].words] == ["cut"]

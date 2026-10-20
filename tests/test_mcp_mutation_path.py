@@ -79,13 +79,18 @@ _DIRECT_MUTATIONS = frozenset(
     }
 )
 _DIRECT_MUTATIONS_SIZE = 29
+# TranscriptService also carries ASR and export entry points that predate the edit services.
+_ASR_AND_EXPORT = frozenset({"transcribe", "seed", "get", "export_markdown", "export_subtitles"})
+_EDIT_SERVICES = frozenset(
+    {"EditService", "TimelineService", "AnalysisService", "TranscriptService"}
+)
 
 
 def _is_edit_service(node: ast.AST) -> bool:
     return (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id == "EditService"
+        and node.func.id in _EDIT_SERVICES
     )
 
 
@@ -103,6 +108,7 @@ def _methods_called_in(source: str) -> set[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
+        and node.func.attr not in _ASR_AND_EXPORT
         and (
             _is_edit_service(node.func.value)
             or (isinstance(node.func.value, ast.Name) and node.func.value.id in bound)

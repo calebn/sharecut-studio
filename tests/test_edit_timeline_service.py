@@ -13,7 +13,12 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    TimelineService,
+    TranscriptService,
+)
 
 
 def _ws_with_audio(tmp_path, sample_wav) -> ProjectWorkspace:
@@ -68,30 +73,30 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
     svc = EditService(ws)
 
     # List before timeline ops - later remaps may drop words depending on cut opts.
-    low = svc.low_confidence_words(0.8)
+    low = TranscriptService(svc.ws).low_confidence_words(0.8)
     assert low
 
     r = svc.cut_range(0.5, 1.0, mode=EditMode.RIPPLE)
     assert r["operation"] == "ripple_delete"
 
-    svc.insert_gap(1.0, 0.5)
-    faded = svc.fade_joins(dry_run=True)
+    TimelineService(svc.ws).insert_gap(1.0, 0.5)
+    faded = TimelineService(svc.ws).fade_joins(dry_run=True)
     assert faded["operation"] == "fade_joins"
-    applied = svc.fade_joins(fade_ms=10)
+    applied = TimelineService(svc.ws).fade_joins(fade_ms=10)
     assert applied["operation"] == "fade_joins"
-    cross = svc.crossfade_joins(fade_ms=25)
+    cross = TimelineService(svc.ws).crossfade_joins(fade_ms=25)
     assert cross["operation"] == "crossfade_joins"
-    clips = svc.list_clips(track_id="host")
+    clips = TimelineService(svc.ws).list_clips(track_id="host")
     clip_id = clips["tracks"]["host"][0]["id"]
-    joined = svc.set_join_mode(clip_id, "fade")
+    joined = TimelineService(svc.ws).set_join_mode(clip_id, "fade")
     assert joined["operation"] == "set_clip_join_mode"
-    svc.add_chapter(0.0, "Intro")
-    assert svc.list_chapters()
-    assert svc.remove_chapter("Intro")["removed"] is True
-    assert svc.list_chapters() == []
+    TimelineService(svc.ws).add_chapter(0.0, "Intro")
+    assert TimelineService(svc.ws).list_chapters()
+    assert TimelineService(svc.ws).remove_chapter("Intro")["removed"] is True
+    assert TimelineService(svc.ws).list_chapters() == []
     if ws.project.transcripts and ws.project.transcripts[0].words:
-        svc.correct_word("host", 0, "hello")
-    svc.add_effect(speaker="Host", preset="gate")
-    fx = svc.list_effects(speaker="Host")
+        TranscriptService(svc.ws).correct_word("host", 0, "hello")
+    AnalysisService(svc.ws).add_effect(speaker="Host", preset="gate")
+    fx = AnalysisService(svc.ws).list_effects(speaker="Host")
     assert fx["effects"]
-    svc.remove_effect(speaker="Host", effect="agate")
+    AnalysisService(svc.ws).remove_effect(speaker="Host", effect="agate")

@@ -412,7 +412,7 @@ def test_session_handoff_requires_quiet_peer_audio(tmp_path, muted):
 
     from podcast_mcp.models import save_project
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     p = _project(tmp_path)
     samples = np.zeros(30 * 16000)
@@ -433,7 +433,7 @@ def test_session_handoff_requires_quiet_peer_audio(tmp_path, muted):
     )
     path = Path(p.workspace_dir) / "episode.project.json"
     save_project(p, path)
-    service = EditService(ProjectWorkspace.open(path))
+    service = AnalysisService(ProjectWorkspace.open(path))
     out = service.suggest_handoff_cut(keep_left_end=1, keep_right_start=5)
     assert out["track_ids"] == ["host", "guest"]
     assert out["track_id"] is None
@@ -588,7 +588,7 @@ def test_explicit_music_lane_keeps_handoff_and_waveform_evidence(tmp_path, proce
 
     from podcast_mcp.models import save_project
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService
+    from podcast_mcp.services.document import AnalysisService
 
     p = _project(tmp_path)
     p.timeline.tracks[0].id = "music"
@@ -602,7 +602,7 @@ def test_explicit_music_lane_keeps_handoff_and_waveform_evidence(tmp_path, proce
         _write_wav(stem, np.zeros(30 * 16000))
     path = Path(p.workspace_dir) / "episode.project.json"
     save_project(p, path)
-    service = EditService(ProjectWorkspace.open(path))
+    service = AnalysisService(ProjectWorkspace.open(path))
     out = service.suggest_handoff_cut(keep_left_end=1, keep_right_start=5, **selector)
     assert out["ok"] is True
     assert out["track_ids"] == ["music"]

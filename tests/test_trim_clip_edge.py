@@ -34,7 +34,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document import TimelineService
 from podcast_mcp.services.document.boundary import (
     TrimBoundaryEdit,
     TrimBoundaryTarget,
@@ -206,7 +206,7 @@ def test_document_trim_refuses_a_follower_before_zero(minimal_project, lane, edg
         if path.is_file()
     }
     with pytest.raises(CodedValueError) as caught:
-        EditService(ws).trim_clip_edge(
+        TimelineService(ws).trim_clip_edge(
             "anchor",
             edge,
             12.0 if edge == "in" else 8.0,
@@ -358,7 +358,11 @@ def test_trim_clip_edge_tool_is_undoable(minimal_project: Path) -> None:
 def test_cli_trim_clip(tmp_path: Path) -> None:
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    with patch("podcast_mcp.cli.edit.EditService") as service:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as service,
+        patch("podcast_mcp.cli.edit.TimelineService", service),
+        patch("podcast_mcp.cli.edit.AnalysisService", service),
+    ):
         service.return_value.boundary_context.return_value.token = "current-revision"
         service.return_value.trim_clip_edge.return_value = {"operation": "trim_clip_edge"}
         result = runner.invoke(
@@ -447,7 +451,7 @@ def test_zero_delta_ripple_trim_does_not_save_or_add_history(minimal_project: Pa
     ).token
     before = path.read_bytes()
     history = len(ws.project.history.entries)
-    result = EditService(ws).trim_clip_edge(
+    result = TimelineService(ws).trim_clip_edge(
         "remote_b", "in", 20.34, mode=EditMode.RIPPLE, expected_token=revision
     )
     assert result["unchanged"] is True
@@ -474,7 +478,11 @@ def test_gap_trim_moves_only_a_track_local_edge(minimal_project: Path) -> None:
 def test_cli_trim_clip_gap_mode(tmp_path: Path) -> None:
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    with patch("podcast_mcp.cli.edit.EditService") as service:
+    with (
+        patch("podcast_mcp.cli.edit.EditService") as service,
+        patch("podcast_mcp.cli.edit.TimelineService", service),
+        patch("podcast_mcp.cli.edit.AnalysisService", service),
+    ):
         service.return_value.boundary_context.return_value.token = "current-revision"
         service.return_value.trim_clip_edge.return_value = {"operation": "trim_clip_edge"}
         result = runner.invoke(

@@ -37,7 +37,14 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.document import EditService, PlayRequest, PlayService
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    PlayRequest,
+    PlayService,
+    TimelineService,
+    TranscriptService,
+)
 from podcast_mcp.util.project_state import RenderBusyError, render_lock, render_lock_held
 
 
@@ -1361,8 +1368,10 @@ def test_edit_cut_text_match(minimal_project, sample_wav) -> None:
 def test_edit_strip_silence(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"removed_sec": 0.3, "clips": 2}
-    with patch("podcast_mcp.services.document.edit.strip_silence", return_value=report) as strip:
-        out = EditService(ws).strip_silence(speaker="Host", over_voice_floor_db=3.0)
+    with patch(
+        "podcast_mcp.services.document.analysis.strip_silence", return_value=report
+    ) as strip:
+        out = AnalysisService(ws).strip_silence(speaker="Host", over_voice_floor_db=3.0)
     strip.assert_called_once()
     assert out == report
 
@@ -1370,8 +1379,8 @@ def test_edit_strip_silence(minimal_project, sample_wav) -> None:
 def test_edit_verify_transcript(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     corrections = [{"word_index": 1, "text": "Podcast"}]
-    with patch("podcast_mcp.services.document.edit.verify_words", return_value=1) as verify:
-        n = EditService(ws).verify_transcript("host", corrections)
+    with patch("podcast_mcp.services.document.transcript.verify_words", return_value=1) as verify:
+        n = TranscriptService(ws).verify_transcript("host", corrections)
     verify.assert_called_once()
     assert n == 1
 
@@ -1379,10 +1388,10 @@ def test_edit_verify_transcript(minimal_project, sample_wav) -> None:
 def test_edit_apply_transcript_cleanup(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with patch(
-        "podcast_mcp.services.document.edit.apply_transcript_corrections",
+        "podcast_mcp.services.document.transcript.apply_transcript_corrections",
         return_value=2,
     ) as apply:
-        n = EditService(ws).apply_transcript_cleanup(
+        n = TranscriptService(ws).apply_transcript_cleanup(
             "host",
             words=[{"word_index": 0, "text": "Hi"}],
         )
@@ -1398,22 +1407,22 @@ def test_edit_transcript_timestamps(minimal_project, sample_wav) -> None:
 
 def test_edit_remove_effect(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    EditService(ws).add_effect(speaker="Host", preset="gate")
-    out = EditService(ws).remove_effect(speaker="Host", effect="agate")
+    AnalysisService(ws).add_effect(speaker="Host", preset="gate")
+    out = AnalysisService(ws).remove_effect(speaker="Host", effect="agate")
     assert out["track_id"] == "host"
     assert out["removed"] >= 0
 
 
 def test_edit_list_effects_presets_only(minimal_project) -> None:
     ws = ProjectWorkspace.open(minimal_project)
-    out = EditService(ws).list_effects()
+    out = AnalysisService(ws).list_effects()
     assert "presets" in out
 
 
 def test_edit_add_effect_requires_arg(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with pytest.raises(ValueError, match="preset or effect is required"):
-        EditService(ws).add_effect(speaker="Host")
+        AnalysisService(ws).add_effect(speaker="Host")
 
 
 def test_edit_add_unsupported_effect_refuses_before_mutation(minimal_project, sample_wav) -> None:
@@ -1422,7 +1431,7 @@ def test_edit_add_unsupported_effect_refuses_before_mutation(minimal_project, sa
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with patch.object(ws, "mutate", wraps=ws.mutate) as mutate:
         with pytest.raises(CodedValueError) as caught:
-            EditService(ws).add_effect(track_id="host", effect="volume")
+            AnalysisService(ws).add_effect(track_id="host", effect="volume")
     assert caught.value.code == "unsupported_effect"
     assert "highpass" in str(caught.value)
     assert "volume" in str(caught.value)
@@ -1443,7 +1452,7 @@ def test_edit_add_unsupported_custom_preset_refuses_before_mutation(
         patch.object(ws, "mutate", wraps=ws.mutate) as mutate,
     ):
         with pytest.raises(CodedValueError) as caught:
-            EditService(ws).add_effect(track_id="host", preset="legacy_custom")
+            AnalysisService(ws).add_effect(track_id="host", preset="legacy_custom")
     assert caught.value.code == "unsupported_effect"
     assert "alimiter" in str(caught.value)
     mutate.assert_not_called()
@@ -1453,10 +1462,10 @@ def test_edit_analyze_cleanup(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"tracks": ["host"], "issues": []}
     with patch(
-        "podcast_mcp.services.document.edit.cleanup_analysis_report",
+        "podcast_mcp.services.document.analysis.cleanup_analysis_report",
         return_value=report,
     ) as analyze:
-        out = EditService(ws).analyze_cleanup(speaker="Host")
+        out = AnalysisService(ws).analyze_cleanup(speaker="Host")
     analyze.assert_called_once()
     assert out == report
 
@@ -1465,10 +1474,10 @@ def test_edit_audio_diagnostics(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"track_id": "host", "spectrogram_png": "spec.png", "waveform_png": "wave.png"}
     with patch(
-        "podcast_mcp.services.document.edit.audio_diagnostics_report",
+        "podcast_mcp.services.document.analysis.audio_diagnostics_report",
         return_value=report,
     ) as diag:
-        out = EditService(ws).audio_diagnostics(speaker="Host", start_sec=1.0, end_sec=2.0)
+        out = AnalysisService(ws).audio_diagnostics(speaker="Host", start_sec=1.0, end_sec=2.0)
     diag.assert_called_once()
     assert out == report
 
@@ -1477,10 +1486,10 @@ def test_edit_recommend_fades(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     recs = [{"clip_id": "full", "recommended_fade_in_ms": 15}]
     with patch(
-        "podcast_mcp.services.document.edit.fade_recommendations",
+        "podcast_mcp.services.document.analysis.fade_recommendations",
         return_value=recs,
     ) as fades:
-        out = EditService(ws).recommend_fades(track_id="host")
+        out = AnalysisService(ws).recommend_fades(track_id="host")
     fades.assert_called_once()
     assert out == recs
 
@@ -1489,10 +1498,10 @@ def test_edit_apply_fade_recommendations(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     recs = [{"clip_id": "full", "recommended_fade_in_ms": 20}]
     with patch(
-        "podcast_mcp.services.document.edit.apply_fade_recommendations",
+        "podcast_mcp.services.document.analysis.apply_fade_recommendations",
         return_value={"applied_fade_updates": 1},
     ) as apply:
-        out = EditService(ws).apply_fade_recommendations(recs)
+        out = AnalysisService(ws).apply_fade_recommendations(recs)
     apply.assert_called_once()
     assert out["applied_fade_updates"] == 1
 
@@ -1509,10 +1518,10 @@ def test_edit_preview_inaudible_cut(minimal_project, sample_wav) -> None:
         details={"energy": 0.5},
     )
     with patch(
-        "podcast_mcp.services.document.edit.optimize_source_cut_range",
+        "podcast_mcp.services.document.analysis.optimize_source_cut_range",
         return_value=opt,
     ):
-        out = EditService(ws).preview_inaudible_cut(
+        out = AnalysisService(ws).preview_inaudible_cut(
             speaker="Host",
             start=0.0,
             end=1.0,
@@ -1530,18 +1539,18 @@ def test_edit_join_quality_proposed_cut(minimal_project, sample_wav) -> None:
             "verdict": "fail",
             "risk": 0.7,
         }
-        out = EditService(ws).join_quality(
+        out = TimelineService(ws).join_quality(
             track_id="host", cut_start=0.1, cut_end=0.3, timebase="source"
         )
     assert out["verdict"] == "fail"
     with pytest.raises(ValueError, match="join_sec"):
-        EditService(ws).join_quality(track_id="host")
+        TimelineService(ws).join_quality(track_id="host")
 
 
 def test_edit_join_label_play(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
-        patch("podcast_mcp.services.document.edit.assess_existing_join") as assess,
+        patch("podcast_mcp.services.document.timeline.assess_existing_join") as assess,
         patch("podcast_mcp.services.document.play.PlayService.play", return_value=None) as play,
     ):
         assess.return_value.to_dict.return_value = {
@@ -1550,7 +1559,9 @@ def test_edit_join_label_play(minimal_project, sample_wav) -> None:
             "detectors": [],
             "neural": None,
         }
-        out = EditService(ws).join_label(track_id="host", join_sec=1.0, verdict="pass", play=True)
+        out = TimelineService(ws).join_label(
+            track_id="host", join_sec=1.0, verdict="pass", play=True
+        )
     assert out["played"] is True
     play.assert_called_once()
 
@@ -1561,8 +1572,8 @@ def test_edit_check_loudness(minimal_project, sample_wav) -> None:
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
     loud = {"integrated_lufs": -16.0}
-    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
-        out = EditService(ws).check_loudness()
+    with patch("podcast_mcp.services.document.analysis.check_loudness", return_value=loud) as chk:
+        out = AnalysisService(ws).check_loudness()
     chk.assert_called_once()
     assert out["integrated_lufs"] == pytest.approx(-16.0)
 
@@ -1579,8 +1590,10 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
     measured = {"pass": True, "measured_lufs": -16.0}
     paths = (premix, export)
 
-    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=measured.copy()):
-        service = EditService(ws)
+    with patch(
+        "podcast_mcp.services.document.analysis.check_loudness", return_value=measured.copy()
+    ):
+        service = AnalysisService(ws)
         assert service.check_loudness()["stale_reason"] == "premix_unverified"
         write_premix_hash(project, mix_gains(project), trim_db=0.0, defaults=load_defaults())
         assert service.check_loudness(str(premix))["stale"] is False
@@ -1627,9 +1640,11 @@ def test_loudness_report_includes_dialogue_balance_freshness(minimal_project, sa
     premix = premix_path(project)
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
-    service = EditService(ws)
+    service = AnalysisService(ws)
 
-    with patch("podcast_mcp.services.document.edit.check_loudness", return_value={"pass": True}):
+    with patch(
+        "podcast_mcp.services.document.analysis.check_loudness", return_value={"pass": True}
+    ):
         assert service.check_loudness(str(premix))["balance"]["host"]["stale"] is None
 
         digest = balance_basis_digest(project, "host")
@@ -1651,17 +1666,17 @@ def test_loudness_report_includes_dialogue_balance_freshness(minimal_project, sa
 def test_edit_check_loudness_missing_file_raises(minimal_project) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(FileNotFoundError, match="no audio to measure"):
-        EditService(ws).check_loudness()
+        AnalysisService(ws).check_loudness()
 
 
 def test_edit_reconcile_transcript(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"changed": 0, "dry_run": True}
     with patch(
-        "podcast_mcp.services.document.edit.run_reconciliation",
+        "podcast_mcp.services.document.analysis.run_reconciliation",
         return_value=report,
     ) as reconcile:
-        out = EditService(ws).reconcile_transcript(speaker="Host", dry_run=True)
+        out = AnalysisService(ws).reconcile_transcript(speaker="Host", dry_run=True)
     reconcile.assert_called_once()
     assert out == report
 
@@ -1670,10 +1685,10 @@ def test_edit_reconciliation_status(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     status = {"stale": False}
     with patch(
-        "podcast_mcp.services.document.edit.reconciliation_status_report",
+        "podcast_mcp.services.document.analysis.reconciliation_status_report",
         return_value=status,
     ):
-        out = EditService(ws).reconciliation_status()
+        out = AnalysisService(ws).reconciliation_status()
     assert out == status
 
 
@@ -1681,10 +1696,10 @@ def test_edit_suppress_bleed_dry_run(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     preview = {"would_suppress": 2}
     with patch(
-        "podcast_mcp.services.document.edit.suppress_bleed_words",
+        "podcast_mcp.services.document.analysis.suppress_bleed_words",
         return_value=preview,
     ) as suppress:
-        out = EditService(ws).suppress_bleed(speaker="Host", apply=False)
+        out = AnalysisService(ws).suppress_bleed(speaker="Host", apply=False)
     suppress.assert_called_once()
     assert out == preview
 
@@ -1693,10 +1708,10 @@ def test_edit_overlap_duplicates(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"pairs": []}
     with patch(
-        "podcast_mcp.services.document.edit.overlap_duplicate_report",
+        "podcast_mcp.services.document.analysis.overlap_duplicate_report",
         return_value=report,
     ):
-        out = EditService(ws).overlap_duplicates(start_sec=0.0, end_sec=2.0)
+        out = AnalysisService(ws).overlap_duplicates(start_sec=0.0, end_sec=2.0)
     assert out == report
 
 
@@ -1707,10 +1722,10 @@ def test_edit_apply_bleed_mute_dry_run(minimal_project, sample_wav) -> None:
     stem.write_bytes(sample_wav.read_bytes())
     preview = {"dry_run": True, "candidate_count": 1, "candidates": []}
     with patch(
-        "podcast_mcp.services.document.edit.apply_transcript_bleed_mute",
+        "podcast_mcp.services.document.analysis.apply_transcript_bleed_mute",
         return_value=preview,
     ) as mute:
-        out = EditService(ws).apply_bleed_mute(speaker="Host", apply=False)
+        out = AnalysisService(ws).apply_bleed_mute(speaker="Host", apply=False)
     mute.assert_called_once()
     assert out == preview
 
@@ -1734,7 +1749,7 @@ def test_edit_apply_bleed_mute_apply(minimal_project, sample_wav) -> None:
         ),
         patch("podcast_mcp.edits.transcript_bleed_mute.probe_wav_duration_sec", return_value=2.0),
     ):
-        out = EditService(ws).apply_bleed_mute(speaker="Host", apply=True)
+        out = AnalysisService(ws).apply_bleed_mute(speaker="Host", apply=True)
     assert out["applied_count"] == 1
     assert ws.project.track_by_id("host").transcript_gate is True
 
@@ -1752,7 +1767,7 @@ def _apply_bleed_mute_while_locked(ws, **kwargs) -> None:
     assert held.wait(5)
     started = time.monotonic()
     try:
-        EditService(ws).apply_bleed_mute(speaker="Host", apply=True, **kwargs)
+        AnalysisService(ws).apply_bleed_mute(speaker="Host", apply=True, **kwargs)
     finally:
         release.set()
         holder.join(5)
@@ -1779,10 +1794,10 @@ def test_edit_gate_overreach(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"overreach_ms": 0}
     with patch(
-        "podcast_mcp.services.document.edit.gate_overreach_report",
+        "podcast_mcp.services.document.analysis.gate_overreach_report",
         return_value=report,
     ):
-        out = EditService(ws).gate_overreach(speaker="Host")
+        out = AnalysisService(ws).gate_overreach(speaker="Host")
     assert out == report
 
 
@@ -1790,10 +1805,10 @@ def test_edit_audibility_map(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     rows = [{"word": "hello", "audible": True}]
     with patch(
-        "podcast_mcp.services.document.edit.build_audibility_map",
+        "podcast_mcp.services.document.analysis.build_audibility_map",
         return_value=rows,
     ):
-        out = EditService(ws).audibility_map(track_id="host")
+        out = AnalysisService(ws).audibility_map(track_id="host")
     assert out == rows
 
 
@@ -1801,10 +1816,10 @@ def test_edit_flagged_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     flagged = [{"word_index": 0, "reason": "low_confidence"}]
     with patch(
-        "podcast_mcp.services.document.edit.list_flagged_transcript_words",
+        "podcast_mcp.services.document.analysis.list_flagged_transcript_words",
         return_value=flagged,
     ):
-        out = EditService(ws).flagged_words(speaker="Host")
+        out = AnalysisService(ws).flagged_words(speaker="Host")
     assert out == flagged
 
 
@@ -1812,10 +1827,10 @@ def test_edit_low_audibility_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     words = [{"text": "hello"}]
     with patch(
-        "podcast_mcp.services.document.edit.audit_low_audibility_words",
+        "podcast_mcp.services.document.analysis.audit_low_audibility_words",
         return_value=words,
     ) as low:
-        svc = EditService(ws)
+        svc = AnalysisService(ws)
         assert svc.low_audibility_words(speaker="Host") == words
     low.assert_called_once()
 
@@ -1823,8 +1838,10 @@ def test_edit_low_audibility_words(minimal_project, sample_wav) -> None:
 def test_edit_list_bleed_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     bleed = [{"text": "world", "track_id": "host"}]
-    with patch("podcast_mcp.services.document.edit.bleed_words", return_value=bleed) as bleed_fn:
-        out = EditService(ws).list_bleed_words(speaker="Host", start_sec=0.0, end_sec=2.0)
+    with patch(
+        "podcast_mcp.services.document.analysis.bleed_words", return_value=bleed
+    ) as bleed_fn:
+        out = AnalysisService(ws).list_bleed_words(speaker="Host", start_sec=0.0, end_sec=2.0)
     bleed_fn.assert_called_once()
     assert out == bleed
 
@@ -1841,10 +1858,10 @@ def test_edit_preview_inaudible_cut_timeline_mode(minimal_project, sample_wav) -
         details={"strategy": "word+waveform"},
     )
     with patch(
-        "podcast_mcp.services.document.edit.optimize_timeline_cut_range",
+        "podcast_mcp.services.document.analysis.optimize_timeline_cut_range",
         return_value=opt,
     ) as timeline_opt:
-        out = EditService(ws).preview_inaudible_cut(
+        out = AnalysisService(ws).preview_inaudible_cut(
             track_id="host",
             start=2.0,
             end=4.0,
@@ -1859,11 +1876,13 @@ def test_edit_split_clip_and_fill_room_tone(minimal_project, sample_wav) -> None
     ws = _dialogue_workspace(minimal_project, sample_wav)
     split_report = {"operation": "split_clip", "clip_id": "full"}
     fill_report = {"operation": "fill_with_room_tone", "filled_sec": 0.5}
-    with patch("podcast_mcp.services.document.edit.split_clips_at", return_value=split_report):
-        out = EditService(ws).split_clip(at_time=1.0, speaker="Host")
+    with patch("podcast_mcp.services.document.timeline.split_clips_at", return_value=split_report):
+        out = TimelineService(ws).split_clip(at_time=1.0, speaker="Host")
     assert out == split_report
-    with patch("podcast_mcp.services.document.edit.fill_with_room_tone", return_value=fill_report):
-        out = EditService(ws).fill_room_tone(track_id="host")
+    with patch(
+        "podcast_mcp.services.document.timeline.fill_with_room_tone", return_value=fill_report
+    ):
+        out = TimelineService(ws).fill_room_tone(track_id="host")
     assert out == fill_report
 
 
@@ -1873,8 +1892,8 @@ def test_edit_check_loudness_prefers_mastered_export(minimal_project, sample_wav
     mastered.parent.mkdir(parents=True, exist_ok=True)
     mastered.write_bytes(sample_wav.read_bytes())
     loud = {"integrated_lufs": -14.0}
-    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
-        out = EditService(ws).check_loudness()
+    with patch("podcast_mcp.services.document.analysis.check_loudness", return_value=loud) as chk:
+        out = AnalysisService(ws).check_loudness()
     chk.assert_called_once_with(mastered, defaults=ANY)
     assert out["integrated_lufs"] == pytest.approx(-14.0)
 
@@ -1887,8 +1906,8 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
         track_id="host",
         effects=[ProcessingEffect(effect="eq", params={"gain_db": 2})],
     )
-    with patch("podcast_mcp.services.document.edit.add_effect", return_value=chain):
-        out = EditService(ws).add_effect(
+    with patch("podcast_mcp.services.document.analysis.add_effect", return_value=chain):
+        out = AnalysisService(ws).add_effect(
             speaker="Host",
             effect="highpass",
             params={"frequency": 300},
@@ -1899,34 +1918,34 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
 def test_edit_optional_track_filters_without_speaker(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with patch(
-        "podcast_mcp.services.document.edit.fade_recommendations",
+        "podcast_mcp.services.document.analysis.fade_recommendations",
         return_value=[],
     ) as fades:
-        assert EditService(ws).recommend_fades() == []
+        assert AnalysisService(ws).recommend_fades() == []
     fades.assert_called_once_with(ws.project, track_id=None, defaults=ANY)
     with patch(
-        "podcast_mcp.services.document.edit.audit_low_audibility_words",
+        "podcast_mcp.services.document.analysis.audit_low_audibility_words",
         return_value=[],
     ) as low:
-        assert EditService(ws).low_audibility_words() == []
+        assert AnalysisService(ws).low_audibility_words() == []
     low.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
     with patch(
-        "podcast_mcp.services.document.edit.bleed_words",
+        "podcast_mcp.services.document.analysis.bleed_words",
         return_value=[],
     ) as bleed:
-        assert EditService(ws).list_bleed_words() == []
+        assert AnalysisService(ws).list_bleed_words() == []
     bleed.assert_called_once()
     with patch(
-        "podcast_mcp.services.document.edit.build_audibility_map",
+        "podcast_mcp.services.document.analysis.build_audibility_map",
         return_value=[],
     ) as aud:
-        assert EditService(ws).audibility_map() == []
+        assert AnalysisService(ws).audibility_map() == []
     aud.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
     with patch(
-        "podcast_mcp.services.document.edit.list_flagged_transcript_words",
+        "podcast_mcp.services.document.analysis.list_flagged_transcript_words",
         return_value=[],
     ) as flagged:
-        assert EditService(ws).flagged_words() == []
+        assert AnalysisService(ws).flagged_words() == []
     flagged.assert_called_once_with(ws.project, track_id=None, progress=None, defaults=ANY)
 
 
@@ -1934,10 +1953,10 @@ def test_edit_suppress_low_audibility_mutates(minimal_project, sample_wav) -> No
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"suppressed": 1}
     with patch(
-        "podcast_mcp.services.document.edit.suppress_low_audibility_words",
+        "podcast_mcp.services.document.analysis.suppress_low_audibility_words",
         return_value=report,
     ) as suppress:
-        out = EditService(ws).suppress_low_audibility(track_id="host")
+        out = AnalysisService(ws).suppress_low_audibility(track_id="host")
     suppress.assert_called_once()
     assert out == report
 
@@ -1946,10 +1965,10 @@ def test_edit_suppress_bleed_apply_true(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"suppressed": 2}
     with patch(
-        "podcast_mcp.services.document.edit.suppress_bleed_words",
+        "podcast_mcp.services.document.analysis.suppress_bleed_words",
         return_value=report,
     ) as suppress:
-        out = EditService(ws).suppress_bleed(speaker="Host", apply=True)
+        out = AnalysisService(ws).suppress_bleed(speaker="Host", apply=True)
     suppress.assert_called_once()
     assert out == report
 
@@ -1958,10 +1977,10 @@ def test_edit_reconcile_transcript_all_tracks(minimal_project, sample_wav) -> No
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"changed": 0}
     with patch(
-        "podcast_mcp.services.document.edit.run_reconciliation",
+        "podcast_mcp.services.document.analysis.run_reconciliation",
         return_value=report,
     ) as reconcile:
-        out = EditService(ws).reconcile_transcript(dry_run=True)
+        out = AnalysisService(ws).reconcile_transcript(dry_run=True)
     reconcile.assert_called_once()
     assert reconcile.call_args.kwargs["track_id"] is None
     assert out == report
@@ -1972,8 +1991,8 @@ def test_edit_check_loudness_explicit_path(minimal_project, sample_wav) -> None:
     audio = ws.project.workspace_path() / "custom.wav"
     audio.write_bytes(sample_wav.read_bytes())
     loud = {"integrated_lufs": -18.0}
-    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
-        out = EditService(ws).check_loudness(str(audio))
+    with patch("podcast_mcp.services.document.analysis.check_loudness", return_value=loud) as chk:
+        out = AnalysisService(ws).check_loudness(str(audio))
     chk.assert_called_once_with(audio, defaults=ANY)
     assert out["integrated_lufs"] == pytest.approx(-18.0)
 
@@ -1982,10 +2001,10 @@ def test_edit_suppress_bleed_dry_run_all_tracks(minimal_project, sample_wav) -> 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     preview = {"would_suppress": 3}
     with patch(
-        "podcast_mcp.services.document.edit.suppress_bleed_words",
+        "podcast_mcp.services.document.analysis.suppress_bleed_words",
         return_value=preview,
     ) as suppress:
-        out = EditService(ws).suppress_bleed(apply=False)
+        out = AnalysisService(ws).suppress_bleed(apply=False)
     suppress.assert_called_once()
     assert suppress.call_args.kwargs["track_id"] is None
     assert out == preview

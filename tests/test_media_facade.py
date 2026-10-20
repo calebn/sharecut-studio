@@ -18,7 +18,6 @@ import pytest
         ("presigned_proxy_urls", "proxy_media"),
         ("review_guest_audio_path", "review_media"),
         ("SpeakerService", "speaker"),
-        ("TranscriptService", "transcript"),
         ("TranscriptPrecorrectService", "transcript_precorrect"),
         ("TranscriptRefineService", "transcript_refine"),
         ("tile_bytes", "waveform"),

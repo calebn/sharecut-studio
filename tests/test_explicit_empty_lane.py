@@ -24,7 +24,12 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, HistoryService, PlayRequest, PlayService
+from podcast_mcp.services.document import (
+    HistoryService,
+    PlayRequest,
+    PlayService,
+    TimelineService,
+)
 from podcast_mcp.util.timebase import SourceSec
 
 RATE = 8000
@@ -108,7 +113,7 @@ def test_public_final_delete_reload_renders_silence_and_undo_restores_audio(
     render_track_from_timeline(ws.project, ws.project.tracks[0], before_stem, {})
     assert (_wav_count(before_segment), _wav_count(before_stem)) == (8000, 8000)
 
-    EditService(ws).delete_clips(["last"], mode=mode)
+    TimelineService(ws).delete_clips(["last"], mode=mode)
     reloaded = load_project(ws.path)
     segment = tmp_path / "after-segment.wav"
     stem = tmp_path / "after-stem.wav"
