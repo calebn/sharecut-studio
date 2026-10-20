@@ -170,6 +170,8 @@ export function CreateMenu({
           e.preventDefault();
           router.close();
         }}
+        // A right click outside closes the menu without the native one opening.
+        onContextMenu={(e) => e.preventDefault()}
       />
       <svg className="create-menu-mark" aria-hidden="true" focusable="false">
         {place.lane ? (
