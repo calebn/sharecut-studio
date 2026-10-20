@@ -344,8 +344,13 @@ def _run_construction_actor(path: str, barrier: Any, sender: Connection) -> None
     connect = sqlite3.connect
 
     class SchemaRaceConnection(sqlite3.Connection):
+        met = False
+
         def executescript(self, sql_script: str) -> sqlite3.Cursor:
-            barrier.wait(timeout=15)
+            # The setup retries a busy answer; only the first attempt meets the other actor.
+            if not SchemaRaceConnection.met:
+                SchemaRaceConnection.met = True
+                barrier.wait(timeout=15)
             return super().executescript(sql_script)
 
     def open_connection(*args: Any, **kwargs: Any) -> sqlite3.Connection:

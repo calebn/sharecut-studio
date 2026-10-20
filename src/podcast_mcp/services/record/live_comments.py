@@ -148,9 +148,7 @@ class RecordLiveCommentStore:
         self.db_path = db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._conn = connect_session_db(db_path)
-        with self._lock:
-            self._conn.executescript(_SCHEMA)
+        self._conn = connect_session_db(db_path, schema=_SCHEMA)
 
     def close(self) -> None:
         with self._lock:

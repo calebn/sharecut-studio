@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 
 from podcast_mcp.util.keyed_lock import KeyedLocks
-from podcast_mcp.util.sqlite_open import open_sqlite
+from podcast_mcp.util.sqlite_open import open_sqlite, schema_setup
 
 _WAL_INIT_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 _WAL_INIT_PENDING_GUARD = threading.Lock()
@@ -44,7 +44,12 @@ def _with_empty_uri_authority(uri: str) -> str:
     return uri
 
 
-def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connection:
+def connect_session_db(
+    db_path: Path,
+    *,
+    create: bool = True,
+    schema: str | None = None,
+) -> sqlite3.Connection:
     """Open a session database after atomically establishing WAL mode.
 
     Record stores share ``sync.db`` but are constructed independently. SQLite
@@ -60,6 +65,9 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
     retried every ``_WAL_INIT_RETRY_SEC`` for up to
     ``_WAL_INIT_TIMEOUT_SEC``; the connection then gets SQLite's default 5 s
     busy timeout back for its writes.
+
+    A store passes its idempotent *schema* so it is applied inside the same bounded
+    retry as the switch (a concurrent first open can answer readonly to either, #1932).
 
     With ``create=False`` the file is opened with sqlite's ``mode=rw`` URI, so a
     missing file raises ``sqlite3.OperationalError`` instead of being created.
@@ -85,6 +93,7 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
                 row_factory=sqlite3.Row,
                 wal_timeout_sec=_WAL_INIT_TIMEOUT_SEC,
                 wal_retry_sec=_WAL_INIT_RETRY_SEC,
+                setup=None if schema is None else schema_setup(schema),
             )
             connected = True
     finally:

@@ -302,14 +302,8 @@ class SyncStore:
         self._tx_depth = 0
         if create:
             db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = connect_session_db(db_path, create=create)
+        self._conn = connect_session_db(db_path, create=create, schema=_schema(self._p))
         self._client_generation: dict[str, int] = {}
-        try:
-            with self._lock:
-                self._conn.executescript(_schema(self._p))
-        except Exception:
-            self._conn.close()
-            raise
 
     def claim_client(self, client_id: str) -> int:
         with self._lock:

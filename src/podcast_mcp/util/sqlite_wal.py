@@ -29,6 +29,40 @@ def _transient_readonly(connection: sqlite3.Connection, exc: sqlite3.Operational
     return bool(path) and os.access(path, os.W_OK)
 
 
+def switch_to_wal(connection: sqlite3.Connection) -> None:
+    """Make *connection*'s database WAL; a no-op when it already is."""
+    journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+    if journal_mode != "wal":
+        connection.execute("PRAGMA journal_mode=WAL")
+
+
+def retry_transient(
+    connection: sqlite3.Connection,
+    step: Callable[[], None],
+    *,
+    timeout_sec: float = 10.0,
+    retry_sec: float = 0.05,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Run *step* until it stops answering busy or transiently readonly, for up to *timeout_sec*.
+
+    *step* must be safe to repeat; any other error, and the last transient one at the
+    deadline, is raised.
+    """
+    deadline = monotonic() + timeout_sec
+    while True:
+        try:
+            step()
+            return
+        except sqlite3.OperationalError as exc:
+            if not (is_sqlite_busy(exc) or _transient_readonly(connection, exc)):
+                raise
+            if monotonic() >= deadline:
+                raise
+            sleep(retry_sec)
+
+
 def ensure_wal(
     connection: sqlite3.Connection,
     *,
@@ -42,16 +76,11 @@ def ensure_wal(
     A concurrent first open can answer busy or, transiently, readonly (#1880); both are
     retried until *timeout_sec*.
     """
-    deadline = monotonic() + timeout_sec
-    while True:
-        try:
-            journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
-            if journal_mode != "wal":
-                connection.execute("PRAGMA journal_mode=WAL")
-            return
-        except sqlite3.OperationalError as exc:
-            if not (is_sqlite_busy(exc) or _transient_readonly(connection, exc)):
-                raise
-            if monotonic() >= deadline:
-                raise
-            sleep(retry_sec)
+    retry_transient(
+        connection,
+        lambda: switch_to_wal(connection),
+        timeout_sec=timeout_sec,
+        retry_sec=retry_sec,
+        monotonic=monotonic,
+        sleep=sleep,
+    )
