@@ -134,6 +134,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("tests/fixtures/aligned_dialogue/**", Scope.GUI),
         ("tests/fixtures/sharecut_ux_demo/**", Scope.GUI),
         ("tests/fixtures/document_delta/**", Scope.GUI),
+        ("tests/fixtures/gain_curve/**", Scope.GUI),
         ("tests/**", Scope.OTHER),
         # This planner (and the glob it borrows), then scripts gui/web or the
         # frontend job runs.
