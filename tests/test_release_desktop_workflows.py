@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import stat
@@ -111,12 +112,13 @@ def test_desktop_workflow_compiles_windows_only_adapters() -> None:
     data = load_github_yaml(DESKTOP_CHECK)
     job = data["jobs"]["desktop-windows-check"]
     assert job["runs-on"] == "windows-latest"
-    assert job["needs"] == "web-dist"
+    assert job["needs"] == "changes"
     steps = job["steps"]
-    download = next(
-        step for step in steps if str(step.get("uses", "")).startswith("actions/download-artifact")
+    assert not any(
+        str(step.get("uses", "")).startswith("actions/download-artifact") for step in steps
     )
-    assert download["with"] == {"name": "gui-web-dist", "path": "gui/web/dist"}
+    config = json.loads((ROOT / "gui/desktop/src-tauri/tauri.conf.json").read_text())
+    assert config["build"]["frontendDist"] == "../splash"
     stage = next(step for step in steps if step.get("name") == "Stage Windows desktop sidecar stub")
     assert stage["run"] == "python scripts/tauri_sidecar_hook.py --dev-stub"
     check = next(step for step in steps if step.get("name") == "Check Windows desktop binary")
@@ -140,15 +142,8 @@ def test_desktop_workflow_runs_pinned_media_tests_on_windows_python_floor() -> N
 
 def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
     data = load_github_yaml(DESKTOP_CHECK)
-    for trigger in ("pull_request", "push"):
-        paths = data["on"][trigger]["paths"]
-        assert "tests/test_project_commit_lock.py" in paths
-        assert "tests/test_history.py" in paths
-        assert "tests/test_review_versions.py" in paths
-        assert "tests/process_helpers.py" in paths
-        assert "tests/review_platform.py" in paths
-        assert "tests/conftest.py" in paths
-        assert "pyproject.toml" in paths
+    assert data["on"]["pull_request"]["paths"] == ["**", "!contracts/test-wait-allowlist.json"]
+    assert data["on"]["push"] == {"branches": ["main"]}
 
     job = data["jobs"]["project-commit-lock-windows"]
     assert job["runs-on"] == "windows-latest"
@@ -182,7 +177,6 @@ def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
     assert install == pinned_install
     assert install["uses"] == "./.github/actions/install-locked-python"
     assert install["with"] == {"extras": "gui dev"}
-    assert data["on"]["push"]["paths"] == data["on"]["pull_request"]["paths"]
 
 
 def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:

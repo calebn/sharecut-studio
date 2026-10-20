@@ -321,7 +321,7 @@ def test_pytest_job_plans_in_job_and_gates_coverage_on_full_runs() -> None:
     by_name = {step.get("name"): step for step in steps}
     plan = by_name["Plan the pytest scope"]
     assert plan["id"] == "plan"
-    assert plan["run"].startswith("python3 scripts/ci_plan.py plan --event")
+    assert plan["uses"] == "./.github/actions/ci-plan"
     assert by_name["Run tests with coverage gate"]["if"] == "steps.plan.outputs.pytest == 'full'"
     web = by_name["Run the tests that read gui/web"]
     assert web["if"] == "steps.plan.outputs.pytest == 'web'"
@@ -341,9 +341,10 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
     assert changes["outputs"] == {
         "gui": "${{ steps.plan.outputs.gui }}",
         "e2e-matrix": "${{ steps.plan.outputs.e2e-matrix }}",
+        "release-only": "${{ steps.plan.outputs.release-only }}",
     }
     (plan,) = [step for step in changes["steps"] if step.get("id") == "plan"]
-    assert plan["run"].startswith("python3 scripts/ci_plan.py plan --event")
+    assert plan["uses"] == "./.github/actions/ci-plan"
     for name in ("frontend-suite", "frontend-e2e-suites"):
         assert jobs[name]["needs"] == "changes"
         assert jobs[name]["if"] == "needs.changes.outputs.gui == 'true'"

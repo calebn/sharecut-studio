@@ -1,0 +1,53 @@
+name: Plan CI work
+description: Classify the immutable PR diff with complete GitHub identity metadata
+outputs:
+  gui:
+    description: Whether frontend and browser workloads are required
+    value: ${{ steps.plan.outputs.gui }}
+  pytest:
+    description: Python test scope
+    value: ${{ steps.plan.outputs.pytest }}
+  e2e-matrix:
+    description: Browser matrix for this event
+    value: ${{ steps.plan.outputs.e2e-matrix }}
+  release-only:
+    description: Digit 1 proves the known version-only release update; 0 does not
+    value: ${{ steps.plan.outputs.release-only }}
+  skip-native-web:
+    description: Digit 1 proves native web work is unnecessary
+    value: ${{ steps.plan.outputs.skip-native-web }}
+  skip-native-cargo:
+    description: Digit 1 proves native cargo work is unnecessary
+    value: ${{ steps.plan.outputs.skip-native-cargo }}
+  skip-native-pinned:
+    description: Digit 1 proves native pinned work is unnecessary
+    value: ${{ steps.plan.outputs.skip-native-pinned }}
+  skip-native-resolver:
+    description: Digit 1 proves native resolver work is unnecessary
+    value: ${{ steps.plan.outputs.skip-native-resolver }}
+  skip-native-lock:
+    description: Digit 1 proves native lock work is unnecessary
+    value: ${{ steps.plan.outputs.skip-native-lock }}
+  skip-native-payload:
+    description: Digit 1 proves native payload work is unnecessary
+    value: ${{ steps.plan.outputs.skip-native-payload }}
+  skip-native-registry:
+    description: Digit 1 proves native registry work is unnecessary
+    value: ${{ steps.plan.outputs.skip-native-registry }}
+runs:
+  using: composite
+  steps:
+    - id: plan
+      shell: bash
+      env:
+        EVENT: ${{ github.event_name }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        BASE_REPOSITORY: ${{ github.event.pull_request.base.repo.full_name }}
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+      run: >-
+        python3 scripts/ci_plan.py plan --event "$EVENT" --base "$BASE_SHA" --head "$HEAD_SHA"
+        --head-ref "$HEAD_REF" --head-repository "$HEAD_REPOSITORY"
+        --base-repository "$BASE_REPOSITORY" --base-ref "$BASE_REF" >> "$GITHUB_OUTPUT"

@@ -138,7 +138,7 @@ def test_linux_newer_host_verifies_transferred_payload_without_download():
         "ffmpeg-linux-newer-host"
     ]
     assert job["runs-on"] == "ubuntu-24.04"
-    assert job["needs"] == "ffmpeg-native-payload"
+    assert job["needs"] == ["changes", "ffmpeg-native-payload"]
     download = next(
         step
         for step in job["steps"]
