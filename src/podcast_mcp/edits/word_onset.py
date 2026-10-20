@@ -55,6 +55,7 @@ from enum import Enum
 
 import numpy as np
 
+from podcast_mcp.edits.acoustic_laugh import burst_count
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HEARD_APART_DEPTH_DB, HOP_SEC
 from podcast_mcp.util.dsp import frame_band_db, frame_rms_db, is_valley
@@ -159,7 +160,9 @@ def voice_onset(
     on both sides at any level, the break :func:`voice_separates` reads. It is for a
     sound the transcript missed that ends in such a valley before the word (#1358): the
     walk back from the word runs through the valley into that sound, which is not the
-    word's voice. A word's own voice has no such dip a listener hears as a boundary.
+    word's voice. A word can dip that deep inside itself too (a stop closure, the break
+    between two syllables, "uh-huh"), so the walk alone cannot tell the two apart: the
+    caller asks only for a span that is one sustained sound (:func:`is_one_hum`).
     """
     t0 = math.floor(max(0.0, floor) / HOP_SEC) * HOP_SEC
     levels = _frames(cache, t0, word_start + _VALLEY_FLANK_SEC + FRAME_SEC)
@@ -175,6 +178,18 @@ def voice_onset(
     # The onset frame holds the voice somewhere in its 20 ms; only a frame wholly
     # before the word start shows the voice began earlier.
     return onset if onset + FRAME_SEC <= word_start + 1e-9 else word_start
+
+
+def is_one_hum(cache: TrackAudioCache, start: float, end: float) -> bool:
+    """Whether ``[start, end)`` holds one sustained sound: a single burst of level.
+
+    The level rises, holds and falls once, as an "uh" does. Syllables, words and
+    phrases switch the voice on and off, so their level has several bursts, each
+    :data:`~podcast_mcp.edits.acoustic_laugh.BURST_DIP_DB` apart (the burst measure
+    behind ``likely_laugh``). The measure is a dB difference inside the span, so it is
+    the same at every recording level and for every speaker.
+    """
+    return burst_count(_frames(cache, start, end)) == 1
 
 
 def _frames_from_word_end(

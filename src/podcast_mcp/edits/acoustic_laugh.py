@@ -53,6 +53,15 @@ def _burst_peaks(levels: np.ndarray) -> list[int]:
     return peaks
 
 
+def burst_count(levels: np.ndarray) -> int:
+    """How many separate level bursts ``levels`` holds (:data:`BURST_DIP_DB` apart).
+
+    One means a sound that rises, holds and falls once, like a sustained "uh"; several
+    mean the voice switched on and off, as syllables, words and laughs do.
+    """
+    return len(_burst_peaks(levels))
+
+
 def has_laugh_bursts(levels: np.ndarray) -> bool:
     """True when the run holds :data:`MIN_LAUGH_BURSTS` or more bursts in a row.
 

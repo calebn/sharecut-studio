@@ -6,6 +6,7 @@ import pytest
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.word_onset import (
     OnsetKind,
+    is_one_hum,
     next_onset,
     voice_end,
     voice_onset,
@@ -378,3 +379,24 @@ def test_voiced_runs_split_at_a_valley_heard_apart_only_when_asked(depth_db, run
         # The valley's lower half (to -27 dBFS here, 1.33-1.47) belongs to neither run; the bottom (1.40-1.44) surely does not.
         assert 1.30 < split[0][1] <= 1.40
         assert 1.44 <= split[1][0] < 1.50
+
+
+@pytest.mark.parametrize("gain_db", [-18.0, 0.0, 12.0])
+def test_a_sustained_hum_is_one_sound_and_two_syllables_are_not(gain_db):
+    _, hum = _voice_envelope(
+        (0.98, -80.0), (1.0, -20.0), (1.3, -20.0), (1.4, -40.0), (1.5, -80.0), (1.52, -95.0)
+    )
+    _, syllables = _voice_envelope(
+        (0.98, -80.0),
+        (1.0, -20.0),
+        (1.1, -20.0),
+        (1.14, -29.0),
+        (1.18, -20.0),
+        (1.3, -20.0),
+        (1.4, -40.0),
+        (1.5, -80.0),
+        (1.52, -95.0),
+    )
+
+    assert is_one_hum(_cache((0.98, hum), gain_db=gain_db), 0.98, 1.45)
+    assert not is_one_hum(_cache((0.98, syllables), gain_db=gain_db), 0.98, 1.45)
