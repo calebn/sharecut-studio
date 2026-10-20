@@ -3,6 +3,9 @@ name: registry-backup-windows
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
   pull_request:
     branches: [main]
 
@@ -11,7 +14,23 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      skip-native-registry: ${{ steps.plan.outputs.skip-native-registry }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: plan
+        uses: ./.github/actions/ci-plan
+
   native-registry-backup:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-registry != '1') }}
     runs-on: windows-latest
     timeout-minutes: 60
     steps:

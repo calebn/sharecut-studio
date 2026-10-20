@@ -65,6 +65,14 @@ On macOS the same script also `clippy --bin sharecut --features app` so
 adapters. No Rust coverage % gate — host glue stays thin; Python stays on the
 ≥95% gate.
 
+The native policy in `scripts/ci_native.py` selects PR jobs through positive
+skip proofs. See [Native workload selection](testing.md#native-workload-selection)
+for inputs, failure defaults, contract consumers, and projected execution counts.
+The cargo jobs use `frontendDist: ../splash` and run without the web artifact.
+Their cargo commands do not invoke Tauri's packaging hooks. The Windows check
+still stages its development sidecar stub. Linux and Windows CI qualification
+is required for changes to those build dependencies.
+
 ### Desktop shell scripts
 
 Every desktop shell script lives in [`scripts/desktop/`](../scripts/desktop/):
@@ -166,7 +174,7 @@ The public check workflow is deliberately limited:
 
 | Workflow | When it runs | What it does |
 |----------|----------------|--------------|
-| [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) | PR/main path filter | Portable scaffold (`make test-desktop` / clippy `--lib`) plus a Windows `cargo check` for the WebView2 desktop binary, `tests/test_pinned_media.py` on Windows at the Python floor and sidecar version, and `tests/test_project_commit_lock.py` / `tests/test_history.py` / `tests/test_review_versions.py` on Windows (`project-commit-lock-windows`; staging tests skip via `tests/review_platform.py`). It does not build installers. |
+| [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) | PR job selection; full main, nightly, and manual | Portable scaffold (`make test-desktop` / clippy `--lib`) plus a Windows `cargo check` for the WebView2 desktop binary, `tests/test_pinned_media.py` on Windows at the Python floor and sidecar version, and `tests/test_project_commit_lock.py` / `tests/test_history.py` / `tests/test_review_versions.py` on Windows (`project-commit-lock-windows`; staging tests skip via `tests/review_platform.py`). It does not build installers. |
 | [`.github/workflows/release-desktop-build.yml`](../.github/workflows/release-desktop-build.yml) | Reusable `workflow_call` | Builds installer artifacts for a caller. A private operations repository owns dispatch, signing, publishing, and manifests. |
 
 Do not put certs, `.p8` files, or `APPLE_*` / Authenticode **values** in this FOSS tree. Both macOS legs (Intel on `macos-15-intel`, Apple Silicon on `macos-15`) stay unsigned unless the funnel secrets are present. An operator can still build and notarize an Apple Silicon DMG locally (see [§ Local codesign and notarization](#local-codesign-and-notarization)).
@@ -666,6 +674,8 @@ A Linux AppImage from `make desktop-linux-appimage-docker` is signed afterward
 with `scripts/desktop/sign_updater_bundle.sh <file>`.
 
 ## Version bumps
+
+Routine version-only release refreshes use a narrow CI plan. Before merging the release PR, complete the [full final-head validation procedure](testing-ci.md#release-refreshes-and-final-validation), including current-main integration and every existing Shipping gate. A lightweight green release PR is not release-ready by itself.
 
 The version changes once per tester build, not per merge. The updater offers an update
 only when the feed's version is higher than the installed one, so each published feed

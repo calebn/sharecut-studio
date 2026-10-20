@@ -34,10 +34,12 @@ pushes to `main`, nightly and on `workflow_dispatch`. On pull requests the
 | Job | What |
 |-----|------|
 | `changes` | Not a required check. Runs `scripts/ci_plan.py plan` and hands `frontend-suite` and the browser matrix their plan; both required frontend aggregates fail when it does not succeed. |
-| `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate; `tests/test_generated_artifacts.py` runs every generated-artifact and contract check, so one failing file names the stale output). On a PR that changes only `gui/web/`, or only docs, it runs only the test files that read those paths, without coverage. |
+| `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate; `tests/test_generated_artifacts.py` runs every generated-artifact and contract check, so one failing file names the stale output). On a PR that changes only `gui/web/`, or only docs, it runs only the test files that read those paths, without coverage. A strictly proven version-only release refresh runs the planner and version-policy tests without coverage; [final release validation](#release-refreshes-and-final-validation) still requires a full pre-merge receipt. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The full `pytest` job stays on 3.12; a local 3.11 venv reproduces the gap. |
 | `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](testing.md#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
 | `frontend-e2e-suites` → `frontend-e2e` | On `main`, nightly and dispatch, six matrix jobs build Sharecut Studio and install only their declared browser engine with Playwright `--with-deps`: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest follow banner (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs the four main shards and `compat-webkit-1of2` / `compat-webkit-2of2` instead of the two compat engines. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `compat-webkit-1of2` or `compat-webkit-2of2` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Both artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home load `/?home=1`. |
+
+The [release refresh and final validation policy](#release-refreshes-and-final-validation) describes the advisory selector jobs and the mandatory full release receipt.
 
 First-attempt PR runs of `test.yml` share a concurrency group by workflow and
 PR number. A new head cancels older first-attempt work for that PR. Runs for
@@ -525,7 +527,7 @@ treat these artifacts as sensitive. Do not widen the upload to all of
 
 The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with real `caddy` and `docker compose` (see [§ Deploy config validation](testing.md#deploy-config-validation)).
 
-The path-filtered `.github/workflows/desktop.yml` also builds the web distribution,
+The centrally selected `.github/workflows/desktop.yml` also builds the web distribution,
 runs the portable desktop scaffold checks on Linux, and runs `cargo check` for the
 Windows desktop binary. The Windows job logs
 `cargo tree --locked -d --target x86_64-pc-windows-msvc --features app`
@@ -533,6 +535,13 @@ so reviewers can check for duplicate `windows` and `windows-result` versions.
 The Windows job compiles WebView2-only adapters that macOS
 and Linux cannot typecheck; installer creation remains in the reusable release
 workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` with Python 3.11 and 3.12 so the Windows fallback of pinned media reads is tested on NTFS at the `requires-python` floor and the sidecar's version, not only simulated. A `project-commit-lock-windows` job runs `tests/test_project_commit_lock.py`, `tests/test_history.py`, and `tests/test_review_versions.py` on `windows-latest` with Python 3.12 (acquiring the catalog-pinned prebuilt FFmpeg pair first, since `tests/conftest.py::sample_wav` skips without it) so the cross-process commit lock and every review-publication test that does not stage media runs on real Windows; `requires_safe_cleanup` / `requires_safe_failed_cleanup` (`tests/review_platform.py`) skip the staging/quarantine paths that publication does not support there (see `docs/persistence.md`'s Inventory row for review publication).
+
+Native PR selection uses the seven families documented in
+[Native workload selection](testing.md#native-workload-selection). Desktop and
+registry workflows run fully on main, nightly, and manual events. Cargo checks
+use the checked-in desktop splash and run independently of the web artifact.
+The Windows cargo check stages its sidecar stub without downloading web output.
+Linux and Windows CI must qualify that dependency removal on the changed head.
 
 Local mirrors:
 
@@ -555,3 +564,101 @@ Golden-ear (`scripts/golden_ear_harness.py`) is an owner listening harness, not 
 Axe policy: do not silence violations with ignore comments. Prefer native `<button>` / correct roles; share helpers (`src/test/a11y.ts`, `e2e/axe.ts`) instead of duplicating axe setup. Dense DAW chrome disables only `color-contrast` and `region` in Playwright (`expectPageAxeClean`) — other rules stay enforced. Loading timeline and track-header containers use named `group` roles so their accessible names and busy state are valid ARIA semantics; `TrackHeadersColumn.test.tsx` and `TimelineView.test.tsx` keep those loading states covered. Reading surfaces (HomeScreen without `?project=`, marketing/download/company HTML) use `expectReadingSurfaceAxeClean`, which keeps contrast and region on.
 
 Frontend unit and a11y details: [gui/web/README.md](../gui/web/README.md) § Testing.
+
+## Native workload selection
+
+`scripts/ci_native.py` owns the native dependency rules, exact contract consumers,
+and workload inventory. `ci_plan.py` emits seven positive skip proofs for web,
+cargo, pinned media, resolver, project lock, payload, and registry. Both native
+workflows read those proofs through `.github/actions/ci-plan`. Only successful
+planning with the digit string `1` skips work. Other values run work.
+Digit strings avoid GitHub's case-insensitive string equality. Failed, skipped, missing, or malformed
+planning runs ordinary workloads unless the workflow is cancelled. The newer
+Linux host also requires successful payload production.
+
+PR rules union all matching consumers. Unknown paths and unknown contracts run
+all families. Empty, unreadable, or malformed diffs also run all families. Git
+uses NUL-delimited paths and disables rename detection so deletions and both
+rename directions remain visible. A filename containing a newline stays one
+path and requests full native coverage.
+
+Desktop PR event paths are exactly `['**', '!contracts/test-wait-allowlist.json']`.
+An allowlist-only PR starts no desktop workflow jobs. Other docs PRs start cheap
+planners but no expensive native jobs. Registry PR events remain broad. Neither
+workflow excludes broad docs patterns at the event boundary. Every main push,
+nightly, and manual dispatch runs all native workloads. Proven release-only PRs
+skip all native families.
+
+Six Python contracts plus the FFmpeg artifact catalog are native inputs.
+`tests/test_native_ci_plan.py` checks contract inventory, literal readers, the
+dynamic bootstrap manifest, generated TypeScript provenance, the payload's local
+Python import closure including package initializers, job identities, output
+forwarding, actual YAML predicates, and prerequisite outcomes. Unresolved or
+dynamic payload imports require explicit classification. Classify
+new contracts explicitly before narrowing their conservative fallback.
+
+These are projected matrix executions from YAML, excluding the two cheap PR
+planners. They are not measured savings.
+
+| PR paths | Desktop executions | Registry executions |
+|---|---|---|
+| Docs | 0 | 0 |
+| `gui/web/src/App.tsx` | 1 | 0 |
+| `src/podcast_mcp/edits/tighten/propose.py` | 4 | 1 |
+| `contracts/test-wait-allowlist.json` | 0 | 0 |
+| `contracts/ffmpeg-artifacts.json` | 6 | 1 |
+| Full event | 12 | 1 |
+
+Generic algorithm-only zero-native acceptance remains partial. Autouse fixtures
+import backend algorithms even in focused native tests. All native Python
+families retain broad source, tests, defaults, dependency, installer, and storage
+coverage. Narrower selection needs a proved fixture boundary without removing
+tests or protections.
+
+## Release refreshes and final validation
+
+The shared `.github/actions/ci-plan` supplies the PR source ref, both repository
+identities, base ref, and exact diff SHAs to `scripts/ci_plan.py`. The release
+shortcut requires the same-repository release-please branch for main and exactly
+ten modified regular files. The classifier compares immutable merge-base and
+head blobs. Only the known version literals and changelog can change. Dependency,
+hash, code, formatting, file-mode, malformed-data, and ambiguous-identity changes
+receive the full plan. The version fields must agree, increase, and remain plain
+canonical `0.x` versions. The existing locked installation and 1.0 policy still
+run; neither the lockfile nor its consistency check is bypassed.
+
+A proven refresh skips the advisory Python-floor job and the expensive desktop,
+extras-import, and registry Windows workloads. Each advisory workflow has a cheap
+PR selector. Missing or failed advisory planning requests ordinary work; workflow
+cancellation stops it. Main, scheduled, manual, and reusable wheel validation keep
+their existing full work. The reusable wheel workflow stays outside this shortcut.
+The four required checks still report. Frontend aggregates accept only their
+existing successful-plan and planned-workload combinations, and the full-history
+secret scan runs on every PR.
+
+Lightweight green checks are not permission to cut a release. Before merging a
+release PR, the independent Shipping verifier must retain a full validation
+receipt for release head H atop current main B:
+
+1. Resolve H and B. Update the release branch only if needed so B is an ancestor
+   of H, then keep H stable during validation.
+2. Dispatch `test.yml` on the release ref with `compatibility-base=B`. The pytest
+   job checks that its checkout is H, B is the current remote main tip, and B is
+   an ancestor of H. It records the checkout and compatibility base. Dispatch
+   always requests full pytest with the 95% floor and both browser engines.
+3. Dispatch `desktop.yml`, `extras-import.yml`, `registry-backup-windows.yml`,
+   `release-wheel.yml`, and `secret-scan.yml` on that same release ref. Retain
+   successful full workloads, not skipped required work or partial reruns.
+4. Record repository, PR, H, B, every workflow run ID and attempt, event, actual
+   run/checkout SHA, full scope, and terminal job results. Context names alone
+   cannot distinguish a lightweight PR run from full dispatch validation.
+5. Immediately before the separately authorized merge, re-read H and current B.
+   Either moving invalidates the receipt. Also require the four exact-head PR
+   checks, the independent Shipping verdict, and all existing owner gates.
+
+A full main run after release merge is insufficient because release-please can
+create the tag before that parallel run finishes. The receipt is a contributor
+procedure, not a new server-enforced merge hold or an atomic base lock. Existing
+repository settings are unchanged. Additional required contexts, strict settings,
+or a merge queue require an owner decision. Do not arm auto-merge before the
+full release receipt is valid.

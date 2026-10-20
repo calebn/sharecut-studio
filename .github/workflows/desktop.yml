@@ -6,35 +6,13 @@ name: desktop
 
 on:
   pull_request:
-    paths: &desktop-paths
-      - "gui/desktop/**"
-      - "gui/web/**"
-      - "src/podcast_mcp/**"
-      - "scripts/desktop/**"
-      - "scripts/build_sidecar.py"
-      - "scripts/sidecar_*.rs"
-      - "tests/test_pinned_media.py"
-      - "tests/test_project_commit_lock.py"
-      - "tests/test_history.py"
-      - "tests/test_review_versions.py"
-      - "tests/test_ffmpeg_diagnostics.py"
-      - "tests/test_binaries.py"
-      - "tests/test_bootstrap_gui.py"
-      - "tests/test_pipeline_config.py"
-      - "tests/test_waveform_pyramid.py"
-      - "tests/test_verify_ffmpeg_baseline.py"
-      - "scripts/verify_ffmpeg_baseline.py"
-      - "scripts/ffmpeg_payload.py"
-      - "contracts/**"
-      - ".github/actions/setup-ffmpeg/**"
-      - "tests/process_helpers.py"
-      - "tests/review_platform.py"
-      - "tests/conftest.py"
-      - "pyproject.toml"
-      - ".github/workflows/desktop.yml"
+    paths:
+      - "**"
+      - "!contracts/test-wait-allowlist.json"
   push:
     branches: [main]
-    paths: *desktop-paths
+  schedule:
+    - cron: "23 7 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -42,7 +20,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      skip-native-web: ${{ steps.plan.outputs.skip-native-web }}
+      skip-native-cargo: ${{ steps.plan.outputs.skip-native-cargo }}
+      skip-native-pinned: ${{ steps.plan.outputs.skip-native-pinned }}
+      skip-native-resolver: ${{ steps.plan.outputs.skip-native-resolver }}
+      skip-native-lock: ${{ steps.plan.outputs.skip-native-lock }}
+      skip-native-payload: ${{ steps.plan.outputs.skip-native-payload }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: plan
+        uses: ./.github/actions/ci-plan
+
   web-dist:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-web != '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -65,9 +64,10 @@ jobs:
   # Full `tauri build` needs platform runners + icons; scaffold + light Rust hygiene.
   # Same script as `make test-desktop` / scripts/desktop/check_desktop.sh (clippy/tests --lib only).
   desktop-scaffold:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-cargo != '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: web-dist
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -79,16 +79,13 @@ jobs:
   # Compile the Windows-only WebView2 adapters without producing an installer.
   # Full NSIS packaging remains in release-desktop-build.yml.
   desktop-windows-check:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-cargo != '1') }}
     runs-on: windows-latest
     timeout-minutes: 15
-    needs: web-dist
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/download-artifact@v8
-        with:
-          name: gui-web-dist
-          path: gui/web/dist
       - name: Stage Windows desktop sidecar stub
         run: python scripts/tauri_sidecar_hook.py --dev-stub
       - name: Report duplicate Windows desktop dependencies
@@ -108,6 +105,8 @@ jobs:
   # Run the Windows fallback of pinned media reads (util/pinned_media.py) on real Windows:
   # file IDs, junction checks, open-file rename blocking and seek + read without pread.
   pinned-media-windows:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-pinned != '1') }}
     runs-on: windows-latest
     timeout-minutes: 20
     strategy:
@@ -138,6 +137,8 @@ jobs:
         run: ./scripts/registry_windows_storage.ps1 -Cleanup
 
   ffmpeg-resolver-windows:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-resolver != '1') }}
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -164,6 +165,8 @@ jobs:
   # closed on Windows, so its staging tests skip there via the markers in tests/review_platform.py (see
   # docs/persistence.md's Inventory row for review publication).
   project-commit-lock-windows:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-lock != '1') }}
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -183,6 +186,8 @@ jobs:
       - *cleanup-windows-storage
 
   ffmpeg-native-payload:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-payload != '1') }}
     strategy:
       fail-fast: false
       matrix:
@@ -221,7 +226,8 @@ jobs:
           path: ${{ runner.temp }}/sharecut-runtime/ffmpeg
 
   ffmpeg-linux-newer-host:
-    needs: ffmpeg-native-payload
+    needs: [changes, ffmpeg-native-payload]
+    if: ${{ !cancelled() && ((needs.changes.result != 'success' || needs.changes.outputs.skip-native-payload != '1') && needs.ffmpeg-native-payload.result == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

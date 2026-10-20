@@ -8,8 +8,9 @@ Usage:
   python3 scripts/ci_plan.py required-checks [--check]   # the required-checks table in the docs
 
 `plan` prints `key=value` lines for `$GITHUB_OUTPUT`: `gui` (run Vitest and the
-browser suites), `pytest` (`full`, `web` or `docs`) and `e2e-matrix` (the browser
-jobs).
+browser suites), `pytest` (`full`, `web`, `docs` or `release`), `release-only`
+(digit `1` proves a release update), `e2e-matrix` (the browser jobs), and seven
+`skip-native-*` proofs from `ci_native` (digit `1` skips a native family; `0` runs it).
 `REQUIRED_CHECKS` is the one list of required status contexts: `required-checks` renders
 it into docs/testing.md and docs/contributing.md, the merge gate reads it, and
 `tests/test_ci_plan.py` diffs it against `make ci-body` and the workflows.
@@ -19,20 +20,24 @@ Stdlib only, so CI runs it before installing anything.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
 import sys
+import tomllib
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from ci_native import NativeSelection, select_native
 from path_vocab import Glob
+from version_policy import problems
 
 ROOT = Path(__file__).resolve().parents[1]
 PULL_REQUEST = "pull_request"
@@ -329,25 +334,246 @@ def pr_compat() -> list[E2eJob]:
     ]
 
 
+RELEASE_BRANCH = "release-please--branches--main--components--podcast-mcp"
+_RELEASE_FIELDS = {
+    "pyproject.toml": (("project", "version"),),
+    ".release-please-manifest.json": ((".",),),
+    "src/podcast_mcp/__init__.py": (("__version__",),),
+    "uv.lock": (("package", "@podcast-mcp", "version"),),
+    "gui/desktop/package.json": (("version",),),
+    "gui/desktop/package-lock.json": (("version",), ("packages", "", "version")),
+    "gui/desktop/src-tauri/Cargo.toml": (("package", "version"),),
+    "gui/desktop/src-tauri/Cargo.lock": (("package", "@sharecut", "version"),),
+    "gui/desktop/src-tauri/tauri.conf.json": (("version",),),
+}
+RELEASE_PATHS = frozenset((*_RELEASE_FIELDS, "CHANGELOG.md"))
+RELEASE_TESTS = (
+    "tests/test_ci_plan.py",
+    "tests/test_release_ci_plan.py",
+    "tests/test_version_policy.py",
+)
+
+
+@dataclass(frozen=True)
+class ReleaseProof:
+    merge_base: str
+    head: str
+    version: str
+
+
+@dataclass(frozen=True)
+class FullRelease:
+    reason: str
+
+
+def _json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> Any:
+    raise ValueError(f"invalid JSON constant {value}")
+
+
+def _release_document(path: str, text: str) -> tuple[Any, list[str]]:
+    if path.endswith(".py"):
+        tree = ast.parse(text)
+        names = [n for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id == "__version__"]
+        assignments = [
+            n
+            for n in tree.body
+            if isinstance(n, ast.Assign)
+            and len(n.targets) == 1
+            and isinstance(n.targets[0], ast.Name)
+            and n.targets[0].id == "__version__"
+            and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str)
+        ]
+        if len(names) != 1 or len(assignments) != 1:
+            raise ValueError("expected a sole literal __version__ assignment")
+        value = assignments[0].value
+        assert isinstance(value, ast.Constant)
+        assert isinstance(value.value, str)
+        literal = re.compile(r'^(__version__ = ")([^"\n]+)(")', re.MULTILINE)
+        matches = list(literal.finditer(text))
+        if len(matches) != 1 or matches[0].group(2) != value.value:
+            raise ValueError("unsupported __version__ syntax")
+        match = matches[0]
+        return text[: match.start(2)] + "<version>" + text[match.end(2) :], [value.value]
+    if path.endswith(".json"):
+        data = json.loads(
+            text, object_pairs_hook=_json_object, parse_constant=_reject_json_constant
+        )
+    else:
+        data = tomllib.loads(text)
+    found = []
+    for selector in _RELEASE_FIELDS[path]:
+        owner = data
+        for key in selector[:-1]:
+            if key.startswith("@"):
+                packages = [entry for entry in owner if entry["name"] == key[1:]]
+                if len(packages) != 1:
+                    raise ValueError("ambiguous lockfile package")
+                owner = packages[0]
+                if key == "@podcast-mcp" and owner["source"] != {"editable": "."}:
+                    raise ValueError("uv project is not local")
+                if key == "@sharecut" and ("source" in owner or "checksum" in owner):
+                    raise ValueError("Cargo project is not local")
+            else:
+                owner = owner[key]
+        value = owner[selector[-1]]
+        if not isinstance(value, str):
+            raise ValueError("version must be a string")
+        found.append(value)
+        owner[selector[-1]] = "<version>"
+    return data, found
+
+
+def _version_text_only(
+    before: str, after: str, old: str, new: str, expected_version_field_count: int
+) -> bool:
+    parts = before.split(old)
+    expression = f"({re.escape(old)}|{re.escape(new)})".join(map(re.escape, parts))
+    match = re.fullmatch(expression, after)
+    return (
+        match is not None
+        and sum(value == new for value in match.groups()) == expected_version_field_count
+    )
+
+
+def _git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    ).stdout.decode("utf-8")
+
+
+def classify_release(
+    base: str | None,
+    head: str | None,
+    *,
+    head_ref: str | None,
+    head_repository: str | None,
+    base_repository: str | None,
+    base_ref: str | None,
+    root: Path = ROOT,
+) -> ReleaseProof | FullRelease:
+    """Prove the exact known release from immutable Git objects, or explain full fallback."""
+    if not (base and head and head_repository and base_repository):
+        return FullRelease("missing release identity")
+    if head_ref != RELEASE_BRANCH or base_ref != "main" or head_repository != base_repository:
+        return FullRelease("unexpected release branch, target, or repository")
+    try:
+        head_sha = _git(
+            root, "rev-parse", "--verify", "--end-of-options", f"{head}^{{commit}}"
+        ).strip()
+        base_sha = _git(
+            root, "rev-parse", "--verify", "--end-of-options", f"{base}^{{commit}}"
+        ).strip()
+        merge_bases = _git(root, "merge-base", "--all", base_sha, head_sha).splitlines()
+        if len(merge_bases) != 1:
+            return FullRelease("ambiguous merge base")
+        merge_base = merge_bases[0]
+        entries = (
+            _git(root, "diff", "--raw", "--no-abbrev", "--no-renames", "-z", merge_base, head_sha)
+            .rstrip("\0")
+            .split("\0")
+        )
+        if len(entries) != 2 * len(RELEASE_PATHS):
+            return FullRelease("release must modify exactly the ten known paths")
+        blobs = {}
+        for header, path in zip(entries[::2], entries[1::2], strict=True):
+            old_mode, new_mode, old_blob, new_blob, status = header.removeprefix(":").split()
+            if old_mode != "100644" or new_mode != "100644" or status != "M":
+                return FullRelease("release requires modified regular files with unchanged modes")
+            blobs[path] = (old_blob, new_blob)
+        if set(blobs) != RELEASE_PATHS:
+            return FullRelease("unexpected release paths")
+        old_versions: dict[str, str] = {}
+        new_versions: dict[str, str] = {}
+        texts = []
+        for path, selectors in _RELEASE_FIELDS.items():
+            before, after = (_git(root, "cat-file", "blob", sha) for sha in blobs[path])
+            old_data, old_values = _release_document(path, before)
+            new_data, new_values = _release_document(path, after)
+            if old_data != new_data:
+                return FullRelease(f"non-version content changed in {path}")
+            for index, (old, new) in enumerate(zip(old_values, new_values, strict=True)):
+                old_versions[f"{path}:{index}"] = old
+                new_versions[f"{path}:{index}"] = new
+            texts.append((before, after, len(selectors)))
+        if problems(old_versions) or problems(new_versions):
+            return FullRelease("incoherent or unsupported release versions")
+        old = next(iter(old_versions.values()))
+        new = next(iter(new_versions.values()))
+        canonical = r"0\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+        if not all(re.fullmatch(canonical, value) for value in (old, new)):
+            return FullRelease("release requires canonical plain 0.x versions")
+        if tuple(map(int, new.split("."))) <= tuple(map(int, old.split("."))):
+            return FullRelease("release version must increase")
+        if not all(
+            _version_text_only(before, after, old, new, count) for before, after, count in texts
+        ):
+            return FullRelease("release changes bytes outside known version literals")
+        return ReleaseProof(merge_base, head_sha, new)
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        SyntaxError,
+        RecursionError,
+    ) as error:
+        return FullRelease(f"release proof unavailable: {type(error).__name__}")
+
+
 @dataclass(frozen=True)
 class CiPlan:
     gui: bool
-    pytest: Literal["full", "web", "docs"]
+    pytest: Literal["full", "web", "docs", "release"]
     e2e: tuple[E2eJob, ...]
+    release_only: bool = False
+    native: NativeSelection = field(default_factory=NativeSelection)
 
     def outputs(self) -> dict[str, str]:
         matrix = {"include": [vars(job) for job in self.e2e]}
         return {
             "gui": "true" if self.gui else "false",
+            "release-only": "1" if self.release_only else "0",
             "pytest": self.pytest,
             "e2e-matrix": json.dumps(matrix, separators=(",", ":")),
+            **self.native.outputs(),
         }
 
 
-def plan(event: str, changed: Sequence[str]) -> CiPlan:
+def plan(
+    event: str,
+    changed: Sequence[str],
+    *,
+    release: ReleaseProof | FullRelease | None = None,
+    head_ref: str | None = None,
+) -> CiPlan:
     """Pull requests run what their diff can reach; every other event runs everything."""
     if event != PULL_REQUEST:
         return CiPlan(gui=True, pytest="full", e2e=(*main_shards(), *full_compat()))
+    if isinstance(release, ReleaseProof):
+        return CiPlan(
+            gui=False,
+            pytest="release",
+            e2e=(),
+            release_only=True,
+            native=NativeSelection(frozenset()),
+        )
+    if isinstance(release, FullRelease) or (head_ref or "").startswith("release-please"):
+        return CiPlan(gui=True, pytest="full", e2e=(*main_shards(), *pr_compat()))
     gui = not changed or any(scope_of(path) is Scope.GUI for path in changed)
     scope: Literal["full", "web", "docs"] = next(
         (name for name, subset in SUBSETS.items() if subset.covers(changed)), "full"
@@ -356,6 +582,7 @@ def plan(event: str, changed: Sequence[str]) -> CiPlan:
         gui=gui,
         pytest=scope,
         e2e=(*main_shards(), *pr_compat()) if gui else (),
+        native=select_native(changed),
     )
 
 
@@ -379,8 +606,10 @@ def _referenced_scripts(source: str, scripts: Iterable[str]) -> set[str]:
     return named & set(scripts)
 
 
-def subset_tests(scope: SubsetName, root: Path = ROOT) -> list[str]:
+def subset_tests(scope: Literal["web", "docs", "release"], root: Path = ROOT) -> list[str]:
     """Repo-relative pytest files that read *scope*, directly or through a script, sorted."""
+    if scope == "release":
+        return list(RELEASE_TESTS)
     reader = SUBSETS[scope].reader
     script_readers = _script_readers(root, reader)
     selected = []
@@ -394,13 +623,14 @@ def subset_tests(scope: SubsetName, root: Path = ROOT) -> list[str]:
 def changed_files(base: str, head: str, root: Path = ROOT) -> list[str]:
     """Paths changed on *head* since its merge base with *base*."""
     out = subprocess.run(
-        ["git", "diff", "--name-only", "--no-renames", f"{base}...{head}"],
+        ["git", "diff", "--name-only", "--no-renames", "-z", f"{base}...{head}", "--"],
         cwd=root,
         capture_output=True,
-        text=True,
         check=True,
-    ).stdout
-    return [line for line in out.splitlines() if line]
+    ).stdout.decode("utf-8")
+    if out and not out.endswith("\0"):
+        raise ValueError("unterminated changed path")
+    return out[:-1].split("\0") if out else []
 
 
 def _print_lines(lines: Iterable[str]) -> None:
@@ -415,8 +645,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_cmd.add_argument("--event", required=True)
     plan_cmd.add_argument("--base")
     plan_cmd.add_argument("--head")
+    plan_cmd.add_argument("--head-ref")
+    plan_cmd.add_argument("--head-repository")
+    plan_cmd.add_argument("--base-repository")
+    plan_cmd.add_argument("--base-ref")
     subset_cmd = sub.add_parser("subset-tests")
-    subset_cmd.add_argument("scope", choices=sorted(SUBSETS))
+    subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), "release"])
     required_cmd = sub.add_parser("required-checks")
     required_cmd.add_argument("--check", action="store_true", help="fail instead of writing")
     args = parser.parse_args(argv)
@@ -432,11 +666,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         _print_lines(subset_tests(args.scope))
         return 0
     changed: list[str] = []
+    release: ReleaseProof | FullRelease | None = None
     if args.event == PULL_REQUEST:
-        if not (args.base and args.head):
-            parser.error("pull_request needs --base and --head")
-        changed = changed_files(args.base, args.head)
-    result = plan(args.event, changed)
+        try:
+            if args.base and args.head:
+                changed = changed_files(args.base, args.head)
+            else:
+                release = FullRelease("missing diff identity")
+        except (OSError, subprocess.CalledProcessError, UnicodeError, ValueError):
+            release = FullRelease("changed paths unavailable")
+        if release is None and (args.head_ref or "").startswith("release-please"):
+            release = classify_release(
+                args.base,
+                args.head,
+                head_ref=args.head_ref,
+                head_repository=args.head_repository,
+                base_repository=args.base_repository,
+                base_ref=args.base_ref,
+            )
+    result = plan(args.event, changed, release=release, head_ref=args.head_ref)
+    if isinstance(release, FullRelease):
+        print(f"full fallback: {release.reason}", file=sys.stderr)
     _print_lines(f"{key}={value}" for key, value in result.outputs().items())
     print(
         f"{len(changed)} changed files; gui={result.gui} pytest={result.pytest} "

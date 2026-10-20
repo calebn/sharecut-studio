@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: "23 7 * * *"
   workflow_dispatch:
+    inputs:
+      compatibility-base:
+        description: Current main SHA for final release validation; it must be an ancestor of this head
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('test-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/main' && 'test-main' || format('test-run-{0}', github.run_id) }}
@@ -22,6 +27,7 @@ jobs:
     outputs:
       gui: ${{ steps.plan.outputs.gui }}
       e2e-matrix: ${{ steps.plan.outputs.e2e-matrix }}
+      release-only: ${{ steps.plan.outputs.release-only }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,11 +36,7 @@ jobs:
 
       - name: Plan the run
         id: plan
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 scripts/ci_plan.py plan --event "$EVENT" --base "$BASE_SHA" --head "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/ci-plan
 
   pytest:
     runs-on: ubuntu-latest
@@ -47,11 +49,7 @@ jobs:
       # Planned in-job, not from `changes`, so this required check never skips.
       - name: Plan the pytest scope
         id: plan
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 scripts/ci_plan.py plan --event "$EVENT" --base "$BASE_SHA" --head "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/ci-plan
 
       - uses: actions/setup-python@v7
         with:
@@ -84,14 +82,27 @@ jobs:
       - name: Type check (strict on timebase modules)
         run: mypy
 
+      - name: Verify final release integration identity
+        if: github.event_name == 'workflow_dispatch' && inputs.compatibility-base != ''
+        env:
+          EXPECTED_BASE: ${{ inputs.compatibility-base }}
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          [[ "$EXPECTED_BASE" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_BASE"
+          git merge-base --is-ancestor "$EXPECTED_BASE" HEAD
+
       - name: Project and history compatibility
         env:
-          COMPAT_BASE: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          COMPAT_BASE: ${{ inputs.compatibility-base || github.event.pull_request.base.sha || github.event.before || github.sha }}
         run: |
           python scripts/project_compat.py check --base "$COMPAT_BASE"
           pytest -q --no-cov tests/test_project_compat.py
 
       - name: Record pytest run context
+        env:
+          VALIDATED_COMPAT_BASE: ${{ inputs.compatibility-base || github.event.pull_request.base.sha || github.event.before || github.sha }}
         run: |
           mkdir -p test-results
           {
@@ -102,6 +113,7 @@ jobs:
             printf 'GITHUB_SHA: %s\n' "$GITHUB_SHA"
             printf 'Pytest scope: %s\n' "${{ steps.plan.outputs.pytest }}"
             printf 'Checkout SHA: %s\n' "$(git rev-parse HEAD)"
+            printf 'Compatibility base: %s\n' "$VALIDATED_COMPAT_BASE"
             python -VV
             python - <<'PY'
           from importlib.metadata import version
@@ -140,6 +152,14 @@ jobs:
           set -o pipefail
           docs_tests="$(python3 scripts/ci_plan.py subset-tests docs)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $docs_tests | tee test-results/pytest.log
+
+      - name: Run release policy and planner tests
+        if: steps.plan.outputs.pytest == 'release'
+        run: |
+          set -o pipefail
+          python3 scripts/version_policy.py
+          release_tests="$(python3 scripts/ci_plan.py subset-tests release)"
+          pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $release_tests | tee test-results/pytest.log
 
       - name: Docs-sync gate (PR diff)
         # Stdlib-only script; runs without the pip install above. Only pull_request has a
@@ -181,6 +201,8 @@ jobs:
   # 3.11 `wave` gap (WAVE_FORMAT_EXTENSIBLE, #1183) on the floor. Advisory: not in the
   # required repository merge checks.
   pytest-python-floor:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.release-only != '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
