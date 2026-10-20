@@ -8,6 +8,7 @@ All changes to this repo must follow **SOLID** and **DRY**, include **tests as y
 - [docs/contributing.md](docs/contributing.md) — where new code goes; no duplicated I/O in adapters
 - [docs/ui-philosophy.md](docs/ui-philosophy.md) — binding trust-first beta UI principles; distinguish requirements from shipped behavior
 - [docs/communication-philosophy.md](docs/communication-philosophy.md) — voice, terminology, control placement, and mobile checklist for user-facing copy and controls; ui-philosophy wins on conflict
+- [docs/interaction-system.md](docs/interaction-system.md) — one path per interaction (selection, targets, menus, sheets, feedback, keyboard and touch twins), the registries, and the checklist a new or changed interaction passes
 - [docs/decisions/README.md](docs/decisions/README.md) — the generated index of product and design decisions. Each decision lives in the doc it governs as a decision block that names its evidence and its enforcement (a test, docs-sync rule or make target); a later decision supersedes it in place
 
 ## Beta interfaces
@@ -86,6 +87,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Sharecut Studio CSS units / theme tokens / Stylelint | `docs/design-tokens.md` (naming system), `.agents/rules/gui-styling.md`, `docs/contributing.md` § frontend, `gui/web/README.md`, `ux/pages/brand.md` § Units, `docs/gui-mobile.md` |
 | Sharecut Studio mobile / responsive shells | `docs/gui-mobile.md`, `docs/gui-integration.md` § Responsive shells, `ROADMAP.md` § Follow-up |
 | Sharecut Studio user-facing copy, terminology, control placement, menus, dialogs, empty states, or feedback | `docs/communication-philosophy.md` (Terminology table in the same PR that adds or renames a concept; Changelog when a rule changes; UI philosophy wins on conflict), partner terms in `ux/pages/domain-glossary.md` |
+| Sharecut Studio interaction grammar (selection kinds and surfaces, command targets, menus, dialogs and sheets, feedback channel, keyboard and touch equivalents) | `docs/interaction-system.md` (the rule, the registry row, the checklist line, and the Shipped gaps table when a gap closes) |
 | Native iOS/Android engine / in-app BYOK agent (deferred) | `docs/cross-platform-byok.md` (interim architecture rules + long-horizon path); do not implement now; keep ffmpeg behind `FFmpegEngine`, guest MCP ≠ owner device |
 | Sharecut Studio editability (cuts, joins, FX, transcript in GUI) | `docs/daw-editing.md`, `ROADMAP.md` § Follow-up, `docs/session-sync.md` § Document plane |
 | Sharecut Studio keyboard / command bus | `gui/web/src/keymap/`, `gui/web/src/commands/` (`execute`); never add a second window `keydown` listener — see `commands/governance.test.ts` |
