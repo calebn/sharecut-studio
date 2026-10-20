@@ -17,7 +17,7 @@ and the visible-equivalents rule. Styling lives in
 
 Each rule below is a **requirement**. Where the code already does it, the rule
 names the file. Where it does not, the rule names the gap under
-[Shipped gaps](#shipped-gaps). Do not read a rule as a claim that the UI does it.
+[Shipped gaps](#shipped-gaps).
 
 ## The path of an intention
 
@@ -112,7 +112,7 @@ reads selection then `selectedTrackIds`. The rest is a gap (see below).
 
 ## Dialogs, sheets and confirms
 
-There are three overlay primitives. There is no fourth.
+There are three overlay primitives.
 
 | Primitive | Use | Desktop | Phone and tablet |
 | --- | --- | --- | --- |
@@ -265,17 +265,12 @@ not apply is answered "n/a" with the reason in the PR.
 
 Locked by a test or a check today:
 
-- One `keydown` listener and every command in the catalog
-  (`commands/governance.test.ts`).
-- Every timeline gesture in the contract (`timeline/gestureGovernance.test.ts`).
+- Every Locked by cell in the [Registries](#registries) table.
 - Shared buttons disable only with a reason (`ui/Button.test.tsx`,
   `ui/disabledReason.tsx`).
 - `no-alert` (oxlint), axe in Vitest and Playwright, the 44 px sweep
   (`gui/web/e2e/touch-floor.spec.ts`), overlay reachability
   (`gui/web/e2e/overlayReachability.ts`).
-- Capabilities and shortcut cheatsheet (`make capabilities-check`,
-  `make cheatsheet-check`).
-- Tokens and units (Stylelint, `tests/test_css_policy.py`).
 
 Review checks the rest: one label per command, one live region, feedback
 lifetime, menu descriptors shared between touch and right click, tablet and
@@ -285,8 +280,7 @@ matching phase of the UI consistency epic lands.
 ## Shipped gaps
 
 The 2026-10-19 audit measured these against the rules above. The UI
-consistency epic tracks them; the list here keeps the doc honest about what
-is a requirement and what the code does.
+consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
