@@ -62,6 +62,7 @@ from podcast_mcp.edits.voiced_runs import (
 )
 from podcast_mcp.edits.word_onset import (
     OnsetKind,
+    edge_in_valley,
     is_one_hum,
     next_onset,
     voice_end,
@@ -1744,9 +1745,12 @@ def _between_kept_voices(
             if apart is not None and apart != onset and is_one_hum(audio_cache, start, apart):
                 onset, air, valley = apart, _onset_guard_sec(defaults), True
         if onset is not None and onset < after.start:
-            # Only an edge the valley placed is in it; a run that already ends earlier is not.
-            in_valley = in_valley or (valley and onset - air <= end)
             end = min(end, onset - air)
+            # Only an edge that lies in the valley is read as in it: a run that ends in
+            # the decay, well before the valley, keeps the plain voiced-edge check.
+            in_valley = in_valley or (
+                valley and edge_in_valley(audio_cache, start, end, after.start)
+            )
     if (start, end, in_valley) == (plan.start, plan.end, plan.end_in_valley):
         return plan
     if end - start + 1e-9 < _cut_minimum_sec(candidate) or (

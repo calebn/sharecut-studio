@@ -58,7 +58,7 @@ import numpy as np
 from podcast_mcp.edits.acoustic_laugh import burst_count
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HEARD_APART_DEPTH_DB, HOP_SEC
-from podcast_mcp.util.dsp import frame_band_db, frame_rms_db, is_valley
+from podcast_mcp.util.dsp import frame_band_db, frame_rms_db, is_valley, valley_basins
 
 # The bottom of a dip this deep on both sides ends a voice even when it misses the
 # floor: the ``ss`` of "digress." dips 19 dB under itself and 28 dB under the "uh"
@@ -178,6 +178,21 @@ def voice_onset(
     # The onset frame holds the voice somewhere in its 20 ms; only a frame wholly
     # before the word start shows the voice began earlier.
     return onset if onset + FRAME_SEC <= word_start + 1e-9 else word_start
+
+
+def edge_in_valley(cache: TrackAudioCache, start: float, edge: float, word_start: float) -> bool:
+    """Whether ``edge`` lies in the lower half of the valley a ``heard_apart`` walk stops at.
+
+    The frames are the ones the walk reads, from ``start`` to a little past
+    ``word_start``; the valley's lower half is :func:`~podcast_mcp.util.dsp.valley_basins`,
+    the stretch the voiced-edge check leaves out of both runs.
+    """
+    t0 = math.floor(max(0.0, start) / HOP_SEC) * HOP_SEC
+    basin = valley_basins(
+        _frames(cache, t0, word_start + _VALLEY_FLANK_SEC + FRAME_SEC), HEARD_APART_DEPTH_DB
+    )
+    k = math.floor((edge - t0) / HOP_SEC + 1e-9)
+    return 0 <= k < basin.size and bool(basin[k])
 
 
 def is_one_hum(cache: TrackAudioCache, start: float, end: float) -> bool:
