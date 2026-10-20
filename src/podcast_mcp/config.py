@@ -84,7 +84,7 @@ def _parsed_defaults(path: Path) -> dict[str, Any]:
 
 
 def bundled_defaults() -> dict[str, Any]:
-    """The repo's pipeline YAML as shipped, ignoring ``PODCAST_MCP_PIPELINE_DEFAULTS`` and overlays.
+    """The pipeline YAML as shipped (the wheel's copy, else the repo's), ignoring ``PODCAST_MCP_PIPELINE_DEFAULTS`` and overlays.
 
     ``{}`` when the file is absent (an install without the repo tree), as ``load_defaults`` does.
     """
