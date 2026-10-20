@@ -91,8 +91,17 @@ for (const { cell: viewport, theme } of withAppearance([
             }
           }
           const fade = page.getByLabel("Fade out ms", { exact: true });
-          await fade.focus();
-          await fade.press("ArrowRight");
+          const fadeBefore = Number(await fade.inputValue());
+          const fadeMax = Number(await fade.getAttribute("max"));
+          await fade.fill(
+            String(fadeBefore < fadeMax ? fadeBefore + 1 : fadeBefore - 1),
+          );
+          await page.getByRole("button", { name: "Apply fade out" }).click();
+          await expect(
+            page
+              .locator(".bottom-sheet-header")
+              .getByRole("button", { name: "Undo", exact: true }),
+          ).toBeEnabled();
           await page.route("**/api/document/command*", async (route) => {
             const body = route.request().postDataJSON() as { type: string };
             if (body.type === "UndoHistory") {
