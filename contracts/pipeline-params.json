@@ -1,0 +1,507 @@
+{
+  "exposed": [
+    {
+      "default": "waive_unattended",
+      "path": "align.accept.mode",
+      "type": "enum"
+    },
+    {
+      "default": 0.25,
+      "path": "align.acoustic_agree_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.05,
+      "path": "align.acoustic_floor_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.05,
+      "path": "align.acoustic_min_peak",
+      "type": "number"
+    },
+    {
+      "default": 1.0,
+      "path": "align.bleed_identity_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.3,
+      "path": "align.bleed_min_share",
+      "type": "number"
+    },
+    {
+      "default": 3,
+      "path": "align.bleed_ngram",
+      "type": "integer"
+    },
+    {
+      "default": 0.5,
+      "path": "align.coarse_step_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.02,
+      "path": "align.fine_step_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.1,
+      "path": "align.large_move_min_peak",
+      "type": "number"
+    },
+    {
+      "default": 1.0,
+      "path": "align.large_move_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.0,
+      "path": "align.max_offset_sec",
+      "type": "number"
+    },
+    {
+      "default": 2.0,
+      "path": "align.max_word_audibility_sec",
+      "type": "number"
+    },
+    {
+      "default": 5,
+      "path": "align.min_bleed_matches",
+      "type": "integer"
+    },
+    {
+      "default": false,
+      "path": "align.realign",
+      "type": "boolean"
+    },
+    {
+      "default": "waive_unattended",
+      "path": "analysis.transcript_refine.mode",
+      "type": "enum"
+    },
+    {
+      "default": -20.0,
+      "path": "balance.dialogue_lufs",
+      "type": "number"
+    },
+    {
+      "default": 15.0,
+      "path": "compression.attack_ms",
+      "type": "number"
+    },
+    {
+      "default": 0.0,
+      "path": "compression.makeup_db",
+      "type": "number"
+    },
+    {
+      "default": 3.0,
+      "path": "compression.ratio",
+      "type": "number"
+    },
+    {
+      "default": 150.0,
+      "path": "compression.release_ms",
+      "type": "number"
+    },
+    {
+      "default": -18.0,
+      "path": "compression.threshold_db",
+      "type": "number"
+    },
+    {
+      "default": true,
+      "path": "export.wav",
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "path": "focus.auto_apply",
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "path": "focus.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": 10,
+      "path": "gate_fill.fade_ms",
+      "type": "integer"
+    },
+    {
+      "default": "auto",
+      "path": "gate_fill.mode",
+      "type": "enum"
+    },
+    {
+      "default": true,
+      "path": "inaudible_cuts.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": -16.0,
+      "path": "master.integrated_lufs",
+      "type": "number"
+    },
+    {
+      "default": 11.0,
+      "path": "master.lra",
+      "type": "number"
+    },
+    {
+      "default": -1.5,
+      "path": "master.true_peak_db",
+      "type": "number"
+    },
+    {
+      "default": 2.0,
+      "path": "mix.fade_in_sec",
+      "type": "number"
+    },
+    {
+      "default": 3.0,
+      "path": "mix.fade_out_sec",
+      "type": "number"
+    },
+    {
+      "default": -18.0,
+      "path": "mix.music_under_vo_db",
+      "type": "number"
+    },
+    {
+      "default": -1.0,
+      "path": "mix.premix_peak_ceiling_db",
+      "type": "number"
+    },
+    {
+      "default": 0,
+      "path": "performance.max_workers",
+      "type": "integer"
+    },
+    {
+      "default": true,
+      "path": "prosody.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": 0.25,
+      "path": "prosody.pause_min_sec",
+      "type": "number"
+    },
+    {
+      "default": 500.0,
+      "path": "prosody.pitch_ceiling_hz",
+      "type": "number"
+    },
+    {
+      "default": 75.0,
+      "path": "prosody.pitch_floor_hz",
+      "type": "number"
+    },
+    {
+      "default": 1.0,
+      "path": "prosody.segment_gap_sec",
+      "type": "number"
+    },
+    {
+      "default": true,
+      "path": "tighten.acoustic_gap_filler.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": 600,
+      "path": "tighten.acoustic_gap_filler.max_frames",
+      "type": "integer"
+    },
+    {
+      "default": 1.5,
+      "path": "tighten.acoustic_gap_filler.max_run_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.35,
+      "path": "tighten.acoustic_gap_filler.min_gap_sec",
+      "type": "number"
+    },
+    {
+      "default": "heuristic",
+      "path": "tighten.acoustic_gap_filler.vad_backend",
+      "type": "enum"
+    },
+    {
+      "default": true,
+      "path": "tighten.apply_non_speech",
+      "type": "boolean"
+    },
+    {
+      "default": 25,
+      "path": "tighten.crossfade_ms",
+      "type": "integer"
+    },
+    {
+      "default": 0.6,
+      "path": "tighten.discourse_confidence_max",
+      "type": "number"
+    },
+    {
+      "default": 0.35,
+      "path": "tighten.discourse_pause_sec",
+      "type": "number"
+    },
+    {
+      "default": "ripple",
+      "path": "tighten.edit_mode",
+      "type": "enum"
+    },
+    {
+      "default": false,
+      "path": "tighten.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": "medium",
+      "path": "tighten.intensity",
+      "type": "enum"
+    },
+    {
+      "default": 1.2,
+      "path": "tighten.max_pause_sec",
+      "type": "number"
+    },
+    {
+      "default": 0.18,
+      "path": "tighten.min_retained_pause_sec",
+      "type": "number"
+    },
+    {
+      "default": 2.4,
+      "path": "transcribe.decode.compression_ratio_threshold",
+      "type": "number"
+    },
+    {
+      "default": true,
+      "path": "transcribe.decode.condition_on_previous_text",
+      "type": "boolean"
+    },
+    {
+      "default": 2.0,
+      "path": "transcribe.decode.hallucination_silence_threshold",
+      "type": "number"
+    },
+    {
+      "default": -1.0,
+      "path": "transcribe.decode.log_prob_threshold",
+      "type": "number"
+    },
+    {
+      "default": 0.6,
+      "path": "transcribe.decode.no_speech_threshold",
+      "type": "number"
+    },
+    {
+      "default": null,
+      "path": "transcribe.forced_alignment.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": 3.0,
+      "path": "transcribe.forced_alignment.evidence_bleed_margin_db",
+      "type": "number"
+    },
+    {
+      "default": 0.01,
+      "path": "transcribe.forced_alignment.min_word_score",
+      "type": "number"
+    },
+    {
+      "default": "en",
+      "path": "transcribe.language",
+      "type": "string"
+    },
+    {
+      "default": "large-v3-turbo",
+      "path": "transcribe.model",
+      "type": "enum"
+    },
+    {
+      "default": false,
+      "path": "transcribe.overwrite",
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "path": "transcribe.silence_filter.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "path": "transcribe.vad.enabled",
+      "type": "boolean"
+    },
+    {
+      "default": 500.0,
+      "path": "transcribe.vad.min_silence_duration_ms",
+      "type": "number"
+    },
+    {
+      "default": 300.0,
+      "path": "transcribe.vad.speech_pad_ms",
+      "type": "number"
+    },
+    {
+      "default": 0.4,
+      "path": "transcribe.vad.threshold",
+      "type": "number"
+    }
+  ],
+  "unexposed": [
+    "align.bleed_lag_deadband_sec",
+    "align.bleed_lag_tolerance_sec",
+    "analysis.heuristics.bleed_attenuation_db",
+    "analysis.heuristics.bleed_dominance_db",
+    "analysis.heuristics.bleed_handling",
+    "analysis.heuristics.bleed_ratio_warn_threshold",
+    "analysis.heuristics.bleed_text_match_enabled",
+    "analysis.heuristics.bleed_text_match_min_overlap_sec",
+    "analysis.heuristics.boundary_jump_db",
+    "analysis.heuristics.gate_onset_drop_db",
+    "analysis.heuristics.harsh_fade_max_ms",
+    "analysis.heuristics.max_short_token_sec",
+    "analysis.heuristics.max_word_audibility_sec",
+    "analysis.heuristics.min_fade_ms",
+    "analysis.heuristics.recommended_fade_ms",
+    "analysis.heuristics.word_span_end_slack_sec",
+    "analysis.ml_backend",
+    "analysis.reconcile_on_render",
+    "analysis.speaker_id.bleed_ratio_threshold",
+    "analysis.speaker_id.bleed_word_threshold",
+    "analysis.speaker_id.mode",
+    "analysis.transcript_mode",
+    "effects",
+    "export.captions.max_chars_per_line",
+    "export.captions.max_duration_sec",
+    "export.captions.max_lines",
+    "export.captions.merge_max_gap_sec",
+    "export.captions.min_duration_sec",
+    "export.formats",
+    "focus.crossfade_ms",
+    "focus.episode_promise",
+    "focus.inaudible_opt",
+    "focus.long_segment_sec",
+    "focus.max_candidates",
+    "focus.max_remove_pct",
+    "focus.min_segment_sec",
+    "focus.repeat_window_sec",
+    "focus.repeat_word_overlap",
+    "focus.review_required",
+    "focus.segment_merge_gap_sec",
+    "inaudible_cuts.absorb_trailing_silence",
+    "inaudible_cuts.absorb_trailing_silence_max_sec",
+    "inaudible_cuts.absorb_trailing_silence_quiet_over_floor_db",
+    "inaudible_cuts.absorb_trailing_silence_retain_sec",
+    "inaudible_cuts.max_shift_ms",
+    "inaudible_cuts.micro_fade_ms",
+    "inaudible_cuts.min_word_margin_ms",
+    "inaudible_cuts.search_window_ms",
+    "inaudible_cuts.short_cut_max_sec",
+    "inaudible_cuts.trailing_energy_extend_ms",
+    "inaudible_cuts.trailing_energy_hop_ms",
+    "inaudible_cuts.trailing_energy_hot_over_floor_db",
+    "inaudible_cuts.trailing_energy_quiet_over_floor_db",
+    "inaudible_cuts.weights.continuity",
+    "inaudible_cuts.weights.energy",
+    "inaudible_cuts.weights.zero_cross",
+    "join_continuity.calibrate",
+    "join_continuity.calibrate_margin",
+    "join_continuity.calibrate_n",
+    "join_continuity.edge_tolerance_ms",
+    "join_continuity.enable_enf",
+    "join_continuity.force_review_multi_hot",
+    "join_continuity.inaudible_under_voice_floor_db",
+    "join_continuity.neural",
+    "join_continuity.pass_below",
+    "join_continuity.review_below",
+    "join_continuity.sample_rate",
+    "join_continuity.side_sec",
+    "join_continuity.spectral_audibility_db",
+    "join_continuity.weight_bicoherence",
+    "join_continuity.weight_click",
+    "join_continuity.weight_f0",
+    "join_continuity.weight_late_energy",
+    "join_continuity.weight_level",
+    "join_continuity.weight_lsf",
+    "join_continuity.weight_mca",
+    "join_continuity.weight_mfcc",
+    "join_continuity.weight_nisqa",
+    "join_continuity.weight_noise_floor",
+    "join_continuity.weight_onset",
+    "join_continuity.weight_spectral_flux",
+    "join_continuity.weight_wavlm",
+    "join_continuity.weight_weighted_spectral",
+    "master.qc_lufs_tolerance_lu",
+    "master.qc_true_peak_tolerance_db",
+    "mix.duck_db",
+    "prosody.boundary_min_strength",
+    "prosody.max_segment_sec",
+    "prosody.top_prominent_words",
+    "render.crossfade_curve",
+    "render.default_dialogue_join",
+    "render.join_fade_max_ms",
+    "social_clips.default_max_sec",
+    "social_clips.max_candidates",
+    "social_clips.min_sec",
+    "social_clips.padding_ms",
+    "social_clips.platforms.linkedin.aspect",
+    "social_clips.platforms.linkedin.max_sec",
+    "social_clips.platforms.reels.aspect",
+    "social_clips.platforms.reels.max_sec",
+    "social_clips.platforms.tiktok.aspect",
+    "social_clips.platforms.tiktok.max_sec",
+    "social_clips.platforms.youtube_shorts.aspect",
+    "social_clips.platforms.youtube_shorts.max_sec",
+    "tighten.acoustic_gap_filler.word_probe",
+    "tighten.backchannels",
+    "tighten.breath_handling.attenuate_db",
+    "tighten.breath_handling.attenuate_loud_breaths",
+    "tighten.breath_handling.enabled",
+    "tighten.breath_handling.max_duration_ms",
+    "tighten.breath_handling.min_duration_ms",
+    "tighten.breath_handling.search_after_ms",
+    "tighten.breath_handling.search_before_ms",
+    "tighten.breath_handling.vad_backend",
+    "tighten.discourse_markers",
+    "tighten.filler_cluster_gap_sec",
+    "tighten.filler_gap_retain_fraction",
+    "tighten.filler_next_word_lead_in_ms",
+    "tighten.filler_pad_mode",
+    "tighten.filler_post_pad_fade_in_max_ms",
+    "tighten.filler_post_pad_fade_in_min_ms",
+    "tighten.filler_post_pad_hot_under_speech_db",
+    "tighten.filler_post_pad_look_ahead_ms",
+    "tighten.filler_pre_pad_fade_out_ms",
+    "tighten.filler_prev_word_lead_out_max_ms",
+    "tighten.filler_prev_word_lead_out_min_ms",
+    "tighten.filler_prev_word_look_ahead_ms",
+    "tighten.filler_replace_gap_max_sec",
+    "tighten.filler_room_tone_max_expand_sec",
+    "tighten.filler_room_tone_replace",
+    "tighten.filler_words",
+    "tighten.inaudible_opt",
+    "tighten.isolated_filler_candidates",
+    "tighten.join_continuity_gate",
+    "tighten.leave_in_if_risky",
+    "tighten.max_cut_risk_score",
+    "tighten.min_filler_cluster",
+    "tighten.min_filler_confidence",
+    "tighten.min_gap_after_filler_sec",
+    "tighten.min_retained_solo_pause_sec",
+    "tighten.repetition_candidates",
+    "tighten.speech_energy_guard.dominance_db",
+    "tighten.speech_energy_guard.enabled",
+    "tighten.speech_energy_guard.min_overlap_sec",
+    "tighten.speech_energy_guard.on_conflict",
+    "transcribe.decode.temperature"
+  ]
+}
