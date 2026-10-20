@@ -205,7 +205,8 @@ export async function expectShareRecordRoomsReachable(
 /**
  * Generic Dialog reachability for `.command-palette-body` consumers: the panel
  * fits the viewport, the body scrolls, and the lowest action/content target is
- * reachable through the scroller. The dialog is dismissed on success. The
+ * reachable through the scroller, or sits in the pinned footer. The dialog is
+ * dismissed on success. The
  * target is asserted visible/reachable within the body scrollport. Actionable
  * targets receive a non-destructive Playwright trial click to catch overlays
  * that geometrically intersect but intercept pointer events.
@@ -222,8 +223,46 @@ export async function expectDialogLowerTargetReachable(
   await expectOverflowYAuto(body);
   await expectFitsViewport(page, panel);
   const target = targetFor(dialog);
-  await expectVisibleInOverlay(body, target);
+  const pinned = await target.evaluate(
+    (el) => el.closest(".command-palette-footer") !== null,
+  );
+  const footer = dialog.locator(".command-palette-footer");
+  await expectVisibleInOverlay(pinned ? footer : body, target);
   await expectActionableWhenApplicable(target);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+}
+
+/**
+ * Dialog presentation contract: on phone and tablet shells a Dialog is a
+ * bottom sheet (flush to the bottom edge, edge to edge on phone width) and
+ * its pinned footer is visible; elsewhere it is a centered card.
+ */
+export async function expectDialogPresentation(
+  page: Page,
+  dialogName: string,
+  expected: { sheet: boolean; fullWidth: boolean },
+): Promise<{ dialog: Locator; panel: Locator; footer: Locator }> {
+  const dialog = page.getByRole("dialog", { name: dialogName, exact: true });
+  await expect(dialog).toBeVisible();
+  const panel = dialog.locator(".command-palette-panel");
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("expectDialogPresentation needs a viewport");
+  await expect
+    .poll(async () => {
+      const box = await panel.boundingBox();
+      if (!box) return null;
+      return {
+        atBottom: Math.abs(box.y + box.height - viewport.height) <= 2,
+        fullWidth: box.width >= viewport.width - 2,
+      };
+    })
+    .toMatchObject(
+      expected.sheet
+        ? { atBottom: true, fullWidth: expected.fullWidth }
+        : { atBottom: false },
+    );
+  const footer = panel.locator(".command-palette-footer");
+  await expect(footer).toBeVisible();
+  return { dialog, panel, footer };
 }

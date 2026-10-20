@@ -41,7 +41,7 @@ async function cutIsTappable(
   const cutAtPlayhead = page.getByRole("button", { name: /^Cut at playhead/ });
   await expect(cutAtPlayhead).toBeVisible();
   await tapCentre(cutAtPlayhead);
-  const dialog = page.getByRole("dialog", { name: "Confirm blade cut" });
+  const dialog = page.getByRole("dialog", { name: /^Cut at / });
   await expect(dialog).toBeVisible();
   await page.waitForTimeout(600);
   const cut = dialog.getByRole("button", { name: "Cut", exact: true });
