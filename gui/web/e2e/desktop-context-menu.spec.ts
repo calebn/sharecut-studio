@@ -51,6 +51,10 @@ test("a menu item runs its command and closes the menu", async ({ page }) => {
     .getByRole("menuitem", { name: /Add chapter/ })
     .click();
   await expect(menu(page)).toHaveCount(0);
+  await expect(page.locator(".chapter-marker")).toHaveCount(1);
+  // Leave the shared project as found: later specs measure its markers.
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".chapter-marker")).toHaveCount(0);
 });
 
 test("Shift+F10 on a focused envelope level opens the create menu and Escape closes it", async ({
