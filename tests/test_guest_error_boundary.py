@@ -177,7 +177,6 @@ def test_busy_cause_beats_coded_wrapper(guest_client, monkeypatch, kind):
 def test_remote_mcp_preflight_never_discloses_exception(monkeypatch, caplog, kind):
     from podcast_mcp.gui.routes import remote_mcp
 
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     diagnostic = "private secret phrase /private/host/registry.sqlite"
 
     def fail(*_args, **_kwargs):

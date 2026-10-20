@@ -1,7 +1,7 @@
 # Remote MCP
 
-> **Requires** the built-in FOSS `collaboration` extension, share capability `mcp`, and
-> `PODCAST_REMOTE_MCP=1` on the host. Not available when `PODCAST_EXTENSIONS=`
+> **Requires** the built-in FOSS `collaboration` extension and share capability `mcp`
+> (`--with-mcp`). Revoking the link ends access. Not available when `PODCAST_EXTENSIONS=`
 > (extensions disabled). Public agents also need tunnel + relay.
 
 Capability-scoped guest MCP over Streamable HTTP JSON-RPC at

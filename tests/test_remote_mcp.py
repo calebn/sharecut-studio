@@ -46,7 +46,6 @@ def _seed_premix(minimal_project, sample_wav):
 
 
 def _share(ws, monkeypatch, tmp_workspace, caps: list[str], label: str = "mcp"):
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ver = ReviewService(ws).publish(label=label)
     return ShareService(ws).create(
         review_version_id=ver["id"],
@@ -372,7 +371,6 @@ def test_remote_mcp_http_bridge(minimal_project, sample_wav, tmp_workspace, monk
     client = TestClient(create_app())
     info = client.get(f"/mcp/{share['token']}")
     assert info.status_code == 200
-    assert info.json()["remote_mcp_enabled"] is True
     assert info.json()["mcp_path"] == f"/mcp/{share['token']}/mcp"
     assert info.json()["mcp_alias_path"] == f"/r/{share['token']}/mcp"
 
@@ -516,20 +514,41 @@ def test_claude_authless_handshake_and_share_alias(
     assert "guest_get_project" in names
 
 
-def test_remote_mcp_disabled_returns_501(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    monkeypatch.delenv("PODCAST_REMOTE_MCP", raising=False)
+def test_a_revoked_link_closes_its_remote_mcp_at_once(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
     ws = _seed_premix(minimal_project, sample_wav)
-    ver = ReviewService(ws).publish(label="mcp-off")
-    share = ShareService(ws).create(
-        review_version_id=ver["id"],
-        capabilities=["play", "mcp"],
-    )
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "mcp"], label="mcp-revoke")
+    token = share["token"]
     client = TestClient(create_app())
-    r = client.post(
-        f"/mcp/{share['token']}/mcp",
-        json={"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}},
-    )
-    assert r.status_code == 501
+    ping = {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}}
+    assert client.get(f"/mcp/{token}").status_code == 200
+    assert client.post(f"/mcp/{token}/mcp", json=ping).status_code == 200
+    ShareService(ws).revoke(token)
+    assert client.get(f"/mcp/{token}").status_code == 404
+    assert client.post(f"/mcp/{token}/mcp", json=ping).status_code == 404
+    assert client.post(f"/r/{token}/mcp", json=ping).status_code == 404
+
+
+def test_a_link_without_the_mcp_capability_is_refused(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play"], label="mcp-none")
+    client = TestClient(create_app())
+    ping = {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}}
+    assert client.post(f"/mcp/{share['token']}/mcp", json=ping).status_code == 403
+
+
+def test_extensions_off_removes_the_remote_mcp_routes(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "mcp"], label="mcp-ext-off")
+    monkeypatch.setenv("PODCAST_EXTENSIONS", "")
+    client = TestClient(create_app())
+    ping = {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}}
+    assert client.post(f"/mcp/{share['token']}/mcp", json=ping).status_code == 404
 
 
 def test_remote_mcp_http_edge_cases(minimal_project, sample_wav, tmp_workspace, monkeypatch):

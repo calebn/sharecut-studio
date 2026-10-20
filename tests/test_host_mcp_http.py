@@ -481,7 +481,6 @@ def test_guest_mcp_token_path_unchanged(
 ) -> None:
     pytest.importorskip("fastapi")
     ws = _seed_premix(minimal_project, sample_wav)
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ver = ReviewService(ws).publish(label="mcp-host-reg")
     share = ShareService(ws).create(
         review_version_id=ver["id"],

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from podcast_mcp.extensions.api_version import HOST_API_VERSION
 from podcast_mcp.extensions.features import (
@@ -71,8 +70,7 @@ class CollaborationExtension:
         ):
             registry.add_router(router, source=self.name, feature_id=None)
         registry.add(FEATURE_SHARE_ROUTES, source=self.name)
-        if os.environ.get("PODCAST_REMOTE_MCP"):
-            registry.add(FEATURE_SHARE_REMOTE_MCP, source=self.name)
+        registry.add(FEATURE_SHARE_REMOTE_MCP, source=self.name)
         registry.add(FEATURE_SHARE_UI_MENU, source=self.name)
         registry.add(FEATURE_SHARE_UI_BANNER, source=self.name)
         registry.add(FEATURE_TUNNEL_STATUS, source=self.name)

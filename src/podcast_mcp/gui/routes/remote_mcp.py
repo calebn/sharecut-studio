@@ -1,6 +1,7 @@
 """Remote MCP routes - token-gated Streamable HTTP JSON/SSE bridge.
 
-Active only when ``PODCAST_REMOTE_MCP=1``. Tools are capability-filtered to match
+Mounted by the ``collaboration`` extension (feature id ``share.remote_mcp``) and open only
+to a share minted with the ``mcp`` capability. Tools are capability-filtered to match
 the share recipient (not the full host stdio MCP surface).
 
 Public URL: ``/mcp/{token}/mcp`` (printed ``mcp_url``).
@@ -15,7 +16,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from podcast_mcp.extensions.features import FEATURE_SHARE_REMOTE_MCP
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
 from podcast_mcp.services.collaboration import share_allows_mcp
 from podcast_mcp.services.remote_mcp import (
@@ -53,10 +53,6 @@ def _require_mcp_capability(token: str) -> None:
         raise HTTPException(status_code=403, detail="share does not allow mcp")
 
 
-def _remote_mcp_enabled(request: Request) -> bool:
-    return bool(request.app.state.feature_registry.has(FEATURE_SHARE_REMOTE_MCP))
-
-
 def _rate_limit_http(token: str, kind: str) -> None:
     decision = check_host_bucket(token, kind)
     if not decision.allowed:
@@ -76,14 +72,13 @@ def accept_allows_json_rpc(accept: str) -> bool:
 
 
 @router.get("/mcp/{token}")
-def mcp_info(token: str, request: Request) -> dict[str, Any]:
+def mcp_info(token: str) -> dict[str, Any]:
     """Return capability info for the token; 403 if mcp is not granted."""
     _require_mcp_capability(token)
     _rate_limit_http(token, "read")
     return {
         "ok": True,
         "token": token,
-        "remote_mcp_enabled": _remote_mcp_enabled(request),
         "mcp_path": f"/mcp/{token}/mcp",
         "mcp_alias_path": f"/r/{token}/mcp",
         "transport": "streamable-http-json",
@@ -101,16 +96,6 @@ def mcp_info(token: str, request: Request) -> dict[str, Any]:
 async def mcp_bridge(token: str, request: Request) -> Any:
     """Capability-scoped guest MCP endpoint (JSON-RPC over Streamable HTTP)."""
     _require_mcp_capability(token)
-    if not _remote_mcp_enabled(request):
-        return JSONResponse(
-            {
-                "detail": (
-                    "remote MCP not enabled on this host; set PODCAST_REMOTE_MCP=1 to activate"
-                )
-            },
-            status_code=501,
-        )
-
     if request.method == "OPTIONS":
         return Response(
             status_code=204,

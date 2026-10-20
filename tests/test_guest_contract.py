@@ -167,7 +167,6 @@ def _build_world(tmp_path: Path, sample_wav: Path, folder: str) -> World:
 
 @pytest.fixture(autouse=True)
 def _remote_mcp_on(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
 
 

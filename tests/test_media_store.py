@@ -331,7 +331,6 @@ def test_guest_upload_media_mcp_requires_edit(
 
     from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     _client, view_tok, comment_tok, edit_tok = _guest_share_client(
         minimal_project, sample_wav, tmp_workspace, monkeypatch
     )

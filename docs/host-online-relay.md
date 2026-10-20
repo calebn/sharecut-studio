@@ -536,7 +536,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 1. Host serves `/mcp/{token}/mcp` (printed MCP URL) and `/r/{token}/mcp` (share+/mcp alias)
 2. Relay proxies `/mcp/{token}/…` → tunnel → host `/mcp/{token}/…`
 3. Alias via tunnel: `/r/{token}/mcp` → rewrite → `/mcp/{token}/mcp` (no HTTP redirect)
-4. Host requires share `mcp` capability; returns **501** unless `PODCAST_REMOTE_MCP=1`
+4. Host requires the share's `mcp` capability (a link minted without `--with-mcp` answers 403; a revoked link answers 404 on the next request). There is no host-wide switch: revoke the link to turn its remote MCP off
 5. `POST …/mcp` speaks **Streamable HTTP JSON-RPC** (`initialize`, `tools/list`, `tools/call`, `ping`); negotiates protocol `2024-11-05` / `2025-03-26` / `2025-06-18`
 6. Tools are filtered by [`services/remote_mcp/allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py); project is bound from the token (clients never pass `project_path`)
 7. `tools/call` reads `params._meta.progressToken` and emits MCP `notifications/progress` on that token (no second protocol) as Streamable HTTP SSE (`event: message` frames, then the JSON-RPC result) when the token is set; requests without a token stay JSON. The relay `/mcp/{token}` proxy forwards the upstream body in chunks (event-stream uses unbuffered `aiter_bytes`) so those frames pass the tunnel. Long work also fans `plane: "progress"` on this share’s guest WS only — never host jobs or other tokens. The progress WS is token-scoped and does not require `view`, so any holder of that share (including commenters) can observe tool ids / status / messages from concurrent remote MCP on the same token. See [progress.md](progress.md). Both the JSON and SSE paths run `handle_mcp_jsonrpc` on one dedicated guest pool ([`services/remote_mcp/executor.py`](../src/podcast_mcp/services/remote_mcp/executor.py), `GUEST_MCP_MAX_WORKERS` = 8 threads named `guest-mcp-*`), never on the event loop and never on the AnyIO worker pool that FastAPI's synchronous host routes share. A tool call waiting up to 30 s on `project_commit_lock` / `render_lock` therefore stalls neither other requests nor the host GUI; once all 8 workers are busy, further guest calls (across all share tokens, which the per-token `check_host_bucket` does not cap) queue on that pool.
@@ -564,7 +564,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 ### Enable on the host
 
 ```bash
-PODCAST_REMOTE_MCP=1 podcast gui --project /path/to/episode.project.json --no-open
+podcast gui --project /path/to/episode.project.json --no-open
 podcast tunnel --project /path/to/episode.project.json \
   --relay-url wss://share.example.com/tunnel --host-token <token>
 ```
@@ -644,7 +644,7 @@ Modules: `util/rate_limit.py`, `podcast_relay/limits.py`, `services/remote_mcp/l
 Against a live host (local bridge; same code path as the public relay MCP URL):
 
 ```bash
-PODCAST_REMOTE_MCP=1 podcast gui \
+podcast gui \
   --project /path/to/episode.project.json --no-open
 
 uv run python scripts/verify_remote_mcp_shares.py \
@@ -814,8 +814,9 @@ with private paths and path-free diagnostic secrets.
   Relay-tunneled requests are refused regardless (host role, #393).
 - **Host GUI**: defaults to loopback. Non-loopback bind auto-enables `PODCAST_SESSION_AUTHZ=strict`
   and injects `session_token` into the viewer URL. Prefer the public relay over LAN bind.
-- **Remote MCP**: disabled by default; requires `PODCAST_REMOTE_MCP=1` on the host and
-  explicit `mcp` capability on the share token. Tools are **capability-filtered** (guest
+- **Remote MCP**: off for every link until you mint one with `--with-mcp`; revoking the
+  link ends it on the next request. It needs the `collaboration` extension (not
+  `PODCAST_EXTENSIONS=`). Tools are **capability-filtered** (guest
   parity), not the full host stdio MCP registry.
 - **Guest refusals are typed** (#1444): `scripts/check_coded_errors.py` keeps bare `PermissionError` / `ValueError` out of `services/`, so every refusal a guest can reach is a `CodedError`. Guest HTTP routes project it through `guest_boundary` and WebSockets through `guest_ws_error` (`gui/routes/guest_errors.py`); share-capability denials are `CodedPermissionError(code="share_capability_required")`. Path redaction is defense in depth behind that.
 - **Remote MCP errors** (#1182, #1327): a guest sees fixed copy for a refusal (a

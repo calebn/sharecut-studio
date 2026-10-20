@@ -29,7 +29,7 @@ flowchart LR
 - Guests never pass `?project=` paths; responses are sanitized.
 - Relay proxies only allowlisted path prefixes; share tokens bind to a host via HMAC claims.
 - Host GUI defaults to loopback; Host/Origin binding mitigates DNS-rebind CSRF on local APIs.
-- Remote MCP is off until `PODCAST_REMOTE_MCP=1`; guest render is opt-in.
+- Remote MCP is off for a link until it is minted with `--with-mcp`, and revoking the link ends it; guest render is opt-in.
 
 ## Disclosure
 

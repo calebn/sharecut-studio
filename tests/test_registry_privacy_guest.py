@@ -51,7 +51,6 @@ def loose_registry(
     """A minted share whose registry then becomes group-readable; returns (token, registry)."""
     registry = tmp_path / HOME_NAME / ".podcast_mcp" / "share_registry.sqlite"
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(registry))
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     reset_share_registry_for_tests()
     artifacts = Path(load_project(minimal_project).workspace_dir) / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)

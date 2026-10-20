@@ -360,7 +360,6 @@ def test_host_mcp_mutate_429(minimal_project, sample_wav, tmp_workspace, monkeyp
     from podcast_mcp.services.collaboration.review import ReviewService
     from podcast_mcp.services.collaboration.share import ShareService
 
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_MUTATE_RPM", "60")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_MUTATE_BURST", "1")
@@ -418,7 +417,6 @@ def test_host_review_and_mcp_info_read_429(minimal_project, sample_wav, tmp_work
     from podcast_mcp.services.collaboration.review import ReviewService
     from podcast_mcp.services.collaboration.share import ShareService
 
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_RPM", "60")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_BURST", "1")

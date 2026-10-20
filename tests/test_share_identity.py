@@ -1025,7 +1025,6 @@ def test_middleware_options_and_unknown_token(identity_store, monkeypatch) -> No
 def test_public_mcp_path_enforces_share_identity(
     minimal_project, sample_wav, tmp_workspace, identity_store, monkeypatch
 ) -> None:
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="mcp-public-id")
     share = ShareService(ws).create(

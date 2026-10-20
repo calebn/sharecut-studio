@@ -49,7 +49,6 @@ def _seed_premix(minimal_project, sample_wav) -> ProjectWorkspace:
 
 
 def _edit_share(ws: ProjectWorkspace, monkeypatch, tmp_workspace) -> dict:
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ver = ReviewService(ws).publish(label="boundary")
     return ShareService(ws).create(
         review_version_id=ver["id"],

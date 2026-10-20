@@ -271,7 +271,6 @@ def test_guest_range_http_requires_view_and_returns_full_mix(
     mix = ws.project.artifacts_dir() / "premix.wav"
     mix.parent.mkdir(parents=True, exist_ok=True)
     mix.write_bytes(raw.read_bytes())
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     version = ReviewService(ws).publish(label="range-test")
     share = ShareService(ws).create(
         review_version_id=version["id"], public_base_url="https://share.example", capabilities=caps
@@ -339,7 +338,6 @@ def test_host_pending_preview_http_requires_host(minimal_project, monkeypatch):
 
     from podcast_mcp.gui.server import create_app
 
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     response = TestClient(create_app()).get(
         "/api/pending-preview",
         params={"path": str(minimal_project), "edit_id": "proposal"},
@@ -434,7 +432,6 @@ def test_host_pending_preview_warm_requires_host(minimal_project, monkeypatch):
 
     from podcast_mcp.gui.server import create_app
 
-    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     response = TestClient(create_app()).post(
         "/api/pending-preview/warm",
         params={"path": str(minimal_project)},
