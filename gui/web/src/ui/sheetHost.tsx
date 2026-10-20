@@ -1,4 +1,6 @@
 import { useLayoutEffect } from "react";
+import { focusAndReveal } from "./focusAndReveal";
+import { registerFocusHold } from "./focusHold";
 
 const SHELL_SELECTOR = ".daw-shell";
 const ROOT_CLASS = "bottom-sheet-root";
@@ -24,16 +26,30 @@ function keepFocus(host: HTMLElement, move: () => void): void {
       ? field
       : null;
   const range = text ? caret(text) : null;
+  const body = host.querySelector<HTMLElement>(".bottom-sheet-body");
+  const scrollTop = body?.scrollTop ?? 0;
   move();
-  if (!field || field.ownerDocument.activeElement === field) return;
-  field.focus({ preventScroll: true });
-  if (text && range) {
-    try {
-      text.setSelectionRange(...range);
-    } catch {
-      // The field changed type while it moved.
+  // A move resets the scroll offset of every descendant.
+  if (body && body.scrollTop !== scrollTop) body.scrollTop = scrollTop;
+  if (!field) return;
+  if (field.ownerDocument.activeElement !== field) {
+    field.focus({ preventScroll: true });
+    if (text && range) {
+      try {
+        text.setSelectionRange(...range);
+      } catch {
+        // The field changed type while it moved.
+      }
     }
   }
+  // The sheet's focusin listener is still the previous placement's, so the
+  // refocus does not reveal the field itself.
+  focusAndReveal(field);
+  // The sheet takes entry focus on the frame after a placement change.
+  const release = registerFocusHold((doc) => doc.activeElement === field);
+  const win = field.ownerDocument.defaultView;
+  if (win) win.requestAnimationFrame(() => win.requestAnimationFrame(release));
+  else release();
 }
 
 /**
@@ -41,7 +57,8 @@ function keepFocus(host: HTMLElement, move: () => void): void {
  * `<body>`, or a box-less parent in the shell's grid, right after `<main>`
  * (inert while a sheet is stowed). It renders first inside the portal, so the
  * host is in the document before the sheet's own layout effects run. A move
- * blurs whatever the browser had focused inside, so focus returns to it.
+ * blurs whatever the browser had focused inside, so focus returns to it, and the sheet body keeps its scroll offset with
+ * the field revealed.
  */
 export function SheetHostPlacement({
   host,
