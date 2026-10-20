@@ -4,6 +4,7 @@ export type DocumentCommandType =
   | "AddAction"
   | "AddChapter"
   | "AddComment"
+  | "AddEffect"
   | "AddReply"
   | "AddSocialClip"
   | "AddTrack"
@@ -24,6 +25,7 @@ export type DocumentCommandType =
   | "PasteSegment"
   | "RedoHistory"
   | "RejectEdits"
+  | "RemoveEffect"
   | "RemoveTrack"
   | "ReorderTrack"
   | "ReplaceTranscriptMatches"
@@ -59,6 +61,7 @@ export const DocumentCommand = {
   AddAction: "AddAction",
   AddChapter: "AddChapter",
   AddComment: "AddComment",
+  AddEffect: "AddEffect",
   AddReply: "AddReply",
   AddSocialClip: "AddSocialClip",
   AddTrack: "AddTrack",
@@ -79,6 +82,7 @@ export const DocumentCommand = {
   PasteSegment: "PasteSegment",
   RedoHistory: "RedoHistory",
   RejectEdits: "RejectEdits",
+  RemoveEffect: "RemoveEffect",
   RemoveTrack: "RemoveTrack",
   ReorderTrack: "ReorderTrack",
   ReplaceTranscriptMatches: "ReplaceTranscriptMatches",
