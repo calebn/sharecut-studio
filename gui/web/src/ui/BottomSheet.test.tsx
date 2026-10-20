@@ -822,7 +822,7 @@ describe("BottomSheet", () => {
         grid.remove();
       });
 
-      it("keeps the body's scroll offset and reveals the focused field across a flip", async () => {
+      it("keeps the body's scroll offset and the focus across a flip", async () => {
         const grid = shell();
         const { rerender } = render(sheet("sheet"));
         const input = screen.getByLabelText("Gain");

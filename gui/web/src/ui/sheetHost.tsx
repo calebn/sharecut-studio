@@ -29,7 +29,7 @@ function keepFocus(host: HTMLElement, move: () => void): void {
   const body = host.querySelector<HTMLElement>(".bottom-sheet-body");
   const scrollTop = body?.scrollTop ?? 0;
   move();
-  // A move resets the scroll offset of every descendant.
+  // A move resets the body's scroll offset.
   if (body && body.scrollTop !== scrollTop) body.scrollTop = scrollTop;
   if (!field) return;
   if (field.ownerDocument.activeElement !== field) {
@@ -57,8 +57,8 @@ function keepFocus(host: HTMLElement, move: () => void): void {
  * `<body>`, or a box-less parent in the shell's grid, right after `<main>`
  * (inert while a sheet is stowed). It renders first inside the portal, so the
  * host is in the document before the sheet's own layout effects run. A move
- * blurs whatever the browser had focused inside, so focus returns to it, and the sheet body keeps its scroll offset with
- * the field revealed.
+ * blurs whatever the browser had focused inside, so focus returns to it, the body keeps its scroll offset, and the field is
+ * revealed.
  */
 export function SheetHostPlacement({
   host,
