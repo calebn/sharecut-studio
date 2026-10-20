@@ -1,4 +1,5 @@
 import { linearToDb } from "../utils/audio";
+import { clamp } from "../utils/math";
 import {
   COARSE_COLUMN_SEC,
   COARSE_PEAK_ALPHA,
@@ -34,10 +35,6 @@ export const SILENCE_ROWS = 0.15;
 
 /** Span that covers no row. */
 const NONE = -1;
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v));
-}
 
 /**
  * `|v|·gain` as a 0..1 fraction of the half-lane. Linear clamps at full

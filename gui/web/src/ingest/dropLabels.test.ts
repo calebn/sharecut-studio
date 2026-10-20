@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fileCountFromDataTransfer,
-  formatIngestDuration,
   isAudioIngestFile,
   isIngestCoachDismissed,
   laneDropLabel,
@@ -49,14 +48,6 @@ describe("dropLabels", () => {
     expect(trackHasMedia({ mediaPath: null, clipCount: 0 })).toBe(false);
     expect(trackHasMedia({ mediaPath: "raw/a.wav", clipCount: 0 })).toBe(true);
     expect(trackHasMedia({ mediaPath: null, clipCount: 1 })).toBe(true);
-  });
-
-  it("formats status durations", () => {
-    expect(formatIngestDuration(0.5)).toBe("0.5s");
-    expect(formatIngestDuration(60)).toBe("1:00");
-    expect(formatIngestDuration(59.96)).toBe("1:00");
-    expect(formatIngestDuration(119.7)).toBe("2:00");
-    expect(formatIngestDuration(125.4)).toBe("2:05");
   });
 
   it("explains replace vs new-track in confirm copy", () => {

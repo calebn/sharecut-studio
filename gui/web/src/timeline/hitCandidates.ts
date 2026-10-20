@@ -4,6 +4,8 @@
  * targets crowd one spot. The selected target wins, then the nearest, then
  * the kind's priority.
  */
+
+import { clamp } from "../utils/math";
 import {
   HIT_KINDS,
   type HitKind,
@@ -52,10 +54,6 @@ export const TOUCH_HIT_RADIUS_PX = 22;
 /** Touch reaches nearby targets; mouse and pen hit only what they are on. */
 export function hitRadiusPx(pointerType: string): number {
   return pointerType === "touch" ? TOUCH_HIT_RADIUS_PX : 0;
-}
-
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, value));
 }
 
 /** Pointer to the box, 0 inside it. */

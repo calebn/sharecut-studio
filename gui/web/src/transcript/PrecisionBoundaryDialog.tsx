@@ -23,6 +23,7 @@ import type { EditBoundaryView } from "../types/project";
 import { Button, Dialog, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { ApiError, errorMessage, isRetryLater } from "../utils/apiError";
+import { clamp } from "../utils/math";
 
 type LoadAction = "reload" | "retry" | null;
 
@@ -69,10 +70,6 @@ function editValue(edit: BoundaryEdit, currentSourceSec: number): number {
   return edit.kind === "roll"
     ? edit.delta_sec
     : edit.source_sec - currentSourceSec;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 function offsetLimits(context: BoundaryContext): { min: number; max: number } {
