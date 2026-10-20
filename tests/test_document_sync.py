@@ -1819,7 +1819,7 @@ def test_document_snapshot_reports_project_file_signature(minimal_project):
 
 def test_document_snapshot_file_matches_project_meta(minimal_project):
     """The client compares snapshot.file to /api/project/meta field for field (#657)."""
-    from podcast_mcp.gui.jobs import project_meta
+    from podcast_mcp.gui.poll_meta import project_meta
 
     svc = DocumentSyncService.open(minimal_project)
     result = svc.submit(

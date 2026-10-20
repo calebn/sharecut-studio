@@ -18,7 +18,7 @@ from podcast_mcp.gui.audio import (
     resolve_viewer_transport,
 )
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
-from podcast_mcp.gui.jobs import project_meta
+from podcast_mcp.gui.poll_meta import project_meta
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,

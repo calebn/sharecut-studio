@@ -10,9 +10,14 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.services.jobs.events import job_listener_count, publish_job_event
+from podcast_mcp.services.jobs.events import (
+    LIVE_JOB_STATUSES,
+    job_listener_count,
+    publish_job_event,
+)
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
@@ -222,3 +227,23 @@ class Job:
 
     def publish(self, event: dict[str, Any]) -> None:
         publish_job_event(self.id, event)
+
+
+def guest_render_job(job: Job | None, project_path: Path) -> dict[str, Any] | None:
+    """Expose only safe status for a render belonging to this guest project."""
+    if (
+        job is None
+        or job.kind != "render_preview"
+        or Path(job.project_path).resolve() != project_path.resolve()
+    ):
+        return None
+    snap = job.snapshot()
+    status = snap["status"]
+    return {
+        "id": job.id,
+        "status": status,
+        "current": snap["current"],
+        "total": snap["total"],
+        "message": "Rendering preview" if status in LIVE_JOB_STATUSES else None,
+        "error": "Render preview failed" if status == "error" else None,
+    }

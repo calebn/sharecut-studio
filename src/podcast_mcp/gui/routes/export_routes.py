@@ -6,14 +6,14 @@ from typing import Any
 
 from fastapi import APIRouter, Header, Query, Request
 
-from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import coded_exception_error, require_host, resolve_project
 from podcast_mcp.gui.schemas import BounceRequestBody, ExportDeliverablesRequest
+from podcast_mcp.services.jobs import JobManager
 
 router = APIRouter()
 
 
-def _jobs(request: Request) -> PipelineJobManager:
+def _jobs(request: Request) -> JobManager:
     return request.app.state.jobs
 
 

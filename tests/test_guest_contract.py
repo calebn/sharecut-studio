@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 import podcast_mcp.edits.transcript_cuts as transcript_cuts
-import podcast_mcp.gui.jobs as gui_jobs
 import podcast_mcp.services.collaboration as collaboration
+import podcast_mcp.services.jobs as service_jobs
 import podcast_mcp.services.record.service as record_service
 from podcast_mcp.edits.review_versions import get_version, version_audio_path
 from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
@@ -269,10 +269,10 @@ PROBES: dict[tuple[str, str], Probe] = {
         _review("share_proxy_chunk_path")
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): Probe(
-        Site(gui_jobs.PipelineJobManager, "start_render_preview"), {"json": {}}
+        Site(service_jobs.JobManager, "start_render_preview"), {"json": {}}
     ),
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): Probe(
-        Site(gui_jobs, "guest_render_job")
+        Site(service_jobs, "guest_render_job")
     ),
     ("GET", "/api/review/{token}/daw/document/state"): Probe(_review("DocumentSyncService")),
     ("POST", "/api/review/{token}/daw/boundary/context"): Probe(
@@ -364,8 +364,8 @@ TOOLS: dict[str, tuple[Site | None, dict[str, object]]] = {
         Site(remote_tools, "DocumentSyncService"),
         {"type": "SetTrackMute", "payload": {"track_id": "t", "muted": True}, "client_seq": 1},
     ),
-    "guest_render_preview": (Site(gui_jobs, "shared_job_manager"), {}),
-    "guest_render_preview_job": (Site(gui_jobs, "shared_job_manager"), {"job_id": "j"}),
+    "guest_render_preview": (Site(service_jobs, "shared_job_manager"), {}),
+    "guest_render_preview_job": (Site(service_jobs, "shared_job_manager"), {"job_id": "j"}),
     "guest_upload_media": (
         Site(remote_tools, "share_upload_media"),
         {"filename": "x.wav", "data_base64": "UklGRg=="},

@@ -5,9 +5,12 @@ import sys
 import pytest
 
 from job_event_helpers import JobEventTap
-from podcast_mcp.gui.bootstrap_jobs import _BootstrapProgressReporter
-from podcast_mcp.gui.jobs import PipelineJobManager, _JobProgressReporter, _SsePublishReporter
-from podcast_mcp.services.jobs import Job, StepTiming
+from podcast_mcp.services.jobs import Job, JobManager, StepTiming
+from podcast_mcp.services.jobs.reporter import (
+    BootstrapProgressReporter,
+    JobProgressReporter,
+    SsePublishReporter,
+)
 from podcast_mcp.util.progress import (
     CancelledProgress,
     RecordingProgress,
@@ -23,7 +26,7 @@ def test_job_progress_reporter_fail_and_cancel() -> None:
         only_step=None,
     )
     # started_at still None — exercise _elapsed / snapshot branches
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     reporter.message("pipeline", "before start")
     assert job.snapshot()["elapsed_sec"] == 0.0
 
@@ -63,7 +66,7 @@ def test_job_progress_reporter_child_fail_does_not_mark_pipeline_step() -> None:
         status="running",
         started_at=0.0,
     )
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     with JobEventTap(job.id) as tap:
         reporter.start("pipeline", "Pipeline", total=4)
         reporter.message("pipeline", "Running analyze_fillers_pauses")
@@ -90,7 +93,7 @@ def test_job_progress_reporter_child_fail_does_not_mark_pipeline_step() -> None:
 
 def test_bootstrap_progress_reporter_fail_and_cancel() -> None:
     job = Job.bootstrap("b1", ["whisper"])
-    reporter = _BootstrapProgressReporter(job)
+    reporter = BootstrapProgressReporter(job)
     reporter.start("bootstrap", "Bootstrap", total=3)
     reporter.update("bootstrap", 1, message="downloading", phase="fetch")
     reporter.message("bootstrap", "still going", phase="fetch")
@@ -168,13 +171,12 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
 
 
 def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.gui.jobs import PipelineJobManager, shared_job_manager
-    from podcast_mcp.services.jobs import Job, StepTiming
+    from podcast_mcp.services.jobs import Job, JobManager, StepTiming, shared_job_manager
     from podcast_mcp.util.progress import CancelledProgress
 
     proj = tmp_path / "ep.json"
     proj.write_text("{}")
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     mgr._finished_limit = 1
 
     job = Job(
@@ -196,18 +198,18 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
         pass
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.jobs.ProjectWorkspace.open",
+        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open",
         lambda _p: FakeWs(),
     )
-    monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineService", lambda _ws: FakeSvc())
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.PipelineService", lambda _ws: FakeSvc())
     mgr._run_job(job)
     assert job.status == "cancelled"
 
     order: list[str] = []
-    orig_close = _JobProgressReporter.close
+    orig_close = JobProgressReporter.close
     orig_publish = Job.publish
 
-    def _close(self: _JobProgressReporter) -> None:
+    def _close(self: JobProgressReporter) -> None:
         order.append("close")
         orig_close(self)
 
@@ -216,7 +218,7 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
             order.append("done")
         orig_publish(self, event)
 
-    monkeypatch.setattr(_JobProgressReporter, "close", _close)
+    monkeypatch.setattr(JobProgressReporter, "close", _close)
     monkeypatch.setattr(Job, "publish", _publish)
 
     job_order = Job(
@@ -284,7 +286,7 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
         def run(self, **_kwargs):
             return None
 
-    monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineService", lambda _ws: OkSvc())
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.PipelineService", lambda _ws: OkSvc())
     mgr._run_job(job3)
     assert job3.status == "cancelled"
 
@@ -474,7 +476,7 @@ def test_register_task_moves_reregistered_id_innermost() -> None:
 
 
 def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
-    from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager
+    from podcast_mcp.services.jobs import BootstrapJobManager
 
     mgr = BootstrapJobManager()
     assert mgr.cancel() is None
@@ -503,7 +505,7 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
     def boom(*_a, **_k):
         raise RuntimeError("bootstrap exploded")
 
-    monkeypatch.setattr("podcast_mcp.gui.bootstrap_jobs.run_bootstrap", boom)
+    monkeypatch.setattr("podcast_mcp.services.jobs.bootstrap.run_bootstrap", boom)
     err_job = Job.bootstrap("b4", ["whisper"])
     mgr._run_job(err_job)
     assert err_job.status == "error"
@@ -519,7 +521,7 @@ def test_job_progress_reporter_non_pipeline_task() -> None:
         total=4,
         current=1,
     )
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     reporter.start("step", "Step label", total=9)  # must not overwrite job.total
     assert job.total == 4
     reporter.update("step", 2, total=9, message="still going")
@@ -540,7 +542,7 @@ def test_job_progress_reporter_non_pipeline_task() -> None:
 
 
 def test_sse_sink_requires_live_job_and_subscribers() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     assert mgr.listening_progress_reporter() is None
 
     live = Job(
@@ -557,7 +559,7 @@ def test_sse_sink_requires_live_job_and_subscribers() -> None:
 
     with JobEventTap(live.id) as tap:
         reporter = mgr.listening_progress_reporter()
-        assert isinstance(reporter, _SsePublishReporter)
+        assert isinstance(reporter, SsePublishReporter)
         reporter.message("tool", "Running steal")
         reporter.fail("tool", message="hijack")
         assert live.message == "Pipeline"
@@ -577,17 +579,18 @@ def test_sse_sink_requires_live_job_and_subscribers() -> None:
 
 
 def test_gui_sse_progress_sink_skips_without_listener() -> None:
-    from podcast_mcp.gui.jobs import gui_sse_progress_sink, shared_job_manager
+    from podcast_mcp.gui.job_events import gui_sse_progress_sink
+    from podcast_mcp.services.jobs import shared_job_manager
 
     shared_job_manager(reset=True)
     assert gui_sse_progress_sink() is None
 
 
 def test_bootstrap_result_not_ok(monkeypatch) -> None:
-    from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager
+    from podcast_mcp.services.jobs import BootstrapJobManager
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.bootstrap_jobs.run_bootstrap",
+        "podcast_mcp.services.jobs.bootstrap.run_bootstrap",
         lambda *_a, **_k: {
             "ok": False,
             "results": {"whisper": {"ok": False, "error": "model download failed"}},
@@ -632,11 +635,9 @@ def test_pipeline_runner_selection_errors(minimal_project) -> None:
 def test_last_progress_at_ignores_snapshot_keepalive(monkeypatch) -> None:
     from types import SimpleNamespace
 
-    from podcast_mcp.gui import jobs as jobs_module
-
     clock = [5.0]
     fake_time = SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 100.0)
-    monkeypatch.setattr(jobs_module, "time", fake_time)
+    monkeypatch.setattr("podcast_mcp.services.jobs.reporter.time", fake_time)
     monkeypatch.setattr("podcast_mcp.services.jobs.job.time", fake_time)
 
     job = Job(
@@ -649,7 +650,7 @@ def test_last_progress_at_ignores_snapshot_keepalive(monkeypatch) -> None:
         last_progress_at=42.0,
         message="Quiet step",
     )
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     with JobEventTap(job.id) as tap:
         try:
             snap = job.snapshot()
@@ -698,7 +699,7 @@ def test_job_reporter_mixin_heartbeat_bumps_last_progress_at(monkeypatch) -> Non
         started_at=time.monotonic(),
         message="Pipeline",
     )
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     reporter._heartbeat_sec = 0.01
     with JobEventTap(job.id) as tap:
         try:
@@ -731,7 +732,7 @@ def test_mixin_heartbeat_does_not_reregister_finished_task() -> None:
         started_at=time.monotonic(),
         message="Pipeline",
     )
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     with JobEventTap(job.id) as tap:
         try:
             reporter.start("pipeline", "Pipeline", total=1)
@@ -759,7 +760,7 @@ def test_job_reporter_refuses_emit_after_close() -> None:
         started_at=time.monotonic(),
         message="Pipeline",
     )
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     with JobEventTap(job.id) as tap:
         reporter.start("pipeline", "Pipeline", total=1)
         reporter.close()

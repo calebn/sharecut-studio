@@ -3,6 +3,10 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
+    from podcast_mcp.services.jobs.bootstrap import (
+        BootstrapJobManager,
+        shared_bootstrap_job_manager,
+    )
     from podcast_mcp.services.jobs.events import (
         JOB_EVENT_QUEUE_MAX,
         LIVE_JOB_STATUSES,
@@ -12,45 +16,59 @@ if TYPE_CHECKING:
         publish_job_event,
     )
     from podcast_mcp.services.jobs.job import (
-        KIND_META,
         Job,
         JobKind,
         JobSlotBusyError,
         StepTiming,
-        cancelled_copy,
-        short_fail_message,
+        guest_render_job,
     )
+    from podcast_mcp.services.jobs.manager import (
+        JobManager,
+        shared_job_manager,
+        studio_job_manager,
+    )
+    from podcast_mcp.services.jobs.reporter import AgentJobFanInReporter, SsePublishReporter
 
 __all__ = [
     "JOB_EVENT_QUEUE_MAX",
-    "KIND_META",
     "LIVE_JOB_STATUSES",
     "TERMINAL_JOB_STATUSES",
+    "AgentJobFanInReporter",
+    "BootstrapJobManager",
     "Job",
     "JobKind",
+    "JobManager",
     "JobSlotBusyError",
+    "SsePublishReporter",
     "StepTiming",
-    "cancelled_copy",
+    "guest_render_job",
     "job_events_hub",
     "job_listener_count",
     "publish_job_event",
-    "short_fail_message",
+    "shared_bootstrap_job_manager",
+    "shared_job_manager",
+    "studio_job_manager",
 ]
 
 _MODULE_BY_NAME = {
     "JOB_EVENT_QUEUE_MAX": "events",
-    "KIND_META": "job",
     "LIVE_JOB_STATUSES": "events",
     "TERMINAL_JOB_STATUSES": "events",
+    "AgentJobFanInReporter": "reporter",
+    "BootstrapJobManager": "bootstrap",
     "Job": "job",
     "JobKind": "job",
+    "JobManager": "manager",
     "JobSlotBusyError": "job",
+    "SsePublishReporter": "reporter",
     "StepTiming": "job",
-    "cancelled_copy": "job",
+    "guest_render_job": "job",
     "job_events_hub": "events",
     "job_listener_count": "events",
     "publish_job_event": "events",
-    "short_fail_message": "job",
+    "shared_bootstrap_job_manager": "bootstrap",
+    "shared_job_manager": "manager",
+    "studio_job_manager": "manager",
 }
 
 

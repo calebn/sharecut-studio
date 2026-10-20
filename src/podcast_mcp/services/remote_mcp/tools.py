@@ -313,7 +313,7 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
 def guest_render_preview() -> dict[str, Any]:
     """Rebuild stems/premix (requires ``edit`` + ``PODCAST_GUEST_RENDER=1``)."""
     _require_tool("guest_render_preview")
-    from podcast_mcp.gui.jobs import guest_render_job, shared_job_manager
+    from podcast_mcp.services.jobs import guest_render_job, shared_job_manager
     from podcast_mcp.util.guest_render import require_guest_render
 
     require_guest_render()
@@ -330,7 +330,7 @@ def guest_render_preview() -> dict[str, Any]:
 def guest_render_preview_job(job_id: str) -> dict[str, Any]:
     """Read a guest render job scoped to the current edit share."""
     _require_tool("guest_render_preview_job")
-    from podcast_mcp.gui.jobs import guest_render_job, shared_job_manager
+    from podcast_mcp.services.jobs import guest_render_job, shared_job_manager
 
     ctx = get_remote_mcp_context()
     job = guest_render_job(shared_job_manager().get_job(job_id), ctx.workspace.path)

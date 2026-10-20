@@ -5,14 +5,15 @@ from pathlib import Path
 import pytest
 
 from job_event_helpers import JobEventTap
-from podcast_mcp.gui.jobs import (
+from podcast_mcp.gui.job_events import gui_agent_job_progress_sink
+from podcast_mcp.services.jobs import (
     AgentJobFanInReporter,
-    PipelineJobManager,
-    _JobProgressReporter,
-    gui_agent_job_progress_sink,
+    Job,
+    JobManager,
+    job_listener_count,
     shared_job_manager,
 )
-from podcast_mcp.services.jobs import Job, job_listener_count
+from podcast_mcp.services.jobs.reporter import JobProgressReporter
 from podcast_mcp.util.progress import PROGRESS_UPDATE_MIN_INTERVAL_SEC, bind_progress, progress_task
 from podcast_mcp.util.progress import task as task_mod
 
@@ -31,7 +32,7 @@ def stepping_clock(monkeypatch):
 
 
 def test_gui_agent_job_progress_sink_skips_without_studio_manager() -> None:
-    import podcast_mcp.gui.jobs as jobs_mod
+    import podcast_mcp.services.jobs.manager as jobs_mod
 
     prior = jobs_mod._SHARED_JOBS
     try:
@@ -43,7 +44,7 @@ def test_gui_agent_job_progress_sink_skips_without_studio_manager() -> None:
 
 def test_manager_catalog_shares_live_state_and_lock() -> None:
     """The facade and catalog must use one lock and one job identity table."""
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     assert mgr._lock is mgr._catalog._lock
     mgr._finished_limit = 1
     first = mgr.adopt_agent_job(tool_id="first", label="First", claim="first")
@@ -59,7 +60,7 @@ def test_manager_catalog_shares_live_state_and_lock() -> None:
 
 
 def test_instant_tool_does_not_create_agent_job() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     with bind_progress(sink), progress_task("list_clips_tool", "list_clips_tool", reporter=sink):
         pass
@@ -70,7 +71,7 @@ def test_instant_tool_does_not_create_agent_job() -> None:
 
 
 def test_rich_mcp_wrap_creates_agent_job_and_sse_payload(stepping_clock) -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     with bind_progress(sink), progress_task("align_tracks", "align_tracks", reporter=sink) as task:
         task.advance(1, message="Scoring bleed windows")
@@ -101,7 +102,7 @@ def test_rich_mcp_wrap_creates_agent_job_and_sse_payload(stepping_clock) -> None
 
 def test_agent_fanin_inherits_served_project_and_scopes_status(tmp_path) -> None:
     """Standalone agent wraps belong to the currently served project (#170)."""
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     served = (tmp_path / "served" / "episode.project.json").resolve()
     other = (tmp_path / "other" / "episode.project.json").resolve()
     mgr.set_served_project(served)
@@ -116,7 +117,7 @@ def test_agent_fanin_inherits_served_project_and_scopes_status(tmp_path) -> None
 
 
 def test_heartbeat_or_lazy_timer_creates_agent_job() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     sink.start("transcribe_tracks", "Transcribing tracks")
     assert sink._job is None
@@ -141,7 +142,7 @@ def test_heartbeat_or_lazy_timer_creates_agent_job() -> None:
 
 
 def test_agent_job_coexists_with_pipeline_job() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     pipeline = Job(
         id="pipe",
         project_path="/tmp/p.json",
@@ -172,7 +173,7 @@ def test_agent_job_coexists_with_pipeline_job() -> None:
 
 
 def test_agent_job_nested_fail_does_not_keep_child_headline_on_ok() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     sink.start("propose_edits", "Propose edits")
     sink.message("propose_edits", "Proposing")
@@ -191,7 +192,7 @@ def test_agent_job_nested_fail_does_not_keep_child_headline_on_ok() -> None:
 
 
 def test_agent_job_fail_strips_traceback_and_does_not_stay_running() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     with pytest.raises(RuntimeError, match="boom"):
         with (
@@ -211,7 +212,7 @@ def test_agent_job_fail_strips_traceback_and_does_not_stay_running() -> None:
 
 
 def test_agent_job_cancel_maps_to_cancelled() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     sink.start("focus_from_transcript", "focus")
     sink.message("focus_from_transcript", "cutting tangents")
@@ -261,7 +262,7 @@ async def test_install_mcp_progress_fans_into_shared_agent_job() -> None:
 
 
 def test_agent_fanin_child_events_helpers_and_lookups() -> None:
-    from podcast_mcp.services.jobs import short_fail_message
+    from podcast_mcp.services.jobs.job import short_fail_message
 
     assert short_fail_message(None) is None
     assert short_fail_message("   ") is None
@@ -269,7 +270,7 @@ def test_agent_fanin_child_events_helpers_and_lookups() -> None:
     assert short_fail_message("Traceback (most recent call last):", phase="align") == "align"
     assert short_fail_message("\n", phase="mix") == "mix"
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     mgr._job = Job(
         id="done-pipe",
         project_path="/tmp/ep.json",
@@ -334,10 +335,10 @@ def test_agent_fanin_child_events_helpers_and_lookups() -> None:
 
 
 def test_agent_fanin_closed_and_child_before_job() -> None:
-    from podcast_mcp.gui.jobs import _SsePublishReporter
-    from podcast_mcp.services.jobs import short_fail_message
+    from podcast_mcp.services.jobs.job import short_fail_message
+    from podcast_mcp.services.jobs.reporter import SsePublishReporter
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     sink.start("wrap", "wrap")
     sink.start("child", "child")
@@ -425,7 +426,7 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
     assert captured[0].status == "cancelled"
     assert captured[0].id not in mgr._agent_live
 
-    only_agent = PipelineJobManager()
+    only_agent = JobManager()
     agent_live = only_agent.adopt_agent_job(
         tool_id="t",
         label="T",
@@ -441,8 +442,8 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
     assert st2["running"] is False
     assert st2["job"]["id"] == agent_live.id
 
-    sse_mgr = PipelineJobManager()
-    ghost = _SsePublishReporter(sse_mgr)
+    sse_mgr = JobManager()
+    ghost = SsePublishReporter(sse_mgr)
     ghost.start("t", "nope")
     sse_mgr._job = Job(
         id="sse",
@@ -453,7 +454,7 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
         started_at=1.0,
     )
     with JobEventTap("sse") as tap:
-        reporter = _SsePublishReporter(sse_mgr)
+        reporter = SsePublishReporter(sse_mgr)
         reporter.start("t", "lab")
         reporter.update("t", 1, message="m")
         assert tap.drain() == []
@@ -466,22 +467,22 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
 
 
 def test_ensure_job_completes_orphan_when_post_adopt_raises() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     sink.start("wrap", "wrap")
 
     def _boom(job: Job) -> Job:
         raise RuntimeError("reporter failed")
 
-    import podcast_mcp.gui.jobs as jobs_mod
+    import podcast_mcp.services.jobs.reporter as jobs_mod
 
-    orig = jobs_mod._JobProgressReporter
-    jobs_mod._JobProgressReporter = _boom  # type: ignore[misc, assignment]
+    orig = jobs_mod.JobProgressReporter
+    jobs_mod.JobProgressReporter = _boom  # type: ignore[misc, assignment]
     try:
         with pytest.raises(RuntimeError, match="reporter failed"):
             sink.update("wrap", 1, message="mid")
     finally:
-        jobs_mod._JobProgressReporter = orig
+        jobs_mod.JobProgressReporter = orig
     assert mgr._agent_live == {}
     finished = list(mgr._finished.values())
     assert finished
@@ -489,7 +490,7 @@ def test_ensure_job_completes_orphan_when_post_adopt_raises() -> None:
 
 
 def test_agent_live_cap_evicts_oldest() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     mgr._agent_live_limit = 2
     first = mgr.adopt_agent_job(tool_id="a", label="A", claim="c1")
     second = mgr.adopt_agent_job(tool_id="b", label="B", claim="c2")
@@ -502,9 +503,9 @@ def test_agent_live_cap_evicts_oldest() -> None:
 def test_agent_publish_skips_without_subscriber_and_bounds_queue() -> None:
     from podcast_mcp.services.jobs import JOB_EVENT_QUEUE_MAX
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     job = mgr.adopt_agent_job(tool_id="t", label="T", claim="c")
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     reporter.message("t", "silent")
     assert not job.has_listeners()
     with JobEventTap(job.id) as tap:
@@ -519,9 +520,9 @@ def test_agent_publish_skips_without_subscriber_and_bounds_queue() -> None:
 
 
 def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
-    from podcast_mcp.gui.jobs import _SsePublishReporter
+    from podcast_mcp.services.jobs.reporter import SsePublishReporter
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     pipe = Job(
         id="pipe",
         project_path="/tmp/p.json",
@@ -537,7 +538,7 @@ def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
     with JobEventTap(agent.id) as agent_tap:
         assert not pipe.has_listeners()
         assert mgr.listening_progress_reporter() is None
-        wrap = _SsePublishReporter(mgr)
+        wrap = SsePublishReporter(mgr)
         wrap.message("align_tracks", "should not land on pipeline")
         assert any(item.get("kind") == "message" for item in agent_tap.drain())
         wrap.message("align_tracks", "still agent-owned")
@@ -567,8 +568,8 @@ def _patch_fake_pipeline(monkeypatch, proj: Path, export_qc: dict) -> None:
 
     monkeypatch.setattr("podcast_mcp.mcp.tools.pipeline.ProjectWorkspace.open", FakeWs.open)
     monkeypatch.setattr("podcast_mcp.mcp.tools.pipeline.PipelineService", lambda _ws: FakeSvc())
-    monkeypatch.setattr("podcast_mcp.gui.jobs.ProjectWorkspace.open", FakeWs.open)
-    monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineService", lambda _ws: FakeSvc())
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.ProjectWorkspace.open", FakeWs.open)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.PipelineService", lambda _ws: FakeSvc())
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.config.config_store",
         lambda: type(
@@ -580,8 +581,8 @@ def _patch_fake_pipeline(monkeypatch, proj: Path, export_qc: dict) -> None:
 
 
 def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.gui.jobs import shared_job_manager
     from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
+    from podcast_mcp.services.jobs import shared_job_manager
 
     proj = tmp_path / "ep.json"
     proj.write_text("{}")
@@ -637,7 +638,7 @@ def test_pipeline_run_studio_job_reports_failed_export_qc(tmp_path, monkeypatch)
 
 
 def test_pipeline_run_wrap_does_not_create_agent_job() -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     sink.start("pipeline_run", "pipeline_run")
     sink.update("pipeline_run", 1, message="Running ingest")
@@ -648,15 +649,14 @@ def test_pipeline_run_wrap_does_not_create_agent_job() -> None:
 
 
 def test_wait_timeout_and_sse_helpers() -> None:
-    from podcast_mcp.gui.jobs import studio_job_manager
-    from podcast_mcp.services.jobs import short_fail_message
-    from podcast_mcp.services.jobs.job import _token_looks_like_abs_path
+    from podcast_mcp.services.jobs import studio_job_manager
+    from podcast_mcp.services.jobs.job import _token_looks_like_abs_path, short_fail_message
 
     assert _token_looks_like_abs_path(".,;") is False
     assert short_fail_message(r"C:\host\secret\episode.project.json", phase="align") == "align"
     studio_job_manager()
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     live = Job(
         id="wait-me",
         project_path="/tmp/p.json",
@@ -676,7 +676,7 @@ def test_wait_timeout_and_sse_helpers() -> None:
 
 
 def test_agent_finalize_closes_reporter_if_complete_raises(monkeypatch) -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     sink = AgentJobFanInReporter(mgr)
     sink.start("wrap", "wrap")
     sink.message("wrap", "working")
@@ -692,7 +692,7 @@ def test_agent_finalize_closes_reporter_if_complete_raises(monkeypatch) -> None:
     assert reporter._closed
     assert sink._job_reporter is None
 
-    mgr2 = PipelineJobManager()
+    mgr2 = JobManager()
     closed_fan = AgentJobFanInReporter(mgr2)
     closed_fan.start("late", "late")
     closed_fan.message("late", "go")

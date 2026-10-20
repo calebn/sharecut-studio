@@ -128,7 +128,7 @@ def test_gui_pipeline_run_409_when_weights_missing(
         raise AssertionError("jobs.start must not run when weights are missing")
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.jobs.PipelineJobManager.start",
+        "podcast_mcp.services.jobs.manager.JobManager.start",
         boom,
     )
     client = TestClient(create_app())
@@ -162,7 +162,7 @@ def test_gui_pipeline_run_409_on_pin_mismatch(
         enabled_steps=["ingest_tracks", "transcribe_tracks"],
     )
     monkeypatch.setattr(
-        "podcast_mcp.gui.jobs.PipelineJobManager.start",
+        "podcast_mcp.services.jobs.manager.JobManager.start",
         lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not start")),
     )
     client = TestClient(create_app())

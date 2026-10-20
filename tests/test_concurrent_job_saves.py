@@ -36,7 +36,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.app.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.services.document import EpisodeService
 from podcast_mcp.services.document.history import HistoryRerenderError, HistoryService
-from podcast_mcp.services.jobs import short_fail_message
+from podcast_mcp.services.jobs.job import short_fail_message
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.progress import CancelledProgress

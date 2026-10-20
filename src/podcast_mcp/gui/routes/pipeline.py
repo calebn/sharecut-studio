@@ -5,7 +5,6 @@ from typing import Any
 from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
-from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
@@ -22,6 +21,7 @@ from podcast_mcp.gui.schemas import (
     RenderPreviewRequest,
 )
 from podcast_mcp.pipeline import STEP_NAMES
+from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.pipeline import (
     build_config_payload,
     config_store,
@@ -35,7 +35,7 @@ from podcast_mcp.whisper_models import WhisperWeightsMissingError
 router = APIRouter()
 
 
-def _jobs(request: Request) -> PipelineJobManager:
+def _jobs(request: Request) -> JobManager:
     return request.app.state.jobs
 
 

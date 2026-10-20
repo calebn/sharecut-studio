@@ -2201,10 +2201,9 @@ def test_api_pipeline_status_idle() -> None:
 
 def test_pipeline_status_scoped_to_project(tmp_path) -> None:
     """status(project_path=...) hides jobs from other projects (#170)."""
-    from podcast_mcp.gui.jobs import PipelineJobManager
-    from podcast_mcp.services.jobs import Job
+    from podcast_mcp.services.jobs import Job, JobManager
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     project_a = (tmp_path / "proj-a" / "episode.project.json").resolve()
     project_b = (tmp_path / "proj-b" / "episode.project.json").resolve()
     job_a = Job(
@@ -3481,7 +3480,7 @@ def test_api_pipeline_run_passes_unattended(minimal_project, monkeypatch) -> Non
 
 
 def test_project_meta_helper(minimal_project) -> None:
-    from podcast_mcp.gui.jobs import project_meta
+    from podcast_mcp.gui.poll_meta import project_meta
 
     meta = project_meta(minimal_project)
     assert meta["mtime_ns"] > 0
@@ -3497,7 +3496,7 @@ def test_project_meta_omits_server_seq_when_document_db_is_unreadable(
 ) -> None:
     import sqlite3
 
-    from podcast_mcp.gui.jobs import project_meta
+    from podcast_mcp.gui.poll_meta import project_meta
     from podcast_mcp.services.document_sync import service as document_service
 
     def _locked(_path):
@@ -3510,7 +3509,7 @@ def test_project_meta_omits_server_seq_when_document_db_is_unreadable(
 
 
 def test_project_meta_on_a_corrupt_document_db_omits_server_seq(minimal_project) -> None:
-    from podcast_mcp.gui.jobs import project_meta
+    from podcast_mcp.gui.poll_meta import project_meta
 
     db = minimal_project.parent / "artifacts" / "session" / "document.db"
     db.parent.mkdir(parents=True, exist_ok=True)
@@ -3519,7 +3518,7 @@ def test_project_meta_on_a_corrupt_document_db_omits_server_seq(minimal_project)
 
 
 def test_meta_routes_survive_a_symlink_loop_under_artifacts(minimal_project) -> None:
-    from podcast_mcp.gui.jobs import project_meta, session_file_meta
+    from podcast_mcp.gui.poll_meta import project_meta, session_file_meta
 
     ws = minimal_project.parent
     artifacts = ws / "artifacts"

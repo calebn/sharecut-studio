@@ -7,7 +7,7 @@ from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from podcast_mcp.gui.jobs import session_file_meta
+from podcast_mcp.gui.poll_meta import session_file_meta
 from podcast_mcp.gui.routes.deps import coded_exception_error, require_authz, resolve_project
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.models import EpisodeProject

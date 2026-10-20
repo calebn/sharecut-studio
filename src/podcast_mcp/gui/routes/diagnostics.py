@@ -13,7 +13,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from podcast_mcp.distribution import runtime_distribution_metadata
-from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
@@ -21,6 +20,7 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
@@ -49,7 +49,7 @@ class DiagnosticsBundleRequest(BaseModel):
     path: str | None = Field(default=None, description="Optional episode.project.json")
 
 
-def _jobs(request: Request) -> PipelineJobManager | None:
+def _jobs(request: Request) -> JobManager | None:
     return getattr(request.app.state, "jobs", None)
 
 

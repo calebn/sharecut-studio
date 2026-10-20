@@ -517,7 +517,7 @@ def test_mcp_bounce_render_and_pipeline_run_stop_on_the_requests_cancel(minimal_
         with pytest.raises(CancelledProgress, match="Pipeline cancelled"):
             mcp_server.render_preview(project)
         with (
-            patch("podcast_mcp.gui.jobs.studio_job_manager", return_value=None),
+            patch("podcast_mcp.services.jobs.studio_job_manager", return_value=None),
             pytest.raises(CancelledProgress, match="Pipeline cancelled"),
         ):
             mcp_server.pipeline_run(project, only_step="mix_with_music", use_working_set=False)

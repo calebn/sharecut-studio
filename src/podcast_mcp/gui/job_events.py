@@ -12,7 +12,14 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
-from podcast_mcp.services.jobs import TERMINAL_JOB_STATUSES, job_events_hub
+from podcast_mcp.services.jobs import (
+    TERMINAL_JOB_STATUSES,
+    AgentJobFanInReporter,
+    SsePublishReporter,
+    job_events_hub,
+    shared_job_manager,
+    studio_job_manager,
+)
 
 JOB_EVENT_KEEPALIVE_SEC = 1.0
 
@@ -54,3 +61,14 @@ async def stream_job_events(
                 return
     finally:
         hub.unsubscribe(job.id, queue)
+
+
+def gui_sse_progress_sink() -> SsePublishReporter | None:
+    """Live in-process SSE fan-out; no job field writes."""
+    return shared_job_manager().listening_progress_reporter()
+
+
+def gui_agent_job_progress_sink() -> AgentJobFanInReporter | None:
+    """Wrap-level MCP/CLI fan-in. None until Studio ``create_app`` registered a manager."""
+    manager = studio_job_manager()
+    return None if manager is None else AgentJobFanInReporter(manager)

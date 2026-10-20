@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.services.jobs import Job
+from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.pipeline import AudioExportResult
 
 
@@ -22,7 +21,7 @@ def test_start_bounce_returns_paths_on_terminal_snapshot(minimal_project, monkey
 
     _skip_bounce_validate(monkeypatch)
     monkeypatch.setattr("podcast_mcp.services.media.bounce.BounceService.bounce", fake_bounce)
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     job = mgr.start_bounce(Path(minimal_project), formats=["wav"])
     assert job.kind == "bounce"
     mgr.wait(job, timeout=2.5)
@@ -51,7 +50,7 @@ def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(
         "podcast_mcp.services.pipeline.PipelineService.export_audio",
         fake_export,
     )
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     job = mgr.start_export(Path(minimal_project))
     assert job.kind == "export"
     mgr.wait(job, timeout=2.5)
@@ -67,7 +66,7 @@ def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, mon
         "podcast_mcp.services.media.bounce.BounceService.bounce",
         lambda self, req=None, **_k: [Path("/tmp/x.wav")],
     )
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     pipeline = Job(
         id="pipe",
         project_path=str(minimal_project),
@@ -98,7 +97,7 @@ def test_status_includes_recent_finished_jobs(minimal_project, monkeypatch) -> N
         "podcast_mcp.services.media.bounce.BounceService.bounce",
         lambda self, req=None, **_k: [Path("/tmp/x.wav")],
     )
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     first = mgr.start_bounce(Path(minimal_project), formats=["wav"])
     mgr.wait(first, timeout=2.5)
     assert first.status == "ok"
@@ -115,8 +114,8 @@ def test_status_includes_recent_finished_jobs(minimal_project, monkeypatch) -> N
 
 
 def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch) -> None:
-    from podcast_mcp.gui.jobs import _JobProgressReporter
-    from podcast_mcp.services.jobs import cancelled_copy
+    from podcast_mcp.services.jobs.job import cancelled_copy
+    from podcast_mcp.services.jobs.reporter import JobProgressReporter
 
     assert cancelled_copy("bounce") == "Bounce cancelled"
     assert cancelled_copy("export") == "Export cancelled"
@@ -131,7 +130,7 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
         kind="bounce",
         label="Bounce",
     )
-    reporter = _JobProgressReporter(bounce)
+    reporter = JobProgressReporter(bounce)
     reporter.start("bounce", "Bouncing stems", total=4)
     reporter.update("bounce", 2, message="Stem host")
     assert bounce.current == 2
@@ -148,7 +147,7 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
         kind="render_preview",
         label="Render preview",
     )
-    prev = _JobProgressReporter(preview)
+    prev = JobProgressReporter(preview)
     prev.start("render", "Rendering preview", total=3)
     prev.update("render", 1, message="Assembled timeline")
     assert preview.current == 1
@@ -162,14 +161,14 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
         kind="export",
         label="Export deliverables",
     )
-    exp = _JobProgressReporter(export)
+    exp = JobProgressReporter(export)
     exp.start("export", "Exporting deliverables", total=2)
     exp.update("export", 1, message="Mastered WAV ready")
     assert export.current == 1
     assert exp._event_label() == "Export"
     exp.close()
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     _skip_bounce_validate(monkeypatch)
 
     def fake_bounce(self, req=None, **_kwargs):
@@ -187,8 +186,8 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
 
 
 def test_analyze_job_reporter_counts_tracks_per_phase(minimal_project) -> None:
-    from podcast_mcp.gui.jobs import _JobProgressReporter
-    from podcast_mcp.services.jobs import cancelled_copy
+    from podcast_mcp.services.jobs.job import cancelled_copy
+    from podcast_mcp.services.jobs.reporter import JobProgressReporter
 
     assert cancelled_copy("analyze") == "Analyze cancelled"
 
@@ -200,7 +199,7 @@ def test_analyze_job_reporter_counts_tracks_per_phase(minimal_project) -> None:
         kind="analyze",
         label="Analyze",
     )
-    rep = _JobProgressReporter(job)
+    rep = JobProgressReporter(job)
     rep.start("pipeline_analyze", "Analyzing audio")
     rep.message("pipeline_analyze", "Measuring track health…", phase="health")
     rep.start("analyze_health", "Measuring track health")
@@ -229,7 +228,7 @@ def test_start_analyze_runs_working_set_and_takes_slot(minimal_project, monkeypa
         fake_analyze_working_set,
     )
 
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     job = mgr.start_analyze(Path(minimal_project), apply=True)
     mgr.wait(job, timeout=5)
     assert job.kind == "analyze"
@@ -256,7 +255,7 @@ def test_start_analyze_runs_working_set_and_takes_slot(minimal_project, monkeypa
 
 
 def test_cancelling_an_export_mid_encode_keeps_the_previous_export(slow_export) -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     job = mgr.start_export(
         Path(slow_export.project), formats=[{"ext": "mp3", "codec": "libmp3lame"}]
     )

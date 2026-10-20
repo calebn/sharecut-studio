@@ -77,7 +77,7 @@ def pipeline_run(
         if unattended is not None
         else bool(working.unattended if working is not None else False)
     )
-    from podcast_mcp.gui.jobs import studio_job_manager
+    from podcast_mcp.services.jobs import studio_job_manager
 
     jobs = studio_job_manager()
     if jobs is not None:

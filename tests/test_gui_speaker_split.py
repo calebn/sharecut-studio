@@ -12,11 +12,11 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, SpeakerTurn
-from podcast_mcp.gui.jobs import PipelineJobManager, _JobProgressReporter
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
-from podcast_mcp.services.jobs import Job
+from podcast_mcp.services.jobs import Job, JobManager
+from podcast_mcp.services.jobs.reporter import JobProgressReporter
 
 SCRIPTED = SpeakerAttribution(
     speaker_count=2,
@@ -78,7 +78,7 @@ def _wait(job: Job) -> None:
 
 
 def test_the_job_splits_the_track_and_hands_back_the_service_result(room: Path) -> None:
-    job = PipelineJobManager().start_split_speakers(
+    job = JobManager().start_split_speakers(
         room, track_id="room", speaker_count=2, names=["Ana", "Ben"]
     )
     _wait(job)
@@ -103,7 +103,7 @@ def test_the_project_view_marks_the_lanes_of_a_split(room: Path) -> None:
     from podcast_mcp.gui.assembler import build_project_view
 
     assert [t.speaker_split_id for t in build_project_view(room).tracks] == [None]
-    job = PipelineJobManager().start_split_speakers(room, track_id="room", speaker_count=2)
+    job = JobManager().start_split_speakers(room, track_id="room", speaker_count=2)
     _wait(job)
     lanes = build_project_view(room).tracks
     split_id = ProjectWorkspace.open(room).project.editorial.speaker_splits[0].id
@@ -114,7 +114,7 @@ def test_the_project_view_marks_the_lanes_of_a_split(room: Path) -> None:
 
 
 def test_a_split_that_cannot_run_is_refused_before_a_job_starts(room: Path) -> None:
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     with pytest.raises(ValueError, match="no media to split"):
         mgr.start_split_speakers(room, track_id="nobody", speaker_count=2)
     with pytest.raises(ValueError, match="expected 2 speaker names"):
@@ -133,7 +133,7 @@ def test_a_cancel_request_during_attribution_leaves_the_project_alone(
             time.sleep(0.01)
 
     monkeypatch.setattr("podcast_mcp.services.media.speaker.attribute_speakers", attributing)
-    mgr = PipelineJobManager()
+    mgr = JobManager()
     job = mgr.start_split_speakers(room, track_id="room", speaker_count=2)
     mgr.cancel(job.id)
     _wait(job)
@@ -262,7 +262,7 @@ def test_cancel_after_split_commit_keeps_the_job_result_and_history_head(
         return result
 
     monkeypatch.setattr(SpeakerService, "split_speakers", split_then_hold)
-    manager = PipelineJobManager()
+    manager = JobManager()
     job = manager.start_split_speakers(room, track_id="room", speaker_count=2, names=["Ana", "Ben"])
     try:
         assert returned.wait(timeout=5)
@@ -292,7 +292,7 @@ def test_the_determinate_bar_follows_the_attribution_task(room: Path) -> None:
         kind="split_speakers",
         status="running",
     )
-    reporter = _JobProgressReporter(job)
+    reporter = JobProgressReporter(job)
     try:
         reporter.start("speaker-split", "Speaker split", total=3)
         reporter.update("speaker-split", 2)
@@ -342,13 +342,13 @@ def test_the_route_hands_the_enrollment_to_the_service_unchanged(
 
     monkeypatch.setattr(SpeakerService, "split_speakers", spy)
     started: list[Job] = []
-    start = PipelineJobManager.start_split_speakers
+    start = JobManager.start_split_speakers
 
     def capture(self, *args, **kwargs):
         started.append(start(self, *args, **kwargs))
         return started[-1]
 
-    monkeypatch.setattr(PipelineJobManager, "start_split_speakers", capture)
+    monkeypatch.setattr(JobManager, "start_split_speakers", capture)
     client = _client()
     res = client.post(
         "/api/speaker/split",

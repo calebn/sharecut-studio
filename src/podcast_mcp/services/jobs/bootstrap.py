@@ -1,4 +1,4 @@
-"""Background bootstrap jobs for Sharecut Studio first-run (progress via per-subscriber SSE fan-out)."""
+"""First-run bootstrap jobs: at most one download job at a time, process-wide for the GUI."""
 
 from __future__ import annotations
 
@@ -6,138 +6,11 @@ import threading
 import time
 import uuid
 
-from podcast_mcp.services.jobs import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES, Job
+from podcast_mcp.services.jobs.events import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES
+from podcast_mcp.services.jobs.job import Job
+from podcast_mcp.services.jobs.reporter import BootstrapProgressReporter
 from podcast_mcp.services.pipeline import run_bootstrap
-from podcast_mcp.util.progress import ElapsedProgressMixin, ProgressEvent
 from podcast_mcp.whisper_models import resolve_whisper_model
-
-
-class _BootstrapProgressReporter(ElapsedProgressMixin):
-    def __init__(self, job: Job) -> None:
-        super().__init__()
-        self._job = job
-
-    def start(self, task_id: str, label: str, total: int | None = None) -> None:
-        with self._job._lock:
-            self._job.total = total
-            self._job.current = 0
-            self._job.message = label
-        self._emit(
-            ProgressEvent(
-                kind="start",
-                task_id=task_id,
-                label=label,
-                current=0,
-                total=total,
-                elapsed_sec=0.0,
-            )
-        )
-
-    def update(
-        self,
-        task_id: str,
-        current: int,
-        *,
-        total: int | None = None,
-        message: str | None = None,
-        phase: str | None = None,
-    ) -> None:
-        with self._job._lock:
-            self._job.current = current
-            if total is not None:
-                self._job.total = total
-            if message is not None:
-                self._job.message = message
-        self._emit(
-            ProgressEvent(
-                kind="update",
-                task_id=task_id,
-                label=self._job.message or "",
-                current=current,
-                total=total if total is not None else self._job.total,
-                message=message,
-                phase=phase,
-                elapsed_sec=0.0,
-            )
-        )
-
-    def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
-        with self._job._lock:
-            self._job.message = text
-        self._emit(
-            ProgressEvent(
-                kind="message",
-                task_id=task_id,
-                label=text,
-                current=self._job.current,
-                total=self._job.total,
-                message=text,
-                phase=phase,
-                elapsed_sec=0.0,
-            )
-        )
-
-    def end(self, task_id: str, *, message: str | None = None) -> None:
-        if message:
-            with self._job._lock:
-                self._job.message = message
-        self._emit(
-            ProgressEvent(
-                kind="end",
-                task_id=task_id,
-                label=message or self._job.message or "",
-                current=self._job.current,
-                total=self._job.total,
-                message=message,
-                elapsed_sec=0.0,
-            )
-        )
-
-    def fail(
-        self,
-        task_id: str,
-        *,
-        message: str | None = None,
-        phase: str | None = None,
-    ) -> None:
-        with self._job._lock:
-            if message is not None:
-                self._job.message = message
-                self._job.error = message
-        self._emit(
-            ProgressEvent(
-                kind="fail",
-                task_id=task_id,
-                label=message or self._job.message or "",
-                current=self._job.current,
-                total=self._job.total,
-                message=message,
-                phase=phase,
-                elapsed_sec=0.0,
-            )
-        )
-
-    def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        with self._job._lock:
-            if message is not None:
-                self._job.message = message
-        self._emit(
-            ProgressEvent(
-                kind="cancel",
-                task_id=task_id,
-                label=message or self._job.message or "",
-                current=self._job.current,
-                total=self._job.total,
-                message=message,
-                elapsed_sec=0.0,
-            )
-        )
-
-    def _emit(self, event: ProgressEvent) -> None:
-        payload = event.to_dict()
-        payload["type"] = "progress"
-        payload["job"] = self._job.snapshot()
-        self._job.publish(payload)
 
 
 class BootstrapJobManager:
@@ -206,7 +79,7 @@ class BootstrapJobManager:
         job.status = "running"
         job.started_at = time.monotonic()
         job.publish({"type": "status", "job": job.snapshot()})
-        reporter = _BootstrapProgressReporter(job)
+        reporter = BootstrapProgressReporter(job)
         try:
             if job.cancel_requested:
                 raise RuntimeError("cancelled")

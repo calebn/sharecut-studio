@@ -32,7 +32,6 @@ _ADAPTER_EXCEPTIONS = {
         "podcast_mcp.gui.static_assets",
     },
     "podcast_mcp.services.document_sync.service": {"podcast_mcp.gui.assembler"},
-    "podcast_mcp.services.remote_mcp.tools": {"podcast_mcp.gui.jobs"},
     "podcast_mcp.services.collaboration.share": {
         "podcast_mcp.gui.mapper",
         "podcast_mcp.gui.audio",
@@ -135,7 +134,6 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     },
 }
 _ADAPTER_ADAPTER_DELETE = {
-    "podcast_mcp.mcp.tools.pipeline": {"podcast_mcp.gui.jobs"},
     "podcast_mcp.gui.routes.handoff": {"podcast_mcp.cli.handoff", "podcast_mcp.cli.main"},
 }
 _ADAPTER_ADAPTER_WIRING = {
@@ -259,9 +257,9 @@ def test_architecture_allowlists_match_the_tree_exactly() -> None:
         ("from podcast_mcp import edits", "podcast_mcp.cli.review", {"domain:podcast_mcp.edits"}),
         ("from . import edits", "podcast_mcp.cli.review", set()),
         (
-            "from podcast_mcp.gui import jobs",
+            "from podcast_mcp.gui import job_events",
             "podcast_mcp.mcp.tools.review",
-            {"adapter:podcast_mcp.gui", "adapter:podcast_mcp.gui.jobs"},
+            {"adapter:podcast_mcp.gui", "adapter:podcast_mcp.gui.job_events"},
         ),
         (
             "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"
@@ -270,9 +268,9 @@ def test_architecture_allowlists_match_the_tree_exactly() -> None:
             set(),
         ),
         (
-            "from podcast_mcp.gui.jobs import shared_job_manager",
+            "from podcast_mcp.gui.job_events import stream_job_events",
             "podcast_mcp.mcp.tools.review",
-            {"adapter:podcast_mcp.gui.jobs"},
+            {"adapter:podcast_mcp.gui.job_events"},
         ),
         (
             "from ...cli.main import app",
@@ -448,11 +446,20 @@ def _violations(
             _BASE + ".document_sync.service",
             set(),
         ),
-        ("from podcast_mcp.gui.jobs import shared_job_manager", _BASE + ".remote_mcp.tools", set()),
         (
-            "from podcast_mcp.gui.jobs import shared_job_manager",
-            _BASE + ".collaboration.share",
-            {"podcast_mcp.gui.jobs"},
+            "from podcast_mcp.gui.job_events import stream_job_events",
+            _BASE + ".remote_mcp.tools",
+            {"podcast_mcp.gui.job_events"},
+        ),
+        (
+            "from podcast_mcp.services.jobs import shared_job_manager",
+            _BASE + ".remote_mcp.tools",
+            set(),
+        ),
+        (
+            "from podcast_mcp.services.jobs.manager import JobManager",
+            "podcast_mcp.gui.routes.pipeline",
+            {_BASE + ".jobs.manager"},
         ),
         (
             "from podcast_mcp.gui.bind import gui_server_deps_available",

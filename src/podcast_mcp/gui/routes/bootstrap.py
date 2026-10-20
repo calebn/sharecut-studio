@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
-from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager, shared_bootstrap_job_manager
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
@@ -16,6 +15,7 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
+from podcast_mcp.services.jobs import BootstrapJobManager, shared_bootstrap_job_manager
 from podcast_mcp.services.pipeline import component_status
 from podcast_mcp.whisper_models import resolve_whisper_model
 

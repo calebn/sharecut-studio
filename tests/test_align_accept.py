@@ -677,8 +677,8 @@ def test_unattended_gate_stops_on_kept_placement_drift(tmp_path: Path) -> None:
         ALIGN_GATE.require_or_waive_unattended(p, unattended=True, defaults=load_defaults())
 
 
-def testshort_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
-    from podcast_mcp.services.jobs import short_fail_message
+def test_gui_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
+    from podcast_mcp.services.jobs.job import short_fail_message
 
     p = _proj(tmp_path)
     _write_plans(p, -35.6)

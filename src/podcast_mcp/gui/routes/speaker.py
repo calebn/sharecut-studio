@@ -6,7 +6,6 @@ from typing import Any
 
 from fastapi import APIRouter, Header, Query, Request
 
-from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
@@ -15,6 +14,7 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.gui.schemas import SpeakerMoveLaneSpanRequest, SpeakerSplitRequest
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.media import SpeakerService
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -32,7 +32,7 @@ def speaker_doctor(
     return SpeakerService.doctor_static()
 
 
-def _jobs(request: Request) -> PipelineJobManager:
+def _jobs(request: Request) -> JobManager:
     return request.app.state.jobs
 
 
