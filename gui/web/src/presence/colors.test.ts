@@ -17,6 +17,8 @@ describe("presence colors", () => {
     expect(initials("Caleb Nelson")).toBe("CN");
     expect(initials("  ")).toBe("?");
     expect(initials("Agent")).toBe("A");
+    expect(initials("Host ·2")).toBe("H");
+    expect(initials("·2")).toBe("?");
   });
 
   it("disambiguates duplicate names", () => {
