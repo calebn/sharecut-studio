@@ -46,6 +46,7 @@ import {
   loadCommandQueue,
   loadHostCommandQueue,
   type OfflineConflict,
+  type QueueAdmission,
   type QueuedCommand,
   removeHostQueuedCommand,
   removeQueuedCommand,
@@ -582,15 +583,7 @@ async function submitCommand(
     ? null
     : beginDocumentSend(projectPath, command_id);
   try {
-    if (isShareProjectKey(projectPath)) {
-      return await submitGuestDocumentCommand(
-        projectPath,
-        { scope, command_id, client_seq, type, payload, bodyBase },
-        opts,
-        send,
-      );
-    }
-    return await submitHostDocumentCommand(
+    return await submitThroughQueue(
       projectPath,
       { scope, command_id, client_seq, type, payload, bodyBase },
       opts,
@@ -601,13 +594,37 @@ async function submitCommand(
   }
 }
 
-async function submitGuestDocumentCommand(
+const RETRY_REASON =
+  "The server may have applied this edit. Retrying will reuse the same command.";
+
+/**
+ * What differs between the host and share-guest submit paths. Everything else
+ * (admit to the persisted queue, wait for an earlier send, post, settle the
+ * outcome, apply the result) is one flow in `submitThroughQueue`.
+ */
+interface SubmitSide {
+  role: "viewer" | "guest";
+  structuralMode(): "propose" | "apply" | undefined;
+  /** Persist the command; throws when it must not be sent without a record. */
+  admit(cmd: QueuedCommand): Promise<QueueAdmission>;
+  loadQueue(): Promise<QueuedCommand[]>;
+  requestDrain(): void;
+  post(body: Record<string, unknown>): Promise<DocumentCommandReply>;
+  /** Post the queued head's payload when an earlier send left it ahead of us. */
+  adoptQueuedPayload: boolean;
+  /** A replayed send that did not land is rethrown instead of reported queued. */
+  rethrowUnlandedReplay: boolean;
+  /** This call removes its own row on landing or refusal, even unpersisted. */
+  ownsQueueRow: boolean;
+  /** Why an unpersisted send that never got a reply has an unknown outcome. */
+  unpersistedTransportReason: string;
+}
+
+function guestSide(
   projectPath: string,
-  body: DocumentCommandBody,
+  type: string,
   opts: ResolvedCommandOptions,
-  send: DocumentSend | null,
-): Promise<Record<string, unknown>> {
-  const { command_id, client_seq, type, payload, bodyBase } = body;
+): SubmitSide {
   const token = shareTokenFromKey(projectPath)!;
   const structural =
     type === DocumentCommand.SplitAtTime ||
@@ -618,8 +635,87 @@ async function submitGuestDocumentCommand(
     (typeof navigator !== "undefined" && navigator.onLine === false);
   const structural_mode =
     opts.structural_mode ?? (offline && structural ? "propose" : undefined);
+  return {
+    role: "guest",
+    structuralMode: () => structural_mode,
+    admit: (cmd) => enqueueCommand(token, cmd),
+    loadQueue: () => loadCommandQueue(token),
+    requestDrain: () => requestGuestDrainLazy(token),
+    post: (body) => postGuestDocumentCommand(token, body),
+    adoptQueuedPayload: false,
+    rethrowUnlandedReplay: true,
+    ownsQueueRow: true,
+    unpersistedTransportReason: RETRY_REASON,
+  };
+}
 
-  const admitted = await enqueueCommand(token, {
+function hostSide(
+  projectPath: string,
+  opts: ResolvedCommandOptions,
+): SubmitSide {
+  return {
+    role: "viewer",
+    structuralMode: () => opts.structural_mode,
+    admit: async (cmd) => {
+      // A replay already owns its persisted queue record.
+      if (opts.replaying) return { persisted: true, hadPredecessor: false };
+      let persistenceFailed = false;
+      let admitted: QueueAdmission;
+      try {
+        admitted = await enqueueHostCommand(projectPath, cmd, () => {
+          persistenceFailed = true;
+        });
+      } catch (error) {
+        if (!persistenceFailed) throw error;
+        // Direct send is safe only when a readable queue proves there is no older edit.
+        let pending;
+        try {
+          pending = await loadHostCommandQueue(projectPath);
+        } catch {
+          throw error;
+        }
+        if (pending.length > 0) {
+          throw new Error(
+            "Cannot send this edit while older offline edits are pending",
+          );
+        }
+        return { persisted: false, hadPredecessor: false };
+      }
+      if (!admitted.persisted) {
+        throw new Error("Cannot send this edit without local persistence");
+      }
+      return admitted;
+    },
+    loadQueue: () => loadHostCommandQueue(projectPath),
+    requestDrain: () => requestHostDrainLazy(projectPath),
+    post: (body) => postHostDocumentCommand(projectPath, body),
+    adoptQueuedPayload: true,
+    rethrowUnlandedReplay: false,
+    ownsQueueRow: false,
+    unpersistedTransportReason:
+      "The server may have applied this edit. Check the project before submitting it again.",
+  };
+}
+
+async function submitThroughQueue(
+  projectPath: string,
+  body: DocumentCommandBody,
+  opts: ResolvedCommandOptions,
+  send: DocumentSend | null,
+): Promise<Record<string, unknown>> {
+  const { command_id, client_seq, type, payload } = body;
+  let bodyBase = body.bodyBase;
+  const side = isShareProjectKey(projectPath)
+    ? guestSide(projectPath, type, opts)
+    : hostSide(projectPath, opts);
+  const structural_mode = side.structuralMode();
+  const queued = (): QueuedCommand => ({
+    ...bodyBase,
+    structural_mode,
+    created_at: Date.now(),
+  });
+
+  const admitted = await side.admit({
     command_id,
     client_id: bodyBase.client_id,
     client_seq,
@@ -629,103 +725,76 @@ async function submitGuestDocumentCommand(
     created_at: Date.now(),
   });
   if (admitted.hadPredecessor && !opts.replaying) {
+    // A predecessor that is this tab's own live send is not an offline edit:
+    // wait for it, then send this command if nothing older remains.
     const head = send
-      ? await queueHeadAfterPriorSend(
-          () => loadCommandQueue(token),
-          command_id,
-          send,
-        )
+      ? await queueHeadAfterPriorSend(side.loadQueue, command_id, send)
       : null;
     if (!head) {
-      requestGuestDrainLazy(token);
+      // Nothing in this call will send it, so make sure a drain does.
+      side.requestDrain();
       return queuedResult(command_id, client_seq);
+    }
+    if (side.adoptQueuedPayload) {
+      bodyBase = { ...bodyBase, payload: head.payload };
     }
   }
 
+  // The command stays queued and replays on reconnect unless this call is
+  // a guest replay, whose caller owns the retry.
+  const staysQueued =
+    admitted.persisted && !(opts.replaying && side.rethrowUnlandedReplay);
   let reply: DocumentCommandReply;
   try {
-    reply = await postGuestDocumentCommand(token, {
+    reply = await side.post({
       ...bodyBase,
-      role: "guest",
       ...(structural_mode ? { structural_mode } : {}),
+      role: side.role,
     });
   } catch (err) {
     // The request never reached the server, or its reply did not arrive in
-    // time. The command stays queued and replays on reconnect, so the
-    // caller keeps its optimistic value.
-    if (opts.replaying) {
-      await settleCommandOutcome(
-        projectPath,
-        {
-          ...bodyBase,
-          structural_mode,
-          created_at: Date.now(),
-        },
-        commandOutcome(
-          {
-            ...bodyBase,
-            structural_mode,
-            created_at: Date.now(),
-          },
-          "unknown",
-          "The server may have applied this edit. Retrying will reuse the same command.",
-          admitted.persisted,
-        ),
-        false,
-      );
-      throw err;
-    }
-    const outcome = commandOutcome(
-      {
-        ...bodyBase,
-        structural_mode,
-        created_at: Date.now(),
-      },
-      "unknown",
-      "The server may have applied this edit. Retrying will reuse the same command.",
-      admitted.persisted,
+    // time.
+    const cmd = queued();
+    await settleCommandOutcome(
+      projectPath,
+      cmd,
+      commandOutcome(
+        cmd,
+        "unknown",
+        admitted.persisted ? RETRY_REASON : side.unpersistedTransportReason,
+        admitted.persisted,
+      ),
+      false,
     );
-    await settleCommandOutcome(projectPath, outcome.command, outcome, false);
-    if (admitted.persisted) return queuedResult(command_id, client_seq);
+    if (staysQueued) return queuedResult(command_id, client_seq);
     throw err;
   }
   if (!reply.ok) {
-    const failure = reply.failure;
-    if (isRetryLater(failure) || reply.status >= 500) {
-      const cmd = {
-        ...bodyBase,
-        structural_mode,
-        created_at: Date.now(),
-      };
-      const outcome = commandOutcome(
+    const { failure, status } = reply;
+    const cmd = queued();
+    if (isRetryLater(failure) || status >= 500) {
+      await settleCommandOutcome(
+        projectPath,
         cmd,
-        "unknown",
-        "The server may have applied this edit. Retrying will reuse the same command.",
-        admitted.persisted,
+        commandOutcome(cmd, "unknown", RETRY_REASON, admitted.persisted),
+        false,
       );
-      await settleCommandOutcome(projectPath, cmd, outcome, false);
-      if (opts.replaying) throw failure;
-      if (admitted.persisted) return queuedResult(command_id, client_seq);
+      if (staysQueued) return queuedResult(command_id, client_seq);
       throw failure;
     }
-    const cmd = {
-      ...bodyBase,
-      structural_mode,
-      created_at: Date.now(),
-    };
     await settleCommandOutcome(
       projectPath,
       cmd,
       commandOutcome(cmd, "refused", failure.message),
-      true,
+      side.ownsQueueRow || admitted.persisted,
     );
     throw failure;
   }
   await settleCommandOutcome(
     projectPath,
-    { ...bodyBase, structural_mode, created_at: Date.now() },
+    queued(),
     null,
-    true,
+    side.ownsQueueRow || (admitted.persisted && !opts.replaying),
   );
   const data = reply.data;
   if (useDawStore.getState().projectPath === projectPath) {
@@ -756,174 +825,4 @@ async function queueHeadAfterPriorSend(
     // Unreadable queue: stay queued to keep order; the drain retries it.
     return null;
   }
-}
-
-async function submitHostDocumentCommand(
-  projectPath: string,
-  body: DocumentCommandBody,
-  opts: ResolvedCommandOptions,
-  send: DocumentSend | null,
-): Promise<Record<string, unknown>> {
-  const { command_id, client_seq, type, payload } = body;
-  let bodyBase = body.bodyBase;
-  let enqueueResult = { persisted: false, hadPredecessor: false };
-  let persistenceFailed = false;
-  let persistenceFallbackAllowed = false;
-  if (opts.replaying) {
-    // A replay already owns its persisted queue record.
-    enqueueResult.persisted = true;
-  } else {
-    try {
-      enqueueResult = await enqueueHostCommand(
-        projectPath,
-        {
-          command_id,
-          client_id: bodyBase.client_id,
-          client_seq,
-          type,
-          payload,
-          structural_mode: opts.structural_mode,
-          created_at: Date.now(),
-        },
-        () => {
-          persistenceFailed = true;
-        },
-      );
-    } catch (error) {
-      if (!persistenceFailed) throw error;
-      // Direct send is safe only when a readable queue proves there is no older edit.
-      let pending;
-      try {
-        pending = await loadHostCommandQueue(projectPath);
-      } catch {
-        throw error;
-      }
-      if (pending.length > 0) {
-        throw new Error(
-          "Cannot send this edit while older offline edits are pending",
-        );
-      }
-      persistenceFallbackAllowed = true;
-    }
-  }
-  if (
-    !opts.replaying &&
-    !enqueueResult.persisted &&
-    !persistenceFallbackAllowed
-  ) {
-    throw new Error("Cannot send this edit without local persistence");
-  }
-  if (enqueueResult.hadPredecessor && !opts.replaying) {
-    // A predecessor that is this tab's own live send is not an offline edit:
-    // wait for it, then send this command if nothing older remains.
-    const head = send
-      ? await queueHeadAfterPriorSend(
-          () => loadHostCommandQueue(projectPath),
-          command_id,
-          send,
-        )
-      : null;
-    if (!head) {
-      // Nothing in this call will send it, so make sure a drain does.
-      requestHostDrainLazy(projectPath);
-      return queuedResult(command_id, client_seq);
-    }
-    bodyBase = { ...bodyBase, payload: head.payload };
-  }
-  let reply: DocumentCommandReply;
-  try {
-    reply = await postHostDocumentCommand(projectPath, {
-      ...bodyBase,
-      role: "viewer",
-    });
-  } catch (err) {
-    if (enqueueResult.persisted) {
-      const cmd: QueuedCommand = {
-        command_id,
-        client_id: bodyBase.client_id,
-        client_seq,
-        type,
-        payload: bodyBase.payload,
-        structural_mode: opts.structural_mode,
-        created_at: Date.now(),
-      };
-      const outcome = commandOutcome(
-        cmd,
-        "unknown",
-        "The server may have applied this edit. Retrying will reuse the same command.",
-        true,
-      );
-      await settleCommandOutcome(projectPath, cmd, outcome, false);
-      return queuedResult(command_id, client_seq);
-    }
-    const cmd: QueuedCommand = {
-      command_id,
-      client_id: bodyBase.client_id,
-      client_seq,
-      type,
-      payload: bodyBase.payload,
-      structural_mode: opts.structural_mode,
-      created_at: Date.now(),
-    };
-    await settleCommandOutcome(
-      projectPath,
-      cmd,
-      commandOutcome(
-        cmd,
-        "unknown",
-        "The server may have applied this edit. Check the project before submitting it again.",
-      ),
-      false,
-    );
-    throw err;
-  }
-  if (!reply.ok) {
-    const { failure, status } = reply;
-    const cmd: QueuedCommand = {
-      command_id,
-      client_id: bodyBase.client_id,
-      client_seq,
-      type,
-      payload: bodyBase.payload,
-      structural_mode: opts.structural_mode,
-      created_at: Date.now(),
-    };
-    if (isRetryLater(failure) || status >= 500) {
-      const outcome = commandOutcome(
-        cmd,
-        "unknown",
-        "The server may have applied this edit. Retrying will reuse the same command.",
-        enqueueResult.persisted,
-      );
-      await settleCommandOutcome(projectPath, cmd, outcome, false);
-      if (enqueueResult.persisted) return queuedResult(command_id, client_seq);
-      throw failure;
-    }
-    await settleCommandOutcome(
-      projectPath,
-      cmd,
-      commandOutcome(cmd, "refused", failure.message),
-      enqueueResult.persisted,
-    );
-    throw failure;
-  }
-  await settleCommandOutcome(
-    projectPath,
-    {
-      command_id,
-      client_id: bodyBase.client_id,
-      client_seq,
-      type,
-      payload: bodyBase.payload,
-      structural_mode: opts.structural_mode,
-      created_at: Date.now(),
-    },
-    null,
-    enqueueResult.persisted && !opts.replaying,
-  );
-  const data = reply.data;
-  if (useDawStore.getState().projectPath === projectPath) {
-    applyDocumentResult(data, body.scope);
-  }
-  return data;
 }
