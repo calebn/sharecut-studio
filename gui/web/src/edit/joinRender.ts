@@ -1,5 +1,6 @@
 import type { ClipRow, JoinMode } from "../types/project";
 import { formatRulerTime } from "../utils/time";
+import { JOIN_GAP_TOLERANCE_SEC } from "./limits.generated";
 
 export const JOIN_MODE_OPTIONS: { value: JoinMode; label: string }[] = [
   { value: "cut", label: "Cut (no fade)" },
@@ -28,9 +29,6 @@ export function isCutJoin(
 export function isCrossfadeJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
   return clip.join_in_mode === "crossfade";
 }
-
-/** Mirrors `edits/clips_ops.JOIN_GAP_TOLERANCE_SEC` (tests/test_clips_ops.py checks they match). */
-export const JOIN_GAP_TOLERANCE_SEC = 0.05;
 
 /** Neighbours narrower than this on screen get no drawn join (badge); the clip inspector's Join control still covers it. */
 export const MIN_JOIN_CLIP_PX = 24;

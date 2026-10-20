@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from math import isclose
 from pathlib import Path
 
@@ -108,10 +107,3 @@ def test_abutting_pairs_skips_gapped_neighbours() -> None:
 
     assert abutting_pairs([a, b, c]) == [(a, b)]
     assert abutting_pairs([a]) == []
-
-
-def test_join_gap_tolerance_matches_the_gui() -> None:
-    ts = (ROOT / "gui/web/src/edit/joinRender.ts").read_text(encoding="utf-8")
-    match = re.search(r"export const JOIN_GAP_TOLERANCE_SEC = ([\d.]+);", ts)
-    assert match
-    assert float(match.group(1)) == JOIN_GAP_TOLERANCE_SEC

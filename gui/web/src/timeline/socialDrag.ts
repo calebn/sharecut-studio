@@ -1,4 +1,4 @@
-import { MIN_EDGE_SPAN_SEC } from "../edit/clipEdgePreview";
+import { MIN_EDGE_SPAN_SEC } from "../edit/limits.generated";
 
 export type SocialDragMode = "move" | "start" | "end";
 

@@ -3,9 +3,9 @@ import {
   clampTrimSourceSec,
   clipGeometryDuringRoll,
   clipRowDuringRoll,
-  MIN_EDGE_SPAN_SEC,
   sourceSecFromTimelineDelta,
 } from "./clipEdgePreview";
+import { MIN_EDGE_SPAN_SEC } from "./limits.generated";
 
 describe("clipEdgePreview", () => {
   it("clamps out edge to next source start", () => {

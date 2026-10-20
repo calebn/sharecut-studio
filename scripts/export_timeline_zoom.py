@@ -12,7 +12,6 @@ from biome_format import biome_format_ts
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "timeline-zoom.json"
 OUT = ROOT / "gui" / "web" / "src" / "utils" / "timelineZoom.generated.ts"
-BUNDLED = ROOT / "src" / "podcast_mcp" / "util" / "timeline-zoom.json"
 
 # (contract key under "waveform", exported TS constant). paint_dpr_cap is
 # emitted separately as PAINT_DPR_CAP (client-only; Python has no getter).
@@ -78,26 +77,16 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     text = biome_format_ts(generate())
-    bundled = CONTRACT.read_text(encoding="utf-8")
     if args.check:
-        ok = True
         if not OUT.exists() or OUT.read_text(encoding="utf-8") != text:
             print(f"timeline zoom copy out of date: {OUT}", flush=True)
-            ok = False
-        if not BUNDLED.exists() or BUNDLED.read_text(encoding="utf-8") != bundled:
-            print(f"bundled timeline-zoom.json out of date: {BUNDLED}", flush=True)
-            ok = False
-        if not ok:
             print("Run: uv run python scripts/export_timeline_zoom.py", flush=True)
             return 1
         print("timeline zoom contract up to date")
         return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text, encoding="utf-8")
-    BUNDLED.parent.mkdir(parents=True, exist_ok=True)
-    BUNDLED.write_text(bundled, encoding="utf-8")
     print(f"wrote {OUT}")
-    print(f"wrote {BUNDLED}")
     return 0
 
 

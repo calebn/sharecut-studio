@@ -651,7 +651,8 @@ The web build adds about 0.8 MB to a wheel of about 1.2 MB. The
 [`release-wheel`](../.github/workflows/release-wheel.yml) workflow runs
 `npm ci && npm run build`, then `uv build`, installs the wheel into a clean venv,
 and runs `scripts/check_wheel_web_build.py --podcast <venv>/bin/podcast`. The script
-fails unless the wheel holds `index.html` plus every file it references and
+fails unless the wheel holds `index.html` plus every file it references, ships
+`contracts/` as `podcast_mcp/contracts` (the installed package loads them) and
 `podcast gui` serves that same `index.html` at `/`. Run it on a local wheel:
 
 ```bash

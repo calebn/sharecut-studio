@@ -435,17 +435,6 @@ def test_cli_share_commands_gated_in_subprocess() -> None:
     assert present.returncode == 0, present.stdout + present.stderr
 
 
-def test_contracts_caps_json_sync() -> None:
-    root = Path(__file__).resolve().parents[1]
-    proc = subprocess.run(
-        [sys.executable, str(root / "scripts" / "check_extension_contracts.py")],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 0, proc.stderr + proc.stdout
-
-
 def test_protocol_version_exported() -> None:
     from podcast_relay.protocol import PROTOCOL_VERSION, msg
 

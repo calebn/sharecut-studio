@@ -1,5 +1,6 @@
 {
   "$comment": "Longest join length SetClipJoin keeps on both edges. gui/web/src/edit/fadeLimits.ts joinLengthMaxMs mirrors edits/join_modes.set_clip_join; gui/web/src/edit/fadeLimits.test.ts and tests/test_join_length_limits_contract.py both read these cases. track_fade_max_ms null = uncapped (non-dialogue track).",
+  "constants": { "join_gap_tolerance_sec": 0.05 },
   "cases": [
     { "name": "uncapped, the left fade-in leaves room", "left_duration_sec": 2.0, "left_fade_in_ms": 500, "right_duration_sec": 3.0, "track_fade_max_ms": null, "max_ms": 1500 },
     { "name": "the track cap wins", "left_duration_sec": 2.0, "left_fade_in_ms": 0, "right_duration_sec": 2.0, "track_fade_max_ms": 40, "max_ms": 40 },

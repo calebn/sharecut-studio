@@ -11,8 +11,8 @@
  * (`contracts/trim-edge-limits.json`).
  */
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
-import { TIME_EPS_SEC as EPS } from "../utils/timebase";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
+import { TIME_EPS_SEC as EPS, RIPPLE_EDGE_EPS_SEC } from "./limits.generated";
 import { trimEdgeLimits } from "./trimLimits";
 
 export type Span = { start: number; end: number };
@@ -45,9 +45,6 @@ export interface RippleMove {
   fromSec: number;
   toSec: number;
 }
-
-/** `edits/ripple.py` `_EDGE_EPS_SEC`: an edge this close to the trimmed one moves with it. */
-const EDGE_EPS_SEC = 1e-3;
 
 /** Tracks a ripple moves: every dialogue track, then any edited track that is not one. */
 export function rippleTrackIds(
@@ -97,7 +94,7 @@ function movingPeer(
   const i = lane.findIndex(
     (c) =>
       Math.abs((edge === "in" ? c.timeline_start : c.timeline_end) - instant) <=
-      EDGE_EPS_SEC,
+      RIPPLE_EDGE_EPS_SEC,
   );
   const peer = lane[i];
   if (!peer) return null;

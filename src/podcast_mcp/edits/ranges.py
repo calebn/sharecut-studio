@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from podcast_mcp.util.contracts import load_contract
 from podcast_mcp.util.intervals import merge_intervals as merge_intervals
 from podcast_mcp.util.intervals import subtract_intervals
 
 # Tolerance (seconds) for span edge comparisons: touching spans do not overlap.
-SPAN_EPS_S = 1e-9
+# contracts/trim-edge-limits.json; the GUI reads it as TIME_EPS_SEC.
+SPAN_EPS_S: float = load_contract("trim-edge-limits.json")["constants"]["time_eps_sec"]
 
 
 def merge_timeline_ranges(

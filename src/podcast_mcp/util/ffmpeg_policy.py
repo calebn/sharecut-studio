@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
+
+from podcast_mcp.util.contracts import load_contract
 
 
 def ffmpeg_policy() -> dict[str, Any]:
-    packaged = Path(__file__).with_name("ffmpeg-build.json")
-    path = (
-        packaged
-        if packaged.is_file()
-        else Path(__file__).parents[3] / "contracts/ffmpeg-build.json"
-    )
-    return json.loads(path.read_text(encoding="utf-8"))
+    return load_contract("ffmpeg-build.json")

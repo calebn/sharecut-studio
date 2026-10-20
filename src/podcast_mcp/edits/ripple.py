@@ -23,15 +23,17 @@ from podcast_mcp.edits.clips_ops import (
     trim_edge_limits,
     update_timeline_duration,
 )
+from podcast_mcp.edits.ranges import SPAN_EPS_S
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.contracts import load_contract
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 TrimEdge = Literal["in", "out"]
 
-_EDGE_EPS_SEC = 1e-3
-_EPS = 1e-9
+_EDGE_EPS_SEC: float = load_contract("ripple-scope.json")["constants"]["edge_eps_sec"]
+_EPS = SPAN_EPS_S
 
 
 def ripple_track_ids(project: EpisodeProject, edited_track_ids: Iterable[str] = ()) -> list[str]:

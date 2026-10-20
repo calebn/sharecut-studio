@@ -1,6 +1,6 @@
 import type { ClipRow } from "../types/project";
-import { MIN_EDGE_SPAN_SEC } from "./clipEdgePreview";
 import { clipsAbut } from "./joinRender";
+import { MIN_EDGE_SPAN_SEC } from "./limits.generated";
 import { sameRecording } from "./recordingIdentity";
 
 export interface RollJoinInterval {

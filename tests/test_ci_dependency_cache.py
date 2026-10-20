@@ -65,10 +65,10 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     assert matrix == "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
 
 
-def test_release_wheel_rebuilds_when_ffmpeg_contract_changes() -> None:
+def test_release_wheel_rebuilds_when_a_contract_changes() -> None:
     workflow = load_github_yaml(ROOT / ".github/workflows/release-wheel.yml")
     for event in ("pull_request", "push"):
-        assert "contracts/ffmpeg-build.json" in workflow["on"][event]["paths"]
+        assert "contracts/**" in workflow["on"][event]["paths"]
 
 
 def test_windows_action_executes_standard_python_identity_check():

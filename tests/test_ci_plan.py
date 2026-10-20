@@ -44,6 +44,7 @@ GUI_PATTERNS = [
     "scripts/path_vocab.py",
     "scripts/export_capabilities_copy.py",
     "scripts/export_timeline_zoom.py",
+    "scripts/export_limit_contracts.py",
     "scripts/build_large_project_fixture.py",
     "scripts/ux_demo_prepare_shares.py",
     "docs/daw-shortcuts.md",
