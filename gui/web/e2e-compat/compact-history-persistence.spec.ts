@@ -353,6 +353,14 @@ async function undoStaysReachable(
     name: "Envelope point 0.01 s later",
     exact: true,
   });
+  // At 200% text on a phone held sideways the strip fills the screen: the
+  // nudges are one scroll of its body away, and the body ends at the mode bar.
+  await nudge.scrollIntoViewIfNeeded();
+  const nudgeGeometry = await controlGeometry(nudge);
+  expect(nudgeGeometry).toMatchObject({
+    fullyVisible: true,
+    hitsControl: true,
+  });
   const nudgeBox = await nudge.boundingBox();
   if (!nudgeBox) throw new Error("Nudge has no box");
   await finger.down({
@@ -569,12 +577,9 @@ for (const {
   cell: { name, rootPx },
   theme,
 } of withAppearance(
-  // At 200% text a 390px-tall phone held sideways gives the strip the whole
-  // screen: its nudges scroll under the mode bar. That cell measured the
-  // tablet shell, which a coarse pointer no longer gets at this size (#1696).
-  (["portrait", "landscape"] as const)
-    .flatMap((name) => [16, 32].map((rootPx) => ({ name, rootPx })))
-    .filter(({ name, rootPx }) => !(name === "landscape" && rootPx === 32)),
+  (["portrait", "landscape"] as const).flatMap((name) =>
+    [16, 32].map((rootPx) => ({ name, rootPx })),
+  ),
 )) {
   test.describe(`compact history ${name} root${rootPx} ${theme}`, () => {
     test("Compact history stays reachable through unavailable Redo and saved Undo and Redo", ({
