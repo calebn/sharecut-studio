@@ -1,4 +1,5 @@
 import {
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -9,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
+import { type DisabledReasonProps, unavailableReason } from "./disabledReason";
 import { enterTopLayerPanel } from "./topLayerFloor";
 import { useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
@@ -217,12 +219,11 @@ export function Menu({
   );
 }
 
-type MenuItemProps = {
+type MenuItemProps = DisabledReasonProps & {
   children: ReactNode;
   onSelect?: () => void;
   className?: string;
   title?: string;
-  disabled?: boolean;
   /** Display-only shortcut, right-aligned; hidden from the accessible name. */
   shortcut?: string;
   onPointerEnter?: () => void;
@@ -231,53 +232,92 @@ type MenuItemProps = {
   onBlur?: () => void;
   /** `aria-keyshortcuts` for the shortcut (the visible kbd is aria-hidden). */
   keyShortcuts?: string;
+  /** A line under the label that says what the choice will act on. */
+  description?: string;
+  /** Trailing value, decorative: the label already carries it. */
+  detail?: string;
+  /** Marks the item a sliding finger is over (lift to pick it). */
+  over?: boolean;
+  onPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  /** `data-*` hooks the caller's gesture router reads. */
+  dataAttrs?: Readonly<Record<string, string>>;
 };
 
+/**
+ * A menu choice. An item that cannot run stays focusable (`aria-disabled`),
+ * says why under its label and does nothing on select, so the person who
+ * reaches it by key or touch still learns what is missing.
+ */
 export function MenuItem({
   children,
   onSelect,
   className,
   title,
-  disabled,
+  disabledReason,
   onPointerEnter,
   onPointerLeave,
   onFocus,
   onBlur,
   shortcut,
   keyShortcuts,
+  description,
+  detail,
+  over,
+  onPointerDown,
+  dataAttrs,
 }: MenuItemProps) {
-  const classes = ["ui-control", "ui-control--quiet", className]
+  const reasonId = useId();
+  const reason = unavailableReason(disabledReason);
+  const caption = reason ?? description;
+  const classes = [
+    "ui-control",
+    "ui-control--quiet",
+    over ? "is-over" : null,
+    className,
+  ]
     .filter(Boolean)
     .join(" ");
+  const label = <span className="ui-menu-item-label">{children}</span>;
+  const body = caption ? (
+    <span className="ui-menu-item-text">
+      {label}
+      <span id={reasonId} className="ui-menu-item-reason">
+        {caption}
+      </span>
+    </span>
+  ) : shortcut || detail ? (
+    label
+  ) : (
+    children
+  );
   return (
     <button
       type="button"
       role="menuitem"
       tabIndex={-1}
       className={classes}
-      title={title}
+      title={reason ?? title}
       aria-keyshortcuts={keyShortcuts}
-      disabled={disabled}
+      aria-disabled={reason ? true : undefined}
+      aria-describedby={caption ? reasonId : undefined}
+      {...dataAttrs}
+      onPointerDown={onPointerDown}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
       onFocus={onFocus}
       onBlur={onBlur}
       onClick={() => {
-        if (!disabled) {
+        if (!reason) {
           onSelect?.();
         }
       }}
     >
-      {shortcut ? (
-        <>
-          <span className="ui-menu-item-label">{children}</span>
-          <kbd className="ui-menu-shortcut" aria-hidden="true">
-            {shortcut}
-          </kbd>
-        </>
-      ) : (
-        children
-      )}
+      {body}
+      {shortcut || detail ? (
+        <kbd className="ui-menu-shortcut" aria-hidden="true">
+          {shortcut ?? detail}
+        </kbd>
+      ) : null}
     </button>
   );
 }

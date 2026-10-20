@@ -454,12 +454,10 @@ export function TransportBar({
       {timelineToolsInMenu ? (
         <MenuSection label="Timeline tools">
           <MenuItem
-            disabled={loading}
-            title={
-              loading
-                ? "Open a project to select audio"
-                : titleWithShortcut("Select tool", "tool.select")
+            disabledReason={
+              loading ? "Open a project to select audio" : undefined
             }
+            title={titleWithShortcut("Select tool", "tool.select")}
             shortcut={displayShortcutFor("tool.select")}
             keyShortcuts={ariaKeyShortcutsFor("tool.select")}
             onSelect={() => {
@@ -470,12 +468,12 @@ export function TransportBar({
             Select tool
           </MenuItem>
           <MenuItem
-            disabled={!structuralToolsAllowed}
-            title={
+            disabledReason={
               structuralToolsAllowed
-                ? titleWithShortcut("Blade tool", "tool.blade")
+                ? undefined
                 : "Blade requires permission to suggest edits"
             }
+            title={titleWithShortcut("Blade tool", "tool.blade")}
             shortcut={displayShortcutFor("tool.blade")}
             keyShortcuts={ariaKeyShortcutsFor("tool.blade")}
             onSelect={() => {

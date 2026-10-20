@@ -40,8 +40,8 @@ export function CommandMenuItem({
   onBlur,
   showShortcut = true,
 }: Props) {
-  const { run, enabled, label } = useCommand(commandId);
-  const disabled = respectWhen && !enabled;
+  const { run, enabled, whenReason, label } = useCommand(commandId);
+  const disabledReason = respectWhen && !enabled ? whenReason : undefined;
   const shortcut = showShortcut ? displayShortcutFor(commandId) : undefined;
   const keyShortcuts = showShortcut
     ? ariaKeyShortcutsFor(commandId)
@@ -51,7 +51,7 @@ export function CommandMenuItem({
     <MenuItem
       className={className}
       title={title}
-      disabled={disabled}
+      disabledReason={disabledReason}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
       onFocus={onFocus}

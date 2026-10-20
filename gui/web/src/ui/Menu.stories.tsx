@@ -32,7 +32,9 @@ function DemoMenu() {
         <MenuItem onSelect={() => setOpen(false)} className="danger">
           Delete clip
         </MenuItem>
-        <MenuItem disabled>Disabled action</MenuItem>
+        <MenuItem disabledReason="Select a track first.">
+          Disabled action
+        </MenuItem>
       </MenuSection>
     </Menu>
   );
