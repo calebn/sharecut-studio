@@ -40,6 +40,7 @@ from podcast_mcp.edits.tighten_reasons import (
     PAUSE_REASON_PREFIX,
     REPETITION_REASON_PREFIX,
     RESTART_REASON_PREFIX,
+    is_acoustic_filler_reason,
     is_likely_laugh_reason,
     is_possible_word_reason,
 )
@@ -50,6 +51,7 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_runs,
     voiced_sec_inside,
 )
+from podcast_mcp.edits.word_onset import edge_decays_into_valley, next_kept_word
 from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC, LevelProfile, level_profile
@@ -954,12 +956,18 @@ def assess_voiced_edges(
     peer_caches: Sequence[TrackAudioCache] = (),
     accept_nudge: Callable[[tuple[float, float], float, float], tuple[float, float] | None]
     | None = None,
-    split_own_at_valleys: bool = False,
+    end_in_valley: bool = False,
 ) -> VoicedEdgeAssessment:
     """Classify held edges; candidate preparation alone may supply an in-bounds nudge.
 
-    ``split_own_at_valleys`` ends this track's voiced runs at a valley a listener hears as
-    a boundary (:data:`HEARD_APART_DEPTH_DB`), for a cut whose edge was placed in one.
+    ``end_in_valley`` ends this track's voiced runs at a valley a listener hears as a
+    boundary (:data:`HEARD_APART_DEPTH_DB`), for a cut whose end was placed in one
+    (:func:`~podcast_mcp.edits.word_onset.edge_decays_into_valley`) or the fade-in region
+    that follows it. It applies to both edges because it cannot be limited to the end:
+    the fade-in's start is that same valley. A cut's own start lies after the previous
+    word's voice (:func:`~podcast_mcp.edits.word_onset.voice_end`), so a valley split
+    cannot free a start edge that sat inside kept voice, unless it sits in a valley
+    ``HEARD_APART_DEPTH_DB`` deep, which is a break a listener hears.
     """
     reach = EDGE_NUDGE_MAX_SEC + VOICE_EDGE_PAD_SEC + FRAME_SEC
     window_lo, window_hi = cut_start - reach, cut_end + reach
@@ -968,7 +976,7 @@ def assess_voiced_edges(
         window_lo,
         window_hi,
         floor_db=audio_cache.profile.voice_floor_db,
-        split_at_valleys=split_own_at_valleys,
+        split_at_valleys=end_in_valley,
     )
     peer_runs = [
         voiced_runs(c.waveform, window_lo, window_hi, floor_db=c.profile.voice_floor_db)
@@ -1419,6 +1427,7 @@ def complete_effect_acoustics(
             defaults=defaults,
             retained_envelope=effect.retained,
             audio_cache=cache,
+            end_in_valley=_contributor_ends_in_valley(project, ids, effect, cache),
         )
         for edit_id in ids:
             flags.setdefault(edit_id, []).extend(measured.flags)
@@ -1576,6 +1585,25 @@ def _source_clock_cache(
     )
 
 
+def _contributor_ends_in_valley(
+    project: EpisodeProject, ids: frozenset[str], effect: CutAudioEffect, cache: TrackAudioCache
+) -> bool:
+    """Whether a contributing acoustic cut ends in the valley its sound decays into before
+    the next kept word: the proposal's own rule (#1358), so approval holds what it held.
+
+    The cut's own span decides, not the effect's: a mute's fade-in region starts in that
+    valley and cannot see the hum before it.
+    """
+    transcript = project.transcript_for_source(effect.track_id, effect.source_id)
+    for edit in project.edit_decisions:
+        if edit.id not in ids or not is_acoustic_filler_reason(edit.reason):
+            continue
+        after = next_kept_word(transcript, edit.end)
+        if after is not None and edge_decays_into_valley(cache, edit.start, edit.end, after.start):
+            return True
+    return False
+
+
 def assess_held_source(
     project: EpisodeProject,
     track_id: str,
@@ -1590,6 +1618,7 @@ def assess_held_source(
     defaults: dict[str, Any],
     audio_cache: TrackAudioCache | None = None,
     retained_envelope: bool = False,
+    end_in_valley: bool = False,
 ) -> HeldAcoustics:
     from podcast_mcp.edits.audio_cache import source_audio_cache
 
@@ -1605,6 +1634,7 @@ def assess_held_source(
     samples = cache.window(max(0.0, lo - FRAME_SEC), hi + FRAME_SEC)
     if samples.size == 0 or not np.all(np.isfinite(samples)):
         return HeldAcoustics(("audio_unavailable",))
+    transcript = project.transcript_for_source(track_id, source_id)
     voice = assess_voiced_edges(
         lo,
         hi,
@@ -1613,10 +1643,10 @@ def assess_held_source(
         pause=pause,
         audio_cache=cache,
         word_index=words,
+        end_in_valley=end_in_valley,
     )
     if voice.flag is not None:
         flags.append(voice.flag)
-    transcript = project.transcript_for_source(track_id, source_id)
     if (
         voice.flag is not None
         and transcript is not None
