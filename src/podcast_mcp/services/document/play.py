@@ -45,9 +45,9 @@ from podcast_mcp.engines.play_audit import (
     read_premix_trim_db,
     stem_fingerprint,
     stem_hash_matches,
+    stem_hash_path,
     stem_is_fresh,
     stem_matches,
-    stem_path,
     stem_revision,
     track_render_hash,
 )
@@ -76,10 +76,11 @@ from podcast_mcp.util.project_state import (
     FileRevision,
     RenderBusyError,
     file_revision,
+    play_cache_lock_path,
     render_lock,
     snapshot_project,
 )
-from podcast_mcp.util.tracks import recording_audio_path, unknown_track
+from podcast_mcp.util.tracks import recording_audio_path, stem_path, unknown_track
 from podcast_mcp.util.wav import open_wav
 
 from .boundary import (
@@ -313,7 +314,9 @@ class PlayService:
         """Keep old generated auditions bounded without touching active outputs."""
         out_dir = self.project.artifacts_dir() / "play_cache"
         out_dir.mkdir(parents=True, exist_ok=True)
-        with hold_shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
+        with hold_shared_file_lock(
+            play_cache_lock_path(out_dir), timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC
+        ):
             now = time.time()
             candidates: list[tuple[float, Path]] = []
             for path in protected:
@@ -359,7 +362,9 @@ class PlayService:
     def _mark_play_cache_used(self, path: Path) -> None:
         """Refresh an audition lease before returning a cached WAV to a caller."""
         out_dir = self.project.artifacts_dir() / "play_cache"
-        with hold_shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
+        with hold_shared_file_lock(
+            play_cache_lock_path(out_dir), timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC
+        ):
             self._refresh_cache_access(path, out_dir)
 
     def _boundary_window(
@@ -943,7 +948,7 @@ class PlayService:
 
         stem = stem_path(self.project, track_id)
         stem.unlink(missing_ok=True)
-        hash_path = stem.parent / f"{track_id}.hash"
+        hash_path = stem_hash_path(self.project, track_id)
         hash_path.unlink(missing_ok=True)
         cache_dir = self.project.artifacts_dir() / "play_cache"
         if not cache_dir.is_dir():

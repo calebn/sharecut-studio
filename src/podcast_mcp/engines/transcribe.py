@@ -38,7 +38,6 @@ from podcast_mcp.models import (
     TranscriptKey,
     TranscriptWord,
 )
-from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file, short_digest
@@ -47,7 +46,7 @@ from podcast_mcp.util.progress import (
     raise_if_cancel_requested,
     resolve_progress_task,
 )
-from podcast_mcp.util.project_state import current_cancel_check
+from podcast_mcp.util.project_state import asr_cache_lock_path, current_cancel_check
 from podcast_mcp.util.workspace_paths import resolve_cache_file, resolve_under_workspace
 from podcast_mcp.whisper_models import (
     DEFAULT_WHISPER_MODEL,
@@ -172,8 +171,9 @@ def _cache_publication_lock(
     project: EpisodeProject, asr_cache: Path
 ) -> AbstractContextManager[FileLock]:
     family = asr_cache.stem.rsplit("_", 1)[0]
-    path = workspace_artifacts_dir(project.workspace_path()) / f"transcript-cache-{family}.lock"
-    return hold_shared_file_lock(path, timeout=ASR_CACHE_LOCK_TIMEOUT_SEC)
+    return hold_shared_file_lock(
+        asr_cache_lock_path(project, family), timeout=ASR_CACHE_LOCK_TIMEOUT_SEC
+    )
 
 
 def _prune_asr_cache(project: EpisodeProject, cache: Path) -> None:

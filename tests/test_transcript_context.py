@@ -405,10 +405,11 @@ def test_context_update_validates_entry_length(minimal_project: Path) -> None:
 
 
 def test_context_lock_is_reentrant_and_under_artifacts(tmp_path: Path) -> None:
-    from podcast_mcp.transcript_context import context_lock, context_lock_path
+    from podcast_mcp.transcript_context import context_lock
     from podcast_mcp.util.file_locks import shared_file_lock
+    from podcast_mcp.util.project_state import transcript_context_lock_path
 
-    path = context_lock_path(tmp_path)
+    path = transcript_context_lock_path(tmp_path)
     assert path.parent == (tmp_path / "artifacts").resolve()
     with context_lock(tmp_path) as held:
         assert held is shared_file_lock(path)

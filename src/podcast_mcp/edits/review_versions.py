@@ -36,6 +36,7 @@ from podcast_mcp.util.atomic_directory import rename_noreplace
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError, CodedValueError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
+from podcast_mcp.util.file_locks import flock_exclusive_nonblocking
 from podcast_mcp.util.pinned_media import (
     descriptor_walk_supported,
     open_nofollow_dir,
@@ -542,7 +543,7 @@ def sweep_stale_quarantines(project: EpisodeProject) -> None:
                         if not _trusted_dir(directory, private=True) or directory.st_mtime > cutoff:
                             continue
                         try:
-                            fcntl.flock(candidate_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            flock_exclusive_nonblocking(candidate_fd)
                         except BlockingIOError:
                             continue
                     elif not _eligible_quarantine(candidate_fd, cutoff):
@@ -571,7 +572,7 @@ def sweep_stale_quarantines(project: EpisodeProject) -> None:
                     if not _trusted_dir(dir_stat, private=True) or dir_stat.st_mtime > cutoff:
                         continue
                     try:
-                        fcntl.flock(quarantine_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        flock_exclusive_nonblocking(quarantine_fd)
                     except BlockingIOError:
                         continue
                     # Stage names are private and never referenced by a committed project.
@@ -730,7 +731,7 @@ def stage_version(
             )
         except OSError:
             initial_identity = _dir_identity(os.fstat(stage_fd))
-        fcntl.flock(stage_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        flock_exclusive_nonblocking(stage_fd)
         with _stage_leases_lock:
             _active_stage_leases[initial_identity] = stage_fd
         leased = True

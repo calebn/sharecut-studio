@@ -46,6 +46,7 @@ from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
+from podcast_mcp.util.project_state import prosody_lock_path
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 from podcast_mcp.util.wer import normalize_token
@@ -136,9 +137,8 @@ def profile_path(project: EpisodeProject, track_id: str, audio16: str, inputs16:
 
 
 def _lock_path(project: EpisodeProject, track_id: str) -> Path:
-    return resolve_cache_file(
-        prosody_dir(project), f"{cache_id_part(track_id)}.lock", kind="prosody", cache_id=track_id
-    )
+    lock = prosody_lock_path(prosody_dir(project), cache_id_part(track_id))
+    return resolve_cache_file(lock.parent, lock.name, kind="prosody", cache_id=track_id)
 
 
 @dataclass

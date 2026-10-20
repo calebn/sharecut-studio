@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import binascii
-import fcntl
 import http.client
 import json
 import os
@@ -26,6 +25,7 @@ from starlette.concurrency import run_in_threadpool
 from podcast_mcp.util.diagnostics_bundle_contract import (
     validate_diagnostics_bundle,
 )
+from podcast_mcp.util.file_locks import try_hold_flock
 from podcast_mcp.util.sqlite_open import open_sqlite
 from podcast_mcp.util.sqlite_tx import immediate_transaction
 
@@ -46,17 +46,8 @@ class PublishError(RuntimeError):
 @contextmanager
 def _publisher_lock(root: Path) -> Iterator[bool]:
     """Keep one publisher per store, including during slow GitHub reconciliation."""
-    root.mkdir(parents=True, exist_ok=True)
-    with (root / "reports.publish.lock").open("a+b") as lock:
-        try:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            yield False
-            return
-        try:
-            yield True
-        finally:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    with try_hold_flock(root / "reports.publish.lock") as acquired:
+        yield acquired
 
 
 class ReportRequest(BaseModel):

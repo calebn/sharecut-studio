@@ -47,6 +47,7 @@ from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.process import current_niceness, low_priority
 from podcast_mcp.util.progress import progress_task
+from podcast_mcp.util.project_state import waveform_lock_path
 from podcast_mcp.util.timeline_zoom import (
     base_samples_per_bin,
     bins_per_data_tile,
@@ -782,7 +783,7 @@ def build_pyramid(
     """
     slug = _slug_from_out(out, key)
     peaks_dir = out.parent
-    lock_path = peaks_dir / ".waveform.lock"
+    lock_path = waveform_lock_path(peaks_dir)
     with progress_task("waveform.build", f"Waveform {ref}", total=1) as prog:
         with hold_shared_file_lock(lock_path, timeout=PYRAMID_LOCK_TIMEOUT_SEC):
             reused = reuse_existing_pyramid(peaks_dir, key, out)

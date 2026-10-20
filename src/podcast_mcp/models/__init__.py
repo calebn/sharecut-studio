@@ -66,6 +66,7 @@ from podcast_mcp.models.episode import (
     TranscriptWords,
     load_project,
     project_file_path,
+    record_artifacts_dir,
     save_project,
     workspace_artifacts_dir,
 )
@@ -146,6 +147,7 @@ __all__ = [
     "TranscriptsSection",
     "load_project",
     "project_file_path",
+    "record_artifacts_dir",
     "save_project",
     "workspace_artifacts_dir",
 ]

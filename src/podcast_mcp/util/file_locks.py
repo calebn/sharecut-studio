@@ -8,10 +8,13 @@ import stat
 import sys
 import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
-from filelock import FileLock
+from filelock import FileLock, Timeout
+
+if os.name == "posix":
+    import fcntl
 
 _LOCKS: dict[Path, FileLock] = {}
 _GUARD = threading.Lock()
@@ -54,6 +57,52 @@ def hold_shared_file_lock(lock_path: Path, *, timeout: float) -> Iterator[FileLo
     lock = shared_file_lock(lock_path)
     with lock.acquire(timeout=timeout):
         yield lock
+
+
+def unlink_if_unheld(lock_path: Path) -> None:
+    """Best-effort delete of a lock file that no holder, in this or another process, has open.
+
+    Skipped while anyone holds the lock, and on platforms that refuse to unlink an open file.
+    The probe is its own instance (not the shared one), so it opens its own OS lock.
+    """
+    probe = FileLock(str(lock_path), thread_local=False)
+    try:
+        probe.acquire(timeout=0)
+    except Timeout:
+        return
+    try:
+        with suppress(OSError):
+            lock_path.unlink()
+    finally:
+        probe.release()
+
+
+def flock_exclusive_nonblocking(fd: int) -> None:
+    """Take an exclusive ``flock`` on ``fd``; raises ``BlockingIOError`` if another holder has it.
+
+    The lock lasts until ``fd`` is closed. POSIX only.
+    """
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@contextmanager
+def try_hold_flock(lock_path: Path) -> Iterator[bool]:
+    """Hold an exclusive ``flock`` on ``lock_path`` for the block; yields ``False`` if it is taken.
+
+    No waiting and no per-process registry: a second caller in the same process also gets
+    ``False`` because each call opens its own descriptor. POSIX only.
+    """
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as handle:
+        try:
+            flock_exclusive_nonblocking(handle.fileno())
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 _PROC_LOCKS_MAX_BYTES = 1024 * 1024
