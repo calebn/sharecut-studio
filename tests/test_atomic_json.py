@@ -51,6 +51,27 @@ def test_write_json_atomic_roundtrip(tmp_path: Path) -> None:
     assert load_json_object(target) == {"a": 1}
 
 
+def test_write_json_atomic_formats_lists_and_unicode(tmp_path: Path) -> None:
+    target = tmp_path / "rows.json"
+    write_json_atomic(target, [{"label": "Café"}], ensure_ascii=False)
+    assert target.read_text(encoding="utf-8") == '[\n  {\n    "label": "Café"\n  }\n]\n'
+    write_json_atomic(target, [{"label": "Café"}], compact=True)
+    assert target.read_text(encoding="utf-8") == '[{"label":"Caf\\u00e9"}]\n'
+
+
+def test_write_json_atomic_creation_mode_follows_the_caller(tmp_path: Path) -> None:
+    private = tmp_path / "private.json"
+    shared = tmp_path / "shared.json"
+    previous = os.umask(0o022)
+    try:
+        write_json_atomic(private, {})
+        write_json_atomic(shared, {}, creation_mode=0o666)
+    finally:
+        os.umask(previous)
+    assert private.stat().st_mode & 0o777 == 0o600
+    assert shared.stat().st_mode & 0o777 == 0o644
+
+
 def test_copy_file_atomic_replaces_whole_file(tmp_path: Path) -> None:
     src = tmp_path / "src.wav"
     src.write_bytes(b"new-bytes")

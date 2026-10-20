@@ -31,6 +31,7 @@ from podcast_mcp.edits.share_registry import (
     share_is_usable,
 )
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 
 _SHARES_NAME = "shares.json"
@@ -60,12 +61,8 @@ def _load(path: Path) -> list[dict[str, Any]]:
 
 
 def _save(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     persisted = [{k: v for k, v in row.items() if k != "token"} for row in rows]
-    path.write_text(
-        json.dumps(persisted, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    write_json_atomic(path, persisted, ensure_ascii=False, creation_mode=0o666)
 
 
 def _active_share_id(token: str) -> str | None:
