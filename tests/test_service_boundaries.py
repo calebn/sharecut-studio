@@ -39,6 +39,252 @@ _ADAPTER_EXCEPTIONS = {
 }
 
 
+_DOMAIN_PACKAGES = ("podcast_mcp.edits", "podcast_mcp.engines", "podcast_mcp.pipeline")
+_ADAPTER_NAMES = ("gui", "cli", "mcp")
+_ADAPTER_DOMAIN_ALLOWLIST_SIZE = 49
+_ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
+    "podcast_mcp.cli.cut_speech": {
+        "podcast_mcp.edits.audio_check_override",
+        "podcast_mcp.edits.cut_speech",
+    },
+    "podcast_mcp.cli.edit": {
+        "podcast_mcp.edits.bleed_restore_targets",
+        "podcast_mcp.edits.cut_speech",
+        "podcast_mcp.edits.decisions",
+        "podcast_mcp.edits.edit_reasons",
+        "podcast_mcp.edits.source_removals",
+        "podcast_mcp.edits.tighten_intensity",
+    },
+    "podcast_mcp.cli.pipeline": {
+        "podcast_mcp.pipeline.meta",
+    },
+    "podcast_mcp.cli.review": {
+        "podcast_mcp.edits.share_capabilities",
+        "podcast_mcp.edits.share_registry",
+    },
+    "podcast_mcp.cli.setup_cmd": {
+        "podcast_mcp.engines",
+        "podcast_mcp.engines.vad_silero",
+    },
+    "podcast_mcp.cli.speaker": {
+        "podcast_mcp.edits.speaker_split",
+    },
+    "podcast_mcp.cli.transcript_cmd": {
+        "podcast_mcp.edits.transcript_correct",
+        "podcast_mcp.edits.transcript_timing",
+    },
+    "podcast_mcp.gui.assembler": {
+        "podcast_mcp.edits.comments",
+        "podcast_mcp.edits.join_modes",
+        "podcast_mcp.edits.range_edits",
+        "podcast_mcp.edits.speaker_split",
+        "podcast_mcp.edits.transcript_cuts",
+        "podcast_mcp.engines.play_audit",
+    },
+    "podcast_mcp.gui.mapper": {
+        "podcast_mcp.edits.clips_ops",
+        "podcast_mcp.edits.cut_safety",
+        "podcast_mcp.edits.pending_preview",
+        "podcast_mcp.edits.range_edits",
+        "podcast_mcp.edits.tighten_hits",
+        "podcast_mcp.edits.timeline_span",
+        "podcast_mcp.engines.session_timeline",
+        "podcast_mcp.engines.utterance_runs",
+    },
+    "podcast_mcp.gui.routes.document": {
+        "podcast_mcp.edits.bleed_restore_targets",
+        "podcast_mcp.edits.range_edits",
+        "podcast_mcp.edits.transcript_refine_status",
+    },
+    "podcast_mcp.gui.routes.pipeline": {
+        "podcast_mcp.pipeline",
+    },
+    "podcast_mcp.gui.routes.record_share": {
+        "podcast_mcp.edits.share_capabilities",
+        "podcast_mcp.edits.share_registry",
+    },
+    "podcast_mcp.gui.routes.review_share": {
+        "podcast_mcp.edits.share_capabilities",
+        "podcast_mcp.edits.share_registry",
+    },
+    "podcast_mcp.gui.routes.share_common": {
+        "podcast_mcp.edits.share_registry",
+    },
+    "podcast_mcp.gui.routes.shares": {
+        "podcast_mcp.edits.review_versions",
+    },
+    "podcast_mcp.gui.routes.transcript": {
+        "podcast_mcp.edits.transcript_timing",
+    },
+    "podcast_mcp.mcp.tools.edits": {
+        "podcast_mcp.edits.audio_check_override",
+        "podcast_mcp.edits.cut_speech",
+        "podcast_mcp.edits.decisions",
+        "podcast_mcp.edits.edit_reasons",
+    },
+    "podcast_mcp.mcp.tools.pipeline": {
+        "podcast_mcp.edits.envelopes",
+    },
+    "podcast_mcp.mcp.tools.review": {
+        "podcast_mcp.edits.share_capabilities",
+    },
+    "podcast_mcp.mcp.tools.timeline": {
+        "podcast_mcp.edits.audio_check_override",
+        "podcast_mcp.edits.transcript_timing",
+    },
+}
+_ADAPTER_ADAPTER_DELETE = {
+    "podcast_mcp.mcp.tools.pipeline": {"podcast_mcp.gui.jobs"},
+    "podcast_mcp.gui.routes.handoff": {"podcast_mcp.cli.handoff", "podcast_mcp.cli.main"},
+}
+_ADAPTER_ADAPTER_WIRING = {
+    "podcast_mcp.cli.gui": {
+        "podcast_mcp.gui.bind",
+        "podcast_mcp.gui.server",
+        "podcast_mcp.gui.static_assets",
+    },
+    "podcast_mcp.gui.host_mcp": {"podcast_mcp.mcp.server"},
+}
+_UTIL_ADAPTER_DELETE = {"podcast_mcp.util.progress": {"podcast_mcp.cli.context"}}
+_ARCHITECTURE_ALLOWED = {
+    "domain": _ADAPTER_DOMAIN_ALLOWLIST,
+    "adapter": {**_ADAPTER_ADAPTER_DELETE, **_ADAPTER_ADAPTER_WIRING},
+    "util": _UTIL_ADAPTER_DELETE,
+}
+
+
+def _runtime_imports(source: str, package: str) -> set[str]:
+    """Imported modules, inline ones included, minus `if TYPE_CHECKING:` blocks."""
+    tree = ast.parse(source)
+    skipped: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and (
+            (isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING")
+            or (isinstance(node.test, ast.Attribute) and node.test.attr == "TYPE_CHECKING")
+        ):
+            skipped.update(id(child) for stmt in node.body for child in ast.walk(stmt))
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if id(node) in skipped:
+            continue
+        if isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            target = node.module or ""
+            if node.level:
+                target = resolve_name("." * node.level + target, package)
+            imports.add(target)
+    return imports
+
+
+def _layer(module: str) -> str:
+    parts = module.split(".")
+    return parts[1] if len(parts) > 1 and parts[0] == "podcast_mcp" else ""
+
+
+def _architecture_edges(source: str, module: str, package: str) -> dict[str, set[str]]:
+    edges: dict[str, set[str]] = {"domain": set(), "adapter": set(), "util": set()}
+    layer = _layer(module)
+    for target in _runtime_imports(source, package):
+        target_layer = _layer(target)
+        if layer in _ADAPTER_NAMES and any(_in(target, d) for d in _DOMAIN_PACKAGES):
+            edges["domain"].add(target)
+        elif layer in _ADAPTER_NAMES and target_layer in _ADAPTER_NAMES and target_layer != layer:
+            edges["adapter"].add(target)
+        elif layer == "util" and target_layer in _ADAPTER_NAMES:
+            edges["util"].add(target)
+    return edges
+
+
+def _architecture_violations(source: str, module: str) -> set[str]:
+    edges = _architecture_edges(source, module, module.rpartition(".")[0])
+    return {
+        f"{kind}:{target}"
+        for kind, targets in edges.items()
+        for target in targets - _ARCHITECTURE_ALLOWED[kind].get(module, set())
+    }
+
+
+def _scan_architecture() -> tuple[dict[str, dict[str, set[str]]], list[str]]:
+    found: dict[str, dict[str, set[str]]] = {"domain": {}, "adapter": {}, "util": {}}
+    violations: list[str] = []
+    source_root = _ROOT / "src"
+    for path in source_root.rglob("*.py"):
+        parts = path.relative_to(source_root).with_suffix("").parts
+        is_init = parts[-1] == "__init__"
+        module = ".".join(parts[:-1] if is_init else parts)
+        package = module if is_init else module.rpartition(".")[0]
+        source = path.read_text()
+        for kind, targets in _architecture_edges(source, module, package).items():
+            if targets:
+                found[kind][module] = targets
+        violations.extend(
+            f"{module}: {v}" for v in sorted(_architecture_violations(source, module))
+        )
+    return found, violations
+
+
+def test_adapters_do_not_grow_new_domain_adapter_or_util_edges() -> None:
+    _, violations = _scan_architecture()
+    assert not violations, (
+        "adapter/domain boundary violations (route through a service or a typed contract, "
+        "do not add an allowlist entry):\n" + "\n".join(violations)
+    )
+
+
+def test_architecture_allowlists_match_the_tree_exactly() -> None:
+    found, _ = _scan_architecture()
+    assert found["domain"] == _ADAPTER_DOMAIN_ALLOWLIST
+    assert sum(map(len, _ADAPTER_DOMAIN_ALLOWLIST.values())) == _ADAPTER_DOMAIN_ALLOWLIST_SIZE
+    assert found["adapter"] == _ARCHITECTURE_ALLOWED["adapter"]
+    assert found["util"] == _UTIL_ADAPTER_DELETE
+
+
+@pytest.mark.parametrize(
+    ("source", "module", "expected"),
+    [
+        (
+            "from podcast_mcp.edits.new_logic import run",
+            "podcast_mcp.cli.review",
+            {"domain:podcast_mcp.edits.new_logic"},
+        ),
+        (
+            "def f():\n    from podcast_mcp.engines.ffmpeg import run",
+            "podcast_mcp.mcp.tools.new",
+            {"domain:podcast_mcp.engines.ffmpeg"},
+        ),
+        ("from podcast_mcp.pipeline.meta import X", "podcast_mcp.cli.pipeline", set()),
+        (
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"
+            "    from podcast_mcp.edits.new_logic import Shape",
+            "podcast_mcp.cli.review",
+            set(),
+        ),
+        (
+            "from podcast_mcp.gui.jobs import shared_job_manager",
+            "podcast_mcp.mcp.tools.review",
+            {"adapter:podcast_mcp.gui.jobs"},
+        ),
+        (
+            "from ...cli.main import app",
+            "podcast_mcp.gui.routes.shares",
+            {"adapter:podcast_mcp.cli.main"},
+        ),
+        (
+            "from podcast_mcp.cli.context import ctx",
+            "podcast_mcp.util.other",
+            {"util:podcast_mcp.cli.context"},
+        ),
+        ("from podcast_mcp.edits.anything import x", "podcast_mcp.services.record.service", set()),
+        ("from podcast_mcp.cli.context import ctx", "podcast_mcp.util.progress", set()),
+    ],
+)
+def test_architecture_guard_fails_on_a_synthetic_new_edge(
+    source: str, module: str, expected: set[str]
+) -> None:
+    assert _architecture_violations(source, module) == expected
+
+
 def _registry() -> dict[str, set[str]]:
     return {
         f"{_BASE}.{context}": (
