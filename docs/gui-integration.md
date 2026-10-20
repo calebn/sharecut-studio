@@ -29,6 +29,12 @@ with a moving peer use the same rule. A lane without a moving edge uses the
 existing time-splice preview. The shared cases in
 `contracts/ripple-scope.json` check saved geometry, clip and recording identity,
 source ranges, arrows, cuts, and atomic refusal in Python and Vitest.
+The geometry constants both sides share (minimum clip span, time epsilon, join
+gap tolerance, ripple edge epsilon) sit in the `constants` block of
+`contracts/trim-edge-limits.json`, `join-length-limits.json` and
+`ripple-scope.json`. Python reads them through `util/contracts.py`; the GUI reads
+`gui/web/src/edit/limits.generated.ts`, written by
+`scripts/export_limit_contracts.py` (`make schema-export`).
 A trim that newly moves a whole follower below timeline zero by more than 1 ns
 raises `ripple_before_zero` before any lane changes. This preserves the rendered
 source clock without cutting source audio or clamping one follower. Drag,
@@ -71,6 +77,10 @@ Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_deci
 | `reconciliation_status_tool` | Transcript/audio drift flag |
 
 Mutation tools return **JSON** with `operation`, echoed input params, and summary fields (`clip_count`, `affected_tracks`, …).
+
+## Generated TypeScript types
+
+`gui/web/src/types/project.generated.ts` is emitted from the Pydantic models in `gui/schemas.py`, and `types/documentCommands.generated.ts` from the document-command schema (`DocumentCommandType`, plus the `DocumentCommand` name table that call sites use instead of string literals). `scripts/export_project_types.py` writes both, Biome-formatted, from `make schema-export`; `--check` (run by `make generated-check` and the `frontend` CI job) fails on drift. `types/project.ts` re-exports the generated shapes and narrows the loose `dict[str, Any]` view fields. The generated types are optional for fields with a Pydantic default, so the server's always-sent fields are re-required in `project.ts`.
 
 ## Progress
 

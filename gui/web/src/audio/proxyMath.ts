@@ -3,6 +3,7 @@ import {
   isCrossfadeJoin,
   isCutJoin,
 } from "../edit/joinRender";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ClipRow, ProjectView } from "../types/project";
 import { originTrackId } from "../utils/timebase";
 import type { VolumePoint } from "./gainCurve";
@@ -248,7 +249,7 @@ export function isQueuedMoveOverlay(
   const clips = { ...manifest.project_basis.clips };
   for (const command of queue) {
     if (
-      command.type !== "MoveClips" ||
+      command.type !== DocumentCommand.MoveClips ||
       command.structural_mode === "propose" ||
       !Array.isArray(command.payload.clips) ||
       command.payload.clips.length === 0 ||

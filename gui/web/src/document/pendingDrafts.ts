@@ -1,3 +1,4 @@
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { AutomationPoint, ProjectView, TrackView } from "../types/project";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { documentAuthority } from "./authorityState";
@@ -46,7 +47,7 @@ export function beginDocumentDraft(
 ): void {
   const entries: [string, Draft][] = [];
   const track = payload.track_id;
-  if (type === "MoveClips" && Array.isArray(payload.clips)) {
+  if (type === DocumentCommand.MoveClips && Array.isArray(payload.clips)) {
     const clips: ClipMoveItem[] = [];
     if (payload.clips.length > 10_000)
       throw new Error("Too many pending clip moves");
@@ -69,13 +70,13 @@ export function beginDocumentDraft(
     entries.push([commandId, { kind: "move", clips }]);
   } else if (typeof track === "string") {
     if (
-      type === "ReorderTrack" &&
+      type === DocumentCommand.ReorderTrack &&
       typeof payload.index === "number" &&
       Number.isSafeInteger(payload.index) &&
       payload.index >= 0
     )
       entries.push([commandId, { kind: "order", track, index: payload.index }]);
-    if (type === "SetTrackMeta")
+    if (type === DocumentCommand.SetTrackMeta)
       for (const key of ["label", "role", "speaker"] as const) {
         const value = payload[key];
         if (typeof value === "string" || (key === "speaker" && value === null))
@@ -85,7 +86,7 @@ export function beginDocumentDraft(
           ]);
       }
     if (
-      type === "SetTrackFader" &&
+      type === DocumentCommand.SetTrackFader &&
       typeof payload.fader_db === "number" &&
       Number.isFinite(payload.fader_db)
     )
@@ -93,13 +94,16 @@ export function beginDocumentDraft(
         `mix:${track}:fader`,
         { kind: "mix", track, fields: { fader_db: payload.fader_db } },
       ]);
-    if (type === "SetTrackMute" && typeof payload.muted === "boolean")
+    if (
+      type === DocumentCommand.SetTrackMute &&
+      typeof payload.muted === "boolean"
+    )
       entries.push([
         `mix:${track}:muted`,
         { kind: "mix", track, fields: { muted: payload.muted } },
       ]);
     if (
-      type === "SetEnvelope" &&
+      type === DocumentCommand.SetEnvelope &&
       (payload.parameter === undefined || payload.parameter === "volume") &&
       Array.isArray(payload.points)
     ) {

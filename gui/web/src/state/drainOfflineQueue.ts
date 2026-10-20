@@ -2,6 +2,7 @@ import { submitDocumentCommand } from "../api";
 import { clearSupersededCorrectionConflicts } from "../api/documentEdits";
 import { reconcileCommandBeforeReplay } from "../services/commandQueue";
 import { shareProjectKey } from "../shareMode";
+import type { DocumentCommandType } from "../types/documentCommands.generated";
 import { isPermanentRejection } from "../utils/apiError";
 import {
   documentSendDone,
@@ -54,7 +55,8 @@ export async function replayQueuedCommands(
     try {
       const result = await submitDocumentCommand(
         source.path,
-        cmd.type,
+        // Persisted name; the server's command union rejects one it no longer knows.
+        cmd.type as DocumentCommandType,
         cmd.payload,
         {
           command_id: cmd.command_id,

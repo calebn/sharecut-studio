@@ -429,7 +429,6 @@
           "src/podcast_mcp/services/media/waveform.py",
           "src/podcast_mcp/gui/routes/waveform.py",
           "src/podcast_mcp/util/timeline_zoom.py",
-          "src/podcast_mcp/util/timeline-zoom.json",
           "scripts/export_timeline_zoom.py",
           "gui/web/src/waveform/",
           "gui/web/src/api/waveform.ts",
@@ -450,7 +449,6 @@
           "src/podcast_mcp/util/model_assets.py",
           "src/podcast_mcp/util/model_manifest.py",
           "src/podcast_mcp/util/asset_sources.py",
-          "src/podcast_mcp/util/bootstrap-assets.json",
           "src/podcast_mcp/services/pipeline/bootstrap.py",
           "src/podcast_mcp/services/support/doctor.py",
           "src/podcast_mcp/services/support/config_check.py",
@@ -531,7 +529,9 @@
           "src/podcast_mcp/mcp/tools/timeline.py",
           "gui/web/src/inspector/",
           "gui/web/src/types/project.ts",
-          "src/podcast_mcp/util/tool_timebase.py"
+          "src/podcast_mcp/util/tool_timebase.py",
+          "src/podcast_mcp/util/contracts.py",
+          "scripts/export_limit_contracts.py"
         ]
       }
     },

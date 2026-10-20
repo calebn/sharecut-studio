@@ -327,7 +327,7 @@ The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py
 
 The `pytest` job also runs `actions/setup-node`, so Python tests that invoke Node have the runtime available in CI.
 
-The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. Changes to `contracts/ffmpeg-build.json` also trigger this workflow because the contract is force-included in the wheel. It fails unless the wheel ships `index.html` plus every file it references and the installed `podcast gui` serves that `index.html` at `/`. The source archive excludes installed frontend dependencies, including hardlinked files under `gui/web/node_modules`. CI inspects archive members and rejects generated dependency trees or hardlinks. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
+The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. Changes under `contracts/` also trigger this workflow because the directory is force-included in the wheel as `podcast_mcp/contracts`. It fails unless the wheel ships `index.html` plus every file it references, the installed package loads its contracts, and the installed `podcast gui` serves that `index.html` at `/`. The source archive excludes installed frontend dependencies, including hardlinked files under `gui/web/node_modules`. CI inspects archive members and rejects generated dependency trees or hardlinks. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
 
 The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, and a weekly schedule) installs every optional extra into a fresh venv without `uv.lock` and imports its modules (`tests/test_extras_import.py`, marker `extras_install`, enabled by `PODCAST_CHECK_EXTRAS=1`). The locked suite cannot see an upstream release that breaks `pip install "podcast-mcp[extra]"`; the weekly run does. The main `pytest` job skips it because the env var is unset ([setup.md § Pip extras](setup.md#pip-extras)).
 
@@ -871,7 +871,7 @@ focus passes at every delay.
 Best practice: **one Pydantic source of truth**, publish + assert at every adapter.
 
 1. Change fields in `services/document_sync/payloads.py`.
-2. Run `make schema-export` (updates `schemas/document-commands.schema.json`, `docs-site/schemas/…`, `docs-site/pages/document-commands.md`, share/MCP generated tables, and guest OpenAPI).
+2. Run `make schema-export` (updates `schemas/document-commands.schema.json`, `docs-site/schemas/…`, `docs-site/pages/document-commands.md`, share/MCP generated tables, guest OpenAPI, and `gui/web/src/types/*.generated.ts`).
 3. Keep human docs pointing at that file / the live catalog ([session-sync.md](session-sync.md) § Document plane, [docs.sharecut.studio/#/document-commands](https://docs.sharecut.studio/#/document-commands)) — do not re-list every field in engineer markdown.
 4. CI/pre-commit (`make generated-check`) fails if the checked-in schema or docs-site outputs drift.
 5. `test_document_command_boundary.py` fails if OpenAPI or MCP `inputSchema` drift, or if any submit path stops rejecting bad payloads at the boundary.
@@ -885,6 +885,10 @@ must fail export/check rather than writing an unformatted artifact. Install the
 `test_gain_curve_fixture.py` renders the nine cases in `tests/fixtures/gain_curve/cases.json` through FFmpeg (edge fades, then the track volume envelope) and checks the fixture; `gui/web/src/audio/gainCurve.test.ts` checks the browser preview's evaluator against the same samples, so the two cannot drift (#1649).
 
 Handler behavior stays in `test_document_sync.py` (constructs internal `DocumentCommand` dicts after validation).
+
+### Shared contracts
+
+`tests/test_contracts.py` pins `util/contracts.py` for a checkout and an installed layout and fails on any JSON under `src/podcast_mcp`. `tests/test_edit_limit_constants.py` and `gui/web/src/edit/limitConstants.test.ts` pin the Python and TypeScript geometry constants to the `constants` blocks in `contracts/`; `scripts/export_limit_contracts.py --check` (frontend job, `make generated-check`) pins the generated TypeScript.
 
 ### Timebase guards and the tool clock registry
 

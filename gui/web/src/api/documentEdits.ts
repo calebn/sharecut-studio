@@ -19,6 +19,10 @@ import {
   removeHostConflictsWhere,
 } from "../state/offlineStore";
 import {
+  DocumentCommand,
+  type DocumentCommandType,
+} from "../types/documentCommands.generated";
+import {
   type AutomationPoint,
   type HistoryEntryId,
   type PendingEditView,
@@ -39,7 +43,7 @@ function withExpectedText(expectedText?: string | null): {
 
 export async function submitDocumentCommand(
   projectPath: string,
-  type: string,
+  type: DocumentCommandType,
   payload: Record<string, unknown> = {},
   opts?: DocumentCommandOptions,
 ): Promise<Record<string, unknown>> {
@@ -81,7 +85,7 @@ export function undoHistory(
   projectPath: string,
   opts: HistoryMoveOptions,
 ): Promise<HistoryEntryId | null> {
-  return moveHistoryHead("UndoHistory", projectPath, opts);
+  return moveHistoryHead(DocumentCommand.UndoHistory, projectPath, opts);
 }
 
 /** Redo while the captured document opening remains current. */
@@ -89,7 +93,7 @@ export function redoHistory(
   projectPath: string,
   opts: HistoryMoveOptions,
 ): Promise<HistoryEntryId | null> {
-  return moveHistoryHead("RedoHistory", projectPath, opts);
+  return moveHistoryHead(DocumentCommand.RedoHistory, projectPath, opts);
 }
 
 /**
@@ -139,10 +143,14 @@ export async function approveEdits(
   ids: string[],
   holdBlocked = false,
 ): Promise<ReviewOutcome> {
-  const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
-    ids,
-    ...(holdBlocked ? { hold_blocked: true } : {}),
-  });
+  const result = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.ApproveEdits,
+    {
+      ids,
+      ...(holdBlocked ? { hold_blocked: true } : {}),
+    },
+  );
   return reviewOutcome(result);
 }
 
@@ -180,7 +188,7 @@ export async function applySuggestedActions(
 ): Promise<SuggestedActionsOutcome> {
   const result = await submitDocumentCommand(
     projectPath,
-    "ApplySuggestedActions",
+    DocumentCommand.ApplySuggestedActions,
     {
       ...(ids ? { ids } : {}),
       ...(Object.keys(overrides).length ? { overrides } : {}),
@@ -204,9 +212,13 @@ export async function rejectEdits(
   projectPath: string,
   ids: string[],
 ): Promise<ReviewOutcome> {
-  const result = await submitDocumentCommand(projectPath, "RejectEdits", {
-    ids,
-  });
+  const result = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.RejectEdits,
+    {
+      ids,
+    },
+  );
   return reviewOutcome(result);
 }
 
@@ -346,14 +358,18 @@ export async function updatePendingEdit(
   trackIds?: string[] | null,
   expected?: PendingEditBaseline,
 ): Promise<{ queued: false } | { queued: true; commandId: string }> {
-  const result = await submitDocumentCommand(projectPath, "UpdatePendingEdit", {
-    id,
-    start,
-    end,
-    snap,
-    ...(trackIds != null ? { track_ids: trackIds } : {}),
-    ...(expected ? { expected } : {}),
-  });
+  const result = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.UpdatePendingEdit,
+    {
+      id,
+      start,
+      end,
+      snap,
+      ...(trackIds != null ? { track_ids: trackIds } : {}),
+      ...(expected ? { expected } : {}),
+    },
+  );
   if (result.queued !== true) return { queued: false };
   if (typeof result.command_id !== "string" || !result.command_id) {
     throw new Error("Queued timing command is missing its identity");
@@ -365,7 +381,9 @@ export async function restoreAppliedEdit(
   projectPath: string,
   id: string,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "RestoreAppliedEdit", { id });
+  await submitDocumentCommand(projectPath, DocumentCommand.RestoreAppliedEdit, {
+    id,
+  });
 }
 
 export type ClipFadeBaseline = Readonly<{
@@ -380,7 +398,7 @@ export async function setClipFade(
   fadeOutMs: number,
   expected: ClipFadeBaseline,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetClipFade", {
+  await submitDocumentCommand(projectPath, DocumentCommand.SetClipFade, {
     clip_id: clipId,
     fade_in_ms: fadeInMs,
     fade_out_ms: fadeOutMs,
@@ -396,13 +414,17 @@ export async function trimClipEdge(
   mode: EditMode,
   expectedToken: string,
 ): Promise<{ queued: boolean }> {
-  const result = await submitDocumentCommand(projectPath, "TrimClipEdge", {
-    clip_id: clipId,
-    edge,
-    source_sec: sourceSec,
-    mode,
-    expected_token: expectedToken,
-  });
+  const result = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.TrimClipEdge,
+    {
+      clip_id: clipId,
+      edge,
+      source_sec: sourceSec,
+      mode,
+      expected_token: expectedToken,
+    },
+  );
   return { queued: result.queued === true };
 }
 
@@ -413,12 +435,16 @@ export async function rollClipJoin(
   deltaSec: number,
   expectedToken: string,
 ): Promise<{ queued: boolean }> {
-  const result = await submitDocumentCommand(projectPath, "RollClipJoin", {
-    left_clip_id: leftClipId,
-    right_clip_id: rightClipId,
-    delta_sec: deltaSec,
-    expected_token: expectedToken,
-  });
+  const result = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.RollClipJoin,
+    {
+      left_clip_id: leftClipId,
+      right_clip_id: rightClipId,
+      delta_sec: deltaSec,
+      expected_token: expectedToken,
+    },
+  );
   return { queued: result.queued === true };
 }
 
@@ -431,7 +457,9 @@ export async function moveClips(
   }>,
 ): Promise<HistoryEntryId | null> {
   return replyHistoryHead(
-    await submitDocumentCommand(projectPath, "MoveClips", { clips }),
+    await submitDocumentCommand(projectPath, DocumentCommand.MoveClips, {
+      clips,
+    }),
   );
 }
 
@@ -443,7 +471,7 @@ export async function setClipJoin(
   mode: string,
   lengthMs?: number | null,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetClipJoin", {
+  await submitDocumentCommand(projectPath, DocumentCommand.SetClipJoin, {
     left_clip_id: leftClipId,
     right_clip_id: rightClipId,
     mode,
@@ -455,9 +483,13 @@ export async function applyFadeRecommendations(
   projectPath: string,
   trackId?: string | null,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "ApplyFadeRecommendations", {
-    track_id: trackId ?? null,
-  });
+  await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.ApplyFadeRecommendations,
+    {
+      track_id: trackId ?? null,
+    },
+  );
 }
 
 export async function setEffectBypass(
@@ -466,7 +498,7 @@ export async function setEffectBypass(
   effectIndex: number,
   bypass: boolean,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetEffectBypass", {
+  await submitDocumentCommand(projectPath, DocumentCommand.SetEffectBypass, {
     track_id: trackId,
     effect_index: effectIndex,
     bypass,
@@ -484,7 +516,9 @@ export async function setEffectBypass(
  */
 async function submitTranscriptCorrection(
   projectPath: string,
-  type: "CorrectTranscriptWord" | "CorrectTranscriptPhrase",
+  type:
+    | typeof DocumentCommand.CorrectTranscriptWord
+    | typeof DocumentCommand.CorrectTranscriptPhrase,
   payload: Record<string, unknown>,
 ): Promise<HistoryEntryId | null> {
   let result: Record<string, unknown>;
@@ -508,7 +542,10 @@ function correctionStart(payload: Record<string, unknown>): unknown {
 }
 
 function isTranscriptCorrection(type: string): boolean {
-  return type === "CorrectTranscriptWord" || type === "CorrectTranscriptPhrase";
+  return (
+    type === DocumentCommand.CorrectTranscriptWord ||
+    type === DocumentCommand.CorrectTranscriptPhrase
+  );
 }
 
 /**
@@ -551,13 +588,17 @@ export async function correctTranscriptWord(
   expectedText?: string | null,
   sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
-  return submitTranscriptCorrection(projectPath, "CorrectTranscriptWord", {
-    track_id: trackId,
-    ...(sourceId != null ? { source_id: sourceId } : {}),
-    word_index: wordIndex,
-    text,
-    ...withExpectedText(expectedText),
-  });
+  return submitTranscriptCorrection(
+    projectPath,
+    DocumentCommand.CorrectTranscriptWord,
+    {
+      track_id: trackId,
+      ...(sourceId != null ? { source_id: sourceId } : {}),
+      word_index: wordIndex,
+      text,
+      ...withExpectedText(expectedText),
+    },
+  );
 }
 
 export async function correctTranscriptPhrase(
@@ -569,14 +610,18 @@ export async function correctTranscriptPhrase(
   expectedText?: string | null,
   sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
-  return submitTranscriptCorrection(projectPath, "CorrectTranscriptPhrase", {
-    track_id: trackId,
-    ...(sourceId != null ? { source_id: sourceId } : {}),
-    start_word_index: startWordIndex,
-    end_word_index: endWordIndex,
-    text,
-    ...withExpectedText(expectedText),
-  });
+  return submitTranscriptCorrection(
+    projectPath,
+    DocumentCommand.CorrectTranscriptPhrase,
+    {
+      track_id: trackId,
+      ...(sourceId != null ? { source_id: sourceId } : {}),
+      start_word_index: startWordIndex,
+      end_word_index: endWordIndex,
+      text,
+      ...withExpectedText(expectedText),
+    },
+  );
 }
 
 export async function setTranscriptWordSuppressed(
@@ -589,7 +634,7 @@ export async function setTranscriptWordSuppressed(
 ): Promise<HistoryEntryId | null> {
   const result = await submitDocumentCommand(
     projectPath,
-    "SetTranscriptWordSuppressed",
+    DocumentCommand.SetTranscriptWordSuppressed,
     {
       track_id: trackId,
       ...(sourceId != null ? { source_id: sourceId } : {}),
@@ -610,7 +655,7 @@ export async function setTranscriptWordAutomatic(
 ): Promise<HistoryEntryId | null> {
   const result = await submitDocumentCommand(
     projectPath,
-    "SetTranscriptWordAutomatic",
+    DocumentCommand.SetTranscriptWordAutomatic,
     {
       track_id: trackId,
       ...(sourceId != null ? { source_id: sourceId } : {}),
@@ -632,7 +677,7 @@ export async function setTranscriptWordsIgnored(
 ): Promise<HistoryEntryId | null> {
   const result = await submitDocumentCommand(
     projectPath,
-    "SetTranscriptWordsIgnored",
+    DocumentCommand.SetTranscriptWordsIgnored,
     {
       track_id: trackId,
       ...(sourceId != null ? { source_id: sourceId } : {}),
@@ -653,12 +698,16 @@ export async function setEnvelope(
 ): Promise<void> {
   let result: Record<string, unknown>;
   try {
-    result = await submitDocumentCommand(projectPath, "SetEnvelope", {
-      track_id: trackId,
-      points,
-      // Echo the store's points verbatim: the host compares floats exactly.
-      expected_points: expectedPoints,
-    });
+    result = await submitDocumentCommand(
+      projectPath,
+      DocumentCommand.SetEnvelope,
+      {
+        track_id: trackId,
+        points,
+        // Echo the store's points verbatim: the host compares floats exactly.
+        expected_points: expectedPoints,
+      },
+    );
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       // Load the host's current points so redoing the edit uses a fresh baseline.
@@ -705,7 +754,10 @@ export async function addChapter(
   time: number,
   title: string,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "AddChapter", { time, title });
+  await submitDocumentCommand(projectPath, DocumentCommand.AddChapter, {
+    time,
+    title,
+  });
 }
 
 export async function updateChapter(
@@ -715,7 +767,7 @@ export async function updateChapter(
   time: number,
   title: string,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "UpdateChapter", {
+  await submitDocumentCommand(projectPath, DocumentCommand.UpdateChapter, {
     old_time: oldTime,
     old_title: oldTitle,
     time,
@@ -728,7 +780,10 @@ export async function deleteChapter(
   time: number,
   title: string,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "DeleteChapter", { time, title });
+  await submitDocumentCommand(projectPath, DocumentCommand.DeleteChapter, {
+    time,
+    title,
+  });
 }
 
 export async function addSocialClip(
@@ -738,7 +793,7 @@ export async function addSocialClip(
   end: number,
   title?: string | null,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "AddSocialClip", {
+  await submitDocumentCommand(projectPath, DocumentCommand.AddSocialClip, {
     track_id: trackId,
     start,
     end,
@@ -752,7 +807,7 @@ export async function updateSocialClip(
   start: number,
   end: number,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "UpdateSocialClip", {
+  await submitDocumentCommand(projectPath, DocumentCommand.UpdateSocialClip, {
     id,
     start,
     end,
@@ -763,7 +818,9 @@ export async function deleteSocialClip(
   projectPath: string,
   id: string,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "DeleteSocialClip", { id });
+  await submitDocumentCommand(projectPath, DocumentCommand.DeleteSocialClip, {
+    id,
+  });
 }
 
 export async function splitAtTime(
@@ -772,7 +829,7 @@ export async function splitAtTime(
   trackIds?: string[] | null,
   reason?: string | null,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "SplitAtTime", {
+  await submitDocumentCommand(projectPath, DocumentCommand.SplitAtTime, {
     at_time: atTime,
     track_ids: trackIds ?? null,
     reason: reason ?? null,
@@ -783,7 +840,7 @@ export async function deleteClips(
   projectPath: string,
   clipIds: string[],
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "DeleteClip", {
+  await submitDocumentCommand(projectPath, DocumentCommand.DeleteClip, {
     clip_ids: clipIds,
     mode: "gap",
   });
@@ -793,10 +850,14 @@ export async function rippleDeleteClips(
   projectPath: string,
   clipIds: string[],
 ): Promise<{ queued: boolean }> {
-  const result = await submitDocumentCommand(projectPath, "DeleteClip", {
-    clip_ids: clipIds,
-    mode: "ripple",
-  });
+  const result = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.DeleteClip,
+    {
+      clip_ids: clipIds,
+      mode: "ripple",
+    },
+  );
   return { queued: result.queued === true };
 }
 
@@ -806,7 +867,7 @@ export async function duplicateSegment(
   sourceEnd: number,
   insertAt: number,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "DuplicateSegment", {
+  await submitDocumentCommand(projectPath, DocumentCommand.DuplicateSegment, {
     source_start: sourceStart,
     source_end: sourceEnd,
     insert_at: insertAt,
@@ -819,7 +880,7 @@ export async function moveSegment(
   sourceEnd: number,
   insertAt: number,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "MoveSegment", {
+  await submitDocumentCommand(projectPath, DocumentCommand.MoveSegment, {
     source_start: sourceStart,
     source_end: sourceEnd,
     insert_at: insertAt,
@@ -832,7 +893,7 @@ export async function pasteSegment(
   duration: number,
   extracts: Array<Record<string, unknown>>,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "PasteSegment", {
+  await submitDocumentCommand(projectPath, DocumentCommand.PasteSegment, {
     insert_at: insertAt,
     duration,
     extracts,
@@ -850,7 +911,9 @@ export async function addTrackCommand(
     speaker?: string;
   },
 ): Promise<Record<string, unknown>> {
-  return submitDocumentCommand(projectPath, "AddTrack", { ...(opts ?? {}) });
+  return submitDocumentCommand(projectPath, DocumentCommand.AddTrack, {
+    ...(opts ?? {}),
+  });
 }
 
 export async function setTrackMediaCommand(
@@ -858,7 +921,7 @@ export async function setTrackMediaCommand(
   trackId: string,
   relPath: string,
 ): Promise<Record<string, unknown>> {
-  return submitDocumentCommand(projectPath, "SetTrackMedia", {
+  return submitDocumentCommand(projectPath, DocumentCommand.SetTrackMedia, {
     track_id: trackId,
     rel_path: relPath,
   });
@@ -869,7 +932,7 @@ export async function setTrackMetaCommand(
   trackId: string,
   opts: { label?: string; role?: string; speaker?: string },
 ): Promise<Record<string, unknown>> {
-  return submitDocumentCommand(projectPath, "SetTrackMeta", {
+  return submitDocumentCommand(projectPath, DocumentCommand.SetTrackMeta, {
     track_id: trackId,
     ...opts,
   });
@@ -880,7 +943,7 @@ export async function setTrackFaderCommand(
   trackId: string,
   faderDb: number,
 ): Promise<Record<string, unknown>> {
-  return submitDocumentCommand(projectPath, "SetTrackFader", {
+  return submitDocumentCommand(projectPath, DocumentCommand.SetTrackFader, {
     track_id: trackId,
     fader_db: faderDb,
   });
@@ -891,7 +954,7 @@ export async function setTrackMuteCommand(
   trackId: string,
   muted: boolean,
 ): Promise<Record<string, unknown>> {
-  return submitDocumentCommand(projectPath, "SetTrackMute", {
+  return submitDocumentCommand(projectPath, DocumentCommand.SetTrackMute, {
     track_id: trackId,
     muted,
   });
@@ -901,7 +964,7 @@ export async function removeTrackCommand(
   projectPath: string,
   trackId: string,
 ): Promise<Record<string, unknown>> {
-  return submitDocumentCommand(projectPath, "RemoveTrack", {
+  return submitDocumentCommand(projectPath, DocumentCommand.RemoveTrack, {
     track_id: trackId,
   });
 }
@@ -911,7 +974,7 @@ export async function reorderTrackCommand(
   trackId: string,
   index: number,
 ): Promise<Record<string, unknown>> {
-  return submitDocumentCommand(projectPath, "ReorderTrack", {
+  return submitDocumentCommand(projectPath, DocumentCommand.ReorderTrack, {
     track_id: trackId,
     index,
   });
