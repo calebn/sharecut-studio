@@ -166,9 +166,7 @@ export const BladeTool: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Blade tool" }));
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Blade cut" }),
-    );
+    await userEvent.click(canvas.getByRole("button", { name: "Blade cut" }));
     await expect(args.onCutAtPlayhead).toHaveBeenCalled();
   },
 };
