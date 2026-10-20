@@ -63,7 +63,7 @@ may import implementation modules. The pipeline context depends on the existing
 `services.app` facade for `ProjectWorkspace`, and support reads pipeline component status
 through the public facade. Neither context imports CLI, MCP, or GUI modules.
 The document context splits editing by theme, each service under 40 public
-methods and each module under 800 lines: `EditService` (cuts, approval
+methods and each module under 850 lines: `EditService` (cuts, approval
 decisions, tighten proposals), `TimelineService` (clip geometry, joins, fades,
 segments, chapters), `TranscriptService` (transcription, export and word
 edits), `AnalysisService` (effects, loudness, bleed, audibility, reconcile and
