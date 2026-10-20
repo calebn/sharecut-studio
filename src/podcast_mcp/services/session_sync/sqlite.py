@@ -2,22 +2,16 @@
 
 from __future__ import annotations
 
-import contextlib
 import sqlite3
 import threading
-import time
 from pathlib import Path
 
 from podcast_mcp.util.keyed_lock import KeyedLocks
-from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA
-from podcast_mcp.util.sqlite_wal import ensure_wal
+from podcast_mcp.util.sqlite_open import open_sqlite
 
 _WAL_INIT_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 _WAL_INIT_TIMEOUT_SEC = 10.0
 _WAL_INIT_RETRY_SEC = 0.05
-# The WAL switch runs with the busy handler off (timeout=0) so the retry loop alone
-# enforces _WAL_INIT_TIMEOUT_SEC; connect_session_db then restores
-# DEFAULT_BUSY_TIMEOUT_PRAGMA for the store's later writes.
 
 
 def _wal_init_key(db_path: Path) -> str:
@@ -48,16 +42,6 @@ def _with_empty_uri_authority(uri: str) -> str:
     return uri
 
 
-def _ensure_wal(connection: sqlite3.Connection) -> None:
-    ensure_wal(
-        connection,
-        timeout_sec=_WAL_INIT_TIMEOUT_SEC,
-        retry_sec=_WAL_INIT_RETRY_SEC,
-        monotonic=time.monotonic,
-        sleep=time.sleep,
-    )
-
-
 def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connection:
     """Open a session database after atomically establishing WAL mode.
 
@@ -85,23 +69,15 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
         if create
         else f"{_with_empty_uri_authority(db_path.resolve().as_uri())}?mode=rw"
     )
-    connection = sqlite3.connect(
-        target,
-        check_same_thread=False,
-        isolation_level=None,
-        timeout=0,
-        uri=not create,
-    )
-    connection.row_factory = sqlite3.Row
-    try:
-        with _wal_init_lock(db_path):
-            _ensure_wal(connection)
-        # WAL now persists on the file, so later opens only read journal_mode; drop
-        # the lock so the registry does not grow with every sync.db this process opens.
-        _WAL_INIT_LOCKS.discard_idle(_wal_init_key(db_path))
-        connection.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
-    except BaseException:
-        with contextlib.suppress(BaseException):
-            connection.close()
-        raise
+    with _wal_init_lock(db_path):
+        connection = open_sqlite(
+            target,
+            uri=not create,
+            row_factory=sqlite3.Row,
+            wal_timeout_sec=_WAL_INIT_TIMEOUT_SEC,
+            wal_retry_sec=_WAL_INIT_RETRY_SEC,
+        )
+    # WAL now persists on the file, so later opens only read journal_mode; drop
+    # the lock so the registry does not grow with every sync.db this process opens.
+    _WAL_INIT_LOCKS.discard_idle(_wal_init_key(db_path))
     return connection

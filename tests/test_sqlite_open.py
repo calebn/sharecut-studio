@@ -1,4 +1,4 @@
-"""Journal mode, busy timeout and isolation of every sqlite store's connection."""
+"""Every sqlite store opens through ``open_sqlite``: WAL, a busy timeout, and no surprises."""
 
 from __future__ import annotations
 
@@ -6,9 +6,13 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+import pytest
+
+from podcast_mcp.config import repo_root
 from podcast_mcp.edits.share_registry import SqliteShareRegistry
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.services.share_auth.store import ShareIdentityStore
+from podcast_mcp.util.sqlite_open import open_sqlite
 from podcast_relay import reports
 
 
@@ -44,10 +48,65 @@ def test_share_registry_is_wal_normal_sync_with_the_default_busy_timeout(tmp_pat
         assert connection.isolation_level is None
 
 
-def test_relay_reports_keep_the_rollback_journal_with_a_ten_second_busy_timeout(
-    tmp_path: Path,
-) -> None:
+def test_relay_reports_are_wal_with_a_ten_second_busy_timeout(tmp_path: Path) -> None:
     with reports._db(tmp_path) as db:
-        assert _pragma(db, "journal_mode") == "delete"
+        assert _pragma(db, "journal_mode") == "wal"
         assert _pragma(db, "busy_timeout") == 10000
         assert db.isolation_level is None
+
+
+def test_open_sqlite_defaults_and_closes_the_connection_when_a_check_fails(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "plain.db"
+    with closing(open_sqlite(path)) as connection:
+        assert _pragma(connection, "journal_mode") == "wal"
+        assert _pragma(connection, "busy_timeout") == 5000
+
+    seen: list[sqlite3.Connection] = []
+
+    class Refused(Exception):
+        pass
+
+    def refuse() -> None:
+        raise Refused
+
+    original = sqlite3.connect
+
+    def spy(*args: object, **kwargs: object) -> sqlite3.Connection:
+        connection = original(*args, **kwargs)  # type: ignore[call-overload]
+        seen.append(connection)
+        return connection
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(sqlite3, "connect", spy)
+        with pytest.raises(Refused):
+            open_sqlite(path, verify=refuse)
+    with pytest.raises(sqlite3.ProgrammingError):
+        seen[0].execute("select 1")
+
+
+def test_open_sqlite_runs_verify_after_connect_and_after_the_wal_switch(tmp_path: Path) -> None:
+    modes: list[object] = []
+    path = tmp_path / "verify.db"
+
+    def verify() -> None:
+        with closing(sqlite3.connect(path)) as probe:
+            modes.append(_pragma(probe, "journal_mode"))
+
+    with closing(open_sqlite(path, verify=verify)):
+        pass
+    assert modes == ["delete", "wal"]
+
+
+def test_only_the_opener_and_the_registry_backup_target_call_sqlite_connect() -> None:
+    src = repo_root() / "src"
+    callers = sorted(
+        str(path.relative_to(src))
+        for path in src.rglob("*.py")
+        if "sqlite3.connect(" in path.read_text(encoding="utf-8")
+    )
+    assert callers == [
+        "podcast_mcp/edits/share_registry.py",
+        "podcast_mcp/util/sqlite_open.py",
+    ]

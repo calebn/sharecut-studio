@@ -18,7 +18,6 @@ import os
 import secrets
 import sqlite3
 import threading
-import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -30,12 +29,11 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.registry_backup import _anchor_path, publish_registry_backup
 from podcast_mcp.util.registry_cleanup import cleanup
 from podcast_mcp.util.registry_privacy import registry_privacy
+from podcast_mcp.util.sqlite_open import open_sqlite
 from podcast_mcp.util.sqlite_tx import (
-    DEFAULT_BUSY_TIMEOUT_PRAGMA,
     SQLITE_SIDECARS,
     immediate_transaction,
 )
-from podcast_mcp.util.sqlite_wal import ensure_wal
 
 # Invariant for agents / scale: public /r/{token} and /rec/{token} IDs must not
 # collide across hosts once a relay-owned registry exists. This flag documents
@@ -193,18 +191,8 @@ class SqliteShareRegistry:
         connection = None
         try:
             with self._private_files(create=True) as verify:
-                connection = sqlite3.connect(
-                    str(self.db_path),
-                    check_same_thread=False,
-                    isolation_level=None,
-                    timeout=0,
-                )
-                verify()
-                connection.row_factory = sqlite3.Row
-                ensure_wal(connection, monotonic=time.monotonic, sleep=time.sleep)
-                verify()
+                connection = open_sqlite(self.db_path, row_factory=sqlite3.Row, verify=verify)
                 connection.execute("PRAGMA synchronous=NORMAL")
-                connection.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
                 connection.executescript(_SCHEMA)
                 verify()
             return connection

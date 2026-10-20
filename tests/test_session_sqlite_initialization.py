@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
@@ -18,6 +19,7 @@ from podcast_mcp.services.record.participants import RecordParticipantStore
 from podcast_mcp.services.record.upload import RecordUploadStore
 from podcast_mcp.services.session_sync import sqlite as session_sqlite
 from podcast_mcp.services.session_sync.log import SyncStore
+from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA
 
 
 def test_concurrent_store_construction_initializes_wal_once(
@@ -117,7 +119,7 @@ def test_wal_initialization_retries_while_another_process_holds_the_lock(
     connect = Mock(return_value=connection)
     monkeypatch.setattr(session_sqlite.sqlite3, "connect", connect)
     sleep = Mock()
-    monkeypatch.setattr(session_sqlite.time, "sleep", sleep)
+    monkeypatch.setattr(time, "sleep", sleep)
 
     assert session_sqlite.connect_session_db(tmp_path / "sync.db") is connection
 
@@ -130,7 +132,7 @@ def test_wal_initialization_retries_while_another_process_holds_the_lock(
         timeout=0,
         uri=False,
     )
-    connection.execute.assert_called_with(session_sqlite.DEFAULT_BUSY_TIMEOUT_PRAGMA)
+    connection.execute.assert_called_with(DEFAULT_BUSY_TIMEOUT_PRAGMA)
 
 
 def test_wal_initialization_gives_up_after_the_deadline(
@@ -140,7 +142,7 @@ def test_wal_initialization_gives_up_after_the_deadline(
     connection.execute.side_effect = sqlite3.OperationalError("database is locked")
     monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
     monkeypatch.setattr(session_sqlite, "_WAL_INIT_TIMEOUT_SEC", 0.0)
-    monkeypatch.setattr(session_sqlite.time, "sleep", Mock())
+    monkeypatch.setattr(time, "sleep", Mock())
 
     with pytest.raises(sqlite3.OperationalError, match="locked"):
         session_sqlite.connect_session_db(tmp_path / "sync.db")
@@ -155,7 +157,7 @@ def test_wal_initialization_does_not_retry_other_sqlite_errors(
     connection.execute.side_effect = sqlite3.OperationalError("disk I/O error")
     monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
     sleep = Mock()
-    monkeypatch.setattr(session_sqlite.time, "sleep", sleep)
+    monkeypatch.setattr(time, "sleep", sleep)
 
     with pytest.raises(sqlite3.OperationalError, match="disk I/O"):
         session_sqlite.connect_session_db(tmp_path / "sync.db")

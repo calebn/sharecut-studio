@@ -1,0 +1,64 @@
+"""The one way a sqlite store opens its connection: WAL, then a busy timeout."""
+
+from __future__ import annotations
+
+import contextlib
+import sqlite3
+import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, Literal
+
+from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_MS
+from podcast_mcp.util.sqlite_wal import ensure_wal
+
+IsolationLevel = Literal["", "DEFERRED", "EXCLUSIVE", "IMMEDIATE"] | None
+
+
+def open_sqlite(
+    target: str | Path,
+    *,
+    uri: bool = False,
+    isolation_level: IsolationLevel = None,
+    row_factory: Callable[..., Any] | None = None,
+    busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
+    wal_timeout_sec: float = 10.0,
+    wal_retry_sec: float = 0.05,
+    verify: Callable[[], None] | None = None,
+) -> sqlite3.Connection:
+    """Open *target* in WAL mode with a busy timeout of *busy_timeout_ms*.
+
+    The WAL switch can return busy without invoking the busy handler, so it runs
+    with the handler off (``timeout=0``) and ``ensure_wal`` retries it every
+    *wal_retry_sec* for up to *wal_timeout_sec*; the busy timeout is set after it
+    for the store's own statements. ``verify`` runs after the connect and after the
+    WAL switch so a store can check the files sqlite just created. The connection is closed if any step
+    raises, including ``KeyboardInterrupt``.
+    """
+    connection = sqlite3.connect(
+        str(target),
+        check_same_thread=False,
+        isolation_level=isolation_level,
+        timeout=0,
+        uri=uri,
+    )
+    try:
+        if verify is not None:
+            verify()
+        if row_factory is not None:
+            connection.row_factory = row_factory
+        ensure_wal(
+            connection,
+            timeout_sec=wal_timeout_sec,
+            retry_sec=wal_retry_sec,
+            monotonic=time.monotonic,
+            sleep=time.sleep,
+        )
+        if verify is not None:
+            verify()
+        connection.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
+    except BaseException:
+        with contextlib.suppress(BaseException):
+            connection.close()
+        raise
+    return connection
