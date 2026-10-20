@@ -1,5 +1,3 @@
-import { useDawStore } from "../state/dawStore";
-
 export const DEFAULT_AUDITION_PAD_SEC = 0.5;
 
 export type PreviewMode = "current" | "suggested" | "ab";
@@ -25,6 +23,7 @@ export function playTimelineRange(opts: {
   end: number;
   padSec?: number;
   beginAudition?: BeginAudition;
+  setPlayheadSec: (sec: number) => void;
   setPlayUntilSec: (sec: number | null) => void;
   setIsPlaying: (playing: boolean) => void;
 }): void {
@@ -37,7 +36,7 @@ export function playTimelineRange(opts: {
     opts.beginAudition({ playheadSec: start, untilSec: end });
     return;
   }
-  useDawStore.getState().setPlayheadSec(start);
+  opts.setPlayheadSec(start);
   // setIsPlaying(true) clears playUntilSec (local transport ownership) — set
   // the auto-stop bound after starting playback.
   opts.setIsPlaying(true);

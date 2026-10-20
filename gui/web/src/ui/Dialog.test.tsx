@@ -109,7 +109,10 @@ it("keeps an anchored dialog non-modal, beside its anchor, closing on an outside
           onClose={onClose}
           title="Fade join at 0:05.0"
           panelId="join-panel"
-          anchor={{ ref: anchorRef }}
+          anchor={{
+            reason: "test anchor: stays beside the control it is about",
+            ref: anchorRef,
+          }}
         >
           <p>Body</p>
         </Dialog>
@@ -145,7 +148,10 @@ it("closes an anchored dialog when a modal opens over it", () => {
           open={anchoredOpen}
           onClose={() => setAnchoredOpen(false)}
           title="Fade join"
-          anchor={{ ref: anchorRef }}
+          anchor={{
+            reason: "test anchor: stays beside the control it is about",
+            ref: anchorRef,
+          }}
         >
           <p>Body</p>
         </Dialog>

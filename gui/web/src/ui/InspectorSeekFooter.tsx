@@ -40,6 +40,7 @@ export function InspectorSeekFooter({
       onSeek={() => void seekTransport(seekSec)}
       onPlay={() =>
         playTimelineRange({
+          setPlayheadSec: (sec) => void seekTransport(sec),
           start: playStart,
           end: playEnd,
           padSec,
