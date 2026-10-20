@@ -185,7 +185,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Clear selection",
     when: "hasInspectorSelection",
-    notes: "Escape: clear inspector selection (not track targeting)",
+    notes: "Escape: clear the selection, track targeting included",
   },
   "edit.rippleDelete": {
     id: "edit.rippleDelete",

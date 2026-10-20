@@ -158,6 +158,8 @@ type UiSlice = Pick<
   | "chapterAddPending"
   | "transcriptFindReplaceOpen"
   | "transcriptAnnotate"
+  | "transcriptCorrecting"
+  | "setTranscriptCorrecting"
   | "showCutAwayUtterances"
   | "timelineFocused"
   | "toolMode"
@@ -389,6 +391,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     chapterAddPending: false,
     transcriptFindReplaceOpen: false,
     transcriptAnnotate: false,
+    transcriptCorrecting: false,
     showCutAwayUtterances: false,
     timelineFocused: true,
     toolMode: "select" as ToolMode,
@@ -458,6 +461,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setTranscriptReviewCursor: (transcriptReviewCursor) =>
       set({ transcriptReviewCursor }),
     setChapterAddPending: (chapterAddPending) => set({ chapterAddPending }),
+    setTranscriptCorrecting: (transcriptCorrecting) =>
+      set({ transcriptCorrecting }),
     setTranscriptAnnotate: (transcriptAnnotate) => {
       set({
         transcriptAnnotate,

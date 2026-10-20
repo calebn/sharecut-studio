@@ -355,6 +355,26 @@ export function TranscriptPanel() {
     }
   }, [intent, selection, setSelection]);
 
+  useEffect(() => {
+    useDawStore.getState().setTranscriptCorrecting(intent === "correct");
+    return () => useDawStore.getState().setTranscriptCorrecting(false);
+  }, [intent]);
+
+  const enteredIntentRef = useRef(intent);
+  useEffect(() => {
+    if (enteredIntentRef.current === intent) return;
+    enteredIntentRef.current = intent;
+    const { selection: held } = useDawStore.getState();
+    if (held?.kind !== "transcriptRange") return;
+    const oneWord = oneWordOf(held) !== null;
+    if (
+      (intent === "correct" && !oneWord) ||
+      (intent === "select" && oneWord)
+    ) {
+      setSelection(null);
+    }
+  }, [intent, setSelection]);
+
   // A walkthrough step in Correct mode opens its word in the word editor (#634).
   // Only a new cursor acts: entering Correct later does not reselect a stale stop.
   useEffect(() => {

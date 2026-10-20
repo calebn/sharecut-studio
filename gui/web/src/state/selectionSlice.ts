@@ -20,7 +20,7 @@ type SelectionSlice = Pick<
 /**
  * The state a new selection implies, shared by local and remote writes. This
  * module is the only one that writes `selection`; every other module spreads
- * this patch (`selection/governance.test.ts` fails a second writer).
+ * this patch (`state/selectionGovernance.test.ts` fails a second writer).
  */
 export function selectionPatch(
   current: Selection,
