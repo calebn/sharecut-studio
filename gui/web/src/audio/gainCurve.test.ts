@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  automaticGainAt,
+  automaticSpansOf,
   effectiveGainAt,
   envelopeGainAt,
   fadeGainAt,
@@ -137,5 +139,56 @@ describe("mute gain", () => {
         expected,
         2,
       );
+  });
+});
+
+interface AutomaticCase {
+  name: string;
+  clip: { source_start: number; source_end: number };
+  regions: {
+    start_s: number;
+    end_s: number;
+    fade_out_ms: number;
+    fade_in_ms: number;
+  }[];
+  samples: [number, number][];
+}
+
+const automaticFixture = JSON.parse(
+  readFileSync(
+    `${process.cwd()}/../../tests/fixtures/gain_curve/automatic_cases.json`,
+    "utf8",
+  ),
+) as { cases: AutomaticCase[] };
+
+describe("off-speaker gain", () => {
+  it.each(automaticFixture.cases)(
+    "$name matches what the render produces",
+    (c) => {
+      const spans = automaticSpansOf(c.regions);
+      for (const [at, expected] of c.samples)
+        expect(automaticGainAt(spans, at), `${c.name} at ${at}`).toBeCloseTo(
+          expected,
+          2,
+        );
+    },
+  );
+
+  it("rides the clip's other gains and adds breakpoints at its edges", () => {
+    const clip = {
+      timelineStartSec: 10,
+      timelineEndSec: 14,
+      fadeInSec: 0,
+      fadeOutSec: 0,
+      sourceStartSec: 1,
+      automaticMute: [{ start: 2, end: 3, fadeOutSec: 0.1, fadeInSec: 0.1 }],
+    };
+    expect(effectiveGainAt([], clip, 11.5)).toBe(0);
+    expect(effectiveGainAt([], clip, 10.5)).toBe(1);
+    const times = gainBreakpoints([], clip, 10, 14);
+    expect(times).toContain(11);
+    expect(times).toContain(11.1);
+    expect(times).toContain(11.9);
+    expect(times).toContain(12);
   });
 });

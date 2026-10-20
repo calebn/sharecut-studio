@@ -408,6 +408,33 @@ describe("proxyMath", () => {
     expect(slices[1].envelope.fadeInSec).toBe(0);
   });
 
+  it("carries off-speaker mutes, except on a clip whose occurrence proxy bakes them in", () => {
+    const regions = [{ start_s: 1, end_s: 2, fade_out_ms: 20, fade_in_ms: 30 }];
+    const [plain] = buildSchedule(
+      [clip({ id: "c1", off_speaker_mute_regions: regions })],
+      0,
+      30,
+      manifest(),
+    );
+    expect(plain.envelope.automaticMute).toEqual([
+      { start: 1, end: 2, fadeOutSec: 0.02, fadeInSec: 0.03 },
+    ]);
+    const artifactId = "b".repeat(16);
+    const m = manifest();
+    const baked = {
+      ...m,
+      artifacts: { [artifactId]: m.tracks.host },
+      occurrences: { c1: { artifactId, outputTrackId: "host" } },
+    };
+    const [slice] = buildSchedule(
+      [clip({ id: "c1", off_speaker_mute_regions: regions })],
+      0,
+      30,
+      baked,
+    );
+    expect(slice.envelope.automaticMute).toEqual([]);
+  });
+
   it("reads origin media but plays it through the lane the clip sits on, as render does", () => {
     const slices = buildSchedule(
       [

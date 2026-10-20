@@ -11,6 +11,23 @@ export interface ClipFade {
   /** Source second the clip starts at; with `mute`, places the mutes on the timeline. */
   readonly sourceStartSec?: number;
   readonly mute?: readonly MuteSpan[];
+  /** Off-speaker (automatic) mute spans in source seconds; see `automaticGainAt`. */
+  readonly automaticMute?: readonly AutomaticMuteSpan[];
+}
+
+/** One automatic off-speaker mute in source seconds: `SourceMuteEnvelope` in `engines/audio.py`. */
+export interface AutomaticMuteSpan {
+  readonly start: number;
+  readonly end: number;
+  readonly fadeOutSec: number;
+  readonly fadeInSec: number;
+}
+
+export interface AutomaticMuteRegionLike {
+  readonly start_s: number;
+  readonly end_s: number;
+  readonly fade_out_ms?: number;
+  readonly fade_in_ms?: number;
 }
 
 /** One mute-in-place span in source seconds: `MuteEnvelope` in `engines/audio.py`. */
@@ -83,6 +100,47 @@ export function muteSpansOf(
   return out;
 }
 
+/** A clip's off-speaker regions as spans (the model's fades default to `MUTE_FADE_MS`). */
+export function automaticSpansOf(
+  regions: readonly AutomaticMuteRegionLike[] | undefined,
+): AutomaticMuteSpan[] {
+  return (regions ?? []).map((region) => ({
+    start: region.start_s,
+    end: region.end_s,
+    fadeOutSec: (region.fade_out_ms ?? MUTE_FADE_MS) / 1000,
+    fadeInSec: (region.fade_in_ms ?? MUTE_FADE_MS) / 1000,
+  }));
+}
+
+/**
+ * The off-speaker gain at source second `sec`: `automatic_gain_expression` in `engines/ffmpeg.py`.
+ * Each region ramps down over its first fade and up over its last, silent between; fades that
+ * overlap make a hard mute across the region. Regions combine by `min`, and are independent of
+ * the ordinary mute spans (the render multiplies the two).
+ */
+export function automaticGainAt(
+  spans: readonly AutomaticMuteSpan[],
+  sec: number,
+): number {
+  let gain = 1;
+  for (const { start, end, fadeOutSec, fadeInSec } of spans) {
+    let fall = start + fadeOutSec;
+    let rise = end - fadeInSec;
+    if (fall > rise) {
+      fall = start;
+      rise = end;
+    }
+    let value = 1;
+    if (sec >= start && sec < end) {
+      if (sec < fall) value = (fall - sec) / (fall - start);
+      else if (sec < rise) value = 0;
+      else value = (sec - rise) / (end - rise);
+    }
+    gain = Math.min(gain, value);
+  }
+  return gain;
+}
+
 /**
  * The mute gain at source second `sec`: what `mute_gain_expression` renders. Its interval tree
  * reads only the latest span that has started, so where spans abut the later one wins.
@@ -108,6 +166,15 @@ function clipMuteGainAt(clip: ClipFade, sec: number): number {
   if (!clip.mute?.length) return 1;
   return muteGainAt(
     clip.mute,
+    (clip.sourceStartSec ?? 0) + sec - clip.timelineStartSec,
+  );
+}
+
+/** The off-speaker gain at timeline `sec` of a clip that carries regions. */
+function clipAutomaticGainAt(clip: ClipFade, sec: number): number {
+  if (!clip.automaticMute?.length) return 1;
+  return automaticGainAt(
+    clip.automaticMute,
     (clip.sourceStartSec ?? 0) + sec - clip.timelineStartSec,
   );
 }
@@ -164,7 +231,8 @@ export function effectiveGainAt(
   return (
     envelopeGainAt(points, sec) *
     fadeGainAt(clip, sec) *
-    clipMuteGainAt(clip, sec)
+    clipMuteGainAt(clip, sec) *
+    clipAutomaticGainAt(clip, sec)
   );
 }
 
@@ -203,6 +271,21 @@ export function gainBreakpoints(
   ];
   const shift = clip.timelineStartSec - (clip.sourceStartSec ?? 0);
   for (const span of clip.mute ?? []) {
+    const edges = [
+      span.start,
+      span.start + span.fadeOutSec,
+      span.end - span.fadeInSec,
+      span.end,
+    ].map((at) => at + shift);
+    times.push(
+      ...edges,
+      edges[0]! - STEP_HOLD_SEC,
+      edges[3]! - STEP_HOLD_SEC,
+      edges[3]! + STEP_HOLD_SEC,
+    );
+    ramps.push([edges[0]!, edges[1]!], [edges[2]!, edges[3]!]);
+  }
+  for (const span of clip.automaticMute ?? []) {
     const edges = [
       span.start,
       span.start + span.fadeOutSec,
