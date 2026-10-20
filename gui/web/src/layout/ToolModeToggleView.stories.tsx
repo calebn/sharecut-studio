@@ -71,7 +71,7 @@ const meta: Meta<typeof ToolModePreview> = {
     selectTitle: "Select tool (V)",
     bladeTitle: "Blade tool (C)",
     commentTitle:
-      "Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)",
+      "Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)",
     onSelect: fn(),
     onBlade: fn(),
     onToggleComment: fn(),

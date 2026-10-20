@@ -57,6 +57,7 @@ type TabProps = Omit<
   "role" | "aria-selected" | "tabIndex" | "type"
 > & {
   selected: boolean;
+  tabStop?: boolean;
   panelId: string;
   ref?: Ref<HTMLButtonElement>;
   children: ReactNode;
@@ -64,6 +65,7 @@ type TabProps = Omit<
 
 export function Tab({
   selected,
+  tabStop = selected,
   panelId,
   className,
   children,
@@ -84,7 +86,7 @@ export function Tab({
       data-ui-kind="tab"
       aria-selected={selected}
       aria-controls={panelId}
-      tabIndex={selected ? 0 : -1}
+      tabIndex={tabStop ? 0 : -1}
       className={classes}
       {...rest}
     >

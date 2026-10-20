@@ -44,7 +44,7 @@ async function openPanel(page: Page, name: PanelName): Promise<void> {
   } else {
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name, exact: true })
+      .getByRole("tab", { name, exact: true })
       .click();
   }
 }

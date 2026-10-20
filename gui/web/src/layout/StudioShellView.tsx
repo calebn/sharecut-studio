@@ -184,13 +184,19 @@ export function StudioShellView({
         aria-label="Editor panels"
       >
         {layout === "default" ? panels.splitter : null}
-        <TabList label="Editor panels" className="tab-bar">
+        <TabList label="Panel tabs" className="tab-bar">
           {tabIds.map((id) => (
             <Tab
               key={id}
               id={`${PANEL_TAB_ID}-${id}`}
               panelId={PANEL_TABPANEL_ID}
               selected={panels.activeTab === id}
+              tabStop={
+                id ===
+                (tabIds.includes(panels.activeTab)
+                  ? panels.activeTab
+                  : tabIds[0])
+              }
               {...presenceAnchorProps(presenceAnchor("tab", id))}
               onClick={() => panels.onTabChange(id)}
             >

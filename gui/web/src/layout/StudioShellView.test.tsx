@@ -149,6 +149,18 @@ describe("StudioShellView", () => {
     );
   });
 
+  it("wires each tab to the one panel it controls", () => {
+    render(<StudioShellView {...presentation()} />);
+    const panel = screen.getByRole("tabpanel");
+    const selected = screen.getByRole("tab", { selected: true });
+    expect(panel.id).not.toBe("");
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(tab).toHaveAttribute("aria-controls", panel.id);
+    }
+    expect(panel).toHaveAttribute("aria-labelledby", selected.id);
+    expect(selected).toHaveTextContent("Transcript");
+  });
+
   it.each(["history", "impact", "tighten", "pipeline"] as const)(
     "hides stale guest %s content and host-only tabs",
     async (activeTab) => {
@@ -163,6 +175,11 @@ describe("StudioShellView", () => {
           .map((button) => button.textContent),
       ).toEqual(["Transcript", "Comments"]);
       expect(screen.queryByText("Host panel")).toBeNull();
+      const [first, second] = within(
+        screen.getByRole("tablist", { name: "Panel tabs" }),
+      ).getAllByRole("tab");
+      expect(first).toHaveAttribute("tabindex", "0");
+      expect(second).toHaveAttribute("tabindex", "-1");
       await expectNoA11yViolations(document.body);
       rerender(
         <StudioShellView
