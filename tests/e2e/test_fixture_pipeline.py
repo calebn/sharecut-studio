@@ -5,7 +5,6 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.fixture import seed_canned_transcript
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
 from podcast_mcp.e2e_fixture import DEFAULT_CANNED
 from podcast_mcp.models import load_project
 
@@ -14,7 +13,7 @@ runner = CliRunner()
 
 
 def test_pipeline_ingest_and_assemble(e2e_workspace) -> None:
-    seed_canned_transcript(e2e_workspace, DEFAULT_CANNED, defaults=load_defaults())
+    seed_canned_transcript(e2e_workspace, DEFAULT_CANNED)
     for step in ("ingest_tracks", "assemble_timeline"):
         result = runner.invoke(
             app,

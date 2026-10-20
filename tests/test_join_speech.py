@@ -365,7 +365,9 @@ def _clipped_onset_context(tmp_path: Path) -> dict:
         [(0.0, 0.5), (1.34, 3.0)],
         [TranscriptWord(text="Um,", start=1.49, end=1.9)],
     )
-    return build_audition_context(project, 0.0, 1.5, include_prosody=False)
+    return build_audition_context(
+        project, 0.0, 1.5, include_prosody=False, defaults=load_defaults()
+    )
 
 
 def _crossing_hypothesis(ctx: dict) -> dict:
@@ -382,7 +384,7 @@ def test_the_suggested_trim_is_accepted_by_the_trim_check_itself(tmp_path: Path)
 
     project = _project(tmp_path, _voice(3.0, 1.0, 2.2), [(0.0, 0.5), (1.34, 3.0)])
     plan = plan_trim(project, "c1", "in", 0.94, EditMode.RIPPLE)
-    apply_trim(project, plan, application_intent=CutIntent.PROGRAMMATIC)
+    apply_trim(project, plan, application_intent=CutIntent.PROGRAMMATIC, defaults=load_defaults())
     clip = next(c for c in project.clips if c.id == "c1")
     assert clip.source_start == pytest.approx(0.94)
 
@@ -400,7 +402,7 @@ def test_a_held_suggestion_moves_to_the_nearest_edge_the_trim_accepts(
 
     seen: list[float] = []
 
-    def holds(project, plan, *, application_intent):  # type: ignore[no-untyped-def]
+    def holds(project, plan, *, application_intent, defaults):  # type: ignore[no-untyped-def]
         seen.append(plan.moves[0].source_sec)
         if len(seen) < 3:
             return [CutScopeHold("c1", (), "acoustic_edge", detail="voiced_edge")]
@@ -425,7 +427,7 @@ def test_a_suggestion_no_edge_can_fix_says_which_check_holds_it(
     monkeypatch.setattr(
         cut_application,
         "trim_holds",
-        lambda project, plan, *, application_intent: [
+        lambda project, plan, *, application_intent, defaults: [
             CutScopeHold("c1", (), "acoustic_edge", detail="voiced_edge,breath_edge")
         ],
     )
