@@ -140,6 +140,8 @@ type UiSlice = Pick<
   | "rangeArmed"
   | "rangeBusy"
   | "setRangeArmed"
+  | "rangeScopeTrackIds"
+  | "setRangeScopeTrackIds"
   | "setRangeBusy"
   | "activeTab"
   | "userZoomed"
@@ -365,8 +367,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         estimateTimelineViewportWidth(get().shellBreakpoint),
       ),
     rangeArmed: false,
+    rangeScopeTrackIds: null as readonly string[] | null,
     rangeBusy: false,
-    setRangeArmed: (rangeArmed) => set({ rangeArmed }),
+    setRangeArmed: (rangeArmed) =>
+      set(
+        rangeArmed ? { rangeArmed } : { rangeArmed, rangeScopeTrackIds: null },
+      ),
+    setRangeScopeTrackIds: (rangeScopeTrackIds) => set({ rangeScopeTrackIds }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
     activeTab: "transcript" as DawTab,
     userZoomed: false,
