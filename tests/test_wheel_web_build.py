@@ -24,6 +24,7 @@ def _source_tree(root: Path, *, web_build: bool) -> Path:
         shutil.copy(_ROOT / name, root / name)
     (root / "README.md").write_text("readme\n", encoding="utf-8")
     shutil.copytree(_ROOT / "contracts", root / "contracts")
+    shutil.copytree(_ROOT / ".agents/defaults", root / ".agents/defaults")
     for package in ("podcast_mcp", "podcast_mcp/gui", "podcast_relay"):
         (root / "src" / package).mkdir(parents=True, exist_ok=True)
         (root / "src" / package / "__init__.py").write_text("", encoding="utf-8")
@@ -48,6 +49,10 @@ def test_wheel_ships_web_build_where_the_server_looks(tmp_path: Path) -> None:
         f"podcast_mcp/contracts/{path.name}" for path in (_ROOT / "contracts").glob("*.json")
     }
     assert shipped <= names
+    assert {
+        "podcast_mcp/defaults/pipeline.yaml",
+        "podcast_mcp/defaults/transcript_glossary.yaml",
+    } <= names
     assert not [
         name for name in names if name.startswith("podcast_mcp/util/") and name.endswith(".json")
     ]
