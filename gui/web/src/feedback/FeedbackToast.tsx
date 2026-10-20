@@ -25,7 +25,7 @@ import { TOAST_MS, TOAST_UNDO_MS, Toast } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { registerFocusHold } from "../ui/focusHold";
 import { isValidFocusTarget } from "../ui/focusTarget";
-import { modalShortcuts } from "../ui/modalGate";
+import { modalOpen } from "../ui/modalGate";
 import { claimTopLayerFloor } from "../ui/topLayerFloor";
 import { errorMessage } from "../utils/apiError";
 import {
@@ -38,7 +38,7 @@ import { usePhoneToastDock } from "./toastDock";
 const SHEET = '.bottom-sheet[role="dialog"]';
 
 function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
-  if (modalShortcuts() !== null) return null;
+  if (modalOpen()) return null;
   const closes = host
     ? (host.closest(SHEET)?.querySelectorAll<HTMLElement>(".dialog-close") ??
       [])
@@ -124,7 +124,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     );
     (host ?? document.body).append(portal);
     returnFocusRef.current = focused ? currentSheetClose(host) : null;
-    if (modalShortcuts() === null && isValidFeedbackAction(focused)) {
+    if (!modalOpen() && isValidFeedbackAction(focused)) {
       focused.focus({ preventScroll: true });
       if (document.activeElement !== focused) {
         focused.removeAttribute(FEEDBACK_FOCUS_ATTRIBUTE);

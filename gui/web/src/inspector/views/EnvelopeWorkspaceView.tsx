@@ -14,7 +14,7 @@ import { BUSY_REASON } from "../../ui/disabledReason";
 import { focusAndReveal } from "../../ui/focusAndReveal";
 import { focusHeld } from "../../ui/focusHold";
 import { isValidFocusTarget } from "../../ui/focusTarget";
-import { modalShortcuts } from "../../ui/modalGate";
+import { modalOpen } from "../../ui/modalGate";
 import { ModifierInspector } from "../ModifierInspector";
 import type { useNudgeRun } from "../useNudgeRun";
 
@@ -169,7 +169,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       const active = document.activeElement;
       if (
         focusHeld(document) ||
-        modalShortcuts() !== null ||
+        modalOpen() ||
         (active !== previous && active !== document.body)
       )
         return;

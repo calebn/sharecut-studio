@@ -16,8 +16,11 @@ type Props = {
   closeDisabled?: boolean;
   /** Actions pinned below the scrolling body, such as the primary action. */
   footer?: ReactNode;
-  /** On the phone shell, rise from the bottom edge as a full-width sheet. */
-  phoneSheet?: boolean;
+  /**
+   * Phone and tablet raise a dialog as a bottom sheet. A dialog that must stay
+   * a centered card there says why; the reason is for the next reader.
+   */
+  centeredReason?: string;
   /** Body text that describes the dialog (`aria-describedby`), e.g. a confirm's consequence. */
   descriptionId?: string;
   /** Keymap command ids let through while open; every other app shortcut is held. */
@@ -25,7 +28,9 @@ type Props = {
 };
 
 /**
- * Modal dialog chrome: scrim + labelled panel + Close.
+ * Modal dialog chrome: scrim + labelled panel + Close, a centered card on
+ * desktop and a bottom sheet on phone and tablet (the primary action goes in
+ * `footer`, which stays pinned in the thumb zone).
  * Uses useDialogModal (trap, inert chrome, Escape, restore).
  */
 export function Dialog({
@@ -37,7 +42,7 @@ export function Dialog({
   initialFocusRef,
   closeDisabled = false,
   footer,
-  phoneSheet = false,
+  centeredReason,
   descriptionId,
   shortcuts,
 }: Props) {
@@ -62,8 +67,8 @@ export function Dialog({
   return createPortal(
     <div
       className={
-        phoneSheet
-          ? "ui-dialog-root command-palette-root ui-dialog-root--phone-sheet"
+        centeredReason
+          ? "ui-dialog-root command-palette-root ui-dialog-root--centered"
           : "ui-dialog-root command-palette-root"
       }
       role="dialog"

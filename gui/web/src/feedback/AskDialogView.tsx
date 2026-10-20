@@ -36,7 +36,6 @@ function ConfirmView({
   return (
     <Dialog
       open
-      phoneSheet
       title={question.title}
       descriptionId={messageId}
       panelClassName="ui-ask"
@@ -77,7 +76,6 @@ function TextView({
   return (
     <Dialog
       open
-      phoneSheet
       title={question.title}
       panelClassName="ui-ask"
       initialFocusRef={inputRef}

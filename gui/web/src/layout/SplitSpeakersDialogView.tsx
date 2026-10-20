@@ -96,7 +96,6 @@ export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
       onClose={onClose}
       title="Split speakers"
       panelClassName="bounce-dialog-panel split-speakers-panel"
-      phoneSheet
       initialFocusRef={stage.kind === "configure" ? countRef : undefined}
       footer={<SplitSpeakersFooter {...props} />}
     >

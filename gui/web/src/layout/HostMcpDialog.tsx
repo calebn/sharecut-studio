@@ -89,6 +89,20 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
       onClose={onClose}
       title="Connect agent"
       panelClassName="share-dialog-panel"
+      footer={
+        <div className="share-dialog-actions">
+          <Button type="button" onClick={() => void copy("snippet", snippet)}>
+            {copied === "snippet" ? "Copied" : "Copy snippet"}
+          </Button>
+          <Button
+            variant="primary"
+            type="button"
+            onClick={() => void copy("url", url)}
+          >
+            {copied === "url" ? "Copied" : "Copy URL"}
+          </Button>
+        </div>
+      }
     >
       <div className="share-dialog-body">
         <p className="host-mcp-lead">
@@ -111,15 +125,6 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
             />
           )}
         </Field>
-        <div className="share-dialog-actions">
-          <Button
-            variant="primary"
-            type="button"
-            onClick={() => void copy("url", url)}
-          >
-            {copied === "url" ? "Copied" : "Copy URL"}
-          </Button>
-        </div>
         <Field label="Cursor snippet">
           {(control) => (
             <textarea
@@ -132,11 +137,6 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
             />
           )}
         </Field>
-        <div className="share-dialog-actions">
-          <Button type="button" onClick={() => void copy("snippet", snippet)}>
-            {copied === "snippet" ? "Copied" : "Copy snippet"}
-          </Button>
-        </div>
         <div className="share-dialog-live" aria-live="polite">
           {error ? <InlineError message={error} /> : null}
           {status && !error ? (

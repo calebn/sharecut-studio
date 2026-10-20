@@ -62,7 +62,6 @@ export function ExportDialogView(props: ExportDialogViewProps) {
       onClose={onClose}
       title="Export deliverables"
       panelClassName="bounce-dialog-panel"
-      phoneSheet
       footer={<ExportDialogFooter {...props} />}
     >
       <div className="bounce-dialog-body">

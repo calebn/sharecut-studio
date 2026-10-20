@@ -37,20 +37,19 @@ it("keeps a dialog usable outside inert application chrome", async () => {
   expect(trigger).toHaveFocus();
 });
 
-it("pins a footer below the scrolling body and marks phone-sheet dialogs", async () => {
+it("pins a footer below the scrolling body and lets a caller opt out of the sheet with a reason", async () => {
   const { baseElement, rerender } = render(
     <Dialog
       open
       onClose={() => undefined}
       title="Share"
-      phoneSheet
       footer={<button type="button">Create review link</button>}
     >
       <p>Body</p>
     </Dialog>,
   );
   const dialog = screen.getByRole("dialog", { name: "Share" });
-  expect(dialog).toHaveClass("ui-dialog-root--phone-sheet");
+  expect(dialog).not.toHaveClass("ui-dialog-root--centered");
   const panel = dialog.querySelector(".command-palette-panel") as HTMLElement;
   expect([...panel.children].map((child) => child.className)).toEqual([
     "command-palette-header",
@@ -63,12 +62,17 @@ it("pins a footer below the scrolling body and marks phone-sheet dialogs", async
   await expectNoA11yViolations(baseElement);
 
   rerender(
-    <Dialog open onClose={() => undefined} title="Share">
+    <Dialog
+      open
+      onClose={() => undefined}
+      title="Share"
+      centeredReason="Holds a waveform the person must see around it"
+    >
       <p>Body</p>
     </Dialog>,
   );
-  expect(screen.getByRole("dialog", { name: "Share" })).not.toHaveClass(
-    "ui-dialog-root--phone-sheet",
+  expect(screen.getByRole("dialog", { name: "Share" })).toHaveClass(
+    "ui-dialog-root--centered",
   );
   expect(document.querySelector(".command-palette-footer")).toBeNull();
 });
