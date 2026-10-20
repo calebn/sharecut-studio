@@ -65,6 +65,12 @@ pre-commit hook runs that test whenever a commit stages files under
 `src/podcast_mcp/services/`, so a direct submodule import fails at commit time
 rather than in CI.
 
+Adapters do not reach into the domain packages either. `cli/`, `mcp/` and `gui/`
+importing `edits/`, `engines/` or `pipeline/`, adapter importing adapter, and
+`util/` importing an adapter all fail `tests/test_service_boundaries.py` unless
+the edge is on its allowlist. New code goes through a service; a change that
+removes an edge also deletes its allowlist entry.
+
 Patch test dependencies where the consumer imports them. When an adapter imports
 a facade export inside a handler, patch that export on the facade.
 

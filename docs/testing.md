@@ -2708,6 +2708,19 @@ relative imports verify the guard. Focused pipeline tests live in
 identity, and CLI commands in fresh processes with the optional HTTP client
 unavailable.
 
+### Adapter governance
+
+The same file guards the adapter seam. `cli/`, `mcp/` and `gui/` may import
+`edits/`, `engines/` and `pipeline/` only through the pairs in
+`_ADAPTER_DOMAIN_ALLOWLIST` (49 entries; `if TYPE_CHECKING:` imports are
+typed-only and exempt), adapters may not import each other beyond the two
+deletion entries and the launcher wiring, and `util/` may not import an
+adapter. Inline imports count. A new edge fails the test; the fix is a service
+or a typed contract. A phase that deletes an edge must remove its entry and
+lower `_ADAPTER_DOMAIN_ALLOWLIST_SIZE`, because the test asserts the allowlist
+matches the tree exactly. Synthetic sources (inline, relative, `TYPE_CHECKING`)
+verify the guard fails on a new edge.
+
 ## Exact selected ranges
 
 `tests/test_selected_range.py` proves repeated-source occurrence scope, moved clips, overlap, disjoint islands, unchanged peers, stale geometry and media, guest and agent proposal authority, atomic Undo, and intentionally empty lane rendering. Run it with retained Python and supported disposable share identity and registry overrides.
