@@ -87,15 +87,25 @@ const MORE_DESTINATION_TAB: Readonly<
   pipeline: "pipeline",
 };
 
-/** A toast that narrates a gesture ends with the gesture or the mode. */
-/** A repeat of the toast on screen within this window is the same outcome told twice. */
+/** A repeat of the last announcement within this window is the same outcome told twice. */
 const REPEAT_WINDOW_MS = 1000;
-let shownToast: { id: number; message: string; at: number } | null = null;
+let lastSpoken: { message: string; at: number } | null = null;
 
-export function resetFeedbackRepeatForTests(): void {
-  shownToast = null;
+/** True when `message` (as shown, after the error filter) was announced within the repeat window. */
+export function justAnnounced(message: string): boolean {
+  return (
+    lastSpoken != null &&
+    Date.now() - lastSpoken.at < REPEAT_WINDOW_MS &&
+    (lastSpoken.message === message ||
+      lastSpoken.message === plainError(message))
+  );
 }
 
+export function resetFeedbackRepeatForTests(): void {
+  lastSpoken = null;
+}
+
+/** A toast that narrates a gesture ends with the gesture or the mode. */
 function endGestureToast(
   s: Pick<DawStore, "feedbackToast">,
 ): Pick<DawStore, "feedbackToast"> | Record<string, never> {
@@ -310,19 +320,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         const tone = options.tone ?? "status";
         const message = tone === "error" ? plainError(rawMessage) : rawMessage;
         const showToast = message !== "" && options.toast !== false;
-        const now = Date.now();
-        if (
-          showToast &&
-          !options.undo &&
-          !options.reverse &&
-          s.feedbackToast &&
-          shownToast?.id === s.feedbackToast.id &&
-          (shownToast.message === message ||
-            shownToast.message === plainError(message)) &&
-          now - shownToast.at < REPEAT_WINDOW_MS
-        )
-          return {};
-        if (showToast) shownToast = { id, message, at: now };
+        if (message !== "" && !options.undo && !options.reverse) {
+          if (justAnnounced(message)) return {};
+        }
+        if (message !== "") lastSpoken = { message, at: Date.now() };
         return {
           statusAnnouncement: message,
           statusAnnouncementSeq: id,

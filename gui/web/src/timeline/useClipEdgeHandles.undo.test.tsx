@@ -104,3 +104,30 @@ it("clears a gesture message when the drag ends without a change", async () => {
   expect(trimClipEdge).not.toHaveBeenCalled();
   expect(useDawStore.getState().feedbackToast).toBeNull();
 });
+
+it("raises no toast when the project changes while the save is in flight", async () => {
+  let finish: (value: { queued: false; undo: typeof TRIM_HEAD }) => void =
+    () => {};
+  vi.mocked(trimClipEdge).mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const button = render(<Harness handle="trim-out" />).getByRole("button");
+  fireEvent.pointerDown(button, { pointerId: 1, clientX: 150 });
+  fireEvent.pointerMove(button, { pointerId: 1, clientX: 140 });
+  await act(async () =>
+    fireEvent.pointerUp(button, { pointerId: 1, clientX: 140 }),
+  );
+  act(() => {
+    useDawStore.getState().hydrate(
+      "/tmp/other.json",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        clips: { tracks: { host: [clip] }, clip_count: 1 },
+      }),
+    );
+  });
+  await act(async () => finish({ queued: false, undo: TRIM_HEAD }));
+  expect(useDawStore.getState().feedbackToast).toBeNull();
+});

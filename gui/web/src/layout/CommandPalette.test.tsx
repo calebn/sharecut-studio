@@ -189,4 +189,21 @@ describe("CommandPalette", () => {
       "Nothing selected",
     );
   });
+
+  it("keeps a standing Undo toast when a refusal was already spoken without a toast", async () => {
+    useDawStore
+      .getState()
+      .announceStatus("Moved clips", { undo: "h-1" as never });
+    const standing = useDawStore.getState().feedbackToast;
+    const before = useDawStore.getState().statusAnnouncementSeq;
+    await runSelectTool(async () => {
+      useDawStore.getState().announceStatus("Can't undo: it changed.", {
+        toast: false,
+        tone: "error",
+      });
+      return { status: "disabled", reason: "Can't undo: it changed." };
+    });
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1);
+    expect(useDawStore.getState().feedbackToast).toBe(standing);
+  });
 });

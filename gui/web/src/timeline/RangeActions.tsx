@@ -124,7 +124,9 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                 onClick={() =>
                   void executePointerCommand(d.commandId).then((result) => {
                     if (result.status === "disabled")
-                      useDawStore.getState().announceStatus(result.reason);
+                      useDawStore
+                        .getState()
+                        .announceStatus(result.reason, { tone: "error" });
                   })
                 }
               >
