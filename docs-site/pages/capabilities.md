@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**120** capabilities · **104** Sharecut Studio commands · **54** keyed · **185** MCP tools · **17** skills on rows (+ **19** hub skills).
+**118** capabilities · **102** Sharecut Studio commands · **54** keyed · **185** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -56,8 +56,6 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Go to start | session | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
 | Go to end | session | `navigation.goToEnd` | `End` | — | — | — | — | — | — | — |
 | Blade cut | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `editingToolRail`, `timeline`, `timeline.createMenu` | `split_clip_tool` | — | — | — | time · none |
-| Confirm blade cut | project | `edit.bladeCut.confirm` | — (not industry-standard; menu/toolbar or unkeyed) | — | `bladeConfirmSheet` | `split_clip_tool` | — | — | — | none · none |
-| Cancel blade cut | view | `edit.bladeCut.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | — | `bladeConfirmSheet` | — | — | — | — | none · none |
 | Delete clip | project | `edit.delete` | `Backspace` | — | `clipInspector` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
 | Remove track | project | `track.remove` | `Backspace` | — | `trackInspector`, `transport.menu` | `track_remove_tool` | — | — | — | none · none |
 | Split speakers… | project | `track.splitSpeakers` | — (opens a dialog that asks for the speaker count; reached from the track inspector and the command palette) | — | `SplitSpeakersDialog` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |

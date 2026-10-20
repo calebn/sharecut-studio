@@ -227,7 +227,6 @@ type UiSlice = Pick<
   | "showCutAwayUtterances"
   | "timelineFocused"
   | "toolMode"
-  | "bladeConfirmSec"
   | "shellBreakpoint"
   | "pointerKind"
   | "mobileMode"
@@ -268,7 +267,6 @@ type UiSlice = Pick<
   | "setCommentDraft"
   | "setEnvelopeDraft"
   | "setToolMode"
-  | "setBladeConfirmSec"
   | "setShellBreakpoint"
   | "setPointerKind"
   | "setMobileMode"
@@ -487,7 +485,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     showCutAwayUtterances: false,
     timelineFocused: true,
     toolMode: "select" as ToolMode,
-    bladeConfirmSec: null as number | null,
     shellBreakpoint: "desktop" as ShellBreakpoint,
     // Capability baseline; usePointerType() corrects this from matchMedia
     // before first paint and keeps it live from pointer events.
@@ -654,9 +651,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({
         commentMode,
         commentDraft: commentMode ? get().commentDraft : null,
-        ...(commentMode
-          ? { toolMode: "select" as ToolMode, bladeConfirmSec: null }
-          : {}),
+        ...(commentMode ? { toolMode: "select" as ToolMode } : {}),
       }),
     toggleCommentMode: () =>
       set((s) => {
@@ -667,9 +662,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           ...(next ? revealTab(s, "comments") : {}),
           mobileMode: next ? "listen" : s.mobileMode,
           moreDestination: next ? "comments" : s.moreDestination,
-          ...(next
-            ? { toolMode: "select" as ToolMode, bladeConfirmSec: null }
-            : {}),
+          ...(next ? { toolMode: "select" as ToolMode } : {}),
         };
       }),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
@@ -677,12 +670,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setToolMode: (toolMode: ToolMode) =>
       set({
         toolMode,
-        bladeConfirmSec: toolMode === "blade" ? get().bladeConfirmSec : null,
         commentMode: false,
         commentDraft: null,
       }),
-    setBladeConfirmSec: (bladeConfirmSec: number | null) =>
-      set({ bladeConfirmSec }),
     setShellBreakpoint: (shellBreakpoint) => {
       const before = get();
       set({

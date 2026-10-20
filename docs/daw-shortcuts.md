@@ -131,8 +131,6 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
-| Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
-| Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |

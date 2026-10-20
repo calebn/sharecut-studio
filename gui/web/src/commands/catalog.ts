@@ -163,19 +163,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { atTime?: number } → SplitAtTime at the clicked time, else the playhead (Mod+K)",
   },
-  "edit.bladeCut.confirm": {
-    id: "edit.bladeCut.confirm",
-    mutates: true,
-    category: "edit",
-    label: "Confirm blade cut",
-    when: "canSuggestStructural",
-  },
-  "edit.bladeCut.cancel": {
-    id: "edit.bladeCut.cancel",
-    category: "edit",
-    label: "Cancel blade cut",
-    when: "always",
-  },
   "edit.delete": {
     id: "edit.delete",
     mutates: true,

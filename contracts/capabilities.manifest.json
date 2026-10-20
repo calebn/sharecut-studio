@@ -657,57 +657,6 @@
       }
     },
     {
-      "id": "daw.edit.bladeCut.confirm",
-      "label": "Confirm blade cut",
-      "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "canSuggestStructural"
-      ],
-      "surfaces": {
-        "command": "edit.bladeCut.confirm",
-        "gui": [
-          "bladeConfirmSheet"
-        ],
-        "mcp": [
-          "split_clip_tool"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
-      },
-      "tooltip": "Confirm blade cut",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.edit.bladeCut.cancel",
-      "label": "Cancel blade cut",
-      "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "always"
-      ],
-      "surfaces": {
-        "command": "edit.bladeCut.cancel",
-        "gui": [
-          "bladeConfirmSheet"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
-      },
-      "tooltip": "Cancel blade cut",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
       "id": "daw.edit.delete",
       "label": "Delete clip",
       "effect": "project",

@@ -113,14 +113,6 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Blade cut",
     tooltip: "Blade cut at the playhead or clicked time",
   },
-  "daw.edit.bladeCut.confirm": {
-    label: "Confirm blade cut",
-    tooltip: "Confirm blade cut",
-  },
-  "daw.edit.bladeCut.cancel": {
-    label: "Cancel blade cut",
-    tooltip: "Cancel blade cut",
-  },
   "daw.edit.delete": {
     label: "Delete clip",
     tooltip: "Delete clip",
@@ -511,7 +503,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   editingToolRail: "daw.media.import",
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
-  bladeConfirmSheet: "daw.edit.bladeCut.cancel",
   clipInspector: "daw.edit.moveClips",
   trackInspector: "daw.track.setVolume",
   SplitSpeakersDialog: "daw.track.splitSpeakers",
