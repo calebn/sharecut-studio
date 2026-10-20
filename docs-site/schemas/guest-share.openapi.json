@@ -9243,7 +9243,7 @@
     },
     "/api/review/{token}/daw/render-preview": {
       "post": {
-        "description": "Docs Editor (``edit``) may rebuild stems/premix on the host project.\n\nOpt-in via ``PODCAST_GUEST_RENDER=1``. Uses the same ``PipelineJobManager``\nlock as the host GUI so concurrent host/guest renders cannot race.",
+        "description": "Docs Editor (``edit``) may rebuild stems/premix on the host project.\n\nOpt-in via ``PODCAST_GUEST_RENDER=1``. Uses the same ``JobManager``\nlock as the host GUI so concurrent host/guest renders cannot race.",
         "parameters": [
           {
             "in": "path",

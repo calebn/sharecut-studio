@@ -55,7 +55,7 @@ class JobCatalog:
         if self._agent_latest is not None:
             seen.setdefault(self._agent_latest.id, self._agent_latest)
         # Recent archives so status poll can resolve a job after a successor
-        # replaced ``_job`` (waitForJob / followExportJob).
+        # replaced ``_job`` (waitForPipelineJob / followExportJob).
         for job_id in reversed(self._finished_order):
             archived = self._finished.get(job_id)
             if archived is not None:
