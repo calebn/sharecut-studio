@@ -27,12 +27,21 @@ class TaskState:
 
 
 class ElapsedProgressMixin:
-    """Emit elapsed time when updates stall: one heartbeat per sink, innermost task.
+    """Base of every ``ProgressReporter``: no-op protocol bodies plus the elapsed heartbeat.
+
+    The six protocol methods do nothing here, so a reporter overrides only the events it
+    acts on. Open tasks are tracked per sink (``_register_task`` / ``_touch_task`` /
+    ``_finish_task``) and one heartbeat per sink names the innermost task when updates
+    stall. The heartbeat thread starts with the first registered task, so a reporter that
+    never tracks tasks (``NullProgress``) costs no thread.
 
     Assumes the open tasks on one reporter form a single nested (LIFO) stack, as
     with nested ``with progress_task(...)`` blocks and one reporter per GUI job.
     Two concurrent sibling tasks on one shared reporter are not supported: only the
     most recently registered one is heartbeated.
+
+    ``tests/test_progress_compliance.py`` fails any class that implements the protocol
+    without this base.
     """
 
     def __init__(self, *, heartbeat_sec: float = 5.0) -> None:
@@ -40,17 +49,53 @@ class ElapsedProgressMixin:
         self._tasks: dict[str, TaskState] = {}
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        # Run in a copy of this context so the heartbeat reaches the same output sink as the
-        # command that started it (a handed-off command routes output per context).
-        self._thread = threading.Thread(
-            target=contextvars.copy_context().run, args=(self._heartbeat_loop,), daemon=True
-        )
-        self._thread.start()
+        self._thread: threading.Thread | None = None
+        # The heartbeat runs in a copy of the construction context so it reaches the same
+        # output sink as the command that built the reporter (a handed-off command routes
+        # output per context).
+        self._context = contextvars.copy_context()
+
+    def start(self, task_id: str, label: str, total: int | None = None) -> None:
+        pass
+
+    def update(
+        self,
+        task_id: str,
+        current: int,
+        *,
+        total: int | None = None,
+        message: str | None = None,
+        phase: str | None = None,
+    ) -> None:
+        pass
+
+    def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
+        pass
+
+    def end(self, task_id: str, *, message: str | None = None) -> None:
+        pass
+
+    def fail(
+        self,
+        task_id: str,
+        *,
+        message: str | None = None,
+        phase: str | None = None,
+    ) -> None:
+        pass
+
+    def cancel(self, task_id: str, *, message: str | None = None) -> None:
+        pass
 
     def _register_task(self, task_id: str, label: str, total: int | None) -> None:
         with self._lock:
             self._tasks.pop(task_id, None)
             self._tasks[task_id] = TaskState(label, total)
+            if self._thread is None and not self._stop.is_set():
+                self._thread = threading.Thread(
+                    target=self._context.run, args=(self._heartbeat_loop,), daemon=True
+                )
+                self._thread.start()
 
     def _touch_task(
         self,
@@ -77,7 +122,10 @@ class ElapsedProgressMixin:
 
     def close(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=1.0)
+        with self._lock:
+            thread = self._thread
+        if thread is not None:
+            thread.join(timeout=1.0)
 
     def _heartbeat_loop(self) -> None:
         while not self._stop.wait(1.0):
@@ -109,58 +157,44 @@ class ElapsedProgressMixin:
         pass  # pragma: no cover - base class; reporters override
 
 
-class NullProgress:
-    def start(self, task_id: str, label: str, total: int | None = None) -> None:
-        pass
+class NullProgress(ElapsedProgressMixin):
+    """The reporter that reports nothing (the mixin's no-op bodies)."""
 
-    def update(
+
+class RecordingProgress(ElapsedProgressMixin):
+    """Captures events for tests and compliance; optionally fans to another reporter."""
+
+    def __init__(self, inner: ProgressReporter | None = None) -> None:
+        super().__init__()
+        self.inner = inner or NullProgress()
+        self.events: list[ProgressEvent] = []
+
+    def _record(
         self,
+        kind: str,
         task_id: str,
-        current: int,
         *,
+        label: str | None = None,
+        current: int | None = None,
         total: int | None = None,
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        pass
-
-    def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
-        pass
-
-    def end(self, task_id: str, *, message: str | None = None) -> None:
-        pass
-
-    def fail(
-        self,
-        task_id: str,
-        *,
-        message: str | None = None,
-        phase: str | None = None,
-    ) -> None:
-        pass
-
-    def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        pass
-
-
-class RecordingProgress:
-    """Captures events for tests and compliance; optionally fans to another reporter."""
-
-    def __init__(self, inner: ProgressReporter | None = None) -> None:
-        self.inner = inner or NullProgress()
-        self.events: list[ProgressEvent] = []
-
-    def start(self, task_id: str, label: str, total: int | None = None) -> None:
         self.events.append(
             ProgressEvent(
-                kind="start",
+                kind=kind,
                 task_id=task_id,
-                label=label,
-                current=0,
+                label=task_id if label is None else label,
+                current=current,
                 total=total,
                 elapsed_sec=0.0,
+                message=message,
+                phase=phase,
             )
         )
+
+    def start(self, task_id: str, label: str, total: int | None = None) -> None:
+        self._record("start", task_id, label=label, current=0, total=total)
         self.inner.start(task_id, label, total=total)
 
     def update(
@@ -172,47 +206,15 @@ class RecordingProgress:
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        self.events.append(
-            ProgressEvent(
-                kind="update",
-                task_id=task_id,
-                label=task_id,
-                current=current,
-                total=total,
-                elapsed_sec=0.0,
-                message=message,
-                phase=phase,
-            )
-        )
+        self._record("update", task_id, current=current, total=total, message=message, phase=phase)
         self.inner.update(task_id, current, total=total, message=message, phase=phase)
 
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
-        self.events.append(
-            ProgressEvent(
-                kind="message",
-                task_id=task_id,
-                label=task_id,
-                current=None,
-                total=None,
-                elapsed_sec=0.0,
-                message=text,
-                phase=phase,
-            )
-        )
+        self._record("message", task_id, message=text, phase=phase)
         self.inner.message(task_id, text, phase=phase)
 
     def end(self, task_id: str, *, message: str | None = None) -> None:
-        self.events.append(
-            ProgressEvent(
-                kind="end",
-                task_id=task_id,
-                label=task_id,
-                current=None,
-                total=None,
-                elapsed_sec=0.0,
-                message=message,
-            )
-        )
+        self._record("end", task_id, message=message)
         self.inner.end(task_id, message=message)
 
     def fail(
@@ -222,44 +224,27 @@ class RecordingProgress:
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        self.events.append(
-            ProgressEvent(
-                kind="fail",
-                task_id=task_id,
-                label=task_id,
-                current=None,
-                total=None,
-                elapsed_sec=0.0,
-                message=message,
-                phase=phase,
-            )
-        )
+        self._record("fail", task_id, message=message, phase=phase)
         self.inner.fail(task_id, message=message, phase=phase)
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        self.events.append(
-            ProgressEvent(
-                kind="cancel",
-                task_id=task_id,
-                label=task_id,
-                current=None,
-                total=None,
-                elapsed_sec=0.0,
-                message=message,
-            )
-        )
+        self._record("cancel", task_id, message=message)
         self.inner.cancel(task_id, message=message)
 
 
-class MultiProgress:
+class MultiProgress(ElapsedProgressMixin):
     """Fan the same events to several reporters."""
 
     def __init__(self, *reporters: ProgressReporter) -> None:
+        super().__init__()
         self._reporters = reporters
 
+    def _fan(self, method: str, *args: Any, **kwargs: Any) -> None:
+        for reporter in self._reporters:
+            getattr(reporter, method)(*args, **kwargs)
+
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
-        for r in self._reporters:
-            r.start(task_id, label, total=total)
+        self._fan("start", task_id, label, total=total)
 
     def update(
         self,
@@ -270,16 +255,13 @@ class MultiProgress:
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        for r in self._reporters:
-            r.update(task_id, current, total=total, message=message, phase=phase)
+        self._fan("update", task_id, current, total=total, message=message, phase=phase)
 
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
-        for r in self._reporters:
-            r.message(task_id, text, phase=phase)
+        self._fan("message", task_id, text, phase=phase)
 
     def end(self, task_id: str, *, message: str | None = None) -> None:
-        for r in self._reporters:
-            r.end(task_id, message=message)
+        self._fan("end", task_id, message=message)
 
     def fail(
         self,
@@ -288,31 +270,38 @@ class MultiProgress:
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        for r in self._reporters:
-            r.fail(task_id, message=message, phase=phase)
+        self._fan("fail", task_id, message=message, phase=phase)
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        for r in self._reporters:
-            r.cancel(task_id, message=message)
+        self._fan("cancel", task_id, message=message)
 
 
-class McpNotificationProgress:
-    """Best-effort MCP ``notifications/progress`` bridge (async Context)."""
+class NotificationProgress(ElapsedProgressMixin):
+    """Maps task events onto ``(progress, total, message)`` notifications.
 
-    def __init__(self, context: Any) -> None:
-        self._context = context
+    Subclasses implement ``_notify``. ``fail`` latches, so the ``end`` the enclosing task
+    still sends does not report "done" over a failure.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
         self._current = 0.0
         self._total: float | None = None
         self._label = ""
-        self._pending_task: Any = None
         self._failed = False
+
+    def _notify(self, progress: float, total: float | None, message: str | None) -> None:
+        raise NotImplementedError
+
+    def _fail_text(self, message: str | None, phase: str | None) -> str:
+        return message or "failed"
 
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
         self._failed = False
         self._label = label
         self._current = 0.0
         self._total = float(total) if total is not None else None
-        self._schedule(0.0, self._total, label)
+        self._notify(0.0, self._total, label)
 
     def update(
         self,
@@ -326,16 +315,16 @@ class McpNotificationProgress:
         self._current = float(current)
         if total is not None:
             self._total = float(total)
-        self._schedule(self._current, self._total, message or self._label)
+        self._notify(self._current, self._total, message or self._label)
 
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
-        self._schedule(self._current, self._total, text)
+        self._notify(self._current, self._total, text)
 
     def end(self, task_id: str, *, message: str | None = None) -> None:
         if self._failed:
             return
         done = self._total if self._total is not None else self._current
-        self._schedule(done, self._total, message or "done")
+        self._notify(done, self._total, message or "done")
 
     def fail(
         self,
@@ -345,12 +334,21 @@ class McpNotificationProgress:
         phase: str | None = None,
     ) -> None:
         self._failed = True
-        self._schedule(self._current, self._total, message or "failed")
+        self._notify(self._current, self._total, self._fail_text(message, phase))
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        self._schedule(self._current, self._total, message or "cancelled")
+        self._notify(self._current, self._total, message or "cancelled")
 
-    def _schedule(self, progress: float, total: float | None, message: str | None) -> None:
+
+class McpNotificationProgress(NotificationProgress):
+    """Best-effort MCP ``notifications/progress`` bridge (async Context)."""
+
+    def __init__(self, context: Any) -> None:
+        super().__init__()
+        self._context = context
+        self._pending_task: Any = None
+
+    def _notify(self, progress: float, total: float | None, message: str | None) -> None:
         ctx = self._context
         if ctx is None or not hasattr(ctx, "report_progress"):
             return
@@ -383,6 +381,42 @@ class JsonProgressReporter(ElapsedProgressMixin):
         self._stream.write(json.dumps(event.to_dict()) + "\n")
         self._stream.flush()
 
+    def _emit_for(
+        self,
+        kind: str,
+        task_id: str,
+        state: TaskState,
+        *,
+        current: int | None,
+        message: str | None,
+        phase: str | None,
+        elapsed_sec: float | None = None,
+    ) -> None:
+        self._emit(
+            ProgressEvent(
+                kind=kind,
+                task_id=task_id,
+                label=state.label,
+                current=current,
+                total=state.total,
+                elapsed_sec=(
+                    time.monotonic() - state.started_at if elapsed_sec is None else elapsed_sec
+                ),
+                message=message,
+                phase=phase,
+            )
+        )
+
+    def _close_task(self, kind: str, task_id: str, message: str | None, phase: str | None) -> None:
+        with self._lock:
+            state = self._tasks.get(task_id)
+        if state is None:
+            return
+        self._emit_for(
+            kind, task_id, state, current=state.current, message=message, phase=phase or state.phase
+        )
+        self._finish_task(task_id)
+
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
         self._register_task(task_id, label, total)
         self._emit(
@@ -408,18 +442,8 @@ class JsonProgressReporter(ElapsedProgressMixin):
         state = self._touch_task(task_id, current, total, phase=phase)
         if state is None:
             return
-        elapsed = time.monotonic() - state.started_at
-        self._emit(
-            ProgressEvent(
-                kind="update",
-                task_id=task_id,
-                label=state.label,
-                current=current,
-                total=state.total,
-                elapsed_sec=elapsed,
-                message=message,
-                phase=phase or state.phase,
-            )
+        self._emit_for(
+            "update", task_id, state, current=current, message=message, phase=phase or state.phase
         )
 
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
@@ -431,39 +455,17 @@ class JsonProgressReporter(ElapsedProgressMixin):
                 state.last_emit = time.monotonic()
         if state is None:
             return
-        elapsed = time.monotonic() - state.started_at
-        self._emit(
-            ProgressEvent(
-                kind="message",
-                task_id=task_id,
-                label=state.label,
-                current=state.current,
-                total=state.total,
-                elapsed_sec=elapsed,
-                message=text,
-                phase=phase or state.phase,
-            )
+        self._emit_for(
+            "message",
+            task_id,
+            state,
+            current=state.current,
+            message=text,
+            phase=phase or state.phase,
         )
 
     def end(self, task_id: str, *, message: str | None = None) -> None:
-        with self._lock:
-            state = self._tasks.get(task_id)
-        if state is None:
-            return
-        elapsed = time.monotonic() - state.started_at
-        self._emit(
-            ProgressEvent(
-                kind="end",
-                task_id=task_id,
-                label=state.label,
-                current=state.current,
-                total=state.total,
-                elapsed_sec=elapsed,
-                message=message,
-                phase=state.phase,
-            )
-        )
-        self._finish_task(task_id)
+        self._close_task("end", task_id, message, None)
 
     def fail(
         self,
@@ -472,57 +474,20 @@ class JsonProgressReporter(ElapsedProgressMixin):
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        with self._lock:
-            state = self._tasks.get(task_id)
-        if state is None:
-            return
-        elapsed = time.monotonic() - state.started_at
-        self._emit(
-            ProgressEvent(
-                kind="fail",
-                task_id=task_id,
-                label=state.label,
-                current=state.current,
-                total=state.total,
-                elapsed_sec=elapsed,
-                message=message,
-                phase=phase or state.phase,
-            )
-        )
-        self._finish_task(task_id)
+        self._close_task("fail", task_id, message, phase)
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        with self._lock:
-            state = self._tasks.get(task_id)
-        if state is None:
-            return
-        elapsed = time.monotonic() - state.started_at
-        self._emit(
-            ProgressEvent(
-                kind="cancel",
-                task_id=task_id,
-                label=state.label,
-                current=state.current,
-                total=state.total,
-                elapsed_sec=elapsed,
-                message=message,
-                phase=state.phase,
-            )
-        )
-        self._finish_task(task_id)
+        self._close_task("cancel", task_id, message, None)
 
     def _emit_heartbeat(self, task_id: str, state: TaskState, elapsed_sec: float) -> None:
-        self._emit(
-            ProgressEvent(
-                kind="heartbeat",
-                task_id=task_id,
-                label=state.label,
-                current=state.current,
-                total=state.total,
-                elapsed_sec=elapsed_sec,
-                message="still running",
-                phase=state.phase,
-            )
+        self._emit_for(
+            "heartbeat",
+            task_id,
+            state,
+            current=state.current,
+            message="still running",
+            phase=state.phase,
+            elapsed_sec=elapsed_sec,
         )
 
 

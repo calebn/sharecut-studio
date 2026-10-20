@@ -12,7 +12,11 @@ from typing import Any
 
 from podcast_mcp.services.collaboration import scrub_guest_progress_text
 from podcast_mcp.services.remote_mcp.executor import run_guest_mcp_call
-from podcast_mcp.util.progress import mcp_progress_token, short_fail_headline
+from podcast_mcp.util.progress import (
+    NotificationProgress,
+    mcp_progress_token,
+    short_fail_headline,
+)
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +60,7 @@ class McpProgressSink:
             self._closed = True
 
 
-class GuestMcpProgressContext:
+class GuestMcpProgressContext(NotificationProgress):
     """JSON-RPC progressToken + live ``notifications/progress`` emit."""
 
     def __init__(
@@ -64,22 +68,20 @@ class GuestMcpProgressContext:
         progressToken: Any,
         sink: McpProgressSink | None = None,
     ) -> None:
+        super().__init__()
         self.progressToken = progressToken
         self.notifications: list[dict[str, Any]] = []
         self._sink = sink
-        self._lock = threading.Lock()
+        self._state_lock = threading.Lock()
         self._closed = False
-        self._current = 0.0
-        self._total: float | None = None
-        self._label = ""
-        self._failed = False
 
     @property
     def progress_token(self) -> Any:
         return self.progressToken
 
     def close(self) -> None:
-        with self._lock:
+        super().close()
+        with self._state_lock:
             self._closed = True
         if self._sink is not None:
             self._sink.close()
@@ -100,7 +102,7 @@ class GuestMcpProgressContext:
                 "message": scrub_guest_progress_text(message),
             },
         }
-        with self._lock:
+        with self._state_lock:
             if self._closed:
                 return
             self.notifications.append(payload)
@@ -108,59 +110,15 @@ class GuestMcpProgressContext:
         if sink is not None:
             sink.emit(payload)
 
-    def start(self, task_id: str, label: str, total: int | None = None) -> None:
-        del task_id
-        self._failed = False
-        self._label = label
-        self._current = 0.0
-        self._total = float(total) if total is not None else None
-        self.report_progress(0.0, self._total, label)
+    def _notify(self, progress: float, total: float | None, message: str | None) -> None:
+        self.report_progress(progress, total, message)
 
-    def update(
-        self,
-        task_id: str,
-        current: int,
-        *,
-        total: int | None = None,
-        message: str | None = None,
-        phase: str | None = None,
-    ) -> None:
-        del task_id, phase
-        self._current = float(current)
-        if total is not None:
-            self._total = float(total)
-        self.report_progress(self._current, self._total, message or self._label)
-
-    def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
-        del task_id, phase
-        self.report_progress(self._current, self._total, text)
+    def _fail_text(self, message: str | None, phase: str | None) -> str:
+        return short_fail_headline(message, phase) or "failed"
 
     def heartbeat(self, task_id: str, *, message: str | None = None) -> None:
         del task_id
         self.report_progress(self._current, self._total, message or self._label)
-
-    def end(self, task_id: str, *, message: str | None = None) -> None:
-        del task_id
-        if self._failed:
-            return
-        done = self._total if self._total is not None else self._current
-        self.report_progress(done, self._total, message or "done")
-
-    def fail(
-        self,
-        task_id: str,
-        *,
-        message: str | None = None,
-        phase: str | None = None,
-    ) -> None:
-        del task_id
-        self._failed = True
-        short = short_fail_headline(message, phase) or "failed"
-        self.report_progress(self._current, self._total, short)
-
-    def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        del task_id
-        self.report_progress(self._current, self._total, message or "cancelled")
 
 
 def format_mcp_sse(payload: dict[str, Any]) -> str:

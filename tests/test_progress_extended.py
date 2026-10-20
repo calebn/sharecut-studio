@@ -96,10 +96,10 @@ def test_json_progress_unknown_task_is_noop():
 
 def test_json_progress_heartbeat_loop():
     buf = StringIO()
-    with patch("podcast_mcp.util.progress.reporters.threading.Thread"):
-        reporter = JsonProgressReporter(stream=buf)
+    reporter = JsonProgressReporter(stream=buf)
     reporter._heartbeat_sec = 0.0  # type: ignore[attr-defined]
-    reporter.start("slow", "Slow task", total=1)
+    with patch("podcast_mcp.util.progress.reporters.threading.Thread"):
+        reporter.start("slow", "Slow task", total=1)
     with reporter._lock:
         reporter._tasks["slow"].last_emit = 0.0
 
@@ -295,9 +295,9 @@ def test_cli_progress_reporter_import_error_fallback(monkeypatch):
 
 def test_cli_progress_heartbeat_with_total(monkeypatch, capsys):
     monkeypatch.setattr("sys.stderr.isatty", lambda: False)
+    reporter = CliProgressReporter(enabled=True)
     with patch("podcast_mcp.util.progress.reporters.threading.Thread"):
-        reporter = CliProgressReporter(enabled=True)
-    reporter.start("job", "Job", total=4)
+        reporter.start("job", "Job", total=4)
     capsys.readouterr()
     reporter._emit_heartbeat("job", reporter._tasks["job"], 90.0)  # type: ignore[attr-defined]
     assert capsys.readouterr().err == "Job… (1:30) 0/4\n"

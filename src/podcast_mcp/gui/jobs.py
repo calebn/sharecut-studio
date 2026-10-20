@@ -451,10 +451,11 @@ class _JobProgressReporter(ElapsedProgressMixin):
         self._job.publish(payload)
 
 
-class _SsePublishReporter:
+class _SsePublishReporter(ElapsedProgressMixin):
     """Fan-out only: enqueue SSE progress events; never mutate job fields."""
 
     def __init__(self, manager: PipelineJobManager) -> None:
+        super().__init__()
         self._manager = manager
 
     def _live_job(self, task_id: str) -> PipelineJob | None:
@@ -1197,7 +1198,7 @@ class PipelineJobManager:
         return "Pipeline complete", run_result.job_result()
 
 
-class AgentJobFanInReporter:
+class AgentJobFanInReporter(ElapsedProgressMixin):
     """Lazily create a Studio ``kind=agent`` job from wrap-level progress.
 
     Instant tools (start then end with no intra-op events and elapsed < 1s)
@@ -1208,8 +1209,9 @@ class AgentJobFanInReporter:
     LAZY_AFTER_SEC = PROGRESS_LAZY_CHIP_SEC
 
     def __init__(self, manager: PipelineJobManager) -> None:
+        super().__init__()
         self._manager = manager
-        self._lock = threading.Lock()
+        self._state_lock = threading.Lock()
         self._claim = uuid.uuid4().hex
         self._wrap_task_id: str | None = None
         self._wrap_label = ""
@@ -1242,7 +1244,7 @@ class AgentJobFanInReporter:
         self.heartbeat(task_id)
 
     def _ensure_job(self) -> PipelineJob | None:
-        with self._lock:
+        with self._state_lock:
             if self._closed or self._wrap_task_id is None:
                 return None
             if self._wrap_task_id in _PIPELINE_OWNED_WRAPS:
@@ -1274,7 +1276,7 @@ class AgentJobFanInReporter:
                     job.total = total
                 if message:
                     job.message = message
-            with self._lock:
+            with self._state_lock:
                 if self._job is not None:
                     if self._job is not job:
                         extra = job
@@ -1310,7 +1312,7 @@ class AgentJobFanInReporter:
                     )
                 finally:
                     reporter.close()
-                    with self._lock:
+                    with self._state_lock:
                         if self._job_reporter is reporter:
                             self._job_reporter = None
             return result
@@ -1325,7 +1327,7 @@ class AgentJobFanInReporter:
             raise
 
     def _reporter_if_open(self) -> _JobProgressReporter | None:
-        with self._lock:
+        with self._state_lock:
             if self._closed:
                 return None
             return self._job_reporter
@@ -1335,7 +1337,7 @@ class AgentJobFanInReporter:
 
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
         reporter: _JobProgressReporter | None
-        with self._lock:
+        with self._state_lock:
             if self._closed:
                 return
             if self._wrap_task_id is None:
@@ -1357,7 +1359,7 @@ class AgentJobFanInReporter:
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        with self._lock:
+        with self._state_lock:
             self._current = current
             if total is not None:
                 self._total = total
@@ -1375,7 +1377,7 @@ class AgentJobFanInReporter:
             )
 
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
-        with self._lock:
+        with self._state_lock:
             self._message = text
         job = self._ensure_job()
         reporter = self._reporter_if_open() if job is not None else None
@@ -1385,7 +1387,7 @@ class AgentJobFanInReporter:
     def heartbeat(self, task_id: str, *, message: str | None = None) -> None:
         """Honest still-alive tick — creates the lazy job if needed."""
         if message is not None:
-            with self._lock:
+            with self._state_lock:
                 self._message = message
         job = self._ensure_job()
         reporter = self._reporter_if_open() if job is not None else None
@@ -1397,7 +1399,7 @@ class AgentJobFanInReporter:
             reporter.heartbeat(task_id)
 
     def _finalize_wrap(self, status: str, message: str | None, error: str | None) -> None:
-        with self._lock:
+        with self._state_lock:
             self._closed = True
             self._terminal = (status, message, error)
             self._stop_timer_locked()
