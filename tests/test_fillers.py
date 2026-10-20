@@ -3604,6 +3604,20 @@ def test_the_plan_flags_the_valley_only_when_its_edge_lands_in_it(tmp_path):
     assert (kept.end, kept.end_in_valley) == (pytest.approx(1.15), False)
 
 
+def test_the_plan_flags_the_valley_when_the_run_itself_ends_in_it(tmp_path):
+    from podcast_mcp.edits.fillers import _between_kept_voices
+
+    # The gap scan can end the run at the bottom of the valley (lab 647.285), a frame
+    # before the edge the valley would place: the edge still lies in the valley.
+    project, candidate, plan, cache, defaults = _decaying_uh_plan_inputs(
+        tmp_path, "filler:acoustic", "filler", end=1.40
+    )
+
+    kept = _between_kept_voices(project, plan, candidate, audio_cache=cache, defaults=defaults)
+
+    assert (kept.end, kept.end_in_valley) == (pytest.approx(1.40), True)
+
+
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
     from podcast_mcp.config import load_defaults
 
