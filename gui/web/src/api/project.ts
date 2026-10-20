@@ -5,6 +5,13 @@ import type { HistoryDiff } from "../types/project";
 import { withAbortTimeout } from "../utils/abortTimeout";
 import { apiFetch, HOST_KEY } from "./http";
 
+const bootstrapVersionIds = new Map<string, string>();
+
+/** The version id the review page loaded on, for telling a later change apart; null when the bootstrap read never succeeded. */
+export function reviewVersionAtBootstrap(token: string): string | null {
+  return bootstrapVersionIds.get(token) ?? null;
+}
+
 export async function loadReviewBootstrap(token: string): Promise<{
   author?: string;
   capabilities: string[];
@@ -12,12 +19,16 @@ export async function loadReviewBootstrap(token: string): Promise<{
   meta: { name?: string };
 }> {
   const res = await apiFetch(shareProjectKey(token), { guest: "/project" });
-  return res.json() as Promise<{
+  const body = (await res.json()) as {
     author?: string;
     capabilities: string[];
     guest_mode?: string;
     meta: { name?: string };
-  }>;
+    review_version?: { id?: string } | null;
+  };
+  const versionId = body.review_version?.id;
+  if (versionId) bootstrapVersionIds.set(token, versionId);
+  return body;
 }
 
 /** What a review link plays: its version, whether it follows the latest, and any newer one a frozen link is missing. */

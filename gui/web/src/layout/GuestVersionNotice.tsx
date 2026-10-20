@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { loadReviewVersionStatus, type ReviewVersionStatus } from "../api";
+import {
+  loadReviewVersionStatus,
+  type ReviewVersionStatus,
+  reviewVersionAtBootstrap,
+} from "../api";
 import { useIntervalTick } from "../hooks/useIntervalTick";
 import { shareTokenFromKey } from "../shareMode";
 import { SANITY_POLL_MS } from "../state/syncCadence";
@@ -19,7 +23,7 @@ export function GuestVersionNotice() {
   const token = shareTokenFromKey(projectPath);
   const [status, setStatus] = useState<ReviewVersionStatus | null>(null);
   const [wake, setWake] = useState(0);
-  const heardId = useRef<string | null>(null);
+  const heardId = useRef<{ token: string; id: string | null } | null>(null);
   const tick = useIntervalTick(SANITY_POLL_MS, token !== null);
 
   useEffect(() => {
@@ -40,7 +44,13 @@ export function GuestVersionNotice() {
     const controller = new AbortController();
     loadReviewVersionStatus(token, controller.signal).then(
       (next) => {
-        if (heardId.current === null) heardId.current = next.versionId;
+        // The page's baseline is the version it loaded on; when that read never
+        // succeeded (cached offline start), the first read stands in.
+        if (heardId.current?.token !== token || heardId.current.id === null)
+          heardId.current = {
+            token,
+            id: reviewVersionAtBootstrap(token) ?? next.versionId,
+          };
         setStatus(next);
       },
       () => {
@@ -56,7 +66,11 @@ export function GuestVersionNotice() {
       label={status.label}
       followsLatest={status.followsLatest}
       newer={status.newer}
-      changed={status.followsLatest && status.versionId !== heardId.current}
+      changed={
+        status.followsLatest &&
+        heardId.current !== null &&
+        status.versionId !== heardId.current.id
+      }
       author={shareAuthor}
       onReload={() => window.location.reload()}
     />

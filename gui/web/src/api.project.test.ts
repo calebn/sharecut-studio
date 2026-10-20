@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { loadDocumentState } from "./api";
+import {
+  loadDocumentState,
+  loadReviewBootstrap,
+  loadReviewVersionStatus,
+  reviewVersionAtBootstrap,
+} from "./api";
 
 describe("project API facade", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -27,6 +32,30 @@ describe("project API facade", () => {
       "/api/document/state?path=%2Ftmp%2Fepisode%20one.project.json&phase=shell",
       "/api/document/state?path=%2Ftmp%2Fepisode%20one.project.json&phase=detail",
     ]);
+  });
+
+  it("remembers the version a review link loaded on and reads its status", async () => {
+    const body = {
+      capabilities: ["view"],
+      meta: {},
+      review_version: { id: "v1", label: "Cut 1" },
+      link_follows_latest: false,
+      newer_version: { id: "v2", label: "Cut 2" },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })),
+    );
+
+    expect(reviewVersionAtBootstrap("tok")).toBeNull();
+    await loadReviewBootstrap("tok");
+    expect(reviewVersionAtBootstrap("tok")).toBe("v1");
+    expect(await loadReviewVersionStatus("tok")).toEqual({
+      versionId: "v1",
+      label: "Cut 1",
+      followsLatest: false,
+      newer: { id: "v2", label: "Cut 2" },
+    });
   });
 
   it("routes a share project through the guest endpoint", async () => {
