@@ -15,6 +15,8 @@ from podcast_mcp.util.progress import (
     clear_wrapped_ids,
     progress_task,
 )
+from podcast_mcp.util.progress import compliance as compliance_mod
+from podcast_mcp.util.progress import task as task_mod
 
 
 @pytest.fixture(autouse=True)
@@ -25,21 +27,21 @@ def _clean_progress_state():
     clear_compliance_log()
     progress_mod.clear_progress_sinks()
     cli_context.reset_progress()
-    progress_mod._reporter_var.set(None)
-    progress_mod._compliance_var.set(None)
+    task_mod._reporter_var.set(None)
+    compliance_mod.compliance_var.set(None)
     yield
     clear_wrapped_ids()
     clear_compliance_log()
     progress_mod.clear_progress_sinks()
     cli_context.reset_progress()
-    progress_mod._reporter_var.set(None)
-    progress_mod._compliance_var.set(None)
+    task_mod._reporter_var.set(None)
+    compliance_mod.compliance_var.set(None)
 
 
 @pytest.fixture
 def frozen_clock(monkeypatch):
     t = [0.0]
-    monkeypatch.setattr(progress_mod, "_update_clock", lambda: t[0])
+    monkeypatch.setattr(task_mod, "_update_clock", lambda: t[0])
     return t
 
 

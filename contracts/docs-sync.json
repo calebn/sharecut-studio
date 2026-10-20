@@ -991,7 +991,8 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/util/progress.py",
+          "src/podcast_mcp/util/progress/",
+          "src/podcast_mcp/cli/progress.py",
           "src/podcast_mcp/services/collaboration/guest_progress.py",
           "src/podcast_mcp/services/remote_mcp/progress.py",
           "scripts/check_progress.py",

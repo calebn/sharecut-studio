@@ -14,8 +14,8 @@ from podcast_mcp.gui.jobs import (
     gui_agent_job_progress_sink,
     shared_job_manager,
 )
-from podcast_mcp.util import progress as progress_mod
 from podcast_mcp.util.progress import PROGRESS_UPDATE_MIN_INTERVAL_SEC, bind_progress, progress_task
+from podcast_mcp.util.progress import task as task_mod
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def stepping_clock(monkeypatch):
         t[0] += PROGRESS_UPDATE_MIN_INTERVAL_SEC
         return t[0]
 
-    monkeypatch.setattr(progress_mod, "_update_clock", _tick)
+    monkeypatch.setattr(task_mod, "_update_clock", _tick)
     return t
 
 

@@ -44,6 +44,7 @@ from podcast_mcp.util.progress import (
     register_guest_progress_sink,
     set_guest_progress_context,
 )
+from podcast_mcp.util.progress import task as task_mod
 from podcast_mcp.util.tool_refusal import guest_failure_detail
 from sync_helpers import drain
 
@@ -64,7 +65,7 @@ def test_guest_coalesce_matches_source_cadence():
 
 @pytest.mark.asyncio
 async def test_throttled_task_final_value_reaches_guest_ws_before_end(monkeypatch):
-    monkeypatch.setattr(progress_mod, "_update_clock", lambda: 0.0)  # source throttle frozen
+    monkeypatch.setattr(task_mod, "_update_clock", lambda: 0.0)  # source throttle frozen
     reset_guest_progress_hub()
     hub = guest_progress_hub()
     q = hub.subscribe("tok", asyncio.get_running_loop())

@@ -145,11 +145,10 @@ _ADAPTER_ADAPTER_WIRING = {
     },
     "podcast_mcp.gui.host_mcp": {"podcast_mcp.mcp.server"},
 }
-_UTIL_ADAPTER_DELETE = {"podcast_mcp.util.progress": {"podcast_mcp.cli.context"}}
 _ARCHITECTURE_ALLOWED = {
     "domain": _ADAPTER_DOMAIN_ALLOWLIST,
     "adapter": {**_ADAPTER_ADAPTER_DELETE, **_ADAPTER_ADAPTER_WIRING},
-    "util": _UTIL_ADAPTER_DELETE,
+    "util": {},
 }
 
 
@@ -239,7 +238,7 @@ def test_architecture_allowlists_match_the_tree_exactly() -> None:
     assert found["domain"] == _ADAPTER_DOMAIN_ALLOWLIST
     assert sum(map(len, _ADAPTER_DOMAIN_ALLOWLIST.values())) == _ADAPTER_DOMAIN_ALLOWLIST_SIZE
     assert found["adapter"] == _ARCHITECTURE_ALLOWED["adapter"]
-    assert found["util"] == _UTIL_ADAPTER_DELETE
+    assert found["util"] == {}
 
 
 @pytest.mark.parametrize(
@@ -285,7 +284,6 @@ def test_architecture_allowlists_match_the_tree_exactly() -> None:
             {"util:podcast_mcp.cli.context"},
         ),
         ("from podcast_mcp.edits.anything import x", "podcast_mcp.services.record.service", set()),
-        ("from podcast_mcp.cli.context import ctx", "podcast_mcp.util.progress", set()),
     ],
 )
 def test_architecture_guard_fails_on_a_synthetic_new_edge(

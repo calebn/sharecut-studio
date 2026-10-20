@@ -873,6 +873,7 @@ def test_master_loudness_qc_flags_out_of_tolerance(minimal_project, sample_wav, 
 def test_master_loudness_reports_both_passes_on_one_bar(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.util import progress as progress_mod
     from podcast_mcp.util.progress import RecordingProgress, bind_progress
+    from podcast_mcp.util.progress import task as task_mod
 
     eng = FFmpegEngine()
     if not eng.check_available()[0]:
@@ -889,7 +890,7 @@ def test_master_loudness_reports_both_passes_on_one_bar(minimal_project, sample_
         return t[0]
 
     rec = RecordingProgress()
-    with patch.object(progress_mod, "_update_clock", _tick), bind_progress(rec):
+    with patch.object(task_mod, "_update_clock", _tick), bind_progress(rec):
         steps.master_loudness(proj, defaults)
 
     loudnorm_updates = [
