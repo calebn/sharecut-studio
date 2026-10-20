@@ -18,7 +18,7 @@ def test_a_checkout_reads_the_repo_defaults() -> None:
     assert _GLOBAL_DEFAULTS_PATH.is_file()
 
 
-def test_the_packaged_directory_wins_when_it_exists(monkeypatch, tmp_path: Path) -> None:
+def test_the_packaged_directory_wins_when_it_exists(monkeypatch) -> None:
     packaged = Path(config.__file__).resolve().parent / "defaults"
     real_is_dir = Path.is_dir
     monkeypatch.setattr(
