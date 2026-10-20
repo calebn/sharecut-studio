@@ -75,7 +75,7 @@ def _source_audio_path(
         if src is None:
             raise CodedValueError(
                 f"{owner} source_id {source_id!r} is not in sources[]. Re-ingest the source or fix the clip's source_id.",
-                code="source_not_found",
+                code="clip_source_missing",
             )
         path = resolve_under_workspace(project, src.path)
         if not path.is_file():

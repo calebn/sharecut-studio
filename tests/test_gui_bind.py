@@ -407,3 +407,17 @@ def test_cors_allows_only_listed_origins_with_credentials(
     assert preflight(_EVIL_ORIGIN)["origin"] is None
     refused = client.get("/api/health", headers={"Origin": _EVIL_ORIGIN})
     assert "access-control-allow-origin" not in refused.headers
+
+
+def test_cors_exposes_the_error_code_and_retry_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_REVIEW_CORS_ORIGINS", "https://review.example.test")
+    res = TestClient(create_app()).get(
+        "/api/health", headers={"Origin": "https://review.example.test"}
+    )
+    exposed = {h.strip().lower() for h in res.headers["access-control-expose-headers"].split(",")}
+    assert {"x-sharecut-error-code", "retry-after"} <= exposed

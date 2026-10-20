@@ -1356,7 +1356,7 @@ def complete_effect_acoustics(
                 if edit is None:
                     raise CodedValueError(
                         "pause contributor has no current edit. Refresh the pending edits and try again.",
-                        code="edit_not_found",
+                        code="pause_edit_missing",
                     )
                 recording = recording_audio_path(project, edit.track_id, edit.source_id)
                 recording = recording.resolve(strict=True)

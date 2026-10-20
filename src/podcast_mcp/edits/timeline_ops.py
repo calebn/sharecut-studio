@@ -968,7 +968,7 @@ def move_clips(project: EpisodeProject, clips: list[dict]) -> dict:
         if not isinstance(raw, Mapping):
             raise CodedValueError(
                 "each clip move must be an object. Pass each move as an object with a clip id and a new start.",
-                code="invalid_arguments",
+                code="clip_move_invalid",
             )
         cid = str(raw["clip_id"])
         clip = next((c for c in project.clips if c.id == cid), None)

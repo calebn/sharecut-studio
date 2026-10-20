@@ -769,7 +769,7 @@ def acoustic_clip_offset(
     if starts is not None and source_starts is not None and len(source_starts) != len(starts):
         raise CodedValueError(
             "source_starts must match starts. Pass one source start per start.",
-            code="invalid_arguments",
+            code="align_starts_mismatch",
         )
     ref_dur = probe_wav_duration_sec(reference)
     src_dur = probe_wav_duration_sec(source)
