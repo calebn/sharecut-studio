@@ -301,7 +301,9 @@ def dump_project_projection(
         if proj is ViewProjection.TRANSCRIPT_AUDIO:
             # An ignored word is a mute the render adds to the clips (``ignored_word_regions``).
             edit = EditService(ws)
-            return _freshness_patch(ws, {**base, "clips": edit.list_clips()}, edit=edit)
+            return _freshness_patch(
+                ws, {**base, "clips": TimelineService(ws).list_clips()}, edit=edit
+            )
         return base
     # A view build is read-only, so each recording's path is resolved once, not per clip.
     with batch_scope():
