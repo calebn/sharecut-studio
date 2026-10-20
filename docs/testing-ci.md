@@ -2,6 +2,27 @@
 
 What each CI job runs, which jobs a run needs, and the browser acceptance matrix. [testing.md](testing.md) keeps the test commands, quality tooling and coverage policy.
 
+## Superseded PRs and main bursts
+
+The test, desktop, Storybook, extras-import, secret-scan,
+registry-backup-windows, and relay-ci workflows cancel a superseded first-attempt
+PR run in the same workflow and PR group. A rerun gets its own group so rerunning
+an older head cannot cancel the latest head's checks.
+
+First-attempt pushes to `main` share one group per workflow and do not cancel the running run.
+GitHub keeps at most one running and one pending run in each group, replacing an
+older pending run when another arrives. A burst can therefore discard intermediate runs. The last run to enter the
+pending slot is retained, which can be an older commit because GitHub does not
+guarantee dispatch ordering. Coalescing does not guarantee validation of the
+current main tip. Before merging,
+verify the exact PR head and its integration with current `main` as usual.
+
+If a coalesced main run fails, inspect or bisect the commits since the previous
+successful run. Each retained main run and the full nightly test run retain the
+coverage floor and both browser engines. Scheduled and manual dispatch runs have
+unique groups, so pushes cannot cancel them or replace their pending runs.
+This policy changes scheduling, not which checks a run plans.
+
 ## CI
 
 GitHub Actions workflow `.github/workflows/test.yml` runs Python, frontend and
