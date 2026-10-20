@@ -1050,19 +1050,7 @@ Run them with
 
 ## Interaction-system governance
 
-Five Vitest suites under `gui/web/src/` pin the interaction rules in
-[interaction-system.md](interaction-system.md) § Enforcement (#1795). Each
-fails a real violation, passes on today's tree, and was mutated to prove it
-fails. Run them with
-`cd gui/web && npx vitest run src/commands/manifestSurfaces.test.ts src/keymap/sharedKeys.test.ts src/timeline/gestureGovernance.test.ts src/commands/controlSetters.test.ts src/ui/dialogSheet.test.ts`.
-
-| Suite | Protects | Recurring cost |
-| --- | --- | --- |
-| `commands/manifestSurfaces.test.ts` | Every control that renders a command (a `CommandButton` or `CommandMenuItem` with a literal `commandId`, a literal `commandLabel`) has its surface in the manifest `gui` row, a shared control group is listed per parent, and `gates` equal the catalog `when`. | A new file that renders a command adds its surface ids to `FILE_SURFACES`, and a new surface id to the manifest row; a second parent of `HistoryControls` or `ZoomControls` adds a line to `WRAPPER_MOUNTS`. |
-| `keymap/sharedKeys.test.ts` | A key two rows can match runs them in `SHARED_KEY_ORDER`: Backspace tries the Tighten hit, then the inspector track, then the clip; M drops a marker while the record panel is open and otherwise mutes. | A new row on a taken key, or a new shared key, adds one `SHARED_KEY_ORDER` entry with its reason. |
-| `timeline/gestureGovernance.test.ts` (src scan) | A file outside `timeline/` that owns a pointer press, touch, slider or drag handle is a surface that keeps its own gesture, with the decision it keeps. | A new such file adds a `SURFACE_GESTURES` line, or its gesture goes through the router and `commands/gestures.ts`. |
-| `commands/controlSetters.test.ts` | A `.tsx` control changes the tab, phone mode, More destination, playhead, zoom or fit through `execute`, so the follow break, gate and argument checks run. | A control needing a follow-breaking setter for a non-user action adds a waiver with its reason; a new follow-breaking setter adds one entry to `COMMAND_OWNED_SETTERS`. |
-| `ui/dialogSheet.test.ts` | A `Dialog` that stays a panel instead of a sheet on phone and tablet writes `anchor.reason` as a literal at the call site. | Each anchored Dialog writes one sentence. |
+Five Vitest suites pin the rules in [interaction-system.md](interaction-system.md#enforcement-tests) (#1795): `commands/manifestSurfaces.test.ts`, `keymap/sharedKeys.test.ts`, the src scan in `timeline/gestureGovernance.test.ts`, `commands/controlSetters.test.ts` and `ui/dialogSheet.test.ts`. That section states each one's protection and recurring cost.
 
 ## Selected-range tests
 
