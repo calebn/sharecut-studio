@@ -187,7 +187,6 @@ describe("edit.moveClips", () => {
     expect(await execute("edit.moveClips", moves, { skipWhen: true })).toEqual({
       status: "disabled",
       reason: "Edits not allowed",
-      announced: true,
     });
     expect(
       useDawStore.getState().project?.clips.tracks.host[0].timeline_start,

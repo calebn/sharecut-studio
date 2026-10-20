@@ -155,4 +155,38 @@ describe("CommandPalette", () => {
         "Reorder failed. Export diagnostics from the command palette and try again.",
     });
   });
+
+  async function runSelectTool(
+    handler: Parameters<typeof registerCommand>[1],
+  ): Promise<void> {
+    registerCommand("tool.select", handler);
+    renderPalette();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("option", { name: "Select tool" }));
+    await new Promise((r) => setTimeout(r, 20));
+  }
+
+  it("shows the refusal a command returns even when it announced something else", async () => {
+    await runSelectTool(async () => {
+      useDawStore.getState().announceStatus("first");
+      return { status: "disabled", reason: "SECOND never spoken" };
+    });
+    expect(useDawStore.getState().feedbackToast?.message).toBe(
+      "SECOND never spoken",
+    );
+  });
+
+  it("shows the refusal of a silent command when an unrelated announcement lands meanwhile", async () => {
+    await runSelectTool(async () => {
+      await Promise.resolve();
+      useDawStore
+        .getState()
+        .announceStatus("Export: running", { toast: false });
+      return { status: "disabled", reason: "Nothing selected" };
+    });
+    expect(useDawStore.getState().feedbackToast?.message).toBe(
+      "Nothing selected",
+    );
+  });
 });

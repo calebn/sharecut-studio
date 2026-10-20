@@ -317,7 +317,6 @@ describe("edit.restoreClipBleed", () => {
         await executePointerCommand("edit.restoreClipBleed"),
       ).toMatchObject({
         status: "disabled",
-        announced: true,
       });
       expect(clipBleedSession.getSnapshot()?.undo).toBeNull();
       expect(useDawStore.getState().feedbackToast?.undo).toBeNull();

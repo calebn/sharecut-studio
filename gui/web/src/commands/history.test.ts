@@ -85,7 +85,6 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     expect(await execute("history.undo")).toEqual({
       status: "disabled",
       reason: refused,
-      announced: true,
     });
     expect(useDawStore.getState().statusAnnouncement).toBe(refused);
     expect(useDawStore.getState().feedbackToast).toMatchObject({
@@ -101,7 +100,6 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     expect(await execute("history.redo")).toEqual({
       status: "disabled",
       reason: "Can't redo: the project changed since. Nothing was redone.",
-      announced: true,
     });
     expect(redoHistory).toHaveBeenCalledWith("/tmp/ep", {
       expectedHeadId: "seen-by-tab",
@@ -149,7 +147,6 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         expect(await obsolete).toEqual({
           status: "disabled",
           reason,
-          announced: true,
         });
         expect(vi.mocked(undoHistory).mock.calls).toEqual([
           [
@@ -180,7 +177,6 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         expect(await execute(`history.${action}`)).toEqual({
           status: "disabled",
           reason,
-          announced: true,
         });
         expect(useDawStore.getState().statusAnnouncement).toBe(reason);
         expect(undoHistory).not.toHaveBeenCalled();

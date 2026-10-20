@@ -108,7 +108,7 @@ describe("DAW WebMCP tools", () => {
 
   for (const outcome of [
     { status: "ok" },
-    { status: "disabled", reason: "Already announced.", announced: true },
+    { status: "disabled", reason: "Already announced." },
   ] satisfies ExecuteResult[]) {
     it(`waits for and preserves a deferred ${outcome.status} result`, async () => {
       let release: (result: ExecuteResult) => void = () => undefined;

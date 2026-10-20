@@ -168,7 +168,7 @@ describe("useTwoFingerTap", () => {
       "Can't undo: the project changed since. Nothing was undone.";
     mockedExecute.mockImplementationOnce(async () => {
       useDawStore.getState().announceStatus(refused);
-      return { status: "disabled", reason: refused, announced: true };
+      return { status: "disabled", reason: refused };
     });
     const { getByTestId } = render(<Harness />);
     twoFingerTap(getByTestId("tap-target"));

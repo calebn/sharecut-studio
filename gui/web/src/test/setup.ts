@@ -3,6 +3,7 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { resetServerClock } from "../presence/clock";
 import { resetPublishKeyForTests } from "../state/publishKey";
+import { resetFeedbackRepeatForTests } from "../state/uiSlice";
 import { resetQuestions } from "./ask";
 
 // axe color-contrast probes canvas; jsdom has no implementation.
@@ -29,4 +30,5 @@ afterEach(() => {
   resetServerClock();
   resetPublishKeyForTests();
   resetQuestions();
+  resetFeedbackRepeatForTests();
 });

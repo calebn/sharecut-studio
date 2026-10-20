@@ -1,7 +1,7 @@
 const ENV_NAME =
   /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\$\{?[A-Za-z_]\w*\}?|%[A-Za-z_]\w*%/;
 const POSIX_PATH =
-  /(?<![\w.)\]])(?:\/[\w@~-]+(?:\.[\w@~-]+)*){3,}|(?<![\w.)\]])(?:\/[\w@~-]+)+\.[A-Za-z0-9]{1,5}\b/g;
+  /(?<![\w.)\]])(?:~|\.{1,2})?(?:\/[\w@~-]+(?:\.[\w@~-]+)*){3,}|(?<![\w.)\]])(?:~|\.{1,2})?(?:\/[\w@~-]+)+\.[A-Za-z0-9]{1,5}\b/g;
 const WINDOWS_PATH =
   /\b[A-Za-z]:[\\/][^\s]*[^\s.,;:!?]|\\\\[\w.$-]+\\[^\s]*[^\s.,;:!?]/g;
 const SNAKE_CODE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/;
@@ -37,22 +37,26 @@ export function plainError(message: string): string {
   if (!carriesInternals(message)) return message;
   const sentences = message.split(/(?<=[.!?])\s+/);
   const kept: string[] = [];
-  let lost = false;
+  let changed = false;
+  let advice = false;
   sentences.forEach((sentence, index) => {
     if (!carriesInternals(sentence)) {
       kept.push(sentence);
+      advice ||= index > 0;
       return;
     }
+    changed = true;
     const lead = index === 0 ? sentence.split(/:\s/, 1)[0] : "";
     if (lead && lead !== sentence && !carriesInternals(lead)) {
-      kept.push(`${lead.replace(/[.:]$/, "")}.`);
+      kept.push(lead.replace(/[.:]$/, ""));
     } else if (!hasOtherInternals(sentence) && !/:\s/.test(sentence)) {
       kept.push(namePath(sentence));
-      return;
     }
-    lost = true;
   });
-  if (kept.length === 0) kept.push("Something went wrong.");
-  if (lost && kept.length === 1) kept.push(NEXT_STEP);
-  return kept.join(" ");
+  if (kept.length === 0) kept.push("Something went wrong");
+  const text = kept
+    .map((sentence) => sentence.replace(/^./, (c) => c.toUpperCase()))
+    .map((sentence) => (/[.!?]$/.test(sentence) ? sentence : `${sentence}.`));
+  if (changed && !advice) text.push(NEXT_STEP);
+  return text.join(" ");
 }

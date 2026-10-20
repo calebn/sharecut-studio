@@ -1,5 +1,6 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { isAnalyzeJob, isPipelineKindJob, isPipelineRunning } from "./pipeline";
+import { plainError } from "./plainError";
 
 /** True when the job has an honest determinate total (no fake %). */
 export function hasDeterminateProgress(
@@ -89,8 +90,9 @@ export function pipelineChromeLabel(
   const parts = [
     `${pipelineKindLabel(job.kind)}: ${pipelineStatusLabel(job.status)}`,
   ];
+  const text = job.message || job.label;
   const headline = truncateHeadline(
-    job.message || job.label,
+    text && job.status === "error" ? plainError(text) : text,
     options?.headlineMax ?? 48,
   );
   if (headline) {

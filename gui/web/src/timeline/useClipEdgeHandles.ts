@@ -357,12 +357,16 @@ export function useClipEdgeHandles(context: Context) {
         () => fresh(c),
       );
       if (!saved) return;
-      if (fresh(c))
-        useDawStore
-          .getState()
-          .announceStatus(d.kind === "fade" ? "Fade saved" : "Trim saved", {
-            undo: saved.undo,
-          });
+      // The saved reply has replaced the clip's geometry by now, so freshness
+      // would always read stale: only a switched project silences the toast.
+      const after = useDawStore.getState();
+      if (
+        after.projectPath === c.projectPath &&
+        after.projectEpoch === c.projectEpoch
+      )
+        after.announceStatus(d.kind === "fade" ? "Fade saved" : "Trim saved", {
+          undo: saved.undo,
+        });
     } catch (error) {
       if (
         fresh(c) ||

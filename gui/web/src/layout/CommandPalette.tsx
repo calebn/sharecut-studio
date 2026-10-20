@@ -34,7 +34,7 @@ export function CommandPalette() {
         // Close first: a command may open its own dialog, and dialogs never stack.
         setCommandPaletteOpen(false);
         void executePointerCommand(id).then((result) => {
-          if (result.status === "disabled" && !result.announced) {
+          if (result.status === "disabled") {
             useDawStore.getState().announceStatus(result.reason);
           }
         });

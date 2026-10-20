@@ -50,6 +50,7 @@ import {
   pipelineUnitsLabel,
   showIndeterminatePulse,
 } from "../utils/pipelineProgress";
+import { plainError } from "../utils/plainError";
 import { formatTimeShort } from "../utils/time";
 import { confirmReplaceEdited } from "./confirmReplaceEdited";
 import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
@@ -1267,7 +1268,11 @@ export function PipelinePanel() {
                 {pipelineStatusLabel(job.status)}
               </span>
               {job.message ? (
-                <span className="pipeline-headline">{job.message}</span>
+                <span className="pipeline-headline">
+                  {job.status === "error"
+                    ? plainError(job.message)
+                    : job.message}
+                </span>
               ) : null}
               {units ? <span>{units}</span> : null}
               {indeterminatePulse ? (

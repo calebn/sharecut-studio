@@ -34,6 +34,12 @@ it.each([
     "Import failed. PODCAST_MCP_FFMPEG is missing. Install FFmpeg and retry.",
     "Import failed. Install FFmpeg and retry.",
   ],
+  ["Could not open /Users/bob/ep1/mix.wav", `Could not open the file. ${NEXT}`],
+  ["Could not open ~/Podcasts/out.mp3", `Could not open the file. ${NEXT}`],
+  [
+    "Could not open ./relative/path/file.json",
+    `Could not open the file. ${NEXT}`,
+  ],
   // Ordinary words with slashes, acronyms and dates are not internals.
   ["Choose stereo/mono/dual first", "Choose stereo/mono/dual first"],
   ["Use WAV/AIFF/FLAC for export", "Use WAV/AIFF/FLAC for export"],

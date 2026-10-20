@@ -79,13 +79,10 @@ export async function runMoveSpeakerLaneSpan(
     return { status: "ok" };
   } catch (error) {
     const message = errorMessage(error);
-    const spoke = useDawStore.getState().projectEpoch === epoch;
-    if (spoke) {
+    if (useDawStore.getState().projectEpoch === epoch) {
       useDawStore.getState().announceStatus(message, { tone: "error" });
     }
-    return spoke
-      ? { status: "disabled", reason: message, announced: true }
-      : { status: "disabled", reason: message };
+    return { status: "disabled", reason: message };
   } finally {
     if (useDawStore.getState().projectEpoch === epoch) {
       useDawStore.getState().setRangeBusy(false);

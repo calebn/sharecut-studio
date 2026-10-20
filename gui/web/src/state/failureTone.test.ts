@@ -10,6 +10,7 @@ const FAILURE_WORDING =
 const POLICY_REASONS = [
   "layout/CommandPalette.tsx",
   "layout/SplitSpeakersDialog.tsx",
+  "timeline/RangeActions.tsx",
 ];
 
 /** Every `announceStatus(...)` call in production source, with its text. */

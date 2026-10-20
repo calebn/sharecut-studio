@@ -77,7 +77,6 @@ describe("edit.addChapter", () => {
     expect(result).toEqual({
       status: "disabled",
       reason: "locked",
-      announced: true,
     });
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Add chapter failed: locked",

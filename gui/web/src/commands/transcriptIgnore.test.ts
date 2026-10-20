@@ -266,7 +266,6 @@ describe("transcript.ignoreWords", () => {
     expect(result).toEqual({
       status: "disabled",
       reason: "boom",
-      announced: true,
     });
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Ignore failed: boom",
