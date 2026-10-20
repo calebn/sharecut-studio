@@ -372,6 +372,7 @@ def _prepare_candidate(
             removal,
             observation=observation,
             splice_fade_ms=splice_fade_ms,
+            defaults=defaults,
         )
         if isinstance(effects, LaneUnavailable):
             return CutRejected("pause_effects", (effects,))
@@ -594,7 +595,7 @@ def analyze_candidates(
     lost with it.
     """
     session_air = SessionAir(project, audio_caches=audio_caches, word_indexes=word_indexes)
-    timeline_caches = shared_timeline_rms_caches(project)
+    timeline_caches = shared_timeline_rms_caches(project, defaults=defaults)
 
     def analyze(candidate: _CutCandidate) -> _AnalyzedCut | CutRejected:
         prepared = _prepare_candidate(

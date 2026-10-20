@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
+from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.acoustic_gap import (
     AcousticGapConfig,
 )
@@ -219,7 +220,9 @@ def _decision_for_analyzed(result: _AnalyzedCut) -> EditDecision:
     )
 
 
-def _apply_analyzed_cut(project: EpisodeProject, result: _AnalyzedCut) -> EditDecision:
+def _apply_analyzed_cut(
+    project: EpisodeProject, result: _AnalyzedCut, *, defaults: EffectiveConfig
+) -> EditDecision:
     from podcast_mcp.edits.source_removals import (
         record_suggested_cut_speech,
         require_source_remove,
@@ -230,7 +233,7 @@ def _apply_analyzed_cut(project: EpisodeProject, result: _AnalyzedCut) -> EditDe
     if decision.review_required and (
         (decision.reason or "").startswith("pause:") or result.peers_speaking
     ):
-        record_suggested_cut_speech(project, decision)
+        record_suggested_cut_speech(project, decision, defaults=defaults)
     project.edit_decisions.append(decision)
     return decision
 
@@ -303,4 +306,4 @@ def analyze_fillers_and_pauses(
         skip_counts=skip_counts,
         project=project,
     )
-    return [_apply_analyzed_cut(project, result) for result in resolved]
+    return [_apply_analyzed_cut(project, result, defaults=defaults) for result in resolved]
