@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { restoreAppliedEdit } from "../../api";
+import { clearRegisteredCommands } from "../../commands/execute";
+import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
@@ -14,6 +16,15 @@ import { AppliedEditInspector } from "./AppliedEditInspector";
 vi.mock("../../api", () => ({
   restoreAppliedEdit: vi.fn(async () => undefined),
 }));
+
+beforeEach(() => {
+  clearRegisteredCommands();
+  registerDawCommands();
+});
+
+afterEach(() => {
+  clearRegisteredCommands();
+});
 
 describe("AppliedEditInspector restore", () => {
   beforeEach(() => {

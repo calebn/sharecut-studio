@@ -1,6 +1,6 @@
+import { runPointerCommand } from "../commands/pointer";
 import { useOfflineAttentionAnnouncement } from "../hooks/useOfflineAttentionAnnouncement";
 import { isShareProjectKey } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
 import { requestHostDrain } from "../state/drainOfflineQueue";
 import {
   dismissAllConflicts,
@@ -67,7 +67,11 @@ export function GuestAttentionBanner({
       onInspectHistory={
         guest
           ? undefined
-          : () => useDawStore.getState().setMoreDestination("history")
+          : () =>
+              runPointerCommand("view.setMobileMode", {
+                mode: "more",
+                destination: "history",
+              })
       }
     />
   );

@@ -134,7 +134,6 @@ const selectTimelineViewFields = pickDaw(
   "projectPath",
   "zoomPxPerSec",
   "setScrollLeft",
-  "setPlayheadSec",
   "selection",
   "rangeArmed",
   "setSelection",
@@ -145,7 +144,6 @@ const selectTimelineViewFields = pickDaw(
   "sessionRegion",
   "lastAgentQuery",
   "commentMode",
-  "setActiveTab",
   "isPlaying",
   "toolMode",
   "selectClip",
@@ -187,7 +185,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     projectPath,
     zoomPxPerSec,
     setScrollLeft,
-    setPlayheadSec,
     selection,
     rangeArmed,
     setSelection,
@@ -198,7 +195,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     sessionRegion,
     lastAgentQuery,
     commentMode,
-    setActiveTab,
     isPlaying,
     toolMode,
     selectClip,
@@ -999,21 +995,23 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           id: ch.title,
                           time: ch.time,
                         });
-                        setPlayheadSec(ch.time);
+                        void seekTransport(ch.time);
                       }}
                       onSelectSocial={(clip) => {
                         setSelection({ kind: "social", id: clip.id });
-                        setPlayheadSec(clip.start);
+                        void seekTransport(clip.start);
                       }}
                       onSelectComment={(c) => {
                         setSelection({ kind: "comment", id: c.id });
-                        setPlayheadSec(c.timeline_start);
-                        setActiveTab("comments");
+                        void seekTransport(c.timeline_start);
+                        runPointerCommand("view.setTab", {
+                          tab: "comments",
+                        });
                       }}
                       clippingFlags={clipFlags}
                       onSelectClipping={(flag) => {
                         setSelection({ kind: "track", trackId: flag.trackId });
-                        setPlayheadSec(flag.start);
+                        void seekTransport(flag.start);
                       }}
                     />
                     <div
@@ -1079,8 +1077,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                         visible={layers.showComments && isPlaying}
                         onSelect={(c) => {
                           setSelection({ kind: "comment", id: c.id });
-                          setPlayheadSec(c.timeline_start);
-                          setActiveTab("comments");
+                          void seekTransport(c.timeline_start);
+                          runPointerCommand("view.setTab", {
+                            tab: "comments",
+                          });
                         }}
                       />
                       {bladeMode ? (

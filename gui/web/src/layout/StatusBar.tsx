@@ -1,3 +1,4 @@
+import { runPointerCommand } from "../commands/pointer";
 import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useDaw } from "../state/useDaw";
@@ -13,7 +14,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     pipelineJob,
     activityJob,
     activityRunningCount,
-    setActiveTab,
     shellBreakpoint,
     highlightStaleRender,
     statusAnnouncement,
@@ -23,7 +23,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
     activityRunningCount: s.activityRunningCount,
-    setActiveTab: s.setActiveTab,
     shellBreakpoint: s.shellBreakpoint,
     highlightStaleRender: s.highlightStaleRender,
     statusAnnouncement: s.statusAnnouncement,
@@ -48,12 +47,12 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
       runningCount={activityRunningCount}
       onJobClick={
         chipJob && !guestShare && pipelineChipOpensPanel(chipJob)
-          ? () => setActiveTab("pipeline")
+          ? () => runPointerCommand("view.setTab", { tab: "pipeline" })
           : undefined
       }
       statusAnnouncement={statusAnnouncement}
       statusAnnouncementSeq={statusAnnouncementSeq}
-      onOpenTab={setActiveTab}
+      onOpenTab={(tab) => runPointerCommand("view.setTab", { tab })}
     />
   );
 }

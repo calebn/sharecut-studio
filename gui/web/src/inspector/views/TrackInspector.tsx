@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { applyFadeRecommendations, setEffectBypass } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
+import { seekTransport } from "../../commands/seek";
 import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import {
@@ -51,7 +52,6 @@ export function TrackInspector({
     layers,
     guestMode,
     shareCapabilities,
-    setPlayheadSec,
     setPlayUntilSec,
     setIsPlaying,
   } = useDaw((s) => ({
@@ -63,7 +63,6 @@ export function TrackInspector({
     layers: s.layers,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
-    setPlayheadSec: s.setPlayheadSec,
     setPlayUntilSec: s.setPlayUntilSec,
     setIsPlaying: s.setIsPlaying,
   }));
@@ -109,7 +108,6 @@ export function TrackInspector({
       start: 0,
       end: 0,
       padSec: 1.5,
-      setPlayheadSec,
       setPlayUntilSec,
       setIsPlaying,
     });
@@ -142,7 +140,7 @@ export function TrackInspector({
           seekLabel="Go to start"
           playLabel="Preview effects at track start"
           playDisabledReason={mixOnly ? GUESTS_HEAR_FULL_MIX : undefined}
-          onSeek={() => setPlayheadSec(0)}
+          onSeek={() => void seekTransport(0)}
           onPlay={playFxAround}
         />
       }

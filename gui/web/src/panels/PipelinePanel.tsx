@@ -15,6 +15,7 @@ import {
   startPipelineRun,
   waitForPipelineJob,
 } from "../api";
+import { runPointerCommand } from "../commands/pointer";
 import { useLatestRequest } from "../hooks/useLatestRequest";
 import type { PipelineWorkingSetRecipe } from "../hooks/usePipelineWorkingSet";
 import { usePipelineWorkingSet } from "../hooks/usePipelineWorkingSet";
@@ -273,7 +274,6 @@ export function PipelinePanel() {
     activityJob,
     setPipelineJob,
     setActivityJob,
-    setActiveTab,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
     shellBreakpoint: s.shellBreakpoint,
@@ -281,7 +281,6 @@ export function PipelinePanel() {
     activityJob: s.activityJob,
     setPipelineJob: s.setPipelineJob,
     setActivityJob: s.setActivityJob,
-    setActiveTab: s.setActiveTab,
   }));
   const agentRecent = useDaw(selectAgentPresent);
   const workingSet = usePipelineWorkingSet(projectPath, true);
@@ -686,7 +685,7 @@ export function PipelinePanel() {
         pipelineRunOptions(cfg, { fromStep, onlyStep }, mode, overwriteEdited),
       );
       setPipelineJob(job);
-      setActiveTab("pipeline");
+      runPointerCommand("view.setTab", { tab: "pipeline" });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -724,7 +723,7 @@ export function PipelinePanel() {
             ),
           );
           setPipelineJob(job);
-          setActiveTab("pipeline");
+          runPointerCommand("view.setTab", { tab: "pipeline" });
         } catch (e) {
           setError(errorMessage(e));
         } finally {

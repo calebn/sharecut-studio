@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
+import { seekTransport } from "../commands/seek";
 import { rangeClips } from "../edit/rangeSelection";
 import type { LayoutMode, MobileMode, MoreDestination } from "../state/types";
 import type { RoutedTarget } from "../timeline/hitRouting";
@@ -74,7 +75,6 @@ export function layoutScreen(layout: LayoutMode): SheetScreen {
 export interface SurfaceContext {
   project: ProjectView;
   projectEpoch: number;
-  setPlayheadSec: (sec: number) => void;
   /** The desktop rail, or the touch sheet that also carries the range actions. */
   placement: "rail" | "sheet";
 }
@@ -222,10 +222,13 @@ export const SELECTION_SURFACES: {
   social: {
     ...plain,
     screens: ANYWHERE,
-    body: (sel, { project, setPlayheadSec }) => {
+    body: (sel, { project }) => {
       const clip = (project.social_clips ?? []).find((c) => c.id === sel.id);
       return clip ? (
-        <SocialClipInspector clip={clip} onSeek={setPlayheadSec} />
+        <SocialClipInspector
+          clip={clip}
+          onSeek={(sec) => void seekTransport(sec)}
+        />
       ) : (
         notFound("Social clip not found")
       );
@@ -234,7 +237,7 @@ export const SELECTION_SURFACES: {
   comment: {
     ...plain,
     screens: [...ANYWHERE, "comments"],
-    body: (sel, { project, setPlayheadSec }) => {
+    body: (sel, { project }) => {
       const comment = (project.comments ?? []).find((c) => c.id === sel.id);
       if (!comment) return notFound("Comment not found");
       const linked = comment.edit_decision_id
@@ -243,7 +246,10 @@ export const SELECTION_SURFACES: {
       return linked ? (
         <PendingEditInspector edit={linked} />
       ) : (
-        <CommentInspector comment={comment} onSeek={setPlayheadSec} />
+        <CommentInspector
+          comment={comment}
+          onSeek={(sec) => void seekTransport(sec)}
+        />
       );
     },
   },

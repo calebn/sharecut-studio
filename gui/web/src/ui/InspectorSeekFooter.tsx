@@ -1,3 +1,4 @@
+import { seekTransport } from "../commands/seek";
 import { useDaw } from "../state/useDaw";
 import { playTimelineRange } from "../utils/playRange";
 import {
@@ -27,25 +28,22 @@ export function InspectorSeekFooter({
   padSec,
   ...view
 }: Props) {
-  const { setPlayheadSec, setPlayUntilSec, setIsPlaying, beginAudition } =
-    useDaw((s) => ({
-      setPlayheadSec: s.setPlayheadSec,
-      setPlayUntilSec: s.setPlayUntilSec,
-      setIsPlaying: s.setIsPlaying,
-      beginAudition: s.beginAudition,
-    }));
+  const { setPlayUntilSec, setIsPlaying, beginAudition } = useDaw((s) => ({
+    setPlayUntilSec: s.setPlayUntilSec,
+    setIsPlaying: s.setIsPlaying,
+    beginAudition: s.beginAudition,
+  }));
 
   return (
     <InspectorSeekFooterView
       {...view}
-      onSeek={() => setPlayheadSec(seekSec)}
+      onSeek={() => void seekTransport(seekSec)}
       onPlay={() =>
         playTimelineRange({
           start: playStart,
           end: playEnd,
           padSec,
           beginAudition,
-          setPlayheadSec,
           setPlayUntilSec,
           setIsPlaying,
         })

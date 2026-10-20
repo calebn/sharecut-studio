@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { commandLabel } from "../commands/labels";
+import { seekTransport } from "../commands/seek";
 import {
   CommentAnchorChip,
   CommentAuthorLine,
@@ -33,7 +34,6 @@ export function CommentsPanel({
     project,
     projectPath,
     setSelection,
-    setPlayheadSec,
     commentMode,
     commentDraft,
     setCommentMode,
@@ -45,7 +45,6 @@ export function CommentsPanel({
     project: s.project,
     projectPath: s.projectPath,
     setSelection: s.setSelection,
-    setPlayheadSec: s.setPlayheadSec,
     commentMode: s.commentMode,
     commentDraft: s.commentDraft,
     setCommentMode: s.setCommentMode,
@@ -248,7 +247,7 @@ export function CommentsPanel({
               }
               onSelect={() => {
                 setSelection({ kind: "comment", id: c.id });
-                setPlayheadSec(c.timeline_start);
+                void seekTransport(c.timeline_start);
               }}
               onReply={
                 mayReply

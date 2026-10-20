@@ -1,7 +1,8 @@
 import { act, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { correctTranscriptWord } from "../api";
-import { execute } from "../commands/execute";
+import { clearRegisteredCommands, execute } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { registerTranscriptWordCommands } from "../commands/transcriptWord";
 import { transcriptWordPresenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
@@ -123,6 +124,16 @@ function largeProject(turnCount = 1200) {
     },
   };
 }
+
+beforeEach(() => {
+  vi.mocked(execute).mockClear();
+  clearRegisteredCommands();
+  registerDawCommands();
+});
+
+afterEach(() => {
+  clearRegisteredCommands();
+});
 
 describe("TranscriptPanel", () => {
   beforeEach(() => {
@@ -255,7 +266,11 @@ describe("TranscriptPanel", () => {
       const { container } = render(<TranscriptPanel />);
       const there = word(container, "there");
       tap(there);
-      expect(useDawStore.getState().playheadSec).toBe(1);
+      expect(execute).toHaveBeenCalledWith(
+        "transport.seek",
+        { sec: 1 },
+        { skipWhen: true },
+      );
       expect(useDawStore.getState().selection).toBeNull();
       tap(there);
       expect(useDawStore.getState().selection).toEqual(thereWord);
@@ -297,7 +312,11 @@ describe("TranscriptPanel", () => {
       });
       useDawStore.setState({ playheadSec: 5 });
       fireEvent.click(word(container, "there"));
-      expect(useDawStore.getState().playheadSec).toBe(1);
+      expect(execute).toHaveBeenCalledWith(
+        "transport.seek",
+        { sec: 1 },
+        { skipWhen: true },
+      );
       expect(useDawStore.getState().selection).toBeNull();
       vi.useRealTimers();
     });
@@ -308,7 +327,11 @@ describe("TranscriptPanel", () => {
       const { container } = render(<TranscriptPanel />);
       longPress(word(container, "there"));
       expect(useDawStore.getState().selection).toEqual(thereWord);
-      expect(useDawStore.getState().playheadSec).toBe(5);
+      expect(execute).not.toHaveBeenCalledWith(
+        "transport.seek",
+        expect.anything(),
+        expect.anything(),
+      );
       vi.useRealTimers();
     });
 
@@ -395,7 +418,11 @@ describe("TranscriptPanel", () => {
       longPress(there);
       expect(useDawStore.getState().selection).toBeNull();
       expect(container.textContent).not.toContain("correct mode");
-      expect(useDawStore.getState().playheadSec).toBe(1);
+      expect(execute).toHaveBeenCalledWith(
+        "transport.seek",
+        { sec: 1 },
+        { skipWhen: true },
+      );
       vi.useRealTimers();
     });
   });
@@ -783,7 +810,11 @@ describe("TranscriptPanel", () => {
       expect(
         within(container).queryByRole("textbox", { name: /Correct word/ }),
       ).toBeNull();
-      expect(useDawStore.getState().playheadSec).toBe(0);
+      expect(execute).toHaveBeenCalledWith(
+        "transport.seek",
+        { sec: 0 },
+        { skipWhen: true },
+      );
     });
 
     it("Select intent does not open the editor", () => {

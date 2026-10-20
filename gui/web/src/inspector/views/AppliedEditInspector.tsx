@@ -1,4 +1,5 @@
 import { restoreAppliedEdit } from "../../api";
+import { runPointerCommand } from "../../commands/pointer";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -9,19 +10,14 @@ import { BUSY_REASON } from "../../ui/disabledReason";
 import { ModifierInspector } from "../ModifierInspector";
 
 export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
-  const {
-    projectPath,
-    guestMode,
-    shareCapabilities,
-    setSelection,
-    setActiveTab,
-  } = useDaw((s) => ({
-    projectPath: s.projectPath,
-    guestMode: s.guestMode,
-    shareCapabilities: s.shareCapabilities,
-    setSelection: s.setSelection,
-    setActiveTab: s.setActiveTab,
-  }));
+  const { projectPath, guestMode, shareCapabilities, setSelection } = useDaw(
+    (s) => ({
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+      setSelection: s.setSelection,
+    }),
+  );
   const { busy, error, run } = useProjectMutation();
 
   const mayRestore = canApplyPass12(projectPath, guestMode, shareCapabilities);
@@ -68,7 +64,8 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
             ? [
                 {
                   label: "Open History",
-                  onClick: () => setActiveTab("history"),
+                  onClick: () =>
+                    runPointerCommand("view.setTab", { tab: "history" }),
                 },
               ]
             : undefined

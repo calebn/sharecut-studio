@@ -6,6 +6,7 @@ import {
   releasePendingPreview,
   warmPendingPreview,
 } from "../audio/pendingPreview";
+import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { PendingEditView } from "../types/project";
@@ -86,7 +87,7 @@ export function PendingPreviewFooter({
   };
   return (
     <InspectorSeekFooterView
-      onSeek={() => useDawStore.getState().setPlayheadSec(seekSec)}
+      onSeek={() => void seekTransport(seekSec)}
       onPlay={() => void play()}
       playBusySec={
         busySec !== null && busySec >= BUSY_LABEL_AFTER_SEC ? busySec : null

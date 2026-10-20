@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
+import { seekTransport } from "../commands/seek";
 import { DOUBLE_TAP_MS, withinGhostClick } from "../hooks/gestureConstants";
 import { useLongPress } from "../hooks/useLongPress";
 import { useUserScrollIntent } from "../hooks/useUserScrollIntent";
@@ -145,7 +146,6 @@ export function TranscriptPanel() {
   const {
     project,
     projectPath,
-    setPlayheadSec,
     selection,
     setSelection,
     transcriptFollowPlayhead,
@@ -174,7 +174,6 @@ export function TranscriptPanel() {
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
-    setPlayheadSec: s.setPlayheadSec,
     selection: s.selection,
     setSelection: s.setSelection,
     transcriptFollowPlayhead: s.transcriptFollowPlayhead,
@@ -413,13 +412,13 @@ export function TranscriptPanel() {
     // Delay so a double-click can cancel and seek the word instead.
     clickTimerRef.current = window.setTimeout(() => {
       clickTimerRef.current = null;
-      setPlayheadSec(sec);
+      void seekTransport(sec);
     }, 220);
   };
 
   const seekWordNow = (sec: number) => {
     cancelQueuedSeek();
-    setPlayheadSec(sec);
+    void seekTransport(sec);
   };
 
   const openInlineEdit = useCallback(

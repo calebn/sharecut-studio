@@ -9,14 +9,12 @@ export function Inspector({
 }: {
   placement?: "rail" | "sheet";
 }) {
-  const { project, projectEpoch, selection, setSelection, setPlayheadSec } =
-    useDaw((s) => ({
-      project: s.project,
-      projectEpoch: s.projectEpoch,
-      selection: s.selection,
-      setSelection: s.setSelection,
-      setPlayheadSec: s.setPlayheadSec,
-    }));
+  const { project, projectEpoch, selection, setSelection } = useDaw((s) => ({
+    project: s.project,
+    projectEpoch: s.projectEpoch,
+    selection: s.selection,
+    setSelection: s.setSelection,
+  }));
 
   if (!project) {
     return (
@@ -49,7 +47,6 @@ export function Inspector({
   return renderSelectionBody(selection, {
     project,
     projectEpoch,
-    setPlayheadSec,
     placement,
   });
 }

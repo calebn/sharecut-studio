@@ -1,6 +1,8 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { minimalProject, sampleTrack, sessionRoster } from "../test/fixtures";
@@ -51,6 +53,15 @@ vi.mock("../state/offlineStore", async (importOriginal) => ({
   loadHostAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
   loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));
+
+beforeEach(() => {
+  clearRegisteredCommands();
+  registerDawCommands();
+});
+
+afterEach(() => {
+  clearRegisteredCommands();
+});
 
 describe("StatusBar chips", () => {
   it("reveal their tab, restoring any layout that does not show it", async () => {
@@ -629,6 +640,36 @@ describe("StatusBar live region", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "Bounced 1 file(s) to export/bounces/",
     );
+  });
+
+  it("breaks the follow of a host when a chip opens a tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.setState({ followingClientId: "host-1" });
+      useDawStore.getState().setActivityJob({
+        id: "b2",
+        project_path: "/tmp/p.json",
+        from_step: null,
+        only_step: null,
+        kind: "bounce",
+        label: "Bounce",
+        status: "running",
+        message: "Mixing bounce…",
+        current: 1,
+        total: 2,
+        error: null,
+        elapsed_sec: 1,
+        steps: [],
+      });
+    });
+    await user.click(screen.getByRole("button", { name: /Mixing bounce/ }));
+    expect(useDawStore.getState().activeTab).toBe("pipeline");
+    expect(useDawStore.getState().followingClientId).toBeNull();
   });
 
   it("opens Pipeline from a bounce chip and leaves agent chips inert", async () => {
