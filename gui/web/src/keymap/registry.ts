@@ -52,6 +52,8 @@ export type KeymapCommand = {
   requireAlt?: boolean;
   /** true = Shift required; false = Shift excluded; omit = Shift optional. */
   requireShift?: boolean;
+  /** Keys in `keys` that need Shift held (Shift+F10); the others match with or without. */
+  shiftKeys?: string[];
   /** A toggle a held key must not flip back and forth (M saves the mix mute). */
   noRepeat?: boolean;
   /** Keyboard when-clause: must match command catalog when for that id. */
@@ -397,6 +399,18 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: false,
     when: "canMoveSelectedTrackDown",
     notes: "Inspector track selected",
+  },
+  {
+    id: "create.menu",
+    category: "edit",
+    label: "Create here",
+    keys: ["F10", "ContextMenu"],
+    bareKey: true,
+    shiftKeys: ["F10"],
+    noRepeat: true,
+    when: "timelineFocused",
+    notes:
+      "Shift+F10: create menu at the focused target or the playhead; the Menu key too",
   },
   {
     id: "edit.delete",
@@ -928,8 +942,10 @@ export function matchKeymapCommands(
 
     const keys = effectiveKeys(cmd);
     const pool = cmd.requireAlt ? altCandidates : candidates;
-    const matched = keys.some((k) =>
-      pool.some((c) => c === k || c.toUpperCase() === k.toUpperCase()),
+    const matched = keys.some(
+      (k) =>
+        (e.shiftKey || !cmd.shiftKeys?.includes(k)) &&
+        pool.some((c) => c === k || c.toUpperCase() === k.toUpperCase()),
     );
     if (matched) {
       out.push(cmd);

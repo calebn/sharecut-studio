@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**118** capabilities · **102** Sharecut Studio commands · **54** keyed · **185** MCP tools · **17** skills on rows (+ **19** hub skills).
+**119** capabilities · **103** Sharecut Studio commands · **55** keyed · **185** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -39,6 +39,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Blade tool | view | `tool.blade` | `C` | — | `toolModeToggle` | — | — | — | — | none · none |
 | Exit comment mode | view | `review.exitCommentMode` | `Escape` | — | — | — | — | — | — | — |
 | Clear selection | session | `edit.clearSelection` | `Escape` | — | — | — | — | — | — | — |
+| Create here | view | `create.menu` | `Shift+F10` | — | — | — | — | — | — | — |
 | Toggle comment mode | view | `review.toggleCommentMode` | `Mod+Shift+C` | — | `transport.comment` | — | — | — | — | none · none |
 | Resolve comment | project | `comment.resolve` | — (Direct comment card gesture and button; no standard shortcut) | `swipe-left` | `mobileShell.gesture.swipeLeftComment` | `resolve_comment_tool` | `podcast comment resolve` | — | yes | none · none |
 | Apply tighten hit | project | `tighten.applyHit` | `Enter` | — | `tightenPanel` | `approve_edits_tool` | `podcast edit approve` | `podcast-tighten-dialogue` | — | none · none |

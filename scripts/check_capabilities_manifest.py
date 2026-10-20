@@ -67,6 +67,7 @@ def _keymap_chords() -> dict[str, str]:
                 in {
                     "Space",
                     "Escape",
+                    "Shift+F10",
                     "Backspace",
                     "Delete",
                     "ArrowLeft",

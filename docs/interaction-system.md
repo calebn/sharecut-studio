@@ -107,8 +107,9 @@ are draft UI state, not a selection.
 3. **Context menus come from one descriptor.** The create menu a long press
    opens on touch and the context menu a right click opens on desktop render
    the same descriptor. A touch gesture that opens a menu has a right-click
-   twin, and both have a keyboard route (Menu key or Shift+F10 on the focused
-   target).
+   twin, and both have a keyboard route (Menu key or Shift+F10, the `create.menu`
+   command: over the focused target, else at the playhead on the selected
+   track).
 4. **Menu items name the command.** The item label is `CommandDef.label` and
    the item shows the shortcut from the keymap. A disabled item carries its
    reason the same way a button does.

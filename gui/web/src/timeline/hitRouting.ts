@@ -695,8 +695,14 @@ export function attachHitRouting(
   const onContextMenu = (event: MouseEvent) => {
     const { target } = event;
     if ((event as PointerEvent).pointerType === "touch") return;
-    if (phase.kind !== "idle" || !(target instanceof Element)) return;
-    if (!partOf(target)) return;
+    if (!(target instanceof Element) || !partOf(target)) return;
+    // The key route opens the menu on keydown; the native menu that key press
+    // would raise next must not cover it.
+    if (phase.kind === "create") {
+      event.preventDefault();
+      return;
+    }
+    if (phase.kind !== "idle") return;
     if (!closestHitTarget(target) && !closestHitSurface(target)) return;
     event.preventDefault();
     // A key press carries no pointer position: use the focused target's.

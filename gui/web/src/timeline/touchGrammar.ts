@@ -5,10 +5,14 @@
  */
 import { type SoftBoundary, softBoundaries } from "../edit/nudgeBoundaries";
 import { useDawStore } from "../state/dawStore";
+import { selectedTrackIdsOf } from "../state/selection";
+import { dialogueTrackIds } from "../utils/bladeTracks";
 import { envelopeValueAt, sortedVolumePoints } from "../utils/envelopes";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import type { CreateMenuPlace } from "./CreateMenu";
+import type { HitPoint } from "./hitCandidates";
 import type { ArmedTarget, CreateView, RoutedTarget } from "./hitRouting";
+import { closestHitSurface, closestHitTarget } from "./hitTargets";
 import { HIT_KINDS, softMover } from "./inputContract";
 
 /** The playhead and the edges and markers near an armed target, in seconds. */
@@ -85,5 +89,48 @@ export function createPlace(
           atTime,
         )
       : null,
+  };
+}
+
+/**
+ * Where a key press opens the create menu (#1877): over the focused hit target
+ * when one has focus, else at the playhead on the first selected track, else
+ * the first dialogue track. Null when there is no lane to put it on.
+ */
+export function keyboardCreateAnchor(
+  root: HTMLElement,
+): { origin: HitPoint; surface: Element } | null {
+  const active = document.activeElement;
+  if (
+    active instanceof Element &&
+    root.contains(active) &&
+    (closestHitTarget(active) || closestHitSurface(active))
+  ) {
+    const box = active.getBoundingClientRect();
+    return {
+      origin: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+      surface: active,
+    };
+  }
+  const { project, selection, playheadSec, zoomPxPerSec } =
+    useDawStore.getState();
+  const tracks = project?.tracks ?? [];
+  const id =
+    selectedTrackIdsOf(selection)[0] ??
+    dialogueTrackIds(tracks)[0] ??
+    tracks[0]?.id;
+  if (!id) return null;
+  const lane = [...root.querySelectorAll<HTMLElement>("[data-track-id]")].find(
+    (el) => el.getAttribute("data-track-id") === id,
+  );
+  if (!lane) return null;
+  lane.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  const box = lane.getBoundingClientRect();
+  return {
+    origin: {
+      x: root.getBoundingClientRect().left + playheadSec * zoomPxPerSec,
+      y: box.top + box.height / 2,
+    },
+    surface: lane,
   };
 }

@@ -543,4 +543,20 @@ describe("held keys", () => {
       ),
     ).toBe(false);
   });
+
+  it("opens the create menu on Shift+F10 and the Menu key, not on a bare F10 (#1877)", () => {
+    expect(
+      matchKeymapCommands(keyEvent({ key: "F10", shiftKey: true })).map(
+        (cmd) => cmd.id,
+      ),
+    ).toContain("create.menu");
+    expect(
+      matchKeymapCommands(keyEvent({ key: "ContextMenu" })).map(
+        (cmd) => cmd.id,
+      ),
+    ).toContain("create.menu");
+    expect(
+      matchKeymapCommands(keyEvent({ key: "F10" })).map((cmd) => cmd.id),
+    ).not.toContain("create.menu");
+  });
 });

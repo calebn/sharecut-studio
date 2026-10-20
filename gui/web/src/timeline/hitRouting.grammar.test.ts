@@ -441,7 +441,7 @@ describe("context menu (#1793)", () => {
     expect(creates).toEqual([]);
   });
 
-  it("ignores a contextmenu while a press or menu is under way", () => {
+  it("opens nothing on a contextmenu while a press or menu is under way, and keeps the native menu off an open one", () => {
     const el = lane();
     press(el, "pointerdown", 300, 150);
     const whilePressing = contextmenu(el, 400, 150);
@@ -453,7 +453,7 @@ describe("context menu (#1793)", () => {
       pressing: whilePressing.defaultPrevented,
       open: whileOpen.defaultPrevented,
       opened: creates.length - open,
-    }).toEqual({ pressing: false, open: false, opened: 0 });
+    }).toEqual({ pressing: false, open: true, opened: 0 });
     expect(creates.at(-1)?.origin).toEqual({ x: 300, y: 150 });
   });
 });
