@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   closeOverlay,
-  hasOpenOverlay,
   isInnermostOverlay,
   openOverlay,
+  overlayOpen,
 } from "./modalGate";
 
 describe("modalGate stack rank", () => {
@@ -25,7 +25,7 @@ describe("modalGate stack rank", () => {
 
     expect(isInnermostOverlay(popover)).toBe(true);
     expect(isInnermostOverlay(remounted)).toBe(false);
-    expect(hasOpenOverlay()).toBe(true);
+    expect(overlayOpen()).toBe(true);
   });
 
   it("keeps a modal innermost over a remounted sheet", () => {

@@ -1,12 +1,15 @@
 /**
- * Non-reactive stack of open overlays (`useDialogModal`: modal dialogs and
- * peek sheets), innermost last. Escape and entry focus belong to the innermost
+ * The one gate every overlay registers with: `useDialogModal` (modal dialogs
+ * and peek sheets) and `useMenuKeyboard` (menus). The stack is non-reactive,
+ * innermost last; `subscribeModalOpen` lets a view follow whether a modal is
+ * open (`useModalOpen`). Escape and entry focus belong to the innermost
  * one: an in-app confirm over the Inspector sheet closes only the confirm.
  *
- * An open modal dialog holds every app shortcut, as the browser's own
- * `confirm()` did: the Daw keymap runs nothing behind it (no Mod+Z undoing an
- * edit behind "Remove the guest track?"), except the shortcuts the innermost
- * modal hands on, such as M for a marker in the Record room.
+ * The keymap asks one question, `keymapHandoff`. An open menu holds every
+ * app shortcut. So does an open modal dialog, as the browser's own `confirm()`
+ * did: the Daw keymap runs nothing behind it (no Mod+Z undoing an edit behind
+ * "Remove the guest track?"), except the shortcuts the innermost modal hands
+ * on, such as M for a marker in the Record room.
  */
 type Layer = {
   readonly modal: boolean;
@@ -17,6 +20,8 @@ type Layer = {
 };
 
 const layers: Layer[] = [];
+let openMenus = 0;
+const modalListeners = new Set<() => void>();
 const rankByStackKey = new Map<string, number>();
 let nextRank = 1;
 
@@ -52,6 +57,7 @@ export function openOverlay(
   const layer = { modal, shortcuts, takeEntryFocus, stackRank };
   if (modal) {
     layers.push(layer);
+    notifyModalListeners();
     return layer;
   }
   const insertAt = layers.findIndex((open) => open.stackRank > stackRank);
@@ -62,6 +68,33 @@ export function openOverlay(
 export function closeOverlay(layer: Layer): void {
   const index = layers.lastIndexOf(layer);
   if (index >= 0) layers.splice(index, 1);
+  if (layer.modal) notifyModalListeners();
+}
+
+/** Call as a menu opens (true) and closes (false). */
+export function noteMenuOpen(open: boolean): void {
+  openMenus = open ? openMenus + 1 : Math.max(0, openMenus - 1);
+}
+
+/** True while a menu is open; a menu owns Escape before any dialog. */
+export function menuOpen(): boolean {
+  return openMenus > 0;
+}
+
+function notifyModalListeners(): void {
+  for (const listener of modalListeners) listener();
+}
+
+/** True while a modal dialog is open (a snapshot for `useModalOpen`). */
+export function modalOpen(): boolean {
+  return layers.some((layer) => layer.modal);
+}
+
+export function subscribeModalOpen(listener: () => void): () => void {
+  modalListeners.add(listener);
+  return () => {
+    modalListeners.delete(listener);
+  };
 }
 
 /** True when `layer` is the innermost open overlay (it owns Escape). */
@@ -69,8 +102,9 @@ export function isInnermostOverlay(layer: Layer): boolean {
   return layers.at(-1) === layer;
 }
 
-export function hasOpenOverlay(): boolean {
-  return layers.length > 0;
+/** True while any overlay is open (menu, dialog or sheet); each owns Escape. */
+export function overlayOpen(): boolean {
+  return openMenus > 0 || layers.length > 0;
 }
 
 const claimedEscapes = new WeakSet<Event>();
@@ -92,9 +126,11 @@ export function focusInnermostOverlay(): void {
 }
 
 /**
- * The keymap commands the innermost open modal lets through (often none), or
- * null while no modal is open and every shortcut runs.
+ * The keymap commands that may run now: none while a menu is open, the
+ * innermost open modal's handoff list (often none) while a dialog is, or null
+ * while no overlay holds the keymap and every shortcut runs.
  */
-export function modalShortcuts(): readonly string[] | null {
+export function keymapHandoff(): readonly string[] | null {
+  if (openMenus > 0) return [];
   return layers.findLast((layer) => layer.modal)?.shortcuts ?? null;
 }

@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { BottomSheet } from "./BottomSheet";
 import { Menu, MenuItem } from "./Menu";
-import { peekMenuOpen } from "./menuGate";
+import { menuOpen } from "./modalGate";
 
 function Fixture() {
   const [open, setOpen] = useState(false);
@@ -75,7 +75,7 @@ describe("Menu", () => {
     const user = userEvent.setup();
     const { container } = render(<Fixture />);
     await user.click(screen.getByRole("button", { name: "Open" }));
-    expect(peekMenuOpen()).toBe(true);
+    expect(menuOpen()).toBe(true);
     await waitFor(() => {
       expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
     });
@@ -83,7 +83,7 @@ describe("Menu", () => {
     expect(screen.getByRole("menuitem", { name: "Two" })).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(peekMenuOpen()).toBe(false);
+    expect(menuOpen()).toBe(false);
     expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
     await expectNoA11yViolations(container);
   });
@@ -101,10 +101,10 @@ describe("Menu", () => {
       expect(panel).toHaveAttribute("aria-label", "Test menu");
       expect(panel).not.toHaveAttribute("popover");
       expect(panel.parentElement).toBe(document.body);
-      expect(peekMenuOpen()).toBe(true);
+      expect(menuOpen()).toBe(true);
       await user.click(screen.getByRole("button", { name: "Open" }));
       expect(screen.queryByRole("menu", { hidden: true })).toBeNull();
-      expect(peekMenuOpen()).toBe(false);
+      expect(menuOpen()).toBe(false);
     } finally {
       proto.showPopover = showPopover;
       proto.hidePopover = hidePopover;
@@ -253,7 +253,7 @@ describe("Menu", () => {
     await user.tab();
     expect(screen.getByRole("textbox", { name: "After menu" })).toHaveFocus();
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(peekMenuOpen()).toBe(false);
+    expect(menuOpen()).toBe(false);
   });
 
   it("dismisses on Shift+Tab and preserves the trigger's focus", async () => {
@@ -508,10 +508,10 @@ describe("Menu", () => {
     render(<SheetWithMenu />);
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Menu" }));
-    expect(peekMenuOpen()).toBe(true);
+    expect(menuOpen()).toBe(true);
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(peekMenuOpen()).toBe(false);
+    expect(menuOpen()).toBe(false);
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
     expect(screen.queryByTestId("sheet-closed")).toBeNull();
   });

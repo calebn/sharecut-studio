@@ -1,5 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import { noteMenuOpen } from "./menuGate";
+import { noteMenuOpen } from "./modalGate";
 import { listFocusable } from "./useDialogModal";
 
 function menuItems(panel: HTMLElement): HTMLElement[] {
