@@ -73,7 +73,10 @@ async function openFollowedTranscript(page: Page): Promise<Locator> {
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   const compact = (page.viewportSize()?.width ?? 0) < 720;
   await page
-    .getByRole("button", { name: compact ? "Text" : "Transcript", exact: true })
+    .getByRole(compact ? "button" : "tab", {
+      name: compact ? "Text" : "Transcript",
+      exact: true,
+    })
     .click();
   const list = page.locator(".transcript-list");
   await expect(list.locator("[data-transcript-word]")).toHaveCount(

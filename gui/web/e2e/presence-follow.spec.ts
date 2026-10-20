@@ -279,10 +279,10 @@ test.describe("presence follow desktop", () => {
       await followUntilLeaderPlayheadMirrors(pageB, pageA);
       const comments = pageA.locator('[data-presence-anchor="tab:comments"]');
       await comments.click();
-      await expect(comments).toHaveAttribute("aria-pressed", "true");
+      await expect(comments).toHaveAttribute("aria-selected", "true");
       await expect(
         pageB.locator('[data-presence-anchor="tab:comments"]'),
-      ).toHaveAttribute("aria-pressed", "true");
+      ).toHaveAttribute("aria-selected", "true");
       await expect(pageB.locator(".follow-banner")).toBeVisible();
       await pageB.locator('[data-presence-anchor="tab:transcript"]').click();
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
@@ -461,7 +461,7 @@ test.describe("presence follow guest share", () => {
       await expect(followBanner).toContainText(/in Pipeline \(host-only\)/);
       await expect(
         pageB.locator(
-          '[data-presence-anchor="tab:transcript"][aria-pressed="true"]',
+          '[data-presence-anchor="tab:transcript"][aria-selected="true"]',
         ),
       ).toBeVisible();
 

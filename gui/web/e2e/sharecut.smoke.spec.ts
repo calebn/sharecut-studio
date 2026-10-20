@@ -13,7 +13,9 @@ test.describe("Sharecut Studio smoke", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Play", exact: true }),
+    ).toBeVisible();
     await expect(
       page
         .getByLabel("Editor panels")

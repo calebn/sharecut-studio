@@ -137,8 +137,8 @@ for (const theme of ["light", "dark"] as const) {
       "true",
     );
     await expect(
-      page.getByRole("button", { name: "Transcript", exact: true }),
-    ).toHaveAttribute("aria-pressed", "true");
+      page.getByRole("tab", { name: "Transcript", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
     await expectShellFit(page, 1440);
     const splitter = page.getByRole("separator", {
       name: "Resize editor panels",
@@ -146,7 +146,7 @@ for (const theme of ["light", "dark"] as const) {
     await splitter.focus();
     await page.keyboard.press("ArrowUp");
     await expect(splitter).toHaveAttribute("aria-valuenow", "12.8");
-    await page.getByRole("button", { name: "Comments", exact: true }).click();
+    await page.getByRole("tab", { name: "Comments", exact: true }).click();
     await expect(page.getByText("Keep this introduction.")).toBeVisible();
     await page
       .getByRole("button", { name: "Open track details, Mira" })
@@ -230,10 +230,10 @@ for (const theme of ["light", "dark"] as const) {
           : Number.POSITIVE_INFINITY;
       })
       .toBeLessThanOrEqual(0);
-    await page.getByRole("button", { name: "Comments", exact: true }).click();
+    await page.getByRole("tab", { name: "Comments", exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "Comments", exact: true }),
-    ).toHaveAttribute("aria-pressed", "true");
+      page.getByRole("tab", { name: "Comments", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
     await expect(dialog).toBeVisible();
     await expectShellFit(page, 1024);
     await expectPageAxeClean(page);

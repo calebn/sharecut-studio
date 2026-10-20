@@ -172,11 +172,12 @@ export async function replayPipelineProgress(
   let replayEvidence: ReplayEvidence | undefined;
   let primaryFailure: unknown;
   try {
-    const pipeline = page.getByRole("tab", { name: /^Pipeline(?: ●)?$/ });
-    if (await pipeline.isVisible()) await pipeline.click();
+    const pipelineName = /^Pipeline(?: ●)?$/;
+    const pipelineTab = page.getByRole("tab", { name: pipelineName });
+    if (await pipelineTab.isVisible()) await pipelineTab.click();
     else {
       await page.getByRole("button", { name: "More", exact: true }).click();
-      await pipeline.click();
+      await page.getByRole("button", { name: pipelineName }).click();
     }
     await expect
       .poll(() => page.evaluate(() => window.__editorProgressReplay!.connected))

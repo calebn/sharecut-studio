@@ -32,7 +32,7 @@ test.describe("Chrome-first bootstrap", () => {
     });
 
     await expect(page.getByText("Loading episode…").first()).toBeVisible();
-    const play = page.getByRole("button", { name: "Play" });
+    const play = page.getByRole("button", { name: "Play", exact: true });
     const stop = page.getByRole("button", { name: "Stop playback" });
     await expect(
       page.getByText("Loading project…", { exact: true }),

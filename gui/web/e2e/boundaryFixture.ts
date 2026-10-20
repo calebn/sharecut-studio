@@ -13,7 +13,7 @@ export async function openTranscript(page: Page): Promise<void> {
   } else {
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", {
+      .getByRole("tab", {
         name: "Transcript",
         exact: true,
       })
