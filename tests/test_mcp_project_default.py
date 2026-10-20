@@ -240,7 +240,7 @@ async def test_installers_preserve_add_tool_contract_in_either_order(
     from mcp.client import Client
     from mcp.server import MCPServer
 
-    from podcast_mcp.util.progress_install import install_mcp_progress
+    from podcast_mcp.util.progress import install_mcp_progress
 
     monkeypatch.setenv(ENV_VAR, "/tmp/pinned.project.json")
     for installers in (

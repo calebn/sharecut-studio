@@ -29,7 +29,7 @@ from podcast_mcp.cli import (
 from podcast_mcp.cli.busy import BusyErrorGroup
 from podcast_mcp.cli.setup_cmd import bootstrap, doctor, setup
 from podcast_mcp.extensions.loader import apply_cli_extensions
-from podcast_mcp.util.progress_install import install_cli_progress
+from podcast_mcp.util.progress import install_cli_progress
 
 app = typer.Typer(
     name="podcast",

@@ -10,7 +10,7 @@ from podcast_mcp.mcp.project_default import install_project_default
 from podcast_mcp.mcp.request_cancel import install_request_cancel
 from podcast_mcp.mcp.tool_errors import install_tool_errors
 from podcast_mcp.mcp.tools import register_all
-from podcast_mcp.util.progress_install import install_mcp_progress
+from podcast_mcp.util.progress import install_mcp_progress
 
 mcp = MCPServer("podcast-mcp", version=__version__)
 install_mcp_progress(mcp)
