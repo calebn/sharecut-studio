@@ -6,7 +6,7 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
+import { wordSelection } from "../utils/rangeSelect";
 import { selectionFromWire, selectionToWire, wireSelectionPatch } from "./wire";
 
 const envelopes = [

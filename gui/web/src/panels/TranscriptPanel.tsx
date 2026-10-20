@@ -35,11 +35,6 @@ import {
   prominentWordKey,
   prominentWordKeys,
 } from "../transcript/prominence";
-import {
-  oneWordOf,
-  selectedWordsMessage,
-  wordSelection,
-} from "../transcript/rangeSelect";
 import { TranscriptFindReplace } from "../transcript/TranscriptFindReplace";
 import { TranscriptSpeakerEditor } from "../transcript/TranscriptSpeakerEditor";
 import {
@@ -67,6 +62,11 @@ import type {
   Selection,
 } from "../types/project";
 import { Button, CommandButton, InlineError, ToggleButton } from "../ui";
+import {
+  oneWordOf,
+  selectedWordsMessage,
+  wordSelection,
+} from "../utils/rangeSelect";
 import {
   findTranscriptWordIn,
   findTurnIndexForUtterance,

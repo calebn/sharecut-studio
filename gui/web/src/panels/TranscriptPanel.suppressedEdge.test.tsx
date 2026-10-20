@@ -4,9 +4,9 @@ import { setTranscriptWordSuppressed } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
 import type { TranscriptWordView } from "../types/project";
 import type { ProsodyOverlay } from "../types/prosody";
+import { wordSelection } from "../utils/rangeSelect";
 import { TranscriptPanel } from "./TranscriptPanel";
 
 // Real TranscriptWordInspector renders here (unlike TranscriptPanel.test.tsx, which

@@ -4,10 +4,10 @@ import { rangeActionDescriptors } from "../commands/rangeActions";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
 import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
-import { oneWordOf } from "../transcript/rangeSelect";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { oneWordOf } from "../utils/rangeSelect";
 import { SpeakerLaneMoveActions } from "./SpeakerLaneMoveActions";
 
 export function RangeActions({ sheet = false }: { sheet?: boolean }) {

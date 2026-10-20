@@ -21,7 +21,7 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
+import { wordSelection } from "../utils/rangeSelect";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 

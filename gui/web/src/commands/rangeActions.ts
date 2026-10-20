@@ -12,9 +12,9 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { DawState } from "../state/types";
-import { oneWordOf } from "../transcript/rangeSelect";
 import type { ExactRangeTarget } from "../types/project";
 import { errorMessage, readApiError } from "../utils/apiError";
+import { oneWordOf } from "../utils/rangeSelect";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { openCommentDraft } from "./comments";
 import { registerCommand } from "./execute";

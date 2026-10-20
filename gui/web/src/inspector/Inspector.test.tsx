@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
 import type { ClipRow, TrackView } from "../types/project";
+import { wordSelection } from "../utils/rangeSelect";
 import { Inspector } from "./Inspector";
 import { SelectionSheetBody } from "./SelectionSheetBody";
 

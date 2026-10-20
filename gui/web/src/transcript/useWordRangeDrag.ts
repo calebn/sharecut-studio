@@ -15,7 +15,7 @@ import {
   type WordSpan,
   type WordTarget,
   wordAtPoint,
-} from "./rangeSelect";
+} from "../utils/rangeSelect";
 
 const EDGE_BAND_PX = 56;
 const EDGE_STEP_PX = 14;

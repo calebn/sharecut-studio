@@ -7,8 +7,8 @@ import { transcriptWordPresenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
-import { wordSelection } from "../transcript/rangeSelect";
 import type { ProsodyOverlay } from "../types/prosody";
+import { wordSelection } from "../utils/rangeSelect";
 import { scrollChildIntoParent } from "../utils/transcript";
 import { TranscriptPanel } from "./TranscriptPanel";
 

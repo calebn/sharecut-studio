@@ -4,7 +4,7 @@ import {
   oneWordOf,
   selectedWordsMessage,
   stepWordSpan,
-} from "../transcript/rangeSelect";
+} from "../utils/rangeSelect";
 import { findTranscriptWord } from "../utils/transcript";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
