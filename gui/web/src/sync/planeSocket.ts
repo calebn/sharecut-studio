@@ -31,6 +31,8 @@ export type PlaneHandler<M extends PlaneFrame> = {
 export type PlaneSocketOptions<M extends PlaneFrame> = {
   /** Read on every connection attempt, so a rotated session token is picked up. */
   url: string | (() => string);
+  /** Extra liveness test (the document scope): a socket stops counting as current when it returns false. */
+  isActive?: () => boolean;
   /** Runs before every connection attempt; returning false stops the socket for good. */
   prepare?: () => Promise<boolean | undefined> | boolean | undefined;
   onOpen: (ctx: PlaneSocketContext) => void;
@@ -80,7 +82,11 @@ export function openPlaneSocket<M extends PlaneFrame>(
     );
     socket = thisSocket;
     let retired = false;
-    const isCurrent = () => !stopped && !retired && socket === thisSocket;
+    const isCurrent = () =>
+      !stopped &&
+      !retired &&
+      socket === thisSocket &&
+      (options.isActive?.() ?? true);
     const ctx: PlaneSocketContext = {
       send: bindWsSender(thisSocket),
       isCurrent,
@@ -107,8 +113,11 @@ export function openPlaneSocket<M extends PlaneFrame>(
       }
       options.onReceive?.(msg, ctx);
       const handler =
-        (msg.plane !== undefined ? options.planes?.[msg.plane] : undefined) ??
-        options.fallback;
+        (msg.plane !== undefined && options.planes
+          ? Object.hasOwn(options.planes, msg.plane)
+            ? options.planes[msg.plane]
+            : undefined
+          : undefined) ?? options.fallback;
       if (!handler || handler.accepts?.(msg) === false) return;
       const run = () => {
         if (isCurrent()) handler.handle(msg, ctx);

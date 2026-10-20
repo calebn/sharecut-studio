@@ -241,7 +241,8 @@ export function useGuestSync(
     };
 
     const socket = openPlaneSocket<GuestMsg>({
-      url: guestWsUrl(token, connectIdRef.current),
+      url: () => guestWsUrl(token, connectIdRef.current),
+      isActive: () => isCurrentDocumentScope(scope),
       onOpen: (ctx) => {
         wsOpenRef.current = true;
         sendRef.current = ctx.send;
