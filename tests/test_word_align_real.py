@@ -31,7 +31,7 @@ PROBE_NOISE_DBFS = -50.0
 
 # tests/test_word_boundary_metrics.py::test_checked_in_shipped_pass_report_matches_pipeline_fixture
 # pins the same value from the checked-in tests/fixtures/word_boundary/*.onnx-base-pipeline.json
-# reports (measured 2026-09-28, see docs/testing.md "Shipped pass results (#715)").
+# reports (measured 2026-09-28, see docs/test-results.md "Shipped pass results (#715)").
 CHECKED_IN_LIBRISPEECH_MAE_MS = 42.97619047619047
 NATIVE_LIBRISPEECH_MAE_MS = 82.2619
 
@@ -69,7 +69,7 @@ def test_evidence_floor_separates_real_words_from_silence_and_noise_probes(
 ) -> None:
     """#195: the shipped ``min_word_score`` floor separates real speech from two probes.
 
-    Measured numbers go in docs/testing.md "Aligner evidence floor (#195)".
+    Measured numbers go in docs/test-results.md "Aligner evidence floor (#195)".
     """
     bfa = load_script("benchmark_forced_aligners", register=True)
     aligner = WordAligner.load(threads=4)

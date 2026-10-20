@@ -49,7 +49,7 @@ unchanged from `<runs-dir>/<id>.<label>.report.json`. Re-scoring them against
 the gold fixtures is asserted in
 `tests/test_word_boundary_metrics.py::test_checked_in_candidate_reports_match_reference_fixture`;
 the aggregate numbers and the recommendation are in
-[docs/testing.md § Word-boundary benchmark](../../../docs/testing.mdtest-results.md#word-boundary-benchmark).
+[docs/testing.md § Word-boundary benchmark](../../../docs/test-results.md#word-boundary-benchmark).
 `onnx-base` is also the production pin in `src/podcast_mcp/word_aligner_models.py`,
 kept equal to this file by `test_catalog_pin_matches_benchmarked_candidate`.
 `candidates.json`'s `onnx-base` entry also carries a `file_sha256` manifest (every
@@ -77,6 +77,6 @@ fixtures, and pinning the exact measured values, is asserted in
 full measured tables (LibriSpeech, lab agreement, `transcribe_tracks` runtime, and
 the word-duration sensitivity table behind the `DEFAULT_MAX_WORD_DURATION_SEC`
 threshold rule) are in
-[docs/testing.md § Shipped pass results (#715)](../../../docs/testing.mdtest-results.md#shipped-pass-results-715).
+[docs/testing.md § Shipped pass results (#715)](../../../docs/test-results.md#shipped-pass-results-715).
 No lab audio, transcripts or word text are checked in here — only the LibriSpeech
 clips above and their aggregate numbers.

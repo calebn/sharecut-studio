@@ -59,10 +59,10 @@ you want to rebuild that fixture.
 
 `profile:remaining` builds disposable media fixtures and serves the production
 GUI; `profile:compare` freezes or applies worker-specific diagnostic budgets.
-See [editor responsiveness profiling](testing.mdtesting-e2e.md#large-project-browser-profile-opt-in)
+See [editor responsiveness profiling](testing-e2e.md#large-project-browser-profile-opt-in)
 for independent repetitions, retained evidence, and cold-cache limits.
 `make profile-seek-trim OUT=/tmp/seek-trim` runs the two-task
-[seek and trim profile](testing.mdtesting-e2e.md#seek-and-trim-profile-opt-in) and prints a
+[seek and trim profile](testing-e2e.md#seek-and-trim-profile-opt-in) and prints a
 summary table.
 
 ## Maximal install (all extras)
@@ -143,7 +143,7 @@ pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` also
 benchmarks a heavier `torch-large` candidate, which is not wired into
 `transcribe.forced_alignment` and not part of any bootstrap component. The
 shipped `onnx-base` tier's measured cost and accuracy on real audio are in
-[docs/testing.md § Shipped pass results (#715)](testing.mdtest-results.md#shipped-pass-results-715).
+[docs/testing.md § Shipped pass results (#715)](test-results.md#shipped-pass-results-715).
 
 **Pinned model manifests (#728).** The word aligner (`onnx-base`) and the
 Whisper catalog sizes (below) are pinned to a Hugging Face revision plus a

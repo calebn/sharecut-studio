@@ -1,6 +1,6 @@
 """Run forced-aligner candidates against word-boundary targets.
 
-Never downloads models; see docs/testing.md § Word-boundary benchmark.
+Never downloads models; see docs/test-results.md § Word-boundary benchmark.
 """
 
 from __future__ import annotations

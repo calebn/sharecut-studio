@@ -93,7 +93,7 @@ duration_errors_sec` over `matched_word_pairs`). Keep the default only while
 and nothing measured supports a smaller cap for unaligned words. Measured
 2026-09-28: L = 0.76 s (longest aligned word) + 0.22 s (worst duration error)
 = 0.98 s, so `0.98 + 0.5 = 1.48 <= 2.0` and the cap stays at **2.0 s**. See
-[docs/testing.md § Shipped pass results (#715)](testing.mdtest-results.md#shipped-pass-results-715)
+[docs/testing.md § Shipped pass results (#715)](test-results.md#shipped-pass-results-715)
 for the full measured tables, including the 1.0-2.5 s lab duration-count
 sensitivity table this rule leans on.
 
@@ -108,7 +108,7 @@ than 150 ms. The initial three-clip faster-whisper `base` CPU/int8 baseline is
 **82.3 ms** MAE over 42/48 reference words, with **15/42 (35.7%)** matched
 words over 150 ms; six reference words were missed and four predictions were
 extra. This read-speech baseline cannot establish accuracy on conversational
-podcast audio. See [testing.md](testing.mdtest-results.md#word-boundary-benchmark) for the
+podcast audio. See [testing.md](test-results.md#word-boundary-benchmark) for the
 reproduction command and fixture provenance. The metric also reports a signed
 bias, `mean_start_error_ms`/`mean_end_error_ms` (prediction minus reference),
 for tuning boundary padding. `scripts/benchmark_forced_aligners.py` runs
@@ -122,7 +122,7 @@ the model is downloaded, [#780](https://github.com/calebn/sharecut-studio/issues
 the model download remains opt-in, and a saved explicit request can be turned off
 in Studio while the model is missing; shipped in [#714](https://github.com/calebn/sharecut-studio/issues/714)); measured
 pipeline results are [#715](https://github.com/calebn/sharecut-studio/issues/715).
-See [testing.md § Lab tape: alignment testing grounds](testing.mdtest-results.md#lab-tape-alignment-testing-grounds).
+See [testing.md § Lab tape: alignment testing grounds](test-results.md#lab-tape-alignment-testing-grounds).
 
 **Does not fix:**
 
