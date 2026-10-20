@@ -325,7 +325,7 @@ native menus keep the toast ordering in
 | **Listen** | Mix-oriented scrubber, comment list, status chips; a comment field docked above the mode bar for anyone who can comment | Guest review and comments, audition |
 | **Timeline** | Playhead that starts at 0 and holds the center once passed; drag to scrub, Ferrite lane gutter (sticky identity), layer chips | Spatial edit / seek |
 | **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
-| **More** | Hub → **Search commands** (opens Commands and shortcuts), Mix sheet, Comments, History, Impact, Tighten, Pipeline, settings | Track mixing, long-lived panels, command discovery |
+| **More** | Hub → **Commands and shortcuts**, Mix sheet, Comments, History, Impact, Tighten, Pipeline, settings | Track mixing, long-lived panels, command discovery |
 
 The compact header transport (Timeline, Text, More) and the Listen hero wrap
 their controls when one row cannot hold Play, Stop, time, Comment, Fit and
@@ -439,7 +439,7 @@ Close initially receives focus when the sheet opens. The shared
 `openerControl` fallback uses the last clicked control when a browser leaves
 focus on the page body or a container around that control. The existing
 `e2e-compat/phone-mix.spec.ts` core flow also checks the pointer case where
-Search commands held keyboard focus.
+the Commands and shortcuts row held keyboard focus.
 Navigation keeps focus on the chosen nav control. Project, follow, destination,
 selection, or range changes invalidate Mix permanently; returning to More does
 not reopen it. Mix and Inspector share one keyed sheet. Gestures closes Mix
