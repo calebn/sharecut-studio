@@ -18,7 +18,12 @@ from fastapi.responses import JSONResponse
 from filelock import Timeout
 from starlette.background import BackgroundTask
 
-from podcast_mcp.gui.routes.deps import project_busy_from_timeout, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    NO_STORE,
+    guard_http_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.services.media import (
     StaleWaveformKeyError,
     WaveformBusyError,
@@ -26,12 +31,12 @@ from podcast_mcp.services.media import (
     tile_bytes,
     waveform_status,
 )
+from podcast_mcp.util.coded_error import GuardRefusal
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-NO_STORE = {"Cache-Control": "no-store"}
 IMMUTABLE = "private, max-age=31536000, immutable"
 OCTET_STREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
     200: {"description": "Raw bins", "content": {"application/octet-stream": {}}}
@@ -40,8 +45,10 @@ OCTET_STREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
 T = TypeVar("T")
 
 
-def no_store_error(exc: HTTPException) -> HTTPException:
-    """Copy *exc* with ``Cache-Control: no-store`` (errors must never be cached)."""
+def no_store_error(exc: HTTPException | GuardRefusal) -> HTTPException:
+    """Copy *exc* (an auth guard's refusal included) with ``Cache-Control: no-store``."""
+    if isinstance(exc, GuardRefusal):
+        exc = guard_http_error(exc)
     return HTTPException(
         status_code=exc.status_code,
         detail=exc.detail,
@@ -82,19 +89,19 @@ def _host_project(
     try:
         require_host(request, token=token, x_podcast_token=x_podcast_token)
         return resolve_project(path, request)
-    except HTTPException as exc:
+    except (HTTPException, GuardRefusal) as exc:
         raise no_store_error(exc) from exc
 
 
 def waveform_call(fn: Callable[[], T]) -> T:
     try:
         return fn()
-    except HTTPException as exc:
+    except (HTTPException, GuardRefusal) as exc:
         raise no_store_error(exc) from exc
     except (ValueError, LookupError, FileNotFoundError, WaveformBusyError) as exc:
         raise waveform_error(exc) from exc
-    except Timeout as exc:
-        raise no_store_error(project_busy_from_timeout(exc)) from exc
+    except Timeout:
+        raise
     except Exception as exc:
         log.exception("waveform request failed")
         raise no_store_error(HTTPException(status_code=500, detail="internal error")) from exc

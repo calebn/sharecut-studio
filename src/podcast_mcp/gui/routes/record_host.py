@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import coded_http_error, require_host, resolve_project
 from podcast_mcp.gui.routes.record_upload_http import (
     ClippingParam,
     ClippingTruncatedParam,
@@ -179,11 +179,7 @@ def post_host_record_land(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="no active record room") from exc
     except RecordTakeOpenError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail=str(exc),
-            headers={"X-Sharecut-Error-Code": exc.code},
-        ) from exc
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
     except RecordLandingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

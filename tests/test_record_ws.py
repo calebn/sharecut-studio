@@ -1336,6 +1336,7 @@ def test_share_common_token_and_manifest(minimal_project, sample_wav, tmp_worksp
         share_features_manifest,
     )
     from podcast_mcp.services.collaboration.share import ShareService
+    from podcast_mcp.util.coded_error import AccessDeniedError, UnknownShareError
     from podcast_mcp.util.rate_limit import RateLimitDecision
 
     _isolate()
@@ -1351,18 +1352,18 @@ def test_share_common_token_and_manifest(minimal_project, sample_wav, tmp_worksp
 
     manifest = share_features_manifest(_Req())
     assert "features" in manifest
-    with pytest.raises(HTTPException) as missing:
+    with pytest.raises(UnknownShareError) as missing:
         check_share_token("not-a-token")
-    assert missing.value.status_code == 404
+    assert missing.value.code == "share_not_found"
     row = check_share_token(token, kind=SHARE_KIND_RECORD)
     assert row.get("session_id") == room["session_id"]
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.share_common.authorize_share_token",
         lambda **_k: type("D", (), {"allowed": False, "reason": "nope"})(),
     )
-    with pytest.raises(HTTPException) as denied:
+    with pytest.raises(AccessDeniedError) as denied:
         check_share_token(token, kind=SHARE_KIND_RECORD)
-    assert denied.value.status_code == 403
+    assert str(denied.value) == "nope"
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.share_common.check_host_bucket",
         lambda *_a, **_k: RateLimitDecision(allowed=False, bucket="host_read", retry_after_sec=1.5),

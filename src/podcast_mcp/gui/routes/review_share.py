@@ -26,6 +26,7 @@ from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
+from podcast_mcp.gui.routes.deps import NO_STORE
 from podcast_mcp.gui.routes.document import RangeAudioInput
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
@@ -41,7 +42,6 @@ from podcast_mcp.gui.routes.share_common import (
     rate_limit_share,
     share_features_manifest,
 )
-from podcast_mcp.gui.routes.waveform import NO_STORE as WAVEFORM_NO_STORE
 from podcast_mcp.gui.routes.waveform import (
     OCTET_STREAM_RESPONSES,
     binary_response,
@@ -107,7 +107,7 @@ from podcast_mcp.services.session_sync import (
     sanitize_display_name,
 )
 from podcast_mcp.services.share_auth import access_required
-from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, GuardRefusal
 from podcast_mcp.util.rate_limit_http import rate_limited_error
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
@@ -234,10 +234,10 @@ def get_daw_waveform_status(token: str) -> JSONResponse:
     try:
         _check_token(token)
         _rate_limit(token, "read")
-    except HTTPException as exc:
+    except (HTTPException, GuardRefusal) as exc:
         raise no_store_error(exc) from exc
     try:
-        return JSONResponse(share_daw_waveform_status(token), headers=WAVEFORM_NO_STORE)
+        return JSONResponse(share_daw_waveform_status(token), headers=NO_STORE)
     except Exception as exc:
         raise no_store_error(
             guest_http_error(exc, logger=log, operation="review waveform status")
@@ -266,7 +266,7 @@ def get_daw_waveform_tiles(
         _check_token(token)
         _rate_limit(token, "audio")
         slot = _audio_slot(token)
-    except HTTPException as exc:
+    except (HTTPException, GuardRefusal) as exc:
         raise no_store_error(exc) from exc
     try:
         body = share_daw_waveform_tiles(
@@ -291,7 +291,7 @@ def get_daw_pending_cut_suggestion(token: str, edit_id: str) -> JSONResponse:
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
         suggestion = share_pending_cut_suggestion(token, edit_id)
-    return JSONResponse(suggestion, headers=WAVEFORM_NO_STORE)
+    return JSONResponse(suggestion, headers=NO_STORE)
 
 
 @router.get("/api/review/{token}/daw/waveform-snap")

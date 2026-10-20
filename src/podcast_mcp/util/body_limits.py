@@ -140,6 +140,7 @@ def payload_too_large_response(limit: int) -> JSONResponse:
     return JSONResponse(
         {"detail": "request body too large", "limit_bytes": limit},
         status_code=413,
+        headers={"X-Sharecut-Error-Code": "payload_too_large"},
     )
 
 

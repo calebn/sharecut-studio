@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from podcast_mcp.gui.jobs import session_file_meta
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_authz, resolve_project
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.app import ProjectWorkspace
@@ -24,26 +24,8 @@ from podcast_mcp.services.session_sync import (
     wire_full_snapshot,
     wire_session_event,
 )
-from podcast_mcp.util.proxy_paths import is_relayed_request
 
 router = APIRouter()
-
-
-def _auth(
-    request: Request,
-    *,
-    client_id: str = "viewer",
-    role: str = "viewer",
-    token: str | None = None,
-    x_podcast_token: str | None = None,
-) -> None:
-    require_authz(
-        client_id=client_id,
-        role=role,
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-        relayed=is_relayed_request(request.headers),
-    )
 
 
 def _publish_viewer_blob(
@@ -202,7 +184,7 @@ def get_session_meta(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_authz(request, token=token or x_podcast_token)
     project_path = resolve_project(path, request)
     return session_file_meta(project_path)
 
@@ -214,7 +196,7 @@ def get_session_state(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_authz(request, token=token or x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     state = read_session_state(ws.project)
@@ -234,12 +216,7 @@ def post_session_command(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(
-        request,
-        client_id=body.client_id,
-        role=body.role,
-        token=token or x_podcast_token,
-    )
+    require_authz(request, client_id=body.client_id, role=body.role, token=token or x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     svc = SessionSyncService(ws.project)
@@ -275,7 +252,7 @@ def post_session_state(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Viewer blob -> typed commands (Ack, presence heartbeat, durable deltas)."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_authz(request, token=token or x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     return _publish_viewer_blob(ws.project, body)

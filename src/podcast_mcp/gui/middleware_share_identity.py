@@ -10,9 +10,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from podcast_mcp.gui.routes.deps import guard_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_http_error
 from podcast_mcp.services.collaboration import lookup_share
 from podcast_mcp.services.share_auth import require_share_access
+from podcast_mcp.util.coded_error import GuardRefusal
 
 log = logging.getLogger(__name__)
 
@@ -44,13 +46,11 @@ class ShareIdentityMiddleware(BaseHTTPMiddleware):
             )
         try:
             require_share_access(request, row)
-        except Exception as exc:
-            from fastapi import HTTPException
-
-            if isinstance(exc, HTTPException):
-                return JSONResponse(
-                    status_code=exc.status_code,
-                    content={"detail": exc.detail},
-                )
-            raise  # pragma: no cover - unexpected non-HTTP errors
+        except GuardRefusal as exc:
+            refusal = guard_http_error(exc)
+            return JSONResponse(
+                status_code=refusal.status_code,
+                content={"detail": refusal.detail},
+                headers=refusal.headers,
+            )
         return await call_next(request)

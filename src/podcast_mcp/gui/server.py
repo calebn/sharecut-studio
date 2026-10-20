@@ -46,6 +46,8 @@ from podcast_mcp.gui.routes import (
     waveform,
 )
 from podcast_mcp.gui.routes.deps import (
+    ERROR_CODE_HEADER,
+    guard_exception_handler,
     host_setup_exception_handler,
     project_busy_exception_handler,
     require_host,
@@ -60,8 +62,9 @@ from podcast_mcp.gui.static_assets import (
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.runtime_config import normalize_exact_origin
 from podcast_mcp.services.document import cross_process_bridge
+from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
-from podcast_mcp.util.coded_error import HostSetupError
+from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError
 from podcast_mcp.util.progress import register_guest_progress_sink, register_progress_sink
 
 __all__ = ["apply_ws_client_message", "apply_ws_viewer_state", "create_app"]
@@ -110,7 +113,11 @@ async def _validation_error_handler(request: Request, exc: Exception) -> JSONRes
     del request
     if not isinstance(exc, RequestValidationError):
         raise exc
-    return JSONResponse(status_code=422, content=format_validation_errors(exc.errors()))
+    return JSONResponse(
+        status_code=422,
+        content=format_validation_errors(exc.errors()),
+        headers={ERROR_CODE_HEADER: "invalid_request"},
+    )
 
 
 def _accepts_html(request: Request) -> bool:
@@ -156,7 +163,7 @@ def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | 
         return None
     try:
         require_host(request, token=params.get("session_token"))
-    except HTTPException:
+    except GuardRefusal:
         return None
     query = request.url.include_query_params(project=str(served)).query
     # A query-only Location resolves against the URL the browser asked for, so a
@@ -266,8 +273,10 @@ def create_app(
         app, served_project.resolve() if served_project is not None else None
     )
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
-    # App-wide fallback for a route that does not map its own busy-lock contract (#488).
+    # The one busy mapping (#488, #1810): routes let a lock timeout propagate to it.
     app.add_exception_handler(Timeout, project_busy_exception_handler)
+    app.add_exception_handler(TranscriptContextBusyError, project_busy_exception_handler)
+    app.add_exception_handler(GuardRefusal, guard_exception_handler)
     app.add_exception_handler(HostSetupError, host_setup_exception_handler)
     app.add_middleware(
         CORSMiddleware,

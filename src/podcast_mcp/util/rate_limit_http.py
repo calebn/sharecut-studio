@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse
 from podcast_mcp.util.rate_limit import RateLimitDecision, rate_limit_detail
 
 RATE_LIMITED_STATUS = 429
+_RATE_LIMITED_HEADERS = {"X-Sharecut-Error-Code": "rate_limited"}
 
 
 def rate_limited_error(decision: RateLimitDecision) -> HTTPException:
@@ -21,7 +22,7 @@ def rate_limited_error(decision: RateLimitDecision) -> HTTPException:
     return HTTPException(
         status_code=RATE_LIMITED_STATUS,
         detail=rate_limit_detail(decision),
-        headers={"Retry-After": decision.retry_after_header},
+        headers={"Retry-After": decision.retry_after_header, **_RATE_LIMITED_HEADERS},
     )
 
 
@@ -32,5 +33,5 @@ def rate_limited_response(
     return JSONResponse(
         rate_limit_detail(decision) if body is None else body,
         status_code=RATE_LIMITED_STATUS,
-        headers={"Retry-After": decision.retry_after_header},
+        headers={"Retry-After": decision.retry_after_header, **_RATE_LIMITED_HEADERS},
     )

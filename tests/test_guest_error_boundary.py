@@ -176,6 +176,8 @@ def test_busy_cause_beats_coded_wrapper(guest_client, monkeypatch, kind):
 @pytest.mark.parametrize("kind", ["key", "crash"])
 def test_remote_mcp_preflight_never_discloses_exception(monkeypatch, caplog, kind):
     from podcast_mcp.gui.routes import remote_mcp
+    from podcast_mcp.gui.routes.deps import guard_exception_handler
+    from podcast_mcp.util.coded_error import GuardRefusal
 
     diagnostic = "private secret phrase /private/host/registry.sqlite"
 
@@ -184,6 +186,7 @@ def test_remote_mcp_preflight_never_discloses_exception(monkeypatch, caplog, kin
 
     monkeypatch.setattr(remote_mcp, "share_allows_mcp", fail)
     app = FastAPI()
+    app.add_exception_handler(GuardRefusal, guard_exception_handler)
     app.include_router(remote_mcp.router)
     response = TestClient(app).post(
         "/mcp/token/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize"}

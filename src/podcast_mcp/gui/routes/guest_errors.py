@@ -7,9 +7,10 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException
 
+from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import StaleWaveformKeyError, WaveformBusyError
-from podcast_mcp.util.coded_error import HostSetupError, coded_cause
+from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError, coded_cause
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
 from podcast_mcp.util.tool_refusal import ToolRefusal, tool_refusal
 
@@ -28,21 +29,15 @@ def guest_http_error(
     refusal = _refusal(exc, logger, operation)
     if refusal is None:
         return HTTPException(status_code=500, detail="internal error")
-    headers = {"X-Sharecut-Error-Code": refusal.code}
-    if refusal.code == PROJECT_BUSY_CODE:
-        return HTTPException(status_code=503, detail=refusal.message, headers=headers)
+    code = refusal.code
+    if code == PROJECT_BUSY_CODE:
+        return coded_http_error(503, refusal.message, code=code)
     cause = coded_cause(exc)
     if isinstance(cause, DocumentConflictError):
-        return HTTPException(
-            status_code=409,
-            detail={"detail": refusal.message, "conflict": True},
-            headers=headers,
-        )
+        return coded_http_error(409, {"detail": refusal.message, "conflict": True}, code=code)
     if isinstance(cause, WaveformBusyError):
-        return HTTPException(
-            status_code=503,
-            detail=refusal.message,
-            headers={**headers, "Retry-After": cause.retry_after},
+        return coded_http_error(
+            503, refusal.message, code=code, headers={"Retry-After": cause.retry_after}
         )
     if isinstance(cause, StaleWaveformKeyError) or refusal.code == "job_running":
         status = 409
@@ -54,7 +49,7 @@ def guest_http_error(
         status = 404
     else:
         status = 400
-    return HTTPException(status_code=status, detail=refusal.message, headers=headers)
+    return coded_http_error(status, refusal.message, code=code)
 
 
 @contextmanager
@@ -62,7 +57,7 @@ def guest_boundary(logger: logging.Logger, operation: str) -> Iterator[None]:
     """Run a guest route's service call; anything it raises leaves as ``guest_http_error``."""
     try:
         yield
-    except HTTPException:
+    except (HTTPException, GuardRefusal):
         raise
     except Exception as exc:
         raise guest_http_error(exc, logger=logger, operation=operation) from exc
