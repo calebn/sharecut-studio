@@ -148,8 +148,8 @@ test("a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs", a
 
     const rail = page.getByRole("group", { name: "Editing tools" });
     const names = [
-      "Select",
-      "Blade",
+      "Select tool",
+      "Blade tool",
       "Select range",
       "Zoom out",
       "Zoom in",
@@ -307,8 +307,8 @@ async function expectLandscapeRail(page: Page, width: number) {
     await expect(page.locator(".daw-shell--tablet")).toBeVisible();
     const rail = page.getByRole("group", { name: "Editing tools" });
     for (const name of [
-      "Select",
-      "Blade",
+      "Select tool",
+      "Blade tool",
       "Select range",
       "+ Track",
       "Import",
