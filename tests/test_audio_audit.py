@@ -1746,8 +1746,8 @@ def test_audio_diagnostics_report_pngs_false_omits_png_keys(
 
 
 def test_audio_diagnostics_windowed_hum_not_full_file(tmp_path: Path):
+    from audition_eval import generate_tone, inject_hum_span
     from podcast_mcp.edits.audio_quality import audio_diagnostics_report
-    from podcast_mcp.edits.audition_eval import generate_tone, inject_hum_span
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
     eng = FFmpegEngine()
@@ -1859,8 +1859,8 @@ def test_diagnostics_dir_accepts_literal_tilde_track_id(tmp_path: Path) -> None:
 
 
 def test_audio_diagnostics_window_maps_offset_clip_to_source(tmp_path: Path) -> None:
+    from audition_eval import generate_tone, inject_hum_span
     from podcast_mcp.edits.audio_quality import audio_diagnostics_report
-    from podcast_mcp.edits.audition_eval import generate_tone, inject_hum_span
 
     eng = FFmpegEngine()
     if not eng.check_available()[0]:

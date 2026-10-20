@@ -245,7 +245,7 @@ single-pass peak. With no such block near a split, that split is dropped; a mix 
 is measured in one pass.
 `play_compose` uses the same ceiling on its own window, so a hot window is trimmed rather
 than clipped; a window that peaks under the ceiling plays at unity, the same as the premix
-before its whole-mix trim. `audition_eval.inject_hum_span` sums at unity on purpose (see
+before its whole-mix trim. `tests/audition_eval.py::inject_hum_span` sums at unity on purpose (see
 its docstring).
 
 `MIX_SEMANTICS_REV` is part of `mix_render_hash` and composed-play cache keys.

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-import podcast_mcp.edits.audition_eval as evaluation
-from podcast_mcp.edits.audition_eval import (
+import audition_eval as evaluation
+from audition_eval import (
     DEFAULT_CASES,
     build_defect_project,
     precision_recall,

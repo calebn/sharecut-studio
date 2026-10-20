@@ -60,7 +60,6 @@ from podcast_mcp.engines.transcript_gated_play import (
 )
 from podcast_mcp.models import CutIntent, EpisodeProject, Track, TrackRole
 from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import schedule_stem_waveforms
@@ -77,7 +76,6 @@ from podcast_mcp.util.project_state import (
     FileRevision,
     RenderBusyError,
     file_revision,
-    project_commit_lock,
     render_lock,
     snapshot_project,
 )
@@ -983,14 +981,11 @@ class PlayService:
                 ),
                 clear_invalidations=False,
             )
-            # project_commit_lock takes project_state_lock first, so the live-project clear
-            # below is serialized with snapshots and pipeline step publishes.
-            with project_commit_lock(self.project):
-                store = ProjectStore(self.ws.path)
-                stored_project = store.load()
-                if clear_invalidations_if_current(stored_project, render_project, track_id):
-                    store.commit(stored_project)
-                clear_invalidations_if_current(self.project, render_project, track_id)
+            # The transaction takes project_state_lock first, so the clear is serialized
+            # with snapshots and pipeline step publishes.
+            with self.ws.transaction() as project:
+                if clear_invalidations_if_current(project, render_project, track_id):
+                    self.ws.save()
         schedule_stem_waveforms(self.project, [track_id])
         return out
 
