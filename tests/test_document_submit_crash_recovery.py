@@ -34,7 +34,7 @@ from typing import Any
 import pytest
 
 from podcast_mcp.models import load_project
-from podcast_mcp.project_store import (
+from podcast_mcp.project.store import (
     history_index_path,
     history_snapshot_ids,
     read_history_index,
@@ -86,7 +86,7 @@ def _arm_kill(point: str, kill_id: str, die: Callable[..., None]) -> None:
     ``AFTER_PROJECT_COMMIT`` / ``AFTER_JOURNAL_INSERT`` match ``kill_id``'s journal write,
     so they also reach ``journal_saved_command``'s recovery write of a crash-saved command.
     """
-    from podcast_mcp import project_store
+    from podcast_mcp.project import store as project_store
     from podcast_mcp.services.session_sync import log as sync_log
     from podcast_mcp.services.session_sync.hub import SessionHub
 

@@ -32,9 +32,9 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.project.transcript_context import SpeakerIdConfig, TranscriptContext
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.speaker import SpeakerService
-from podcast_mcp.transcript_context import SpeakerIdConfig, TranscriptContext
 
 
 def _speaker_project(tmp_path: Path, sample_wav: Path):

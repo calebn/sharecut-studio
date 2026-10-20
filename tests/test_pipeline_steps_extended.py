@@ -554,7 +554,7 @@ def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_work
 
 def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    from podcast_mcp.transcript_context import (
+    from podcast_mcp.project.transcript_context import (
         DEFAULT_PROMPT_PRIMER,
         TranscriptContext,
         load_transcript_context,
@@ -580,7 +580,7 @@ def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
 def test_transcribe_keeps_revision_stale_when_vocabulary_changes_during_run(
     minimal_project, sample_wav, tmp_workspace
 ):
-    from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
+    from podcast_mcp.project.transcript_context import TranscriptContext, load_transcript_context
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     TranscriptContext(terms=["Old"], vocabulary_revision="revision-one").save(proj.workspace_path())
@@ -605,7 +605,7 @@ def test_transcribe_records_started_revision_when_vocabulary_changes_during_run(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.models import Transcript
-    from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
+    from podcast_mcp.project.transcript_context import TranscriptContext, load_transcript_context
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     TranscriptContext(terms=["Old"], vocabulary_revision="revision-one").save(proj.workspace_path())
@@ -1243,7 +1243,7 @@ def test_transcribe_tracks_keeps_old_revision_on_rows_not_rerun(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.models import Transcript
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.project.transcript_context import TranscriptContext
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     proj.transcripts = [Transcript(track_id="guest", words=[], vocabulary_revision="revision-zero")]
@@ -1285,7 +1285,7 @@ def test_transcribe_tracks_second_run_reuses_and_keeps_corrections(
 def test_transcribe_tracks_honours_input_keyed_cache(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.models import Transcript, TranscriptWord
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.project.transcript_context import TranscriptContext
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     TranscriptContext(transcribe={"initial_prompt": False}).save(proj.workspace_path())
@@ -1885,8 +1885,8 @@ def test_transcribe_tracks_retime_words_falls_back_to_pre_primer_cache(
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
     from podcast_mcp.engines.word_align import WordAlignResult
+    from podcast_mcp.project.transcript_context import TranscriptContext
     from podcast_mcp.services.pipeline.config import transcribe_run_config
-    from podcast_mcp.transcript_context import TranscriptContext
     from podcast_mcp.word_aligner_models import word_aligner_model
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)

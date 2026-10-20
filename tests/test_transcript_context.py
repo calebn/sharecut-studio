@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from podcast_mcp.transcript_context import (
+from podcast_mcp.project.transcript_context import (
     DEFAULT_PROMPT_PRIMER,
     TranscriptContext,
     context_from_dict,
@@ -263,7 +263,7 @@ def test_initial_prompt_vocabulary_that_fits_exactly_is_sent_whole() -> None:
 
 
 def test_parse_replacements_and_skip_spans_skips_invalid() -> None:
-    from podcast_mcp.transcript_context import context_from_dict
+    from podcast_mcp.project.transcript_context import context_from_dict
 
     ctx = context_from_dict(
         {
@@ -295,7 +295,7 @@ def test_speaker_id_config_roundtrip(tmp_path: Path) -> None:
 def test_cross_track_max_word_duration_matches_asr_default() -> None:
     from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
-    from podcast_mcp.transcript_context import CrossTrackConfig
+    from podcast_mcp.project.transcript_context import CrossTrackConfig
 
     assert CrossTrackConfig().max_word_duration_sec == DEFAULT_MAX_WORD_DURATION_SEC
     assert AnalysisPolicy().max_word_audibility_sec == DEFAULT_MAX_WORD_DURATION_SEC
@@ -405,7 +405,7 @@ def test_context_update_validates_entry_length(minimal_project: Path) -> None:
 
 
 def test_context_lock_is_reentrant_and_under_artifacts(tmp_path: Path) -> None:
-    from podcast_mcp.transcript_context import context_lock
+    from podcast_mcp.project.transcript_context import context_lock
     from podcast_mcp.util.file_locks import shared_file_lock
     from podcast_mcp.util.project_state import transcript_context_lock_path
 
@@ -427,7 +427,7 @@ def test_context_lock_times_out_after_context_lock_timeout(
 
     from filelock import Timeout
 
-    import podcast_mcp.transcript_context as tc_module
+    import podcast_mcp.project.transcript_context as tc_module
 
     monkeypatch.setattr(tc_module, "CONTEXT_LOCK_TIMEOUT_SEC", 0.05)
     started = threading.Event()

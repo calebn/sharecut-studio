@@ -201,7 +201,7 @@ def test_run_transcribe_plan_without_jobs_only_stamps(job):
 def test_run_transcribe_plan_forwards_stamps_and_merges(job, tmp_path, caplog):
     from unittest.mock import MagicMock
 
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.project.transcript_context import TranscriptContext
 
     other = Transcript(track_id="guest", words=[])
     p = _project(
@@ -232,7 +232,7 @@ def test_run_transcribe_plan_forwards_stamps_and_merges(job, tmp_path, caplog):
 def test_run_transcribe_plan_warns_when_primer_truncates_saved_vocabulary(job, tmp_path, caplog):
     from unittest.mock import MagicMock
 
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.project.transcript_context import TranscriptContext
 
     p = _project(workspace=str(tmp_path))
     p.workspace_path().mkdir(parents=True, exist_ok=True)
@@ -252,7 +252,7 @@ def test_run_transcribe_plan_warns_when_primer_truncates_saved_vocabulary(job, t
 def test_run_transcribe_plan_does_not_warn_when_vocabulary_fits(job, tmp_path, caplog):
     from unittest.mock import MagicMock
 
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.project.transcript_context import TranscriptContext
 
     p = _project(workspace=str(tmp_path))
     p.workspace_path().mkdir(parents=True, exist_ok=True)
@@ -649,7 +649,7 @@ def test_run_transcribe_plan_reuses_fallback_prompt_when_cache_still_present(job
     """A fallback job whose cache is still on disk at run time keeps the old prompt (#769)."""
     from unittest.mock import MagicMock
 
-    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+    from podcast_mcp.project.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
 
     p = _project(workspace=str(tmp_path))
     p.workspace_path().mkdir(parents=True, exist_ok=True)
@@ -681,7 +681,7 @@ def test_run_transcribe_plan_falls_back_to_primed_prompt_when_cache_evicted(job,
     """
     from unittest.mock import MagicMock
 
-    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+    from podcast_mcp.project.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
 
     p = _project(workspace=str(tmp_path))
     p.workspace_path().mkdir(parents=True, exist_ok=True)
@@ -708,7 +708,7 @@ def test_run_transcribe_plan_falls_back_to_primed_prompt_when_cache_evicted(job,
 def test_plan_retime_context_is_reused_by_run_transcribe_plan(job, monkeypatch):
     from unittest.mock import MagicMock
 
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.project.transcript_context import TranscriptContext
 
     calls = []
     ctx = TranscriptContext()
@@ -740,7 +740,7 @@ def test_plan_retime_context_is_reused_by_run_transcribe_plan(job, monkeypatch):
 def test_transcribe_run_keeps_prompt_revision_snapshot_during_vocabulary_save(job, tmp_path):
     from unittest.mock import MagicMock
 
-    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+    from podcast_mcp.project.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
 
     project = _project(workspace=str(tmp_path))
     TranscriptContext(terms=["Original"], vocabulary_revision="old").save(tmp_path)

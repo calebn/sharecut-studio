@@ -5,7 +5,6 @@ from pathlib import Path
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.edit_log import archive_decision
-from podcast_mcp.history.diff import diff_snapshots
 from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
@@ -18,6 +17,7 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.models.history import ProjectStateSnapshot
+from podcast_mcp.project.history.diff import diff_snapshots
 from ripple_helpers import ripple_cut
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -329,8 +329,8 @@ def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(
     import pytest
 
     from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
-    from podcast_mcp.history.manager import snapshot_from_project
     from podcast_mcp.models import save_project
+    from podcast_mcp.project.history.manager import snapshot_from_project
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import EditService, HistoryService
 
@@ -553,12 +553,12 @@ def test_meta_snapshot_round_trip() -> None:
 
 
 def test_history_entry_operation_params() -> None:
-    from podcast_mcp.history.manager import HistoryManager
+    from podcast_mcp.project.history.manager import HistoryManager
 
     p = _project_with_two_clips()
     ws = p.workspace_path()
     ws.mkdir(parents=True, exist_ok=True)
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     store = ProjectStore(ws / "episode.project.json")
     store.commit(p)

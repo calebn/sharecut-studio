@@ -14,7 +14,7 @@ import { committedE2eProjectPath, repoRoot } from "./env";
 // pyramids rebuild on demand). Source of truth is
 // tests/fixtures/aligned_dialogue/.gitignore (parity enforced in
 // liveProject.test.ts); Python's WORKSPACE_COPY_IGNORE in
-// src/podcast_mcp/project_io.py is stricter and skips all of artifacts/.
+// src/podcast_mcp/project/io.py is stricter and skips all of artifacts/.
 const SQLITE_FILES = new Set(["sync.db", "sync.db-wal", "sync.db-shm"]);
 const SKIP_ANY_DEPTH = new Set([".git"]);
 const SKIP_TOP_LEVEL = new Set(["history", "export", "_build"]);

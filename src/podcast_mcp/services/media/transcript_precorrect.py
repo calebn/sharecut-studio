@@ -11,10 +11,9 @@ from filelock import Timeout
 from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
-from podcast_mcp.project_io import resolve_project_path
-from podcast_mcp.project_store import ProjectStore, TranscriptVocabularyState
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.transcript_context import (
+from podcast_mcp.project.io import resolve_project_path
+from podcast_mcp.project.store import ProjectStore, TranscriptVocabularyState
+from podcast_mcp.project.transcript_context import (
     DEFAULT_PROMPT_PRIMER,
     VOCABULARY_MAX_ENTRIES,
     VOCABULARY_MAX_ENTRY_CHARS,
@@ -25,6 +24,7 @@ from podcast_mcp.transcript_context import (
     load_transcript_context,
     new_vocabulary_revision,
 )
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress
 from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE

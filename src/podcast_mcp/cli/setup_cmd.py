@@ -118,7 +118,7 @@ def doctor(
     )
 
     if bundle:
-        from podcast_mcp.project_io import open_project
+        from podcast_mcp.project.io import open_project
 
         ep = None
         if project is not None:

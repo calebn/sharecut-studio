@@ -341,7 +341,7 @@ def test_bleed_mute_history_records_gate_flag(tmp_path: Path, sample_wav: Path) 
 
     project = _project_with_stem(tmp_path, sample_wav)
     path = tmp_path / "episode.project.json"
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     ProjectStore(path).commit(project)
     ws = ProjectWorkspace.open(path)

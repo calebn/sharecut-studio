@@ -36,7 +36,6 @@ from podcast_mcp.engines.transcript_reconcile import (
     _reconcile_word,
     reconcile_transcript,
 )
-from podcast_mcp.history.session import run_mutation
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -50,6 +49,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.pipeline.runner import STEP_NAMES
+from podcast_mcp.project.history.session import run_mutation
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, TranscriptService
 from podcast_mcp.services.pipeline import PipelineService
@@ -1024,7 +1024,7 @@ def test_maybe_auto_reconcile_runs_when_stale(tmp_path: Path):
 
 def test_run_mutation_marks_stale_on_audio_change(tmp_path: Path):
     from podcast_mcp.models import save_project
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     project = _two_track_project(tmp_path)
     path = save_project(project)
@@ -1046,7 +1046,7 @@ def test_run_mutation_marks_stale_on_audio_change(tmp_path: Path):
 def test_run_mutation_skips_auto_reconcile_when_stems_stale(tmp_path: Path):
     from podcast_mcp.engines.play_audit import write_stem_hash
     from podcast_mcp.models import save_project
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     project = _two_track_project(tmp_path)
     path = save_project(project)
@@ -1068,7 +1068,7 @@ def test_run_mutation_skips_auto_reconcile_when_stems_stale(tmp_path: Path):
         ]
 
     with patch(
-        "podcast_mcp.history.session.maybe_auto_reconcile",
+        "podcast_mcp.project.history.session.maybe_auto_reconcile",
         return_value={"status_updates": 1},
     ) as auto_rec:
         run_mutation(path, project, "before", "after", add_gate, defaults=load_defaults())

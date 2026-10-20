@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
-from podcast_mcp.history.manager import HistoryManager, snapshot_from_project
 from podcast_mcp.models import EditDecisionType, load_project, save_project
+from podcast_mcp.project.history.manager import HistoryManager, snapshot_from_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
 from source_review_helpers import _cut, _hole, _project

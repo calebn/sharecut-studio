@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.history.rollback import RollbackOutcome
 from podcast_mcp.models import load_project
+from podcast_mcp.project.history.rollback import RollbackOutcome
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review_versions import (
     DirectoryIdentity,

@@ -1799,7 +1799,7 @@ def test_api_audio_rerender_merge_conflict_is_409(minimal_project, monkeypatch) 
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.project_merge import ProjectMergeConflict
+    from podcast_mcp.project.merge import ProjectMergeConflict
 
     def conflict(*_args: object, **_kwargs: object) -> None:
         raise ProjectMergeConflict(["render.premix_hash"])
@@ -2727,7 +2727,7 @@ def test_api_export_deliverables_reports_merge_conflict(minimal_project, monkeyp
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.project_merge import ProjectMergeConflict
+    from podcast_mcp.project.merge import ProjectMergeConflict
 
     def conflict(self, formats=None, **_k):
         raise ProjectMergeConflict(["tracks[host].gain_db"])
@@ -3103,7 +3103,7 @@ def test_api_transcript_vocabulary_prompt_metadata(minimal_project, enabled, lim
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.project.transcript_context import TranscriptContext
 
     TranscriptContext(
         show_title="Example show",

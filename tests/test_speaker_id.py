@@ -41,8 +41,8 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.transcript_context import SpeakerIdConfig as CtxSpeakerIdConfig
-from podcast_mcp.transcript_context import TranscriptContext
+from podcast_mcp.project.transcript_context import SpeakerIdConfig as CtxSpeakerIdConfig
+from podcast_mcp.project.transcript_context import TranscriptContext
 from podcast_mcp.util.project_state import file_revision_key
 
 
@@ -974,9 +974,9 @@ def test_compare_window_with_track_filter(tmp_path, sample_wav) -> None:
 
 
 def test_set_expected_speaker_count_persists(minimal_project) -> None:
+    from podcast_mcp.project.transcript_context import load_transcript_context
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.media.speaker import SpeakerService
-    from podcast_mcp.transcript_context import load_transcript_context
 
     ws = ProjectWorkspace.open(minimal_project)
     SpeakerService(ws).set_expected_speaker_count(2, source="user")
@@ -1307,7 +1307,7 @@ def test_gate_reader_bounds_reads_on_large_sparse_wav(tmp_path) -> None:
 
 def test_score_window_explicit_empty_profiles_does_not_reload(tmp_path, sample_wav) -> None:
     from podcast_mcp.engines.speaker_id import MockSpeakerBackend, score_window
-    from podcast_mcp.transcript_context import SpeakerIdConfig
+    from podcast_mcp.project.transcript_context import SpeakerIdConfig
 
     project = _two_track_project(tmp_path, sample_wav)
     with patch("podcast_mcp.engines.speaker_id.load_all_profiles") as load_profiles:

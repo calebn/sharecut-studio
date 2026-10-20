@@ -23,7 +23,7 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import PREMIX_HASH_NAME, PREMIX_NAME
 from podcast_mcp.models import EditDecision, EditDecisionType
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, workspace_artifacts_dir
-from podcast_mcp.project_io import (
+from podcast_mcp.project.io import (
     copy_relocated_workspace,
     require_episode_project_file,
     rewrite_workspace_dir,

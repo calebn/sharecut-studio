@@ -176,7 +176,7 @@ or `artifacts/` without updating this catalog, AGENTS.md, and tests.
 
 | Concern | Module |
 |---------|--------|
-| Project load / history commit | `services/app/workspace.py` (`ProjectWorkspace`), `history/session.py`, `history/rollback.py` |
+| Project load / history commit | `services/app/workspace.py` (`ProjectWorkspace`), `project/history/session.py`, `project/history/rollback.py` |
 | Session sync sqlite | `services/session_sync/` (reference for sqlite access patterns) |
 | Share UNIQUE pools | `services/collaboration/share_registry.py` (`ShareRegistryProtocol` / `SqliteShareRegistry`) |
 | Share create / lookup / revoke / registry backup | `services/collaboration/review_shares.py`, `services/collaboration/share.py`, `podcast review backup-registry` |

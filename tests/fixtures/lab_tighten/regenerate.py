@@ -28,7 +28,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.track_media import apply_full_span_media
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import EpisodeProject, Track, TrackRole, Transcript, TranscriptWord
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 
 ASR_DIR = Path("source") / "asr"
 CREATED_AT = "2026-10-05T00:00:00+00:00"

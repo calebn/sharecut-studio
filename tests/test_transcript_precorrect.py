@@ -21,7 +21,7 @@ from podcast_mcp.edits.transcript_precorrect import (
 )
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
-from podcast_mcp.transcript_context import (
+from podcast_mcp.project.transcript_context import (
     CrossTrackConfig,
     ReplacementRule,
     SkipSpan,

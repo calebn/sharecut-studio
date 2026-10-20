@@ -24,7 +24,7 @@ from podcast_mcp.models.episode import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 
 # Import parser from sibling script
 sys.path.insert(0, str(_REPO / "scripts"))

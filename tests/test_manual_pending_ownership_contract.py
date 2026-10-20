@@ -13,7 +13,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
-from podcast_mcp.project_store import history_index_path, history_snapshot_ids
+from podcast_mcp.project.store import history_index_path, history_snapshot_ids
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from source_review_helpers import _cut, _project

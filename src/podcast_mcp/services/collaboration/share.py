@@ -13,7 +13,7 @@ from typing import Any
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
+from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review_shares import (
     create_share,

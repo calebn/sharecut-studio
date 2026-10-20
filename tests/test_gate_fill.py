@@ -30,7 +30,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
-from podcast_mcp.project_store import load_project, save_project
+from podcast_mcp.project.store import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 
 SR = 16000

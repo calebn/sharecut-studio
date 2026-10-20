@@ -177,7 +177,7 @@ English remain distinct cache inputs.
 `TranscriptContext.transcription_vocabulary()` captures the prompt and revision
 together. A vocabulary save during ASR leaves that run stamped with its original
 revision, so Studio can still report it as stale. Vocabulary limits live in
-`transcript_context.py`. Context writers raise `TranscriptContextBusyError`
+`project/transcript_context.py`. Context writers raise `TranscriptContextBusyError`
 from the service when the lock times out. Studio reports HTTP 503 and CLI context
 updates exit with code 1 without exposing the lock path.
 
@@ -192,7 +192,7 @@ track's first window decoded with 0 capitals and 0 end-punctuated words with no
 prompt, at every temperature and VAD setting tried; any short, properly
 punctuated prompt fixed it end to end (29/2995 capitalized, 1/2995 punctuated
 before, comparable to its peers after — see the PR for exact figures). So
-`TranscriptContext.initial_prompt_text()` (`transcript_context.py`) now always
+`TranscriptContext.initial_prompt_text()` (`project/transcript_context.py`) now always
 sends a fixed punctuation-priming sentence (`DEFAULT_PROMPT_PRIMER`, currently
 "Podcast episode transcript."), followed by any Terms/Guest names/show title,
 whenever `transcribe.initial_prompt` is not turned off. This is a real change

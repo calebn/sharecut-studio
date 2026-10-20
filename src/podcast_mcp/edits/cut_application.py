@@ -83,7 +83,7 @@ from podcast_mcp.models import (
     EpisodeProject,
 )
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
-from podcast_mcp.project_merge import adopt_project_state
+from podcast_mcp.project.merge import adopt_project_state
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
@@ -770,7 +770,7 @@ def approve_edits(
     A partial batch that relied on a held removal is refused unless its caller explicitly
     supplies ``accept_leaned_on``. Services retain persistence and history ownership.
     """
-    from podcast_mcp.project_merge import adopt_project_state
+    from podcast_mcp.project.merge import adopt_project_state
 
     published = project
     project = project.model_copy(deep=True)
@@ -1135,7 +1135,7 @@ def apply_prefix_edits(
         if effects_held:
             held.update(h.edit_id for h in effects_held)
             continue
-        from podcast_mcp.project_merge import adopt_project_state
+        from podcast_mcp.project.merge import adopt_project_state
 
         project = working
         break

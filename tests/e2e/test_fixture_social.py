@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
+from e2e_fixture import DEFAULT_CANNED
 from podcast_mcp.cli.fixture import seed_canned_transcript
 from podcast_mcp.cli.main import app
-from podcast_mcp.e2e_fixture import DEFAULT_CANNED
 from podcast_mcp.models import load_project
 
 pytestmark = pytest.mark.e2e
@@ -17,7 +17,7 @@ def test_social_clip_export(e2e_workspace) -> None:
     runner.invoke(app, ["render-preview", "--project", str(e2e_workspace)])
 
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     proj = load_project(e2e_workspace)
     proj.transcripts = []

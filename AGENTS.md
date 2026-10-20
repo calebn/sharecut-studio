@@ -40,7 +40,7 @@ through code-ready review and PR delivery.
 ## SOLID / DRY (short)
 
 1. **Single responsibility** — Business logic in `edits/`, `clips/`, `pipeline/`, `engines/`. Orchestration in `services/`. CLI/MCP/GUI only parse args and format output.
-2. **Don't repeat yourself** — Use `ProjectWorkspace`, `run_mutation`, `util/review`, `project_io`, `export/transcript`. Never copy project load/save or history wiring into a new tool. GUI audio/pipeline must call `PlayService` / `PipelineService` (same as CLI), not reimplement artifact paths.
+2. **Don't repeat yourself** — Use `ProjectWorkspace`, `run_mutation`, `util/review`, `project.io`, `export/transcript`. Never copy project load/save or history wiring into a new tool. GUI audio/pipeline must call `PlayService` / `PipelineService` (same as CLI), not reimplement artifact paths.
 3. **Extend, don't fork** — New MCP tools: handler in `mcp/tools/`, register in `register_all`, re-export from `mcp/server.py` if tests need it. New CLI: add to `cli/<area>.py`. New GUI routes: thin handlers in `gui/server.py` over services.
 4. **Stable MCP names** — Do not rename existing MCP tools without updating `.agents/skills/` and docs.
 

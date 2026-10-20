@@ -23,11 +23,12 @@ _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 
+FIXTURES_DIR = _REPO / "tests" / "fixtures"
+DEFAULT_CANNED = FIXTURES_DIR / "canned_transcript_aligned.json"
 FIXTURE = FIXTURES_DIR / "aligned_dialogue"
 GOLD_DIR = FIXTURES_DIR / "word_boundary"
 SAMPLE_RATE = 48_000

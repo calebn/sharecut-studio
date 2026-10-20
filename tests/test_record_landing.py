@@ -14,7 +14,7 @@ from filelock import FileLock
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import SourceClippingRegion, load_project, save_project
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import HistoryService
@@ -212,7 +212,7 @@ def _race_on_commit(monkeypatch, *, when, race):
     concurrent re-ACK or revoke can change the upload row landing already
     checked (#366).
     """
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     original_commit = ProjectStore.commit
     fired = {"done": False}
@@ -1524,7 +1524,7 @@ def test_retry_replaces_corrupt_registered_raw_source(minimal_project, sample_wa
 
 
 def test_landed_status_waits_for_project_commit(minimal_project, sample_wav, monkeypatch):
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     _isolate()
     ws = _seed(minimal_project, sample_wav)

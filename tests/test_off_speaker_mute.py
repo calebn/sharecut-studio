@@ -150,7 +150,7 @@ def test_service_mutes_the_copy_and_leaves_the_guests_words(tmp_path):
         Transcript,
         TranscriptWord,
     )
-    from podcast_mcp.project_store import save_project
+    from podcast_mcp.project.store import save_project
     from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.document.analysis import AnalysisService
 

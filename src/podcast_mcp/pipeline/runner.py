@@ -13,12 +13,12 @@ from podcast_mcp.models import (
     PipelineStepLog,
 )
 from podcast_mcp.pipeline import steps as pipeline_steps
-from podcast_mcp.project_merge import (
+from podcast_mcp.project.merge import (
     ProjectMergeConflict,
     project_merge_data,
     publish_project_changes,
 )
-from podcast_mcp.project_store import commit_landed
+from podcast_mcp.project.store import commit_landed
 from podcast_mcp.util.progress import (
     ProgressReporter,
     bind_progress,

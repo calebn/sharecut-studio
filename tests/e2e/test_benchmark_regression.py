@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.e2e_fixture import BENCHMARK_THRESHOLDS, FIXTURES_DIR
+from e2e_fixture import BENCHMARK_THRESHOLDS, FIXTURES_DIR
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_real]
 

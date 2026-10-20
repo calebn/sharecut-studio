@@ -12,20 +12,20 @@ import pytest
 
 import podcast_mcp.services.document.history as history_service_mod
 from play_patch import patch_play
-from podcast_mcp import project_merge as project_merge_mod
-from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
-from podcast_mcp.history import HistoryManager
-from podcast_mcp.history import rollback as rollback_mod
-from podcast_mcp.history.manager import snapshot_from_project
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
 from podcast_mcp.pipeline.runner import PipelineRunner
-from podcast_mcp.project_merge import HISTORY_CURSOR_CONFLICT, ProjectMergeConflict
-from podcast_mcp.project_store import (
+from podcast_mcp.project import merge as project_merge_mod
+from podcast_mcp.project import store as project_store_mod
+from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.history import rollback as rollback_mod
+from podcast_mcp.project.history.manager import snapshot_from_project
+from podcast_mcp.project.merge import HISTORY_CURSOR_CONFLICT, ProjectMergeConflict
+from podcast_mcp.project.store import (
     HISTORY_ENTRY_LIMIT,
     ProjectStore,
     history_index_path,

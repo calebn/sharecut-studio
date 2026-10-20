@@ -19,7 +19,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
+from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.services.document.history import HistoryRerenderError
 from podcast_mcp.services.pipeline import AudioExportResult
 
@@ -427,7 +427,7 @@ def test_pipeline_export_audio_cli(tmp_path, sample_wav):
 
 
 def test_e2e_project_path_env_override(tmp_path, monkeypatch):
-    from podcast_mcp.e2e_fixture import e2e_project_path
+    from e2e_fixture import e2e_project_path
 
     ws = tmp_path / "custom"
     ws.mkdir()

@@ -6,9 +6,9 @@ import re
 import pytest
 from typer.testing import CliRunner
 
+from e2e_fixture import DEFAULT_CANNED, KNOWN_PHRASES
 from podcast_mcp.cli.fixture import seed_canned_transcript
 from podcast_mcp.cli.main import app
-from podcast_mcp.e2e_fixture import DEFAULT_CANNED, KNOWN_PHRASES
 from podcast_mcp.models import load_project
 from podcast_mcp.services.document_sync import (
     INTERACTIVE_COMMAND,

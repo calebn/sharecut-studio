@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
-from podcast_mcp.project_io import resolve_project_path
+from podcast_mcp.project.io import resolve_project_path
 from podcast_mcp.services.session_sync.commands import (
     GUEST_CLIENT_ID_PREFIX,
     SyncCommand,

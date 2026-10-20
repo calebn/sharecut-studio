@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import Clip, EpisodeProject, load_project, save_project
 from podcast_mcp.models.episode import ClipBleedRestore, ClipOffSpeakerMuteRegion, SourceSpan
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
+from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.services.app import ProjectWorkspace
 
 

@@ -5,13 +5,13 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.project.transcript_context import VOCABULARY_MAX_ENTRIES
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
     TranscriptReplacementOptions,
     WordTimingTargetPayload,
 )
-from podcast_mcp.transcript_context import VOCABULARY_MAX_ENTRIES
 
 # Discriminated union — source of truth in document_sync.payloads.
 DocumentCommandRequest = DocumentCommandBody

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from podcast_mcp import settings
 
-FIXTURES_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 DEFAULT_CANNED = FIXTURES_DIR / "canned_transcript_aligned.json"
 E2E_DIALOGUE_PROJECT = FIXTURES_DIR / "aligned_dialogue" / "episode.project.json"
 SYNTHETIC_BLEED_PROJECT = FIXTURES_DIR / "synthetic_bleed_60s" / "episode.project.json"

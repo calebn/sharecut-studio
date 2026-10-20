@@ -12,7 +12,7 @@ from typing import Any
 
 from podcast_mcp.models import EpisodeProject, load_project, project_file_path
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_store import (
+from podcast_mcp.project.store import (
     ProjectStore,
     commit_landed,
     history_index_adoptable,

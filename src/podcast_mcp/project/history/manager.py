@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from podcast_mcp.history.rollback import rolled_back_on_failure, take_history_checkpoint
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot
-from podcast_mcp.project_store import (
+from podcast_mcp.project.history.rollback import rolled_back_on_failure, take_history_checkpoint
+from podcast_mcp.project.store import (
     ProjectStore,
     history_index_path,
     history_snapshot_path,

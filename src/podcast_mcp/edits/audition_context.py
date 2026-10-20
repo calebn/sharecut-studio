@@ -1055,7 +1055,7 @@ def _speaker_roles_for_window(
         resolve_speaker_backend,
         score_window,
     )
-    from podcast_mcp.transcript_context import load_transcript_context
+    from podcast_mcp.project.transcript_context import load_transcript_context
 
     profiles = load_all_profiles(project)
     if not profiles:

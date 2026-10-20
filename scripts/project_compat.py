@@ -16,12 +16,12 @@ from typing import Any, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
-from podcast_mcp.history.manager import HistoryManager, apply_snapshot_to_project
 from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.models.episode import ProjectMeta, RenderSection
 from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, snapshot_editable_state
-from podcast_mcp.project_store import read_history_snapshot, snapshot_from_project
+from podcast_mcp.project.history.manager import HistoryManager, apply_snapshot_to_project
+from podcast_mcp.project.store import read_history_snapshot, snapshot_from_project
 from podcast_mcp.util.atomic_json import write_text_atomic
 
 ROOT = Path(__file__).resolve().parents[1]

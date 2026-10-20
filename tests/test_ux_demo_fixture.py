@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "tests" / "fixtures" / "sharecut_ux_demo"

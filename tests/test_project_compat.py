@@ -321,8 +321,8 @@ def test_upgrade_requires_complete_output_and_untouched_source(
             if failure == "source-write":
                 source.write_text("modified", encoding="utf-8")
             elif failure == "dropped-history":
-                from podcast_mcp.history.manager import HistoryManager
-                from podcast_mcp.project_store import ProjectStore
+                from podcast_mcp.project.history.manager import HistoryManager
+                from podcast_mcp.project.store import ProjectStore
 
                 HistoryManager(output / compat.PROJECT).goto(project, 0)
                 project.history.entries = project.history.entries[:1]

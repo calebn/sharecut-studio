@@ -9,7 +9,6 @@ import pytest
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
-from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import Clip, ClipOffSpeakerMuteRegion, EpisodeProject, MediaAsset, Track
 from podcast_mcp.models.episode import (
     ClipBleedRestore,
@@ -17,7 +16,8 @@ from podcast_mcp.models.episode import (
     SourceSpan,
     TranscriptGateScope,
 )
-from podcast_mcp.project_store import save_project
+from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.store import save_project
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document.bleed_inspection import inspect_clip_bleed, restore_clip_bleed
 
@@ -421,7 +421,7 @@ def test_restore_changes_only_selected_choice_and_preserves_metadata_through_rel
 
     monkeypatch.setattr(workspace, "mutate", counted)
     monkeypatch.setattr(
-        "podcast_mcp.history.session.maybe_auto_reconcile",
+        "podcast_mcp.project.history.session.maybe_auto_reconcile",
         lambda *_args, **_kwargs: pytest.fail("Restore reconciled transcript"),
     )
     result = restore_clip_bleed(workspace, target)

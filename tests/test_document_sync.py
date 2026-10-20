@@ -34,7 +34,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.project.merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import HistoryService
@@ -3031,7 +3031,7 @@ def test_document_server_seq_does_not_parse_the_project(minimal_project, monkeyp
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(_comment("first"))
 
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     def _boom(self):
         raise AssertionError("document_server_seq must not parse the project")

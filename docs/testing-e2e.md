@@ -146,6 +146,8 @@ make e2e
 
 Manual listen-through steps: [e2e-fixture-manual.md](e2e-fixture-manual.md).
 
+Fixture paths and the `PODCAST_E2E_PROJECT` override resolve in the test helper `tests/e2e_fixture.py` (not in the shipped package).
+
 Fixture registry: [fixture-catalog.md](fixture-catalog.md). Expansion plan: [e2e-real-data-plan.md](e2e-real-data-plan.md).
 
 | Marker | Meaning |

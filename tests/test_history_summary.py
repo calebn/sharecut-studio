@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from podcast_mcp.history.summary import format_history_group_title, summarize_diff
+from podcast_mcp.project.history.summary import format_history_group_title, summarize_diff
 
 
 def test_format_history_group_title_with_range() -> None:
@@ -73,8 +73,8 @@ def test_summarize_diff_empty_falls_back_to_operation() -> None:
 
 
 def test_reproposed_hit_with_moved_edges_shows_as_changed() -> None:
-    from podcast_mcp.history.diff import diff_snapshots
     from podcast_mcp.models.history import ProjectStateSnapshot
+    from podcast_mcp.project.history.diff import diff_snapshots
 
     def snapshot(end: float) -> ProjectStateSnapshot:
         return ProjectStateSnapshot(

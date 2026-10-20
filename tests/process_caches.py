@@ -41,7 +41,7 @@ SHARED: dict[str, str] = {
     "podcast_mcp.util.binaries:_PAIR_CACHE": (
         "Keyed by the selectors, PATH, working directory and the stat identity of every candidate."
     ),
-    "podcast_mcp.project_store:_VOCABULARY_CACHE": "Keyed by the project and history file signatures.",
+    "podcast_mcp.project.store:_VOCABULARY_CACHE": "Keyed by the project and history file signatures.",
     "podcast_mcp.config:_PARSED_DEFAULTS": "Keyed by path; a hit also compares the file's bytes.",
     "podcast_mcp.services.media.waveform:_INDEX": "Keyed by project path and file revision.",
     "podcast_mcp.services.media.waveform:_META": "Keyed by pyramid path and content key.",

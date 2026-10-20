@@ -18,7 +18,7 @@ from podcast_mcp.engines.audio_audit import (
 )
 from podcast_mcp.engines.transcribe import collect_anomalous_asr_duration_flags
 from podcast_mcp.models import EpisodeProject, TranscriptWord
-from podcast_mcp.transcript_context import (
+from podcast_mcp.project.transcript_context import (
     CrossTrackConfig,
     ReplacementRule,
     TranscriptContext,

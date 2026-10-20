@@ -178,7 +178,7 @@ def test_comment_service_mutate_and_snapshot(minimal_project, sample_wav, tmp_wo
 
 def test_comment_add_undo_redo_restores_review(minimal_project):
     """review must be in ProjectStateSnapshot or after-record is skipped."""
-    from podcast_mcp.history import HistoryManager
+    from podcast_mcp.project.history import HistoryManager
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.record_snapshot("baseline", force=True)

@@ -12,13 +12,13 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.history.summary import (
+from podcast_mcp.models import load_project, save_project
+from podcast_mcp.project.history.summary import (
     _human_op,
     _track_list,
     format_history_group_title,
     summarize_diff,
 )
-from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import (

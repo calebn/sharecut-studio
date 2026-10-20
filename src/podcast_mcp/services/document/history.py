@@ -5,11 +5,11 @@ import logging
 from collections.abc import Callable
 
 from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
-from podcast_mcp.history import HistoryManager
-from podcast_mcp.history.diff import diff_snapshots
-from podcast_mcp.history.summary import format_history_group_title, summarize_diff
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
+from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.history.diff import diff_snapshots
+from podcast_mcp.project.history.summary import format_history_group_title, summarize_diff
+from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedError, CodedValueError

@@ -27,7 +27,7 @@ from podcast_mcp.models.episode import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
 
 DEFAULT_DURATION_SEC = 60.0
 SAMPLE_RATE = 48000
@@ -296,7 +296,7 @@ def _validate_bleed(
     from podcast_mcp.edits.transcript_reconcile import audibility_map
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.pipeline import steps as pipeline_steps
-    from podcast_mcp.project_store import ProjectStore
+    from podcast_mcp.project.store import ProjectStore
 
     store = ProjectStore(project_path)
     project = store.load()

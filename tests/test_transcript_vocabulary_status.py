@@ -9,10 +9,10 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project.store import ProjectStore
+from podcast_mcp.project.transcript_context import TranscriptContext
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
-from podcast_mcp.transcript_context import TranscriptContext
 
 
 def _client() -> TestClient:
@@ -289,7 +289,7 @@ def test_workspace_with_symlinked_project_keeps_canonical_context(minimal_projec
 def test_unreadable_unused_history_signature_uses_uncached_full_loader(
     minimal_project, monkeypatch
 ):
-    import podcast_mcp.project_store as store_module
+    import podcast_mcp.project.store as store_module
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.mutate("before test", "after test", lambda p: setattr(p.meta, "name", "Changed"))
@@ -328,7 +328,7 @@ def test_unreadable_unused_history_signature_uses_uncached_full_loader(
 
 
 def test_unreadable_required_history_still_raises_from_full_loader(minimal_project, monkeypatch):
-    import podcast_mcp.project_store as store_module
+    import podcast_mcp.project.store as store_module
 
     assert load_project(minimal_project).history.is_empty()
     index = minimal_project.parent / "history" / "index.json"

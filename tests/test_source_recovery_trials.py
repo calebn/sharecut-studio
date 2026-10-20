@@ -5,7 +5,7 @@ import pytest
 from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import EditDecisionType, load_project, save_project
-from podcast_mcp.project_store import history_index_path, history_snapshot_ids
+from podcast_mcp.project.store import history_index_path, history_snapshot_ids
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from source_review_helpers import _cut, _hole, _project
@@ -19,7 +19,7 @@ class RecoveryInterrupted(BaseException):
 def test_saved_clean_first_held_later_reports_actual_restoration(
     tmp_path, monkeypatch, restore_error
 ):
-    from podcast_mcp.history import session as session_mod
+    from podcast_mcp.project.history import session as session_mod
     from podcast_mcp.services.document import edit as edit_mod
 
     project = _project(tmp_path)

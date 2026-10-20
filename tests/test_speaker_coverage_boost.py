@@ -324,7 +324,7 @@ def test_shared_speaker_cut_context_loads_profiles_once_for_candidates() -> None
         patch(
             "podcast_mcp.engines.speaker_id.load_all_profiles", return_value={"host": object()}
         ) as load_profiles,
-        patch("podcast_mcp.transcript_context.load_transcript_context") as load_context,
+        patch("podcast_mcp.project.transcript_context.load_transcript_context") as load_context,
         patch(
             "podcast_mcp.engines.speaker_id.assess_speaker_cut_role",
             side_effect=[{"role": "own"}, {"role": "bleed"}],
