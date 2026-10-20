@@ -16,7 +16,7 @@ from podcast_mcp import settings
 
 
 def env_flag(name: str, *, default: bool = True) -> bool:
-    raw = settings.raw(name)
+    raw = settings.read(name)
     if raw is None:
         return default
     return raw.strip().lower() not in {"0", "false", "no", "off", ""}

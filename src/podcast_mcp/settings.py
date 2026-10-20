@@ -220,6 +220,15 @@ def environ() -> Mapping[str, str]:
     return os.environ
 
 
+def read(name: str) -> str | None:
+    """Like :func:`raw` for names a limiter table supplies as data (the relay's own prefixes).
+
+    The package's literal names go through the checked readers; this one is only for the
+    shared limiter helpers, which the relay process and tests call with names of their own.
+    """
+    return os.environ.get(name)
+
+
 def raw(name: str) -> str | None:
     """The unmodified value, or None when unset."""
     return os.environ.get(_declared(name))
@@ -251,7 +260,7 @@ def flag(name: str, *, default: bool = False, on: frozenset[str] = ON_VALUES) ->
 
 def number(name: str, default: float) -> float:
     """A float; ``default`` when unset, blank or not a number."""
-    value = raw(name)
+    value = read(name)
     if value is None or not value.strip():
         return float(default)
     try:
@@ -262,7 +271,7 @@ def number(name: str, default: float) -> float:
 
 def max_bytes(name: str, default: int) -> int:
     """A positive byte count; ``default`` when unset, blank or not an integer."""
-    value = raw(name)
+    value = read(name)
     if value is None or not value.strip():
         return int(default)
     try:

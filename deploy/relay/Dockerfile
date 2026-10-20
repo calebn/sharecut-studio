@@ -17,6 +17,7 @@ ENV PODCAST_RELAY_GIT_SHA=${PODCAST_RELAY_GIT_SHA}
 # and shared guest WebSocket protocol limits).
 # util/__init__.py pulls review/text, so copy those too.
 COPY src/podcast_mcp/__init__.py podcast_mcp/__init__.py
+COPY src/podcast_mcp/settings.py podcast_mcp/settings.py
 COPY src/podcast_mcp/util/__init__.py podcast_mcp/util/__init__.py
 COPY src/podcast_mcp/util/review.py podcast_mcp/util/review.py
 COPY src/podcast_mcp/util/text.py podcast_mcp/util/text.py
