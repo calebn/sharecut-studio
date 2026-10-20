@@ -12,7 +12,7 @@ from typing import Any, Literal
 from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_MS
 from podcast_mcp.util.sqlite_wal import ensure_wal
 
-IsolationLevel = Literal["", "DEFERRED", "EXCLUSIVE", "IMMEDIATE"] | None
+IsolationLevel = Literal["DEFERRED", "EXCLUSIVE", "IMMEDIATE"] | None
 
 
 def open_sqlite(
