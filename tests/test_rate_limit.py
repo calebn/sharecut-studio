@@ -344,8 +344,11 @@ async def test_relay_proxy_returns_429(monkeypatch):
         assert r1.status_code == 200
         r2 = await http.get("/api/review/rtok/daw/meta")
         assert r2.status_code == 429
-        assert r2.json()["bucket"] == "relay_token"
-        assert "Retry-After" in r2.headers
+        body = r2.json()
+        assert body.pop("retry_after_sec") > 0
+        assert body == {"detail": "rate limit exceeded", "bucket": "relay_token"}
+        assert r2.headers["Retry-After"] == "1"
+        assert r2.headers["content-type"] == "application/json"
     reset_relay_limiters_for_tests()
 
 
@@ -470,3 +473,93 @@ def test_ws_roster_request_allowed_throttles_per_key_and_honours_the_flag(
     monkeypatch.delenv("PODCAST_RATE_LIMIT", raising=False)
 
     reset_host_limiters_for_tests()
+
+
+_DENIED = RateLimitDecision(allowed=False, bucket="host_read", retry_after_sec=1.5)
+_DENIED_BODY = {"detail": "rate limit exceeded", "bucket": "host_read", "retry_after_sec": 1.5}
+
+
+def test_host_http_routes_raise_429_with_the_detail_dict_and_retry_after(monkeypatch):
+    from fastapi import HTTPException
+
+    from podcast_mcp.gui.routes import remote_mcp as mcp_route
+    from podcast_mcp.gui.routes import share_common
+
+    monkeypatch.setattr(share_common, "check_host_bucket", lambda _t, _k: _DENIED)
+    monkeypatch.setattr(mcp_route, "check_host_bucket", lambda _t, _k: _DENIED)
+    for call in (
+        lambda: share_common.rate_limit_share("tok", "read"),
+        lambda: mcp_route._rate_limit_http("tok", "read"),
+    ):
+        with pytest.raises(HTTPException) as caught:
+            call()
+        assert caught.value.status_code == 429
+        assert caught.value.detail == _DENIED_BODY
+        assert caught.value.headers == {"Retry-After": "2"}
+
+
+def test_a_full_guest_audio_gate_raises_429_and_the_slot_is_released(monkeypatch):
+    from fastapi import HTTPException
+
+    from podcast_mcp.gui.routes.review_share import _audio_slot
+
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
+    monkeypatch.setenv("PODCAST_RATE_LIMIT_AUDIO_CONCURRENT", "1")
+    reset_host_limiters_for_tests()
+    release = _audio_slot("tok")
+    assert release is not None
+    with pytest.raises(HTTPException) as caught:
+        _audio_slot("tok")
+    assert caught.value.status_code == 429
+    assert caught.value.detail == {
+        "detail": "rate limit exceeded",
+        "bucket": "host_audio_concurrent",
+        "retry_after_sec": 1.0,
+    }
+    assert caught.value.headers == {"Retry-After": "1"}
+    release()
+    assert _audio_slot("tok") is not None
+    reset_host_limiters_for_tests()
+
+
+@pytest.mark.asyncio
+async def test_the_mcp_bridge_answers_a_throttled_rpc_with_429_json_rpc_and_retry_after(
+    monkeypatch,
+):
+    import json
+
+    from starlette.requests import Request
+
+    from podcast_mcp.gui.routes import remote_mcp as mcp_route
+
+    monkeypatch.setattr(mcp_route, "_remote_mcp_enabled", lambda _request: True)
+    monkeypatch.setattr(mcp_route, "_require_mcp_capability", lambda _t: None)
+    monkeypatch.setattr(mcp_route, "check_host_bucket", lambda _t, _k: _DENIED)
+    payload = json.dumps({"jsonrpc": "2.0", "id": 7, "method": "tools/list"}).encode()
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": payload, "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp/tok/mcp",
+            "headers": [(b"accept", b"application/json")],
+            "query_string": b"",
+        },
+        receive,
+    )
+    response = await mcp_route.mcp_bridge("tok", request)
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "2"
+    assert response.headers["content-type"] == "application/json"
+    assert json.loads(response.body) == {
+        "jsonrpc": "2.0",
+        "id": 7,
+        "error": {
+            "code": -32029,
+            "message": "rate limit exceeded (host_read); retry after 2s",
+            "data": _DENIED_BODY,
+        },
+    }
