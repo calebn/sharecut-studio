@@ -44,7 +44,7 @@ test.describe("Transcript edit-boundary touch drag", () => {
 
       const panels = page.getByLabel("Editor panels");
       await panels
-        .getByRole("button", { name: "Transcript", exact: true })
+        .getByRole("tab", { name: "Transcript", exact: true })
         .click();
       const annotate = panels.locator(".transcript-annotate-btn");
       await expect(annotate).toBeVisible();

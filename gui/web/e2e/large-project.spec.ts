@@ -309,7 +309,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
       profiles.push(
         await profile(recorder, "transcript-open", async () => {
           await page
-            .getByRole("button", { name: "Transcript", exact: true })
+            .getByRole("tab", { name: "Transcript", exact: true })
             .click();
           await expect(page.locator(".transcript-list")).toBeVisible(HEAVY);
           await expect(
@@ -346,9 +346,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
 
       profiles.push(
         await profile(recorder, "history-load", async () => {
-          await page
-            .getByRole("button", { name: "History", exact: true })
-            .click();
+          await page.getByRole("tab", { name: "History", exact: true }).click();
           const history = page.locator(".history-list");
           await expect(history).toBeVisible(HEAVY);
           await expect(history).not.toHaveAttribute("aria-busy", /.*/, HEAVY);
@@ -441,9 +439,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
         round: number;
       })[] = [];
       const enduranceStart = performance.now();
-      await page
-        .getByRole("button", { name: "Transcript", exact: true })
-        .click();
+      await page.getByRole("tab", { name: "Transcript", exact: true }).click();
       await expect(page.locator(".transcript-list")).toBeVisible(HEAVY);
       for (let round = 0; round < SCRUB_ROUNDS; round++) {
         await recorder.measure(

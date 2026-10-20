@@ -15,9 +15,7 @@ test.describe("control state parity", () => {
     );
 
     const panels = page.getByLabel("Editor panels");
-    await panels
-      .getByRole("button", { name: "Transcript", exact: true })
-      .click();
+    await panels.getByRole("tab", { name: "Transcript", exact: true }).click();
 
     const annotate = panels.locator(".transcript-annotate-btn");
     let follow = panels.getByRole("button", { name: /^Follow$|^Unlocked$/ });

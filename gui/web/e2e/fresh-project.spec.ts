@@ -41,7 +41,7 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
 
     const play = page.getByRole("button", { name: "Play", exact: true });
     await expect(play).toHaveAccessibleDescription("Import audio to play.");
-    await page.getByRole("button", { name: "Transcript", exact: true }).click();
+    await page.getByRole("tab", { name: "Transcript", exact: true }).click();
     await page.getByRole("heading", { name: "Fresh QA" }).click();
     const playbackProbe = await page.evaluateHandle(() => {
       const button = document.querySelector(".play-btn");

@@ -699,7 +699,7 @@ for (const profile of profiles) {
         else
           await page
             .getByLabel("Editor panels")
-            .getByRole("button", { name: "Transcript", exact: true })
+            .getByRole("tab", { name: "Transcript", exact: true })
             .click();
         await expect(
           page.getByRole("button", { name: /^Correct:/ }),

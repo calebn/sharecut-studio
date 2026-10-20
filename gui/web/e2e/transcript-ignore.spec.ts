@@ -63,7 +63,7 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
     );
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .click();
     await page.getByRole("button", { name: /^Select:/ }).click();
 

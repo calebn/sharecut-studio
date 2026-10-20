@@ -45,7 +45,7 @@ test.describe("Pipeline bootstrap warning layout", () => {
     );
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Pipeline", exact: true })
+      .getByRole("tab", { name: "Pipeline", exact: true })
       .click();
 
     const warning = page.locator(".pipeline-components li", {

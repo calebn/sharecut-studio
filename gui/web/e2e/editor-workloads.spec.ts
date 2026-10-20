@@ -250,7 +250,7 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
     ) ?? before.edit_boundaries?.[0];
   expect(boundary, "actual cut produced a boundary").toBeTruthy();
   const panels = page.getByLabel("Editor panels");
-  await panels.getByRole("button", { name: "Transcript", exact: true }).click();
+  await panels.getByRole("tab", { name: "Transcript", exact: true }).click();
   const annotate = panels.locator(".transcript-annotate-btn");
   if ((await annotate.getAttribute("aria-pressed")) !== "true")
     await annotate.click();
@@ -579,7 +579,7 @@ async function trim(page: Page, recorder: Recorder) {
 }
 
 async function prepareRealProgress(page: Page) {
-  await page.getByRole("button", { name: "Pipeline", exact: true }).click();
+  await page.getByRole("tab", { name: "Pipeline", exact: true }).click();
   await page
     .getByRole("separator", { name: "Resize editor panels" })
     .press("Home");

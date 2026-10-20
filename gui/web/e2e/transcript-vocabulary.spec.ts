@@ -18,7 +18,7 @@ test("shows the real prompt budget before saving and persists a fitting draft", 
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   await page
     .getByLabel("Editor panels")
-    .getByRole("button", { name: "Pipeline", exact: true })
+    .getByRole("tab", { name: "Pipeline", exact: true })
     .click();
   const editor = page.getByRole("region", { name: "Transcription vocabulary" });
   const input = editor.getByLabel("Terms", { exact: true });
@@ -54,7 +54,7 @@ test("shows the real prompt budget before saving and persists a fitting draft", 
   await page.reload();
   await page
     .getByLabel("Editor panels")
-    .getByRole("button", { name: "Pipeline", exact: true })
+    .getByRole("tab", { name: "Pipeline", exact: true })
     .click();
   for (const name of names.slice(0, 3)) {
     await expect(

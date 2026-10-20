@@ -293,7 +293,7 @@ async function sweepCell(
       .click();
   } else {
     await page
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .first()
       .click();
   }
@@ -317,7 +317,7 @@ async function sweepCell(
       .click();
   } else {
     await page
-      .getByRole("button", { name: "Pipeline", exact: true })
+      .getByRole("tab", { name: "Pipeline", exact: true })
       .first()
       .click();
   }

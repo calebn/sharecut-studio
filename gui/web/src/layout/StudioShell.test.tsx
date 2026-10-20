@@ -104,11 +104,11 @@ describe("StudioShell tablet peek", () => {
       useDawStore.getState().setSelection({ kind: "track", trackId: "guest" });
     });
     expect(await screen.findByRole("dialog")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Transcript" })).toHaveAttribute(
-      "aria-pressed",
+    expect(screen.getByRole("tab", { name: "Transcript" })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Transcript" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Transcript" })).toHaveAttribute(
       "data-presence-anchor",
       "tab:transcript",
     );
@@ -361,7 +361,7 @@ describe("StudioShell tablet peek", () => {
     );
     expect(screen.getAllByText("Loading episode…").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Drop audio files/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Transcript" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Transcript" })).toBeTruthy();
     expect(screen.getByLabelText("Loading timeline")).toBeTruthy();
     const main = document.querySelector("main.daw-main");
     expect(main?.className).not.toContain("daw-main--arrange");
@@ -478,7 +478,7 @@ describe("StudioShell tablet peek", () => {
           <StudioShell />
         </DawProvider>,
       );
-      expect(screen.getByRole("button", { name: "Transcript" })).toBeTruthy();
+      expect(screen.getByRole("tab", { name: "Transcript" })).toBeTruthy();
     } finally {
       getItem.mockRestore();
     }
@@ -584,8 +584,8 @@ describe("StudioShell tablet peek", () => {
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(useDawStore.getState().selection).toBeNull();
     expect(useDawStore.getState().sheetExpanded).toBe(false);
-    expect(screen.getByRole("button", { name: "Comments" })).toHaveAttribute(
-      "aria-pressed",
+    expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
   });

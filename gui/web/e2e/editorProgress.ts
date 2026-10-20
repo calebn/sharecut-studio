@@ -172,7 +172,7 @@ export async function replayPipelineProgress(
   let replayEvidence: ReplayEvidence | undefined;
   let primaryFailure: unknown;
   try {
-    const pipeline = page.getByRole("button", { name: /^Pipeline(?: ●)?$/ });
+    const pipeline = page.getByRole("tab", { name: /^Pipeline(?: ●)?$/ });
     if (await pipeline.isVisible()) await pipeline.click();
     else {
       await page.getByRole("button", { name: "More", exact: true }).click();

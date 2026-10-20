@@ -271,15 +271,16 @@ export const Desktop: Story = {
       canvas.getByRole("button", { name: "Pause" }),
     ).toBeInTheDocument();
     await expect(args.onPlayingChange).toHaveBeenCalledWith(true);
-    await userEvent.click(canvas.getByRole("button", { name: "Comments" }));
+    await userEvent.click(canvas.getByRole("tab", { name: "Comments" }));
     await expect(args.onTabChange).toHaveBeenCalledWith("comments");
-    await expect(
-      canvas.getByRole("button", { name: "Comments" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await expect(
       canvas.getByText("Keep this introduction."),
     ).toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "Transcript" }));
+    await userEvent.click(canvas.getByRole("tab", { name: "Transcript" }));
     await expect(args.onTabChange).toHaveBeenCalledWith("transcript");
     await expect(
       canvas.getByRole("button", { name: "Welcome." }),
@@ -308,7 +309,7 @@ export const GuestFollowing: Story = {
       canvasElement.querySelector<HTMLElement>(".tab-bar")!,
     );
     await expect(
-      panels.getAllByRole("button").map((button) => button.textContent),
+      panels.getAllByRole("tab").map((button) => button.textContent),
     ).toEqual(["Transcript", "Comments"]);
     await userEvent.click(
       canvas.getByRole("button", { name: "Stop following" }),

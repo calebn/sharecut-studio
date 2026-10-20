@@ -51,9 +51,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
     expect(archivedWord?.word_index).toBeLessThan(0);
 
     const panels = page.getByLabel("Editor panels");
-    await panels
-      .getByRole("button", { name: "Transcript", exact: true })
-      .click();
+    await panels.getByRole("tab", { name: "Transcript", exact: true }).click();
     const annotate = panels.locator(".transcript-annotate-btn");
     await expect(annotate).toBeVisible();
     if ((await annotate.getAttribute("aria-pressed")) !== "true") {
@@ -126,7 +124,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
     ).toBeTruthy();
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .click();
     await expect(
       page

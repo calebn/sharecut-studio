@@ -57,7 +57,7 @@ test.describe("Audibility lock indicator (#781)", () => {
     );
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .click();
 
     const chip = page
@@ -111,7 +111,7 @@ test.describe("Audibility lock indicator (#781)", () => {
     );
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .click();
     await page.getByRole("button", { name: /^Correct:/i }).click();
 
@@ -161,7 +161,7 @@ test.describe("Audibility lock indicator (#781)", () => {
     );
     await page
       .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
+      .getByRole("tab", { name: "Transcript", exact: true })
       .click();
 
     const annotateBtn = page.getByRole("button", {

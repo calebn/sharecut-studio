@@ -78,7 +78,7 @@ export async function exerciseCommentUndo(
     } else {
       await page
         .getByLabel("Editor panels")
-        .getByRole("button", { name: "Comments", exact: true })
+        .getByRole("tab", { name: "Comments", exact: true })
         .click();
     }
     const panel = page.locator(".comments-panel");
