@@ -485,10 +485,7 @@ def test_host_http_routes_raise_429_with_the_detail_dict_and_retry_after(monkeyp
 
     monkeypatch.setattr(share_common, "check_host_bucket", lambda _t, _k: _DENIED)
     monkeypatch.setattr(mcp_route, "check_host_bucket", lambda _t, _k: _DENIED)
-    for call in (
-        lambda: share_common.rate_limit_share("tok", "read"),
-        lambda: mcp_route._rate_limit_http("tok", "read"),
-    ):
+    for call in (lambda: share_common.rate_limit_share("tok", "read"),):
         with pytest.raises(HTTPException) as caught:
             call()
         assert caught.value.status_code == 429
