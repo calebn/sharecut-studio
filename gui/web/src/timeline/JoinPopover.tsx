@@ -1,17 +1,12 @@
-import { type RefObject, useCallback, useLayoutEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { JOIN_AUDITION_PAD_SEC } from "../edit/joinRender";
+import { type RefObject, useCallback } from "react";
+import {
+  JOIN_AUDITION_PAD_SEC,
+  joinGlyph,
+  joinSeamLabel,
+} from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
-import {
-  InspectorSeekFooter,
-  placeAnchored,
-  useDialogModal,
-  useOutsidePointerDown,
-  useResizeObserver,
-  visualViewportBox,
-} from "../ui";
-import { useStableCallback } from "../utils/useStableCallback";
+import { Dialog, InspectorSeekFooter } from "../ui";
 import { JoinPopoverView } from "./JoinPopoverView";
 import type { JoinEdit } from "./useJoinEdit";
 
@@ -27,7 +22,7 @@ export interface JoinPopoverProps {
   railRef: RefObject<HTMLElement | null>;
 }
 
-/** Live adapter: portals `JoinPopoverView` to `<body>`, fixed at its badge. */
+/** The join editor: an anchored `Dialog`, so the seam it edits stays in view. */
 export function JoinPopover({
   id,
   left,
@@ -39,7 +34,6 @@ export function JoinPopover({
   edit,
   railRef,
 }: JoinPopoverProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
   // Dismissing mid-request would unmount the popover and drop a failure
   // silently, so Escape, Close, an outside click and opening another join
   // badge (JoinBadge.tsx) all wait for SetClipJoin to settle.
@@ -49,67 +43,19 @@ export function JoinPopover({
       onClose();
     }
   }, [onClose, edit]);
-  // GOVERNANCE: Escape via useDialogModal (allowlisted); non-modal, focus returns to this popover's badge.
-  useDialogModal({
-    open: true,
-    onClose: dismiss,
-    panelRef,
-    mode: "sheet",
-    returnFocusRef: anchorRef,
-  });
 
-  const place = useStableCallback(() => {
-    const anchor = anchorRef.current;
-    const panel = panelRef.current;
-    if (!anchor || !panel) {
-      return;
-    }
-    const rootPx =
-      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
-      16;
-    const viewport = visualViewportBox(railRef.current);
-    const { left: x, top: y } = placeAnchored(
-      anchor.getBoundingClientRect(),
-      { width: panel.offsetWidth, height: panel.offsetHeight },
-      viewport,
-      { margin: 0.5 * rootPx, gap: 0.5 * rootPx, align: "center" },
-    );
-    panel.style.left = `${x}px`;
-    panel.style.top = `${y}px`;
-  });
-  useLayoutEffect(() => {
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [place, anchorRef, seamSec, railRef, right.join_in_mode]);
-  // A mode change adds or drops the Length row (an error adds a line), so
-  // re-place whenever the panel resizes, not only on window resize/scroll.
-  // The observer's first notification (async, after layout) repeats the
-  // layout effect's mount-time place(); place() only rewrites left/top, so
-  // the repeat is a no-op. If placement ever animates, skip that first call.
-  useResizeObserver(panelRef, place);
-  useResizeObserver(railRef, place);
-
-  useOutsidePointerDown([panelRef, anchorRef, railRef], dismiss);
-
-  return createPortal(
-    <JoinPopoverView
-      id={id}
-      panelRef={panelRef}
-      left={left}
-      right={right}
-      seamSec={seamSec}
-      trackFadeMaxMs={trackFadeMaxMs}
-      editable={edit.editable}
-      busy={edit.busy}
-      error={edit.error}
+  return (
+    <Dialog
+      open
       onClose={dismiss}
-      onModeChange={edit.changeMode}
-      lengthControl={{ value: edit.value, inputProps: edit.rangeProps }}
+      title={joinSeamLabel(joinGlyph(right), seamSec)}
+      panelId={id}
+      anchor={{
+        ref: anchorRef,
+        avoidRef: railRef,
+        moves: `${seamSec}|${right.join_in_mode}`,
+        reason: "The seam being edited must stay in view beside the panel.",
+      }}
       footer={
         <InspectorSeekFooter
           seekSec={seamSec}
@@ -120,7 +66,17 @@ export function JoinPopover({
           playLabel="Audition join"
         />
       }
-    />,
-    document.body,
+    >
+      <JoinPopoverView
+        left={left}
+        right={right}
+        trackFadeMaxMs={trackFadeMaxMs}
+        editable={edit.editable}
+        busy={edit.busy}
+        error={edit.error}
+        onModeChange={edit.changeMode}
+        lengthControl={{ value: edit.value, inputProps: edit.rangeProps }}
+      />
+    </Dialog>
   );
 }

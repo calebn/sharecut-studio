@@ -1,6 +1,13 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Dialog } from "./Dialog";
@@ -101,4 +108,42 @@ it("focuses only the innermost of two dialogs opened together", () => {
     for (const frame of framesOuterLast) frame(0);
   });
   expect(within(inner).getByRole("button", { name: /^Close$/ })).toHaveFocus();
+});
+
+it("keeps an anchored dialog non-modal, beside its anchor, closing on an outside press", async () => {
+  const onClose = vi.fn();
+  function Anchored() {
+    const anchorRef = useRef<HTMLButtonElement>(null);
+    return (
+      <main data-daw-app-chrome>
+        <button ref={anchorRef} type="button">
+          Join badge
+        </button>
+        <button type="button">Elsewhere</button>
+        <Dialog
+          open
+          onClose={onClose}
+          title="Fade join at 0:05.0"
+          panelId="join-panel"
+          anchor={{ ref: anchorRef, reason: "The seam stays in view." }}
+        >
+          <p>Body</p>
+        </Dialog>
+      </main>
+    );
+  }
+  const { container } = render(<Anchored />);
+  const dialog = screen.getByRole("dialog", { name: "Fade join at 0:05.0" });
+  expect(dialog).toHaveAttribute("aria-modal", "false");
+  expect(dialog).toHaveAttribute("id", "join-panel");
+  expect(dialog.style.left).toMatch(/px$/);
+  expect(document.querySelector(".command-palette-scrim")).toBeNull();
+  expect(container.querySelector<HTMLElement>("main")?.inert).not.toBe(true);
+  await expectNoA11yViolations(dialog);
+
+  fireEvent.pointerDown(dialog);
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Join badge" }));
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Elsewhere" }));
+  expect(onClose).toHaveBeenCalledTimes(1);
 });

@@ -66,7 +66,7 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
   },
   {
     file: "timeline/CreateMenu.tsx",
-    marker: 'role="menuitem"',
+    marker: "<MenuItem",
     reason: "create menu items: router-owned overlay",
   },
   {

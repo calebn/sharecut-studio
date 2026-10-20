@@ -544,37 +544,8 @@ button.join-seam:focus-visible {
   stroke-linejoin: round;
 }
 
-/* Join popover (#691): portaled to <body> and fixed at its badge
-   (ui/anchoredPlacement.ts), above the shell like a menu. */
-.join-popover {
-  position: fixed;
-  z-index: var(--z-menu);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  inline-size: max-content;
-  max-inline-size: 20rem;
-  min-inline-size: 15rem;
-  padding: var(--space-3);
-  background: var(--color-bg-overlay);
-  color: var(--color-text-on-overlay);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-floating);
-}
-
-.join-popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1);
-}
-
-.join-popover-title {
-  margin: 0;
-  font-size: var(--font-size-ui);
-}
-
+/* The join editor body (#691). Its panel is an anchored Dialog
+   (ui-dialog-root--anchored, command-palette.css). */
 .join-popover-mode {
   margin: 0;
 }

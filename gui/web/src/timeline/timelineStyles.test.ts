@@ -230,11 +230,11 @@ describe("timeline styles", () => {
     ).toMatch(/--join-hit-min:\s*calc\(3 \* var\(--clip-inset-top\)\);/);
   });
 
-  it("fixes the join popover above the shell at the menu layer", () => {
-    const css = partial("timeline.css");
-    const popover = rule(css, ".join-popover");
-    expect(popover).toMatch(/position:\s*fixed/);
-    expect(popover).toMatch(/z-index:\s*var\(--z-menu\)/);
+  it("keeps the join editor's anchored dialog fixed at the menu layer", () => {
+    const css = partial("command-palette.css");
+    const layer = rule(css, ".ui-dialog-root--anchored");
+    expect(layer).toMatch(/position:\s*fixed/);
+    expect(layer).toMatch(/z-index:\s*var\(--z-menu\)/);
   });
 
   it("matches a grouped selector in any order or spacing", () => {
