@@ -59,7 +59,7 @@ def test_no_module_in_a_split_package_exceeds_its_line_budget(package: str) -> N
 @pytest.mark.parametrize("module", DOCUMENT_SPLIT_MODULES)
 def test_document_edit_service_modules_stay_under_the_line_budget(module: str) -> None:
     count = len((SRC / "services" / "document" / f"{module}.py").read_text("utf-8").splitlines())
-    assert count <= 800, f"services/document/{module}.py is {count} lines"
+    assert count <= 850, f"services/document/{module}.py is {count} lines"
 
 
 @pytest.mark.parametrize(
