@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import secrets
 from typing import Any
 from urllib.parse import urlencode
@@ -12,6 +11,7 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from podcast_mcp import settings
 from podcast_mcp.gui.routes.deps import coded_exception_error, coded_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.services.share_auth import (
@@ -80,7 +80,7 @@ class AgentCredentialRequest(BaseModel):
 
 
 def _secure_cookie() -> bool:
-    return os.environ.get("PODCAST_AUTH_COOKIE_SECURE", "").strip() in {
+    return settings.text("PODCAST_AUTH_COOKIE_SECURE") in {
         "1",
         "true",
         "yes",
@@ -258,13 +258,13 @@ def auth_magic_link(body: MagicLinkRequest, request: Request) -> dict[str, Any]:
     q = urlencode({"token": raw, "next": body.next or "/"})
     link = f"{origin}/auth/magic-link/consume?{q}"
     # No SMTP yet - print/log for host operators and tests.
-    if os.environ.get("PODCAST_MAGIC_LINK_PRINT", "1") == "1":
+    if settings.value("PODCAST_MAGIC_LINK_PRINT", "1") == "1":
         log.info("magic link for %s: %s", body.email, link)
         print(f"PODCAST_MAGIC_LINK {body.email} {link}", flush=True)
     return {
         "ok": True,
         "email": body.email.strip().lower(),
-        "dev_link": link if os.environ.get("PODCAST_MAGIC_LINK_PRINT", "1") == "1" else None,
+        "dev_link": link if settings.value("PODCAST_MAGIC_LINK_PRINT", "1") == "1" else None,
     }
 
 

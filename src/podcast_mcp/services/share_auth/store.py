@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import os
 import sqlite3
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.services.share_auth.passwords import hash_password, verify_password
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.sqlite_open import open_sqlite
@@ -103,7 +103,7 @@ def _hash_token(raw: str) -> str:
 
 
 def default_identity_db_path() -> Path:
-    override = os.environ.get("PODCAST_SHARE_IDENTITY", "").strip()
+    override = settings.text("PODCAST_SHARE_IDENTITY")
     if override:
         return Path(override).expanduser()
     return Path.home() / ".podcast_mcp" / "share_identity.sqlite"

@@ -33,7 +33,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from podcast_mcp import __version__
+from podcast_mcp import __version__, settings
 from podcast_mcp.cli.handoff import execute_command, plan_handoff
 from podcast_mcp.gui.routes.deps import peer_host
 from podcast_mcp.project_io import resolve_project_path
@@ -239,7 +239,7 @@ async def run(request: Request, body: RunBody) -> StreamingResponse | JSONRespon
         )
     if not _serves(request, body.project):
         return _refuse(409, "not_served", "This Studio is not serving that project.")
-    differing = env_differences(body.env, os.environ)
+    differing = env_differences(body.env, settings.environ())
     if differing:
         return _refuse(
             409,

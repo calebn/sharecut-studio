@@ -16,7 +16,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from filelock import Timeout
 
-from podcast_mcp import __version__
+from podcast_mcp import __version__, settings
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.host_mcp import host_mcp_lifespan, mount_host_mcp
 from podcast_mcp.gui.job_events import gui_agent_job_progress_sink, gui_sse_progress_sink
@@ -78,7 +78,6 @@ def _cors_origins() -> list[str]:
     Credentials are allowed, so every entry must be an exact origin: a wildcard
     or malformed entry raises ``RuntimeConfigError`` and the GUI does not start.
     """
-    import os
 
     defaults = [
         "http://127.0.0.1:5173",
@@ -86,7 +85,7 @@ def _cors_origins() -> list[str]:
         "http://127.0.0.1:8765",
         "http://localhost:8765",
     ]
-    extra = os.environ.get(CORS_ORIGINS_ENV, "")
+    extra = settings.value(CORS_ORIGINS_ENV)
     return defaults + [
         normalize_exact_origin(CORS_ORIGINS_ENV, o.strip()) for o in extra.split(",") if o.strip()
     ]
@@ -235,7 +234,6 @@ def create_app(
     served_project: Path | None = None,
     bind_host: str = "127.0.0.1",
 ) -> FastAPI:
-    import os
 
     from podcast_mcp.services.session_sync import is_bind_loopback
 
@@ -249,7 +247,7 @@ def create_app(
     bootstrap_jobs = shared_bootstrap_job_manager(reset=True)
     # OpenAPI/Swagger stay available for local DX; set PODCAST_GUI_OPENAPI=0 to disable
     # (recommended for any non-loopback bind). Public relay never serves Swagger.
-    enable_openapi = os.environ.get("PODCAST_GUI_OPENAPI", "1").strip().lower() not in {
+    enable_openapi = settings.text("PODCAST_GUI_OPENAPI", "1").lower() not in {
         "0",
         "false",
         "no",

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import secrets
 import sqlite3
 import threading
@@ -25,6 +24,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from coolname import generate_slug
 
+from podcast_mcp import settings
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.registry_backup import _anchor_path, publish_registry_backup
 from podcast_mcp.util.registry_cleanup import cleanup
@@ -119,7 +119,7 @@ def default_share_registry_db_path() -> Path:
     Prefer pinning with ``PODCAST_SHARE_REGISTRY``; the override is used
     verbatim (whatever its suffix) so every caller opens the same file.
     """
-    override = os.environ.get("PODCAST_SHARE_REGISTRY", "")
+    override = settings.value("PODCAST_SHARE_REGISTRY")
     if override:
         return _resolve_registry_path(override)
     return _resolve_registry_path(Path.home() / ".podcast_mcp" / "share_registry.sqlite")

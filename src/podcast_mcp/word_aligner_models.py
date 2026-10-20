@@ -17,11 +17,11 @@ as ``whisper_models.py`` does.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.util.model_manifest import (
     FileManifest,
     PinnedSnapshot,
@@ -157,7 +157,7 @@ def verify_word_aligner_snapshot(
 
 def word_aligner_override_dir() -> Path | None:
     """The ``PODCAST_MCP_WORD_ALIGNER_MODEL`` directory, or None when unset."""
-    override = os.environ.get(WORD_ALIGNER_ENV)
+    override = settings.raw(WORD_ALIGNER_ENV)
     return Path(override).expanduser() if override else None
 
 

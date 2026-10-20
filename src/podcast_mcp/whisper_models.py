@@ -9,13 +9,13 @@ revision plus a per-file sha256 manifest (``WHISPER_PINS``, #728); other
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from podcast_mcp import settings
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.model_manifest import (
     PinnedSnapshot,
@@ -205,7 +205,7 @@ def validate_whisper_model(model: str) -> str:
 
 
 def _env_whisper_model() -> str | None:
-    env = os.environ.get("PODCAST_WHISPER_MODEL")
+    env = settings.raw("PODCAST_WHISPER_MODEL")
     if not env or not env.strip():
         return None
     try:

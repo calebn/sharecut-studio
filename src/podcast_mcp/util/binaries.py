@@ -16,10 +16,10 @@ import re
 import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
-from os import environ
 from pathlib import Path
 from typing import Literal
 
+from podcast_mcp import settings
 from podcast_mcp.config import bin_cache_dir
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
@@ -80,13 +80,13 @@ def _path_identity(path: Path) -> tuple[object, ...]:
 
 
 def _admission_cache_key(ffmpeg: str | None, ffprobe: str | None) -> tuple[object, ...]:
-    path_value = environ.get("PATH", os.defpath)
-    bundle = environ.get("PODCAST_MCP_FFMPEG_BUNDLE")
+    path_value = settings.value("PATH", os.defpath)
+    bundle = settings.raw("PODCAST_MCP_FFMPEG_BUNDLE")
     selectors = (
         ffmpeg,
         ffprobe,
-        environ.get("PODCAST_MCP_FFMPEG"),
-        environ.get("PODCAST_MCP_FFPROBE"),
+        settings.raw("PODCAST_MCP_FFMPEG"),
+        settings.raw("PODCAST_MCP_FFPROBE"),
         bundle,
         path_value,
         os.getcwd(),
@@ -197,7 +197,7 @@ def _native_homebrew_pair() -> tuple[str, str] | None:
 
 def _automatic_candidates() -> Iterator[tuple[tuple[str, str] | None, SelectionSource]]:
     yield _native_homebrew_pair(), "homebrew"
-    for entry in environ.get("PATH", os.defpath).split(os.pathsep):
+    for entry in settings.value("PATH", os.defpath).split(os.pathsep):
         yield _pair_in(Path(entry or os.curdir)), "path"
     yield _pair_in(bin_cache_dir()), "cache"
 
@@ -215,7 +215,7 @@ def _automatic_pair() -> FFmpegPair:
 
 
 def _explicit_value(value: str | None, variable: str) -> str | None:
-    return value if value is not None else environ.get(variable) or None
+    return value if value is not None else settings.raw(variable) or None
 
 
 def _executable_sibling(command: str, sibling: str) -> str:
@@ -240,7 +240,7 @@ def _resolve_ffmpeg_pair_uncached(ffmpeg: str | None, ffprobe: str | None) -> FF
         if selected_ffprobe is None:
             selected_ffprobe = _executable_sibling(selected_ffmpeg, "ffprobe")
         return _validate(selected_ffmpeg, selected_ffprobe, "explicit")
-    if bundle := environ.get("PODCAST_MCP_FFMPEG_BUNDLE"):
+    if bundle := settings.raw("PODCAST_MCP_FFMPEG_BUNDLE"):
         commands = _pair_in(Path(bundle))
         if commands is None:
             raise FFmpegPairResolutionError(

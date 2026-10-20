@@ -7,7 +7,7 @@ only for stub tests and future account UI work.
 
 from __future__ import annotations
 
-import os
+from podcast_mcp import settings
 
 _ROADMAP_HINT = (
     "Restricted / require_sign_in shares are not production yet "
@@ -17,8 +17,7 @@ _ROADMAP_HINT = (
 
 
 def share_accounts_enabled() -> bool:
-    raw = os.environ.get("PODCAST_SHARE_ACCOUNTS", "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return settings.flag("PODCAST_SHARE_ACCOUNTS")
 
 
 def require_share_accounts_for_restricted(

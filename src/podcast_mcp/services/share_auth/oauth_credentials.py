@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -20,7 +20,7 @@ class OAuthClientConfig:
 
 
 def _config_dir() -> Path:
-    override = os.environ.get("PODCAST_CONFIG_DIR", "").strip()
+    override = settings.text("PODCAST_CONFIG_DIR")
     if override:
         return Path(override).expanduser()
     return Path.home() / ".config" / "podcast_mcp"
@@ -28,10 +28,10 @@ def _config_dir() -> Path:
 
 def _default_redirect(provider: str) -> str:
     env_key = f"PODCAST_{provider.upper()}_OAUTH_REDIRECT_URI"
-    explicit = os.environ.get(env_key, "").strip()
+    explicit = settings.text(env_key)
     if explicit:
         return explicit
-    base = os.environ.get("PODCAST_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    base = settings.text("PODCAST_PUBLIC_ORIGIN").rstrip("/")
     if base:
         return f"{base}/auth/callback/{provider}"
     # Local GUI default; production should set PODCAST_*_OAUTH_REDIRECT_URI.
@@ -55,8 +55,8 @@ def _parse_google_json(data: dict[str, Any]) -> tuple[str, str]:
 
 
 def load_google_oauth() -> OAuthClientConfig | None:
-    cid = os.environ.get("PODCAST_GOOGLE_OAUTH_CLIENT_ID", "").strip()
-    secret = os.environ.get("PODCAST_GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+    cid = settings.text("PODCAST_GOOGLE_OAUTH_CLIENT_ID")
+    secret = settings.text("PODCAST_GOOGLE_OAUTH_CLIENT_SECRET")
     if cid and secret:
         return OAuthClientConfig(
             provider="google",
@@ -65,7 +65,7 @@ def load_google_oauth() -> OAuthClientConfig | None:
             redirect_uri=_default_redirect("google"),
         )
     path = Path(
-        os.environ.get(
+        settings.value(
             "PODCAST_GOOGLE_OAUTH_CLIENT_FILE",
             str(_config_dir() / "google-oauth-client.json"),
         )
@@ -91,8 +91,8 @@ def load_google_oauth() -> OAuthClientConfig | None:
 
 
 def load_github_oauth() -> OAuthClientConfig | None:
-    cid = os.environ.get("PODCAST_GITHUB_OAUTH_CLIENT_ID", "").strip()
-    secret = os.environ.get("PODCAST_GITHUB_OAUTH_CLIENT_SECRET", "").strip()
+    cid = settings.text("PODCAST_GITHUB_OAUTH_CLIENT_ID")
+    secret = settings.text("PODCAST_GITHUB_OAUTH_CLIENT_SECRET")
     if cid and secret:
         return OAuthClientConfig(
             provider="github",
@@ -101,7 +101,7 @@ def load_github_oauth() -> OAuthClientConfig | None:
             redirect_uri=_default_redirect("github"),
         )
     path = Path(
-        os.environ.get(
+        settings.value(
             "PODCAST_GITHUB_OAUTH_CLIENT_FILE",
             str(_config_dir() / "github-oauth.json"),
         )

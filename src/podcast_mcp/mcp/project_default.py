@@ -23,7 +23,6 @@ refusal (``project_path_required``) telling the agent what to do.
 from __future__ import annotations
 
 import inspect
-import os
 from collections.abc import Callable
 from functools import wraps
 from typing import Annotated, Any
@@ -31,6 +30,7 @@ from typing import Annotated, Any
 from mcp.shared._callable_inspection import is_async_callable
 from pydantic import BeforeValidator, TypeAdapter
 
+from podcast_mcp import settings
 from podcast_mcp.util.coded_error import CodedValueError
 
 ENV_VAR = "PODCAST_MCP_PROJECT"
@@ -40,7 +40,7 @@ def resolve_project_path(project_path: Any) -> Any:
     """Return the effective project path: explicit arg, else env default."""
     if project_path not in (None, ""):
         return project_path
-    default = os.environ.get(ENV_VAR)
+    default = settings.raw(ENV_VAR)
     if default:
         return default
     raise CodedValueError(

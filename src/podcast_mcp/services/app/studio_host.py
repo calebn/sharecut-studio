@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, TextIO
 from urllib.parse import quote
 
+from podcast_mcp import settings
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
@@ -172,7 +173,7 @@ def _headers(host: StudioHost) -> dict[str, str]:
 
 def locate_studio(project_path: Path | str) -> StudioHost | None:
     """The Studio that is serving ``project_path`` right now, or None to write directly."""
-    if os.environ.get(DIRECT_ENV_VAR, "").strip().lower() in {"1", "true", "yes", "on"}:
+    if settings.flag(DIRECT_ENV_VAR):
         return None
     host = read_studio_host(project_path)
     if host is None:
@@ -242,7 +243,7 @@ def hand_off(
             "argv": argv,
             "project": project,
             "cwd": cwd,
-            "env": handoff_env(os.environ),
+            "env": handoff_env(settings.environ()),
             "client": {"pid": os.getpid(), "version": __version__},
         }
     )

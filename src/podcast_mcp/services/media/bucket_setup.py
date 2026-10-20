@@ -19,6 +19,7 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Literal
 
+from podcast_mcp import settings
 from podcast_mcp.runtime_config import ObjectStoreConfig, default_relay_config_path
 from podcast_mcp.services.media.object_store_cors import (
     CorsProbe,
@@ -83,7 +84,7 @@ def load_admin_credentials(
         if not path.is_file():
             raise BucketSetupError(f"{path} does not exist")
         return _read_admin_file(path)
-    env = os.environ if environ is None else environ
+    env = settings.environ() if environ is None else environ
     key_id = env.get(ADMIN_ID_ENV, "").strip()
     secret = env.get(ADMIN_SECRET_ENV, "").strip()
     if key_id or secret:

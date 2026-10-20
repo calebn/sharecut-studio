@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from podcast_mcp import settings
 from podcast_mcp.config import cache_dir
 from podcast_mcp.engines import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
@@ -108,7 +109,7 @@ def run_doctor_checks(
             )
         )
 
-    env_model = os.environ.get("PODCAST_WHISPER_MODEL")
+    env_model = settings.raw("PODCAST_WHISPER_MODEL")
     if env_model and env_model.strip():
         try:
             validate_whisper_model(env_model)

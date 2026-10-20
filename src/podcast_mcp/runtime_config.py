@@ -19,6 +19,8 @@ from urllib.parse import urlparse
 
 import yaml
 
+from podcast_mcp import settings
+
 DEFAULT_RELAY_URL = "ws://127.0.0.1:8080/tunnel"
 DEFAULT_PUBLIC_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_LOCAL_GUI_URL = "http://127.0.0.1:8765"
@@ -87,7 +89,7 @@ _TOP_LEVEL_YAML_KEYS = _RELAY_YAML_KEYS | {"object_store"}
 
 
 def default_relay_config_path() -> Path:
-    override = os.environ.get("PODCAST_RELAY_CONFIG", "").strip()
+    override = settings.text("PODCAST_RELAY_CONFIG")
     if override:
         return Path(override).expanduser()
     return Path.home() / ".config" / "podcast_mcp" / "relay.yaml"
@@ -102,7 +104,7 @@ def relay_configured() -> bool:
     """Whether this machine has online sharing set up: a ``relay.yaml`` or relay env vars."""
     if default_relay_config_path().is_file():
         return True
-    return any(os.environ.get(_RELAY_ENV[key], "").strip() for key in ("relay_url", "host_token"))
+    return any(settings.text(_RELAY_ENV[key]) for key in ("relay_url", "host_token"))
 
 
 def persisted_relay_host_id(config_path: Path | None = None) -> str:
@@ -412,7 +414,7 @@ def load_relay_config(
     environ: Mapping[str, str] | None = None,
 ) -> RelayConfig:
     """Load relay settings without requiring optional object-store settings to validate."""
-    env = os.environ if environ is None else environ
+    env = settings.environ() if environ is None else environ
     path = config_path or default_relay_config_path()
     file_cfg = _read_mapping(path)
     _validate_top_level_keys(file_cfg)
@@ -437,7 +439,7 @@ def load_host_runtime_config(
     environ: Mapping[str, str] | None = None,
 ) -> HostRuntimeConfig:
     """Load host config with explicit relay overrides, then env, YAML, and defaults."""
-    env = os.environ if environ is None else environ
+    env = settings.environ() if environ is None else environ
     path = config_path or default_relay_config_path()
     file_cfg = _read_mapping(path)
     _validate_top_level_keys(file_cfg)
@@ -460,7 +462,7 @@ def load_object_store_config(
     environ: Mapping[str, str] | None = None,
 ) -> ObjectStoreConfig | None:
     """Load optional object-store settings without validating relay settings."""
-    env = os.environ if environ is None else environ
+    env = settings.environ() if environ is None else environ
     path = config_path or default_relay_config_path()
     file_cfg = _read_mapping(path)
     _validate_top_level_keys(file_cfg)

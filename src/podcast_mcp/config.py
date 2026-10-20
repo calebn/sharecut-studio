@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import copy
 import math
-import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from podcast_mcp import settings
 from podcast_mcp.util.bounded_cache import BoundedCache
 
 EffectiveConfig = dict[str, Any]
@@ -31,7 +31,7 @@ def repo_root() -> Path:
 
 
 def _cache_root() -> Path:
-    return Path(os.environ.get("PODCAST_MCP_CACHE", Path.home() / ".cache" / "podcast_mcp"))
+    return Path(settings.value("PODCAST_MCP_CACHE", str(Path.home() / ".cache" / "podcast_mcp")))
 
 
 def cache_dir() -> Path:
@@ -96,7 +96,7 @@ def load_defaults() -> dict[str, Any]:
 
     The YAML is parsed once per change to the file's contents; each caller gets its own copy.
     """
-    override = os.environ.get("PODCAST_MCP_PIPELINE_DEFAULTS")
+    override = settings.raw("PODCAST_MCP_PIPELINE_DEFAULTS")
     path = Path(override).expanduser() if override else _DEFAULTS_PATH
     if path.is_file():
         data = _parsed_defaults(path)

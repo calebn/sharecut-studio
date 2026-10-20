@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import os
-
+from podcast_mcp import settings
 from podcast_mcp.util.coded_error import CodedPermissionError
 
 _HINT = (
@@ -13,8 +12,7 @@ _HINT = (
 
 
 def guest_render_enabled() -> bool:
-    raw = os.environ.get("PODCAST_GUEST_RENDER", "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return settings.flag("PODCAST_GUEST_RENDER")
 
 
 def require_guest_render() -> None:

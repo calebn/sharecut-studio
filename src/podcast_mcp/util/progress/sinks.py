@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import functools
-import os
 import sys
 import threading
 from collections.abc import Callable, Mapping
 from contextvars import ContextVar
 from typing import Any
 
+from podcast_mcp import settings
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.progress.compliance import mark_wrapped
 from podcast_mcp.util.progress.protocol import ProgressReporter
@@ -184,7 +184,7 @@ def make_progress_reporter(
 
 
 def default_progress_enabled() -> bool:
-    return os.environ.get("PODCAST_PROGRESS", "1") not in ("0", "false", "no")
+    return settings.value("PODCAST_PROGRESS", "1") not in ("0", "false", "no")
 
 
 def install_mcp_progress(server: Any) -> None:
