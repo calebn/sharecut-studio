@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
+import { commandLabel } from "../commands/labels";
 import { titleWithShortcut } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import type { TransportAvailability } from "../state/transportAvailability";
@@ -64,7 +65,7 @@ export function TransportPlayControls({
             "transport.stop",
           )
         }
-        aria-label="Stop"
+        aria-label={commandLabel("transport.stop")}
         aria-disabled={stopReason !== undefined || undefined}
         aria-describedby={stopReason !== undefined ? stopReasonId : undefined}
         onClick={activateStop}

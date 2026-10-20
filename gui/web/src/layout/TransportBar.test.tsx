@@ -111,7 +111,9 @@ describe("TransportBar collapsed", () => {
       </DawProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "Comment" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Toggle comment mode" }),
+    ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Fit session width" }),
     ).toBeTruthy();
@@ -239,10 +241,9 @@ describe("TransportBar collapsed", () => {
       "aria-disabled",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Stop" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Stop playback" }),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       document.querySelector('[data-presence-anchor="transport:play"]'),
     ).toBeTruthy();
@@ -261,7 +262,9 @@ describe("TransportBar collapsed", () => {
       </DawProvider>,
     );
     expect(
-      screen.getByRole("button", { name: "Stop" }).getAttribute("title"),
+      screen
+        .getByRole("button", { name: "Stop playback" })
+        .getAttribute("title"),
     ).toMatch(/^Stop and return to where playback started/);
   });
 

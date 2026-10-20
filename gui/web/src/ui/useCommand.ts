@@ -24,6 +24,8 @@ export function trackIdsKey(tracks: readonly TrackView[] | undefined): string {
 export type UseCommandResult = {
   def: CommandDef | undefined;
   label: string;
+  /** The declared short form, or the full label when the command has none. */
+  shortLabel: string;
   /** True when keyboard `when` would allow the command. */
   enabled: boolean;
   /** What is missing when `when` fails, for a disabled control; undefined when enabled. */
@@ -62,6 +64,7 @@ export function useCommand(commandId: string): UseCommandResult {
   return {
     def,
     label: def?.label ?? commandId,
+    shortLabel: def?.shortLabel ?? def?.label ?? commandId,
     enabled,
     whenReason,
     run,

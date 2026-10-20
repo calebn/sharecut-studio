@@ -1723,7 +1723,7 @@
     },
     {
       "id": "daw.record.panel",
-      "label": "Record panel",
+      "label": "Record room…",
       "effect": "view",
       "service": "RecordSessionService",
       "industry_standard_key": false,
@@ -1745,7 +1745,7 @@
         "keyboard_reason": "chords in a later PR",
         "guest": true
       },
-      "tooltip": "Record panel",
+      "tooltip": "Record room…",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -1868,7 +1868,7 @@
     },
     {
       "id": "daw.project.new",
-      "label": "New project",
+      "label": "New project…",
       "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -1889,7 +1889,7 @@
       "omit": {
         "guest": true
       },
-      "tooltip": "New project",
+      "tooltip": "New project…",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -1897,7 +1897,7 @@
     },
     {
       "id": "daw.project.open",
-      "label": "Open project",
+      "label": "Open project…",
       "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -1914,7 +1914,7 @@
       "omit": {
         "guest": true
       },
-      "tooltip": "Open project",
+      "tooltip": "Open project…",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -1951,7 +1951,7 @@
     },
     {
       "id": "daw.media.import",
-      "label": "Import audio",
+      "label": "Import audio…",
       "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -1971,7 +1971,7 @@
         ]
       },
       "omit": {},
-      "tooltip": "Import audio",
+      "tooltip": "Import audio…",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -3033,7 +3033,7 @@
     },
     {
       "id": "daw.range.cut",
-      "label": "Cut range",
+      "label": "Cut selected range",
       "effect": "project",
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
@@ -3053,7 +3053,7 @@
       "omit": {
         "keyboard_reason": "Context action with explicit range selection"
       },
-      "tooltip": "Cut range",
+      "tooltip": "Cut selected range",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -3061,7 +3061,7 @@
     },
     {
       "id": "daw.range.mute",
-      "label": "Mute range",
+      "label": "Mute selected range",
       "effect": "project",
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
@@ -3080,7 +3080,7 @@
       "omit": {
         "keyboard_reason": "Context action with explicit range selection"
       },
-      "tooltip": "Mute range",
+      "tooltip": "Mute selected range",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -3146,7 +3146,7 @@
     },
     {
       "id": "daw.range.bounce",
-      "label": "Bounce range",
+      "label": "Bounce selected range",
       "effect": "project",
       "service": "BounceService",
       "industry_standard_key": false,
@@ -3166,7 +3166,7 @@
       "omit": {
         "keyboard_reason": "Context action with explicit range selection"
       },
-      "tooltip": "Bounce range",
+      "tooltip": "Bounce selected range",
       "presence": {
         "cursor": "none",
         "follow": "none"

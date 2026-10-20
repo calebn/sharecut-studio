@@ -113,9 +113,7 @@ describe("TransportBar renders", () => {
       act(() => {
         useDawStore.setState({ toolMode: "blade", playheadSec: 12 });
       });
-      await userEvent.click(
-        screen.getByRole("button", { name: "Cut at playhead" }),
-      );
+      await userEvent.click(screen.getByRole("button", { name: "Blade cut" }));
       expect(splitAtTime).toHaveBeenCalledWith("/tmp/p.json", 12, []);
     } finally {
       Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");

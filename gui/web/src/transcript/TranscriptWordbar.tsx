@@ -90,9 +90,8 @@ export function TranscriptWordbar({
       <CommandButton
         commandId="transcript.adjustTiming"
         args={{ trackId, sourceId: word.timing_target.source_id, wordIndex }}
-      >
-        Adjust timing
-      </CommandButton>
+        short
+      />
       {open && (
         <TimingEditor
           key={JSON.stringify([

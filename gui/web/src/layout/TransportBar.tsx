@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { capabilityLabel, capabilityTooltip } from "../capabilities/copy";
+import { commandLabel } from "../commands/labels";
 import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -342,26 +343,20 @@ export function TransportBar({
       <WaveformViewSections />
       <MenuSection label="Zoom">
         <div className="transport-controls" role="none">
-          <CommandMenuItem commandId="view.zoomOut" showShortcut={false}>
-            Zoom −
-          </CommandMenuItem>
-          <CommandMenuItem commandId="view.zoomIn" showShortcut={false}>
-            Zoom +
-          </CommandMenuItem>
+          <CommandMenuItem commandId="view.zoomOut" showShortcut={false} />
+          <CommandMenuItem commandId="view.zoomIn" showShortcut={false} />
         </div>
         <div className="transport-controls" role="none">
           <CommandMenuItem
             commandId="view.trackHeightDecrease"
             showShortcut={false}
-          >
-            Track height −
-          </CommandMenuItem>
+            short
+          />
           <CommandMenuItem
             commandId="view.trackHeightIncrease"
             showShortcut={false}
-          >
-            Track height +
-          </CommandMenuItem>
+            short
+          />
         </div>
         <div className="overlay-legend" role="none">
           <LegendCheckbox
@@ -465,7 +460,7 @@ export function TransportBar({
               runPointerCommand("tool.select");
             }}
           >
-            Select tool
+            {commandLabel("tool.select")}
           </MenuItem>
           <MenuItem
             disabledReason={
@@ -481,92 +476,64 @@ export function TransportBar({
               runPointerCommand("tool.blade");
             }}
           >
-            Blade tool
+            {commandLabel("tool.blade")}
           </MenuItem>
-          <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
-            Select a range
-          </CommandMenuItem>
+          <CommandMenuItem commandId="range.arm" onSelect={closeMenu} />
           {toolMode === "blade" && !commentMode ? (
-            <CommandMenuItem commandId="edit.bladeCut" onSelect={closeMenu}>
-              Cut at playhead
-            </CommandMenuItem>
+            <CommandMenuItem commandId="edit.bladeCut" onSelect={closeMenu} />
           ) : null}
         </MenuSection>
       ) : null}
       {mayManage ? (
         <MenuSection label="Project">
-          <CommandMenuItem commandId="project.new" onSelect={closeMenu}>
-            New project…
-          </CommandMenuItem>
-          <CommandMenuItem commandId="project.open" onSelect={closeMenu}>
-            Open project…
-          </CommandMenuItem>
+          <CommandMenuItem commandId="project.new" onSelect={closeMenu} />
+          <CommandMenuItem commandId="project.open" onSelect={closeMenu} />
           <MenuSeparator />
           <CommandMenuItem
             commandId="export.bounce"
             respectWhen
             onSelect={closeMenu}
-          >
-            Bounce…
-          </CommandMenuItem>
+          />
           <CommandMenuItem
             commandId="export.deliverables"
             respectWhen
             onSelect={closeMenu}
-          >
-            Export deliverables…
-          </CommandMenuItem>
+          />
           <MenuSeparator />
           <Slot id={FEATURE_SHARE_UI_MENU}>
             <CommandMenuItem
               commandId="share.manage"
               respectWhen
               onSelect={closeMenu}
-            >
-              Share…
-            </CommandMenuItem>
+            />
           </Slot>
           <CommandMenuItem
             commandId="record.openPanel"
             respectWhen
             onSelect={closeMenu}
-          >
-            Record room…
-          </CommandMenuItem>
-          <CommandMenuItem commandId="mcp.connect" onSelect={closeMenu}>
-            Connect agent…
-          </CommandMenuItem>
+          />
+          <CommandMenuItem commandId="mcp.connect" onSelect={closeMenu} />
         </MenuSection>
       ) : null}
       {mayIngest ? (
         <MenuSection label="Media">
-          <CommandMenuItem commandId="media.import" onSelect={closeMenu}>
-            Import audio…
-          </CommandMenuItem>
-          <CommandMenuItem commandId="track.add" onSelect={closeMenu}>
-            New track
-          </CommandMenuItem>
+          <CommandMenuItem commandId="media.import" onSelect={closeMenu} />
+          <CommandMenuItem commandId="track.add" onSelect={closeMenu} />
           <CommandMenuItem
             commandId="track.remove"
             respectWhen
             onSelect={closeMenu}
-          >
-            Remove track
-          </CommandMenuItem>
+          />
           <CommandMenuItem
             commandId="track.moveUp"
             respectWhen
             onSelect={closeMenu}
-          >
-            Move track up
-          </CommandMenuItem>
+          />
           <CommandMenuItem
             commandId="track.moveDown"
             respectWhen
             onSelect={closeMenu}
-          >
-            Move track down
-          </CommandMenuItem>
+          />
         </MenuSection>
       ) : null}
       {mayManage ? (
@@ -575,16 +542,12 @@ export function TransportBar({
             commandId="edit.addChapter"
             respectWhen
             onSelect={closeMenu}
-          >
-            Add chapter at playhead
-          </CommandMenuItem>
+          />
         </MenuSection>
       ) : null}
       {timelineToolsInMenu ? null : (
         <MenuSection label="Selection">
-          <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
-            Select a range
-          </CommandMenuItem>
+          <CommandMenuItem commandId="range.arm" onSelect={closeMenu} />
         </MenuSection>
       )}
       {collapsed ? (
@@ -635,17 +598,13 @@ export function TransportBar({
           <CommandMenuItem
             commandId="help.diagnosticsBundle"
             onSelect={closeMenu}
-          >
-            Export diagnostics…
-          </CommandMenuItem>
+          />
         ) : null}
         <CommandMenuItem
           commandId="ui.toggleCommandPalette"
           title="Commands and shortcuts (?)"
           onSelect={closeMenu}
-        >
-          Commands and shortcuts
-        </CommandMenuItem>
+        />
       </MenuSection>
     </Menu>
   );
@@ -745,8 +704,11 @@ export function TransportBar({
                   bare
                   commandId="edit.bladeCut"
                   className="ui-control--compact transport-icon-btn"
-                  title={titleWithShortcut("Cut at playhead", "edit.bladeCut")}
-                  aria-label="Cut at playhead"
+                  title={titleWithShortcut(
+                    commandLabel("edit.bladeCut"),
+                    "edit.bladeCut",
+                  )}
+                  aria-label={commandLabel("edit.bladeCut")}
                   aria-keyshortcuts={ariaKeyShortcutsFor("edit.bladeCut")}
                 >
                   <Icon name="cutAtPlayhead" />
@@ -759,7 +721,7 @@ export function TransportBar({
               commandId="review.toggleCommentMode"
               className={`ui-control--compact transport-icon-btn comment-mode-btn${commentMode ? " active" : ""}`}
               title={commentModeTitle}
-              aria-label="Comment"
+              aria-label={commandLabel("review.toggleCommentMode")}
               aria-keyshortcuts={ariaKeyShortcutsFor(
                 "review.toggleCommentMode",
               )}

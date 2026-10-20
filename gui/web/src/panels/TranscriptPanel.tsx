@@ -1034,9 +1034,8 @@ export function TranscriptPanel() {
                 aria-label={capabilityTooltip(
                   "daw.transcript.prevLowConfidence",
                 )}
-              >
-                Previous
-              </CommandButton>
+                short
+              />
               <span className="transcript-review-count">
                 {reviewPosition >= 0
                   ? `${reviewPosition + 1}/${reviewStops.length}`
@@ -1050,9 +1049,8 @@ export function TranscriptPanel() {
                 aria-label={capabilityTooltip(
                   "daw.transcript.nextLowConfidence",
                 )}
-              >
-                Next
-              </CommandButton>
+                short
+              />
             </div>
           )}
           {rangeMode !== "none" && (
@@ -1123,9 +1121,8 @@ export function TranscriptPanel() {
             <CommandButton
               commandId="transcript.findReplace"
               aria-pressed={findReplaceOpen}
-            >
-              Find and replace
-            </CommandButton>
+              short
+            />
           )}
           <ToggleButton
             pressed={transcriptFollowPlayhead}

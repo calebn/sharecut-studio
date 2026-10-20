@@ -182,7 +182,7 @@ describe("TransportBar desktop edit controls", () => {
           for (const [direct, menuLabel, command] of [
             ["Select", "Select tool", "tool.select"],
             ["Blade", "Blade tool", "tool.blade"],
-            ["Cut at playhead", "Cut at playhead", "edit.bladeCut"],
+            ["Blade cut", "Blade cut", "edit.bladeCut"],
           ]) {
             let control = screen.queryByRole("button", {
               name: direct,
@@ -301,17 +301,14 @@ describe("TransportBar desktop edit controls", () => {
     useDawStore.setState({ toolMode: "select", commentMode: false });
     render(<TransportBar />);
     await user.click(screen.getByRole("button", { name: "Menu" }));
-    expect(
-      screen.queryByRole("menuitem", { name: "Cut at playhead" }),
-    ).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Blade cut" })).toBeNull();
     act(() => useDawStore.setState({ toolMode: "blade", commentMode: false }));
-    expect(
-      screen.getByRole("menuitem", { name: "Cut at playhead" }),
-    ).not.toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("menuitem", { name: "Blade cut" })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     act(() => useDawStore.setState({ commentMode: true }));
-    expect(
-      screen.queryByRole("menuitem", { name: "Cut at playhead" }),
-    ).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Blade cut" })).toBeNull();
   });
 
   it.each(["Undo", "Redo", "Zoom out", "Zoom in"])(

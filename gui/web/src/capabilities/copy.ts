@@ -274,8 +274,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Discard recording take",
   },
   "daw.record.panel": {
-    label: "Record panel",
-    tooltip: "Record panel",
+    label: "Record room…",
+    tooltip: "Record room…",
   },
   "daw.record.marker": {
     label: "Record marker",
@@ -294,20 +294,20 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Export deliverables…",
   },
   "daw.project.new": {
-    label: "New project",
-    tooltip: "New project",
+    label: "New project…",
+    tooltip: "New project…",
   },
   "daw.project.open": {
-    label: "Open project",
-    tooltip: "Open project",
+    label: "Open project…",
+    tooltip: "Open project…",
   },
   "daw.track.add": {
     label: "New track",
     tooltip: "New track",
   },
   "daw.media.import": {
-    label: "Import audio",
-    tooltip: "Import audio",
+    label: "Import audio…",
+    tooltip: "Import audio…",
   },
   "agent.episode": {
     label: "Episode / track CRUD",
@@ -462,12 +462,12 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Play range",
   },
   "daw.range.cut": {
-    label: "Cut range",
-    tooltip: "Cut range",
+    label: "Cut selected range",
+    tooltip: "Cut selected range",
   },
   "daw.range.mute": {
-    label: "Mute range",
-    tooltip: "Mute range",
+    label: "Mute selected range",
+    tooltip: "Mute selected range",
   },
   "daw.range.moveSpeakerLaneSpan": {
     label: "Move to speaker",
@@ -478,8 +478,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Comment on range",
   },
   "daw.range.bounce": {
-    label: "Bounce range",
-    tooltip: "Bounce range",
+    label: "Bounce selected range",
+    tooltip: "Bounce selected range",
   },
   "daw.range.arm": {
     label: "Select a range",

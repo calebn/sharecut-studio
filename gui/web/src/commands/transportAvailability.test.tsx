@@ -137,7 +137,7 @@ it("keeps focused Play inert while loading and empty, then activates without edi
   await user.keyboard(" ");
   expect(useDawStore.getState().isPlaying).toBe(true);
   act(() => useDawStore.getState().setPlayheadSec(20));
-  await user.click(screen.getByRole("button", { name: "Stop" }));
+  await user.click(screen.getByRole("button", { name: "Stop playback" }));
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(8);
 });
@@ -165,9 +165,9 @@ it("keeps Pause and Stop reachable when the last track disappears during playbac
   act(() => useDawStore.getState().setProject(minimalProject()));
   const pause = screen.getByRole("button", { name: "Pause" });
   expect(pause).not.toHaveAttribute("aria-disabled");
-  expect(screen.getByRole("button", { name: "Stop" })).not.toHaveAttribute(
-    "aria-disabled",
-  );
+  expect(
+    screen.getByRole("button", { name: "Stop playback" }),
+  ).not.toHaveAttribute("aria-disabled");
   await user.click(pause);
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(25);
@@ -180,7 +180,7 @@ it("keeps Pause and Stop reachable when the last track disappears during playbac
       reason: "Import audio to play.",
     },
   );
-  const stop = screen.getByRole("button", { name: "Stop" });
+  const stop = screen.getByRole("button", { name: "Stop playback" });
   expect(stop).not.toHaveAttribute("aria-disabled");
   await user.click(stop);
   expect(useDawStore.getState().isPlaying).toBe(false);

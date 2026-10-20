@@ -1,3 +1,4 @@
+import { commandLabel } from "../commands/labels";
 import type { ToolMode } from "../state/types";
 import { Icon, SegmentedControl, ToggleButton } from "../ui";
 
@@ -52,7 +53,7 @@ export function ToolModeToggleView({
           pressed={selectActive}
           disabledReason={selectReason}
           title={selectTitle}
-          aria-label="Select"
+          aria-label={commandLabel("tool.select")}
           aria-keyshortcuts={selectAriaKeyShortcuts}
           onClick={onSelect}
         >
@@ -63,7 +64,7 @@ export function ToolModeToggleView({
           pressed={bladeActive}
           disabledReason={bladeReason}
           title={`${bladeTitle}: split at click or playhead`}
-          aria-label="Blade"
+          aria-label={commandLabel("tool.blade")}
           aria-keyshortcuts={bladeAriaKeyShortcuts}
           onClick={onBlade}
         >
@@ -77,7 +78,7 @@ export function ToolModeToggleView({
           className="comment-mode-btn"
           disabledReason={commentReason}
           title={commentTitle}
-          aria-label="Comment"
+          aria-label={commandLabel("review.toggleCommentMode")}
           aria-keyshortcuts={commentAriaKeyShortcuts}
           onClick={onToggleComment}
         >

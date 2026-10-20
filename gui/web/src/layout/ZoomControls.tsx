@@ -1,10 +1,19 @@
 import { useId } from "react";
+import { commandLabel } from "../commands/labels";
 import { Button, Icon } from "../ui";
 import type { ZoomAvailability } from "./useZoomControls";
 
 const ZOOM_COPY = {
-  in: { label: "Zoom in", reason: "Fully zoomed in", icon: "zoomIn" },
-  out: { label: "Zoom out", reason: "Fully zoomed out", icon: "zoomOut" },
+  in: {
+    label: commandLabel("view.zoomIn"),
+    reason: "Fully zoomed in",
+    icon: "zoomIn",
+  },
+  out: {
+    label: commandLabel("view.zoomOut"),
+    reason: "Fully zoomed out",
+    icon: "zoomOut",
+  },
 } as const;
 
 export function ZoomControls({

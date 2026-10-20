@@ -31,6 +31,8 @@ type BaseProps = {
 export type CommandButtonProps = BaseProps & {
   /** Plain button for domain chrome (play-btn, transport-icon-btn). */
   bare?: boolean;
+  /** Show the command's declared `shortLabel` when there are no children. */
+  short?: boolean;
   variant?: ButtonVariant;
 };
 
@@ -46,11 +48,12 @@ export function CommandButton({
   disabledReason,
   onClick,
   bare = false,
+  short = false,
   variant = "default",
   className,
   ...rest
 }: CommandButtonProps) {
-  const { run, enabled, label } = useCommand(commandId);
+  const { run, enabled, label, shortLabel } = useCommand(commandId);
   const reason = unavailableReason(
     disabledReason ?? (respectWhen && !enabled ? whenReason : undefined),
   );
@@ -69,7 +72,7 @@ export function CommandButton({
     void run(args, { skipWhen: !respectWhen });
   };
 
-  const content = children ?? label;
+  const content = children ?? (short ? shortLabel : label);
 
   if (bare) {
     const bareClass = className ? `ui-control ${className}` : "ui-control";

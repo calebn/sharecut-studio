@@ -56,9 +56,8 @@ export function WaveformViewSections() {
             commandId="view.waveformZoomOut"
             showShortcut={false}
             title={`Waveform amplitude ${readout}`}
-          >
-            Amplitude −
-          </CommandMenuItem>
+            short
+          />
           <span className="waveform-amp-readout" aria-hidden="true">
             {readout}
           </span>
@@ -66,9 +65,8 @@ export function WaveformViewSections() {
             commandId="view.waveformZoomIn"
             showShortcut={false}
             title={`Waveform amplitude ${readout}`}
-          >
-            Amplitude +
-          </CommandMenuItem>
+            short
+          />
         </div>
         <div className="overlay-legend" role="none">
           <LegendCheckbox
