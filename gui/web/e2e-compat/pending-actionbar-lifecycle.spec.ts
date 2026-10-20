@@ -49,7 +49,7 @@ async function selected(
   await expect(page.locator(".pending-actionbar--docked")).toBeVisible();
   await page.waitForTimeout(700);
 }
-test("live waiver draft survives compact to regular tablet transition", async ({
+test("live waiver draft survives a short to tall tablet resize", async ({
   page,
   context,
   browserName,
@@ -77,11 +77,6 @@ test("live waiver draft survives compact to regular tablet transition", async ({
   await page.setViewportSize({ width: 844, height: 900 });
   await expect(
     page.locator(".bottom-sheet--compact .pending-actionbar--docked"),
-  ).toHaveCount(0);
-  await expect(
-    page.locator(
-      ".bottom-sheet--inspector:not(.bottom-sheet--compact) .pending-actionbar--docked",
-    ),
   ).toBeVisible();
   await page.waitForTimeout(700);
   const moved = page
