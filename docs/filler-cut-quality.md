@@ -218,7 +218,10 @@ with an f0 spread cap relative to the median f0, so a quiet backchannel still
 warns while scattered hum peaks do not (#1357). Both tests are relative to the
 peer's own sound, so recording gain, the owner's pitch and a same-gender pair
 change nothing. A run that carries pitch, rises above that
-quiet, is under three probes (60 ms) or cannot be read blocks as before.
+quiet, is under three probes (60 ms) or cannot be read blocks as before. The
+exception is a run shorter than one 40 ms window: a stray frame or three between
+the owner's words holds no pitch to read, so it is room where its mean power
+stays within the same 6 dB (#1361).
 Supported boundary: in this case only, a quiet unvoiced peer sound (for example a
 short "shh" or "psst" 28 to 37 dB under the owner's speech, filling an owner gap) can
 read as room. Voiced speech, whispers with any voicing, laughter and inhales still
