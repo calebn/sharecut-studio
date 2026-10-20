@@ -18,7 +18,7 @@ import json
 import logging
 import math
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -248,6 +248,115 @@ def speech_level_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
 def track_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
     """The whole-track profile of ``samples``; :data:`SILENT` when none of it is live."""
     return level_profile(samples, sample_rate, whole_track=True) or SILENT
+
+
+# How far a track's profile levels may be off, in dB, before a batch of cuts measures the
+# timeline again instead of carrying the profile across a cut (docs/pipeline.md § Approve all).
+PROFILE_TOLERANCE_DB = 0.1
+# A guessed frame sits this far either side of what it is assumed to be: a join of two
+# fades adds at most 6 dB to the louder side, and a pad of room tone is within a few dB of
+# the track's own room tone.
+GUESS_MARGIN_DB = 6.0
+# The frames either side of an edit that a fade or the rounding of its edge can reach.
+_EDGE_FRAMES = 2
+
+
+def live_room_db(levels: np.ndarray) -> float:
+    """The room tone a track's live frames sit on: their 10th percentile (silence if none)."""
+    live = levels > DIGITAL_SILENCE_DB
+    return room_floor_db(levels, among=live) if live.any() else DIGITAL_SILENCE_DB
+
+
+@dataclass
+class _Guess:
+    first: int
+    count: int
+    low_db: float
+    high_db: float
+
+
+class GuessedFrames:
+    """The 10 ms frames of a cut timeline whose level is assumed, and the range each sits in.
+
+    A batch carries a track's profile across a cut by cutting the audio out of its cached
+    samples. A render of the cut timeline differs from that in the frames at the join (a
+    fade can add or cancel) and in a pad's content. Those frames are guessed, each between
+    a low and a high level, and ``spread_db`` is how far apart the profile is with every
+    guessed frame at its low and at its high: a percentile never falls when a frame rises, so
+    a fresh build's profile lies between the two.
+    """
+
+    def __init__(self) -> None:
+        self._runs: list[_Guess] = []
+
+    def __bool__(self) -> bool:
+        return bool(self._runs)
+
+    def removed(self, first: int, last: int) -> None:
+        """Frames ``[first, last)`` were taken out: later runs move up, runs inside go."""
+        width = last - first
+        kept: list[_Guess] = []
+        for run in self._runs:
+            end = run.first + run.count
+            if end <= first:
+                kept.append(run)
+            elif run.first >= last:
+                kept.append(replace(run, first=run.first - width))
+            else:
+                if run.first < first:
+                    kept.append(replace(run, count=first - run.first))
+                if end > last:
+                    kept.append(replace(run, first=first, count=end - last))
+        self._runs = kept
+
+    def inserted(self, at: int, count: int) -> None:
+        """``count`` frames were opened at ``at``: later runs move down."""
+        self._runs = [
+            replace(run, first=run.first + count) if run.first >= at else run for run in self._runs
+        ]
+
+    def join(self, levels: np.ndarray, at: int, fade_frames: int) -> None:
+        """The frames around a join at frame ``at``, and the ``fade_frames`` of its fade."""
+        first = max(0, at - _EDGE_FRAMES)
+        count = 2 * _EDGE_FRAMES + fade_frames
+        near = levels[first : first + count]
+        loudest = float(near.max()) if near.size else DIGITAL_SILENCE_DB
+        # A join of silence is silence.
+        high = loudest + GUESS_MARGIN_DB if loudest > DIGITAL_SILENCE_DB else DIGITAL_SILENCE_DB
+        self._runs.append(_Guess(first, count, DIGITAL_SILENCE_DB, high))
+
+    def pad(self, levels: np.ndarray, at: int, count: int, *, silent: bool) -> None:
+        """``count`` frames of pad at ``at``: digital silence, else room tone of the track."""
+        if silent:
+            self._runs.append(_Guess(at, count, DIGITAL_SILENCE_DB, DIGITAL_SILENCE_DB))
+            return
+        room = live_room_db(levels)
+        self._runs.append(
+            _Guess(
+                at, count, max(room - GUESS_MARGIN_DB, DIGITAL_SILENCE_DB), room + GUESS_MARGIN_DB
+            )
+        )
+
+    def spread_db(self, levels: np.ndarray) -> float:
+        """The most any of the profile's levels of ``levels`` could be off, in dB."""
+        if not self._runs:
+            return 0.0
+        low, high = levels.copy(), levels.copy()
+        for run in self._runs:
+            last = min(run.first + run.count, levels.size)
+            low[run.first : last] = run.low_db
+            high[run.first : last] = run.high_db
+        under = profile_from_levels(low, whole_track=True) or SILENT
+        over = profile_from_levels(high, whole_track=True) or SILENT
+        if under.live != over.live:
+            return math.inf
+        if not over.live:
+            return 0.0
+        return max(
+            over.room_db - under.room_db,
+            over.speech_db - under.speech_db,
+            over.loud_db - under.loud_db,
+        )
 
 
 _FILE_PROFILES: dict[tuple[str, FileRevision, int], LevelProfile] = {}

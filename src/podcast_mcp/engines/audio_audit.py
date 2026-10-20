@@ -56,9 +56,11 @@ from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_DB,
     SPEECH_BAND,
     band_filter,
+    db_to_amplitude,
     frame_rms_db,
     rms_db,
 )
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
@@ -66,10 +68,12 @@ from podcast_mcp.util.progress import (
     raise_if_cancel_requested,
     resolve_progress_task,
 )
+from podcast_mcp.util.project_state import current_cancel_check
 from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 _LOG = logging.getLogger(__name__)
+_EVIDENCE_CANCELLED = "Timeline measurement cancelled"
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
@@ -286,6 +290,23 @@ def detect_mains_hum(
 
 
 @dataclass
+class TimelineReads:
+    """The latest timeline second a group of caches has been read up to.
+
+    A cache built for one timeline can serve a later one while every read stays before the
+    first second at which the two differ (``edits.cut_proof.BatchTimelineEvidence``).
+    """
+
+    end_sec: float = -math.inf
+
+    def note(self, end_sec: float) -> None:
+        self.end_sec = max(self.end_sec, end_sec)
+
+    def reset(self) -> None:
+        self.end_sec = -math.inf
+
+
+@dataclass
 class TrackRmsCache:
     """Decoded mono audio for fast repeated window reads (timeline seconds).
 
@@ -302,6 +323,7 @@ class TrackRmsCache:
     sample_rate: int = _RMS_SAMPLE_RATE
     timeline_offset_sec: float = 0.0
     recording_profile: LevelProfile | None = field(default=None, repr=False)
+    reads: TimelineReads | None = field(default=None, repr=False, compare=False)
 
     @cached_property
     def profile(self) -> LevelProfile:
@@ -309,6 +331,38 @@ class TrackRmsCache:
         if self.recording_profile is not None:
             return self.recording_profile
         return track_profile(self.samples, int(self.sample_rate))
+
+    def _edited(self, samples: np.ndarray) -> None:
+        """Hold ``samples`` for a timeline that was cut; its profile is measured again."""
+        self.samples = samples
+        self.recording_profile = None
+        self.__dict__.pop("profile", None)
+
+    def _index(self, sec: float) -> int:
+        return max(0, round((sec - self.timeline_offset_sec) * self.sample_rate))
+
+    def remove(self, start_sec: float, end_sec: float) -> None:
+        """Close up ``[start_sec, end_sec)``, as a ripple does to the timeline."""
+        self._edited(
+            np.concatenate(
+                (self.samples[: self._index(start_sec)], self.samples[self._index(end_sec) :])
+            )
+        )
+
+    def silence(self, start_sec: float, end_sec: float) -> None:
+        """Leave ``[start_sec, end_sec)`` as a hole of digital silence."""
+        samples = self.samples.copy()
+        samples[self._index(start_sec) : self._index(end_sec)] = 0
+        self._edited(samples)
+
+    def insert_tone(self, at_sec: float, length_sec: float, level_db: float) -> None:
+        """Open ``length_sec`` at ``at_sec`` and fill it with noise at ``level_db``."""
+        count = round(length_sec * self.sample_rate)
+        tone = np.random.default_rng(0).normal(0.0, db_to_amplitude(level_db), count)
+        at = self._index(at_sec)
+        self._edited(
+            np.concatenate((self.samples[:at], tone.astype(self.samples.dtype), self.samples[at:]))
+        )
 
     @cached_property
     def speech_profile(self) -> LevelProfile:
@@ -323,7 +377,12 @@ class TrackRmsCache:
         profile = file_level_profile(path, samples, sample_rate=sample_rate)
         return cls(samples=samples, sample_rate=sample_rate, recording_profile=profile)
 
+    def note_read(self, t_end: float) -> None:
+        if self.reads is not None:
+            self.reads.note(t_end)
+
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
+        self.note_read(t_end)
         lo = max(0.0, t_start - self.timeline_offset_sec)
         hi = max(0.0, t_end - self.timeline_offset_sec)
         i0 = round(lo * self.sample_rate)
@@ -604,18 +663,32 @@ def build_track_rms_caches(
     sources: dict[Path, np.ndarray] = {}
     raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
     timeline = SessionTimeline(project)
-    for tid in dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids):
+    wanted = list(dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids))
+    unprocessed_renders = (
+        _render_unprocessed(
+            project,
+            [
+                tid
+                for tid in wanted
+                if project.track_by_id(tid) is not None and _has_active_chain(project, tid)
+            ],
+            private_copy=private_copy,
+            defaults=defaults,
+        )
+        if unprocessed
+        else {}
+    )
+    for tid in wanted:
         track = project.track_by_id(tid)
-        if unprocessed and track is not None and _has_active_chain(project, tid):
-            snapshot = project.model_copy(deep=True) if private_copy else _snapshot(project)
-            try:
-                caches[tid] = _ungated_cache(snapshot, tid, with_chain=False, defaults=defaults)
+        if tid in unprocessed_renders:
+            rendered = unprocessed_renders[tid]
+            if isinstance(rendered, TrackRmsCache):
+                caches[tid] = rendered
                 continue
-            except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
-                # No unprocessed render: the track's evidence stays as before, processed.
-                _LOG.warning(
-                    "reconcile evidence for track %s keeps its effects chain: %s", tid, exc
-                )
+            # No unprocessed render: the track's evidence stays as before, processed.
+            _LOG.warning(
+                "reconcile evidence for track %s keeps its effects chain: %s", tid, rendered
+            )
         if before_transcript_gate and track is not None:
             proc = _fresh_stem_path(project, tid, defaults=defaults)
             if not track.transcript_gate and proc is not None:
@@ -658,6 +731,39 @@ def build_track_rms_caches(
         if samples.size:
             caches[tid] = TrackRmsCache(samples=samples)
     return TrackRmsCacheSet(caches=caches)
+
+
+def _render_unprocessed(
+    project: EpisodeProject,
+    track_ids: list[str],
+    *,
+    private_copy: bool,
+    defaults: EffectiveConfig,
+) -> dict[str, TrackRmsCache | Exception]:
+    """Each chained track rendered without its chain, the tracks at the same time.
+
+    ``performance.max_workers`` bounds how many render at once (1 renders them one after
+    the other), and a cancel bound to this context stops the renders not yet started. A
+    track that cannot be rendered comes back as its error, so the caller falls back to
+    the evidence it read before.
+    """
+    snapshots = {
+        tid: project.model_copy(deep=True) if private_copy else _snapshot(project)
+        for tid in track_ids
+    }
+    cancel_check = current_cancel_check()
+
+    def render(tid: str) -> TrackRmsCache | Exception:
+        raise_if_cancel_requested(cancel_check, _EVIDENCE_CANCELLED)
+        try:
+            return _ungated_cache(snapshots[tid], tid, with_chain=False, defaults=defaults)
+        except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
+            return exc
+
+    max_workers = defaults.get("performance", {}).get("max_workers")
+    return dict(
+        zip(track_ids, run_parallel(track_ids, render, max_workers=max_workers), strict=True)
+    )
 
 
 def _snapshot(project: EpisodeProject) -> EpisodeProject:

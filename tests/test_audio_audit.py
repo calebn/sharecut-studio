@@ -2361,3 +2361,127 @@ def test_cache_window_length_rounds_apart_from_its_start():
     window = cache.window(t_start, t_end)
     assert window.size == round((t_end - t_start) * rate)
     assert window[0] == round(t_start * rate)
+
+
+def _chained_renders(monkeypatch: pytest.MonkeyPatch, *, max_workers: int | None):
+    """``_render_unprocessed`` over a stub render that records the thread of every call."""
+    import threading
+
+    from podcast_mcp.engines import audio_audit
+
+    calls: list[tuple[str, int]] = []
+    monkeypatch.setattr(audio_audit, "_snapshot", lambda project: project)
+
+    def render(snapshot, track_id, *, with_chain, defaults):
+        assert with_chain is False
+        calls.append((track_id, threading.get_ident()))
+        return TrackRmsCache(samples=np.zeros(16_000, dtype=np.float32))
+
+    monkeypatch.setattr(audio_audit, "_ungated_cache", render)
+    return audio_audit, calls, {"performance": {"max_workers": max_workers}}
+
+
+def test_unprocessed_renders_of_chained_tracks_each_return_their_cache_or_their_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """One chained track failing to render does not hide the others' caches (#1596)."""
+    audio_audit, _calls, cfg = _chained_renders(monkeypatch, max_workers=1)
+    good = TrackRmsCache(samples=np.zeros(16_000, dtype=np.float32))
+
+    def fake_ungated(snapshot, track_id, *, with_chain, defaults):
+        if track_id == "guest":
+            raise OSError("no render")
+        return good
+
+    monkeypatch.setattr(audio_audit, "_ungated_cache", fake_ungated)
+
+    out = audio_audit._render_unprocessed(
+        MagicMock(), ["host", "guest"], private_copy=False, defaults=cfg
+    )
+
+    assert list(out) == ["host", "guest"]
+    assert out["host"] is good
+    assert isinstance(out["guest"], OSError)
+
+
+def test_unprocessed_renders_run_one_after_another_when_max_workers_is_1(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """docs/pipeline.md: ``performance.max_workers: 1`` forces serial."""
+    import threading
+
+    audio_audit, calls, cfg = _chained_renders(monkeypatch, max_workers=1)
+
+    audio_audit._render_unprocessed(MagicMock(), ["a", "b", "c"], private_copy=False, defaults=cfg)
+
+    assert [track for track, _ in calls] == ["a", "b", "c"]
+    assert {thread for _, thread in calls} == {threading.get_ident()}
+
+
+def test_unprocessed_renders_of_several_chained_tracks_run_at_the_same_time(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import threading
+
+    audio_audit, _calls, cfg = _chained_renders(monkeypatch, max_workers=None)
+    both_started = threading.Barrier(2, timeout=10)
+
+    def render(snapshot, track_id, *, with_chain, defaults):
+        both_started.wait()
+        return TrackRmsCache(samples=np.zeros(16_000, dtype=np.float32))
+
+    monkeypatch.setattr(audio_audit, "_ungated_cache", render)
+
+    out = audio_audit._render_unprocessed(MagicMock(), ["a", "b"], private_copy=False, defaults=cfg)
+
+    assert all(isinstance(cache, TrackRmsCache) for cache in out.values())
+
+
+def test_a_cancel_stops_the_unprocessed_renders_not_yet_started(monkeypatch: pytest.MonkeyPatch):
+    from podcast_mcp.util.progress import CancelledProgress
+    from podcast_mcp.util.project_state import render_cancel_scope
+
+    audio_audit, calls, cfg = _chained_renders(monkeypatch, max_workers=1)
+
+    with render_cancel_scope(lambda: True), pytest.raises(CancelledProgress):
+        audio_audit._render_unprocessed(MagicMock(), ["a", "b"], private_copy=False, defaults=cfg)
+
+    assert calls == []
+
+
+def test_unprocessed_renders_read_a_private_copy_or_a_snapshot_as_asked(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    audio_audit, _calls, cfg = _chained_renders(monkeypatch, max_workers=1)
+    taken: list[object] = []
+    monkeypatch.setattr(audio_audit, "_snapshot", lambda project: taken.append(project) or project)
+    project = MagicMock()
+    project.model_copy.return_value = "copy"
+
+    audio_audit._render_unprocessed(project, ["a"], private_copy=True, defaults=cfg)
+    assert taken == []
+    project.model_copy.assert_called_once_with(deep=True)
+
+    audio_audit._render_unprocessed(project, ["a"], private_copy=False, defaults=cfg)
+    assert taken == [project]
+
+
+def test_only_a_track_with_an_effects_chain_is_rendered_without_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from batch_evidence_helpers import Scenario, build_project
+    from podcast_mcp.engines import audio_audit
+
+    project = build_project(tmp_path, Scenario(seconds=12, chain_on="guest", long_pause=None))
+    asked: list[list[str]] = []
+
+    def record(_project, track_ids, *, private_copy, defaults):
+        asked.append(list(track_ids))
+        return {}
+
+    monkeypatch.setattr(audio_audit, "_render_unprocessed", record)
+
+    caches = build_track_rms_caches(project, unprocessed=True, defaults={})
+
+    assert asked == [["guest"]]
+    assert set(caches.caches) == {"host", "guest"}

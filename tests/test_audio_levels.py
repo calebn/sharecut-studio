@@ -278,3 +278,136 @@ def test_a_floor_is_read_at_the_rate_of_the_frames_it_is_compared_with(tmp_path)
     assert at_8k.room_db < at_16k.room_db - 2.0
     assert cache_8k.profile == at_8k
     assert file_level_profile(path, levels=np.zeros(1), sample_rate=8000) is at_8k
+
+
+def _speechlike(seconds: int, seed: int, rate: int = 8000) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    gains = 10 ** (rng.uniform(-60, -15, seconds * 10) / 20)
+    return (rng.normal(0, 1, seconds * rate) * np.repeat(gains, rate // 10)).astype(np.float32)
+
+
+def test_no_guessed_frames_leave_the_profile_exact() -> None:
+    from podcast_mcp.engines.level_profile import GuessedFrames, frame_levels_db
+
+    assert GuessedFrames().spread_db(frame_levels_db(_speechlike(60, 1), 8000)) == 0.0
+
+
+@pytest.mark.parametrize("count", [1, 20, 200])
+def test_any_levels_inside_the_guessed_range_move_the_profile_less_than_its_spread(
+    count: int,
+) -> None:
+    from podcast_mcp.engines.level_profile import (
+        GuessedFrames,
+        frame_levels_db,
+        profile_from_levels,
+    )
+
+    levels = frame_levels_db(_speechlike(300, 3), 8000)
+    guesses = GuessedFrames()
+    for at in (1000, 9000, 20000):
+        guesses.join(levels, at, 3)
+        guesses.pad(levels, at + 50, count, silent=False)
+    spread = guesses.spread_db(levels)
+    before = profile_from_levels(levels, whole_track=True)
+    assert before is not None
+    rng = np.random.default_rng(9)
+    for _ in range(6):
+        moved = levels.copy()
+        for run in guesses._runs:
+            end = run.first + run.count
+            moved[run.first : end] = rng.uniform(run.low_db, run.high_db, run.count)
+        after = profile_from_levels(moved, whole_track=True)
+        assert after is not None
+        for name in ("room_db", "speech_db", "loud_db"):
+            assert abs(getattr(after, name) - getattr(before, name)) <= spread + 1e-9, name
+
+
+def test_guessed_runs_follow_the_frames_cut_out_and_opened_before_them() -> None:
+    from podcast_mcp.engines.level_profile import GuessedFrames
+
+    levels = _speechlike(60, 2)[:48_000].reshape(-1, 80).mean(axis=1) * 0 - 60.0
+    guesses = GuessedFrames()
+    guesses.pad(levels, 500, 10, silent=True)
+    guesses.removed(100, 200)
+    assert [(g.first, g.count) for g in guesses._runs] == [(400, 10)]
+    guesses.inserted(300, 25)
+    assert [(g.first, g.count) for g in guesses._runs] == [(425, 10)]
+    guesses.removed(420, 430)  # cuts into the run: the part outside stays
+    assert [(g.first, g.count) for g in guesses._runs] == [(420, 5)]
+    guesses.removed(0, 1000)
+    assert not guesses
+
+
+def test_a_sparse_speaker_is_not_trusted_across_a_cut_where_a_dense_one_is() -> None:
+    from podcast_mcp.engines.level_profile import (
+        PROFILE_TOLERANCE_DB,
+        GuessedFrames,
+        frame_levels_db,
+    )
+
+    rate = 8000
+    dense = frame_levels_db(_speechlike(1800, 4, rate), rate)
+    # A tenth of the frames at -20 dB over room tone at -60 dB: the 90th percentile sits on
+    # the edge between them, so a few frames more or less move it across the 40 dB between.
+    rng = np.random.default_rng(5)
+    quiet = rng.normal(0, 10 ** (-60 / 20), 600 * rate).astype(np.float32)
+    quiet[: 60 * rate] = rng.normal(0, 10 ** (-20 / 20), 60 * rate)
+    sparse = frame_levels_db(quiet, rate)
+
+    for levels, trusted in ((dense, True), (sparse, False)):
+        guesses = GuessedFrames()
+        guesses.join(levels, 3_000, 3)
+        guesses.pad(levels, 3_005, 25, silent=False)
+        assert (guesses.spread_db(levels) <= PROFILE_TOLERANCE_DB) is trusted
+
+
+def test_a_timeline_cache_cut_reads_the_profile_of_what_is_left() -> None:
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.level_profile import track_profile
+
+    rate = 8000
+    samples = _speechlike(120, 7, rate)
+    cache = TrackRmsCache(samples=samples, sample_rate=rate)
+    assert cache.profile == track_profile(samples, rate)
+
+    cache.remove(10.0, 30.0)
+    left = np.concatenate((samples[: 10 * rate], samples[30 * rate :]))
+    assert cache.samples.size == left.size
+    assert np.array_equal(cache.samples, left)
+    assert cache.profile == track_profile(left, rate)
+
+    cache.silence(5.0, 6.0)
+    assert not cache.samples[5 * rate : 6 * rate].any()
+    assert samples[5 * rate : 6 * rate].any()  # the caller's array is not written
+    assert cache.profile == track_profile(cache.samples, rate)
+
+    cache.insert_tone(50.0, 0.25, -50.0)
+    assert cache.samples.size == left.size + round(0.25 * rate)
+    pad = cache.samples[50 * rate : 50 * rate + round(0.25 * rate)]
+    assert 20 * np.log10(np.sqrt(np.mean(pad**2))) == pytest.approx(-50.0, abs=1.0)
+    assert cache.profile == track_profile(cache.samples, rate)
+
+
+def test_a_cache_with_a_time_offset_cuts_at_its_own_clock() -> None:
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+
+    rate = 8000
+    samples = np.arange(20 * rate, dtype=np.float32)
+    cache = TrackRmsCache(samples=samples, sample_rate=rate, timeline_offset_sec=4.0)
+
+    cache.remove(6.0, 8.0)
+
+    assert cache.samples.size == 18 * rate
+    assert cache.samples[2 * rate] == 4 * rate
+
+
+def test_the_spread_counts_the_loud_level_as_well_as_the_room_and_speech_levels() -> None:
+    from podcast_mcp.engines.level_profile import GuessedFrames
+
+    rng = np.random.default_rng(2)
+    levels = rng.uniform(-45.0, -40.0, 10_000)
+    levels[:101] = -10.0  # the 99th percentile sits on the edge of this loudest group
+    guesses = GuessedFrames()
+    guesses.join(levels, 50, 0)
+
+    assert guesses.spread_db(levels) > 5.0

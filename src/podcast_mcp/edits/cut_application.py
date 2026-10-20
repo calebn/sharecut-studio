@@ -5,7 +5,7 @@ import subprocess
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.config import EffectiveConfig
 from podcast_mcp.edits import cut_safety
@@ -18,6 +18,7 @@ from podcast_mcp.edits.clips_ops import (
     punch_timeline_range_from_clips,
     set_track_clips,
 )
+from podcast_mcp.edits.cut_proof import BatchTimelineEvidence, CutEffect
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.cut_speech import (
@@ -89,6 +90,9 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
+
+if TYPE_CHECKING:
+    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 
 _PAD_EDGE_MATCH_SEC = 0.05
 LOWER_GAIN_DB = -12.0
@@ -397,6 +401,7 @@ def _apply_source_remove(
     batch: Sequence[SourceExtent],
     record_log: bool = False,
     override_peer_holds: set[str] | None = None,
+    evidence: BatchTimelineEvidence | None = None,
 ) -> (
     tuple[EpisodeProject, tuple[float, float, list[str], dict]]
     | CutSpeechConfirmation
@@ -406,6 +411,8 @@ def _apply_source_remove(
 
     Trusted human application intent can override acoustic peer evidence;
     ``override_peer_holds`` records those overrides for the caller's summary.
+    ``evidence`` is the timeline measurement a batch shares across its cuts (see
+    :class:`BatchTimelineEvidence`); without it the cut measures the timeline itself.
     Measurements share frozen state only until the first mutation. This writer
     completes every source, pad and edge write before policy can publish the copy.
     """
@@ -418,14 +425,22 @@ def _apply_source_remove(
     with ExitStack() as proof:
         proof.enter_context(frozen_state())
         caches = shared_source_audio_caches(project)
-        observation = cut_safety.observe_source_cut(
-            project,
-            edit,
-            defaults=defaults,
-            manual=manual,
-            batch=batch,
-            audio_caches=caches,
-            timeline_caches=shared_timeline_rms_caches(project, defaults=defaults),
+
+        def observe(timeline_caches: TrackRmsCacheSet) -> cut_safety.SourceCutObservations:
+            return cut_safety.observe_source_cut(
+                project,
+                edit,
+                defaults=defaults,
+                manual=manual,
+                batch=batch,
+                audio_caches=caches,
+                timeline_caches=timeline_caches,
+            )
+
+        observation = (
+            observe(shared_timeline_rms_caches(project, defaults=defaults))
+            if evidence is None
+            else evidence.observe(project, observe)
         )
         pause = observation.pause if isinstance(observation.pause, cut_safety.HeldPause) else None
         actual = (
@@ -466,6 +481,10 @@ def _apply_source_remove(
         return asked.confirmation
     if held:
         return held[0]
+    if evidence is not None:
+        evidence.applied(
+            candidate, _cut_effect(project, observation.removal, actual, result, defaults)
+        )
     if (
         manual
         and override_peer_holds is not None
@@ -474,6 +493,33 @@ def _apply_source_remove(
     ):
         override_peer_holds.add(edit.id)
     return candidate, result
+
+
+def _cut_effect(
+    project: EpisodeProject,
+    removal: RippleRemoval | None,
+    actual: EditDecision,
+    result: tuple[float, float, list[str], dict],
+    defaults: EffectiveConfig,
+) -> CutEffect | None:
+    """What the cut just written to ``project``'s copy did to each track's timeline.
+
+    ``None`` for a removal of several spans, which the batch evidence does not follow.
+    """
+    start, end, track_ids, meta = result
+    fade_sec = float(meta.get("crossfade_ms") or 0) / 1000
+    if removal is None:
+        return CutEffect(start, end, tuple(track_ids), hole=True, fade_sec=fade_sec)
+    if len(removal.spans) != 1:
+        return None
+    return CutEffect(
+        start,
+        end,
+        tuple(ripple_track_ids(project, removal.edited_track_ids)),
+        fade_sec=fade_sec,
+        pad_sec=actual.replace_gap_sec or 0.0,
+        pad_silent=filler_pad_mode(defaults=defaults) != "room_tone",
+    )
 
 
 def _write_source_remove(
@@ -869,6 +915,7 @@ def approve_edits(
         survivors = [edit for edit in removes if edit.id not in excluded]
         batch = _source_extents(survivors)
         newly_held: set[str] = set()
+        evidence = BatchTimelineEvidence(defaults)
         for edit in sorted(survivors, key=lambda e: e.start, reverse=True):
             previous = project
             applied = _apply_source_remove(
@@ -879,6 +926,7 @@ def approve_edits(
                 batch=tuple(batch.values()),
                 record_log=False,
                 override_peer_holds=override_peer_holds,
+                evidence=evidence,
             )
             if isinstance(applied, CutSpeechConfirmation):
                 asked.append(applied)
@@ -1001,6 +1049,7 @@ def _apply_auto_removes(
     """
     batch = _source_extents(removes)
     held: set[str] = set()
+    evidence = BatchTimelineEvidence(defaults)
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
         previous = project
         applied = _apply_source_remove(
@@ -1009,6 +1058,7 @@ def _apply_auto_removes(
             defaults=defaults,
             batch=tuple(batch.values()),
             record_log=False,
+            evidence=evidence,
         )
         if isinstance(applied, CutSpeechConfirmation | CutScopeHold):
             held.add(edit.id)
