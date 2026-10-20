@@ -76,12 +76,14 @@ export function CommentsPanel({
   const error = createError ?? actionError;
 
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const onResolve = async (c: TimelineComment, resolved: boolean) => {
     const ok = await resolve(c, resolved);
     if (!ok || !resolved) return;
     const by = commitCommentActor(author, role, setAuthor);
     announceStatus(`Resolved comment at ${commentTimeLabel(c)}`, {
+      returnFocus: () => panelRef.current,
       reverse: {
         run: async () => {
           if (useDawStore.getState().projectPath !== projectPath) return false;
@@ -143,7 +145,7 @@ export function CommentsPanel({
   const mayAction = canSetAction(projectPath, shareCapabilities);
 
   return (
-    <div className="comments-panel">
+    <div className="comments-panel" ref={panelRef} tabIndex={-1}>
       <div className="comments-toolbar">
         <CommentAuthorLine
           name={author}
