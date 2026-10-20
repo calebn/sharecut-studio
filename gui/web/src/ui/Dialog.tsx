@@ -1,7 +1,10 @@
 import { type ReactNode, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CloseButton } from "./CloseButton";
+import { type DialogAnchor, useAnchoredPanel } from "./useAnchoredPanel";
 import { useDialogModal } from "./useDialogModal";
+import { useOutsidePointerDown } from "./useOutsidePointerDown";
+import { useTopLayerPanel } from "./useTopLayerPanel";
 
 type Props = {
   open: boolean;
@@ -21,6 +24,14 @@ type Props = {
    * a centered card there says why; the reason is for the next reader.
    */
   centeredReason?: string;
+  /**
+   * A dialog about a spot the person must keep seeing (the join under the
+   * timeline) stays a non-modal panel beside it on every shell, in the top
+   * layer. It closes on a press outside; the page behind stays usable.
+   */
+  anchor?: DialogAnchor;
+  /** `id` of the panel, for a trigger's `aria-controls`. */
+  panelId?: string;
   /** Body text that describes the dialog (`aria-describedby`), e.g. a confirm's consequence. */
   descriptionId?: string;
   /** Keymap command ids let through while open; every other app shortcut is held. */
@@ -43,6 +54,8 @@ export function Dialog({
   closeDisabled = false,
   footer,
   centeredReason,
+  anchor,
+  panelId,
   descriptionId,
   shortcuts,
 }: Props) {
@@ -51,14 +64,28 @@ export function Dialog({
   const closeRef = useRef<HTMLButtonElement>(null);
   const dismiss = closeDisabled ? () => undefined : onClose;
 
+  const anchored = anchor != null;
+  const topLayer = useTopLayerPanel();
+
   useDialogModal({
     open,
     onClose: dismiss,
     panelRef,
     initialFocusRef: initialFocusRef ?? closeRef,
-    mode: "modal",
+    returnFocusRef: anchor?.ref,
+    mode: anchored ? "sheet" : "modal",
     shortcuts,
   });
+  useAnchoredPanel(panelRef, anchor, open);
+  useOutsidePointerDown(
+    [
+      panelRef,
+      ...(anchor ? [anchor.ref] : []),
+      ...(anchor?.avoidRef ? [anchor.avoidRef] : []),
+    ],
+    dismiss,
+    open && anchored,
+  );
 
   if (!open) {
     return null;
@@ -66,30 +93,41 @@ export function Dialog({
 
   return createPortal(
     <div
+      ref={anchored ? topLayer.ref : undefined}
+      popover={anchored ? topLayer.popover : undefined}
       className={
-        centeredReason
-          ? "ui-dialog-root command-palette-root ui-dialog-root--centered"
-          : "ui-dialog-root command-palette-root"
+        anchored
+          ? "ui-dialog-root ui-dialog-root--anchored"
+          : centeredReason
+            ? "ui-dialog-root command-palette-root ui-dialog-root--centered"
+            : "ui-dialog-root command-palette-root"
       }
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
+      role={anchored ? undefined : "dialog"}
+      aria-modal={anchored ? undefined : true}
+      aria-labelledby={anchored ? undefined : titleId}
+      aria-describedby={anchored ? undefined : descriptionId}
     >
-      <button
-        type="button"
-        className="command-palette-scrim"
-        aria-label={`Close ${title}`}
-        onClick={dismiss}
-        disabled={closeDisabled}
-      />
+      {anchored ? null : (
+        <button
+          type="button"
+          className="command-palette-scrim"
+          aria-label={`Close ${title}`}
+          onClick={dismiss}
+          disabled={closeDisabled}
+        />
+      )}
       <div
         ref={panelRef}
+        id={panelId}
         className={
           panelClassName
             ? `command-palette-panel ${panelClassName}`
             : "command-palette-panel"
         }
+        role={anchored ? "dialog" : undefined}
+        aria-modal={anchored ? false : undefined}
+        aria-labelledby={anchored ? titleId : undefined}
+        aria-describedby={anchored ? descriptionId : undefined}
       >
         <div className="command-palette-header">
           <h2 id={titleId}>{title}</h2>

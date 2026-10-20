@@ -31,18 +31,14 @@ function renderView(
   } = {},
 ) {
   const props: JoinPopoverViewProps = {
-    id: "join-popover",
     left,
     right,
-    seamSec: 5,
     trackFadeMaxMs: 40,
     editable: true,
     busy: false,
     error: null,
     onModeChange: vi.fn(),
     lengthControl: { value: 10, inputProps: { ref: () => {} } },
-    onClose: vi.fn(),
-    footer: null,
     ...overrides,
   };
   function Harness() {
@@ -57,11 +53,9 @@ function renderView(
 }
 
 describe("JoinPopoverView", () => {
-  it("is a dialog named for the seam", async () => {
+  it("renders the editor body without a dialog of its own", async () => {
     const { container } = renderView();
-    expect(
-      screen.getByRole("dialog", { name: "Fade join at 0:05.0" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
     await expectNoA11yViolations(container);
   });
 
@@ -149,12 +143,5 @@ describe("JoinPopoverView", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Join could not be applied",
     );
-  });
-
-  it("calls onClose from the Close button", () => {
-    const onClose = vi.fn();
-    renderView({ onClose });
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

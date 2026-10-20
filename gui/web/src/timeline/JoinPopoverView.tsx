@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from "react";
+import type { Ref } from "react";
 import { useId } from "react";
 import { joinLengthMaxMs } from "../edit/fadeLimits";
 import {
@@ -8,33 +8,21 @@ import {
   joinGlyph,
   joinModeLabel,
   joinRenderNote,
-  joinSeamLabel,
 } from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
-import {
-  CloseButton,
-  InlineError,
-  SegmentedControl,
-  ToggleButton,
-} from "../ui";
+import { InlineError, SegmentedControl, ToggleButton } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 
 export interface JoinPopoverViewProps {
-  id: string;
   /** Committed rows either side of the seam (left may be rolled by a live roll). */
   left: ClipRow;
   right: ClipRow;
-  seamSec: number;
   /** TrackView.fade_max_ms (null = uncapped). */
   trackFadeMaxMs: number | null;
   editable: boolean;
   busy: boolean;
   error: string | null;
   onModeChange: (mode: JoinGlyph) => void;
-  onClose: () => void;
-  /** Audition row; the live adapter passes InspectorSeekFooter. */
-  footer: ReactNode;
-  panelRef?: Ref<HTMLDivElement>;
   lengthControl: {
     value: number;
     inputProps: React.InputHTMLAttributes<HTMLInputElement> & {
@@ -43,23 +31,17 @@ export interface JoinPopoverViewProps {
   };
 }
 
-/** Props-only join popover: mode toggles, a length slider and the audition footer. */
+/** Props-only join editor body: mode toggles and a length slider. The `Dialog` around it owns the title, Close and the audition footer. */
 export function JoinPopoverView({
-  id,
   left,
   right,
-  seamSec,
   trackFadeMaxMs,
   editable,
   busy,
   error,
   onModeChange,
-  onClose,
-  footer,
-  panelRef,
   lengthControl,
 }: JoinPopoverViewProps) {
-  const titleId = useId();
   const lengthId = useId();
   const glyph = joinGlyph(right);
   const minMs = glyph === "crossfade" ? 1 : 0;
@@ -75,20 +57,7 @@ export function JoinPopoverView({
   const note = joinRenderNote(right);
 
   return (
-    <div
-      ref={panelRef}
-      id={id}
-      className="join-popover"
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby={titleId}
-    >
-      <div className="join-popover-header">
-        <h2 id={titleId} className="join-popover-title">
-          {joinSeamLabel(glyph, seamSec)}
-        </h2>
-        <CloseButton onClick={onClose} />
-      </div>
+    <>
       {editable ? (
         <SegmentedControl label="Join mode" className="join-popover-modes">
           {JOIN_GLYPHS.map((m) => (
@@ -152,7 +121,6 @@ export function JoinPopoverView({
         </p>
       ) : null}
       <InlineError message={error} />
-      {footer}
-    </div>
+    </>
   );
 }

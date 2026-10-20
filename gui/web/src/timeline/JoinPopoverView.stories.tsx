@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { clipRow } from "../test/fixtures";
-import { InspectorSeekFooterView } from "../ui/InspectorSeekFooterView";
 import { JoinPopoverView } from "./JoinPopoverView";
 
 const left = clipRow({
@@ -38,25 +37,14 @@ const meta: Meta<typeof JoinPopoverView> = {
     ),
   ],
   args: {
-    id: "join-popover-story",
     left,
     right,
-    seamSec: 5,
     trackFadeMaxMs: 40,
     editable: true,
     busy: false,
     error: null,
     onModeChange: fn(),
     lengthControl: { value: 10, inputProps: { ref: fn(), onChange: fn() } },
-    onClose: fn(),
-    footer: (
-      <InspectorSeekFooterView
-        seekLabel="Seek join"
-        playLabel="Audition join"
-        onSeek={fn()}
-        onPlay={fn()}
-      />
-    ),
   },
 };
 

@@ -897,3 +897,44 @@ html[data-shell="phone"]
   margin: 0;
   gap: var(--space-3);
 }
+
+/* An anchored Dialog (the join editor) is a non-modal panel beside its spot,
+   not a sheet: the layer passes presses through and only the panel catches
+   them. Fixed left/top come from useAnchoredPanel. */
+.ui-dialog-root--anchored {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-menu);
+  pointer-events: none;
+}
+
+.ui-dialog-root--anchored[popover] {
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+}
+
+.ui-dialog-root--anchored > .command-palette-panel {
+  position: fixed;
+  inline-size: max-content;
+  min-inline-size: 15rem;
+  max-inline-size: min(20rem, calc(100vw - 1rem));
+  max-block-size: min(90dvh, 32rem);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  pointer-events: auto;
+}
+
+.ui-dialog-root--anchored .command-palette-header {
+  margin-bottom: var(--space-2);
+}
+
+.ui-dialog-root--anchored .command-palette-header h2 {
+  font-size: var(--font-size-ui);
+}
