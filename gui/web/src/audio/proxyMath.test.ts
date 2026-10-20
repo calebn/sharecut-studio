@@ -205,6 +205,36 @@ describe("proxyMath", () => {
     ]);
   });
 
+  it("leaves the mutes to an occurrence proxy that already has them baked in", () => {
+    const artifactId = "b".repeat(64);
+    const m: ProxyManifest = {
+      ...manifest(),
+      artifacts: {
+        [artifactId]: {
+          hash: artifactId,
+          chunk_sec: 60,
+          overlap_ms: 0,
+          chunk_count: 1,
+          duration_sec: 60,
+          urls: ["variant0"],
+        },
+      },
+      occurrences: { c1: { artifactId, outputTrackId: "host" } },
+    };
+    const [slice] = buildSchedule(
+      [
+        clip({
+          id: "c1",
+          mute_regions: [{ start_s: 1, end_s: 2, gain_db: -6 }],
+        }),
+      ],
+      0,
+      30,
+      m,
+    );
+    expect(slice.envelope.mute).toEqual([]);
+  });
+
   it("marks equalPower for crossfade joins", () => {
     const slices = buildSchedule(
       [

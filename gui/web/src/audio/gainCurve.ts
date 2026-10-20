@@ -83,22 +83,24 @@ export function muteSpansOf(
   return out;
 }
 
-/** The mute spans at source second `sec`: the gain `mute_gain_expression` renders. */
+/**
+ * The mute gain at source second `sec`: what `mute_gain_expression` renders. Its interval tree
+ * reads only the latest span that has started, so where spans abut the later one wins.
+ */
 export function muteGainAt(spans: readonly MuteSpan[], sec: number): number {
-  let gain = 1;
-  for (const span of spans) {
-    if (sec < span.start || sec > span.end) continue;
-    const { start, end, fadeOutSec, fadeInSec, gain: floor } = span;
-    const lift = 1 - floor;
-    if (fadeOutSec + fadeInSec > end - start) {
-      if (sec < end) gain *= floor;
-    } else if (fadeOutSec > 0 && sec <= start + fadeOutSec)
-      gain *= 1 - (lift * (sec - start)) / fadeOutSec;
-    else if (sec <= end - fadeInSec) gain *= floor;
-    else if (fadeInSec > 0)
-      gain *= floor + (lift * (sec - (end - fadeInSec))) / fadeInSec;
-  }
-  return gain;
+  let span: MuteSpan | undefined;
+  for (const candidate of spans) if (candidate.start <= sec) span = candidate;
+  if (!span || sec > span.end) return 1;
+  const { start, end, fadeOutSec, fadeInSec, gain: floor } = span;
+  const lift = 1 - floor;
+  // Sample counts in the render, so a fade as long as the span still ramps.
+  if (fadeOutSec + fadeInSec > end - start + 1e-6) return sec < end ? floor : 1;
+  if (fadeOutSec > 0 && sec <= start + fadeOutSec)
+    return 1 - (lift * (sec - start)) / fadeOutSec;
+  if (sec <= end - fadeInSec) return floor;
+  return fadeInSec > 0
+    ? floor + (lift * (sec - (end - fadeInSec))) / fadeInSec
+    : 1;
 }
 
 /** The mute at timeline `sec` of a clip that carries spans. */
@@ -195,8 +197,12 @@ export function gainBreakpoints(
       .filter((point, index) => points[index + 1]?.time === point.time)
       .map((point) => point.time - STEP_HOLD_SEC),
   ];
+  const ramps: (readonly [number, number])[] = [
+    [clip.timelineStartSec, clip.timelineStartSec + fadeIn],
+    [clip.timelineEndSec - fadeOut, clip.timelineEndSec],
+  ];
+  const shift = clip.timelineStartSec - (clip.sourceStartSec ?? 0);
   for (const span of clip.mute ?? []) {
-    const shift = clip.timelineStartSec - (clip.sourceStartSec ?? 0);
     const edges = [
       span.start,
       span.start + span.fadeOutSec,
@@ -209,11 +215,9 @@ export function gainBreakpoints(
       edges[3]! - STEP_HOLD_SEC,
       edges[3]! + STEP_HOLD_SEC,
     );
+    ramps.push([edges[0]!, edges[1]!], [edges[2]!, edges[3]!]);
   }
-  for (const [from, to] of [
-    [clip.timelineStartSec, clip.timelineStartSec + fadeIn],
-    [clip.timelineEndSec - fadeOut, clip.timelineEndSec],
-  ] as const)
+  for (const [from, to] of ramps)
     for (let at = from + FADE_STEP_SEC; at < to; at += FADE_STEP_SEC)
       times.push(at);
   if (fadeIn > 0 && fadeOut > 0)
