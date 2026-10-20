@@ -14,6 +14,25 @@ BUDGETS = {
 }
 
 
+# glob under src/podcast_mcp -> max lines in any one matching module
+FILE_BUDGETS = {
+    "services/document/play*.py": 800,
+}
+
+
+@pytest.mark.parametrize("pattern", sorted(FILE_BUDGETS))
+def test_no_module_matching_a_split_family_exceeds_its_line_budget(pattern: str) -> None:
+    limit = FILE_BUDGETS[pattern]
+    matches = sorted(SRC.glob(pattern))
+    assert matches, f"{pattern} matches no module"
+    over = {
+        path.name: count
+        for path in matches
+        if (count := len(path.read_text(encoding="utf-8").splitlines())) > limit
+    }
+    assert not over, f"{pattern} modules over {limit} lines: {over}"
+
+
 @pytest.mark.parametrize("package", sorted(BUDGETS))
 def test_no_module_in_a_split_package_exceeds_its_line_budget(package: str) -> None:
     limit = BUDGETS[package]

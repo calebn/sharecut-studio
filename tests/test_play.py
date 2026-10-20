@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
+from play_patch import patch_play
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.models import (
@@ -35,7 +36,7 @@ def _pin_cache_last_used(monkeypatch, ages_sec: dict[Path, float]) -> None:
     """
     import time
 
-    import podcast_mcp.services.document.play as play_module
+    import podcast_mcp.services.document.play_cache as play_module
 
     real = play_module._cache_last_used
     now = time.time()
@@ -71,7 +72,7 @@ def test_follow_transcript_cli_help_describes_conservative_audio_behavior() -> N
 def test_play_cache_eviction_keeps_recent_and_skips_other_files(
     minimal_project, tmp_workspace, monkeypatch
 ) -> None:
-    import podcast_mcp.services.document.play as play_module
+    import podcast_mcp.services.document.play_cache as play_module
 
     ws = ProjectWorkspace.open(minimal_project)
     service = PlayService(ws)
@@ -93,7 +94,7 @@ def test_play_cache_eviction_keeps_recent_and_skips_other_files(
 
 
 def test_play_cache_burst_has_hard_file_cap(minimal_project, monkeypatch) -> None:
-    import podcast_mcp.services.document.play as play_module
+    import podcast_mcp.services.document.play_cache as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
@@ -109,7 +110,7 @@ def test_play_cache_burst_has_hard_file_cap(minimal_project, monkeypatch) -> Non
 
 
 def test_play_cache_retains_current_ab_inputs(minimal_project, monkeypatch) -> None:
-    import podcast_mcp.services.document.play as play_module
+    import podcast_mcp.services.document.play_cache as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
@@ -128,7 +129,7 @@ def test_play_cache_retains_current_ab_inputs(minimal_project, monkeypatch) -> N
 
 
 def test_play_cache_recent_outputs_survive_hard_file_pressure(minimal_project, monkeypatch) -> None:
-    import podcast_mcp.services.document.play as play_module
+    import podcast_mcp.services.document.play_cache as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
@@ -146,7 +147,7 @@ def test_play_serves_cached_wav_and_refreshes_its_retention(
 ) -> None:
     import time
 
-    import podcast_mcp.services.document.play as play_module
+    import podcast_mcp.services.document.play_cache as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     premix = service.project.artifacts_dir() / "premix.wav"
@@ -174,7 +175,7 @@ def test_play_cache_eviction_waits_for_concurrent_serve(minimal_project, monkeyp
     import threading
     import time
 
-    import podcast_mcp.services.document.play as play_module
+    import podcast_mcp.services.document.play_cache as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
@@ -254,7 +255,7 @@ def test_play_service_dry_run(minimal_project, sample_wav, tmp_workspace) -> Non
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     mock_extract = MagicMock(return_value=dest)
-    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
+    with patch_play("FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(source="track:host", start_sec=0.0, end_sec=1.0),
@@ -291,7 +292,7 @@ def test_play_publish_audition_can_skip(minimal_project, sample_wav, tmp_workspa
     ]
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
+    with patch_play("FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = MagicMock(return_value=dest)
         PlayService(ws).play(
             PlayRequest(source="track:host", start_sec=0.0, end_sec=1.0),
@@ -318,7 +319,7 @@ def test_play_cli_dry_run(minimal_project, sample_wav, tmp_workspace) -> None:
         )
     ]
     save_project(proj, minimal_project)
-    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
+    with patch_play("FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = MagicMock(return_value=dest)
         result = runner.invoke(
             app,
@@ -421,8 +422,8 @@ def test_play_processed_segment_render(minimal_project, sample_wav, tmp_workspac
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     seg_out = tmp_workspace / "seg.wav"
-    with patch(
-        "podcast_mcp.services.document.play.render_track_segment",
+    with patch_play(
+        "render_track_segment",
         return_value=seg_out,
     ) as seg:
         seg_out.touch()
@@ -652,7 +653,7 @@ def test_play_ab_wavs_reuses_cache_and_plays(minimal_project, sample_wav, tmp_wo
         second = svc.play_ab_wavs(a, b, gap_sec=0.1, dry_run=True)
         write_concat.assert_not_called()
     assert first.wav_path == second.wav_path
-    with patch("podcast_mcp.services.document.play.run") as run_mock:
+    with patch_play("run") as run_mock:
         run_mock.return_value = MagicMock(returncode=0)
         played = svc.play_ab_wavs(
             a,

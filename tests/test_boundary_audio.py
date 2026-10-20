@@ -340,7 +340,7 @@ def test_busy_boundary_render_uses_project_busy_response(
         raise Timeout("held-render-lock")
         yield
 
-    monkeypatch.setattr("podcast_mcp.services.document.play.render_lock", busy)
+    monkeypatch.setattr("podcast_mcp.services.document.play_boundary.render_lock", busy)
     with TestClient(create_app(served_project=minimal_project)) as client:
         response = client.post(
             "/api/boundary/audition",

@@ -10,6 +10,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 from filelock import Timeout
 
+from play_patch import patch_play
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch
@@ -102,8 +103,8 @@ def test_play_resolve_search_processed(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     svc = PlayService(ws)
     seg_out = ws.project.artifacts_dir() / "seg.wav"
-    with patch(
-        "podcast_mcp.services.document.play.render_track_segment",
+    with patch_play(
+        "render_track_segment",
         return_value=seg_out,
     ):
         seg_out.touch()
@@ -125,7 +126,7 @@ def test_play_search_raw_uses_track_source(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     svc = PlayService(ws)
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
+    with patch_play("FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = svc.play(
             PlayRequest(
@@ -147,7 +148,7 @@ def test_play_search_premix_source(minimal_project, sample_wav) -> None:
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
+    with patch_play("FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(
@@ -201,8 +202,8 @@ def test_play_premix_rerender(minimal_project, sample_wav) -> None:
     premix = ws.project.artifacts_dir() / "premix.wav"
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a, **_kw: out.touch() or out)
     with (
-        patch("podcast_mcp.services.document.play.rerender_preview") as rerender,
-        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
+        patch_play("rerender_preview") as rerender,
+        patch_play("FFmpegEngine") as eng_cls,
     ):
         rerender.side_effect = lambda _p, **_k: premix.write_bytes(sample_wav.read_bytes())
         eng_cls.return_value.extract_segment = mock_extract
@@ -220,7 +221,7 @@ def test_play_export_source(minimal_project, sample_wav) -> None:
     export_dir.mkdir(parents=True, exist_ok=True)
     (export_dir / "master.wav").write_bytes(sample_wav.read_bytes())
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
+    with patch_play("FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(source="export", start_sec=0.0, end_sec=0.5),
@@ -237,11 +238,11 @@ def test_play_compare_dry_run(minimal_project, sample_wav) -> None:
     seg_out = ws.project.artifacts_dir() / "seg.wav"
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
     with (
-        patch(
-            "podcast_mcp.services.document.play.render_track_segment",
+        patch_play(
+            "render_track_segment",
             return_value=seg_out,
         ),
-        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
+        patch_play("FFmpegEngine") as eng_cls,
     ):
         seg_out.touch()
         eng_cls.return_value.extract_segment = mock_extract
@@ -279,11 +280,11 @@ def test_play_follow_transcript_track(minimal_project, sample_wav) -> None:
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks",
             side_effect=lambda _segments, out, **_kwargs: out.touch() or None,
         ),
-        patch(
-            "podcast_mcp.services.document.play.word_intervals",
+        patch_play(
+            "word_intervals",
             return_value=[(0.0, 0.4), (0.5, 1.0)],
         ),
     ):
@@ -436,11 +437,11 @@ def test_follow_transcript_mix_cache_tracks_peak_ceiling(minimal_project, sample
             return_value=(segment, "segment_render", 0.0, 1.0),
         ),
         patch(
-            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks",
             side_effect=render_mix,
         ),
-        patch("podcast_mcp.services.document.play.dialogue_tracks_for_play", return_value=["host"]),
-        patch("podcast_mcp.services.document.play.word_intervals", return_value=[]),
+        patch_play("dialogue_tracks_for_play", return_value=["host"]),
+        patch_play("word_intervals", return_value=[]),
     ):
         first = service._play_follow_transcript_mix(0.0, 1.0, False, dry_run=True, player=None)
         service._defaults["mix"]["premix_peak_ceiling_db"] = -6.0
@@ -458,15 +459,15 @@ def test_play_follow_transcript_mix(minimal_project, sample_wav) -> None:
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks",
             side_effect=lambda _segs, out, **_kw: out.touch() or None,
         ),
-        patch(
-            "podcast_mcp.services.document.play.word_intervals",
+        patch_play(
+            "word_intervals",
             return_value=[(0.0, 0.4)],
         ),
-        patch(
-            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
+        patch_play(
+            "dialogue_tracks_for_play",
             return_value=["host"],
         ),
     ):
@@ -488,7 +489,7 @@ def test_play_ensure_stem(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.document.play.schedule_stem_waveforms") as waveforms,
+        patch_play("schedule_stem_waveforms") as waveforms,
     ):
         eng_cls.return_value.render_dialogue_track = MagicMock(
             side_effect=lambda _p, _t, out, _d: out.write_bytes(b"RIFF") or out
@@ -510,8 +511,8 @@ def test_play_runs_player_when_not_dry_run(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
     with (
-        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.document.play.run") as run_player,
+        patch_play("FFmpegEngine") as eng_cls,
+        patch_play("run") as run_player,
     ):
         eng_cls.return_value.extract_segment = mock_extract
         PlayService(ws).play(
@@ -525,7 +526,7 @@ def test_play_runs_player_when_not_dry_run(minimal_project, sample_wav) -> None:
 def test_play_raw_rewrites_processed_source(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
+    with patch_play("FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(
@@ -554,8 +555,8 @@ def test_play_timeline_map_error(minimal_project, sample_wav) -> None:
 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
-        patch(
-            "podcast_mcp.services.document.play.timeline_range_to_source",
+        patch_play(
+            "timeline_range_to_source",
             side_effect=TimelineMapError("bad range"),
         ),
         pytest.raises(ValueError, match="bad range"),
@@ -568,7 +569,7 @@ def test_play_timeline_map_error(minimal_project, sample_wav) -> None:
 
 def test_play_premix_missing_raises(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.services.document.play.rerender_preview"):
+    with patch_play("rerender_preview"):
         with pytest.raises(FileNotFoundError, match=r"premix\.wav not found"):
             PlayService(ws).play(
                 PlayRequest(source="premix", start_sec=0.0, end_sec=0.5, rerender=True),
@@ -601,9 +602,9 @@ def test_play_processed_stem_fresh_path(minimal_project, sample_wav) -> None:
 
     mock_extract = MagicMock(side_effect=_extract)
     with (
-        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
-        patch(
-            "podcast_mcp.services.document.play.snapshot_project",
+        patch_play("FFmpegEngine") as eng_cls,
+        patch_play(
+            "snapshot_project",
             side_effect=AssertionError("warm path copied the project"),
         ),
     ):
@@ -638,8 +639,8 @@ def test_play_silent_stem_extract_falls_back_to_segment(minimal_project, sample_
         return out
 
     with (
-        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.document.play.render_track_segment") as seg,
+        patch_play("FFmpegEngine") as eng_cls,
+        patch_play("render_track_segment") as seg,
     ):
         eng_cls.return_value.extract_segment = MagicMock(side_effect=_silent_extract)
 
@@ -692,8 +693,8 @@ def test_play_processed_segment_cache_hit(minimal_project, sample_wav) -> None:
     cache = ws.project.artifacts_dir() / "play_cache" / f"processed_host_0.00_0.50_{edit_hash}.wav"
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_bytes(sample_wav.read_bytes())
-    with patch(
-        "podcast_mcp.services.document.play.snapshot_project",
+    with patch_play(
+        "snapshot_project",
         side_effect=AssertionError("warm path copied the project"),
     ):
         result = PlayService(ws).play(
@@ -733,8 +734,8 @@ def test_play_segment_cache_key_matches_the_rendered_snapshot_after_a_mid_decisi
         return cache
 
     with (
-        patch("podcast_mcp.services.document.play.stem_matches", side_effect=change_live_project),
-        patch("podcast_mcp.services.document.play.render_track_segment", side_effect=render),
+        patch_play("stem_matches", side_effect=change_live_project),
+        patch_play("render_track_segment", side_effect=render),
     ):
         result = PlayService(ws)._processed_audio("host", 0.0, 0.5, rerender=False)
 
@@ -774,8 +775,8 @@ def test_play_segment_render_reuses_the_cache_of_the_snapshot_hash(
         return False
 
     with (
-        patch("podcast_mcp.services.document.play.stem_matches", side_effect=change_live_project),
-        patch("podcast_mcp.services.document.play.render_track_segment") as render_seg,
+        patch_play("stem_matches", side_effect=change_live_project),
+        patch_play("render_track_segment") as render_seg,
     ):
         result = svc._processed_audio("host", 0.0, 0.5, rerender=False)
 
@@ -842,7 +843,7 @@ def test_play_processed_rerender_invalidates_cache(minimal_project, sample_wav) 
     mock_render = MagicMock(return_value=stem)
     with (
         patch.object(PlayService, "ensure_stem", mock_render),
-        patch("podcast_mcp.services.document.play.render_track_segment") as seg,
+        patch_play("render_track_segment") as seg,
     ):
 
         def _seg(_project, _track_id, _start, _end, cache, _defaults):
@@ -889,8 +890,8 @@ def test_play_long_rerender_rebuilds_stem(minimal_project, sample_wav) -> None:
 
     with (
         patch.object(PlayService, "ensure_stem", mock_render),
-        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.document.play.stem_matches", return_value=True),
+        patch_play("FFmpegEngine") as eng_cls,
+        patch_play("stem_matches", return_value=True),
     ):
         eng_cls.return_value.extract_segment = MagicMock(side_effect=_extract)
         result = PlayService(ws).play(
@@ -910,7 +911,9 @@ def test_play_rerender_segment_renders_without_render_busy_while_another_render_
     minimal_project, sample_wav, monkeypatch
 ) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    monkeypatch.setattr("podcast_mcp.services.document.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.play_stems._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2
+    )
     held, release = threading.Event(), threading.Event()
 
     def hold() -> None:
@@ -932,9 +935,7 @@ def test_play_rerender_segment_renders_without_render_busy_while_another_render_
     try:
         with (
             patch.object(PlayService, "ensure_stem", mock_render),
-            patch(
-                "podcast_mcp.services.document.play.render_track_segment", side_effect=_seg
-            ) as seg,
+            patch_play("render_track_segment", side_effect=_seg) as seg,
         ):
             result = PlayService(ws).play(
                 PlayRequest(source="processed:host", start_sec=0.0, end_sec=90.0, rerender=True),
@@ -952,7 +953,9 @@ def test_play_rerender_segment_renders_without_render_busy_while_another_render_
 
 @contextmanager
 def _render_lock_held_elsewhere(ws, monkeypatch):
-    monkeypatch.setattr("podcast_mcp.services.document.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.play_stems._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2
+    )
     held, release = threading.Event(), threading.Event()
 
     def hold() -> None:
@@ -981,7 +984,7 @@ def test_premix_rerender_plays_the_existing_premix_while_another_render_holds_th
     premix.write_bytes(sample_wav.read_bytes())
     with (
         _render_lock_held_elsewhere(ws, monkeypatch),
-        patch("podcast_mcp.services.document.play.rerender_preview", MagicMock()) as rerender,
+        patch_play("rerender_preview", MagicMock()) as rerender,
     ):
         svc = PlayService(ws)
         assert svc._ensure_premix(rerender=True) == (premix, True)
@@ -999,7 +1002,7 @@ def test_premix_rerender_failure_drops_its_partial_state(minimal_project, sample
         raise Timeout("lock")
 
     svc = PlayService(ws)
-    with patch("podcast_mcp.services.document.play.rerender_preview", side_effect=boom):
+    with patch_play("rerender_preview", side_effect=boom):
         assert svc._ensure_premix(rerender=True) == (premix, False)
     assert ws.project.name == load_project(minimal_project).name
     assert svc.project.name != "partial"
@@ -1025,7 +1028,7 @@ def test_transport_stem_build_streams_the_existing_stem_while_another_render_hol
     stem.write_bytes(sample_wav.read_bytes())
     with (
         _render_lock_held_elsewhere(ws, monkeypatch),
-        patch("podcast_mcp.services.document.play.publish_stem", MagicMock()) as publish,
+        patch_play("publish_stem", MagicMock()) as publish,
     ):
         tp = PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
     assert tp.path == stem.resolve()
@@ -1068,7 +1071,7 @@ def test_a_reused_play_service_reports_render_busy_per_call(
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
     svc = PlayService(ws)
-    with patch("podcast_mcp.services.document.play.rerender_preview", MagicMock()):
+    with patch_play("rerender_preview", MagicMock()):
         with _render_lock_held_elsewhere(ws, monkeypatch):
             busy = svc.resolve_transport_path("premix", rerender=True)
         again = svc.resolve_transport_path("premix", rerender=True)
@@ -1109,7 +1112,7 @@ def test_play_rerender_segment_renders_when_the_project_lock_is_busy(
         patch.object(
             PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.project.json.lock"))
         ) as ensure,
-        patch("podcast_mcp.services.document.play.render_track_segment", side_effect=_seg) as seg,
+        patch_play("render_track_segment", side_effect=_seg) as seg,
     ):
         result = PlayService(ws).play(
             PlayRequest(source="processed:host", start_sec=0.0, end_sec=90.0, rerender=True),
@@ -1131,7 +1134,7 @@ def test_play_rerender_invalidates_the_stem_under_the_render_lock(
             "_invalidate_processed_cache",
             lambda self, _tid: seen.append(render_lock_held(self.project)),
         ),
-        patch("podcast_mcp.services.document.play.render_track_segment") as seg,
+        patch_play("render_track_segment") as seg,
     ):
         seg.side_effect = lambda _p, _t, _s, _e, cache, _d: cache.write_bytes(
             sample_wav.read_bytes()
@@ -1155,11 +1158,11 @@ def _follow_patches(seg_out, *, mix=None, track=None):
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks",
             side_effect=track or mix,
         ),
-        patch("podcast_mcp.services.document.play.word_intervals", return_value=[(0.0, 0.4)]),
-        patch("podcast_mcp.services.document.play.dialogue_tracks_for_play", return_value=["host"]),
+        patch_play("word_intervals", return_value=[(0.0, 0.4)]),
+        patch_play("dialogue_tracks_for_play", return_value=["host"]),
     )
 
 
@@ -1232,15 +1235,15 @@ def test_play_follow_transcript_compare(minimal_project, sample_wav) -> None:
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks",
             side_effect=lambda _segs, out, **_kw: out.touch() or None,
         ),
-        patch(
-            "podcast_mcp.services.document.play.word_intervals",
+        patch_play(
+            "word_intervals",
             return_value=[(0.0, 0.4)],
         ),
-        patch(
-            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
+        patch_play(
+            "dialogue_tracks_for_play",
             return_value=["host"],
         ),
     ):
@@ -1267,11 +1270,11 @@ def test_play_follow_transcript_track_source(minimal_project, sample_wav) -> Non
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.engines.ffmpeg.FFmpegEngine.mix_tracks",
             side_effect=lambda _segments, out, **_kwargs: out.touch() or None,
         ),
-        patch(
-            "podcast_mcp.services.document.play.word_intervals",
+        patch_play(
+            "word_intervals",
             return_value=[(0.0, 0.4)],
         ),
     ):
@@ -1291,8 +1294,8 @@ def test_play_follow_transcript_track_source(minimal_project, sample_wav) -> Non
 def test_play_follow_transcript_mix_requires_tracks(minimal_project) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     with (
-        patch(
-            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
+        patch_play(
+            "dialogue_tracks_for_play",
             return_value=[],
         ),
         pytest.raises(ValueError, match="requires dialogue tracks"),
@@ -1324,7 +1327,7 @@ def test_play_compare_invalid_range(minimal_project, sample_wav) -> None:
 
 def test_play_player_command_linux(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.services.document.play.platform.system", return_value="Linux"):
+    with patch("platform.system", return_value="Linux"):
         cmd = PlayService(ws)._player_command(None, Path("/tmp/x.wav"))
     assert cmd == ["ffplay", "-nodisp", "-autoexit", "/tmp/x.wav"]
 
@@ -2000,7 +2003,7 @@ def test_play_resolve_source_with_mocked_search(minimal_project, sample_wav) -> 
         timeline_start=1.0,
         timeline_end=2.0,
     )
-    with patch("podcast_mcp.services.document.play.search_transcript", return_value=[match]):
+    with patch_play("search_transcript", return_value=[match]):
         source, start, end = PlayService(ws)._resolve_source_and_times(
             PlayRequest(source="export", start_sec=0.0, end_sec=1.0, query="podcast")
         )
@@ -2087,7 +2090,7 @@ def test_overlapping_stem_renders_publish_one_at_a_time(minimal_project, sample_
         patch(
             "podcast_mcp.engines.ffmpeg.FFmpegEngine.render_dialogue_track", side_effect=render
         ) as rendered,
-        patch("podcast_mcp.services.document.play.schedule_stem_waveforms"),
+        patch_play("schedule_stem_waveforms"),
         patch("podcast_mcp.pipeline.steps.schedule_stem_waveforms"),
         render_contention_signal(ws_a.project.workspace_path()) as contended,
     ):
@@ -2153,10 +2156,8 @@ def test_processed_play_skips_a_stem_published_during_the_extract(
         return cache
 
     with (
-        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
-        patch(
-            "podcast_mcp.services.document.play.render_track_segment", side_effect=render_segment
-        ),
+        patch_play("FFmpegEngine") as eng_cls,
+        patch_play("render_track_segment", side_effect=render_segment),
     ):
         eng_cls.return_value.extract_segment = MagicMock(side_effect=extract)
         result = PlayService(ws).play(

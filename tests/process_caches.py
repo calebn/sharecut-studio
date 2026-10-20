@@ -58,7 +58,7 @@ SHARED: dict[str, str] = {
     "podcast_mcp.services.collaboration.share:_review_version_ids_at_revision": (
         "Keyed by project path and file revision."
     ),
-    "podcast_mcp.services.document.play:_stem_mix_trim_db": "Keyed by stems and ceiling.",
+    "podcast_mcp.services.document.play_headroom:_stem_mix_trim_db": "Keyed by stems and ceiling.",
     "podcast_mcp.edits.room_tone:_track_floor": (
         "Keyed by path and file revision; reads only the decoded audio, never VAD."
     ),

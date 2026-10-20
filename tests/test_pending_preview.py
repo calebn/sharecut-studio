@@ -324,7 +324,7 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
 ) -> None:
     from podcast_mcp.render import rerender_preview
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.services.document import play as play_module
+    from podcast_mcp.services.document import play_stems as play_module
 
     ws = _rendered_project(
         minimal_project,
@@ -370,11 +370,11 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
 
 def _touch_stems(project) -> None:
     """Stand-in stems for tests that fake the measurement: the record needs files to compare."""
-    from podcast_mcp.engines.play_audit import write_stem_hash
-    from podcast_mcp.services.document import play as play_module
+    from podcast_mcp.engines.play_audit import mix_gains, write_stem_hash
+    from podcast_mcp.util.tracks import stem_path
 
-    for track_id in play_module.mix_gains(project):
-        path = play_module.stem_path(project, track_id)
+    for track_id in mix_gains(project):
+        path = stem_path(project, track_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"stem")
         write_stem_hash(project, track_id, defaults=load_defaults())
@@ -385,7 +385,7 @@ def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
 ) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.services.document import play as play_module
+    from podcast_mcp.services.document import play_headroom as play_module
 
     ws = _rendered_project(
         minimal_project,
@@ -427,7 +427,7 @@ def test_a_trim_measured_while_a_stem_was_replaced_is_not_recorded(
     minimal_project, monkeypatch
 ) -> None:
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.services.document import play as play_module
+    from podcast_mcp.services.document import play_headroom as play_module
 
     ws = _rendered_project(
         minimal_project,
@@ -463,7 +463,7 @@ def test_a_trim_measured_while_a_stem_was_replaced_is_not_recorded(
 
 def test_a_damaged_trim_record_is_measured_again(minimal_project, monkeypatch) -> None:
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.services.document import play as play_module
+    from podcast_mcp.services.document import play_headroom as play_module
 
     ws = _rendered_project(
         minimal_project,
@@ -569,7 +569,7 @@ def test_a_play_during_the_edit_warm_reads_the_warms_render(
     import threading
 
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.services.document import play as play_module
+    from podcast_mcp.services.document import play_pending as play_module
 
     ws = _rendered_project(
         minimal_project,
