@@ -61,3 +61,18 @@ def test_a_new_wait_fails_and_a_removed_wait_asks_for_a_lower_allowlist() -> Non
     more = list(lint.problems({"tests/test_a.py": 3, "gui/web/e2e/b.spec.ts": 1}, allowed))
     assert len(more) == 1 and more[0].startswith("tests/test_a.py: 3 fixed wait(s), 2 allowed")
     assert list(lint.problems(dict(allowed), allowed)) == []
+
+
+def test_python_aliases_resolve_after_calls_and_keep_duplicate_line_numbers(tmp_path: Path) -> None:
+    planted = tmp_path / "test_late_imports.py"
+    planted.write_text(
+        "def waits():\n"
+        "    nap(1); clock.sleep(2)\n"
+        "    asyncio.sleep(3)\n"
+        "    nested.clock.sleep(4)\n"
+        "    unrelated(5)\n"
+        "from time import sleep as nap\n"
+        "import time as clock\n",
+        encoding="utf-8",
+    )
+    assert lint.python_waits(planted) == [2, 2, 3]

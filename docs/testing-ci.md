@@ -149,6 +149,37 @@ covered only in `tests/test_record_host_reconnect.py`
 (`test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold`,
 `test_restart_without_leave_still_pauses_on_host_join`).
 
+### Locked Python installation
+
+`.github/actions/install-locked-python` serves Linux and Windows callers with
+their existing extras. Its bootstrap still runs `python -m pip install --upgrade
+pip uv`. It records the active interpreter's absolute `sys.executable`, Python
+major and minor, installed uv version, and the native path from `uv cache dir`.
+`actions/cache@v6` stores only that package content directory. Its key includes
+runner OS and architecture, Python major and minor, uv version, and hashes of both
+`uv.lock` and `pyproject.toml`, and the sorted unique requested extras. A shared
+restore prefix reuses package content while each extras set saves its complete
+cache. It does not restore an installed environment or
+change PATH. Existing `actions/setup-python` pip caches remain for bootstrap and
+editable builds where callers configure them.
+
+Every invocation exports all requested extras with `uv export --locked
+--no-emit-project --no-hashes`. A stale lock fails before dependency installation.
+`uv pip install --python "$PYTHON_EXE" --compile-bytecode -r` consumes the exported
+requirements and targets the captured interpreter. Eager bytecode compilation
+preserves pip's existing installation behavior. The final step remains
+`python -m pip install --no-deps -e .`. Neither a cache hit nor a miss skips export,
+installation, caller checks, or the coverage gate. The weekly `extras-import`
+workflow keeps its deliberately unlocked environments to detect upstream changes.
+
+`tests/test_ci_dependency_cache.py` checks cache identity and executes the shell
+recipe in disposable environments with local command controls. Full package
+inventory, exporter behavior, Windows interpreter identity and PATH, and existing
+native jobs require their normal CI checks. Local installer timing establishes
+only the measured local path, not whole-job or CI savings.
+The pytest context artifact records visible logical CPUs and CPU affinity beside
+the unchanged four-worker cap so runner execution can qualify local measurements.
+
 ### Browser acceptance matrix
 
 Per-engine results for every check in the

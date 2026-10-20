@@ -37,15 +37,16 @@ def python_waits(path: Path) -> list[int]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     bare: set[str] = set()
     modules: set[str] = set(SLEEP_MODULES)
+    calls: list[ast.Call] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module in SLEEP_MODULES:
             bare.update(a.asname or a.name for a in node.names if a.name == "sleep")
         elif isinstance(node, ast.Import):
             modules.update(a.asname for a in node.names if a.asname and a.name in SLEEP_MODULES)
+        elif isinstance(node, ast.Call):
+            calls.append(node)
     lines: list[int] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    for node in calls:
         func = node.func
         module_sleep = (
             isinstance(func, ast.Attribute)

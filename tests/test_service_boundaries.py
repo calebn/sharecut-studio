@@ -175,6 +175,10 @@ def _architecture_edges(source: str, module: str, package: str) -> dict[str, set
 
 def _architecture_violations(source: str, module: str) -> set[str]:
     edges = _architecture_edges(source, module, module.rpartition(".")[0])
+    return _edge_violations(edges, module)
+
+
+def _edge_violations(edges: dict[str, set[str]], module: str) -> set[str]:
     return {
         f"{kind}:{target}"
         for kind, targets in edges.items()
@@ -192,12 +196,11 @@ def _scan_architecture() -> tuple[dict[str, dict[str, set[str]]], list[str]]:
         module = ".".join(parts[:-1] if is_init else parts)
         package = module if is_init else module.rpartition(".")[0]
         source = path.read_text()
-        for kind, targets in _architecture_edges(source, module, package).items():
+        edges = _architecture_edges(source, module, package)
+        for kind, targets in edges.items():
             if targets:
                 found[kind][module] = targets
-        violations.extend(
-            f"{module}: {v}" for v in sorted(_architecture_violations(source, module))
-        )
+        violations.extend(f"{module}: {v}" for v in sorted(_edge_violations(edges, module)))
     return found, violations
 
 
@@ -260,12 +263,42 @@ def test_architecture_allowlists_match_the_tree_exactly() -> None:
             {"util:podcast_mcp.cli.context"},
         ),
         ("from podcast_mcp.edits.anything import x", "podcast_mcp.services.record.service", set()),
+        (
+            "import typing\nif typing.TYPE_CHECKING:\n"
+            "    from podcast_mcp.edits.hidden import Shape\n"
+            "else:\n    from podcast_mcp.edits.runtime import run",
+            "podcast_mcp.cli.review",
+            {"domain:podcast_mcp.edits.runtime"},
+        ),
     ],
 )
 def test_architecture_guard_fails_on_a_synthetic_new_edge(
     source: str, module: str, expected: set[str]
 ) -> None:
     assert _architecture_violations(source, module) == expected
+
+
+def test_architecture_scan_reports_the_same_edges_and_violations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = tmp_path / "src/podcast_mcp/cli"
+    adapter.mkdir(parents=True)
+    (adapter / "review.py").write_text(
+        "from podcast_mcp.edits.new_logic import run\nfrom podcast_mcp.gui import new_view\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys.modules[__name__], "_ROOT", tmp_path)
+    found, violations = _scan_architecture()
+    assert found == {
+        "domain": {"podcast_mcp.cli.review": {"podcast_mcp.edits.new_logic"}},
+        "adapter": {"podcast_mcp.cli.review": {"podcast_mcp.gui", "podcast_mcp.gui.new_view"}},
+        "util": {},
+    }
+    assert violations == [
+        "podcast_mcp.cli.review: adapter:podcast_mcp.gui",
+        "podcast_mcp.cli.review: adapter:podcast_mcp.gui.new_view",
+        "podcast_mcp.cli.review: domain:podcast_mcp.edits.new_logic",
+    ]
 
 
 def _registry() -> dict[str, set[str]]:
@@ -305,35 +338,8 @@ def _exports() -> dict[str, set[str]]:
     }
 
 
-def _imports(source: str, module: str) -> set[str]:
-    imports: set[str] = set()
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Import):
-            imports.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            target = node.module or ""
-            if node.level:
-                target = resolve_name("." * node.level + target, module.rpartition(".")[0])
-            imports.add(target)
-            imports.update(f"{target}.{alias.name}" for alias in node.names)
-    return imports
-
-
 def _in(target: str, package: str) -> bool:
     return target == package or target.startswith(package + ".")
-
-
-def _import_modules(source: str, module: str) -> set[str]:
-    imports: set[str] = set()
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Import):
-            imports.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            target = node.module or ""
-            if node.level:
-                target = resolve_name("." * node.level + target, module.rpartition(".")[0])
-            imports.add(target)
-    return imports
 
 
 def _violations(
@@ -341,10 +347,22 @@ def _violations(
 ) -> set[str]:
     owner = next((context for context in registry if module.startswith(context + ".")), None)
     violations: set[str] = set()
+    modules: set[str] = set()
+    imports: set[str] = set()
     for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == _BASE:
-            violations.add(_BASE)
-    for target in _import_modules(source, module):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            target = node.module or ""
+            if node.level:
+                target = resolve_name("." * node.level + target, module.rpartition(".")[0])
+            elif target == _BASE:
+                violations.add(_BASE)
+            modules.add(target)
+            imports.add(target)
+            imports.update(f"{target}.{alias.name}" for alias in node.names)
+    for target in modules:
         if _in(target, "podcast_mcp.gui.routes") and module.startswith(_BASE + "."):
             violations.add("podcast_mcp.gui.routes")
         if (
@@ -353,7 +371,7 @@ def _violations(
             and not any(_in(target, allowed) for allowed in _ADAPTER_EXCEPTIONS.get(module, ()))
         ):
             violations.add(target)
-    for target in _imports(source, module):
+    for target in imports:
         for context, internals in registry.items():
             if owner == context or not target.startswith(context + "."):
                 continue
@@ -444,6 +462,17 @@ def _violations(
             set(),
         ),
         ("import podcast_mcp.cli.main", _BASE + ".record.__init__", {"podcast_mcp.cli.main"}),
+        (
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"
+            "    from podcast_mcp.services.collaboration import share as hidden",
+            "podcast_mcp.cli.review",
+            {_BASE + ".collaboration.share"},
+        ),
+        (
+            "def f():\n    from podcast_mcp.services import jobs as job_context",
+            _BASE + ".record.service",
+            {_BASE},
+        ),
     ],
 )
 def test_boundary_guard_checks_all_contexts(source: str, module: str, expected: set[str]) -> None:

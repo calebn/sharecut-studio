@@ -356,11 +356,13 @@ Apple Silicon macOS and Windows x64. A separate Ubuntu 24.04 job executes the
 identical transferred Linux payload. Local native checks supplement those jobs. Load-command minimum-OS checks are separate evidence from execution on the
 oldest supported OS. Source compilation is dependency production only.
 
-Python jobs cache pip downloads with `actions/setup-python`. Both `pyproject.toml`
-and `uv.lock` invalidate that cache. Every job that runs the suite installs through
-`.github/actions/install-locked-python`, which exports the requested extras from
-`uv.lock` (`uv export --locked`), pip-installs those exact versions, then installs the
-project with `--no-deps`. Local `uv run` and CI therefore test the same versions.
+Python jobs retain pip download caches where configured. Every locked installer
+caller also caches uv package content by OS, architecture, Python minor, uv version, extras,
+`pyproject.toml`, and `uv.lock`. `.github/actions/install-locked-python` always
+exports the requested extras with `uv export --locked`, installs those exact pins
+with `uv pip` into the captured Python interpreter with bytecode compilation, then
+pip-installs the editable project with `--no-deps`. Cache hits skip no checks.
+See [locked Python installation](testing-ci.md#locked-python-installation).
 Browser engines, browser system dependencies, virtual environments, and installed
 Node packages are not cached. Each browser matrix job installs only its declared
 engine and its system dependencies with Playwright `--with-deps`.

@@ -116,8 +116,11 @@ jobs:
             printf 'Compatibility base: %s\n' "$VALIDATED_COMPAT_BASE"
             python -VV
             python - <<'PY'
+          import os
           from importlib.metadata import version
 
+          print(f"Visible logical CPUs: {os.cpu_count()}")
+          print(f"CPU affinity count: {len(os.sched_getaffinity(0))}")
           for package in ("pytest", "pytest-xdist", "pytest-cov", "coverage"):
               print(f"{package}: {version(package)}")
           PY

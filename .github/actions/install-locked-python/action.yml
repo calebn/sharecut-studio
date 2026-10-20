@@ -7,14 +7,42 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install the locked dependencies, then the project
+    - name: Bootstrap the installer and identify its environment
+      id: installer
       shell: bash
       env:
         EXTRAS: ${{ inputs.extras }}
       run: |
+        set -euo pipefail
         python -m pip install --upgrade pip uv
+        python - <<'PY' >> "$GITHUB_OUTPUT"
+        import hashlib
+        import os
+        import sys
+        from importlib.metadata import version
+        print(f"python-exe={sys.executable}")
+        print(f"python-version={sys.version_info.major}.{sys.version_info.minor}")
+        print(f"uv-version={version('uv')}")
+        extras = "\n".join(sorted(set(os.environ["EXTRAS"].split())))
+        print(f"extras-key={hashlib.sha256(extras.encode()).hexdigest()}")
+        PY
+        cache_dir="$(uv cache dir)"
+        printf '%s\n' "cache-dir=$cache_dir" >> "$GITHUB_OUTPUT"
+    - name: Cache uv package content
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.installer.outputs.cache-dir }}
+        key: uv-${{ runner.os }}-${{ runner.arch }}-py${{ steps.installer.outputs.python-version }}-uv${{ steps.installer.outputs.uv-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-${{ steps.installer.outputs.extras-key }}
+        restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py${{ steps.installer.outputs.python-version }}-uv${{ steps.installer.outputs.uv-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-
+    - name: Install the locked dependencies, then the project
+      shell: bash
+      env:
+        EXTRAS: ${{ inputs.extras }}
+        PYTHON_EXE: ${{ steps.installer.outputs.python-exe }}
+      run: |
+        set -euo pipefail
         flags=()
         for extra in $EXTRAS; do flags+=(--extra "$extra"); done
         uv export --locked --no-emit-project --no-hashes "${flags[@]}" -o "$RUNNER_TEMP/locked-requirements.txt"
-        python -m pip install -r "$RUNNER_TEMP/locked-requirements.txt"
+        uv pip install --python "$PYTHON_EXE" --compile-bytecode -r "$RUNNER_TEMP/locked-requirements.txt"
         python -m pip install --no-deps -e .
