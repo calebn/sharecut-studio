@@ -377,9 +377,9 @@ def test_pipeline_and_bootstrap_ffmpeg_status_refresh_warmed_admission(
 
 
 def test_component_status_word_aligner_missing_hint(monkeypatch) -> None:
+    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.services.pipeline.config import component_status
-    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     monkeypatch.setattr(
         boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")

@@ -22,10 +22,10 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
     monkeypatch.setattr(config, "whisper_cache_dir", lambda: tmp_path / "cache" / "whisper")
     monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: None)
-    from podcast_mcp.whisper_models import WhisperWeightsMissingError
+    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 
     monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
-    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
 
     monkeypatch.setattr(boot, "_rnnoise_ready", lambda: False)
     monkeypatch.setattr(
@@ -95,8 +95,8 @@ def test_whisper_component_reports_unexpected_errors(monkeypatch) -> None:
 
 
 def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
+    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.services.pipeline import bootstrap as boot
-    from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
     component = boot.whisper_component("small.en")
@@ -108,8 +108,8 @@ def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
 
 
 def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
+    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline import bootstrap as boot
-    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     monkeypatch.setattr(
         boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
@@ -145,8 +145,8 @@ def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
 
 
 def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
+    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline import bootstrap as boot
-    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     monkeypatch.setattr(
         boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
@@ -307,7 +307,7 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
     # Second concurrent start while still "ok" should replace finished job.
     started2 = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert started2.status_code == 200
-    from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
+    from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
 
     assert started.json()["job"]["whisper_model"] == DEFAULT_WHISPER_MODEL
 
@@ -618,8 +618,8 @@ def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
 
 
 def test_component_status_whisper_pin_mismatch(monkeypatch) -> None:
+    from podcast_mcp.engines.models.whisper import WhisperPinMismatchError
     from podcast_mcp.services.pipeline import bootstrap as boot
-    from podcast_mcp.whisper_models import WhisperPinMismatchError
 
     monkeypatch.setattr(
         boot,
@@ -654,8 +654,8 @@ def test_status_components_poll_memoised(monkeypatch) -> None:
 
 
 def test_word_aligner_component_flags_a_pin_mismatch(monkeypatch) -> None:
+    from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
     from podcast_mcp.services.pipeline import bootstrap as boot
-    from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError
 
     monkeypatch.setattr(
         boot,

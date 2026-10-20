@@ -100,7 +100,7 @@ def load_defaults() -> dict[str, Any]:
     path = Path(override).expanduser() if override else _DEFAULTS_PATH
     if path.is_file():
         data = _parsed_defaults(path)
-        from podcast_mcp.whisper_models import apply_whisper_model_to_defaults
+        from podcast_mcp.engines.models.whisper import apply_whisper_model_to_defaults
 
         apply_whisper_model_to_defaults(data)
         return data

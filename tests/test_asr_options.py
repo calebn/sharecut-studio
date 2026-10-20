@@ -7,7 +7,7 @@ import pytest
 from model_pin_helpers import plant_pinned_word_aligner
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
-from podcast_mcp.word_aligner_models import WordAlignerMissingError
+from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
 
 
 def test_yaml_defaults_equal_dataclass_defaults():
@@ -79,7 +79,7 @@ def test_forced_alignment_explicit_true_with_the_model(monkeypatch, tmp_path):
 
 def test_forced_alignment_explicit_true_fails_on_a_corrupt_snapshot(monkeypatch, tmp_path):
     """#780: `true` with a present-but-corrupt model must fail the run, with the --upgrade hint."""
-    from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError
+    from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
 
     snap = plant_pinned_word_aligner(monkeypatch, tmp_path)
     (snap / "onnx" / "model.onnx").write_bytes(b"not an onnx model")

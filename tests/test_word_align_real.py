@@ -17,9 +17,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.models.word_aligner import word_aligner_is_cached
 from podcast_mcp.engines.word_align import WordAligner
 from podcast_mcp.models.episode import TranscriptWord
-from podcast_mcp.word_aligner_models import word_aligner_is_cached
 from script_loader import load_script
 
 pytestmark = pytest.mark.e2e_real

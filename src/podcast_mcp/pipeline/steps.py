@@ -21,6 +21,7 @@ from podcast_mcp.engines.mastering import (
     MasterTarget,
     master_qc_issues,
 )
+from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
 from podcast_mcp.engines.waveform_media import ensure_project_waveforms, schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -42,7 +43,6 @@ from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.project_state import current_cancel_check, with_render_lock
-from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 log = logging.getLogger(__name__)
 
@@ -119,13 +119,13 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     from podcast_mcp.edits.word_spans import trim_project_word_spans
     from podcast_mcp.engines.asr_options import AsrOptions
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
+    from podcast_mcp.engines.models.word_aligner import word_aligner_model
     from podcast_mcp.engines.transcribe import (
         collect_anomalous_asr_duration_flags,
         collect_punctuation_outlier_flags,
         dialogue_transcribe_jobs,
         forced_alignment_succeeded,
     )
-    from podcast_mcp.word_aligner_models import word_aligner_model
 
     cfg = defaults.get("transcribe", {})
     pol = AnalysisPolicy.from_defaults(defaults)

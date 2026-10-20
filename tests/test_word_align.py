@@ -23,6 +23,11 @@ from podcast_mcp.engines.ctc_forced_align import (
     retime_spans,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.models.word_aligner import (
+    WordAlignerMissingError,
+    WordAlignerPinMismatchError,
+    word_aligner_model,
+)
 from podcast_mcp.engines.word_align import (
     OnnxCtcBackend,
     WordAligner,
@@ -30,11 +35,6 @@ from podcast_mcp.engines.word_align import (
 )
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.word_aligner_models import (
-    WordAlignerMissingError,
-    WordAlignerPinMismatchError,
-    word_aligner_model,
-)
 
 
 def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:

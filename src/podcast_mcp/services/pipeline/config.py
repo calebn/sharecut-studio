@@ -238,7 +238,7 @@ def _selected_whisper_model(config: dict[str, Any] | None) -> str:
     Matches ``PipelineRunner`` / ``load_defaults``: YAML ``transcribe.model``
     wins when env/prefs are unset; env/prefs overlay when set.
     """
-    from podcast_mcp.whisper_models import (
+    from podcast_mcp.engines.models.whisper import (
         DEFAULT_WHISPER_MODEL,
         validate_whisper_model,
     )
@@ -268,8 +268,8 @@ def ensure_whisper_cached_for_run(
     ``memoize=True`` is only for Studio's early 409 in the Run route;
     ``PipelineService.run`` re-checks uncached before its checkpoint.
     """
+    from podcast_mcp.engines.models.whisper import ensure_whisper_model_cached
     from podcast_mcp.pipeline.runner import TRANSCRIBE_STEP, select_pipeline_steps
-    from podcast_mcp.whisper_models import ensure_whisper_model_cached
 
     selected = select_pipeline_steps(from_step, only_step, set(skip_steps or []))
     if TRANSCRIBE_STEP not in {name for name, _ in selected}:
@@ -285,8 +285,8 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     ``word-aligner`` is an opt-in download (``opt_in: true``); the Precise word boundaries
     toggle follows ``build_config_payload()["forced_alignment"]`` for its effective state.
     """
+    from podcast_mcp.engines.models.whisper import resolve_whisper_model
     from podcast_mcp.services.pipeline.bootstrap import whisper_component, word_aligner_component
-    from podcast_mcp.whisper_models import resolve_whisper_model
 
     out: dict[str, Any] = {}
     try:
@@ -498,7 +498,7 @@ def prosody_params_for(project_path: Path | str) -> ProsodyParams | None:
 
 
 def build_config_payload(project_path: Path | str) -> dict[str, Any]:
-    from podcast_mcp.whisper_models import catalog_payload
+    from podcast_mcp.engines.models.whisper import catalog_payload
 
     ws = config_store().get(project_path)
     defaults = load_defaults()

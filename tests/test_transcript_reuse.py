@@ -22,10 +22,10 @@ from podcast_mcp.edits.transcript_reuse import (
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import silence_filter_fingerprint
 from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
+from podcast_mcp.engines.models.word_aligner import word_aligner_model
 from podcast_mcp.engines.transcribe import TranscribeJob
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.hashing import sha256_file
-from podcast_mcp.word_aligner_models import word_aligner_model
 
 
 @pytest.fixture

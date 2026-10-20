@@ -1,6 +1,6 @@
 """Forced-aligner model catalog, cache detection and download (download is opt-in).
 
-Sibling of ``whisper_models.py``: a small catalog of pinned Hugging Face
+Sibling of ``whisper.py``: a small catalog of pinned Hugging Face
 snapshots for the CTC forced-alignment pass (``engines/word_align.py``,
 #714). Nothing here downloads on import or during a run — a run only ever
 reads a local snapshot (``local_files_only=True``); ``bootstrap_word_aligner``
@@ -12,7 +12,7 @@ No lock of our own guards the shared snapshot cache: concurrent
 ``bootstrap`` runs and a pipeline resolving mid-download rely on
 ``snapshot_download``'s own file locking, and ``missing_files`` turns a
 half-written snapshot into ``WordAlignerMissingError`` (Whisper's times kept),
-as ``whisper_models.py`` does.
+as ``whisper.py`` does.
 """
 
 from __future__ import annotations

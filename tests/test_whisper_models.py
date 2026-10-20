@@ -7,8 +7,7 @@ import pytest
 import yaml
 
 from model_pin_helpers import plant_pinned_whisper
-from podcast_mcp.util import model_manifest
-from podcast_mcp.whisper_models import (
+from podcast_mcp.engines.models.whisper import (
     DEFAULT_WHISPER_MODEL,
     WHISPER_MODEL_IDS,
     WHISPER_PINS,
@@ -25,6 +24,7 @@ from podcast_mcp.whisper_models import (
     whisper_model_is_cached,
     whisper_model_problem,
 )
+from podcast_mcp.util import model_manifest
 
 
 @pytest.fixture(autouse=True)
@@ -64,7 +64,7 @@ def test_resolve_invalid_env_falls_back(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_persist_merges_existing_prefs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    from podcast_mcp.whisper_models import prefs_path
+    from podcast_mcp.engines.models.whisper import prefs_path
 
     path = prefs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,7 +79,7 @@ def test_read_pref_tolerates_corrupt_and_invalid(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    from podcast_mcp.whisper_models import prefs_path, read_whisper_model_pref
+    from podcast_mcp.engines.models.whisper import prefs_path, read_whisper_model_pref
 
     path = prefs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +102,7 @@ def test_persist_ignores_non_dict_existing_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    from podcast_mcp.whisper_models import persist_whisper_model, prefs_path
+    from podcast_mcp.engines.models.whisper import persist_whisper_model, prefs_path
 
     path = prefs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,7 +114,7 @@ def test_persist_ignores_non_dict_existing_file(
 
 def test_persist_overwrites_corrupt_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    from podcast_mcp.whisper_models import persist_whisper_model, prefs_path
+    from podcast_mcp.engines.models.whisper import persist_whisper_model, prefs_path
 
     path = prefs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -125,7 +125,7 @@ def test_persist_overwrites_corrupt_yaml(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 def test_apply_overlay_skips_non_dict_transcribe() -> None:
-    from podcast_mcp.whisper_models import apply_whisper_model_to_defaults
+    from podcast_mcp.engines.models.whisper import apply_whisper_model_to_defaults
 
     data = {"transcribe": "off"}
     apply_whisper_model_to_defaults(data)
@@ -135,14 +135,14 @@ def test_apply_overlay_skips_non_dict_transcribe() -> None:
 def test_apply_overlay_fills_default_when_model_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from podcast_mcp.whisper_models import (
+    from podcast_mcp.engines.models.whisper import (
         DEFAULT_WHISPER_MODEL,
         apply_whisper_model_to_defaults,
     )
 
     monkeypatch.delenv("PODCAST_WHISPER_MODEL", raising=False)
     monkeypatch.setattr(
-        "podcast_mcp.whisper_models.read_whisper_model_pref",
+        "podcast_mcp.engines.models.whisper.read_whisper_model_pref",
         lambda: None,
     )
     data: dict = {"transcribe": {}}
@@ -180,7 +180,7 @@ def test_whisper_model_is_cached_missing_dir(
         "podcast_mcp.config.whisper_cache_dir",
         lambda: tmp_path / "no-such-whisper-dir",
     )
-    from podcast_mcp.whisper_models import catalog_payload
+    from podcast_mcp.engines.models.whisper import catalog_payload
 
     assert whisper_model_is_cached("large-v3-turbo") is False
     rows = catalog_payload()
@@ -320,7 +320,7 @@ def test_bootstrap_whisper_model_persist_error_still_ok(
     with (
         patch("faster_whisper.WhisperModel", return_value=MagicMock()),
         patch(
-            "podcast_mcp.whisper_models.persist_whisper_model",
+            "podcast_mcp.engines.models.whisper.persist_whisper_model",
             side_effect=OSError("disk full"),
         ),
     ):
@@ -495,7 +495,7 @@ def test_run_gate_rehashes_a_file_a_status_poll_remembered(
 
 
 def test_whisper_bootstrap_command() -> None:
-    from podcast_mcp.whisper_models import whisper_bootstrap_command
+    from podcast_mcp.engines.models.whisper import whisper_bootstrap_command
 
     assert whisper_bootstrap_command("small.en") == (
         "podcast bootstrap --component whisper --whisper-model small.en"

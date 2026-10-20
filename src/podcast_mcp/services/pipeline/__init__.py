@@ -21,6 +21,18 @@ if TYPE_CHECKING:
         suggest_pipeline_tuning,
         transcribe_run_config,
     )
+    from podcast_mcp.services.pipeline.models import (
+        DEFAULT_WHISPER_MODEL,
+        DEFAULT_WORD_ALIGNER,
+        WHISPER_MODEL_IDS,
+        WhisperWeightsMissingError,
+        bootstrap_whisper_model,
+        bootstrap_word_aligner,
+        persist_whisper_model,
+        resolve_whisper_model,
+        validate_whisper_model,
+        word_aligner_is_cached,
+    )
     from podcast_mcp.services.pipeline.service import (
         AudioExportResult,
         PipelineRunResult,
@@ -29,11 +41,17 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "DEFAULT_WHISPER_MODEL",
+    "DEFAULT_WORD_ALIGNER",
+    "WHISPER_MODEL_IDS",
     "AudioExportResult",
     "PipelineRunResult",
     "PipelineService",
+    "WhisperWeightsMissingError",
     "analyze_working_set",
     "asr_options_for",
+    "bootstrap_whisper_model",
+    "bootstrap_word_aligner",
     "build_config_payload",
     "component_status",
     "config_assignment_paths",
@@ -43,16 +61,30 @@ __all__ = [
     "format_export_qc_lines",
     "merge_pipeline_config",
     "parse_config_assignments",
+    "persist_whisper_model",
     "pipeline_step_states",
     "prosody_params_for",
+    "resolve_whisper_model",
     "run_bootstrap",
     "run_defaults_for",
     "skip_steps_from_enabled",
     "suggest_pipeline_tuning",
     "transcribe_run_config",
+    "validate_whisper_model",
+    "word_aligner_is_cached",
 ]
 
 _MODULE_BY_NAME = {
+    "DEFAULT_WHISPER_MODEL": "models",
+    "DEFAULT_WORD_ALIGNER": "models",
+    "WHISPER_MODEL_IDS": "models",
+    "WhisperWeightsMissingError": "models",
+    "bootstrap_whisper_model": "models",
+    "bootstrap_word_aligner": "models",
+    "persist_whisper_model": "models",
+    "resolve_whisper_model": "models",
+    "validate_whisper_model": "models",
+    "word_aligner_is_cached": "models",
     "AudioExportResult": "service",
     "PipelineRunResult": "service",
     "PipelineService": "service",

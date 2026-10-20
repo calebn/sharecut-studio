@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "secret-scan.yml"
 GITLEAKS_CONFIG = ROOT / ".gitleaks.toml"
 _PIN_MODULES = (
-    "src/podcast_mcp/whisper_models.py",
-    "src/podcast_mcp/word_aligner_models.py",
+    "src/podcast_mcp/engines/models/whisper.py",
+    "src/podcast_mcp/engines/models/word_aligner.py",
 )
 
 # Well-known resolver / placeholder addresses used as client IPs in tests.

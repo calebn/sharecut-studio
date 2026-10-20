@@ -10,6 +10,7 @@ import pytest
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
 from podcast_mcp.engines.ctc_forced_align import RetimeStats
+from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError, word_aligner_model
 from podcast_mcp.engines.transcribe import (
     TranscribeJob,
     TranscriptionEngine,
@@ -18,7 +19,6 @@ from podcast_mcp.engines.transcribe import (
 )
 from podcast_mcp.engines.word_align import WordAlignResult
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
-from podcast_mcp.word_aligner_models import WordAlignerMissingError, word_aligner_model
 from two_mic_project import two_mic_project
 
 

@@ -9,9 +9,9 @@ from __future__ import annotations
 import pytest
 
 from job_event_helpers import JobEventTap
+from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
 from podcast_mcp.services.jobs import Job, JobManager, guest_render_job
 from podcast_mcp.services.jobs.job import cancelled_copy
-from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 PIPELINE_SNAPSHOT_KEYS = {
     "id",

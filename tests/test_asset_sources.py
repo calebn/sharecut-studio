@@ -188,7 +188,7 @@ def test_single_cdn_url_labeled_cdn(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 def test_whisper_manifest_rows_are_not_wired_to_runtime() -> None:
     import inspect
 
-    from podcast_mcp.whisper_models import bootstrap_whisper_model
+    from podcast_mcp.engines.models.whisper import bootstrap_whisper_model
 
     source = inspect.getsource(bootstrap_whisper_model)
     assert "ordered_http_urls" not in source

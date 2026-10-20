@@ -23,6 +23,7 @@ import podcast_mcp
 from podcast_mcp import settings
 from podcast_mcp.config import cache_dir, whisper_cache_dir
 from podcast_mcp.distribution import runtime_distribution_metadata
+from podcast_mcp.engines.models.whisper import resolve_whisper_model, whisper_model_is_cached
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.app import resolve_gui_static_root
 from podcast_mcp.services.pipeline import component_status
@@ -40,7 +41,6 @@ from podcast_mcp.util.diagnostics_bundle_contract import (
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.redact import sanitize
-from podcast_mcp.whisper_models import resolve_whisper_model, whisper_model_is_cached
 
 LOG_TAIL_LINES = 500
 LOG_TAIL_MAX_BYTES = 256 * 1024

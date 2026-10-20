@@ -394,7 +394,7 @@ def test_checked_in_shipped_pass_report_matches_pipeline_fixture() -> None:
     assert (matched, reference, over) == (42, 48, 2)
     assert mae == pytest.approx(42.9762, abs=0.0001)
 
-    from podcast_mcp.word_aligner_models import word_aligner_model
+    from podcast_mcp.engines.models.word_aligner import word_aligner_model
 
     pinned = word_aligner_model()
     fixture = Path(__file__).parent / "fixtures" / "word_boundary"

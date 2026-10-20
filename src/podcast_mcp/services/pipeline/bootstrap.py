@@ -11,15 +11,7 @@ from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.config import whisper_cache_dir
-from podcast_mcp.util.asset_sources import cdn_base_configured
-from podcast_mcp.util.binaries import (
-    FFmpegPairResolutionError,
-    resolve_ffmpeg_pair,
-)
-from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.model_assets import bootstrap_rnnoise_model, rnnoise_model_path
-from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
-from podcast_mcp.whisper_models import (
+from podcast_mcp.engines.models.whisper import (
     WHISPER_BOOTSTRAP,
     WhisperPinMismatchError,
     bootstrap_whisper_model,
@@ -28,7 +20,7 @@ from podcast_mcp.whisper_models import (
     whisper_bootstrap_command,
     whisper_model_problem,
 )
-from podcast_mcp.word_aligner_models import (
+from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,
     WordAlignerPinMismatchError,
@@ -36,6 +28,14 @@ from podcast_mcp.word_aligner_models import (
     word_aligner_model,
     word_aligner_problem,
 )
+from podcast_mcp.util.asset_sources import cdn_base_configured
+from podcast_mcp.util.binaries import (
+    FFmpegPairResolutionError,
+    resolve_ffmpeg_pair,
+)
+from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.model_assets import bootstrap_rnnoise_model, rnnoise_model_path
+from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 
 # Consumer first-run defaults: never pull torch / NISQA.
 DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = ("whisper",)

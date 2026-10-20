@@ -16,8 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from podcast_mcp.config import EffectiveConfig, bounded_float
-from podcast_mcp.util.dicts import get_by_path
-from podcast_mcp.word_aligner_models import (
+from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,
     WordAlignerMissingError,
@@ -25,6 +24,7 @@ from podcast_mcp.word_aligner_models import (
     word_aligner_installed,
     word_aligner_problem,
 )
+from podcast_mcp.util.dicts import get_by_path
 
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
 

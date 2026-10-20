@@ -36,6 +36,7 @@ from podcast_mcp.engines.ctc_forced_align import (
     retime_spans,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.models.word_aligner import DEFAULT_WORD_ALIGNER
 from podcast_mcp.engines.word_align import DEFAULT_ALIGNER_THREADS, OnnxCtcBackend, apply_word_spans
 from podcast_mcp.engines.word_boundary_metrics import (
     matched_word_pairs,
@@ -47,7 +48,6 @@ from podcast_mcp.util.atomic_json import write_bytes_atomic, write_json_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.wav import pcm_wav_header
-from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"

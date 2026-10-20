@@ -1,7 +1,7 @@
 """Pinned per-file sha256 manifests for downloaded model snapshots (#728).
 
-A pinned Hugging Face snapshot (the Whisper catalog in ``whisper_models.py``, the
-forced aligner in ``word_aligner_models.py``) lists every file it downloads with the
+A pinned Hugging Face snapshot (the Whisper catalog in ``engines/models/whisper.py``, the
+forced aligner in ``engines/models/word_aligner.py``) lists every file it downloads with the
 sha256 of its bytes at the pinned revision. Bootstrap and load verify the whole
 manifest uncached. Status checks (Pipeline badges, bootstrap status, the catalog picker,
 doctor) pass ``memoize=True``, which hashes each file once per process per (resolved path,
