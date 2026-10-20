@@ -595,7 +595,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "project.new",
     category: "ui",
-    label: "New project",
+    label: "New project…",
     keys: ["N"],
     bareKey: false,
     requireMod: true,
@@ -606,7 +606,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "project.open",
     category: "ui",
-    label: "Open project",
+    label: "Open project…",
     keys: ["O"],
     bareKey: false,
     requireMod: true,
@@ -628,7 +628,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "media.import",
     category: "edit",
-    label: "Import audio",
+    label: "Import audio…",
     keys: ["I"],
     bareKey: false,
     requireMod: true,

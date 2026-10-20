@@ -391,8 +391,12 @@ describe("MobileShell", () => {
 
     await user.click(screen.getByRole("button", { name: "More" }));
     const hub = container.querySelector(".mobile-more-hub");
-    expect(hub?.firstElementChild).toHaveAccessibleName("Search commands");
-    await user.click(screen.getByRole("button", { name: "Search commands" }));
+    expect(hub?.firstElementChild).toHaveAccessibleName(
+      "Commands and shortcuts",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Commands and shortcuts" }),
+    );
 
     const palette = screen.getByRole("dialog", {
       name: "Commands and shortcuts",
@@ -508,7 +512,10 @@ describe("MobileShell", () => {
     await user.click(screen.getByRole("button", { name: "More" }));
     await user.click(screen.getByRole("button", { name: "Gestures" }));
     await user.click(
-      screen.getByRole("button", { name: "Commands and shortcuts" }),
+      within(screen.getByRole("dialog", { name: "Gestures" })).getByRole(
+        "button",
+        { name: "Commands and shortcuts" },
+      ),
     );
     expect(
       screen.getByRole("dialog", { name: "Commands and shortcuts" }),
@@ -583,7 +590,7 @@ describe("MobileShell", () => {
         <MobileShell />
       </DawProvider>,
     );
-    await user.click(screen.getByRole("button", { name: "Pending: 1" }));
+    await user.click(screen.getByRole("button", { name: "1 pending edit" }));
     expect(useDawStore.getState().mobileMode).toBe("timeline");
     expect(useDawStore.getState().selection).toEqual({
       kind: "pending",
@@ -670,7 +677,7 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
     const chip = screen.getByRole("button", {
-      name: /Pipeline: running · Transcribing guest track/,
+      name: /Pipeline is running · Transcribing guest track/,
     });
     expect(chip.textContent).toContain("…");
     expect(chip.textContent).toContain("0:09");
@@ -707,7 +714,7 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
     const chip = screen
-      .getByText(/Activity: running · Scoring bleed windows/)
+      .getByText(/Activity is running · Scoring bleed windows/)
       .closest(".status-pipeline");
     expect(chip?.tagName).toBe("SPAN");
     expect(chip?.querySelector(".activity-count-badge")?.textContent).toContain(
@@ -739,7 +746,7 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
     const bounceChip = screen.getByRole("button", {
-      name: /Activity: running · Mixing bounce/,
+      name: /Activity is running · Mixing bounce/,
     });
     await user.click(bounceChip);
     expect(useDawStore.getState().mobileMode).toBe("more");
@@ -764,7 +771,7 @@ describe("MobileShell", () => {
       });
     });
     const agentChip = screen
-      .getByText(/Activity: running · Scoring/)
+      .getByText(/Activity is running · Scoring/)
       .closest(".status-pipeline");
     expect(agentChip?.tagName).toBe("SPAN");
     expect(useDawStore.getState().mobileMode).toBe("listen");
@@ -793,9 +800,9 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
     expect(
-      screen.queryByRole("button", { name: /Activity: running/ }),
+      screen.queryByRole("button", { name: /Activity is running/ }),
     ).toBeNull();
-    const chips = screen.getAllByText(/Activity: running/);
+    const chips = screen.getAllByText(/Activity is running/);
     expect(chips.some((el) => el.closest(".status-pipeline") != null)).toBe(
       true,
     );
@@ -823,7 +830,7 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
     const chip = screen.getByRole("button", {
-      name: /Pipeline: running · Transcribing guest track/,
+      name: /Pipeline is running · Transcribing guest track/,
     });
     expect(chip.textContent).toContain("last update");
     expect(chip.querySelector(".status-pipeline-copy")).toBeTruthy();
@@ -1052,7 +1059,7 @@ describe("MobileShell", () => {
     ).toBe(true);
     expect(
       screen
-        .getAllByRole("button", { name: "Stop" })
+        .getAllByRole("button", { name: "Stop playback" })
         .every((el) => el.getAttribute("aria-disabled") === "true"),
     ).toBe(true);
     expect(document.querySelector(".listen-hero .play-btn")).toHaveAttribute(
@@ -1076,7 +1083,7 @@ describe("MobileShell", () => {
     const play = within(hero).getByRole("button", { name: "Play" });
     expect(play).toHaveAttribute("aria-disabled", "true");
     expect(play).toHaveAccessibleDescription("Import audio to play.");
-    const stop = within(hero).getByRole("button", { name: "Stop" });
+    const stop = within(hero).getByRole("button", { name: "Stop playback" });
     expect(stop).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(play);
     fireEvent.click(stop);
@@ -1107,7 +1114,7 @@ describe("MobileShell", () => {
     expect(
       within(hero).getByRole("button", { name: "Play" }),
     ).toHaveAccessibleDescription("Import audio to play.");
-    const stop = within(hero).getByRole("button", { name: "Stop" });
+    const stop = within(hero).getByRole("button", { name: "Stop playback" });
     expect(stop).not.toHaveAttribute("aria-disabled");
     expect(stop).not.toHaveAttribute("aria-describedby");
     await userEvent.click(stop);

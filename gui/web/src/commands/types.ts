@@ -54,7 +54,19 @@ export type CommandHandler = (
 export type CommandDef = {
   id: string;
   category: CommandCategory;
+  /** The visible name on every surface: button, menu item, palette row, manifest. */
   label: string;
+  /**
+   * The one short form for a narrow control (a row of chips, a word bar).
+   * Declared here once; a control never types its own abbreviation.
+   */
+  shortLabel?: string;
+  /**
+   * Other names one control takes for this command when its state or target
+   * changes (Ignore turns into Restore, Undo into Undo timing). Declared here
+   * once; the label-parity test accepts no other literal.
+   */
+  variants?: readonly string[];
   /**
    * Extra lowercase words the command palette matches, for what people type
    * instead of the label (file types, synonyms).

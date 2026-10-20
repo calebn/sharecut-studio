@@ -1,3 +1,4 @@
+import { commandLabel } from "../commands/labels";
 import { runPointerCommand } from "../commands/pointer";
 import { ariaKeyShortcutsFor, titleWithShortcut } from "../keymap/registry";
 import {
@@ -51,9 +52,12 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
       }
       toolMode={toolMode}
       commentMode={commentMode}
-      selectTitle={titleWithShortcut("Select tool", "tool.select")}
+      selectTitle={titleWithShortcut(
+        commandLabel("tool.select"),
+        "tool.select",
+      )}
       selectAriaKeyShortcuts={ariaKeyShortcutsFor("tool.select")}
-      bladeTitle={titleWithShortcut("Blade tool", "tool.blade")}
+      bladeTitle={titleWithShortcut(commandLabel("tool.blade"), "tool.blade")}
       bladeAriaKeyShortcuts={ariaKeyShortcutsFor("tool.blade")}
       commentTitle={commentModeTitle}
       commentAriaKeyShortcuts={ariaKeyShortcutsFor("review.toggleCommentMode")}

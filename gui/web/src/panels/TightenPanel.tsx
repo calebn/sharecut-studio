@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { startPipelineRun } from "../api";
+import { commandLabel } from "../commands/labels";
 import { runPointerCommand } from "../commands/pointer";
 import { askConfirm } from "../feedback/ask";
 import { useTightenIntensityConfig } from "../hooks/useTightenIntensityConfig";
@@ -307,7 +308,7 @@ export function TightenPanel() {
           args={{ ids: filtered.map((h) => h.id) }}
           disabledReason={applyAllReason}
         >
-          Apply suggested actions ({filtered.length})
+          {`${commandLabel("tighten.applySuggested")} (${filtered.length})`}
         </CommandButton>
       </div>
 
@@ -421,17 +422,15 @@ export function TightenPanel() {
                               args={{ id: hit.id }}
                               className="tighten-decide"
                               aria-label={`Apply ${rowLabel}`}
-                            >
-                              Apply
-                            </CommandButton>
+                              short
+                            />
                             <CommandButton
                               commandId="tighten.skipHit"
                               args={{ id: hit.id }}
                               className="tighten-decide"
                               aria-label={`Skip ${rowLabel}`}
-                            >
-                              Skip
-                            </CommandButton>
+                              short
+                            />
                           </>
                         ) : null}
                         <CommandButton
@@ -444,9 +443,8 @@ export function TightenPanel() {
                               : "This hit is not on the timeline, so it cannot be previewed."
                           }
                           aria-label={`Preview ${rowLabel}`}
-                        >
-                          Preview
-                        </CommandButton>
+                          short
+                        />
                         <CommandButton
                           commandId="tighten.goToHit"
                           args={{ id: hit.id }}
@@ -457,9 +455,8 @@ export function TightenPanel() {
                               : "This hit is not on the timeline, so there is nothing to go to."
                           }
                           aria-label={`Go to ${rowLabel}`}
-                        >
-                          Go to
-                        </CommandButton>
+                          short
+                        />
                       </div>
                     </td>
                   </tr>

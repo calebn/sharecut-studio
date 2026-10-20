@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { commandLabel } from "../commands/labels";
 import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -40,6 +41,7 @@ import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
 import { CommandButton, EmptyState, Icon, Timecode } from "../ui";
 import { useModalOpen } from "../ui/useModalOpen";
+import { pendingEditsStatus } from "../utils/edits";
 import {
   HOME_SCREEN_HINT,
   offersHomeScreenHint,
@@ -120,7 +122,7 @@ function MoreHub({
         onClick={onOpenCommands}
       >
         <Icon name="search" size={18} />
-        <span>Search commands</span>
+        <span>{commandLabel("ui.toggleCommandPalette")}</span>
       </button>
       <ul className="mobile-more-list">
         <li>
@@ -166,8 +168,8 @@ function MoreHub({
               recording of everyone? Import it, then choose Split speakers.
             </p>
           ) : null}
-          <CommandButton commandId="media.import">Import audio…</CommandButton>
-          <CommandButton commandId="track.add">New track</CommandButton>
+          <CommandButton commandId="media.import" />
+          <CommandButton commandId="track.add" />
         </div>
       ) : null}
       <div className="mobile-more-group">
@@ -179,9 +181,7 @@ function MoreHub({
             commandId="edit.addChapter"
             respectWhen
             whenReason="Open an episode project to add a chapter."
-          >
-            Add chapter at playhead
-          </CommandButton>
+          />
         </div>
       ) : null}
       <div className="mobile-more-group">
@@ -309,7 +309,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
               });
             }}
           >
-            Pending: {pending}
+            {pendingEditsStatus(pending)}
           </button>
         ) : null}
         {mixBreakdown.stale ? (

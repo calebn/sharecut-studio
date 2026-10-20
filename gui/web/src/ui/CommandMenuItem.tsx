@@ -8,6 +8,8 @@ type Props = {
   args?: Record<string, unknown>;
   respectWhen?: boolean;
   children?: ReactNode;
+  /** Show the command's declared `shortLabel` when there are no children. */
+  short?: boolean;
   className?: string;
   title?: string;
   /** Called after clicking (e.g. close menu). */
@@ -31,6 +33,7 @@ export function CommandMenuItem({
   args,
   respectWhen = false,
   children,
+  short = false,
   className,
   title,
   onSelect,
@@ -40,7 +43,7 @@ export function CommandMenuItem({
   onBlur,
   showShortcut = true,
 }: Props) {
-  const { run, enabled, whenReason, label } = useCommand(commandId);
+  const { run, enabled, whenReason, label, shortLabel } = useCommand(commandId);
   const disabledReason = respectWhen && !enabled ? whenReason : undefined;
   const shortcut = showShortcut ? displayShortcutFor(commandId) : undefined;
   const keyShortcuts = showShortcut
@@ -63,7 +66,7 @@ export function CommandMenuItem({
         void run(args, { skipWhen: !respectWhen });
       }}
     >
-      {children ?? label}
+      {children ?? (short ? shortLabel : label)}
     </MenuItem>
   );
 }

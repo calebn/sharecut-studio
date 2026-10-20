@@ -24,18 +24,17 @@ describe("ToolModeToggleView", () => {
         {...actions()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Select tool" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Blade" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Blade tool" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
-    expect(screen.getByRole("button", { name: "Comment" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(
+      screen.getByRole("button", { name: "Toggle comment mode" }),
+    ).toHaveAttribute("aria-pressed", "false");
     await expectNoA11yViolations(container);
   });
 
@@ -50,11 +49,11 @@ describe("ToolModeToggleView", () => {
         {...actions()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Select tool" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
-    expect(screen.getByRole("button", { name: "Blade" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Blade tool" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -71,14 +70,13 @@ describe("ToolModeToggleView", () => {
         {...actions()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Select tool" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
-    expect(screen.getByRole("button", { name: "Comment" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Toggle comment mode" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("titles Select, Blade and Comment with their shortcuts", () => {
@@ -95,16 +93,16 @@ describe("ToolModeToggleView", () => {
         {...actions()}
       />,
     );
-    const select = screen.getByRole("button", { name: "Select" });
+    const select = screen.getByRole("button", { name: "Select tool" });
     expect(select).toHaveAttribute("title", "Select tool (V)");
     expect(select).toHaveAttribute("aria-keyshortcuts", "V");
-    const blade = screen.getByRole("button", { name: "Blade" });
+    const blade = screen.getByRole("button", { name: "Blade tool" });
     expect(blade).toHaveAttribute(
       "title",
       "Blade tool (C): split at click or playhead",
     );
     expect(blade).toHaveAttribute("aria-keyshortcuts", "C");
-    const comment = screen.getByRole("button", { name: "Comment" });
+    const comment = screen.getByRole("button", { name: "Toggle comment mode" });
     expect(comment).toHaveAttribute(
       "title",
       "Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)",
@@ -140,7 +138,9 @@ describe("ToolModeToggleView", () => {
         {...actions()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Toggle comment mode" }),
+    ).toBeNull();
     const group = screen.getByRole("group", { name: "Timeline tool" });
     expect(group.classList.contains("tool-mode-toggle--compact")).toBe(true);
   });
@@ -157,13 +157,15 @@ describe("ToolModeToggleView", () => {
         {...actions()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Select" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Blade" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Blade" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Select tool" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Blade tool" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Blade tool" })).toHaveAttribute(
       "title",
       "Blade requires permission to suggest edits",
     );
-    expect(screen.getByRole("button", { name: "Comment" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Toggle comment mode" }),
+    ).toBeTruthy();
   });
 
   it("calls each callback on click", async () => {
@@ -179,9 +181,11 @@ describe("ToolModeToggleView", () => {
         {...cbs}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Select" }));
-    await user.click(screen.getByRole("button", { name: "Blade" }));
-    await user.click(screen.getByRole("button", { name: "Comment" }));
+    await user.click(screen.getByRole("button", { name: "Select tool" }));
+    await user.click(screen.getByRole("button", { name: "Blade tool" }));
+    await user.click(
+      screen.getByRole("button", { name: "Toggle comment mode" }),
+    );
     expect(cbs.onSelect).toHaveBeenCalledTimes(1);
     expect(cbs.onBlade).toHaveBeenCalledTimes(1);
     expect(cbs.onToggleComment).toHaveBeenCalledTimes(1);

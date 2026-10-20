@@ -19,6 +19,7 @@ import { oneWordOf } from "../utils/rangeSelect";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { openCommentDraft } from "./comments";
 import { registerCommand } from "./execute";
+import { commandLabel } from "./labels";
 import type { ExecuteResult } from "./types";
 
 export type RangeAction = "play" | "cut" | "mute" | "comment" | "bounce";
@@ -107,23 +108,15 @@ export function rangeActionDescriptors(
       !hasShareCapability(state.shareCapabilities, "comment")
     )
       reason = "This share cannot add comments";
+    const commandId = `range.${action}`;
+    const short = commandLabel(commandId, "short");
     const label =
-      action === "cut"
-        ? mode === "edit"
-          ? "Cut"
-          : "Suggest cut"
-        : action === "mute"
-          ? mode === "edit"
-            ? "Mute"
-            : "Suggest mute"
-          : action === "play"
-            ? guest
-              ? "Play full mix"
-              : "Play"
-            : action === "comment"
-              ? "Comment"
-              : "Bounce";
-    return { action, commandId: `range.${action}`, label, reason };
+      (action === "cut" || action === "mute") && mode !== "edit"
+        ? `Suggest ${short.toLowerCase()}`
+        : action === "play" && guest
+          ? "Play full mix"
+          : short;
+    return { action, commandId, label, reason };
   });
 }
 

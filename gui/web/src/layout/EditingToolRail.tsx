@@ -1,3 +1,4 @@
+import { commandLabel } from "../commands/labels";
 import { runPointerCommand } from "../commands/pointer";
 import { canIngestMedia, canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -48,14 +49,15 @@ export function EditingToolRail({ inert = false }: { inert?: boolean }) {
           <CommandButton
             commandId="range.arm"
             className="editing-tool-rail-range"
-            aria-label="Select range"
           >
             <Icon
               name="range"
               size={20}
               className="editing-tool-rail-range-icon"
             />
-            <span className="editing-tool-rail-range-label">Select range</span>
+            <span className="editing-tool-rail-range-label">
+              {commandLabel("range.arm", "short")}
+            </span>
           </CommandButton>
         </>
       }

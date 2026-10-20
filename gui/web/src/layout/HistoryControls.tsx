@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { commandLabel } from "../commands/labels";
 import { readyAfterSaveCopy } from "../commands/undoWait";
 import { Button, Icon } from "../ui";
 import {
@@ -10,8 +11,16 @@ type HistoryAction = "undo" | "redo";
 type HistoryVariant = "rail" | "compact";
 
 const HISTORY_COPY = {
-  undo: { label: "Undo", reason: "Nothing to undo", caption: "undo" },
-  redo: { label: "Redo", reason: "Nothing to redo", caption: "redo" },
+  undo: {
+    label: commandLabel("history.undo"),
+    reason: "Nothing to undo",
+    caption: "undo",
+  },
+  redo: {
+    label: commandLabel("history.redo"),
+    reason: "Nothing to redo",
+    caption: "redo",
+  },
 } as const;
 const HINT_MS = 3500;
 

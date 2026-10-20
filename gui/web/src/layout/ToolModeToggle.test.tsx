@@ -19,9 +19,11 @@ describe("ToolModeToggle", () => {
         <ToolModeToggle />
       </DawProvider>,
     );
-    expect(screen.getByRole("button", { name: "Select" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Blade" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Comment" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Select tool" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Blade tool" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Toggle comment mode" }),
+    ).toBeTruthy();
   });
 
   it("renders the shared segmented track so pressed paint comes from one place", () => {
@@ -41,9 +43,11 @@ describe("ToolModeToggle", () => {
         <ToolModeToggle compact />
       </DawProvider>,
     );
-    expect(screen.getByRole("button", { name: "Select" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Blade" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Select tool" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Blade tool" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Toggle comment mode" }),
+    ).toBeNull();
   });
 
   it("dispatches tool and comment commands through the store on click", async () => {
@@ -53,11 +57,13 @@ describe("ToolModeToggle", () => {
         <ToolModeToggle />
       </DawProvider>,
     );
-    await user.click(screen.getByRole("button", { name: "Blade" }));
+    await user.click(screen.getByRole("button", { name: "Blade tool" }));
     expect(useDawStore.getState().toolMode).toBe("blade");
-    await user.click(screen.getByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select tool" }));
     expect(useDawStore.getState().toolMode).toBe("select");
-    await user.click(screen.getByRole("button", { name: "Comment" }));
+    await user.click(
+      screen.getByRole("button", { name: "Toggle comment mode" }),
+    );
     expect(useDawStore.getState().commentMode).toBe(true);
   });
 });

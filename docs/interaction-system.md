@@ -47,7 +47,7 @@ Each thing is declared once. A second map from the same key is a bug.
 
 | Thing | Declared in | Locked by |
 | --- | --- | --- |
-| Command (`id`, `label`, `category`, `when`, `paletteRunnable`, `breaksFollow`) | `gui/web/src/commands/catalog.ts` (`COMMANDS`), types in `commands/types.ts`, predicates in `commands/context.ts` | `commands/governance.test.ts` |
+| Command (`id`, `label`, `shortLabel`, `variants`, `category`, `when`, `paletteRunnable`, `breaksFollow`) | `gui/web/src/commands/catalog.ts` (`COMMANDS`), types in `commands/types.ts`, predicates in `commands/context.ts`, names read through `commands/labels.ts` | `commands/governance.test.ts`, `commands/labelParity.test.ts` |
 | Shortcut | `gui/web/src/keymap/registry.ts` (`KEYMAP_COMMANDS`); the only window `keydown` listener is `keymap/listener.ts` | `commands/governance.test.ts` (second listener fails), `make cheatsheet-check` |
 | Touch hit kind and gesture | `gui/web/src/timeline/inputContract.ts` (`HIT_KINDS`, `TOUCH_GESTURES`), routing in `timeline/hitRouting*.ts`, thresholds in `hooks/gestureConstants.ts` | `timeline/gestureGovernance.test.ts`, `inputContract.conformance.test.ts`, `inputContract.manifest.test.ts` |
 | Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body`, `screens`, `peek`, `related` and `more`) | `selectionSurface` tests, `layout/useSelectionSheet.test.tsx` |
@@ -204,7 +204,11 @@ There are three overlay primitives.
 
 1. **One label per command.** `CommandDef.label` is the visible name on the
    button, the menu item, the palette row and the manifest. A short form for a
-   narrow control is `shortLabel` on the same `CommandDef`, declared once.
+   narrow control is `shortLabel` on the same `CommandDef`, declared once. A
+   name a control takes when its state or target changes (Ignore turns into
+   Restore) is a `variants` entry on the same `CommandDef`. `CommandButton` and
+   `CommandMenuItem` render the label by default and the short form with
+   `short`; chrome that is neither reads `commandLabel(id)`.
 2. **The accessible name is the visible name.** `aria-label` only adds what the
    visible text omits (an icon-only button says the label; a toggle says its
    state).
@@ -286,11 +290,14 @@ Locked by a test or a check today:
 - Every Locked by cell in the [Registries](#registries) table.
 - Shared buttons disable only with a reason (`ui/Button.test.tsx`,
   `ui/disabledReason.tsx`).
+- One label per command: the written name on every `CommandButton` and
+  `CommandMenuItem`, the palette rows and the manifest equal the catalog entry
+  (`commands/labelParity.test.ts`).
 - `no-alert` (oxlint), axe in Vitest and Playwright, the 44 px sweep
   (`gui/web/e2e/touch-floor.spec.ts`), overlay reachability
   (`gui/web/e2e/overlayReachability.ts`).
 
-Review checks the rest: one label per command, one live region, feedback
+Review checks the rest: one live region, feedback
 lifetime, menu descriptors shared between touch and right click, tablet and
 phone reading the same `screens`. Each of those becomes a test as the
 matching phase of the UI consistency epic lands.
@@ -304,7 +311,6 @@ consistency epic tracks them.
 | --- | --- |
 | Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` hand-roll `role="menu"` and stay outside the top layer (the touch chooser drag specs break in WebKit when the chooser is a popover; the create menu shares that layer markup); desktop has no right-click menu (`hooks/useLongPress.ts` only suppresses the native one). |
 | Confirms: one primitive | `WhisperDownloadDialog` (`panels/WhisperModelPicker.tsx`) is a hand-built confirm-shaped `Dialog` that also runs the download with progress; it is not `askConfirm`. |
-| Names: one label | Select / Select tool, Search commands / Commands and shortcuts, Zoom − / Zoom out. |
 | Shells: bottom zone for doing | The tablet Select range instruction card with In, Out and Select range sits at the top. |
 | Touch: one grammar across `src/` | The governance scan walks `timeline/` only; comment swipe, splitter, reorder grip, fader and ruler keep their own gestures. |
 | Keys: declared dispatch order | Backspace tries `tighten.skipHit` before `edit.delete`; the listener comment says catalog order. |

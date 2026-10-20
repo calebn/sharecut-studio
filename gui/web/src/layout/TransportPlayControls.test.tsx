@@ -17,7 +17,7 @@ describe("TransportPlayControls", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop playback" }));
     expect(onTogglePlay).toHaveBeenCalledOnce();
     expect(onStop).toHaveBeenCalledOnce();
 
@@ -29,10 +29,9 @@ describe("TransportPlayControls", () => {
         onStop={onStop}
       />,
     );
-    expect(screen.getByRole("button", { name: "Stop" })).toHaveAttribute(
-      "title",
-      "Stop and return to where playback started (K)",
-    );
+    expect(
+      screen.getByRole("button", { name: "Stop playback" }),
+    ).toHaveAttribute("title", "Stop and return to where playback started (K)");
     const pause = screen.getByRole("button", { name: "Pause" });
     expect(pause).toHaveAttribute("title", "Pause (Space)");
     expect(pause).toHaveAttribute("data-playing", "true");
@@ -54,7 +53,7 @@ describe("TransportPlayControls", () => {
       />,
     );
     const play = screen.getByRole("button", { name: "Play" });
-    const stop = screen.getByRole("button", { name: "Stop" });
+    const stop = screen.getByRole("button", { name: "Stop playback" });
     expect(screen.getByRole("status")).toHaveTextContent(
       "Import audio to play.",
     );
@@ -124,7 +123,7 @@ describe("TransportPlayControls", () => {
     expect(
       screen.getByRole("button", { name: "Play" }),
     ).toHaveAccessibleDescription("Import audio to play.");
-    const stop = screen.getByRole("button", { name: "Stop" });
+    const stop = screen.getByRole("button", { name: "Stop playback" });
     expect(stop).toHaveAccessibleDescription(
       "This action is unavailable right now.",
     );
