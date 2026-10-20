@@ -1736,21 +1736,20 @@ def _between_kept_voices(
         valley = False
         if candidate.reason == ACOUSTIC_FILLER_REASON:
             # A hum the transcript missed can decay into a valley that stays over the
-            # voice floor, 20 dB under it and 17 dB under the word after it (lab 646.88,
-            # #1358): the word's voice does not run back through that. The edge sits in
-            # the valley, where the air is, not 60 ms before the word. A sound with
-            # several bursts of level before the valley (two syllables, a phrase, "uh-huh")
-            # may be speech whose own dip this is, so it keeps the word's voice.
+            # voice floor, 19 dB deep, 13 dB under the speech level (lab 646.88, #1358):
+            # the word's voice does not run back through that. The edge sits in the
+            # valley, where the air is, not 60 ms before the word. A sound with several
+            # bursts of level before the valley (two syllables, a phrase, "uh-huh") may
+            # be speech whose own dip this is, so it keeps the word's voice.
             apart = voice_onset(audio_cache, after.start, floor, heard_apart=True)
             if apart is not None and apart != onset and is_one_hum(audio_cache, start, apart):
                 onset, air, valley = apart, _onset_guard_sec(defaults), True
         if onset is not None and onset < after.start:
             end = min(end, onset - air)
-            # Only an edge that lies in the valley is read as in it: a run that ends in
-            # the decay, well before the valley, keeps the plain voiced-edge check.
-            in_valley = in_valley or (
-                valley and edge_in_valley(audio_cache, start, end, after.start)
-            )
+        # Only an edge that lies in the valley is read as in it: a run that ends in the
+        # decay, well before the valley, keeps the plain voiced-edge check. The valley
+        # can end at the word start itself, past the run's end (lab 647.285).
+        in_valley = in_valley or (valley and edge_in_valley(audio_cache, start, end, after.start))
     if (start, end, in_valley) == (plan.start, plan.end, plan.end_in_valley):
         return plan
     if end - start + 1e-9 < _cut_minimum_sec(candidate) or (

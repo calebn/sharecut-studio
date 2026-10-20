@@ -3376,10 +3376,16 @@ def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
 
 
 def _sound_then_word_project(
-    tmp_path, name: str, sound: tuple[tuple[float, float], ...], valley_db: float, gain_db: float
+    tmp_path,
+    name: str,
+    sound: tuple[tuple[float, float], ...],
+    valley_db: float,
+    gain_db: float,
+    *,
+    word_at: float = 1.5,
 ) -> EpisodeProject:
     """An untranscribed sound shaped by ``sound`` knots (sec, dB), a valley at 1.38-1.42
-    ``valley_db`` low, and the kept "Yeah," (word time 1.5) rising out of it by 1.48.
+    ``valley_db`` low, and the kept "Yeah," (word time ``word_at``) rising out of it by 1.48.
 
     The valley stays far over the voice floor, as at lab 646.88 (#1358).
     """
@@ -3400,7 +3406,7 @@ def _sound_then_word_project(
         ],
         [
             TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
-            TranscriptWord(text="Yeah,", start=1.5, end=1.9, confidence=0.95),
+            TranscriptWord(text="Yeah,", start=word_at, end=1.9, confidence=0.95),
             TranscriptWord(text="okay.", start=2.4, end=2.8, confidence=0.95),
         ],
         room_db=-70.0,
@@ -3528,6 +3534,32 @@ def test_acoustic_mute_ends_in_a_valley_only_after_one_sustained_hum(
     else:
         assert decisions == []
         assert found == {"acoustic:kept_voice": 1}
+
+
+def test_the_plan_flags_the_valley_when_the_word_time_falls_in_it(tmp_path):
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.audio_cache import build_track_audio_caches
+    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
+
+    # Aligned word times can fall on the valley (lab: the valley bottom is 647.29, the
+    # word time 647.30): the walk stops at the word start, and the run ends in the valley.
+    project = _sound_then_word_project(tmp_path, "late", _HUM, -41.0, 0.0, word_at=1.42)
+    candidate = _CutCandidate(
+        track_id="host",
+        start=0.91,
+        end=1.40,
+        reason="filler:acoustic",
+        cut_kind="filler",
+        min_start=0.62,
+    )
+    plan = _CutPlan.for_cut(0.91, 1.40, mute=True, pad=None, reason="filler:fixture")
+    cache = build_track_audio_caches(project, {"host"})["host"]
+
+    kept = _between_kept_voices(
+        project, plan, candidate, audio_cache=cache, defaults=load_defaults()
+    )
+
+    assert (kept.end, kept.end_in_valley) == (pytest.approx(1.40), True)
 
 
 def test_a_filler_decaying_into_a_word_waits_for_review_as_a_mute_and_is_refused_as_a_ripple(
