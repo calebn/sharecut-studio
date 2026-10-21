@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { shareProjectKey } from "../../shareMode";
-import type { QueuedCommand } from "../../state/offlineStore";
-import { chainQueuedEnvelopeBaseline } from "../../state/queuedEnvelopeBaseline";
 import { ApiError } from "../../utils/apiError";
+import type { QueuedCommand } from "./offlineStore";
+import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
 
 const submit = vi.fn();
 const hostQueue = vi.fn();
@@ -12,10 +12,10 @@ const removeQueuedCommand = vi.fn();
 const clearSuperseded = vi.fn(async () => {});
 
 vi.mock("../../api", () => ({ submitDocumentCommand: submit }));
-vi.mock("../../api/documentEdits", () => ({
+vi.mock("./supersededCorrections", () => ({
   clearSupersededCorrectionConflicts: clearSuperseded,
 }));
-vi.mock("../../state/offlineStore", () => ({
+vi.mock("./offlineStore", () => ({
   loadCommandQueue: guestQueue,
   loadHostCommandQueue: hostQueue,
   removeHostQueuedCommands,

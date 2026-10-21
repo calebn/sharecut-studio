@@ -9,7 +9,7 @@ import { useGuestSync } from "./useGuestSync";
 
 vi.mock("../api", () => ({ loadProjectMeta: vi.fn(async () => ({})) }));
 vi.mock("../api/project", () => ({ loadDocumentState: vi.fn() }));
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   mergeOfflineSnapshot: vi.fn(async () => undefined),
 }));
 vi.mock("../services/offlineQueue/requestDrainLazy", () => ({

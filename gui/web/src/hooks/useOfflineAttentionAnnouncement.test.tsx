@@ -27,7 +27,7 @@ const offlineStore = vi.hoisted(() => {
   };
 });
 
-vi.mock("../state/offlineStore", () => offlineStore);
+vi.mock("../services/offlineQueue/offlineStore", () => offlineStore);
 
 describe("useOfflineAttentionAnnouncement", () => {
   beforeEach(() => {

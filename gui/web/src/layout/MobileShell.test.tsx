@@ -34,7 +34,7 @@ const offlineStore = vi.hoisted(() => ({
   loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));
 
-vi.mock("../state/offlineStore", () => offlineStore);
+vi.mock("../services/offlineQueue/offlineStore", () => offlineStore);
 
 // Full-shell render; not exercising waveform fetching.
 // No waveform status polls: shell tests do not fetch.

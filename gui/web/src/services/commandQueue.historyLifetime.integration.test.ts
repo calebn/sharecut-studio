@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { QueuedCommand } from "../state/offlineStore";
 import { commandLocks } from "../test/commandLocks";
 import type { HistoryEntryId } from "../types/project";
+import type { QueuedCommand } from "./offlineQueue/offlineStore";
 
 const queue = vi.hoisted(() => ({
   enqueueHostCommand: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentResult: vi.fn(),
   refreshDocumentDisplay: vi.fn(),
 }));
-vi.mock("../state/offlineStore", () => queue);
+vi.mock("./offlineQueue/offlineStore", () => queue);
 vi.mock("./offlineQueue/requestDrainLazy", () => ({
   requestHostDrainLazy: drainRequests.host,
   requestGuestDrainLazy: drainRequests.guest,

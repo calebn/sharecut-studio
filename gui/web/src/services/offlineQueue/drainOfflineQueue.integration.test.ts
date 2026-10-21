@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OfflineConflict, QueuedCommand } from "../../state/offlineStore";
+import type { OfflineConflict, QueuedCommand } from "./offlineStore";
 
 const hostQueues = new Map<string, QueuedCommand[]>();
 const guestQueues = new Map<string, QueuedCommand[]>();
@@ -17,7 +17,7 @@ vi.mock("../../document/applyDocumentUpdate", () => ({
   mergeReturnedComment: vi.fn(),
 }));
 
-vi.mock("../../state/offlineStore", () => ({
+vi.mock("./offlineStore", () => ({
   loadHostCommandQueue: async (path: string) => [
     ...(hostQueues.get(path) ?? []),
   ],

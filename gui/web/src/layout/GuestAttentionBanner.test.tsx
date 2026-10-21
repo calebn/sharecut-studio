@@ -2,11 +2,11 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
-import { useDawStore } from "../state/dawStore";
 import {
   recordVolatileOutcome,
   volatileOutcomeFor,
-} from "../state/offlineAttention";
+} from "../services/offlineQueue/offlineAttention";
+import { useDawStore } from "../state/dawStore";
 import { minimalProject, offlineConflict } from "../test/fixtures";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 
@@ -43,7 +43,7 @@ const offlineStore = vi.hoisted(() => {
   };
 });
 
-vi.mock("../state/offlineStore", () => offlineStore);
+vi.mock("../services/offlineQueue/offlineStore", () => offlineStore);
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

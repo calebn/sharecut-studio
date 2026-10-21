@@ -1,4 +1,4 @@
-import { DocumentCommand } from "../types/documentCommands.generated";
+import { DocumentCommand } from "../../types/documentCommands.generated";
 import type { QueuedCommand } from "./offlineStore";
 
 type BaselinePoint = { id?: unknown; time?: unknown; value?: unknown };

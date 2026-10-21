@@ -48,8 +48,10 @@ vi.mock("../hooks/useStaleRenderBreakdown", async (importOriginal) => {
   };
 });
 
-vi.mock("../state/offlineStore", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../state/offlineStore")>()),
+vi.mock("../services/offlineQueue/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../services/offlineQueue/offlineStore")
+  >()),
   loadHostAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
   loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));

@@ -25,7 +25,7 @@ vi.mock("./offlineQueue/requestDrainLazy", () => ({
   requestHostDrainLazy,
   requestGuestDrainLazy,
 }));
-vi.mock("../state/offlineStore", () => ({
+vi.mock("./offlineQueue/offlineStore", () => ({
   loadHostCommandQueue,
   loadCommandQueue,
   enqueueHostCommand,

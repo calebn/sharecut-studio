@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { OfflineConflict } from "../state/offlineStore";
+import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
 import { Button } from "../ui/Button";
 import { overflowLabel } from "../utils/format";
 import {

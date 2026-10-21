@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyServerClock } from "../presence/clock";
-import { newClientId } from "../session/clientId";
-import type { WsSender } from "../session/wsSend";
 import {
   clearRecordParticipant,
   loadRecordParticipant,
   saveRecordParticipant,
-} from "../state/offlineStore";
+} from "../services/offlineQueue/offlineStore";
+import { newClientId } from "../session/clientId";
+import type { WsSender } from "../session/wsSend";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";

@@ -1,5 +1,5 @@
 import { SAVE_STATE_COPY } from "../record";
-import type { OfflineConflict } from "../state/offlineStore";
+import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
 
 /** What a host can say about the last change, derived from the send and queue state. */
 export type SaveState =

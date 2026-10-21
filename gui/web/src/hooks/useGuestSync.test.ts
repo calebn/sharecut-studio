@@ -22,7 +22,7 @@ vi.mock("../api/project", () => ({
   loadDocumentState: (...args: unknown[]) => loadProject(...args),
 }));
 
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   mergeOfflineSnapshot: vi.fn(async () => undefined),
 }));
 

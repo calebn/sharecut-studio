@@ -46,8 +46,10 @@ const { loadHostCommandCount } = vi.hoisted(() => ({
   loadHostCommandCount: vi.fn(async () => 1),
 }));
 
-vi.mock("../../state/offlineStore", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../state/offlineStore")>()),
+vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../services/offlineQueue/offlineStore")
+  >()),
   loadHostCommandCount,
 }));
 

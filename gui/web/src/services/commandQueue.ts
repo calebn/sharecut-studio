@@ -35,11 +35,20 @@ import {
   noteSaveLanded,
   trackEditSave,
 } from "../state/documentSendOrder";
+import { DocumentCommand } from "../types/documentCommands.generated";
+import { parseHistoryEntryId } from "../types/project";
+import { ApiError, isRetryLater } from "../utils/apiError";
+import {
+  documentClientId,
+  newCommandId,
+  nextDocumentClientSeq,
+} from "../utils/documentClient";
+import { raceTimeout } from "../utils/raceTimeout";
 import {
   clearVolatileOutcome,
   recordVolatileOutcome,
   volatileOutcomeFor,
-} from "../state/offlineAttention";
+} from "./offlineQueue/offlineAttention";
 import {
   enqueueCommand,
   enqueueHostCommand,
@@ -52,20 +61,12 @@ import {
   removeQueuedCommand,
   settleGuestCommandOutcome,
   settleHostCommandOutcome,
-} from "../state/offlineStore";
-import { DocumentCommand } from "../types/documentCommands.generated";
-import { parseHistoryEntryId } from "../types/project";
-import { ApiError, isRetryLater } from "../utils/apiError";
-import {
-  documentClientId,
-  newCommandId,
-  nextDocumentClientSeq,
-} from "../utils/documentClient";
-import { raceTimeout } from "../utils/raceTimeout";
+} from "./offlineQueue/offlineStore";
 import {
   requestGuestDrainLazy,
   requestHostDrainLazy,
 } from "./offlineQueue/requestDrainLazy";
+import { clearSupersededCorrectionConflicts } from "./offlineQueue/supersededCorrections";
 
 type CommandIdentity = Pick<
   QueuedCommand,
@@ -292,6 +293,10 @@ async function submitQueuedDocumentCommandWithinOwnership(
     if (active && isCurrentDocumentScope(scope) && result.queued !== true) {
       finishDocumentDraft(commandId);
       refreshDocumentDisplay();
+    }
+    // A replay clears its own in drainOfflineQueue.ts.
+    if (!resolved.replaying && result.queued !== true) {
+      await clearSupersededCorrectionConflicts(projectPath, type, payload);
     }
     return result;
   } catch (error) {
