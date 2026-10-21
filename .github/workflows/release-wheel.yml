@@ -14,7 +14,7 @@ on:
       - "hatch_build.py"
       - "contracts/**"
       - ".agents/defaults/**"
-      - "src/podcast_mcp/config.py"
+      - "src/podcast_mcp/config/**"
       - "src/podcast_mcp/util/contracts.py"
       - "src/podcast_mcp/gui/static_assets.py"
       - "scripts/check_wheel_web_build.py"
