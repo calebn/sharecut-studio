@@ -102,6 +102,15 @@ all = [
     "praat-parselmouth>=0.4.7",
 ]
 
+[dependency-groups]
+frontend-exporters = [
+    "pydantic>=2.7.0",
+    "pyyaml>=6.0",
+    "filelock>=3.16.0",
+    "numpy>=1.26.0",
+    "coolname>=5.0.0",
+]
+
 [project.scripts]
 podcast = "podcast_mcp.cli.main:app"
 podcast-mcp = "podcast_mcp.mcp.server:main"

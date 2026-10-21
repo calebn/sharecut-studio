@@ -51,6 +51,8 @@ Notes (verified in a disposable Linux Docker image):
 
 Detail: [docs/setup.md § Maximal install](docs/setup.md#maximal-install-all-extras).
 
+The frontend CI suite uses a [locked exporter dependency group](docs/setup.md#frontend-exporter-dependencies) for its four generated-file checks. Browser suites keep the full GUI environment.
+
 ## Repo layout
 
 | Path | Purpose |

@@ -49,6 +49,30 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         if step.get("uses", "").startswith("actions/setup-python@")
     )
     assert "cache" not in frontend_python["with"]
+    frontend_steps = jobs["frontend-suite"]["steps"]
+    frontend_install = next(step for step in frontend_steps if step.get("uses") == LOCKED_INSTALL)
+    assert frontend_install["with"] == {"environment": "frontend-exporters"}
+    assert "if" not in frontend_install and not frontend_install.get("continue-on-error")
+    assert (
+        sum(
+            step.get("uses") == LOCKED_INSTALL and "environment" in step.get("with", {})
+            for job in jobs.values()
+            for step in job.get("steps", [])
+        )
+        == 1
+    )
+    exporters = next(
+        step for step in frontend_steps if "export_project_types.py" in step.get("run", "")
+    )
+    assert exporters["run"].splitlines() == [
+        "python3 scripts/export_capabilities_copy.py --check",
+        "python3 scripts/export_timeline_zoom.py --check",
+        "python3 scripts/export_limit_contracts.py --check",
+        "python3 scripts/export_project_types.py --check",
+    ]
+    assert next(
+        i for i, step in enumerate(frontend_steps) if step.get("run") == "npm ci"
+    ) < frontend_steps.index(exporters)
     pytest_steps = jobs["pytest"]["steps"]
     test = next(step for step in pytest_steps if step.get("name") == "Run tests with coverage gate")
     assert test["if"] == "steps.plan.outputs.pytest == 'full'"
@@ -179,13 +203,19 @@ def test_python_jobs_install_the_versions_uv_lock_pins() -> None:
         "key": "uv-${{ runner.os }}-${{ runner.arch }}-py${{ steps.installer.outputs.python-version }}-uv${{ steps.installer.outputs.uv-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-${{ steps.installer.outputs.extras-key }}",
         "restore-keys": "uv-${{ runner.os }}-${{ runner.arch }}-py${{ steps.installer.outputs.python-version }}-uv${{ steps.installer.outputs.uv-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}-",
     }
-    assert bootstrap["env"] == {"EXTRAS": "${{ inputs.extras }}"}
+    assert action["inputs"]["environment"]["default"] == "project"
+    assert action["inputs"]["extras"]["default"] == ""
+    assert bootstrap["env"] == {
+        "EXTRAS": "${{ inputs.extras }}",
+        "ENVIRONMENT": "${{ inputs.environment }}",
+    }
     assert all(
         "if" not in step and not step.get("continue-on-error")
         for step in (bootstrap, cache, install)
     )
     assert install["env"] == {
         "EXTRAS": "${{ inputs.extras }}",
+        "ENVIRONMENT": "${{ inputs.environment }}",
         "PYTHON_EXE": "${{ steps.installer.outputs.python-exe }}",
     }
     assert "uv export --locked --no-emit-project" in install["run"]
@@ -223,13 +253,16 @@ def locked_recipe_environment(tmp_path: Path) -> tuple[dict[str, str], Path, Pat
         "if args == ['cache', 'dir']:\n"
         "    print(os.environ['CONTROL_CACHE_DIR'])\n"
         "elif args[0] == 'export':\n"
-        "    if os.environ.get('FAIL_AT') == 'export':\n"
+        "    if os.environ.get('FAIL_AT') in ('export', 'stale-lock'):\n"
         "        sys.exit(72)\n"
         "    Path(args[args.index('-o') + 1]).write_text('controlled==1.0\\n')\n"
         "elif args[:2] == ['pip', 'install']:\n"
         "    assert Path(args[args.index('-r') + 1]).read_text() == 'controlled==1.0\\n'\n"
         "    if os.environ.get('FAIL_AT') == 'install':\n"
-        "        sys.exit(73)\n",
+        "        sys.exit(73)\n"
+        "elif args[:2] == ['pip', 'check']:\n"
+        "    if os.environ.get('FAIL_AT') == 'check':\n"
+        "        sys.exit(74)\n",
         encoding="utf-8",
     )
     uv = scripts / "uv"
@@ -254,11 +287,16 @@ def locked_recipe_environment(tmp_path: Path) -> tuple[dict[str, str], Path, Pat
 
 
 def _execute_locked_recipe(
-    env: dict[str, str], output: Path, extras: str
+    env: dict[str, str], output: Path, extras: str, environment: str | None = None
 ) -> subprocess.CompletedProcess[str]:
-    bootstrap, _, install = load_github_yaml(
-        ROOT / ".github/actions/install-locked-python/action.yml"
-    )["runs"]["steps"]
+    action = load_github_yaml(ROOT / ".github/actions/install-locked-python/action.yml")
+    bootstrap, _, install = action["runs"]["steps"]
+    env = {
+        **env,
+        "ENVIRONMENT": action["inputs"]["environment"]["default"]
+        if environment is None
+        else environment,
+    }
     result = subprocess.run(
         ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", bootstrap["run"]],
         env={**env, "EXTRAS": extras},
@@ -376,3 +414,107 @@ def test_locked_recipe_retains_a_native_windows_cache_path(
     assert result.returncode == 0, result.stderr
     values = dict(line.split("=", 1) for line in output.read_text().splitlines())
     assert values["cache-dir"] == cache_dir
+
+
+@pytest.mark.parametrize("extras", ["", " \t\n"])
+def test_locked_exporter_recipe_selects_only_the_group_and_checks_the_captured_interpreter(
+    locked_recipe_environment: tuple[dict[str, str], Path, Path], extras: str
+) -> None:
+    env, log, output = locked_recipe_environment
+    result = _execute_locked_recipe(env, output, extras, "frontend-exporters")
+    assert result.returncode == 0, result.stderr
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    requirements = str(Path(env["RUNNER_TEMP"]) / "locked-requirements.txt")
+    assert commands[2:] == [
+        {
+            "tool": "uv",
+            "args": [
+                "export",
+                "--locked",
+                "--only-group",
+                "frontend-exporters",
+                "--no-hashes",
+                "-o",
+                requirements,
+            ],
+        },
+        {
+            "tool": "uv",
+            "args": [
+                "pip",
+                "install",
+                "--python",
+                env["CONTROL_PYTHON"],
+                "--compile-bytecode",
+                "-r",
+                requirements,
+            ],
+        },
+        {"tool": "uv", "args": ["pip", "check", "--python", env["CONTROL_PYTHON"]]},
+    ]
+    exporter_key = dict(line.split("=", 1) for line in output.read_text().splitlines())[
+        "extras-key"
+    ]
+    output.unlink()
+    assert _execute_locked_recipe(env, output, "frontend-exporters").returncode == 0
+    project_key = dict(line.split("=", 1) for line in output.read_text().splitlines())["extras-key"]
+    assert exporter_key != project_key
+    assert exporter_key == hashlib.sha256(b"\0frontend-exporters").hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("environment", "extras", "message"),
+    [
+        ("unknown", "", "Unknown Python environment"),
+        ("", "gui", "Unknown Python environment"),
+        ("frontend-exporters", "gui", "does not accept extras"),
+        ("frontend-exporters", " dev\n gui ", "does not accept extras"),
+    ],
+)
+def test_locked_recipe_rejects_invalid_selection_before_bootstrap(
+    locked_recipe_environment: tuple[dict[str, str], Path, Path],
+    environment: str,
+    extras: str,
+    message: str,
+) -> None:
+    env, log, output = locked_recipe_environment
+    result = _execute_locked_recipe(env, output, extras, environment)
+    assert result.returncode != 0
+    assert message in result.stderr
+    assert not log.exists()
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("environment", ["project", "frontend-exporters"])
+@pytest.mark.parametrize(
+    ("failure", "code", "commands"),
+    [("stale-lock", 72, 3), ("export", 72, 3), ("install", 73, 4)],
+)
+def test_locked_recipe_failure_stops_with_warm_package_content_and_old_requirements(
+    locked_recipe_environment: tuple[dict[str, str], Path, Path],
+    environment: str,
+    failure: str,
+    code: int,
+    commands: int,
+) -> None:
+    env, log, output = locked_recipe_environment
+    extras = "gui" if environment == "project" else ""
+    assert _execute_locked_recipe(env, output, extras, environment).returncode == 0
+    Path(env["CONTROL_CACHE_DIR"]).mkdir()
+    log.write_text("")
+    output.unlink()
+    result = _execute_locked_recipe({**env, "FAIL_AT": failure}, output, extras, environment)
+    assert result.returncode == code, result.stderr
+    assert len(log.read_text().splitlines()) == commands
+
+
+def test_locked_exporter_recipe_stops_on_dependency_check_failure(
+    locked_recipe_environment: tuple[dict[str, str], Path, Path],
+) -> None:
+    env, log, output = locked_recipe_environment
+    result = _execute_locked_recipe({**env, "FAIL_AT": "check"}, output, "", "frontend-exporters")
+    assert result.returncode == 74, result.stderr
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    assert len(commands) == 5
+    assert commands[-1]["args"] == ["pip", "check", "--python", env["CONTROL_PYTHON"]]
+    assert not any(command["tool"] == "pip" and "-e" in command["args"] for command in commands)

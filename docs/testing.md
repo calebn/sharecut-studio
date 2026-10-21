@@ -357,11 +357,11 @@ identical transferred Linux payload. Local native checks supplement those jobs. 
 oldest supported OS. Source compilation is dependency production only.
 
 Python jobs retain pip download caches where configured. Every locked installer
-caller also caches uv package content by OS, architecture, Python minor, uv version, extras,
-`pyproject.toml`, and `uv.lock`. `.github/actions/install-locked-python` always
-exports the requested extras with `uv export --locked`, installs those exact pins
-with `uv pip` into the captured Python interpreter with bytecode compilation, then
-pip-installs the editable project with `--no-deps`. Cache hits skip no checks.
+caller also caches uv package content by OS, architecture, Python minor, uv version, selection,
+`pyproject.toml`, and `uv.lock`. Default callers of `.github/actions/install-locked-python`
+export requested extras with `uv export --locked`, install those exact pins
+into the captured interpreter with bytecode compilation, then pip-install the editable project.
+Only `frontend-suite` selects the locked `frontend-exporters` group, checks its closure, and skips editable installation. Cache hits skip no checks.
 See [locked Python installation](testing-ci.md#locked-python-installation).
 Browser engines, browser system dependencies, virtual environments, and installed
 Node packages are not cached. Each browser matrix job installs only its declared
