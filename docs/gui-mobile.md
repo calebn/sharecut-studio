@@ -388,8 +388,9 @@ less than 9rem of the slot, so the header, Collapse and Close stay on screen
 (half and full then share a height). The header's actions (Collapse, Expand,
 Close) wrap beneath the title when they cannot sit beside it, as at 32 px text
 on a 390 px phone, so the title keeps a line of its own (at least 8rem wide)
-instead of being squeezed to nothing; the compact sheet lets the title shrink to
-4rem first, so the actions stay beside it where they fit. Collapsing to the strip scrolls the
+instead of being squeezed to nothing. A strip slot under 20rem tall (a phone
+held sideways at large text) lets the compact title shrink to 4rem first, so the
+actions stay beside it. Collapsing to the strip scrolls the
 body back to its top, so the first nudge is not left out of view by the scroll
 the taller detent had (#1762). A phone held sideways at 200% text (636×390)
 has the strip fill the slot above the mode bar: the title shares the header
