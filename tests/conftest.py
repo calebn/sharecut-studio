@@ -133,6 +133,16 @@ def _no_object_store_cors_probe(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _speaker_mock_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unit tests opt in to the development speaker mock (#1999).
+
+    A bare ``resolve_speaker_backend()`` reports "unavailable" without a real backend, so
+    tests that score with made-up embeddings ask for the mock the way a developer would.
+    """
+    monkeypatch.setenv("PODCAST_SPEAKER_BACKEND", "mock")
+
+
+@pytest.fixture(autouse=True)
 def _isolate_process_caches() -> Iterator[None]:
     """No cached answer (Silero unavailable, a mocked probe) outlives the test that made it."""
     reset_isolated_caches()
