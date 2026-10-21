@@ -60,6 +60,7 @@ from podcast_mcp.services.session_sync import (
     session_dir_for_workspace,
 )
 from podcast_mcp.util.coded_error import CodedError, CodedPermissionError
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
 
 log = logging.getLogger(__name__)
@@ -992,8 +993,8 @@ def document_poll_meta(project_path: Path) -> dict[str, Any]:
     mtime/size of episode.project.json plus document.db's ``server_seq``, which is
     omitted when document.db cannot be read, so the client poll skips that tick.
     """
-    stat = project_path.stat()
-    meta: dict[str, Any] = {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
+    size, mtime_ns = file_stamp(project_path).content
+    meta: dict[str, Any] = {"mtime_ns": mtime_ns, "size": size}
     seq = document_server_seq(project_path)
     if seq is not None:
         meta["server_seq"] = seq

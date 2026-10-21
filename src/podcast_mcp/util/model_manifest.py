@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.keyed_lock import KeyedLocks
 
@@ -151,11 +152,11 @@ def _sha256_for(resolved: str, size: int, mtime_ns: int) -> str:
 
 def _memoized_sha256(path: Path) -> str:
     resolved = path.resolve()
-    st = resolved.stat()
+    size, mtime_ns = file_stamp(resolved).content
     key = str(resolved)
     try:
         with _MEMO_LOCKS.get(key):
-            return _sha256_for(key, st.st_size, st.st_mtime_ns)
+            return _sha256_for(key, size, mtime_ns)
     finally:
         # The digest is cached now (or the hash failed and is retried next poll), so the
         # lock has done its job; a waiter still holding it reads the cached digest.

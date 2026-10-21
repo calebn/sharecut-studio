@@ -8,6 +8,8 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, TypeVar
 
+from podcast_mcp.util.fingerprint import file_stamp
+
 T = TypeVar("T")
 # A batch scope and a frozen block, either of which may be absent.
 BatchState = tuple[dict[Hashable, Any] | None, dict[Hashable, Any] | None]
@@ -48,8 +50,8 @@ def scoped_by_file(kind: str, path: Path, extra: Hashable, make: Callable[[], T]
     """:func:`scoped` keyed by the file's path, mtime and size, so a rewritten file misses."""
     if _scope.get() is None:
         return make()
-    stat = path.stat()
-    return scoped((kind, str(path), stat.st_mtime_ns, stat.st_size, extra), make)
+    stamp = file_stamp(path)
+    return scoped((kind, str(path), stamp.mtime_ns, stamp.size, extra), make)
 
 
 _frozen: ContextVar[dict[Hashable, Any] | None] = ContextVar("frozen_state", default=None)

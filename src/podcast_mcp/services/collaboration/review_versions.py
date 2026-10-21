@@ -20,6 +20,8 @@ from contextlib import suppress
 from pathlib import Path
 from threading import Lock
 
+from podcast_mcp.util.fingerprint import file_stamp
+
 if os.name == "posix":
     import fcntl
 
@@ -92,13 +94,7 @@ def _is_created_dir(metadata: os.stat_result, identity: DirectoryIdentity) -> bo
 
 
 def _media_identity(metadata: os.stat_result) -> MediaIdentity:
-    return (
-        metadata.st_dev,
-        metadata.st_ino,
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        metadata.st_ctime_ns,
-    )
+    return file_stamp(metadata)
 
 
 def _trusted_dir(metadata: os.stat_result, *, private: bool = False) -> bool:

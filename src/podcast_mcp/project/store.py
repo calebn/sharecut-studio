@@ -20,6 +20,7 @@ from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStat
 from podcast_mcp.models.project_format import snapshot_editable_state
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.bounded_cache import BoundedCache
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.project_state import FileRevision, project_commit_lock, project_file_revision
 
 log = logging.getLogger(__name__)
@@ -56,8 +57,7 @@ _VOCABULARY_CACHE: BoundedCache[_VocabularyCacheKey, TranscriptVocabularyState] 
 
 
 def _file_signature(path: Path) -> _FileSignature:
-    stat = path.stat()
-    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+    return file_stamp(path)
 
 
 def history_index_path(project: EpisodeProject) -> Path:

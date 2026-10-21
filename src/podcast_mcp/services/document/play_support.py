@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from podcast_mcp.models import Track
+from podcast_mcp.util.fingerprint import mtime_ns_if_file
 
 
 @dataclass
@@ -78,6 +79,4 @@ def _compose_gain_db(track: Track | None, tier: str) -> float:
 
 def _mix_cache_extra(inputs: list[tuple[Path, float]]) -> str:
     """Play-cache key part for a mix: each input's path, mtime and gain."""
-    return ":".join(
-        f"{path}:{path.stat().st_mtime_ns if path.is_file() else 0}:{gain}" for path, gain in inputs
-    )
+    return ":".join(f"{path}:{mtime_ns_if_file(path)}:{gain}" for path, gain in inputs)

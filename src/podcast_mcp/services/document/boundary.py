@@ -13,6 +13,7 @@ from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.tracks import recording_audio_path
 
 
@@ -152,14 +153,7 @@ def boundary_context(
     for source_id in dict.fromkeys(c.source_id for c in project.clips if c.track_id == track.id):
         path = recording_audio_path(project, track.id, source_id, from_project=True)
         try:
-            stat = path.stat()
-            media_revision = [
-                stat.st_dev,
-                stat.st_ino,
-                stat.st_size,
-                stat.st_mtime_ns,
-                stat.st_ctime_ns,
-            ]
+            media_revision = list(file_stamp(path))
         except OSError:
             media_revision = None
         selected_media.append(

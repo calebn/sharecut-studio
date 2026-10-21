@@ -13,6 +13,7 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.fingerprint import file_stamp, mtime_ns_if_file
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
@@ -127,7 +128,7 @@ class _PlayCache:
     def _cache_path(self, label: str, start: float, end: float, src: Path, extra: str = "") -> Path:
         # Include mtime so re-rendered stems invalidate prior extracts even when
         # the path and edit hash are unchanged.
-        mtime = src.stat().st_mtime_ns if src.is_file() else 0
+        mtime = mtime_ns_if_file(src)
         key = f"{src}:{mtime}:{label}:{start:.3f}:{end:.3f}:{extra}"
         digest = short_digest(key)
         safe = re.sub(r"[^a-z0-9_-]+", "_", label.lower())[:40]
@@ -138,8 +139,8 @@ class _PlayCache:
 
     def _ab_concat_path(self, wav_a: Path, wav_b: Path, gap: float) -> Path:
         key = (
-            f"{wav_a.resolve()}:{wav_a.stat().st_mtime_ns}:"
-            f"{wav_b.resolve()}:{wav_b.stat().st_mtime_ns}:{gap:.3f}"
+            f"{wav_a.resolve()}:{file_stamp(wav_a).mtime_ns}:"
+            f"{wav_b.resolve()}:{file_stamp(wav_b).mtime_ns}:{gap:.3f}"
         )
         digest = short_digest(key)
         out_dir = self.project.artifacts_dir() / "play_cache"
