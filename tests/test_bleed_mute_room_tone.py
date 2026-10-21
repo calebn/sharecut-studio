@@ -181,7 +181,7 @@ def test_the_fill_ramps_in_as_the_mute_ramps_out(tmp_path: Path) -> None:
     assert (fill[~muted] == 0).all()
     mid = np.flatnonzero(gains == 0.0)[0]
     reference = plan.fill.noise(first, gains.size, RATE) * 32768.0
-    np.testing.assert_allclose(fill[mid], reference[mid], rtol=1e-5)
+    np.testing.assert_allclose(fill[mid], reference[mid], atol=0.5)
 
 
 def test_the_fill_does_not_depend_on_how_the_stem_is_read(tmp_path: Path) -> None:
@@ -262,6 +262,31 @@ def test_a_track_whose_room_is_digital_silence_stays_silent(tmp_path: Path) -> N
     assert plan.fill is None
     assert plan.fill_reason
     np.testing.assert_array_equal(after[_inside(*FOREIGN)], 0)
+
+
+def test_a_fill_that_cannot_be_measured_never_fails_the_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _episode(tmp_path)
+
+    def broken(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("ffmpeg exited 1")
+
+    monkeypatch.setattr("podcast_mcp.edits.bleed_fill.measure_bleed_fill", broken)
+    plan = build_bleed_gate_plan(project, "host", defaults=_defaults())
+
+    assert plan.fill is None
+    assert "ffmpeg exited 1" in (plan.fill_reason or "")
+
+
+def test_the_fill_is_whole_sixteen_bit_steps(tmp_path: Path) -> None:
+    project = _episode(tmp_path)
+    plan = build_bleed_gate_plan(project, "host", defaults=_defaults())
+    first = int(FOREIGN[0] * RATE) - 2_400
+    fill = plan.fill_for_frames(first, 12_000, RATE)
+
+    assert fill is not None
+    np.testing.assert_array_equal(fill, np.rint(fill))
 
 
 def test_gate_fill_mode_off_leaves_mutes_silent(tmp_path: Path) -> None:
