@@ -91,7 +91,11 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     }
     browser_steps = jobs["frontend-e2e-suites"]["steps"]
     browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
-    assert browser["run"] == "npm ci\nnpx playwright install --with-deps ${{ matrix.browser }}\n"
+    assert browser["run"] == (
+        "printf 'TMPDIR: %s\\n' \"$TMPDIR\"\n"
+        'df -hT /tmp "$TMPDIR"\n'
+        "npm ci\nnpx playwright install --with-deps ${{ matrix.browser }}\n"
+    )
     assert "if" not in browser and not browser.get("continue-on-error")
     matrix = jobs["frontend-e2e-suites"]["strategy"]["matrix"]
     assert matrix == "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
@@ -518,3 +522,79 @@ def test_locked_exporter_recipe_stops_on_dependency_check_failure(
     assert len(commands) == 5
     assert commands[-1]["args"] == ["pip", "check", "--python", env["CONTROL_PYTHON"]]
     assert not any(command["tool"] == "pip" and "-e" in command["args"] for command in commands)
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job_name"),
+    [("test.yml", "pytest"), ("test.yml", "frontend-e2e-suites"), ("extras-import.yml", "extras")],
+)
+def test_ci_jobs_use_runner_owned_temporary_storage(
+    workflow: str, job_name: str, tmp_path: Path
+) -> None:
+    job = load_github_yaml(ROOT / ".github/workflows" / workflow)["jobs"][job_name]
+    step = job["steps"][0]
+    assert step["name"] == "Use runner temporary storage"
+    assert not job.get("env", {}).get("TMPDIR")
+    assert not any("TMPDIR" in step.get("env", {}) for step in job["steps"])
+    assert "if" not in step and not step.get("continue-on-error")
+    runner_temp = tmp_path / "runner temp"
+    runner_temp.mkdir()
+    github_env = tmp_path / "github-env"
+    subprocess.run(
+        ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", step["run"]],
+        env={**os.environ, "RUNNER_TEMP": str(runner_temp), "GITHUB_ENV": str(github_env)},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    exported = dict(line.split("=", 1) for line in github_env.read_text().splitlines())
+    assert exported == {"TMPDIR": str(runner_temp)}
+    env = {**os.environ, **exported}
+    python = subprocess.run(
+        [sys.executable, "-c", "import tempfile; print(tempfile.gettempdir())"],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    node = subprocess.run(
+        ["node", "-e", "console.log(require('node:os').tmpdir())"],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert Path(python.stdout.strip()).resolve() == runner_temp.resolve()
+    assert Path(node.stdout.strip()).resolve() == runner_temp.resolve()
+
+
+def test_only_the_three_quota_affected_jobs_select_runner_temporary_storage() -> None:
+    selected = {
+        (workflow, name)
+        for workflow in ("test.yml", "extras-import.yml")
+        for name, job in load_github_yaml(ROOT / ".github/workflows" / workflow)["jobs"].items()
+        if any(step.get("name") == "Use runner temporary storage" for step in job["steps"])
+    }
+    assert selected == {
+        ("test.yml", "pytest"),
+        ("test.yml", "frontend-e2e-suites"),
+        ("extras-import.yml", "extras"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job_name", "step_name"),
+    [
+        ("test.yml", "pytest", "Record pytest run context"),
+        ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines"),
+        ("extras-import.yml", "extras", "Import each extra in a clean venv"),
+    ],
+)
+def test_quota_affected_jobs_record_temporary_paths_and_filesystem_capacity(
+    workflow: str, job_name: str, step_name: str
+) -> None:
+    job = load_github_yaml(ROOT / ".github/workflows" / workflow)["jobs"][job_name]
+    step = next(step for step in job["steps"] if step.get("name") == step_name)
+    assert "printf 'TMPDIR: %s\\n' \"$TMPDIR\"" in step["run"]
+    assert 'df -hT /tmp "$TMPDIR"' in step["run"]
+    assert "if" not in step and not step.get("continue-on-error")
