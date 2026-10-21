@@ -386,7 +386,7 @@ describe("BottomTabsSplitterView", () => {
     expect(props.onCollapse).toHaveBeenCalledTimes(1);
   });
 
-  it("Escape and capture loss cancel an armed drag without collapsing", () => {
+  it("Escape and pointer cancel cancel an armed drag without collapsing", () => {
     const props = renderLiveSplitter();
     const sep = screen.getByRole("separator", { name: "Resize editor panels" });
     fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
@@ -396,8 +396,23 @@ describe("BottomTabsSplitterView", () => {
     expect(props.onCollapse).not.toHaveBeenCalled();
     fireEvent.pointerDown(sep, { pointerId: 2, button: 0, clientY: 300 });
     fireEvent.pointerMove(sep, { pointerId: 2, clientY: 440 });
-    fireEvent.lostPointerCapture(sep, { pointerId: 2 });
+    fireEvent.pointerCancel(sep, { pointerId: 2 });
     expect(props.onCollapse).not.toHaveBeenCalled();
     expect(sep).not.toHaveAttribute("data-collapse-armed");
+  });
+
+  it("keeps following the pointer after Safari drops pointer capture", () => {
+    const props = renderLiveSplitter();
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 280 });
+    fireEvent.lostPointerCapture(sep, { pointerId: 1 });
+    const painted = props.onResize.mock.calls.length;
+    fireEvent.pointerMove(document.body, { pointerId: 1, clientY: 260 });
+    expect(props.onResize.mock.calls.length).toBeGreaterThan(painted);
+    fireEvent.pointerUp(document.body, { pointerId: 1 });
+    fireEvent.pointerDown(sep, { pointerId: 2, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 2, clientY: 250 });
+    expect(props.onResize.mock.calls.length).toBeGreaterThan(painted + 1);
   });
 });
