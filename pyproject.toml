@@ -130,6 +130,10 @@ collaboration = "podcast_mcp.extensions.collaboration:create"
 web-dist = "gui/web/dist"
 wheel-web-dist = "podcast_mcp/gui/web_dist"
 
+# Agent skills are for working in a checkout; neither the wheel nor the sdist carries them.
+[tool.hatch.build.targets.sdist]
+exclude = [".agents/skills"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/podcast_mcp", "src/podcast_relay"]
 

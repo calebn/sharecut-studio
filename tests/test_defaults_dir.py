@@ -31,3 +31,11 @@ def test_the_wheel_maps_the_defaults_next_to_the_code() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     mapping = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
     assert mapping[".agents/defaults"] == "podcast_mcp/defaults"
+
+
+def test_agent_skills_stay_out_of_the_wheel_and_sdist() -> None:
+    targets = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"][
+        "build"
+    ]["targets"]
+    assert ".agents/skills" in targets["sdist"]["exclude"]
+    assert not any(src.startswith(".agents/skills") for src in targets["wheel"]["force-include"])
