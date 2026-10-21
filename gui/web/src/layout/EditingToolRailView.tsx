@@ -3,8 +3,9 @@ import { commandLabel } from "../commands/labels";
 import type { ToolMode } from "../state/types";
 import { Button } from "../ui";
 import { HistoryControls } from "./HistoryControls";
+import { RailLabelPeek } from "./RailLabelPeek";
 import type { HistoryAvailability } from "./useHistoryControls";
-import { RailLabelPeek, useRailLabelPeek } from "./useRailLabelPeek";
+import { useRailLabelPeek } from "./useRailLabelPeek";
 import type { ZoomAvailability } from "./useZoomControls";
 import { ZoomControls } from "./ZoomControls";
 

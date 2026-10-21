@@ -8,9 +8,8 @@ import {
 import { type LongPressHandlers, useLongPress } from "../hooks/useLongPress";
 
 const PEEK_MS = 2500;
-const EDGE_PX = 8;
 
-type Peek = { text: string; centerX: number; bottom: number };
+export type Peek = { text: string; centerX: number; bottom: number };
 
 /** Text a person can see in a control; screen-reader-only and hidden text do not count. */
 function visibleText(node: Node): string {
@@ -93,31 +92,4 @@ export function useRailLabelPeek() {
   };
 
   return { handlers, peek };
-}
-
-/** The transient label; it lets presses through. The control's own name already reaches screen readers. */
-export function RailLabelPeek({ peek }: { peek: Peek | null }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [left, setLeft] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!peek || !el) {
-      setLeft(null);
-      return;
-    }
-    const half = el.offsetWidth / 2;
-    const max = window.innerWidth - EDGE_PX - half;
-    setLeft(Math.max(EDGE_PX + half, Math.min(peek.centerX, max)));
-  }, [peek]);
-  if (!peek) return null;
-  return (
-    <div
-      ref={ref}
-      className="editing-tool-rail-peek"
-      aria-hidden="true"
-      style={{ left: left ?? peek.centerX, bottom: peek.bottom }}
-    >
-      {peek.text}
-    </div>
-  );
 }
