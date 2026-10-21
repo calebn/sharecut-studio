@@ -287,6 +287,34 @@ class RemoveEffectPayload(BaseModel):
     effect: str | None = None
 
 
+class SuppressBleedPayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+    words: list[dict[str, Any]] | None = Field(
+        default=None, description="Limit to these word keys; omit for every bleed word in scope."
+    )
+    exclude_words: list[dict[str, Any]] | None = None
+    start_sec: float | None = None
+    end_sec: float | None = None
+
+
+class SuppressLowAudibilityPayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+    words: list[dict[str, Any]] | None = Field(
+        default=None, description="Limit to these word keys; omit for every low-audibility word."
+    )
+
+
+class SetBleedAlignmentModePayload(BaseModel):
+    decision_id: str
+    mode: Literal["auto", "manual", "declined"]
+    track_id: str | None = None
+    start_sec: float | None = None
+    end_sec: float | None = None
+    override_placement_lock: bool = False
+
+
 _EXPECTED_TEXT_DESCRIPTION = (
     "Optional stale-index guard: the word (or space-joined phrase) text the "
     "client saw at these indices. When it no longer matches (whitespace-collapsed, "
@@ -765,6 +793,21 @@ class RemoveEffectCommand(DocumentCommandEnvelope):
     payload: RemoveEffectPayload
 
 
+class SuppressBleedCommand(DocumentCommandEnvelope):
+    type: Literal["SuppressBleed"] = "SuppressBleed"
+    payload: SuppressBleedPayload
+
+
+class SuppressLowAudibilityCommand(DocumentCommandEnvelope):
+    type: Literal["SuppressLowAudibility"] = "SuppressLowAudibility"
+    payload: SuppressLowAudibilityPayload
+
+
+class SetBleedAlignmentModeCommand(DocumentCommandEnvelope):
+    type: Literal["SetBleedAlignmentMode"] = "SetBleedAlignmentMode"
+    payload: SetBleedAlignmentModePayload
+
+
 class ReplaceTranscriptMatchesCommand(DocumentCommandEnvelope):
     type: Literal["ReplaceTranscriptMatches"] = "ReplaceTranscriptMatches"
     payload: ReplaceTranscriptMatchesPayload
@@ -959,6 +1002,9 @@ DocumentCommandBody = Annotated[
     | ApplyFadeRecommendationsCommand
     | SetEffectBypassCommand
     | AddEffectCommand
+    | SuppressBleedCommand
+    | SuppressLowAudibilityCommand
+    | SetBleedAlignmentModeCommand
     | RemoveEffectCommand
     | ReplaceTranscriptMatchesCommand
     | CorrectTranscriptWordCommand
@@ -1075,6 +1121,9 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "ApplyFadeRecommendations": ApplyFadeRecommendationsPayload,
     "SetEffectBypass": SetEffectBypassPayload,
     "AddEffect": AddEffectPayload,
+    "SuppressBleed": SuppressBleedPayload,
+    "SuppressLowAudibility": SuppressLowAudibilityPayload,
+    "SetBleedAlignmentMode": SetBleedAlignmentModePayload,
     "RemoveEffect": RemoveEffectPayload,
     "ReplaceTranscriptMatches": ReplaceTranscriptMatchesPayload,
     "CorrectTranscriptWord": CorrectTranscriptWordPayload,

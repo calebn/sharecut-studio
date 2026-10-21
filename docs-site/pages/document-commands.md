@@ -64,6 +64,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RestoreClipBleed` | `target` (object) | — |
 | `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
+| `SetBleedAlignmentMode` | `decision_id` (string), `mode` (auto \| manual \| declined) | `end_sec` (number \| null), `override_placement_lock` (boolean), `start_sec` (number \| null), `track_id` (string \| null) |
 | `SetClipFade` | `clip_id` (string), `expected` (object), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
 | `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
@@ -83,6 +84,8 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `StageUtteranceCut` | `utterance_index` (integer) | `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `StageWordsCut` | `end_word_index` (integer), `start_word_index` (integer), `track_id` (string) | `review_required` (boolean), `source_id` (string \| null), `use_inaudible_opt` (boolean \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
+| `SuppressBleed` | — | `end_sec` (number \| null), `exclude_words` (array \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null), `words` (array \| null) |
+| `SuppressLowAudibility` | — | `speaker` (string \| null), `track_id` (string \| null), `words` (array \| null) |
 | `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | `override_audio_checks` (boolean) |
 | `UndoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
 | `UpdateChapter` | `old_time` (number), `old_title` (string), `time` (number), `title` (string) | — |
@@ -90,7 +93,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 58 command types._
+_Generated 61 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

@@ -4643,6 +4643,157 @@
         "title": "SetActionDonePayload",
         "type": "object"
       },
+      "SetBleedAlignmentModeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetBleedAlignmentModePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetBleedAlignmentMode",
+            "default": "SetBleedAlignmentMode",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetBleedAlignmentModeCommand",
+        "type": "object"
+      },
+      "SetBleedAlignmentModePayload": {
+        "properties": {
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "end_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Sec"
+          },
+          "mode": {
+            "enum": [
+              "auto",
+              "manual",
+              "declined"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "override_placement_lock": {
+            "default": false,
+            "title": "Override Placement Lock",
+            "type": "boolean"
+          },
+          "start_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Sec"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          }
+        },
+        "required": [
+          "decision_id",
+          "mode"
+        ],
+        "title": "SetBleedAlignmentModePayload",
+        "type": "object"
+      },
       "SetClipFadeCommand": {
         "properties": {
           "causation_id": {
@@ -7188,6 +7339,311 @@
         "title": "SuggestPendingEditPayload",
         "type": "object"
       },
+      "SuppressBleedCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SuppressBleedPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SuppressBleed",
+            "default": "SuppressBleed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SuppressBleedCommand",
+        "type": "object"
+      },
+      "SuppressBleedPayload": {
+        "properties": {
+          "end_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Sec"
+          },
+          "exclude_words": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Words"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "start_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Sec"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          },
+          "words": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Limit to these word keys; omit for every bleed word in scope.",
+            "title": "Words"
+          }
+        },
+        "title": "SuppressBleedPayload",
+        "type": "object"
+      },
+      "SuppressLowAudibilityCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SuppressLowAudibilityPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SuppressLowAudibility",
+            "default": "SuppressLowAudibility",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SuppressLowAudibilityCommand",
+        "type": "object"
+      },
+      "SuppressLowAudibilityPayload": {
+        "properties": {
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          },
+          "words": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Limit to these word keys; omit for every low-audibility word.",
+            "title": "Words"
+          }
+        },
+        "title": "SuppressLowAudibilityPayload",
+        "type": "object"
+      },
       "TrimBoundaryTarget": {
         "description": "A clip edge to trim. ``mode`` decides its limits: a gap trim also stops at the\nneighbouring clip on the timeline. The token is minted for one mode.",
         "properties": {
@@ -9030,6 +9486,7 @@
                     "RestoreClipBleed": "#/components/schemas/RestoreClipBleedCommand",
                     "RollClipJoin": "#/components/schemas/RollClipJoinCommand",
                     "SetActionDone": "#/components/schemas/SetActionDoneCommand",
+                    "SetBleedAlignmentMode": "#/components/schemas/SetBleedAlignmentModeCommand",
                     "SetClipFade": "#/components/schemas/SetClipFadeCommand",
                     "SetClipJoin": "#/components/schemas/SetClipJoinCommand",
                     "SetEffectBypass": "#/components/schemas/SetEffectBypassCommand",
@@ -9049,6 +9506,8 @@
                     "StageUtteranceCut": "#/components/schemas/StageUtteranceCutCommand",
                     "StageWordsCut": "#/components/schemas/StageWordsCutCommand",
                     "SuggestPendingEdit": "#/components/schemas/SuggestPendingEditCommand",
+                    "SuppressBleed": "#/components/schemas/SuppressBleedCommand",
+                    "SuppressLowAudibility": "#/components/schemas/SuppressLowAudibilityCommand",
                     "TrimClipEdge": "#/components/schemas/TrimClipEdgeCommand",
                     "UndoHistory": "#/components/schemas/UndoHistoryCommand",
                     "UpdateChapter": "#/components/schemas/UpdateChapterCommand",
@@ -9127,6 +9586,15 @@
                   },
                   {
                     "$ref": "#/components/schemas/AddEffectCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SuppressBleedCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SuppressLowAudibilityCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetBleedAlignmentModeCommand"
                   },
                   {
                     "$ref": "#/components/schemas/RemoveEffectCommand"

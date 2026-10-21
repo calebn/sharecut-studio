@@ -186,6 +186,35 @@ def add_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def suppress_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return AnalysisService(ws).suppress_bleed(
+        track_id=p.get("track_id"),
+        speaker=p.get("speaker"),
+        word_keys=p.get("words"),
+        exclude_word_keys=p.get("exclude_words"),
+        start_sec=p.get("start_sec"),
+        end_sec=p.get("end_sec"),
+        apply=True,
+    )
+
+
+def suppress_low_audibility(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return AnalysisService(ws).suppress_low_audibility(
+        track_id=p.get("track_id"), speaker=p.get("speaker"), word_keys=p.get("words")
+    )
+
+
+def set_bleed_alignment_mode(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return AnalysisService(ws).set_bleed_alignment_mode(
+        str(p["decision_id"]),
+        p["mode"],
+        track_id=p.get("track_id"),
+        start_sec=p.get("start_sec"),
+        end_sec=p.get("end_sec"),
+        override_placement_lock=p.get("override_placement_lock") is True,
+    )
+
+
 def remove_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return AnalysisService(ws).remove_effect(track_id=str(p["track_id"]), effect=p.get("effect"))
 

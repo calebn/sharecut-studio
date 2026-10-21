@@ -557,6 +557,29 @@ class AnalysisService(WorkspaceService):
             mutate,
         )
 
+    def preview_suppress_bleed(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        word_keys: list[dict] | None = None,
+        exclude_word_keys: list[dict] | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict:
+        """What ``suppress_bleed`` would suppress, without changing the project."""
+        return self.suppress_bleed(
+            track_id=track_id,
+            speaker=speaker,
+            word_keys=word_keys,
+            exclude_word_keys=exclude_word_keys,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            apply=False,
+            progress=progress,
+        )
+
     def overlap_duplicates(
         self,
         *,
