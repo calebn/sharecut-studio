@@ -196,6 +196,13 @@ def test_noise_short_gap_and_empty_window_are_rejected() -> None:
         )
         == []
     )
+    with np.errstate(invalid="raise"):
+        assert (
+            find_voiced_gap_runs(
+                _cache(np.zeros(RATE, dtype=np.float32)), 0.1, 0.9, defaults=load_defaults()
+            )
+            == []
+        )
 
 
 def test_window_too_short_to_hold_a_run_whole_scans_no_longer_gap() -> None:

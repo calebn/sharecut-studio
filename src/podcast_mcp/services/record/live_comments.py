@@ -12,6 +12,7 @@ from typing import Any
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.session_sync import cached_store, connect_session_db, sync_db_path
+from podcast_mcp.util.sqlite_open import close_sqlite_connection, sqlite_connection_finalizer
 
 RECORD_LIVE_COMMENT_MAX = 500
 LIVE_COMMENT_ID_PREFIX = "live-"
@@ -149,10 +150,11 @@ class RecordLiveCommentStore:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._conn = connect_session_db(db_path, schema=_SCHEMA)
+        self._connection_finalizer = sqlite_connection_finalizer(self, self._conn, lock=self._lock)
 
     def close(self) -> None:
         with self._lock:
-            self._conn.close()
+            close_sqlite_connection(self._conn, self._connection_finalizer)
 
     def clear_all(self) -> None:
         with self._lock:

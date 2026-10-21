@@ -25,6 +25,8 @@ podcast doctor
 `./install.sh` runs `uv sync --extra dev --extra gui --extra relay --extra prosody` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
 
 The `dev` extra requires `coverage[toml]>=7.16.2`; `uv.lock` pins coverage 7.16.2.
+Uvicorn's standard extra resolves uvloop 0.23.0 on its existing supported platforms;
+this fixes its deprecated coroutine check on Python 3.14 while retaining `auto` loop selection.
 To reproduce the required Python CI runtime in an isolated checkout, run:
 
 ```bash

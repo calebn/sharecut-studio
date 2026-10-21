@@ -227,6 +227,8 @@ def _scan_window(
     )
     if levels.size == 0:
         return []
+    if np.all(np.isneginf(levels)):
+        return []
     noise = float(np.percentile(levels, _NOISE_PERCENTILE))
     if float(np.max(levels)) - noise < _MIN_CONTRAST_DB:
         return []

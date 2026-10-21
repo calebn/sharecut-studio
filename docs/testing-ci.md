@@ -156,6 +156,13 @@ checks, compatibility checks, and all four planner scopes. Its job environment
 sets `COVERAGE_CORE=ctrace`. The `dev` extra requires `coverage[toml]>=7.16.2`,
 and `uv.lock` pins coverage 7.16.2.
 
+The same lock resolves uvloop 0.23.0 on Uvicorn's existing supported platforms.
+CLI/MCP handoff tests retain production `auto` loop selection. Relay WebSocket
+test helpers enter the connection context before hello/register and close it even
+when the handshake fails. SQLite tests explicitly close their own resources;
+[store ownership](persistence.md) also covers normal last-owner cleanup, cycles,
+cross-thread release, failed close, and registry replacement.
+
 After the temporary-storage privacy check, the context preflight starts a
 coverage probe with `data_file=None`, records the active core from
 `Coverage.sys_info()`, and stops the probe without writing coverage data.

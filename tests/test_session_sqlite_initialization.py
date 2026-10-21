@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from threading import Barrier
 from typing import Any
@@ -56,7 +57,7 @@ def test_concurrent_store_construction_initializes_wal_once(
     with ThreadPoolExecutor(max_workers=4) as executor:
         list(executor.map(construct_store, range(4)))
 
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     assert len(wal_writes) == 1
 
@@ -65,17 +66,15 @@ def test_wal_initialization_does_not_disturb_active_writer(tmp_path: Path) -> No
     path = tmp_path / "sync.db"
     seed = RecordParticipantStore(path)
     seed.close()
-    writer = sqlite3.connect(path, isolation_level=None)
-    writer.execute("BEGIN IMMEDIATE")
-    writer.execute(
-        "INSERT INTO record_participants VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("p1", "s", "t", "guest", "A", "l", 1, 1, 1),
-    )
-    connection = RecordParticipantStore(path)
-    assert connection._conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
-    connection.close()
-    writer.rollback()
-    writer.close()
+    with closing(sqlite3.connect(path, isolation_level=None)) as writer:
+        writer.execute("BEGIN IMMEDIATE")
+        writer.execute(
+            "INSERT INTO record_participants VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("p1", "s", "t", "guest", "A", "l", 1, 1, 1),
+        )
+        with closing(RecordParticipantStore(path)) as connection:
+            assert connection._conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        writer.rollback()
 
 
 @pytest.mark.parametrize(

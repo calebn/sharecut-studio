@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import multiprocessing
 import sqlite3
+from collections.abc import Iterator
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Thread
@@ -52,8 +54,9 @@ def _iso(dt: datetime) -> str:
 
 
 @pytest.fixture
-def registry(tmp_path: Path) -> SqliteShareRegistry:
-    return SqliteShareRegistry(tmp_path / "share_registry.sqlite")
+def registry(tmp_path: Path) -> Iterator[SqliteShareRegistry]:
+    with closing(SqliteShareRegistry(tmp_path / "share_registry.sqlite")) as store:
+        yield store
 
 
 def _share_template(**extra):
@@ -682,7 +685,7 @@ def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
     ):
         with pytest.raises(OSError, match="entropy unavailable"):
             registry.recording_key_secret()
-    with sqlite3.connect(registry.db_path) as observer:
+    with closing(sqlite3.connect(registry.db_path)) as observer, observer:
         assert observer.execute("SELECT * FROM recording_key_secret").fetchall() == []
         assert observer.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     assert len(registry.recording_key_secret()) == 32

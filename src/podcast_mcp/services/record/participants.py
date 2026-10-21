@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from podcast_mcp.services.session_sync import connect_session_db
+from podcast_mcp.util.sqlite_open import close_sqlite_connection, sqlite_connection_finalizer
 
 LEASE_TTL_NS = 7 * 24 * 60 * 60 * 1_000_000_000
 
@@ -38,10 +39,11 @@ class RecordParticipantStore:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._conn = connect_session_db(db_path, schema=_SCHEMA)
+        self._connection_finalizer = sqlite_connection_finalizer(self, self._conn, lock=self._lock)
 
     def close(self) -> None:
         with self._lock:
-            self._conn.close()
+            close_sqlite_connection(self._conn, self._connection_finalizer)
 
     def mint(
         self,

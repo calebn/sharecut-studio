@@ -29,7 +29,11 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.registry_backup import _anchor_path, publish_registry_backup
 from podcast_mcp.util.registry_cleanup import cleanup
 from podcast_mcp.util.registry_privacy import registry_privacy
-from podcast_mcp.util.sqlite_open import open_sqlite
+from podcast_mcp.util.sqlite_open import (
+    close_sqlite_connection,
+    open_sqlite,
+    sqlite_connection_finalizer,
+)
 from podcast_mcp.util.sqlite_tx import (
     SQLITE_SIDECARS,
     immediate_transaction,
@@ -184,6 +188,7 @@ class SqliteShareRegistry:
         )
         self._lock = threading.RLock()
         self._conn = self._open_connection()
+        self._connection_finalizer = sqlite_connection_finalizer(self, self._conn, lock=self._lock)
         self._connection_failed = False
 
     @contextlib.contextmanager
@@ -208,13 +213,16 @@ class SqliteShareRegistry:
 
     def close(self) -> None:
         with self._lock:
-            self._conn.close()
+            close_sqlite_connection(self._conn, self._connection_finalizer)
 
     @contextlib.contextmanager
     def _ready_connection(self) -> Iterator[None]:
         with self._lock:
             if self._connection_failed:
-                self._conn = self._open_connection()
+                connection = self._open_connection()
+                cleanup = sqlite_connection_finalizer(self, connection, lock=self._lock)
+                self._conn = connection
+                self._connection_finalizer = cleanup
                 self._connection_failed = False
             with self._private_files():
                 yield
@@ -227,7 +235,7 @@ class SqliteShareRegistry:
         except BaseException:
             self._connection_failed = True
             with contextlib.suppress(BaseException):
-                self._conn.close()
+                close_sqlite_connection(self._conn, self._connection_finalizer)
             raise
 
     def recording_key_secret(self) -> bytes:

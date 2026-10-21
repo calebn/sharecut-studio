@@ -13,7 +13,12 @@ from typing import Any
 from podcast_mcp import settings
 from podcast_mcp.services.share_auth.passwords import hash_password, verify_password
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.sqlite_open import open_sqlite, schema_setup
+from podcast_mcp.util.sqlite_open import (
+    close_sqlite_connection,
+    open_sqlite,
+    schema_setup,
+    sqlite_connection_finalizer,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -121,12 +126,18 @@ class ShareIdentityStore:
             row_factory=sqlite3.Row,
             setup=schema_setup(_SCHEMA),
         )
-        self._conn.commit()
-        with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod
-            self.path.chmod(0o600)
+        self._connection_finalizer = sqlite_connection_finalizer(self, self._conn)
+        try:
+            self._conn.commit()
+            with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod
+                self.path.chmod(0o600)
+        except BaseException:
+            with contextlib.suppress(BaseException):
+                self.close()
+            raise
 
     def close(self) -> None:
-        self._conn.close()
+        close_sqlite_connection(self._conn, self._connection_finalizer)
 
     def _user_row(self, row: sqlite3.Row | None) -> dict[str, Any] | None:
         if row is None:
