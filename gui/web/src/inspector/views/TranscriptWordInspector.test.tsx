@@ -295,6 +295,37 @@ describe("TranscriptWordInspector", () => {
       expect(field()).toHaveValue("howdy");
     });
 
+    it("an editor that typed and settled does not write a draft when the word later moves", () => {
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      fireEvent.change(field(), { target: { value: "hello" } });
+      expect(useDawStore.getState().wordDraft).toBeNull();
+      act(() => {
+        useDawStore.setState({
+          project: projectWithWords(["bonjour", "there"]),
+        });
+      });
+      expect(useDawStore.getState().wordDraft).toBeNull();
+    });
+
+    it("a restored editor does not write or clear the slot until the person edits it", () => {
+      const first = render(
+        <TranscriptWordInspector trackId="host" wordIndex={0} />,
+      );
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      first.unmount();
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} embedded />);
+      expect(field()).toHaveValue("howdy");
+      // A peer's edit lands on the saved word; the restored, unedited editor
+      // must leave the person's slot as it was.
+      act(() => {
+        useDawStore.setState({ project: projectWithWords(["howdy", "there"]) });
+      });
+      expect(useDawStore.getState().wordDraft?.text).toBe("howdy");
+      fireEvent.change(field(), { target: { value: "howdy!" } });
+      expect(useDawStore.getState().wordDraft?.text).toBe("howdy!");
+    });
+
     it("drops a draft typed back to the saved text", () => {
       render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });

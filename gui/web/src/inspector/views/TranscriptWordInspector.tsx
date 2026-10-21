@@ -151,11 +151,13 @@ export function TranscriptWordInspector({
     }
   }
 
-  // Only an instance the person typed in (or restored a draft into) writes the
-  // slot. The text layout keeps the side-rail editor mounted but hidden beside
-  // the docked one; its stale local fields would otherwise read as a dirty
-  // draft once the docked editor applies a fix.
-  const touchedRef = useRef(restored != null);
+  // Only an instance the person is editing (typed in or applied since its
+  // fields last matched the saved word) writes the slot. The text layout keeps
+  // the side-rail editor mounted but hidden beside the docked one; its stale
+  // local fields would otherwise read as a dirty draft once the docked editor
+  // applies a fix or a peer edits the word. A restored instance only reads the
+  // slot until the person edits it.
+  const touchedRef = useRef(false);
   const draftDirty =
     seeded &&
     (text !== (word?.text ?? text) || endIndexStr !== String(wordIndex));
@@ -181,8 +183,9 @@ export function TranscriptWordInspector({
         endIndexStr,
         expectedText,
       });
-    } else if (isMine) {
-      store.setWordDraft(null);
+    } else {
+      if (isMine) store.setWordDraft(null);
+      touchedRef.current = false;
     }
   }, [
     draftDirty,
@@ -255,6 +258,7 @@ export function TranscriptWordInspector({
   };
 
   const applyText = async () => {
+    touchedRef.current = true;
     const endIndex = Number.parseInt(endIndexStr, 10);
     const problem = wordCorrectionError(text, wordIndex, endIndex);
     if (problem) {
