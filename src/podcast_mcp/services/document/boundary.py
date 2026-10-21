@@ -150,7 +150,7 @@ def boundary_context(
         raise CodedValueError("boundary track is missing", code="track_not_found")
     selected_media = []
     for source_id in dict.fromkeys(c.source_id for c in project.clips if c.track_id == track.id):
-        path = recording_audio_path(project, track.id, source_id)
+        path = recording_audio_path(project, track.id, source_id, from_project=True)
         try:
             stat = path.stat()
             media_revision = [
