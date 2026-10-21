@@ -3,7 +3,6 @@ from __future__ import annotations
 import glob
 import json
 import logging
-import os
 import re
 import sys
 import types
@@ -17,6 +16,7 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
+from podcast_mcp import settings
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.align import (
     _MAX_WAV_CHANNELS,
@@ -292,7 +292,7 @@ def resolve_speaker_backend(
     if name == "auto":
         # The mock's embeddings are made up. Only an explicit request gets them, so a
         # build without a real backend reports "unavailable" instead of a made-up result.
-        if os.environ.get(MOCK_BACKEND_ENV, "").lower() == "mock":
+        if settings.text(MOCK_BACKEND_ENV).lower() == "mock":
             return MockSpeakerBackend()
         raise SpeakerBackendUnavailable()
     raise ImportError(f"speaker backend unavailable: {name}")
@@ -1209,7 +1209,7 @@ def speaker_doctor() -> dict[str, Any]:
     available: list[str] = []
     # The mock is listed only when it was opted into: it is not a backend to recommend.
     names = ["speechbrain", "resemblyzer"]
-    if os.environ.get(MOCK_BACKEND_ENV, "").lower() == "mock":
+    if settings.text(MOCK_BACKEND_ENV).lower() == "mock":
         names.append("mock")
     for name in names:
         try:
