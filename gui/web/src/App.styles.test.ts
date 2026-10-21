@@ -266,4 +266,16 @@ describe("App styles", () => {
     expect(block![1]).toMatch(/-webkit-user-select:\s*none/);
     expect(block![1]).toMatch(/-webkit-touch-callout:\s*none/);
   });
+
+  it("keeps iOS's selection loupe and callout off the editing tool rail on touch so the label peek can show (#1878)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(join(here, "styles/partials/layout.css"), "utf8");
+    const block = css.match(
+      /@media \(pointer: coarse\) \{\s*\.editing-tool-rail \{([^}]*)\}/,
+    );
+    expect(block).toBeTruthy();
+    expect(block![1]).toMatch(/(?<!-)user-select:\s*none/);
+    expect(block![1]).toMatch(/-webkit-user-select:\s*none/);
+    expect(block![1]).toMatch(/-webkit-touch-callout:\s*none/);
+  });
 });
