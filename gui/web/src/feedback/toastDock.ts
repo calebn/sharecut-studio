@@ -74,20 +74,24 @@ export function toastDockBottomPx({
   const dockBottom = fits ? floor : navTopPx;
   const spot = dockBottom - gapPx;
   const avoid = pressedPx ? [pressedPx, ...keepClearPx] : [...keepClearPx];
+  const clearOf = (extent: { top: number; bottom: number }, bottom: number) =>
+    extent.top >= bottom || extent.bottom <= bottom - toastHeightPx;
   const clear = (bottom: number) =>
-    avoid.every(
-      (extent) =>
-        extent.top >= bottom || extent.bottom <= bottom - toastHeightPx,
-    );
+    avoid.every((extent) => clearOf(extent, bottom));
   if (clear(spot)) {
     return viewportHeight - spot;
   }
   const above = avoid
     .map((extent) => extent.top - gapPx)
-    .filter((bottom) => bottom - toastHeightPx >= ceilingPx + gapPx);
+    .filter(
+      (bottom) => bottom <= spot && bottom - toastHeightPx >= ceilingPx + gapPx,
+    );
   const below = avoid
     .map((extent) => extent.bottom + gapPx + toastHeightPx)
-    .filter((bottom) => bottom <= navTopPx - gapPx);
+    .filter(
+      (bottom) =>
+        bottom <= navTopPx - gapPx && bottom - toastHeightPx >= ceilingPx,
+    );
   const moved = [...above, ...below].find(clear);
   return viewportHeight - (moved ?? spot);
 }
