@@ -291,6 +291,19 @@ def test_off_speaker_gain_follows_the_automatic_envelope() -> None:
     assert result[4000:].tolist() == [1.0] * (result.size - 4000)
 
 
+def test_pads_and_duplicates_in_a_sequence_are_evaluated() -> None:
+    ones = np.ones(RATE, dtype=np.float32)
+    audio = SequenceAudio(
+        SourceAudio(Path("a"), 0.5, 0.75),
+        (SourceAudio(Path("a"), 0.0, 0.25), SourceAudio(Path("a"), 0.5, 0.75)),
+    )
+
+    result = evaluate_audio(audio, crossfade_curve="tri", load_source=lambda _: ones)
+
+    assert result is not None
+    assert result.size == 6000
+
+
 def test_gate_fill_is_summed_under_its_source() -> None:
     audio = SequenceAudio(
         SourceAudio(Path("a"), 0.0, 0.25, fill_path=Path("fill")),
@@ -315,9 +328,9 @@ def test_unsupported_trees_are_not_evaluated() -> None:
         "mask": (MaskAudio(leaf, 0.0, ((0.1, 0.2),)), "tri"),
         "crossfade curve": (CrossfadeAudio(leaf, leaf, 0.1), "qsin"),
         "overlap longer than a side": (CrossfadeAudio(leaf, leaf, 0.6), "tri"),
-        "duplicated slice": (SequenceAudio(leaf, (leaf,)), "tri"),
-        "reordered slices": (
-            SequenceAudio(SourceAudio(Path("a"), 0.3, 0.9), (leaf,)),
+        "crossfade onto a duplicated slice": (CrossfadeAudio(leaf, leaf, 0.1), "tri"),
+        "crossfade onto an earlier slice": (
+            CrossfadeAudio(SourceAudio(Path("a"), 0.3, 0.9), leaf, 0.1),
             "tri",
         ),
     }

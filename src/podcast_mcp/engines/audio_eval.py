@@ -28,6 +28,7 @@ from podcast_mcp.engines.audio import (
     delay_milliseconds,
     fade_duration,
     postorder,
+    sources,
 )
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.media_seek import MediaSeek
@@ -205,18 +206,22 @@ def _crossfade(left: np.ndarray, right: np.ndarray, overlap: int) -> np.ndarray 
 
 
 def _rereads_earlier_source(audio: Audio) -> bool:
-    """Whether a slice starts at or before the previous slice of its file in tree order.
+    """Whether a crossfade's right side starts a file at or before where its left side does.
 
-    Handles that overlap the next slice (a crossfade) read forward and render as the sum of
-    their slices. A duplicated or reordered slice does not: the render reads each file once
-    and splits it, and that read is cut short on some ffmpeg builds.
+    Handles that overlap the next slice read forward and render as the sum of their slices,
+    and a duplicated or reordered slice in a plain sequence or mix does too (pads and fills
+    are such slices). Across a crossfade the render reads the file once and splits it, and
+    that read is cut short on ffmpeg 6.1 when the right side comes first in the file.
     """
-    last_start: dict[Path, float] = {}
     for node in postorder(audio):
-        if isinstance(node, SourceAudio):
-            if node.src_start <= last_start.get(node.path, -1.0):
+        if isinstance(node, CrossfadeAudio):
+            left_starts: dict[Path, float] = {}
+            for leaf in sources(node.left):
+                left_starts[leaf.path] = max(left_starts.get(leaf.path, -1.0), leaf.src_start)
+            if any(
+                leaf.src_start <= left_starts.get(leaf.path, -1.0) for leaf in sources(node.right)
+            ):
                 return True
-            last_start[node.path] = node.src_start
     return False
 
 
