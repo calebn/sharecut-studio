@@ -10,6 +10,7 @@ the caller keeps the ffmpeg render.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Callable
 from pathlib import Path
 
@@ -46,6 +47,8 @@ def evaluate_audio(
     ``load_source`` returns a file's mono decode at ``sample_rate``.
     """
     if crossfade_curve != "tri":
+        return None
+    if _overlaps_in_source(audio):
         return None
     loaded: dict[Path, np.ndarray] = {}
 
@@ -132,6 +135,20 @@ def _crossfade(left: np.ndarray, right: np.ndarray, overlap: int) -> np.ndarray 
     seam = left[left.size - overlap :] * _ramp(overlap, rising=False)
     seam = seam + right[:overlap] * _ramp(overlap, rising=True)
     return np.concatenate((left[: left.size - overlap], seam, right[overlap:]))
+
+
+def _overlaps_in_source(audio: Audio) -> bool:
+    """Whether two slices of one file overlap: the render reads that file once and splits it,
+    and a crossfade across such a pair does not render as the sum of its slices."""
+    ranges: dict[Path, list[tuple[float, float]]] = {}
+    for node in postorder(audio):
+        if isinstance(node, SourceAudio):
+            ranges.setdefault(node.path, []).append((node.src_start, node.src_end))
+    return any(
+        later[0] < earlier[1] - 1e-9
+        for spans in ranges.values()
+        for earlier, later in itertools.pairwise(sorted(spans))
+    )
 
 
 def single_layout(audio: Audio) -> bool:

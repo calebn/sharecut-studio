@@ -148,7 +148,7 @@ def test_mix_places_components_on_the_millisecond_delay() -> None:
     piece = SourceAudio(Path("a"), 0.0, 0.5)
     mixed = MixAudio(
         At(0.0, piece),
-        (At(0.5004, piece), At(1.0, SilenceAudio(0.25))),
+        (At(0.5004, SourceAudio(Path("b"), 0.0, 0.5)), At(1.0, SilenceAudio(0.25))),
     )
 
     result = evaluate_audio(mixed, crossfade_curve="tri", load_source=lambda _: ones)
@@ -227,6 +227,10 @@ def test_unsupported_trees_are_not_evaluated() -> None:
         "off speaker": (OffSpeakerAudio(leaf, leaf, ()), "tri"),
         "crossfade curve": (CrossfadeAudio(leaf, leaf, 0.1), "qsin"),
         "overlap longer than a side": (CrossfadeAudio(leaf, leaf, 0.6), "tri"),
+        "overlapping slices of one file": (
+            CrossfadeAudio(leaf, SourceAudio(Path("a"), 0.3, 0.9), 0.1),
+            "tri",
+        ),
     }
 
     for name, (audio, curve) in unsupported.items():
