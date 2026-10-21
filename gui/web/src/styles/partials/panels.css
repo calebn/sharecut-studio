@@ -462,8 +462,14 @@ html[data-shell="phone"] .impact-pending-select {
   color: var(--color-danger);
 }
 
+/* Every turn reserves the active turn's accent bar and gutter, so the turn
+   that becomes active keeps the same text width and wraps the same: a bar
+   that appeared only on the active turn narrowed its text, re-wrapped it and
+   moved the list's scroll extent by a line each time the active turn changed
+   (#1796). */
 .utterance-turn {
-  padding: var(--space-1) 0;
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border-left: var(--space-0) solid transparent;
   border-radius: var(--radius-md);
   line-height: 1.45;
   user-select: text;
@@ -471,8 +477,7 @@ html[data-shell="phone"] .impact-pending-select {
 
 .utterance-turn.active {
   background: var(--color-accent-subtle);
-  border-left: var(--space-0) solid var(--color-accent);
-  padding-left: var(--space-3);
+  border-left-color: var(--color-accent);
 }
 
 .utterance-turn.unmapped {
