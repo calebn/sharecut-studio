@@ -99,8 +99,14 @@ def restored_pcm(
     gate_gains: np.ndarray,
     restore_gains: np.ndarray,
     lifted_baseline: bytes | None = None,
+    fill: np.ndarray | None = None,
 ) -> bytes:
-    """Joint marginal of quantized bus renders, preserving exact zero-correction bytes."""
+    """Joint marginal of quantized bus renders, preserving exact zero-correction bytes.
+
+    ``fill`` is the room tone (16-bit sample units, per frame) that the gate added to
+    ``baseline`` over its mutes (#1734). A restored span is the recording's own sound
+    again, so the fill leaves it as restoration comes in.
+    """
     base = np.frombuffer(baseline, dtype="<i2").reshape(-1, channels)
     w = np.frombuffer(whole, dtype="<i2").reshape(-1, channels)
     correction = np.zeros_like(w, dtype=np.float64)
@@ -110,6 +116,8 @@ def restored_pcm(
     if without is not None:
         v = np.frombuffer(without, dtype="<i2").reshape(-1, channels)
         correction += (1 - gate_gains)[:, None] * (w.astype(np.float64) - v.astype(np.float64))
+    if fill is not None:
+        correction -= fill[:, None]
     correction *= restore_gains[:, None]
     result = base.copy()
     active = correction != 0

@@ -561,9 +561,9 @@ step summary reports each track: holes, seconds filled, source and level, and th
 pauses or gate holds the noise was read from, or why it was left silent.
 `gate_fill.mode: off` clears every fill.
 
-**Not covered.** A bleed-gate mute (`transcript_gate`) on a gated track and a tighten mute
-whose `filler_pad_mode: room_tone` finds no room tone still render digital silence. They
-are our own edits, and their fill is decided by their own setting. A hold under 15 ms is
+**Not covered.** A tighten mute whose `filler_pad_mode: room_tone` finds no room tone
+still renders digital silence. It is our own edit, and its fill is decided by its own
+setting. A bleed-gate mute (`transcript_gate`) has its own fill, [below](#bleed-mute-fill). A hold under 15 ms is
 unmeasured, so those holes stay silent, as do AAC holds shorter than about one codec frame.
 A 20 ms hold sits at the profile's resolution. Over few closures its three or four blocks
 scatter as much as a slow tail rises, so the steady-run rule rejects it on some tracks
@@ -577,6 +577,50 @@ levels, which keep the DC offset; the fill reads their spectrum with DC removed.
 render reads the fill through the same `MediaSeek` as its media (#1141), so on AAC
 (`.m4a`) media too the fill lands on the samples of the exact decode it was placed on;
 `test_fill_never_overlaps_speech_in_a_multi_source_render[m4a]` pins it.
+
+### Bleed mute fill
+
+A bleed-gate mute (`bleed_handling` resolving to `mute`, #945) sets the lane's gain to zero
+over each foreign copy. On a lane whose own room is not digital silence that is a gate to the
+ear: the room drops out whenever the other speaker talks (#1734). The gate plan therefore
+carries a fill, `BleedGatePlan.fill`, and everywhere the plan's gain is applied the muted span
+takes `noise x (1 - gain)`. The fill ramps in as the mute ramps out over the same 20 ms, so
+the two always sum to the room.
+
+**Sources**, tried in order, all the lane's own (`edits/bleed_fill.py`, `edits/gate_fill.py`):
+
+1. the lane's recorded room-tone bed (`track.room_tone`);
+2. comfort noise read from the stretches the plan found to hold neither a foreign copy nor
+   the lane's own voice, trimmed 150 ms from each end. A copy that fills the lane's pauses
+   is never read as its room, and the plan, not the audio, says where the copies are. It
+   needs 1 s of them with live audio;
+3. the recorder-gate fill's comfort noise (the gate's hold, else the track's own pauses),
+   for a lane that is gated so hard it has no live quiet stretch.
+
+No source reads another track (bleed is never the main audio, #945). The same credibility rule
+applies as for gate holes: the noise must sit 30 dB under the lane's speech, else the span
+stays digital silence and the dry run says why (`room_tone_fill_reason`). `gate_fill.mode: off`
+switches this fill off with the other. An `attenuate` gate has no hole to fill and adds nothing.
+
+**One noise, any clock.** Only the power spectrum is kept. The noise is synthesised at the rate
+of the audio it is added to, as a seamless loop of at least 20 s read at `frame % length` on
+the clock the gain is applied on. Stems, play segments, source proxies and export read the same
+plan the same way, so any chunking of one clock lands on the same samples. A spectrum measured
+at 48 kHz keeps its density at 16 kHz, with nothing above the band it was measured in.
+
+**Bleed Restore.** A restored span is the recording's own sound again. The fill leaves as the
+restore gain comes in (weight `1 - restore gain`), so a restored span carries no fill under it.
+
+**Undo and the render hash.** The fill is a function of the plan, the lane's media and
+`gate_fill.mode`; the stem hash carries a fill revision, the mode and the lane's room-tone bed, so
+turning the fill off or changing how it is read renders the stem again. Undo of the bleed mute
+restores the previous gate, and with it the fill.
+
+**Not covered.** A lane with no room to read (digital silence where nobody talks) stays
+silent, as before. A copy that fills every pause and every hold of a lane leaves nothing but
+bleed to read, and the credibility rule then keeps the fill silent rather than letting the
+copy's tails stand in for a room. The lab check (#1734) compares the muted spans with the
+lane's own pauses by spectrum and level, and with and without the forced aligner.
 
 ### Evidence: comfort-noise estimators
 
@@ -1144,7 +1188,7 @@ enforced-by:
 supersedes: D-bleed-attenuate-everywhere
 -->
 
-`analysis.heuristics.bleed_handling` picks how the gate reduces a copy. `auto` (default) mutes it on a lane gated to digital silence between words and turns it down by `bleed_attenuation_db` (20 dB) on a lane whose room bed stays above the gate's level floor (75 dB under the lane's voice level) once turned down. `bleed_bed_db` is dB relative to the lane's voice level. A hard gate on a lane with a room bed makes the bed vanish. `mute` and `attenuate` override `auto` for every lane.
+`analysis.heuristics.bleed_handling` picks how the gate reduces a copy. `auto` (default) mutes it on a lane gated to digital silence between words and turns it down by `bleed_attenuation_db` (20 dB) on a lane whose room bed stays above the gate's level floor (75 dB under the lane's voice level) once turned down. `bleed_bed_db` is dB relative to the lane's voice level. A hard gate on a lane with a room bed makes the bed vanish, so a `mute` span carries the lane's own room tone ([Bleed mute fill](#bleed-mute-fill), #1734). `mute` and `attenuate` override `auto` for every lane.
 
 ### Superseded decision: Turn bleed down 20 dB on every lane
 

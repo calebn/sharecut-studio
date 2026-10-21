@@ -7,7 +7,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -57,7 +57,10 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 18
+if TYPE_CHECKING:
+    from podcast_mcp.edits.bleed_fill import BleedFill
+
+BLEED_GATE_REV = 19
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -137,10 +140,34 @@ class BleedGatePlan:
     attenuation_db: float = AnalysisPolicy.bleed_attenuation_db
     bed_db: float | None = None
     """The lane's median level away from its own speech and the copies; ``auto`` reads it."""
+    fill: BleedFill | None = None
+    """The track's own room tone, added under a ``mute`` as ``noise x (1 - gain)`` (#1734)."""
+    fill_reason: str | None = None
+    """Why a ``mute`` has no fill: the track's noise is not a floor, or it could not be read."""
 
     @property
     def floor_gain(self) -> float:
         return 0.0 if self.reduction == "mute" else 10 ** (-self.attenuation_db / 20)
+
+    def fill_for_frames(
+        self, first_frame: int, count: int, rate: int, gains: np.ndarray | None = None
+    ) -> np.ndarray | None:
+        """The room tone to add over these frames, in 16-bit sample units, or None.
+
+        ``noise x (1 - gain)`` on the absolute clock: the fill ramps in as the gain ramps out,
+        so a mute never leaves a hole. None when the plan has no fill or the frames are
+        unmuted (no noise is synthesised for them). ``gains`` is ``gains_for_frames`` for the
+        same frames, when the caller already has it.
+        """
+        if self.fill is None or self.floor_gain != 0.0:
+            return None
+        gain = gains if gains is not None else self.gains_for_frames(first_frame, count, rate)
+        if not (gain < 1.0).any():
+            return None
+        from podcast_mcp.edits.bleed_fill import PCM16_SCALE
+
+        noise = self.fill.noise(first_frame, count, rate)
+        return ((1.0 - gain) * noise * np.float32(PCM16_SCALE)).astype(np.float32)
 
     @cached_property
     def _attenuation_index(self) -> HalfOpenIntervalIndex:
@@ -865,6 +892,7 @@ def _compute_bleed_gate_plan(
         if (bed := _bed_db(own_levels, placed, [*foreign, *kept])) is not None
     ]
     bed_db = max(beds, default=None)
+    quiet = subtract_intervals(placed, merge_intervals([*foreign, *kept]))
     if not ignore_scope:
         attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
     attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
@@ -872,14 +900,72 @@ def _compute_bleed_gate_plan(
         clips = [placement.clip for placement in placements]
         attenuation = _source_clock_spans(clips, attenuation)
         protected = _source_clock_spans(clips, protected)
+    reduction = _reduction(policy.bleed_handling, bed_db, policy.bleed_attenuation_db)
+    fill, fill_reason = (
+        _mute_fill(project, track_id, defaults, _media_runs(project, track_id, placements, quiet))
+        if reduction == "mute" and attenuation
+        else (None, None)
+    )
     return BleedGatePlan(
         tuple(attenuation),
         tuple(protected),
         tuple(sorted(reasons)),
-        reduction=_reduction(policy.bleed_handling, bed_db, policy.bleed_attenuation_db),
+        reduction=reduction,
         attenuation_db=policy.bleed_attenuation_db,
         bed_db=bed_db,
+        fill=fill,
+        fill_reason=fill_reason,
     )
+
+
+def bleed_fill_enabled(defaults: EffectiveConfig) -> bool:
+    """A bleed mute is filled unless ``gate_fill.mode`` is ``off`` (the same switch as the
+    recorder-gate fill)."""
+    return str((defaults.get("gate_fill") or {}).get("mode", "auto")) != "off"
+
+
+def _media_runs(
+    project: EpisodeProject, track_id: str, placements: list[Any], spans: list[tuple[float, float]]
+) -> list[tuple[float, float]]:
+    """Timeline ``spans`` on the lane's recording clock, or none when the lane's clips do not
+    all play that one recording (the spans would then name audio of another file)."""
+    if not placements:
+        return list(spans)
+    try:
+        from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+        from podcast_mcp.util.media_identity import same_recording
+
+        track = project.track_by_id(track_id)
+        primary = track_audio_path(project, track_id).resolve()
+        if track is None or any(
+            not same_recording(resolve_clip_audio_path(project, track, p.clip), primary)
+            for p in placements
+        ):
+            return []
+    except (OSError, ValueError):
+        return []
+    return _source_clock_spans([p.clip for p in placements], spans)
+
+
+def _mute_fill(
+    project: EpisodeProject,
+    track_id: str,
+    defaults: EffectiveConfig,
+    quiet_runs: list[tuple[float, float]],
+) -> tuple[BleedFill | None, str | None]:
+    """The track's own room tone for its muted spans, or None and why not (#1734)."""
+    if not bleed_fill_enabled(defaults):
+        return None, "gate_fill.mode is off"
+    track = project.track_by_id(track_id)
+    if track is None or track.media is None:
+        return None, "no media"
+    from podcast_mcp.edits.bleed_fill import measure_bleed_fill
+
+    try:
+        made = measure_bleed_fill(project, track, quiet_runs)
+    except (OSError, ValueError, wave.Error, CalledProcessError) as exc:
+        return None, f"room tone unreadable: {exc}"
+    return (None, made) if isinstance(made, str) else (made, None)
 
 
 def _source_clock_spans(
@@ -958,9 +1044,16 @@ def bleed_gate_payload(
             }
         )
     policy = AnalysisPolicy.from_defaults(defaults=defaults)
+    from podcast_mcp.edits.bleed_fill import BLEED_FILL_REV
+
     return {
         "revision": BLEED_GATE_REV,
         "fade_sec": GATE_FADE_SEC,
+        "fill": {
+            "revision": BLEED_FILL_REV,
+            "enabled": bleed_fill_enabled(defaults),
+            "room_tone": track.room_tone.model_dump(mode="json") if track.room_tone else None,
+        },
         "policy": {
             "handling": policy.bleed_handling,
             "attenuation_db": policy.bleed_attenuation_db,

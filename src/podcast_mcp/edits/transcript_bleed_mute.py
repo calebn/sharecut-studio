@@ -225,6 +225,8 @@ def apply_transcript_bleed_mute(
                     "bleed_reduction": plan.reduction,
                     "bleed_bed_db": plan.bed_db,
                     "gate_reasons": list(plan.reasons),
+                    "room_tone_fill": plan.fill.describe() if plan.fill is not None else None,
+                    "room_tone_fill_reason": plan.fill_reason,
                 }
                 candidates.append(entry)
 

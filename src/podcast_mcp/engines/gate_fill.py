@@ -71,7 +71,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import closing
 from dataclasses import dataclass
 from functools import lru_cache
@@ -82,6 +82,7 @@ import numpy as np
 
 from podcast_mcp.engines.room_tone import (
     MIN_BELOW_SPEECH_DB,
+    SPEECH_GUARD_SEC,
     BedUnavailable,
     LiveFloor,
     TrackFloor,
@@ -169,6 +170,12 @@ class FillLoop:
     noise_db: float | None
     # How the noise was read ("from 31.2 s of its own room"); None for a recorded bed.
     basis: str | None = None
+    # The power spectrum the loop was synthesised from (Hann periodogram bins of ``nfft``
+    # samples at ``sample_rate``), so another consumer can realise the same noise at its
+    # own rate (the bleed mute fill, #1734).
+    psd: np.ndarray | None = None
+    nfft: int = 0
+    sample_rate: int = 0
 
 
 FillSourceFn = Callable[[EpisodeProject, Track, Path, GateHoles], FillLoop | str]
@@ -287,13 +294,19 @@ class _Noise:
 def _room_noise(path: Path, holes: GateHoles, floor: TrackFloor) -> _Noise | None:
     """The mean spectrum of the quiet runs in the track's own pauses, when they add up to
     ``MIN_ROOM_SEC``; frames of nothing but residue are skipped."""
+    return _noise_over_runs(path, holes, floor.runs)
+
+
+def _noise_over_runs(
+    path: Path, holes: GateHoles, runs: Sequence[tuple[float, float]]
+) -> _Noise | None:
     sr = holes.sample_rate
     nfft = _frame_len(sr)
     hop = nfft // 2
     residue = RESIDUE_LSB * holes.lsb
     rows: list[np.ndarray] = []
     with closing(_reader(path, holes)) as reader:
-        for a, b in ((round(a * sr), round(b * sr)) for a, b in floor.runs):
+        for a, b in ((round(a * sr), round(b * sr)) for a, b in runs):
             count = 1 + (b - a - nfft) // hop if b - a >= nfft else 0
             for f0 in range(0, count, READ_FRAMES):
                 f1 = min(count, f0 + READ_FRAMES)
@@ -421,24 +434,44 @@ def _comfort_noise(
         return noise
     if floor.speech_db is None:
         return "no speech above its noise"
-    loop = _synthesise(noise.psd, noise.nfft, holes.sample_rate)
+    loop = synthesise_noise(noise.psd, noise.nfft, holes.sample_rate)
     noise_db = rms_db(loop)
     if noise_db > floor.speech_db - MIN_BELOW_SPEECH_DB:
         return (
             f"its noise ({noise_db:.1f} dBFS) sits near its speech ({floor.speech_db:.1f} dBFS), "
             "not a floor"
         )
-    return FillLoop(samples=loop, level_db=noise_db, noise_db=noise_db, basis=noise.basis)
+    return FillLoop(
+        samples=loop,
+        level_db=noise_db,
+        noise_db=noise_db,
+        basis=noise.basis,
+        psd=noise.psd,
+        nfft=noise.nfft,
+        sample_rate=holes.sample_rate,
+    )
 
 
-def _synthesise(psd: np.ndarray, nfft: int, sample_rate: int) -> np.ndarray:
+def synthesise_noise(
+    psd: np.ndarray, nfft: int, sample_rate: int, *, source_rate: int | None = None
+) -> np.ndarray:
     """A seamless loop of Gaussian noise with power spectrum ``psd`` (random phase, one IFFT),
-    with nothing under ``MIN_FILL_HZ``."""
+    with nothing under ``MIN_FILL_HZ``.
+
+    ``psd`` is read at ``source_rate`` (default ``sample_rate``). At another rate the same
+    noise is realised: the band above the source's Nyquist is empty, and the level follows
+    the band that is there, so the noise keeps its spectral density (#1734).
+    """
     length = 1 << math.ceil(math.log2(LOOP_SEC * sample_rate))
     seed = int.from_bytes(hashlib.sha256(psd.astype("<f8").tobytes()).digest()[:8], "little")
     white = np.random.default_rng(seed).standard_normal(length)
     freqs = np.fft.rfftfreq(length, 1.0 / sample_rate)
-    shape = np.interp(freqs, np.fft.rfftfreq(nfft, 1.0 / sample_rate), psd)
+    source = source_rate or sample_rate
+    if source == sample_rate:
+        shape = np.interp(freqs, np.fft.rfftfreq(nfft, 1.0 / sample_rate), psd)
+    else:
+        shape = np.interp(freqs, np.fft.rfftfreq(nfft, 1.0 / source), psd, right=0.0)
+        shape = shape * (sample_rate / source)
     shape[freqs < MIN_FILL_HZ] = 0.0
     return np.fft.irfft(np.fft.rfft(white) * np.sqrt(shape), length).astype(np.float32)
 
@@ -455,7 +488,19 @@ def _room_tone_bed(
     samples = load_mono_window(
         bed.path, start_sec=0.0, duration_sec=bed.end, sample_rate=holes.sample_rate
     )
-    return FillLoop(samples=samples, level_db=rms_db(samples), noise_db=None)
+    nfft = _frame_len(holes.sample_rate)
+    psd = None
+    if samples.shape[0] >= nfft:
+        rows = list(_periodograms(_frames(samples[:, None], nfft), nfft))
+        psd = _noise_psd(rows)
+    return FillLoop(
+        samples=samples,
+        level_db=rms_db(samples),
+        noise_db=None,
+        psd=psd,
+        nfft=nfft if psd is not None else 0,
+        sample_rate=holes.sample_rate,
+    )
 
 
 # Tried in order; the first that yields a loop fills the track. None reads another track.
@@ -463,6 +508,74 @@ FILL_SOURCES: tuple[tuple[GateFillSource, FillSourceFn], ...] = (
     (GateFillSource.ROOM_TONE_BED, _room_tone_bed),
     (GateFillSource.COMFORT_NOISE, _comfort_noise),
 )
+
+
+def _quiet_run_noise(
+    path: Path, holes: GateHoles, runs: Sequence[tuple[float, float]]
+) -> FillLoop | str:
+    """Comfort noise read from ``runs``: stretches the caller knows hold no speech.
+
+    A bleed mute knows which stretches of the lane are a foreign copy or its owner's voice
+    (the gate plan), so the room is read from the rest. ``runs`` are trimmed
+    ``SPEECH_GUARD_SEC`` from each end, where a word's attack or tail still sits, and the
+    result must sit ``MIN_BELOW_SPEECH_DB`` under the track's speech, as any fill must.
+    """
+    read = track_floor(path)
+    if not isinstance(read, LiveFloor) or read.floor.speech_db is None:
+        return "no noise measured under its speech"
+    trimmed = [
+        (a + SPEECH_GUARD_SEC, b - SPEECH_GUARD_SEC)
+        for a, b in runs
+        if b - a > 2 * SPEECH_GUARD_SEC
+    ]
+    noise = _noise_over_runs(path, holes, trimmed)
+    if noise is None:
+        return "no quiet stretch of its own long enough to read its room from"
+    loop = synthesise_noise(noise.psd, noise.nfft, holes.sample_rate)
+    noise_db = rms_db(loop)
+    if noise_db > read.floor.speech_db - MIN_BELOW_SPEECH_DB:
+        return (
+            f"its noise ({noise_db:.1f} dBFS) sits near its speech "
+            f"({read.floor.speech_db:.1f} dBFS), not a floor"
+        )
+    return FillLoop(
+        samples=loop,
+        level_db=noise_db,
+        noise_db=noise_db,
+        basis=noise.basis,
+        psd=noise.psd,
+        nfft=noise.nfft,
+        sample_rate=holes.sample_rate,
+    )
+
+
+def measure_track_fill(
+    project: EpisodeProject,
+    track: Track,
+    quiet_runs: Sequence[tuple[float, float]] | None = None,
+) -> FillLoop | str:
+    """The fill the first source gives ``track``'s own room, or why it has none.
+
+    Read from the track's media with or without gate holes, so a bleed mute (#1734) can fill
+    a track whose recorder never gated it. Sources, in order: the recorded bed; ``quiet_runs``
+    (media-clock stretches the caller knows hold no speech, when given); then the same comfort
+    noise the recorder-gate fill reads. No source reads another track.
+    """
+    assert track.media is not None
+    path = resolve_under_workspace(project, track.media.path)
+    holes = detect_gate_holes(path)
+    reasons: list[str] = []
+    attempts: list[Callable[[], FillLoop | str]] = [
+        lambda: _room_tone_bed(project, track, path, holes),
+        *([lambda: _quiet_run_noise(path, holes, quiet_runs)] if quiet_runs else []),
+        lambda: _comfort_noise(project, track, path, holes),
+    ]
+    for attempt in attempts:
+        made = attempt()
+        if not isinstance(made, str):
+            return made
+        reasons.append(made)
+    return reasons[-1]
 
 
 def _fade(length: int, fade: int) -> np.ndarray:
