@@ -58,6 +58,7 @@ WORKER = textwrap.dedent(
 )
 
 
+@pytest.mark.timeout(300)
 def test_building_evidence_for_a_long_mixed_rate_episode_stays_in_budget(tmp_path: Path) -> None:
     if not FFmpegEngine().check_available()[0]:
         pytest.skip("ffmpeg not available")
