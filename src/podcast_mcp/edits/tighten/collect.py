@@ -103,8 +103,6 @@ def _timeline_pause_gap_sec(
     gap through :class:`SessionTimeline` and sum only the spans that still
     have a clip -- material a ripple already deleted contributes nothing.
     """
-    from podcast_mcp.engines.session_timeline import SessionTimeline
-    from podcast_mcp.util.timebase import SourceSec
 
     spans = SessionTimeline(project).map_source_span(
         track_id, SourceSec(gap_start), SourceSec(gap_end)

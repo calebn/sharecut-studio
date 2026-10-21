@@ -1145,7 +1145,7 @@ def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
             side_effect=ValueError("blocked"),
         ),
     ):
@@ -1188,7 +1188,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", guard),
         ),
         patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=10),
@@ -1236,7 +1236,7 @@ def test_analyze_candidate_blocked_peer_waits_for_review_as_a_padded_session_rip
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
             return_value=ResolvedCutScope("peer_speech", guard),
         ),
         patch("podcast_mcp.edits.tighten.prepare.recommend_cut_fade_ms", return_value=10),

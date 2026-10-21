@@ -18,7 +18,7 @@ from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
 from podcast_mcp.edits.clip_fades import ClipFadeChangedError
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
-from podcast_mcp.edits.range_edits import RangeChangedError
+from podcast_mcp.edits.range_target import RangeChangedError
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand

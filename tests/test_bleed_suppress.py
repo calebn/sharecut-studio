@@ -8,8 +8,8 @@ import pytest
 from audibility_floors import floors_at
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_quality import bleed_words, suppress_bleed_words
-from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
+from podcast_mcp.edits.transcript_search import search_transcript
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (

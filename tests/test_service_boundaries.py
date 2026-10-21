@@ -72,16 +72,16 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     "podcast_mcp.gui.assembler": {
         "podcast_mcp.edits.comments",
         "podcast_mcp.edits.join_modes",
-        "podcast_mcp.edits.range_edits",
+        "podcast_mcp.edits.range_target",
         "podcast_mcp.edits.speaker_split",
-        "podcast_mcp.edits.transcript_cuts",
+        "podcast_mcp.edits.transcript_search",
         "podcast_mcp.engines.play_audit",
     },
     "podcast_mcp.gui.mapper": {
         "podcast_mcp.edits.clips_ops",
         "podcast_mcp.edits.cut_policy",
         "podcast_mcp.edits.pending_preview",
-        "podcast_mcp.edits.range_edits",
+        "podcast_mcp.edits.range_target",
         "podcast_mcp.edits.tighten_hits",
         "podcast_mcp.edits.timeline_span",
         "podcast_mcp.engines.session_timeline",
@@ -89,7 +89,7 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     },
     "podcast_mcp.gui.routes.document": {
         "podcast_mcp.edits.bleed_restore_targets",
-        "podcast_mcp.edits.range_edits",
+        "podcast_mcp.edits.range_target",
         "podcast_mcp.edits.transcript_refine_status",
     },
     "podcast_mcp.gui.routes.pipeline": {

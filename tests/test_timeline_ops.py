@@ -411,7 +411,7 @@ def test_move_resolve_falls_back_to_search_and_rejects_unmapped() -> None:
         _resolve_move_match,
         _tightest_timeline_match,
     )
-    from podcast_mcp.edits.transcript_cuts import TranscriptMatch
+    from podcast_mcp.edits.transcript_search import TranscriptMatch
 
     p = _two_track_project()
     assert _exact_phrase_match(p, "   ") is None

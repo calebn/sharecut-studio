@@ -394,7 +394,7 @@ Transcript words and ordinary remove/mute decisions use **source-media seconds**
 
 Never round a clip's samples in a new place: a reader that turns clips into samples lays them out with `engines/sample_grid.lay_out` (the raw projection, `session_air.lane_window` and the peer guard do), and tests the result against the lane after the removal (`tests/test_native_sample_grid.py`).
 
-Build reviewed bleed targets with `build_range_target` in `edits/range_edits.py`. `propose_range_mute_tool` accepts timeline intervals in that sealed target. Rendering maps approved mutes to each selected occurrence's source clock and preserves the original envelope endpoints when intersecting a playback window.
+Build reviewed bleed targets with `build_range_target` in `edits/range_target.py`. `propose_range_mute_tool` accepts timeline intervals in that sealed target. Rendering maps approved mutes to each selected occurrence's source clock and preserves the original envelope endpoints when intersecting a playback window.
 
 Every ordinary SOURCE REMOVE uses `edits/source_removals.py`: use `inspect_source_remove_placement` to check original complete geometry and canonical lane membership before optimization, then prove the actual planned timeline window with `SessionTimeline.exact_timeline_source_span` before consuming it without another optimizer. Append, update and coalescing assess the final row before publication. Pause shortening and perceptibility belong to that final effect check, after actual planning.
 

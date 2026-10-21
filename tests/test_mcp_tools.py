@@ -581,7 +581,7 @@ def test_play_transcript_query_errors_mcp(tmp_path):
 def test_play_transcript_query_removed_timeline_mcp(tmp_path):
     from unittest.mock import patch
 
-    from podcast_mcp.edits.transcript_cuts import TranscriptMatch
+    from podcast_mcp.edits.transcript_search import TranscriptMatch
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))

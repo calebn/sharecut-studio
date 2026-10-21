@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.range_edits import range_media_seal
+from podcast_mcp.edits.range_target import range_media_seal
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
     clear_invalidations_if_current,

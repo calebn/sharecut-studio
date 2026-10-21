@@ -12,7 +12,8 @@ from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.pending_preview import _timeline_span
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-from podcast_mcp.edits.transcript_cuts import cut_text_match, cut_words, search_transcript
+from podcast_mcp.edits.transcript_cuts import cut_text_match, cut_words
+from podcast_mcp.edits.transcript_search import search_transcript
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.export.transcript import combined_transcript_markdown
 from podcast_mcp.gui.mapper import map_pending_edits_to_timeline

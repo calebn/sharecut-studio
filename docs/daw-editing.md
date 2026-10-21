@@ -604,7 +604,7 @@ Reviewed bleed targets reuse the exact occurrence-local MUTE workflow; they pres
 
 ### Implementation notes
 
-Exact selected ranges use `edits/range_edits.py`. The sealed target names timeline intervals, destination lanes, clip occurrences, and opaque media revisions. Approval and pending audition use that kernel. Cut leaves holes and later placements stay aligned. A whole range action uses one workspace mutation and one History Undo. `Track.timeline_empty` distinguishes a fully removed lane from implicit raw media.
+Exact selected ranges use `edits/range_target.py` (the sealed target and its checks) and `edits/range_edits.py` (the edit). The sealed target names timeline intervals, destination lanes, clip occurrences, and opaque media revisions. Approval and pending audition use that kernel. Cut leaves holes and later placements stay aligned. A whole range action uses one workspace mutation and one History Undo. `Track.timeline_empty` distinguishes a fully removed lane from implicit raw media.
 
 `edits/bleed_review.py` subtracts protected selected-source word coverage before building bounded exact-range hypotheses with this kernel. The MCP adapter submits a pending mute through the existing document command service. Interactive host approval applies it through the same range mutation and history path. Discovery does not establish acoustic ownership.
 

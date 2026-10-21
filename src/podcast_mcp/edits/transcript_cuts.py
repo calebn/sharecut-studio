@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits import filler_pacing
+from podcast_mcp.edits.cut_application import assess_source_offer
+from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
 from podcast_mcp.edits.cut_policy import decision_policy
+from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_SPLIT_REASON,
     NL_MANUAL_REASON,
@@ -17,6 +20,14 @@ from podcast_mcp.edits.edit_reasons import (
 )
 from podcast_mcp.edits.filler_pacing import paced_pad_for_span
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex, optimize_source_cut_range
+from podcast_mcp.edits.source_removals import (
+    ScopeChangedAtApproval,
+    inspect_source_remove,
+    record_suggested_cut_speech,
+    require_source_remove,
+)
+from podcast_mcp.edits.speech_energy_guard import PeerSpeechBlocked
+from podcast_mcp.edits.transcript_search import ensure_combined_transcript, search_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.models import (
     CombinedTranscript,
@@ -28,150 +39,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.text import normalize_text
 from podcast_mcp.util.timebase import SourceSec
-
-
-@dataclass
-class TranscriptMatch:
-    track_id: str
-    source_id: str | None
-    start: float
-    end: float
-    text: str
-    speaker: str | None = None
-    utterance_index: int | None = None
-    word_start_index: int | None = None
-    word_end_index: int | None = None
-    timeline_start: float | None = None
-    timeline_end: float | None = None
-
-
-def _timeline_span_for_source(
-    project: EpisodeProject,
-    track_id: str,
-    source_id: str | None,
-    src_start: float,
-    src_end: float,
-) -> tuple[float | None, float | None]:
-    timeline = SessionTimeline(project)
-    lane_clips = [c for c in project.clips if clip_plays_lane(project, c, track_id)]
-    selected_source_ids = project.equivalent_source_ids(track_id, source_id)
-    if not lane_clips and None in selected_source_ids:
-        spans = timeline.map_source_span(track_id, SourceSec(src_start), SourceSec(src_end))
-    else:
-        spans = timeline.map_placements_source_span(
-            track_id, selected_source_ids, SourceSec(src_start), SourceSec(src_end)
-        )
-    return (float(spans[0][0]), float(spans[-1][1])) if spans else (None, None)
-
-
-def _with_timeline_spans(project: EpisodeProject, match: TranscriptMatch) -> TranscriptMatch:
-    tl_start, tl_end = _timeline_span_for_source(
-        project, match.track_id, match.source_id, match.start, match.end
-    )
-    if match.timeline_start is None:
-        match.timeline_start = tl_start
-    if match.timeline_end is None:
-        match.timeline_end = tl_end
-    return match
-
-
-def ensure_combined_transcript(
-    project: EpisodeProject, *, defaults: EffectiveConfig
-) -> CombinedTranscript:
-    if project.transcripts:
-        from podcast_mcp.engines import TranscriptionEngine
-
-        project.combined_transcript = TranscriptionEngine(defaults=defaults).merge_transcripts(
-            project
-        )
-        return project.combined_transcript
-    if project.combined_transcript is not None:
-        return project.combined_transcript
-    from podcast_mcp.engines import TranscriptionEngine
-
-    project.combined_transcript = TranscriptionEngine(defaults=defaults).merge_transcripts(project)
-    return project.combined_transcript
-
-
-def search_transcript(
-    project: EpisodeProject,
-    query: str,
-    *,
-    track_id: str | None = None,
-    speaker: str | None = None,
-    fuzzy: bool = True,
-    include_suppressed: bool = False,
-    defaults: EffectiveConfig,
-) -> list[TranscriptMatch]:
-    q = normalize_text(query)
-    if not q:
-        return []
-    matches: list[TranscriptMatch] = []
-    combined = ensure_combined_transcript(project, defaults=defaults)
-    for idx, utt in enumerate(combined.utterances):
-        if track_id and utt.track_id != track_id:
-            continue
-        if speaker and normalize_text(utt.speaker) != normalize_text(speaker):
-            continue
-        hay = normalize_text(utt.text) if fuzzy else utt.text
-        if q in hay:
-            matches.append(
-                _with_timeline_spans(
-                    project,
-                    TranscriptMatch(
-                        track_id=utt.track_id,
-                        source_id=utt.source_id,
-                        start=utt.start,
-                        end=utt.end,
-                        text=utt.text,
-                        speaker=utt.speaker,
-                        utterance_index=idx,
-                    ),
-                )
-            )
-
-    for transcript in project.transcripts:
-        if track_id and transcript.track_id != track_id:
-            continue
-        words = transcript.words
-        if not words:
-            continue
-        tr = project.track_by_id(transcript.track_id)
-        sp = tr.speaker if tr else transcript.track_id
-        if speaker and sp and normalize_text(sp) != normalize_text(speaker):
-            continue
-        window = 16
-        for i in range(len(words)):
-            if not include_suppressed and words[i].suppressed:
-                continue
-            for j in range(i, min(len(words), i + window)):
-                if not include_suppressed and any(w.suppressed for w in words[i : j + 1]):
-                    continue
-                chunk = " ".join(w.text for w in words[i : j + 1])
-                hay = normalize_text(chunk) if fuzzy else chunk
-                if q in hay:
-                    matches.append(
-                        _with_timeline_spans(
-                            project,
-                            TranscriptMatch(
-                                track_id=transcript.track_id,
-                                source_id=transcript.source_id,
-                                start=words[i].start,
-                                end=words[j].end,
-                                text=chunk,
-                                speaker=sp,
-                                word_start_index=i,
-                                word_end_index=j,
-                            ),
-                        )
-                    )
-                    break
-            else:
-                continue
-            break
-    return matches
 
 
 def time_range_from_words(
@@ -254,10 +122,8 @@ def append_remove_decision(
         scope=scope,
         author=author,
     )
-    from podcast_mcp.edits.source_removals import require_source_remove
 
     require_source_remove(project, decision)
-    from podcast_mcp.edits.cut_safety import assess_source_offer
 
     assess_source_offer(project, decision, defaults=defaults)
     project.edit_decisions.append(decision)
@@ -318,14 +184,6 @@ def add_remove_decision(
             "end must be greater than start. Pick an end after the start.",
             code="range_end_before_start",
         )
-    from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
-    from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
-    from podcast_mcp.edits.filler_pacing import apply_filler_pacing
-    from podcast_mcp.edits.source_removals import (
-        ScopeChangedAtApproval,
-        record_suggested_cut_speech,
-        require_source_remove,
-    )
 
     transcript = _cut_transcript_for_source(project, track_id, source_id) if source_aware else None
     if source_aware and transcript is None and source_id is not None:
@@ -353,9 +211,6 @@ def add_remove_decision(
         len(initial_spans) != 1
         or abs(float(initial_spans[0][1] - initial_spans[0][0]) - (end - start)) > 1e-6
     ):
-        from podcast_mcp.edits.cut_placement import CutScopeHold
-        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
     placement_witness = (
         RangeInterval(start=float(initial_spans[0][0]), end=float(initial_spans[0][1]))
@@ -383,7 +238,7 @@ def add_remove_decision(
     pacing_kwargs: dict[str, Any] = {"defaults": defaults, "cut_kind": "nl"}
     if source_aware:
         pacing_kwargs["transcript"] = transcript
-    paced = apply_filler_pacing(project, track_id, start, end, **pacing_kwargs)
+    paced = filler_pacing.apply_filler_pacing(project, track_id, start, end, **pacing_kwargs)
     if paced is None:
         raise CodedValueError(
             "cut would leave flanking words closer than min_gap_after_filler_sec; "
@@ -428,9 +283,6 @@ def add_remove_decision(
         len(final_spans) != 1
         or abs(float(final_spans[0][1] - final_spans[0][0]) - (cut_end - cut_start)) > 1e-6
     ):
-        from podcast_mcp.edits.cut_placement import CutScopeHold
-        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
     if source_aware:
         placement_witness = RangeInterval(
@@ -457,8 +309,6 @@ def add_remove_decision(
         raise ScopeChangedAtApproval([CutScopeHold(decision_id, (), "scope_unavailable")], {})
     guard = resolved.guard
     if guard is not None and guard.action == "skip":
-        from podcast_mcp.edits.speech_energy_guard import PeerSpeechBlocked
-
         raise PeerSpeechBlocked(guard.blocking_track_ids)
     if guard is not None and guard.blocked:
         peers = ",".join(guard.blocking_track_ids)
@@ -515,7 +365,6 @@ def add_remove_decision(
     if len(candidates) != 1 or not _ordinary_remove_survivor(candidates[0], decision):
         raise RuntimeError("source remove has no unique ordinary survivor")
     survivor = candidates[0]
-    from podcast_mcp.edits.cut_safety import assess_source_offer
 
     assess_source_offer(staged, survivor, defaults=defaults)
     project.edit_decisions = staged.edit_decisions
@@ -643,12 +492,6 @@ def coalesce_edits(
     owned_ids = {row.id for row in owned}
     result = [row for row in project.edit_decisions if row.id not in owned_ids]
     merged_count = 0
-    from podcast_mcp.edits.cut_placement import CutScopeHold
-    from podcast_mcp.edits.source_removals import (
-        ScopeChangedAtApproval,
-        inspect_source_remove,
-        require_source_remove,
-    )
 
     for rows in _merge_groups(
         owned,
@@ -725,8 +568,6 @@ def coalesce_edits(
                     skip_counts[assessment.reason] = skip_counts.get(assessment.reason, 0) + 1
                     continue
         if len(group) > 1:
-            from podcast_mcp.edits.cut_safety import assess_source_offer
-
             assess_source_offer(project, survivor, defaults=defaults)
         result.append(survivor)
     project.edit_decisions = result

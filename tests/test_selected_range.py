@@ -8,12 +8,8 @@ from pydantic import ValidationError
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.decisions import update_pending_edit
-from podcast_mcp.edits.range_edits import (
-    RangeChangedError,
-    edit_selected_range,
-    range_geometry,
-    range_media_seal,
-)
+from podcast_mcp.edits.range_edits import edit_selected_range
+from podcast_mcp.edits.range_target import RangeChangedError, range_geometry, range_media_seal
 from podcast_mcp.models import (
     Clip,
     CutIntent,

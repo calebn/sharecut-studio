@@ -5,10 +5,8 @@ from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.decisions import edit_impact_report
-from podcast_mcp.edits.transcript_cuts import (
-    ensure_combined_transcript,
-    format_transcript_timestamps,
-)
+from podcast_mcp.edits.transcript_cuts import format_transcript_timestamps
+from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.models import EpisodeProject
 
 

@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from typing import Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.cut_placement import CutScopeHold
+from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
 from podcast_mcp.edits.cut_safety import hold_is_overridable, inspect_source_remove
 from podcast_mcp.edits.cut_speech import assess_cut_speech
 from podcast_mcp.edits.timeline_ops import (
@@ -131,7 +131,6 @@ class ScopeChangedAtApproval(CodedError, ValueError):
 def resize_source_remove(
     project: EpisodeProject, saved: EditDecision, *, start: float, end: float
 ) -> EditDecision:
-    from podcast_mcp.edits.cut_placement import inspect_source_remove_placement
 
     current = inspect_source_remove_placement(project, saved)
     if isinstance(current, CutScopeHold):
@@ -174,7 +173,6 @@ def record_suggested_cut_speech(
     """
     if decision.type != EditDecisionType.REMOVE:
         return
-    from podcast_mcp.edits.cut_placement import inspect_source_remove_placement
 
     span = inspect_source_remove_placement(project, decision)
     if isinstance(span, CutScopeHold):

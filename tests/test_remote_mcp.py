@@ -640,7 +640,7 @@ def test_guest_applied_edits_shapes(monkeypatch):
             return {"text": "hi", "project_path": "/Users/secret"}
 
     monkeypatch.setattr(
-        "podcast_mcp.edits.transcript_cuts.search_transcript",
+        "podcast_mcp.edits.transcript_search.search_transcript",
         lambda *_a, **_k: [Hit(), {"text": "dict", "project_path": "/x"}, "plain"],
     )
     monkeypatch.setattr(

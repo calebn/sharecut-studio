@@ -7,7 +7,7 @@ from pathlib import Path
 
 from filelock import Timeout
 
-from podcast_mcp.edits.transcript_cuts import search_transcript
+from podcast_mcp.edits.transcript_search import search_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,

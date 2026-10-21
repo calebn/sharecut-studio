@@ -30,8 +30,8 @@ if TYPE_CHECKING:
         cut_utterance,
         cut_words,
         format_transcript_timestamps,
-        search_transcript,
     )
+    from podcast_mcp.edits.transcript_search import search_transcript
 
 __all__ = [
     "TIGHTEN_INTENSITIES",
@@ -84,7 +84,7 @@ _MODULE_BY_NAME = {
     "cut_utterance": "transcript_cuts",
     "cut_words": "transcript_cuts",
     "format_transcript_timestamps": "transcript_cuts",
-    "search_transcript": "transcript_cuts",
+    "search_transcript": "transcript_search",
 }
 
 

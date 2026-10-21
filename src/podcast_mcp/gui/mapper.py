@@ -54,7 +54,7 @@ def map_pending_edits_to_timeline(
         source_start_timeline: float | None
         source_end_timeline: float | None
         if decision.exact_range is not None:
-            from podcast_mcp.edits.range_edits import range_is_current
+            from podcast_mcp.edits.range_target import range_is_current
 
             target = decision.exact_range
             track_ids = target.track_ids

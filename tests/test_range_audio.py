@@ -8,7 +8,7 @@ import wave
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.range_edits import range_geometry, range_media_seal
+from podcast_mcp.edits.range_target import range_geometry, range_media_seal
 from podcast_mcp.models import Clip, MediaAsset, Track
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
@@ -215,7 +215,8 @@ def test_full_cut_retains_authoritative_extent_in_full_stem(minimal_project, tmp
 
 
 def test_exact_pending_preview_invalidates_after_peer_mix_change(minimal_project):
-    from podcast_mcp.edits.range_edits import edit_selected_range, range_is_current
+    from podcast_mcp.edits.range_edits import edit_selected_range
+    from podcast_mcp.edits.range_target import range_is_current
 
     ws, target, _raw = seed(minimal_project)
     ws.project.tracks.append(Track(id="b", label="B", media=MediaAsset(path="raw/tone.wav")))

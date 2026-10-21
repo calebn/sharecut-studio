@@ -121,7 +121,7 @@ def guest_search_transcript(query: str, limit: int = 20) -> list[dict[str, Any]]
     ctx = get_remote_mcp_context()
     if not has_capability(ctx.capabilities, CAP_VIEW):
         raise CodedPermissionError("share does not allow view", code="share_capability_required")
-    from podcast_mcp.edits.transcript_cuts import search_transcript
+    from podcast_mcp.edits.transcript_search import search_transcript
 
     hits = search_transcript(
         ctx.workspace.project, query=query, defaults=ctx.workspace.effective_config()

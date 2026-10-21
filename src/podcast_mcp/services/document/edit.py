@@ -56,11 +56,9 @@ from podcast_mcp.edits.timeline_ops import (
     plan_ripple_delete,
     plan_ripple_delete_text,
 )
-from podcast_mcp.edits.transcript_cuts import (
-    TranscriptMatch,
-    append_remove_decision,
-)
+from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
+from podcast_mcp.edits.transcript_search import TranscriptMatch
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import CutIntent, EditDecision, EditMode
 from podcast_mcp.models.episode import ExactRangeTarget
@@ -292,7 +290,7 @@ class EditService(CutMutatingService):
         self, start: float, end: float, track_ids: list[str]
     ) -> ExactRangeTarget:
         """Seal one timeline interval's current clips on ``track_ids`` for a range edit."""
-        from podcast_mcp.edits.range_edits import build_range_target
+        from podcast_mcp.edits.range_target import build_range_target
         from podcast_mcp.models.episode import RangeInterval
 
         return build_range_target(self.ws.project, [RangeInterval(start=start, end=end)], track_ids)

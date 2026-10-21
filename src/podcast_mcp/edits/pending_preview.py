@@ -41,7 +41,7 @@ class PendingPreviewWindow:
 
 def _timeline_span(project: EpisodeProject, edit: EditDecision) -> tuple[float, float, bool]:
     if edit.exact_range is not None:
-        from podcast_mcp.edits.range_edits import range_is_current
+        from podcast_mcp.edits.range_target import range_is_current
 
         target = edit.exact_range
         return (

@@ -33,7 +33,10 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
     pass
+from podcast_mcp.edits.cut_placement import CutScopeHold
+from podcast_mcp.edits.cut_safety import inspect_source_remove
 from podcast_mcp.edits.pause_floor import peer_speech_indexes
+from podcast_mcp.edits.source_removals import record_suggested_cut_speech, require_source_remove
 from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
 from podcast_mcp.edits.tighten.candidate import (
     _AnalyzedCut,
@@ -118,9 +121,6 @@ def _resolve_analyzed_cuts(
             _count_skip(skip_counts, "same_hit")
             result = None
         if result is not None and project is not None and result.decision_type == "remove":
-            from podcast_mcp.edits.cut_placement import CutScopeHold
-            from podcast_mcp.edits.cut_safety import inspect_source_remove
-
             assessed = inspect_source_remove(
                 project,
                 _decision_for_analyzed(result),
@@ -222,10 +222,6 @@ def _decision_for_analyzed(result: _AnalyzedCut) -> EditDecision:
 def _apply_analyzed_cut(
     project: EpisodeProject, result: _AnalyzedCut, *, defaults: EffectiveConfig
 ) -> EditDecision:
-    from podcast_mcp.edits.source_removals import (
-        record_suggested_cut_speech,
-        require_source_remove,
-    )
 
     decision = _decision_for_analyzed(result)
     require_source_remove(project, decision, heard_pause_sec=result.pause_sec)

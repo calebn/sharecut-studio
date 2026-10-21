@@ -13,7 +13,7 @@ from filelock import Timeout
 from play_patch import patch_play
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
-from podcast_mcp.edits.transcript_cuts import TranscriptMatch
+from podcast_mcp.edits.transcript_search import TranscriptMatch
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.play_audit import (
     master_fingerprint,

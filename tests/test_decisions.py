@@ -17,7 +17,8 @@ from podcast_mcp.edits.decisions import (
     update_pending_edit,
 )
 from podcast_mcp.edits.edit_log import revert_applied_edit
-from podcast_mcp.edits.range_edits import build_range_target, edit_selected_range
+from podcast_mcp.edits.range_edits import edit_selected_range
+from podcast_mcp.edits.range_target import build_range_target
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (
     _write_punch_delete,

@@ -7,11 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.transcript_cuts import (
-    append_remove_decision,
-    coalesce_edits,
-    ensure_combined_transcript,
-)
+from podcast_mcp.edits.transcript_cuts import append_remove_decision, coalesce_edits
+from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.models import CombinedUtterance, EditDecision, EpisodeProject
 from podcast_mcp.util.text import normalize_text
 
