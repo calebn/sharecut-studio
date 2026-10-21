@@ -151,10 +151,16 @@ export function TranscriptWordInspector({
     }
   }
 
+  // Only an instance the person typed in (or restored a draft into) writes the
+  // slot. The text layout keeps the side-rail editor mounted but hidden beside
+  // the docked one; its stale local fields would otherwise read as a dirty
+  // draft once the docked editor applies a fix.
+  const touchedRef = useRef(restored != null);
   const draftDirty =
     seeded &&
     (text !== (word?.text ?? text) || endIndexStr !== String(wordIndex));
   useEffect(() => {
+    if (!touchedRef.current) return;
     const store = useDawStore.getState();
     const mine = store.wordDraft;
     const isMine =
@@ -191,6 +197,7 @@ export function TranscriptWordInspector({
   ]);
 
   const changeEndIndex = (value: string) => {
+    touchedRef.current = true;
     setEndIndexStr(value);
     setExpectedText(
       spanTextFromIndex(wordTexts, wordIndex, Number.parseInt(value, 10)),
@@ -465,7 +472,10 @@ export function TranscriptWordInspector({
                   value={text}
                   disabled={busy}
                   aria-label="Corrected text"
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={(e) => {
+                    touchedRef.current = true;
+                    setText(e.target.value);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
