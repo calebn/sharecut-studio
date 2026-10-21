@@ -10,7 +10,7 @@ from podcast_mcp.edits.timeline_ops import (
     _write_punch_delete,
     roll_clip_join,
 )
-from podcast_mcp.edits.transcript_sync import (
+from podcast_mcp.engines.transcript_sync import (
     apply_source_transcript_removes,
     restore_archived_words,
 )

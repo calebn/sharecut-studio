@@ -4,8 +4,8 @@ from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.lane_words import lane_transcript
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.text import collapse_whitespace, has_meaningful_text

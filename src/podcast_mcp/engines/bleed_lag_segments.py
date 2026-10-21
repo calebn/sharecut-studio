@@ -56,7 +56,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from podcast_mcp.edits.bleed_latency import (
+from podcast_mcp.engines.bleed_latency import (
     DOMINANCE_DB,
     FRAME_SEC,
     HOP_SEC,

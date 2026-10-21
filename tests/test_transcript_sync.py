@@ -6,7 +6,7 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
-from podcast_mcp.edits.transcript_sync import (
+from podcast_mcp.engines.transcript_sync import (
     apply_batch_transcript_removes,
 )
 from podcast_mcp.models import (
@@ -109,7 +109,7 @@ def test_fill_with_room_tone_keeps_word_source_times() -> None:
 
 
 def test_timeline_removes_to_source_merges_overlapping() -> None:
-    from podcast_mcp.edits.transcript_sync import timeline_removes_to_source_ranges
+    from podcast_mcp.engines.transcript_sync import timeline_removes_to_source_ranges
 
     clips = [
         Clip(
@@ -134,7 +134,7 @@ def test_apply_batch_transcript_removes_empty_is_noop() -> None:
 
 
 def test_apply_source_transcript_removes_empty_dict() -> None:
-    from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
+    from podcast_mcp.engines.transcript_sync import apply_source_transcript_removes
 
     p = _project_with_clip_and_words()
     before = list(p.transcripts[0].words)
@@ -144,7 +144,7 @@ def test_apply_source_transcript_removes_empty_dict() -> None:
 
 def test_strip_silence_transcript_drop_stays_in_source_coords() -> None:
     """Words in removed source ranges are dropped; survivors keep source times."""
-    from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
+    from podcast_mcp.engines.transcript_sync import apply_source_transcript_removes
 
     p = _project_with_clip_and_words()
     p.transcripts[0].words.append(TranscriptWord(text="cut", start=2.5, end=3.5))

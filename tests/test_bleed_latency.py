@@ -10,12 +10,12 @@ import pytest
 
 import bleed_helpers as bh
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.bleed_latency import TrackLatency, measure_bleed_latency
 from podcast_mcp.edits.conversation_align import (
     AcousticOffset,
     plan_conversation_alignment,
     run_conversation_align,
 )
+from podcast_mcp.engines.bleed_latency import TrackLatency, measure_bleed_latency
 from podcast_mcp.models import (
     SpeakerIngestAlignment,
     Transcript,

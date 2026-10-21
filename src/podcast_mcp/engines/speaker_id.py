@@ -796,7 +796,7 @@ def label_window(
             changed += 1
 
     if not dry_run and changed:
-        from podcast_mcp.edits.transcript_sync import rebuild_combined
+        from podcast_mcp.engines.transcript_sync import rebuild_combined
 
         rebuild_combined(project, defaults=defaults)
 
@@ -1062,7 +1062,7 @@ def label_track_home_speaker(
         )
 
     if not dry_run and suppressed:
-        from podcast_mcp.edits.transcript_sync import rebuild_combined
+        from podcast_mcp.engines.transcript_sync import rebuild_combined
 
         rebuild_combined(project, defaults=defaults)
 
@@ -1163,7 +1163,7 @@ def run_speaker_attribution(
             task.advance(0)
 
     if not dry_run and changed:
-        from podcast_mcp.edits.transcript_sync import rebuild_combined
+        from podcast_mcp.engines.transcript_sync import rebuild_combined
 
         rebuild_combined(project, defaults=defaults)
 

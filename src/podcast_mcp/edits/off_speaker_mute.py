@@ -613,9 +613,9 @@ def apply_off_speaker_mutes(
     from uuid import uuid4
 
     from podcast_mcp.edits.cut_application import apply_ranges
-    from podcast_mcp.edits.off_speaker_regions import MuteOwnership
     from podcast_mcp.edits.range_target import build_range_target
     from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+    from podcast_mcp.engines.off_speaker_regions import MuteOwnership
     from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
     from podcast_mcp.models import (
         ClipOffSpeakerMuteRegion,

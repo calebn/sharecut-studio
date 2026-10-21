@@ -11,15 +11,15 @@ import pytest
 
 import bleed_helpers as bh
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.bleed_lag_segments import (
+from podcast_mcp.edits.conversation_align import align_artifact_path, plan_conversation_alignment
+from podcast_mcp.engines.bleed_lag_segments import (
     STEP_COSTS,
     BleedPair,
     LagSegment,
     _correlation,
     lag_segments,
 )
-from podcast_mcp.edits.bleed_latency import HOP_SEC
-from podcast_mcp.edits.conversation_align import align_artifact_path, plan_conversation_alignment
+from podcast_mcp.engines.bleed_latency import HOP_SEC
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.models import SpeakerIngestAlignment
 from podcast_mcp.services.app import ProjectWorkspace

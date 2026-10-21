@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     _processed_track_path,
@@ -24,6 +23,7 @@ from podcast_mcp.engines.lane_words import requested_word_keys, transcript_word_
 from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress

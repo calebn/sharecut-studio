@@ -520,7 +520,7 @@ def test_union_tracks_and_absent_participant(
 
 
 def slug_of(pid: str) -> str:
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
 
     return slug_track_id(pid)
 
@@ -1570,7 +1570,7 @@ def test_landed_status_waits_for_project_commit(minimal_project, sample_wav, mon
 def test_room_tone_reack_during_landed_mark_keeps_replacement_pending(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -2669,7 +2669,7 @@ def test_land_sets_track_room_tone_under_lock(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -2757,7 +2757,7 @@ def test_land_rejects_oversize_room_tone_before_copy(
 def test_missing_acked_room_tone_lands_only_with_registered_bed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -2813,7 +2813,7 @@ def test_overlapping_sessions_room_tone_keep_own_verified_bytes(
     """Two sessions landing the same participant's room tone must not clobber
     each other's raw bytes; each session's landed row keeps its own file."""
     from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record import landing
     from podcast_mcp.util.hashing import sha256_file
 
@@ -2903,7 +2903,7 @@ def test_later_session_room_tone_does_not_rewrite_landed_bed(
 ):
     """A later session's room-tone landing must not touch an earlier session's
     already-landed bed on disk, only the track/source that owns the last commit."""
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.util.hashing import sha256_file
 
     _isolate()
@@ -2957,7 +2957,7 @@ def test_later_session_room_tone_does_not_rewrite_landed_bed(
 def test_segment_reack_during_project_commit_rolls_back_stale_clip(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.landing import record_source_id
 
     _isolate()
@@ -3013,7 +3013,7 @@ def test_segment_reack_during_project_commit_rolls_back_stale_clip(
 def test_segment_reack_during_commit_keeps_sibling_segment(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.landing import record_source_id
 
     _isolate()
@@ -3075,7 +3075,7 @@ def test_segment_reack_during_commit_keeps_sibling_segment(
 def test_rollback_failure_keeps_confirmed_land(minimal_project, sample_wav, monkeypatch, caplog):
     import logging
 
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.landing import record_source_id
 
     _isolate()
@@ -3157,7 +3157,7 @@ def test_room_tone_race_during_project_commit_rolls_back_stale_bed(
     minimal_project, sample_wav, monkeypatch, mode
 ):
     from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -3220,7 +3220,7 @@ def test_room_tone_rerecord_stale_during_commit_clears_overwritten_bed(
     minimal_project, sample_wav, monkeypatch
 ):
     from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -3302,7 +3302,7 @@ def test_room_tone_newer_bed_on_disk_before_rollback_is_kept(
     minimal_project, sample_wav, monkeypatch
 ):
     from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -3657,7 +3657,7 @@ def _history_labels(ws) -> list[str]:
 
 
 def _two_segment_room_with_stale_seg0(minimal_project, sample_wav, monkeypatch):
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.landing import record_source_id
 
     _isolate()
@@ -3738,7 +3738,7 @@ def test_failed_room_tone_rollback_is_retried_on_next_land(
     minimal_project, sample_wav, monkeypatch, mode
 ):
     from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -3897,7 +3897,7 @@ def test_deferred_bed_rollback_without_revision_is_dropped_with_warning(
     import logging
 
     from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.landing_rollback import PriorRegistration, prior_to_json
 
     _isolate()
@@ -4058,7 +4058,7 @@ def test_crash_before_deferral_leaves_stale_registration(minimal_project, sample
 def test_retried_rollback_after_media_repair_restores_prior_media(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.engines.track_ids import slug_track_id
     from podcast_mcp.services.record.landing import record_source_id
 
     _isolate()

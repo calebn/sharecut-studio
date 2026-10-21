@@ -33,7 +33,7 @@
           "src/podcast_mcp/engines/timemap.py",
           "src/podcast_mcp/engines/session_clock.py",
           "src/podcast_mcp/edits/timeline_span.py",
-          "src/podcast_mcp/edits/transcript_sync.py",
+          "src/podcast_mcp/engines/transcript_sync.py",
           "gui/web/src/utils/timebase.ts"
         ]
       }
@@ -1205,8 +1205,8 @@
       "advisory": {
         "include": [
           "src/podcast_mcp/engines/envelope_lag.py",
-          "src/podcast_mcp/edits/bleed_latency.py",
-          "src/podcast_mcp/edits/bleed_lag_segments.py"
+          "src/podcast_mcp/engines/bleed_latency.py",
+          "src/podcast_mcp/engines/bleed_lag_segments.py"
         ]
       }
     },

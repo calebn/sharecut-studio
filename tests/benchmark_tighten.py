@@ -24,8 +24,8 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.decisions import edit_timeline_range
-from podcast_mcp.edits.ranges import merge_timeline_ranges
-from podcast_mcp.edits.transcript_sync import rebuild_combined
+from podcast_mcp.engines.ranges import merge_timeline_ranges
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     Clip,
     CutIntent,
@@ -173,7 +173,7 @@ def _count_ffmpeg_window_reads(result: TightenBenchmarkResult) -> Iterator[None]
 
 @contextmanager
 def _count_rebuild_combined(result: TightenBenchmarkResult) -> Iterator[None]:
-    import podcast_mcp.edits.transcript_sync as transcript_sync
+    import podcast_mcp.engines.transcript_sync as transcript_sync
 
     original_rebuild = rebuild_combined
 

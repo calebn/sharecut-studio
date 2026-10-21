@@ -24,7 +24,7 @@ from podcast_mcp.edits.clips_ops import (
     trim_edge_limits,
     update_timeline_duration,
 )
-from podcast_mcp.edits.ranges import SPAN_EPS_S
+from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.contracts import contract_constant

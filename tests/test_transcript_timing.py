@@ -201,7 +201,7 @@ def test_context_rejects_stale_chip_and_exact_missing_key(minimal_project):
 def test_retiming_invalidates_automatic_verdict_but_preserves_choices(
     minimal_project, locked, ignored
 ):
-    from podcast_mcp.edits.transcript_sync import rebuild_combined
+    from podcast_mcp.engines.transcript_sync import rebuild_combined
 
     ws = workspace(minimal_project)
     transcript = ws.project.transcripts[0]

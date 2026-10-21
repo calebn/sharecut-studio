@@ -1,4 +1,4 @@
-from podcast_mcp.edits.ranges import clamp_spans
+from podcast_mcp.engines.ranges import clamp_spans
 
 
 def test_clamp_spans_keeps_overlap_and_drops_empty() -> None:
