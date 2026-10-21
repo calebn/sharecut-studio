@@ -58,6 +58,36 @@ def _decode_f32_uncached(
     return samples
 
 
+def resample_mono(samples: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
+    """``samples`` converted by ffmpeg exactly as decoding a wav of them at ``to_rate`` would."""
+    if from_rate == to_rate:
+        return samples
+    result = run(
+        [
+            resolve_ffmpeg_pair().ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "f32le",
+            "-ar",
+            str(from_rate),
+            "-ac",
+            "1",
+            "-i",
+            "pipe:0",
+            "-ar",
+            str(to_rate),
+            "-f",
+            "f32le",
+            "pipe:1",
+        ],
+        input=np.ascontiguousarray(samples, dtype=np.float32).tobytes(),
+        capture_output=True,
+        check=True,
+    )
+    return np.frombuffer(result.stdout, dtype=np.float32)
+
+
 def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:
     return _decode_f32(path, sample_rate, ffmpeg, ffmpeg_mono_mean_layout(path))
 

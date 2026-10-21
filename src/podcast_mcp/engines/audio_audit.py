@@ -23,7 +23,8 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_WORD_SPAN_END_SLACK_SEC,
     word_duration_is_anomalous,
 )
-from podcast_mcp.engines.audio_eval import evaluate_audio, single_layout
+from podcast_mcp.engines.audio import Audio
+from podcast_mcp.engines.audio_eval import common_rate, evaluate_audio, single_layout
 from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, confirmed_likeness, copy_similarity
 from podcast_mcp.engines.envelope_lag import (
     COPY_FRAME_SEC,
@@ -49,7 +50,11 @@ from podcast_mcp.engines.level_profile import (
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
 from podcast_mcp.engines.timemap import timeline_to_source
-from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
+from podcast_mcp.engines.ungated_audio import (
+    load_mono_full,
+    raw_samples_on_timeline,
+    resample_mono,
+)
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.coded_error import CodedValueError
@@ -594,6 +599,35 @@ def build_reconciliation_caches(
     return build_track_rms_caches(project, unprocessed=True, defaults=defaults)
 
 
+_RENDER_RATE = 48_000
+
+
+def evaluate_track_audio(plain: tuple[Audio, str] | None) -> tuple[np.ndarray | None, str]:
+    """Evidence samples (8 kHz mono) for a track's unfiltered audio, or why the render is needed.
+
+    The tree is evaluated at the sources' own rate and converted once, as the render's wav is
+    when it is decoded: slices start between 8 kHz samples, and slicing an 8 kHz decode
+    instead would shift every cut by a fraction of a sample.
+    """
+    if plain is None:
+        return None, "unfiltered audio unavailable"
+    audio, curve = plain
+    if not single_layout(audio):
+        return None, "mixed channel layouts"
+    rate = common_rate(audio)
+    if rate is None or rate != _RENDER_RATE:
+        return None, "sources are not all 48 kHz"
+    samples = evaluate_audio(
+        audio,
+        crossfade_curve=curve,
+        load_source=lambda path: load_mono_full(path, sample_rate=rate),
+        sample_rate=rate,
+    )
+    if samples is None or not samples.size:
+        return None, "evaluator declined"
+    return resample_mono(samples, rate, _RMS_SAMPLE_RATE), ""
+
+
 def build_track_rms_caches(
     project: EpisodeProject,
     *,
@@ -717,16 +751,10 @@ def _ungated_cache(
             chain for chain in snapshot.processing_chains if chain.track_id != track_id
         ]
         plain = unfiltered_track_audio(snapshot, track, defaults)
-        if plain is None:
-            reason = "unfiltered audio unavailable"
-        elif not single_layout(plain[0]):
-            reason = "mixed channel layouts"
-        else:
-            samples = evaluate_audio(plain[0], crossfade_curve=plain[1], load_source=load_mono_full)
-            if samples is not None and samples.size:
-                _LOG.debug("track %s evidence: in-memory evaluation", track_id)
-                return TrackRmsCache.from_samples(samples)
-            reason = "evaluator declined"
+        samples, reason = evaluate_track_audio(plain)
+        if samples is not None:
+            _LOG.debug("track %s evidence: in-memory evaluation", track_id)
+            return TrackRmsCache.from_samples(samples)
         _LOG.info("track %s evidence: ffmpeg render (%s)", track_id, reason)
     with tempfile.TemporaryDirectory(prefix="podcast-ungated-evidence-") as directory:
         path = Path(directory) / "evidence.wav"

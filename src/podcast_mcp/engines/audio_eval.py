@@ -225,6 +225,21 @@ def _rereads_earlier_source(audio: Audio) -> bool:
     return False
 
 
+def common_rate(audio: Audio) -> int | None:
+    """The one sample rate every source and fill is stored at, or None when they differ."""
+    rates = set()
+    for node in postorder(audio):
+        if isinstance(node, SourceAudio):
+            for path in (node.path, node.fill_path):
+                if path is None:
+                    continue
+                probe = probe_media(path)
+                if probe is None:
+                    return None
+                rates.add(probe.sample_rate)
+    return rates.pop() if len(rates) == 1 else None
+
+
 def single_layout(audio: Audio) -> bool:
     """Whether every source and fill has one channel count: ffmpeg's stereo-to-mono matrix
     differs from the mean the 8 kHz decode takes, so a mixed track keeps the render."""
