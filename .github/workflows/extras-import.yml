@@ -48,7 +48,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Use runner temporary storage
-        run: printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        run: |
+          umask 077
+          tmpdir="$(mktemp -d /var/tmp/sharecut-ci.XXXXXX)"
+          printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v7
         with:
@@ -72,4 +75,13 @@ jobs:
         run: |
           printf 'TMPDIR: %s\n' "$TMPDIR"
           df -hT /tmp "$TMPDIR"
+          uv run --no-sync python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from podcast_mcp.util.registry_privacy import registry_privacy
+
+          with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:
+              verify()
+          PY
           uv run --no-sync pytest -o addopts="" -n 3 --timeout=1500 -m extras_install tests/test_extras_import.py
