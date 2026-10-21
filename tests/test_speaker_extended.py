@@ -11,6 +11,7 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
     ResemblyzerBackend,
+    SpeakerBackendUnavailable,
     SpeakerProfile,
     SpeechBrainBackend,
     WindowScore,
@@ -304,7 +305,8 @@ def test_run_speaker_attribution_apply_path(tmp_path, sample_wav):
     assert word.suppressed is True
 
 
-def test_resolve_speaker_backend_resemblyzer_skip():
+def test_resolve_speaker_backend_without_real_backends_is_unavailable(monkeypatch):
+    monkeypatch.delenv("PODCAST_SPEAKER_BACKEND", raising=False)
     with (
         patch(
             "podcast_mcp.engines.speaker_id.SpeechBrainBackend",
@@ -314,9 +316,9 @@ def test_resolve_speaker_backend_resemblyzer_skip():
             "podcast_mcp.engines.speaker_id.ResemblyzerBackend",
             side_effect=ImportError("no resemblyzer"),
         ),
+        pytest.raises(SpeakerBackendUnavailable),
     ):
-        backend = resolve_speaker_backend("auto")
-    assert backend.name() == "mock"
+        resolve_speaker_backend("auto")
 
 
 def test_resolve_speaker_backend_unavailable_raises():
