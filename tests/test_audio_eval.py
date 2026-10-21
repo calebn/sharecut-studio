@@ -64,6 +64,17 @@ CLIP_LAYOUTS = {
         (8, 12.2, 7.8, 40, 40, CROSSFADE),
     ],
     "pads": [(0, 3, 0, 15, 25, FADE), (3.4, 8, 4.2, 15, 25, FADE), (8.5, 12, 10.1, 15, 25, FADE)],
+    "cuts between 8 kHz samples": [
+        (0.25473378406774855, 1.388811270375909, 0.0, 14, 43, FADE),
+        (1.4675902672371368, 2.8020590721027068, 1.1340774863081604, 57, 31, FADE),
+        (3.051069467681859, 5.176875664016201, 2.4685462911737304, 14, 8, FADE),
+        (5.613838410121426, 6.880534303661, 5.029212441012399, 45, 50, FADE),
+    ],
+    "crossfades between 8 kHz samples": [
+        (0.1234567, 3.0123457, 0.0, 15, 25, FADE),
+        (3.4234567, 8.0345679, 2.8888889, 40, 40, CROSSFADE),
+        (8.5456789, 12.0111111, 7.5, 30, 60, CROSSFADE),
+    ],
     "reordered and repeated slices": [
         (8.5, 12, 0, 15, 25, FADE),
         (0, 3, 3.5, 15, 25, FADE),
@@ -121,11 +132,12 @@ def test_evaluation_matches_the_ffmpeg_render(layout: str, tmp_path: Path) -> No
     render_track_from_timeline(project, track, rendered_path, defaults)
     rendered = load_mono_full(rendered_path)
 
-    audio, curve = unfiltered_track_audio(project, track, defaults)
-    evaluated = evaluate_audio(audio, crossfade_curve=curve, load_source=load_mono_full)
+    evaluated, reason = audio_audit.evaluate_track_audio(
+        unfiltered_track_audio(project, track, defaults)
+    )
 
-    assert evaluated is not None
-    assert abs(evaluated.size - rendered.size) <= 3
+    assert evaluated is not None, reason
+    assert abs(evaluated.size - rendered.size) <= (0 if "8 kHz" in layout else 3)
     common = min(evaluated.size, rendered.size)
     assert np.abs(evaluated[:common] - rendered[:common]).max() < SAMPLE_TOLERANCE
     reference, candidate = _frame_db(rendered[:common]), _frame_db(evaluated[:common])
