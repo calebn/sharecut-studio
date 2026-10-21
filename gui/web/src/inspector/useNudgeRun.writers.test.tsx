@@ -206,8 +206,7 @@ describe("trim nudge document writers", () => {
       // when the command fails. The writer's own rollback restores the display.
       vi.mocked(submitQueuedDocumentCommand).mockImplementationOnce(
         (_path, type, payload) => {
-          if (writer !== "reorder" && writer !== "metadata")
-            return pending.promise;
+          if (writer === "mix") return pending.promise;
           beginDocumentDraft("writer", type, payload ?? {});
           return pending.promise.catch((error) => {
             finishDocumentDraft("writer");

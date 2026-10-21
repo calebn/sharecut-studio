@@ -40,11 +40,6 @@ function outsideCalls(files: Iterable<Source>): Record<string, number> {
 /** Files allowed to call `setProject(` today, and how many calls each makes. */
 const ALLOWLIST: readonly { file: string; calls: number; reason: string }[] = [
   {
-    file: "commands/editing.ts",
-    calls: 1,
-    reason: "Optimistic clip move before the command settles.",
-  },
-  {
     file: "commands/trackMix.ts",
     calls: 2,
     reason: "Track-mix overlay write and its revert while the overlay is live.",
@@ -61,8 +56,8 @@ const ALLOWLIST: readonly { file: string; calls: number; reason: string }[] = [
   },
 ];
 
-const ALLOWLIST_FILES = 4;
-const ALLOWLIST_CALLS = 6;
+const ALLOWLIST_FILES = 3;
+const ALLOWLIST_CALLS = 5;
 
 const allowedCalls = Object.fromEntries(
   ALLOWLIST.map(({ file, calls }) => [file, calls]),

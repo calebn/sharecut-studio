@@ -5,6 +5,7 @@ import { loadDocumentState } from "../api/project";
 import { useProjectBootstrap } from "../hooks/useProjectBootstrap";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
+import { movingLikeTheQueue } from "../test/queueDraft";
 import {
   type ClipRow,
   type HistoryEntryId,
@@ -62,7 +63,9 @@ describe("edit.moveClips", () => {
     registerDawCommands();
     _resetTrackMutateChainForTests();
     vi.mocked(api.moveClips).mockClear();
-    vi.mocked(api.moveClips).mockResolvedValue(null);
+    vi.mocked(api.moveClips).mockImplementation(
+      movingLikeTheQueue(async () => null),
+    );
     useDawStore.getState().hydrate(
       "/tmp/ep",
       minimalProject({
@@ -136,7 +139,9 @@ describe("edit.moveClips", () => {
   });
 
   it("reverts the optimistic patch when the command fails", async () => {
-    vi.mocked(api.moveClips).mockRejectedValueOnce(new Error("nope"));
+    vi.mocked(api.moveClips).mockImplementationOnce(
+      movingLikeTheQueue(() => Promise.reject(new Error("nope"))),
+    );
     const before = useDawStore.getState().project;
     const r = await execute(
       "edit.moveClips",
@@ -152,7 +157,9 @@ describe("edit.moveClips", () => {
     "binds nearby Undo only to its reply id %s despite a displayed peer head",
     async (replyId) => {
       const held = deferred();
-      vi.mocked(api.moveClips).mockReturnValueOnce(held.promise);
+      vi.mocked(api.moveClips).mockImplementationOnce(
+        movingLikeTheQueue(() => held.promise),
+      );
       const moving = execute("edit.moveClips", moves, { skipWhen: true });
       await vi.waitFor(() => expect(api.moveClips).toHaveBeenCalledTimes(1));
       const project = useDawStore.getState().project!;
@@ -181,8 +188,10 @@ describe("edit.moveClips", () => {
       .hydrate("share:episode", useDawStore.getState().project, "edit", [
         "edit",
       ]);
-    vi.mocked(api.moveClips).mockRejectedValueOnce(
-      new ApiError("Edits not allowed", "forbidden", 403),
+    vi.mocked(api.moveClips).mockImplementationOnce(
+      movingLikeTheQueue(() =>
+        Promise.reject(new ApiError("Edits not allowed", "forbidden", 403)),
+      ),
     );
     expect(await execute("edit.moveClips", moves, { skipWhen: true })).toEqual({
       status: "disabled",
@@ -276,7 +285,9 @@ describe("edit.moveClips", () => {
   ])("ignores late %s after bootstrap %s", async (outcome, change) => {
     const hook = await open("/tmp/ep");
     const held = deferred();
-    vi.mocked(api.moveClips).mockReturnValueOnce(held.promise);
+    vi.mocked(api.moveClips).mockImplementationOnce(
+      movingLikeTheQueue(() => held.promise),
+    );
     const moving = execute("edit.moveClips", moves, { skipWhen: true });
     await vi.waitFor(() => expect(api.moveClips).toHaveBeenCalledTimes(1));
     const optimistic = useDawStore.getState().project;

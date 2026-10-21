@@ -797,4 +797,24 @@ describe("live identity admission before side effects", () => {
       );
     },
   );
+  it("begins the MoveClips draft before its first await, so redisplayDrafts shows it at once", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    const { useDawStore } = await import("../state/dawStore");
+    const { minimalProject, clipRow } = await import("../test/fixtures");
+    const { overlayDocumentDrafts } = await import("../document/pendingDrafts");
+    const project = minimalProject();
+    project.clips.tracks.host = [clipRow({ id: "c1", timeline_start: 0 })];
+    useDawStore.getState().hydrate("/resolved", project);
+    const { submitQueuedDocumentCommand } = await import("./commandQueue");
+    void submitQueuedDocumentCommand("/resolved", "MoveClips", {
+      clips: [{ clip_id: "c1", track_id: "host", timeline_start: 4 }],
+    });
+    const moved = Object.values(overlayDocumentDrafts(project).clips.tracks)
+      .flat()
+      .find((clip) => clip.id === "c1");
+    expect(moved?.timeline_start).toBe(4);
+  });
 });
