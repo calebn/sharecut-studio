@@ -353,7 +353,7 @@ def source_duration_sec(project: EpisodeProject, clip: Clip) -> float | None:
         source = project.source_by_id(clip.source_id)
         if source is None:
             raise CodedValueError(
-                f"unknown source recording {clip.source_id!r}", code="source_not_found"
+                f"unknown source recording {clip.source_id!r}", code="clip_source_missing"
             )
         return float(source.duration_sec) if source.duration_sec is not None else None
     track = project.track_by_id(clip.track_id)
