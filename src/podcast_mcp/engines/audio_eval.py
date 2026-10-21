@@ -10,7 +10,6 @@ the caller keeps the ffmpeg render.
 
 from __future__ import annotations
 
-import itertools
 import math
 from collections.abc import Callable
 from pathlib import Path
@@ -49,7 +48,7 @@ def evaluate_audio(
     """
     if crossfade_curve != "tri":
         return None
-    if _overlaps_in_source(audio):
+    if _rereads_earlier_source(audio):
         return None
     loaded: dict[Path, np.ndarray] = {}
 
@@ -205,18 +204,20 @@ def _crossfade(left: np.ndarray, right: np.ndarray, overlap: int) -> np.ndarray 
     return np.concatenate((left[: left.size - overlap], seam, right[overlap:]))
 
 
-def _overlaps_in_source(audio: Audio) -> bool:
-    """Whether two slices of one file overlap: the render reads that file once and splits it,
-    and a crossfade across such a pair does not render as the sum of its slices."""
-    ranges: dict[Path, list[tuple[float, float]]] = {}
+def _rereads_earlier_source(audio: Audio) -> bool:
+    """Whether a slice starts at or before the previous slice of its file in tree order.
+
+    Handles that overlap the next slice (a crossfade) read forward and render as the sum of
+    their slices. A duplicated or reordered slice does not: the render reads each file once
+    and splits it, and that read is cut short on some ffmpeg builds.
+    """
+    last_start: dict[Path, float] = {}
     for node in postorder(audio):
         if isinstance(node, SourceAudio):
-            ranges.setdefault(node.path, []).append((node.src_start, node.src_end))
-    return any(
-        later[0] < earlier[1] - 1e-9
-        for spans in ranges.values()
-        for earlier, later in itertools.pairwise(sorted(spans))
-    )
+            if node.src_start <= last_start.get(node.path, -1.0):
+                return True
+            last_start[node.path] = node.src_start
+    return False
 
 
 def single_layout(audio: Audio) -> bool:
