@@ -386,6 +386,70 @@ describe("useProxyTransport", () => {
     },
   );
 
+  it("retries a blocked proxy on the next Play and stops again if it still fails", async () => {
+    const { result } = renderHook(() => {
+      const owns = useProxyTransport();
+      useAudioTransport(!owns);
+      return owns;
+    });
+    await ready();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2];
+    act(() =>
+      failure?.(new TypeError("Failed to fetch"), {
+        kind: "track",
+        artifactId: "host",
+        hash: "a".repeat(16),
+        index: 0,
+        url: "chunk-url",
+      }),
+    );
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().audioError).toBe("Failed to fetch");
+    const loads = vi.mocked(loadProxyManifest).mock.calls.length;
+    vi.mocked(loadProxyManifest).mockRejectedValue(
+      new TypeError("Failed to fetch"),
+    );
+
+    act(() => useDawStore.getState().setIsPlaying(true));
+    await vi.waitFor(() =>
+      expect(vi.mocked(loadProxyManifest).mock.calls.length).toBeGreaterThan(
+        loads,
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().isPlaying).toBe(false),
+    );
+    expect(useDawStore.getState().audioError).toBe("Failed to fetch");
+    expect(result.current).toBe(true);
+  });
+
+  it("plays again on the next Play once the proxy recovers", async () => {
+    renderHook(() => {
+      const owns = useProxyTransport();
+      useAudioTransport(!owns);
+      return owns;
+    });
+    await ready();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2];
+    act(() =>
+      failure?.(new TypeError("Failed to fetch"), {
+        kind: "track",
+        artifactId: "host",
+        hash: "a".repeat(16),
+        index: 0,
+        url: "chunk-url",
+      }),
+    );
+    engine.play.mockClear();
+
+    act(() => useDawStore.getState().setIsPlaying(true));
+    await vi.waitFor(() => expect(engine.play).toHaveBeenCalled());
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(useDawStore.getState().audioError).toBeNull();
+  });
+
   it("refuses an older generation after the displayed project revision advances", async () => {
     const cached = manifestFor();
     const current = structuredClone(useDawStore.getState().project!);
