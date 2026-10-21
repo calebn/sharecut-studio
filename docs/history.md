@@ -10,7 +10,7 @@ decided-by: issue #1263 implementation
 evidence:
 - Issue #1263 acceptance requires same-path reopen and project navigation to retire unsent history intents across durable replay.
 - gui/web/src/services/commandQueue.historyLifetime.integration.test.ts covers scope retirement, offline refusal, older queued edits, and failed history-row cleanup.
-- gui/web/src/state/drainOfflineQueue.test.ts and gui/web/src/services/commandQueue.integration.test.ts cover replay policy and ordinary command ordering.
+- gui/web/src/services/offlineQueue/drainOfflineQueue.test.ts and gui/web/src/services/commandQueue.integration.test.ts cover replay policy and ordinary command ordering.
 manual-review: verify production IndexedDB history never replays after cleanup failure and ordinary edits retain FIFO.
 -->
 

@@ -11,7 +11,7 @@ import { minimalProject, offlineConflict } from "../test/fixtures";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 
 const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
-vi.mock("../state/drainOfflineQueue", () => drain);
+vi.mock("../services/offlineQueue/drainOfflineQueue", () => drain);
 
 const offlineStore = vi.hoisted(() => {
   const state = {

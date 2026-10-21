@@ -185,14 +185,9 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "state/projectSlice.ts -> document/authorityState (static)",
     "state/projectSlice.ts -> document/pendingDrafts (static)",
   ],
-  "state -> api": [
-    "state/drainOfflineQueue.ts -> api (static)",
-    "state/drainOfflineQueue.ts -> api/documentEdits (static)",
-    "state/runAnnouncedJob.ts -> api (static)",
-  ],
+  "state -> api": ["state/runAnnouncedJob.ts -> api (static)"],
   "state -> services": [
     "presence/usePresencePublisher.ts -> audio/playbackClock (static)",
-    "state/drainOfflineQueue.ts -> services/commandQueue (static)",
     "state/types.ts -> waveform/types (type)",
   ],
   "state -> commands/edit": [
@@ -282,8 +277,8 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "utils -> commands/edit": 1,
   "utils -> views": 3,
   "state -> document": 3,
-  "state -> api": 3,
-  "state -> services": 3,
+  "state -> api": 1,
+  "state -> services": 2,
   "state -> commands/edit": 3,
   "state -> hooks": 2,
   "state -> views": 1,
@@ -299,7 +294,7 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "commands/edit -> views": 14,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 65;
+const ALLOWLIST_SIZE = 62;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

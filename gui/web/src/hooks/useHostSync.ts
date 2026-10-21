@@ -31,6 +31,7 @@ import {
   type RecordSnapshot,
   useRecordHostStore,
 } from "../record";
+import { requestHostDrainLazy } from "../services/offlineQueue/requestDrainLazy";
 import {
   mergeSessionAppliedDelta,
   type SessionAppliedDelta,
@@ -50,7 +51,6 @@ import { createRosterRequester } from "../session/rosterRequest";
 import type { WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
-import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";

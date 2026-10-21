@@ -26,7 +26,7 @@ vi.mock("../state/offlineStore", () => ({
   mergeOfflineSnapshot: vi.fn(async () => undefined),
 }));
 
-vi.mock("../state/drainOfflineQueue", () => ({
+vi.mock("../services/offlineQueue/drainOfflineQueue", () => ({
   drainOfflineQueue: vi.fn(async () => undefined),
 }));
 

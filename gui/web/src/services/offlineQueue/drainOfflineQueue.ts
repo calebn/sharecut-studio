@@ -1,21 +1,21 @@
-import { submitDocumentCommand } from "../api";
-import { clearSupersededCorrectionConflicts } from "../api/documentEdits";
-import { reconcileCommandBeforeReplay } from "../services/commandQueue";
-import { shareProjectKey } from "../shareMode";
-import type { DocumentCommandType } from "../types/documentCommands.generated";
-import { isPermanentRejection } from "../utils/apiError";
+import { submitDocumentCommand } from "../../api";
+import { clearSupersededCorrectionConflicts } from "../../api/documentEdits";
+import { shareProjectKey } from "../../shareMode";
 import {
   documentSendDone,
   documentSendsFinished,
   trackDocumentDrain,
-} from "./documentSendOrder";
+} from "../../state/documentSendOrder";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
   type QueuedCommand,
   removeHostQueuedCommands,
   removeQueuedCommands,
-} from "./offlineStore";
+} from "../../state/offlineStore";
+import type { DocumentCommandType } from "../../types/documentCommands.generated";
+import { isPermanentRejection } from "../../utils/apiError";
+import { reconcileCommandBeforeReplay } from "../commandQueue";
 
 /** What a pass does with one record just before it would send it. */
 export type ReplayGate = "send" | "skip" | "stop";

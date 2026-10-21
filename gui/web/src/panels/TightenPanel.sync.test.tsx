@@ -10,7 +10,7 @@ import { minimalProject } from "../test/fixtures";
 import type { PendingEditView } from "../types/project";
 import { TightenPanel } from "./TightenPanel";
 
-vi.mock("../state/requestDrainLazy", () => ({
+vi.mock("../services/offlineQueue/requestDrainLazy", () => ({
   requestHostDrainLazy: vi.fn(),
 }));
 

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { shareProjectKey } from "../shareMode";
-import { ApiError } from "../utils/apiError";
-import type { QueuedCommand } from "./offlineStore";
-import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
+import { shareProjectKey } from "../../shareMode";
+import type { QueuedCommand } from "../../state/offlineStore";
+import { chainQueuedEnvelopeBaseline } from "../../state/queuedEnvelopeBaseline";
+import { ApiError } from "../../utils/apiError";
 
 const submit = vi.fn();
 const hostQueue = vi.fn();
@@ -11,11 +11,11 @@ const removeHostQueuedCommands = vi.fn();
 const removeQueuedCommand = vi.fn();
 const clearSuperseded = vi.fn(async () => {});
 
-vi.mock("../api", () => ({ submitDocumentCommand: submit }));
-vi.mock("../api/documentEdits", () => ({
+vi.mock("../../api", () => ({ submitDocumentCommand: submit }));
+vi.mock("../../api/documentEdits", () => ({
   clearSupersededCorrectionConflicts: clearSuperseded,
 }));
-vi.mock("./offlineStore", () => ({
+vi.mock("../../state/offlineStore", () => ({
   loadCommandQueue: guestQueue,
   loadHostCommandQueue: hostQueue,
   removeHostQueuedCommands,
@@ -37,7 +37,9 @@ describe("drainHostOfflineQueue", () => {
     const path = "/projects/published.project.json";
     hostQueue.mockResolvedValue([]);
     const { requestHostDrain } = await import("./drainOfflineQueue");
-    const { activeDocumentDrain } = await import("./documentSendOrder");
+    const { activeDocumentDrain } = await import(
+      "../../state/documentSendOrder"
+    );
     const run = requestHostDrain(path);
     expect(activeDocumentDrain(path)).toBe(run);
     await run;
@@ -46,7 +48,7 @@ describe("drainHostOfflineQueue", () => {
 
   it("attaches one wake-up per in-flight send across repeated drains", async () => {
     const path = "/projects/once.project.json";
-    const { beginDocumentSend } = await import("./documentSendOrder");
+    const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const send = beginDocumentSend(path, "live-once");
     let current = [cmd("live-once")];
     hostQueue.mockReset().mockImplementation(async () => current);
@@ -64,7 +66,7 @@ describe("drainHostOfflineQueue", () => {
   it("wakes each project's drain for its own in-flight send, even with a shared command id", async () => {
     const pathA = "/projects/twin-a.project.json";
     const pathB = "/projects/twin-b.project.json";
-    const { beginDocumentSend } = await import("./documentSendOrder");
+    const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const sendA = beginDocumentSend(pathA, "twin");
     const sendB = beginDocumentSend(pathB, "twin");
     const queues = new Map<string, QueuedCommand[]>([
@@ -91,7 +93,7 @@ describe("drainHostOfflineQueue", () => {
 
   it("stops at this tab's in-flight send and drains again once it settles", async () => {
     const path = "/projects/episode.project.json";
-    const { beginDocumentSend } = await import("./documentSendOrder");
+    const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const send = beginDocumentSend(path, "live");
     let current = [cmd("live"), cmd("later")];
     hostQueue.mockImplementation(async () => current);
@@ -109,7 +111,7 @@ describe("drainHostOfflineQueue", () => {
 
   it("skips a record a live send dequeued while an earlier one replayed", async () => {
     const path = "/projects/episode.project.json";
-    const { beginDocumentSend } = await import("./documentSendOrder");
+    const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const liveA = beginDocumentSend(path, "a");
     let current = [cmd("x"), cmd("a"), cmd("b")];
     hostQueue.mockImplementation(async () => current);
@@ -286,7 +288,7 @@ describe("drainHostOfflineQueue", () => {
 
   it("still removes replayed records when a queue re-read fails", async () => {
     const path = "/projects/episode.project.json";
-    const { beginDocumentSend } = await import("./documentSendOrder");
+    const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const liveB = beginDocumentSend(path, "b");
     let unreadable = false;
     hostQueue.mockImplementation(async () => {
@@ -307,7 +309,7 @@ describe("drainHostOfflineQueue", () => {
 
   it("does not re-read the queue for live sends that began after the snapshot", async () => {
     const path = "/projects/steady.project.json";
-    const { beginDocumentSend } = await import("./documentSendOrder");
+    const { beginDocumentSend } = await import("../../state/documentSendOrder");
     hostQueue.mockResolvedValue([cmd("x"), cmd("y"), cmd("z")]);
     submit.mockImplementation(async () => {
       beginDocumentSend(path, `new-${submit.mock.calls.length}`).finish();
@@ -325,7 +327,7 @@ describe("drainHostOfflineQueue", () => {
 
   it("re-reads when a live send finished while the snapshot loaded", async () => {
     const path = "/projects/during-load.project.json";
-    const { beginDocumentSend } = await import("./documentSendOrder");
+    const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const liveA = beginDocumentSend(path, "a");
     hostQueue
       .mockImplementationOnce(async () => {

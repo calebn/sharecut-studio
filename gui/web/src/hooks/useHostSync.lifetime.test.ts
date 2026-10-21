@@ -8,7 +8,9 @@ import { minimalProject } from "../test/fixtures";
 import type { SessionMeta, SessionState } from "../types/session";
 import { useHostSync } from "./useHostSync";
 
-vi.mock("../state/requestDrainLazy", () => ({ requestHostDrainLazy: vi.fn() }));
+vi.mock("../services/offlineQueue/requestDrainLazy", () => ({
+  requestHostDrainLazy: vi.fn(),
+}));
 vi.mock("../api", () => ({
   loadSessionMeta: vi.fn(),
   loadSessionState: vi.fn(),

@@ -21,7 +21,7 @@ vi.mock("../api/documentTransport", () => ({
   postHostDocumentCommand,
   postGuestDocumentCommand,
 }));
-vi.mock("../state/requestDrainLazy", () => ({
+vi.mock("./offlineQueue/requestDrainLazy", () => ({
   requestHostDrainLazy,
   requestGuestDrainLazy,
 }));

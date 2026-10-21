@@ -43,7 +43,7 @@ const offlineStore = vi.hoisted(() => {
 const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
 
 vi.mock("../state/offlineStore", () => offlineStore);
-vi.mock("../state/drainOfflineQueue", () => drain);
+vi.mock("../services/offlineQueue/drainOfflineQueue", () => drain);
 
 const PATH = "/tmp/save-state-1448.json";
 

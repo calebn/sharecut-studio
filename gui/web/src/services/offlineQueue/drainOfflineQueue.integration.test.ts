@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OfflineConflict, QueuedCommand } from "./offlineStore";
+import type { OfflineConflict, QueuedCommand } from "../../state/offlineStore";
 
 const hostQueues = new Map<string, QueuedCommand[]>();
 const guestQueues = new Map<string, QueuedCommand[]>();
@@ -10,14 +10,14 @@ let conflictReadFailure = false;
 const without = (queue: QueuedCommand[] | undefined, ids: string[]) =>
   (queue ?? []).filter((c) => !ids.includes(c.command_id));
 
-vi.mock("../document/applyDocumentUpdate", () => ({
+vi.mock("../../document/applyDocumentUpdate", () => ({
   applyDocumentResult: vi.fn(),
   applyDocumentSnapshot: vi.fn(),
   mergeGuestActionDone: vi.fn(),
   mergeReturnedComment: vi.fn(),
 }));
 
-vi.mock("./offlineStore", () => ({
+vi.mock("../../state/offlineStore", () => ({
   loadHostCommandQueue: async (path: string) => [
     ...(hostQueues.get(path) ?? []),
   ],
@@ -230,7 +230,7 @@ describe("guest drain against the real submit layer", () => {
   const drain = async () =>
     (await import("./drainOfflineQueue")).drainOfflineQueue(TOKEN);
   const live = async (id: string) => {
-    const { submitDocumentCommand } = await import("../api");
+    const { submitDocumentCommand } = await import("../../api");
     return submitDocumentCommand(
       `share:${TOKEN}`,
       "SetTrackMeta",

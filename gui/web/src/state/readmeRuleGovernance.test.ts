@@ -64,7 +64,7 @@ describe("README rule: api.ts is the facade", () => {
     "record/recordBootstrap.ts -> api/http",
     "record/upload/http.ts -> api/http",
     "services/commandQueue.ts -> api/documentTransport",
-    "state/drainOfflineQueue.ts -> api/documentEdits",
+    "services/offlineQueue/drainOfflineQueue.ts -> api/documentEdits",
     "timeline/ClipBlock.tsx -> api/boundary",
     "transcript/EditBoundaryMark.tsx -> api/boundary",
     "transcript/EditBoundaryMarkView.tsx -> api/boundary",

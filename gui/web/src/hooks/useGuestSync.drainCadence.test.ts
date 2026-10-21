@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { requestGuestDrainLazy } from "../services/offlineQueue/requestDrainLazy";
 import { useDawStore } from "../state/dawStore";
-import { requestGuestDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
@@ -12,7 +12,7 @@ vi.mock("../api/project", () => ({ loadDocumentState: vi.fn() }));
 vi.mock("../state/offlineStore", () => ({
   mergeOfflineSnapshot: vi.fn(async () => undefined),
 }));
-vi.mock("../state/requestDrainLazy", () => ({
+vi.mock("../services/offlineQueue/requestDrainLazy", () => ({
   requestGuestDrainLazy: vi.fn(),
   requestHostDrainLazy: vi.fn(),
 }));

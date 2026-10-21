@@ -1,7 +1,7 @@
 import { runPointerCommand } from "../commands/pointer";
 import { useOfflineAttentionAnnouncement } from "../hooks/useOfflineAttentionAnnouncement";
+import { requestHostDrain } from "../services/offlineQueue/drainOfflineQueue";
 import { isShareProjectKey } from "../shareMode";
-import { requestHostDrain } from "../state/drainOfflineQueue";
 import {
   dismissAllConflicts,
   refreshOfflineAttention,
