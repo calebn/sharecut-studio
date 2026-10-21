@@ -279,6 +279,22 @@ describe("TranscriptWordInspector", () => {
       expect(useDawStore.getState().wordDraft).toBeNull();
     });
 
+    it("an editor nobody typed in does not turn a changed saved word into a draft", () => {
+      // The text layout keeps the side-rail editor mounted but hidden beside
+      // the docked one, so an untouched instance sees the other's Apply (or a
+      // peer's edit) as a word that moved under it.
+      const first = render(
+        <TranscriptWordInspector trackId="host" wordIndex={0} />,
+      );
+      act(() => {
+        useDawStore.setState({ project: projectWithWords(["howdy", "there"]) });
+      });
+      expect(useDawStore.getState().wordDraft).toBeNull();
+      first.unmount();
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      expect(field()).toHaveValue("howdy");
+    });
+
     it("drops a draft typed back to the saved text", () => {
       render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
