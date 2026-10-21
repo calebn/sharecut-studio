@@ -9,7 +9,7 @@ Propose short highlight clips from combined transcripts and export WAV + JSON si
 - `approve_social_clips_tool` / `reject_social_clips_tool`
 - `export_social_clips_tool` — audio only
 
-Titles/captions truncate at word boundaries. Platform presets: `.agents/defaults/pipeline.yaml` → `social_clips.platforms`.
+Titles/captions truncate at word boundaries. Platform presets: `.agents/defaults/pipeline.yaml` → `social_clips.platforms`. The merged config type (`EffectiveConfig`) lives in `podcast_mcp.config.defaults`.
 
 ## Timebase
 
