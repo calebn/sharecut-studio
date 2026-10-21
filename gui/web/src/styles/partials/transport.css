@@ -473,6 +473,54 @@
   }
 }
 
+/* A short window (a phone held sideways) leaves the mode body
+   about 136 px between the status row and the comment field, less than the
+   stacked card, so Play started under the comment field (#1982). Wide enough,
+   the card goes two columns: title, time and scrubber on the left, the
+   controls row on the right, and every row is as tight as the touch targets
+   allow. Narrower short windows keep the stack with a tighter card. */
+@container app (max-height: 24rem) {
+  .listen-hero {
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .listen-hero-controls {
+    gap: var(--space-3);
+  }
+}
+
+/* A reason line under Play ("Loading episode…", "Import audio to play.")
+   keeps the stack: it wraps below the buttons there. */
+@container app (max-height: 24rem) and (min-width: 28rem) {
+  .listen-hero:not(:has(.transport-play-reason)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "head controls"
+      "time controls"
+      "scrub controls";
+    align-items: center;
+    column-gap: var(--space-5);
+  }
+
+  .listen-hero:not(:has(.transport-play-reason)) .listen-hero-head {
+    grid-area: head;
+  }
+
+  .listen-hero:not(:has(.transport-play-reason)) .listen-hero-time {
+    grid-area: time;
+  }
+
+  .listen-hero:not(:has(.transport-play-reason)) > .listen-scrub {
+    grid-area: scrub;
+  }
+
+  .listen-hero:not(:has(.transport-play-reason)) .listen-hero-controls {
+    grid-area: controls;
+    flex-wrap: nowrap;
+  }
+}
+
 .listen-hero-head {
   display: flex;
   align-items: center;
