@@ -31,6 +31,7 @@ import {
   useCompactInspector,
 } from "./useCompactInspector";
 import { useInspectorColumn } from "./useInspectorColumn";
+import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
 import { useKeepEditedLaneClear } from "./useKeepEditedLaneClear";
 import { useRevealEditedLane } from "./useRevealEditedLane";
 
@@ -151,6 +152,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
   const laneTrack =
     open && laneBand && !compact && !column ? editedLaneTrack(selection) : null;
   useKeepEditedLaneClear(laneTrack);
+  useKeepBandClear(open && !column && !compact ? bandLocator(selection) : null);
   useRevealEditedLane(open && column ? editedLaneTrack(selection) : null);
   const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
   const rangeActionsInSheet =
