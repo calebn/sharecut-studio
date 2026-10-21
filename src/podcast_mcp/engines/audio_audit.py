@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
