@@ -374,6 +374,8 @@ A mutation that changes the audio also retires every pending remove or mute prop
 
 Cut and boundary-adjustment snapshots include the active word list and its source-scoped archive. Undoing a cut restores its original active words. Undoing a boundary expansion restores the prior archive; redo restores the expanded word metadata. Normal `ProjectWorkspace.mutate()` history owns these changes. Archived previews are not active word correction targets.
 
+The archive and combined transcript are kept consistent by `engines/transcript_sync.py` (moved from `edits/` in #1813 so `engines/` does not import `edits/`); `edits/edit_log.py` calls its `rebuild_combined` when it reverts a mute.
+
 ## Transcript replacement pass
 
 Studio find-and-replace validates its reviewed, source-keyed match set before one `ProjectWorkspace.mutate()` call. Every replacement across primary and extra recordings shares that history action, so one Undo restores all affected text, word timing, flags, and source identities. No matches or a stale preview produce no history entry. The adjacent result Undo is available while its project view and document sequence remain current; use History after newer changes.
