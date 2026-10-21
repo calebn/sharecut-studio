@@ -528,7 +528,9 @@ a blur, such as into a modal-covered or stowed host, resumes the toast timer.
 The person's own selection, project, or outside-control navigation cancels the remembered
 action.
 Other workflows retain the existing floating dock. On phones
-`feedback/toastDock.ts` measures bottom chrome and the latest pressed control;
+`feedback/toastDock.ts` measures bottom chrome, the latest pressed control and Listen's
+Play row (the card moves above it, or below when there is no room, on a short phone such
+as 320x460 where the dock spot would land on Play, #1960);
 its full-sheet fallback can cover scrolling content in those other workflows.
 Desktop and ordinary tablet feedback stays above the status bar.
 

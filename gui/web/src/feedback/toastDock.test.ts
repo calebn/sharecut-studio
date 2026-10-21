@@ -89,6 +89,67 @@ describe("toastDockBottomPx (phone)", () => {
   });
 });
 
+describe("toastDockBottomPx keeps body controls clear (#1960)", () => {
+  /** 320×460: status row 0–20, dock top 295, nav 408; Listen's Play row 205–261. */
+  const short = {
+    viewportHeight: 460,
+    ceilingPx: 20,
+    floorTopsPx: [408, 295],
+    navTopPx: 408,
+    toastHeightPx: 62,
+    gapPx: 8,
+  };
+  const playRow = { top: 205, bottom: 261 };
+
+  it("moves above the Play row when the dock spot would land on it", () => {
+    const bottom = toastDockBottomPx({ ...short, keepClearPx: [playRow] });
+    expect(bottom).toBe(460 - (205 - 8));
+    expect(460 - bottom).toBeLessThanOrEqual(playRow.top);
+  });
+
+  it("keeps the dock spot when the Play row is clear of it", () => {
+    expect(
+      toastDockBottomPx({
+        ...short,
+        viewportHeight: 520,
+        floorTopsPx: [468, 355],
+        navTopPx: 468,
+        keepClearPx: [playRow],
+      }),
+    ).toBe(520 - 355 + 8);
+  });
+
+  it("moves below the Play row when there is no room above it", () => {
+    const bottom = toastDockBottomPx({
+      ...short,
+      ceilingPx: 150,
+      keepClearPx: [playRow],
+    });
+    expect(bottom).toBe(460 - (261 + 8 + 62));
+  });
+
+  it("keeps the dock spot when neither side of the Play row has room", () => {
+    expect(
+      toastDockBottomPx({
+        ...short,
+        ceilingPx: 150,
+        floorTopsPx: [408],
+        keepClearPx: [{ top: 160, bottom: 400 }],
+      }),
+    ).toBe(460 - 408 + 8);
+  });
+
+  it("clears both the pressed control and the Play row", () => {
+    // Above the Play row lands on the pressed control, so the toast goes above that.
+    const bottom = toastDockBottomPx({
+      ...short,
+      pressedPx: { top: 130, bottom: 190 },
+      keepClearPx: [playRow],
+    });
+    expect(bottom).toBe(460 - (130 - 8));
+  });
+});
+
 describe("usePhoneToastDock", () => {
   const boxes: Element[] = [];
   afterEach(() => {
@@ -137,6 +198,32 @@ describe("usePhoneToastDock", () => {
     );
     unmount();
     expect(bottom * 16).toBe(window.innerHeight - 655 + 8);
+  });
+
+  it("moves above Listen's Play row when the dock spot would cover it", () => {
+    document.documentElement.dataset.shell = "phone";
+    const region = document.createElement("div");
+    const card = document.createElement("div");
+    card.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    region.append(card);
+    document.body.append(region);
+    boxes.push(region);
+    box("mobile-nav", window.innerHeight - 52, window.innerHeight);
+    box("mobile-dock", window.innerHeight - 165, window.innerHeight - 52);
+    box(
+      "listen-hero-controls",
+      window.innerHeight - 255,
+      window.innerHeight - 199,
+    );
+    const { unmount } = renderHook(() =>
+      usePhoneToastDock({ current: region }, true),
+    );
+    const bottom = Number.parseFloat(
+      region.style.getPropertyValue("--toast-dock-bottom"),
+    );
+    unmount();
+    expect(bottom * 16).toBe(255 + 8);
   });
 
   it("docks above Listen's comment field so a posted comment's toast leaves the field free", () => {
