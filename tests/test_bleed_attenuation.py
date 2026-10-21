@@ -136,6 +136,15 @@ def _silent(after: np.ndarray, start: float, end: float) -> None:
     np.testing.assert_array_equal(window, np.zeros(window.shape))
 
 
+def _room_tone(after: np.ndarray, start: float, end: float, level_db: float) -> None:
+    """A mute on a lane with a room floor carries that floor, not digital silence (#1734)."""
+    window = after[round(start * RATE) : round(end * RATE)]
+    assert np.count_nonzero(window) > 0.5 * window.size
+    assert 10 * np.log10(float(np.mean((window / 32768.0) ** 2))) == pytest.approx(
+        level_db, abs=3.0
+    )
+
+
 def _unchanged(before: np.ndarray, after: np.ndarray, start: float, end: float) -> None:
     window = slice(round(start * RATE), round(end * RATE))
     np.testing.assert_array_equal(after[window], before[window])
@@ -522,16 +531,22 @@ def test_lane_with_a_room_floor_is_turned_down_20_db_not_muted(tmp_path: Path) -
 
 
 @pytest.mark.parametrize(
-    ("room_floor_spans", "bed_db"),
+    ("room_floor_spans", "bed_db", "room_db"),
     [
         pytest.param(
-            ((0.7, 1.0), (31.0, 31.3)), LEVEL_FLOOR_DB, id="gated-with-faint-tone-near-the-copy"
+            ((0.7, 1.0), (31.0, 31.3)),
+            LEVEL_FLOOR_DB,
+            None,
+            id="gated-with-faint-tone-near-the-copy",
         ),
-        pytest.param(None, -61.2, id="steady-tone-below-the-bit-floor-once-turned-down"),
+        pytest.param(None, -61.2, -84.0, id="steady-tone-below-the-bit-floor-once-turned-down"),
     ],
 )
 def test_lane_whose_bed_cannot_survive_attenuation_is_muted(
-    tmp_path: Path, room_floor_spans: tuple[tuple[float, float], ...] | None, bed_db: float
+    tmp_path: Path,
+    room_floor_spans: tuple[tuple[float, float], ...] | None,
+    bed_db: float,
+    room_db: float | None,
 ) -> None:
     """Lab Caleb mic: half its quiet frames are the call app's digital silence, the rest
     room tone near -77 dBFS, 62 dB under his -15.3 dBFS voice. Turned down 20 dB, that
@@ -543,7 +558,10 @@ def test_lane_whose_bed_cannot_survive_attenuation_is_muted(
     assert plan.reduction == "mute"
     assert plan.bed_db == pytest.approx(bed_db, abs=1.0)
     _, after = _gated_over(project, tmp_path)
-    _silent(after, 1.05, 3.95)
+    if room_db is None:
+        _silent(after, 1.05, 3.95)
+    else:
+        _room_tone(after, 1.05, 3.95, room_db)
 
 
 def test_own_speech_starting_under_a_louder_copy_tail_is_untouched(tmp_path: Path) -> None:
@@ -587,7 +605,9 @@ def test_explicit_bleed_handling_overrides_auto(
     project = _talking_over(tmp_path, room_floor_db=room_floor_db)
     assert build_bleed_gate_plan(project, "host", defaults=load_defaults()).reduction == reduction
     before, after = _gated_over(project, tmp_path)
-    if reduction == "mute":
+    if reduction == "mute" and room_floor_db is not None:
+        _room_tone(after, 1.05, 30.65, room_floor_db)
+    elif reduction == "mute":
         _silent(after, 1.05, 30.65)
     else:
         assert _gain_db(before, after, 1.05, 30.65) == pytest.approx(-20.0, abs=0.2)

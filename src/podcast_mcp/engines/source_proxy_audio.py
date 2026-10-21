@@ -571,15 +571,17 @@ def _combine(
             a, z = w.read(len(raw)), v.read(len(raw))
             if len(a) != len(raw) or len(z) != len(raw):
                 raise clock_error()
+            gate_gains = spec.gate.gains_for_frames(start, count, rate)
             result = restored_pcm(
                 raw,
                 a,
                 z,
                 channels=channels,
-                gate_gains=spec.gate.gains_for_frames(start, count, rate),
+                gate_gains=gate_gains,
                 restore_gains=restore_gains_for_frames(
                     supports, start, count, rate, fade_sec=spec.gate.fade_sec
                 ),
+                fill=spec.gate.fill_for_frames(start, count, rate, gate_gains),
             )
             b.seek(-len(raw), 1)
             b.write(result)

@@ -199,7 +199,7 @@ The gate defaults to unity gain. Where it acts it reduces the copy by
 | `bleed_handling` | Inside a reduced span |
 |---|---|
 | `auto` (default) | `attenuate` on a lane whose bed stays above the gate's level floor once turned down, else `mute` |
-| `mute` | silence |
+| `mute` | the lane's own room tone, else silence ([Bleed mute fill](audio-engineering.md#bleed-mute-fill)) |
 | `attenuate` | turned down by `bleed_attenuation_db` (default 20 dB) |
 
 `auto` reads the lane's bed: the median of its level where it has media, away from

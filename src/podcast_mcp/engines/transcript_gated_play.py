@@ -122,11 +122,18 @@ def _gate_pcm_chunk(
     channels: int,
     plan: BleedGatePlan | None = None,
 ) -> bytes:
-    """Gate one PCM16 chunk using fade positions on the whole stem clock."""
+    """Gate one PCM16 chunk using fade positions on the whole stem clock.
+
+    A mute plan with a room-tone fill adds ``noise x (1 - gain)`` to every channel (#1734).
+    """
     samples = np.frombuffer(raw, dtype="<i2").reshape(-1, channels)
     if plan is not None:
         env = plan.gains_for_frames(first_frame, samples.shape[0], sample_rate)
-        return (samples.astype(np.float32) * env[:, np.newaxis]).astype("<i2").tobytes()
+        gated = samples.astype(np.float32) * env[:, np.newaxis]
+        fill = plan.fill_for_frames(first_frame, samples.shape[0], sample_rate, env)
+        if fill is not None:
+            gated = np.clip(gated + fill[:, np.newaxis], -32768, 32767)
+        return gated.astype("<i2").tobytes()
     env = np.zeros(samples.shape[0], dtype=np.float32)
     last_frame = first_frame + samples.shape[0]
     fade = int(GATE_FADE_SEC * sample_rate)
@@ -460,6 +467,7 @@ def apply_restored_bleed_gate_plan(
                                 fade_sec=plan.fade_sec,
                             ),
                             lifted_baseline=lifted,
+                            fill=plan.fill_for_frames(absolute_first, count, rate, gate_gains),
                         )
                     )
         publish_completed_file(target_path, wav_path)
