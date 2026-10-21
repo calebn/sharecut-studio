@@ -891,7 +891,7 @@ must fail export/check rather than writing an unformatted artifact. Install the
 
 `test_gain_curve_fixture.py` renders the nine cases in `tests/fixtures/gain_curve/cases.json` through FFmpeg (edge fades, then the track volume envelope) the nine in `mute_cases.json` (mute regions) and the eight in `automatic_cases.json` (off-speaker regions) and checks the fixtures; `gui/web/src/audio/gainCurve.test.ts` checks the browser preview's evaluator against the same samples, so the two cannot drift (#1649).
 
-`test_render_clock_fixture.py` places the eight lane cases in `tests/fixtures/render_clock/cases.json` with `timeline_render._place_clips` and checks the fixture (`REGEN_RENDER_CLOCK=1` rewrites it); `gui/web/src/audio/renderClock.test.ts` checks the browser's render clock against the same placed starts, so the timeline's clock and the export's cannot drift (#1888).
+`test_render_clock_fixture.py` places the lane cases in `tests/fixtures/render_clock/cases.json` with `timeline_render._place_clips` and checks the fixture (`REGEN_RENDER_CLOCK=1` rewrites it); `gui/web/src/audio/renderClock.test.ts` checks the browser's render clock against the same placed starts, so the timeline's clock and the export's cannot drift (#1888).
 
 Handler behavior stays in `test_document_sync.py` (constructs internal `DocumentCommand` dicts after validation).
 

@@ -50,6 +50,8 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
     let prev: ClipRow | undefined;
     let componentEnd = Number.NaN;
     let frontier = 0;
+    // Ends of the components left behind; only the last one still grows or shrinks.
+    let settledEnd = 0;
     let authoredFrontier = 0;
     let clockShift = 0;
     for (const clip of ordered) {
@@ -71,11 +73,13 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
         if (prev && Math.abs(start - componentEnd) < 1e-9) {
           componentEnd += body;
         } else {
+          if (prev) settledEnd = Math.max(settledEnd, componentEnd);
           componentEnd = start + body;
         }
       }
       placedStart.set(clip.id, start);
-      frontier = Math.max(frontier, componentEnd);
+      // A blending join of a clip under 1 ms can shorten the last component.
+      frontier = Math.max(settledEnd, componentEnd);
       authoredFrontier = Math.max(authoredFrontier, clip.timeline_end);
       clockShift = authoredFrontier - frontier;
       shiftAfter.set(clip.id, clockShift);
@@ -94,6 +98,9 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
   });
   return { placed, overlapIn, overlapOut, shiftAfter };
 }
+
+/** Float noise from `start + (end - start)` is not a shift. */
+const IDENTITY_EPS_SEC = 1e-9;
 
 interface LaneEntry {
   readonly id: string;
@@ -139,7 +146,10 @@ export function buildRenderClock(clips: readonly ClipRow[]): RenderClock {
       placedEnd: at.timeline_end,
       shiftAfter: shiftAfter.get(clip.id) ?? 0,
     };
-    if (entry.placedStart !== entry.authoredStart || entry.shiftAfter !== 0)
+    if (
+      Math.abs(entry.placedStart - entry.authoredStart) > IDENTITY_EPS_SEC ||
+      Math.abs(entry.shiftAfter) > IDENTITY_EPS_SEC
+    )
       identity = false;
     byId.set(clip.id, entry);
     const lane = lanes.get(clip.track_id);
