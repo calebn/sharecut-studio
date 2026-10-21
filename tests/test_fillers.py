@@ -791,7 +791,7 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
         patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
         patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
     ):
@@ -876,7 +876,7 @@ def test_repetition_cut_cannot_widen_past_the_duplicate_word():
         patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
         patch("podcast_mcp.edits.tighten.prepare.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
     ):
@@ -1987,7 +1987,7 @@ def test_analyze_rejects_when_cut_scope_is_skipped():
         ]
     )
     with patch(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
         side_effect=ValueError("cut blocked"),
     ):
         result = _analyze_candidate(
@@ -2079,7 +2079,7 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
             return_value=timeline_caches,
         ) as shared_timeline,
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
             side_effect=capture_resolve,
         ),
         patch("podcast_mcp.edits.tighten.prepare.optimize_and_assess", side_effect=fake_opt),
@@ -2115,7 +2115,7 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
     )
     guard = SimpleNamespace(blocked=True, action="review", blocking_track_ids=["guest"])
     with patch(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
         return_value=ResolvedCutScope("peer_speech", guard),
     ):
         result = _analyze_candidate(
@@ -2160,7 +2160,7 @@ def test_analyze_keeps_peer_conflicted_pause_for_session_review(action, tmp_path
     )
     guard = SimpleNamespace(blocked=True, action=action, blocking_track_ids=["guest"])
     with patch(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
         return_value=ResolvedCutScope("peer_speech", guard),
     ):
         result = _analyze_candidate(project, cand, {"tighten": {}})
@@ -2172,7 +2172,7 @@ def test_analyze_keeps_peer_conflicted_pause_for_session_review(action, tmp_path
     assert result.end == pytest.approx(4.40)
 
     with patch(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
         open_result = _analyze_candidate(project, cand, {"tighten": {}})
@@ -2382,7 +2382,7 @@ _REJECTIONS = [
     ("_clamp_to_candidate", {"return_value": None}, "bounds"),
 ]
 _SCOPE_REJECTION = (
-    "cut_safety.resolve_cut_scope",
+    "tighten.gate.resolve_cut_scope",
     {"side_effect": ValueError("no clip")},
     "scope",
 )
@@ -4302,7 +4302,7 @@ def _analyze_padded_uh(*, peers_speaking: bool, join_verdict: str):
     }
     with (
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.tighten.gate.resolve_cut_scope",
             return_value=_scope_result(peers_speaking),
         ),
         patch(

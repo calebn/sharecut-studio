@@ -14,7 +14,8 @@ Titles/captions truncate at word boundaries. Platform presets: `.agents/defaults
 ## Timebase
 
 `SocialClipCandidate.start`/`end` are **timeline** (deliverable) seconds. Clips are
-scored on source-clock combined utterances, but each candidate's times are mapped
+scored on source-clock combined utterances (`ensure_combined_transcript` in
+`edits/transcript_search.py`, the same combined transcript the transcript search reads), but each candidate's times are mapped
 through `SessionTimeline` because export cuts the premix/mastered audio, which lives
 on the edited timeline clock. Utterances that fall entirely inside removed material
 are dropped. See [docs/episode-format-v2.md](episode-format-v2.md) for the two clocks.

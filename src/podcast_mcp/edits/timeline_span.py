@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
+from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.models import EditDecision, EditDecisionType, EpisodeProject
 from podcast_mcp.util.source_spans import source_span_timeline_bounds as source_span_timeline_bounds
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -39,14 +40,10 @@ def map_source_span_fields(
 def source_remove_timeline_spans(
     project: EpisodeProject, edit: EditDecision
 ) -> list[dict[str, float]] | None:
-    from podcast_mcp.engines.session_timeline import clip_plays_lane
-    from podcast_mcp.util.timebase import SourceSec
 
     if edit.type != EditDecisionType.REMOVE or edit.timebase != "source":
         return None
     if edit.source_timeline_span is not None:
-        from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
-
         placement = inspect_source_remove_placement(project, edit)
         if isinstance(placement, CutScopeHold):
             return None

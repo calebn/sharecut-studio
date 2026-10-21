@@ -14,12 +14,11 @@ from podcast_mcp.edits.transcript_cuts import (
     cut_time_range,
     cut_utterance,
     cut_words,
-    ensure_combined_transcript,
     format_transcript_timestamps,
-    search_transcript,
     time_range_from_utterance,
     time_range_from_words,
 )
+from podcast_mcp.edits.transcript_search import ensure_combined_transcript, search_transcript
 from podcast_mcp.models import (
     Clip,
     CombinedTranscript,
@@ -558,7 +557,7 @@ def test_trailing_energy_extends_when_next_word_overlaps(tmp_path, monkeypatch):
     monkeypatch.setattr("podcast_mcp.edits.filler_pacing.apply_filler_pacing", _fake_pace)
     monkeypatch.setattr(tc, "optimize_source_cut_range", _fake_opt)
     monkeypatch.setattr(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.transcript_cuts.resolve_cut_scope",
         lambda *a, **k: ResolvedCutScope("session_clear", None),
     )
     proj = _project_with_media(tmp_path)
@@ -598,7 +597,7 @@ def test_trailing_energy_clamped_when_next_word_has_lead_in(tmp_path, monkeypatc
     monkeypatch.setattr("podcast_mcp.edits.filler_pacing.apply_filler_pacing", _fake_pace)
     monkeypatch.setattr(tc, "optimize_source_cut_range", _fake_opt)
     monkeypatch.setattr(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.transcript_cuts.resolve_cut_scope",
         lambda *a, **k: ResolvedCutScope("session_clear", None),
     )
     proj = _project_with_media(tmp_path)
@@ -821,7 +820,7 @@ def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monk
     ]
     a_before = proj.clips[0].model_dump(mode="json")
     monkeypatch.setattr(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.transcript_cuts.resolve_cut_scope",
         lambda *args, **kwargs: ResolvedCutScope("session_clear"),
     )
 
@@ -896,7 +895,7 @@ def test_transcript_cut_refuses_overlapping_unselected_source_without_mutation(
     ]
     before = proj.model_dump(mode="json")
     monkeypatch.setattr(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+        "podcast_mcp.edits.transcript_cuts.resolve_cut_scope",
         lambda *args, **kwargs: ResolvedCutScope("session_clear"),
     )
 

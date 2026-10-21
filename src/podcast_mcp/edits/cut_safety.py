@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import subprocess
+import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -12,9 +13,10 @@ import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits import cut_speech, join_continuity, speech_energy_guard
-from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.audio_cache import TrackAudioCache, recording_audio_cache, source_audio_cache
 from podcast_mcp.edits.breath_detect import (
     _LEVEL_CONTEXT_SEC,
+    PauseAirSkip,
     _audio_reader,
     _breath_cfg,
     _ClearEdge,
@@ -24,6 +26,7 @@ from podcast_mcp.edits.breath_detect import (
     _mostly_breath,
     _read_evidence,
     _UncertainEdge,
+    breath_level_floor,
 )
 from podcast_mcp.edits.cut_effects import (
     CutAudioEffect,
@@ -46,17 +49,21 @@ from podcast_mcp.edits.cut_policy import (
     action_for_safety_observation,
     edit_time_behavior,
 )
+from podcast_mcp.edits.cut_quality import post_pad_fade_in_bounds_ms
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SourceExtent
 from podcast_mcp.edits.filler_pacing import pause_trim_is_imperceptible
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.join_continuity import JoinContinuityConfig, JoinContinuityReport
 from podcast_mcp.edits.pause_floor import retained_pause_floor_sec
-from podcast_mcp.edits.ripple import RippleRemoval
-from podcast_mcp.edits.session_air import GeometricPause
+from podcast_mcp.edits.range_target import resolve_range
+from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
+from podcast_mcp.edits.room_tone import OwnQuietSample
+from podcast_mcp.edits.session_air import GeometricPause, SessionAir
 from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
 )
+from podcast_mcp.edits.timeline_ops import LaneSample, LaneUnavailable, bind_pause_effects
 from podcast_mcp.edits.voiced_runs import (
     FRAME_SEC,
     audible_runs,
@@ -65,25 +72,30 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_sec_inside,
 )
 from podcast_mcp.edits.word_onset import edge_decays_into_valley, next_kept_word
+from podcast_mcp.engines import speaker_id, timeline_render
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
-from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC, LevelProfile, level_profile
+from podcast_mcp.engines.level_profile import (
+    LEVEL_FRAME_SEC,
+    LevelProfile,
+    frame_levels_db,
+    level_profile,
+)
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
 )
 from podcast_mcp.models import (
-    CutIntent,
     CutSpeech,
     EditDecision,
-    EditDecisionType,
     EpisodeProject,
     TranscriptWord,
 )
 from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.project import transcript_context
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
-from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path
 
 if TYPE_CHECKING:
     from podcast_mcp.edits.timeline_ops import PauseEdgeFade
@@ -314,15 +326,9 @@ def resolve_cut_scope(
         return ResolvedCutScope("intentional_track")
 
     try:
-        from podcast_mcp.engines.speaker_id import (
-            assess_speaker_cut_role,
-            load_all_profiles,
-        )
-        from podcast_mcp.project.transcript_context import load_transcript_context
-
-        if load_all_profiles(project):
-            ctx = load_transcript_context(project.workspace_path())
-            speaker = assess_speaker_cut_role(
+        if speaker_id.load_all_profiles(project):
+            ctx = transcript_context.load_transcript_context(project.workspace_path())
+            speaker = speaker_id.assess_speaker_cut_role(
                 project,
                 cut_track_id,
                 src_start,
@@ -569,7 +575,6 @@ def complete_effect_acoustics(
         if edit_id not in manual_ids and isinstance(pause, CutRejected)
     ]
     paused = {hold.edit_id for hold in pause_holds}
-    from podcast_mcp.edits.audio_cache import recording_audio_cache
 
     joins: dict[str, str] = {}
     heard_caches: dict[str, TrackAudioCache] = {}
@@ -577,8 +582,6 @@ def complete_effect_acoustics(
     join_subjects: dict[str, tuple[str, float, Path] | None] = {}
     join_scored: set[str] = set()
     if defaults.get("tighten", {}).get("join_continuity_gate", False):
-        from podcast_mcp.util.tracks import recording_audio_path
-
         for edit_id, pause in (pauses or {}).items():
             if pause is None or edit_id in manual_ids or edit_id in paused:
                 continue
@@ -778,10 +781,6 @@ def _effect_has_accepted_mute(project: EpisodeProject, effect: CutAudioEffect) -
 def _heard_timeline_audio_cache(
     project: EpisodeProject, track_id: str, defaults: dict
 ) -> TrackAudioCache:
-    import tempfile
-
-    from podcast_mcp.edits.audio_cache import recording_audio_cache
-    from podcast_mcp.engines.timeline_render import render_track_from_timeline
 
     snapshot = project.model_copy(deep=True)
     track = snapshot.track_by_id(track_id)
@@ -798,7 +797,7 @@ def _heard_timeline_audio_cache(
     ]
     with tempfile.TemporaryDirectory(prefix="sharecut-cut-effect-") as temporary:
         rendered = Path(temporary) / "heard.wav"
-        render_track_from_timeline(snapshot, track, rendered, defaults)
+        timeline_render.render_track_from_timeline(snapshot, track, rendered, defaults)
         samples = recording_audio_cache(rendered)
 
     return samples
@@ -810,7 +809,6 @@ def _source_clock_cache(
     *,
     recording_profile: tuple[LevelProfile, LevelProfile] | None = None,
 ) -> TrackAudioCache:
-    from dataclasses import replace
 
     return TrackAudioCache(
         jump=replace(
@@ -865,7 +863,6 @@ def assess_held_source(
     retained_envelope: bool = False,
     end_in_valley: bool = False,
 ) -> HeldAcoustics:
-    from podcast_mcp.edits.audio_cache import source_audio_cache
 
     flags: list[str] = []
     try:
@@ -904,8 +901,6 @@ def assess_held_source(
     ):
         flags.append("word_edge")
     checks = CUT_EDGE_CHECKS[join]
-    from podcast_mcp.edits.breath_detect import breath_level_floor
-    from podcast_mcp.engines.level_profile import frame_levels_db
 
     breath_floor = breath_level_floor(cache.profile.room_rms, cache.profile.speech_rms)
     support = (
@@ -986,11 +981,6 @@ def assess_held_pause(
     audio_caches: dict[str, TrackAudioCache],
     manual: bool,
 ) -> HeldPause | CutRejected:
-    from podcast_mcp.edits.breath_detect import PauseAirSkip
-    from podcast_mcp.edits.cut_quality import post_pad_fade_in_bounds_ms
-    from podcast_mcp.edits.ripple import TrackExtent
-    from podcast_mcp.edits.session_air import SessionAir
-    from podcast_mcp.edits.timeline_ops import LaneUnavailable, bind_pause_effects
 
     words = pause_words(project, edit.track_id, edit.start, edit.end)
     if isinstance(words, CutRejected):
@@ -1090,7 +1080,6 @@ def observe_source_cut(
     audio_caches: dict[str, TrackAudioCache],
     timeline_caches: TrackRmsCacheSet,
 ) -> SourceCutObservations:
-    from podcast_mcp.edits.ripple import TrackExtent
 
     placement = inspect_source_remove_placement(project, edit)
     if isinstance(placement, CutScopeHold):
@@ -1157,12 +1146,8 @@ def complete_effect_placement(
     pads: Sequence[PadEffect] = (),
     exact_range: ExactRangeTarget | None = None,
 ) -> CutScopeHold | None:
-    from podcast_mcp.edits.room_tone import OwnQuietSample
-    from podcast_mcp.edits.timeline_ops import LaneSample
 
     if exact_range is not None:
-        from podcast_mcp.edits.range_edits import resolve_range
-
         resolve_range(before, exact_range)
     if observation is not None:
         if observation.placement is not None:
@@ -1334,25 +1319,6 @@ def apply_safety_actions(
     return retained
 
 
-def assess_source_offer(project: EpisodeProject, edit: EditDecision, *, defaults: dict) -> None:
-    from podcast_mcp.edits.cut_application import assess_offer
-
-    if edit.boundary_intent is CutIntent.HUMAN_BOUNDARIES or edit.type == EditDecisionType.SPLIT:
-        return
-    holds = assess_offer(project, edit, defaults=defaults)
-    reason = (edit.reason or "").partition(":acoustic_review:")[0]
-    edit.reason = reason
-    mode: CutMode = "mute" if edit.type is EditDecisionType.MUTE else "ripple"
-    labels = [
-        safety_observation_label(hold)
-        for hold in holds
-        if action_for_safety_observation(safety_observation_label(hold), mode).action == "review"
-    ]
-    if labels:
-        edit.review_required = True
-        edit.reason = f"{reason}:acoustic_review:{','.join(dict.fromkeys(labels))}"
-
-
 def inspect_source_remove(
     project: EpisodeProject,
     edit: EditDecision,
@@ -1373,8 +1339,6 @@ def inspect_source_remove(
             return CutScopeHold(edit.id, (), "pause_not_shorter")
         heard = heard_pause_sec
         if heard is None:
-            from podcast_mcp.edits.session_air import SessionAir
-
             heard = SessionAir(project, audio_caches=audio_caches or {}).silence_around(
                 float(span[0]), float(span[1])
             )

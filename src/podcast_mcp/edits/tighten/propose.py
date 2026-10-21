@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits import transcript_cuts
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig
 from podcast_mcp.edits.acoustic_word import (
     WHISPER_SAMPLE_RATE,
@@ -14,6 +15,7 @@ from podcast_mcp.edits.acoustic_word import (
     whisper_span_transcriber,
 )
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
+from podcast_mcp.edits.cut_application import apply_auto_edits
 from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.mute_regions import muted_source_spans
 from podcast_mcp.edits.pause_floor import peer_speech_indexes
@@ -178,7 +180,6 @@ def propose_tighten_edits(
     retained = (
         [e for e in project.edit_decisions if _keep_on_reproposal(e)] if replace_existing else None
     )
-    from podcast_mcp.edits.transcript_cuts import coalesce_edits
 
     # Decode each track's raw audio once up front (see edits/audio_cache.py) instead
     # of spawning an ffmpeg subprocess per tiny window read inside every candidate's
@@ -258,7 +259,7 @@ def propose_tighten_edits(
     # Transcript order, not a set: coalescing moves each track's decisions to the
     # end, so the proposal's order must not depend on string hashing.
     for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
-        coalesce_edits(
+        transcript_cuts.coalesce_edits(
             working,
             track_id=track_id,
             defaults=cfg,
@@ -304,6 +305,5 @@ def _flag_possible_words(
 
 
 def apply_tighten_decisions(project: EpisodeProject, defaults: EffectiveConfig) -> int:
-    from podcast_mcp.edits.cut_application import apply_auto_edits
 
     return apply_auto_edits(project, defaults)

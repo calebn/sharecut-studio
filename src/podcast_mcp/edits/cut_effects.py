@@ -33,11 +33,19 @@ from podcast_mcp.util.media_identity import same_recording
 if TYPE_CHECKING:
     from podcast_mcp.edits.timeline_ops import PauseEdgeFade, RoomTonePad
 
+from podcast_mcp.edits.clips_ops import clip_split_origin, clips_for_track
 from podcast_mcp.edits.cut_placement import (
     SOURCE_GEOMETRY_TOLERANCE_SEC,
     CutScopeHold,
     DuplicateSourceOccurrence,
 )
+from podcast_mcp.edits.edit_log import seam_source_by_track
+from podcast_mcp.edits.track_media import full_span_clip
+from podcast_mcp.engines import ffmpeg
+from podcast_mcp.engines.audio import placed_sources
+from podcast_mcp.engines.timeline_render import placed_track_audio
+from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.tracks import recording_audio_path
 
 
 @dataclass(frozen=True)
@@ -64,10 +72,6 @@ def completed_audio_effects(
     contributors_by_clip: Mapping[str, frozenset[str]] | None = None,
     introduced_clips: frozenset[str] = frozenset(),
 ) -> tuple[CutAudioEffect, ...]:
-    from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.edits.track_media import full_span_clip
-    from podcast_mcp.engines.audio import placed_sources
-    from podcast_mcp.engines.timeline_render import placed_track_audio
 
     effects: list[CutAudioEffect] = []
     curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
@@ -157,13 +161,11 @@ def completed_audio_effects(
                 )
                 result.append((local.start, local.end, CutJoin.SPLICE, True, local))
             if source.mute_spans:
-                from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
                 rate = scoped_by_file(
                     "complete_effect_probe",
                     source.path,
                     None,
-                    partial(FFmpegEngine().probe, source.path),
+                    partial(ffmpeg.FFmpegEngine().probe, source.path),
                 ).sample_rate
                 for mute in source.mute_spans:
                     samples = mute.samples(rate, source_start=source.src_start)
@@ -226,7 +228,6 @@ def _before_occurrences(
     introduced_clips: frozenset[str],
 ) -> list[int | None]:
     """Bind each surviving renderer leaf without conflating repeated source plays."""
-    from podcast_mcp.edits.clips_ops import clip_split_origin
 
     before_ids = {leaf.source.clip_id for leaf in old}
     bindings: list[int | None] = [None] * len(new)
@@ -321,9 +322,6 @@ def native_pad_origins() -> dict[str, PadEffect]:
 
 
 def pause_edge_clips(project: EpisodeProject, edge: PauseEdgeFade) -> list[Clip]:
-    from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.util.coded_error import CodedError
-    from podcast_mcp.util.tracks import recording_audio_path
 
     matched = []
     for clip in clips_for_track(project, edge.track_id):
@@ -359,7 +357,6 @@ def _is_recorded_pad(
     written_by_edit: dict[str, AppliedEditRecord],
 ) -> bool:
     """A native pad clip that the edit which laid it recorded: its window and its samples."""
-    from podcast_mcp.edits.clips_ops import clip_split_origin
 
     origin = pad_origins.get(clip_split_origin(clip.id, set(pad_origins)) or "")
     row = written_by_edit.get(origin.edit_id) if origin is not None else None
@@ -469,8 +466,6 @@ def complete_effect_receipts(
     elif removal is not None:
         if {(row.timeline_start, row.timeline_end) for row in new_rows} != set(removal.spans):
             bad.update(ids)
-        from podcast_mcp.edits.clips_ops import clips_for_track
-        from podcast_mcp.edits.edit_log import seam_source_by_track
 
         for row in new_rows:
             if row.timeline_start is None or row.timeline_end is None:

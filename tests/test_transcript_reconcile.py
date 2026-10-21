@@ -10,13 +10,13 @@ import pytest
 from audibility_floors import floors_at
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.tighten import analyze_fillers_and_pauses
-from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import (
     maybe_auto_reconcile,
     overlap_duplicate_report,
     run_reconciliation,
 )
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
+from podcast_mcp.edits.transcript_search import search_transcript
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     compute_word_audibility_map,

@@ -8,7 +8,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Header, Query, Request
 from pydantic import BaseModel
 
-from podcast_mcp.edits.range_edits import RangeChangedError
+from podcast_mcp.edits.range_target import RangeChangedError
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,

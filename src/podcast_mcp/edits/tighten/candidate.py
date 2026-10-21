@@ -9,10 +9,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
+from podcast_mcp.engines import speaker_id
 from podcast_mcp.models import (
     EpisodeProject,
     TranscriptWord,
 )
+from podcast_mcp.project import transcript_context
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
@@ -30,13 +32,10 @@ class _SpeakerCutContext:
 def _speaker_cut_context(project: EpisodeProject) -> _SpeakerCutContext | None:
     """Take one profile/config snapshot before candidate analysis starts."""
     try:
-        from podcast_mcp.engines.speaker_id import load_all_profiles
-        from podcast_mcp.project.transcript_context import load_transcript_context
-
-        profiles = load_all_profiles(project)
+        profiles = speaker_id.load_all_profiles(project)
         if not profiles:
             return _SpeakerCutContext(None, {})
-        config = load_transcript_context(project.workspace_path()).speaker_id
+        config = transcript_context.load_transcript_context(project.workspace_path()).speaker_id
         return _SpeakerCutContext(config, profiles)
     except Exception as exc:
         log.debug("speaker bleed cut guard skipped: %s", exc, exc_info=True)
@@ -90,12 +89,10 @@ def _cut_span_is_bleed_not_owner(
                 if _word_not_owner(w, track_id):
                     return True
     try:
-        from podcast_mcp.engines.speaker_id import assess_speaker_cut_role
-
         context = speaker_context if speaker_context is not None else _speaker_cut_context(project)
         if context is None or not context.profiles:
             return False
-        role = assess_speaker_cut_role(
+        role = speaker_id.assess_speaker_cut_role(
             project, track_id, start, end, context.config, profiles=context.profiles
         )
         return bool(role and role.get("role") == "bleed")

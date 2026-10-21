@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.range_edits import RangeChangedError
+from podcast_mcp.edits.range_target import RangeChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.gui.routes.guest_errors import guest_http_error
 from podcast_mcp.gui.server import create_app

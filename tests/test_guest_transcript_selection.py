@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.range_edits import range_geometry, range_media_seal
+from podcast_mcp.edits.range_target import range_geometry, range_media_seal
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,

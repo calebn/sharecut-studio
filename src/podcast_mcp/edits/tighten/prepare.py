@@ -41,7 +41,9 @@ from podcast_mcp.util.timebase import SourceSec
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+from podcast_mcp.edits.join_continuity import JoinContinuityConfig
 from podcast_mcp.edits.pause_floor import PeerTrackSpeechIndex, retained_pause_floor_sec
+from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
 from podcast_mcp.edits.tighten.candidate import (
     _AnalyzedCut,
     _clamp_to_candidate,
@@ -60,6 +62,7 @@ from podcast_mcp.edits.tighten.plan import (
     _cut_minimum_sec,
     _CutPlan,
 )
+from podcast_mcp.edits.timeline_ops import LaneUnavailable, bind_pause_effects
 
 log = logging.getLogger(__name__)
 
@@ -213,9 +216,6 @@ def _prepare_candidate(
     if _clamp_to_candidate(candidate, plan.start, plan.end) != (plan.start, plan.end):
         return CutRejected("bounds")
     if candidate.cut_kind == "pause" and not mute_mode:
-        from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
-        from podcast_mcp.edits.timeline_ops import LaneUnavailable, bind_pause_effects
-
         words = cut_safety.pause_words(
             project, candidate.track_id, candidate.start, candidate.gap_end or candidate.end
         )
@@ -480,8 +480,6 @@ def _finish_candidate(
     replace_gap = plan.replace_gap_sec
     if checks.score_joins and bool(tighten.get("join_continuity_gate", False)):
         try:
-            from podcast_mcp.edits.join_continuity import JoinContinuityConfig
-
             jc_cfg = replace(
                 JoinContinuityConfig.from_defaults(defaults),
                 neural=False,

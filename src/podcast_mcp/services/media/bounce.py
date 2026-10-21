@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from podcast_mcp.config.defaults import mix_peak_ceiling_db
-from podcast_mcp.edits.range_edits import resolve_range
+from podcast_mcp.edits.range_target import resolve_range
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.export.audio import specs_from_extensions, write_audio_formats
 from podcast_mcp.export.names import sanitize_export_stem

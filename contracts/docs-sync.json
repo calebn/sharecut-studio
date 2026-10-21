@@ -1118,6 +1118,7 @@
       "advisory": {
         "include": [
           "src/podcast_mcp/edits/range_edits.py",
+          "src/podcast_mcp/edits/range_target.py",
           "gui/web/src/edit/rangeSelection.ts",
           "gui/web/src/commands/rangeActions.ts"
         ]

@@ -1315,6 +1315,26 @@ def assess_offer(
     return []
 
 
+def assess_source_offer(project: EpisodeProject, edit: EditDecision, *, defaults: dict) -> None:
+    if edit.boundary_intent is CutIntent.HUMAN_BOUNDARIES or edit.type == EditDecisionType.SPLIT:
+        return
+    holds = assess_offer(project, edit, defaults=defaults)
+    reason = (edit.reason or "").partition(":acoustic_review:")[0]
+    edit.reason = reason
+    mode: cut_policy.CutMode = "mute" if edit.type is EditDecisionType.MUTE else "ripple"
+    labels = [
+        cut_safety.safety_observation_label(hold)
+        for hold in holds
+        if cut_policy.action_for_safety_observation(
+            cut_safety.safety_observation_label(hold), mode
+        ).action
+        == "review"
+    ]
+    if labels:
+        edit.review_required = True
+        edit.reason = f"{reason}:acoustic_review:{','.join(dict.fromkeys(labels))}"
+
+
 @batch_scope()
 def apply_lower(
     project: EpisodeProject,

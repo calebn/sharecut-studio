@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-import podcast_mcp.edits.transcript_cuts as transcript_cuts
+import podcast_mcp.edits.transcript_search as transcript_search
 import podcast_mcp.services.collaboration as collaboration
 import podcast_mcp.services.jobs as service_jobs
 import podcast_mcp.services.record.service as record_service
@@ -339,7 +339,7 @@ TOOLS: dict[str, tuple[Site | None, dict[str, object]]] = {
     "guest_list_clips": (Site(remote_tools, "share_daw_project_view"), {}),
     "guest_list_pending_edits": (Site(remote_tools, "share_daw_project_view"), {}),
     "guest_list_applied_edits": (Site(remote_tools, "share_daw_project_view"), {}),
-    "guest_search_transcript": (Site(transcript_cuts, "search_transcript"), {"query": "x"}),
+    "guest_search_transcript": (Site(transcript_search, "search_transcript"), {"query": "x"}),
     "guest_render_status": (Site(remote_tools, "share_daw_project_view"), {}),
     "guest_list_comments": (Site(remote_tools, "share_project_view"), {}),
     "guest_audio_info": (None, {}),

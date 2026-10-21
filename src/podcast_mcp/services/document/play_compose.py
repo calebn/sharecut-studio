@@ -190,7 +190,7 @@ class _PlayCompose(_PlayStems):
     def play_selected_range(
         self, target: ExactRangeTarget, *, full_mix_path: Path | None = None
     ) -> Path:
-        from podcast_mcp.edits.range_edits import resolve_range
+        from podcast_mcp.edits.range_target import resolve_range
         from podcast_mcp.services.media import render_range_audio
 
         with self.ws.transaction() as project:

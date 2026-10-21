@@ -11,9 +11,12 @@ from dataclasses import dataclass
 from itertools import pairwise
 from typing import TYPE_CHECKING, Literal
 
+from podcast_mcp.edits.clips_ops import uses_crossfade_join
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions
 from podcast_mcp.edits.ripple import ripple_track_ids
+from podcast_mcp.edits.room_tone import room_tone_source_id
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
+from podcast_mcp.edits.track_media import full_span_clip
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     TimelineClipSpan,
@@ -21,6 +24,7 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
     origin_track_id_for_clip,
 )
+from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -28,10 +32,12 @@ from podcast_mcp.models import (
     EpisodeProject,
     TranscriptWord,
 )
-from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
+from podcast_mcp.util.tracks import recording_audio_path
+from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 if TYPE_CHECKING:
     from podcast_mcp.edits.timeline_ops import LaneUnavailable
@@ -301,14 +307,6 @@ def original_pause_support(
     words: tuple[TranscriptWord, TranscriptWord],
     observation: GeometricPause | MeasuredPause,
 ) -> OriginalQuietSupport | CutRejected:
-    from podcast_mcp.edits.clips_ops import uses_crossfade_join
-    from podcast_mcp.edits.ripple import ripple_track_ids
-    from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_media import full_span_clip
-    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
-    from podcast_mcp.util.coded_error import CodedError
-    from podcast_mcp.util.tracks import recording_audio_path
-    from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
     timeline = SessionTimeline(project)
     before, after = words

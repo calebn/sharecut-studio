@@ -72,7 +72,7 @@ def _raw_transcript(ws: ProjectWorkspace) -> dict[str, Any] | None:
     project = ws.project
     if project.transcripts:
         try:
-            from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
+            from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 
             return ensure_combined_transcript(project, defaults=ws.effective_config()).model_dump()
         except (ValueError, TypeError):
@@ -97,7 +97,7 @@ def build_track_views(
     render_status: dict[str, Any] | None = None,
     effects_by_track: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[TrackView]:
-    from podcast_mcp.edits.range_edits import range_media_seal
+    from podcast_mcp.edits.range_target import range_media_seal
 
     project = ws.project
     svc = edit if edit is not None else EditService(ws)

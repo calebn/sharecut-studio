@@ -323,7 +323,7 @@ def update_pending_edit(
         edit.start = start
         edit.end = end
     edit.boundary_intent = boundary_intent
-    from podcast_mcp.edits.cut_safety import assess_source_offer
+    from podcast_mcp.edits.cut_application import assess_source_offer
 
     assess_source_offer(project, edit, defaults=defaults)
     require_source_remove(project, edit)

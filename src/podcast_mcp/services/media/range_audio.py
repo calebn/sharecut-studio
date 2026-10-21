@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.range_edits import resolve_range
+from podcast_mcp.edits.range_target import resolve_range
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval

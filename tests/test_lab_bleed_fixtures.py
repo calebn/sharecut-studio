@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.range_edits import build_range_target
+from podcast_mcp.edits.range_target import build_range_target
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import render_track_segment
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording, Track

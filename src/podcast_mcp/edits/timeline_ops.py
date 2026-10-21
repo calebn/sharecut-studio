@@ -38,6 +38,7 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
     recommend_micro_fades,
 )
+from podcast_mcp.edits.join_modes import clamp_clip_fades
 from podcast_mcp.edits.mute_regions import (
     IgnoredWordRegions,
     mute_regions_overlapping,
@@ -60,9 +61,15 @@ from podcast_mcp.edits.room_tone import (
     room_tone_span,
 )
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
-from podcast_mcp.edits.transcript_cuts import TranscriptMatch, search_transcript
+from podcast_mcp.edits.track_media import full_span_clip
+from podcast_mcp.edits.transcript_search import (
+    TranscriptMatch,
+    search_transcript,
+    timeline_span_for_source,
+)
 from podcast_mcp.edits.transcript_sync import (
     apply_batch_transcript_removes,
+    apply_source_transcript_removes,
     rebuild_combined,
     restore_archived_words,
     timeline_removes_by_transcript,
@@ -74,8 +81,10 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import (
     Clip,
+    ClipBleedRestore,
     ClipJoinMode,
     ClipMuteRegion,
+    ClipOffSpeakerMuteRegion,
     CutSpeech,
     EditMode,
     EpisodeProject,
@@ -84,6 +93,7 @@ from podcast_mcp.models import (
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.media_identity import same_recording
+from podcast_mcp.util.text import normalize_text
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, unknown_track
 
@@ -225,7 +235,6 @@ def _write_punch_delete(
         clips_before, timeline_start, timeline_end, defaults=defaults
     )
     set_track_clips(project, track_id, updated)
-    from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
 
     removes_by_transcript = timeline_removes_by_transcript(
         project, clips_before, [(timeline_start, timeline_end)]
@@ -371,10 +380,6 @@ def _tightest_timeline_match(matches: list, *, label: str, query: str):
 
 def _exact_phrase_match(project: EpisodeProject, query: str) -> TranscriptMatch | None:
     """Contiguous word-sequence match (avoids substring hits inside longer lines)."""
-    from podcast_mcp.edits.transcript_cuts import (
-        _timeline_span_for_source,
-    )
-    from podcast_mcp.util.text import normalize_text
 
     q_words = normalize_text(query).split()
     if not q_words:
@@ -393,7 +398,7 @@ def _exact_phrase_match(project: EpisodeProject, query: str) -> TranscriptMatch 
                 continue
             src_start = float(words[i].start)
             src_end = float(words[i + len(q_words) - 1].end)
-            tl_start, tl_end = _timeline_span_for_source(
+            tl_start, tl_end = timeline_span_for_source(
                 project, transcript.track_id, transcript.source_id, src_start, src_end
             )
             if tl_start is None or tl_end is None:
@@ -835,7 +840,6 @@ def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str
                     parsed_mutes.append(ClipMuteRegion.model_validate(item))
                 except ValidationError:
                     continue
-        from podcast_mcp.models import ClipBleedRestore, ClipOffSpeakerMuteRegion
 
         try:
             automatic = [
@@ -935,7 +939,6 @@ def set_clip_fade(
     *,
     defaults: EffectiveConfig,
 ) -> dict:
-    from podcast_mcp.edits.join_modes import clamp_clip_fades
 
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
@@ -1004,7 +1007,6 @@ def _write_trim_clip_edge(
 
 def move_clips(project: EpisodeProject, clips: list[dict], *, defaults: EffectiveConfig) -> dict:
     """Reposition clips (session timeline + optional track). Not MoveSegment."""
-    from collections.abc import Mapping
 
     if not isinstance(clips, list) or not clips:
         raise CodedValueError(
@@ -1361,7 +1363,6 @@ def _project_pad_lane(
     *,
     defaults: EffectiveConfig,
 ) -> list[Clip] | LaneUnavailable:
-    from podcast_mcp.edits.track_media import full_span_clip
 
     track = project.track_by_id(tid)
     clips = [c.model_copy(deep=True) for c in clips_for_track(project, tid)]
@@ -1398,7 +1399,6 @@ def bind_pause_effects(
     defaults: EffectiveConfig,
 ) -> tuple[PauseEdgeFade, ...] | LaneUnavailable:
     """Bind finite effects to canonical survivors, preserving authored source fades."""
-    from podcast_mcp.edits.track_media import full_span_clip
 
     duration = sum(end - start for start, end in removal.spans)
     fades: list[PauseEdgeFade] = []

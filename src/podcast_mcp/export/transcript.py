@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
+from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.engines.utterance_runs import transcript_word_runs
 from podcast_mcp.export.names import sanitize_export_stem

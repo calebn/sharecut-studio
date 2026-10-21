@@ -5,7 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.range_edits import build_range_target, range_geometry
+from podcast_mcp.edits.range_target import build_range_target, range_geometry
 from podcast_mcp.engines.bleed_gate import bleed_gate_geometry
 from podcast_mcp.engines.media_probe import probe_first_audio_duration_sec
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
