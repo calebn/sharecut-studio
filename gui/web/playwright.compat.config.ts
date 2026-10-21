@@ -20,6 +20,11 @@ const projects: Project[] = [
     },
   },
   {
+    name: "firefox",
+    testMatch: ["**/drawer-drag.spec.ts"],
+    use: { ...devices["Desktop Firefox"] },
+  },
+  {
     name: "webkit",
     use: { ...devices["Desktop Safari"] },
   },

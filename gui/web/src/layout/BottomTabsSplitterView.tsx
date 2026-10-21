@@ -124,13 +124,19 @@ export function BottomTabsSplitterView({
     startRem: number;
     prior: { heightRem: number; userSet: boolean };
     painted: number | null;
+    /** Heights this drag has asked for; the prop can trail the latest by a render. */
+    requested: Set<number>;
     collapse: boolean;
   } | null>(null);
+
+  const stopListening = useRef<(() => void) | null>(null);
 
   const finish = useCallback((cancel: boolean) => {
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
+    stopListening.current?.();
+    stopListening.current = null;
     setCollapseArmed(false);
     const current = latest.current;
     const collapse = !cancel && drag.collapse;
@@ -151,8 +157,11 @@ export function BottomTabsSplitterView({
   useEffect(() => () => finish(true), [finish]);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current || (e.pointerType === "mouse" && e.button !== 0))
-      return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // The same pointer pressing again means its release was dropped; that
+    // must not wedge every later drag. Another pointer's drag is left alone.
+    if (dragRef.current?.pointerId === e.pointerId) finish(true);
+    else if (dragRef.current) return;
     e.preventDefault();
     e.currentTarget.focus({ preventScroll: true });
     e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -162,18 +171,48 @@ export function BottomTabsSplitterView({
       target: e.currentTarget,
       prior: { heightRem, userSet },
       painted: null,
+      requested: new Set(),
       collapse: false,
       startY: e.clientY,
       startRem:
         Number.isFinite(measured) && measured > 0 ? measured : heightRem,
     };
+    // Safari releases pointer capture mid-drag when the panel resizes under
+    // it, so the drag follows the pointer on the window instead.
+    const move = (ev: globalThis.PointerEvent) => onPointerMoveRef.current(ev);
+    const up = (ev: globalThis.PointerEvent) => {
+      if (dragRef.current?.pointerId === ev.pointerId) finish(false);
+    };
+    const cancel = (ev: globalThis.PointerEvent) => {
+      if (dragRef.current?.pointerId === ev.pointerId) finish(true);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    stopListening.current = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+    };
   };
 
-  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+  const onPointerMoveRef = useRef<
+    (e: { pointerId: number; clientY: number }) => void
+  >(() => {});
+  onPointerMoveRef.current = (e) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
+    // WebKit can deliver the next move before the prop catches up with the
+    // last height this drag asked for. Only a height this drag never asked for
+    // means something else resized the panel.
+    const trailing =
+      heightRem === drag.prior.heightRem || drag.requested.has(heightRem);
+    if (!trailing) {
+      finish(false);
+      return;
+    }
     if (
-      heightRem !== (drag.painted ?? drag.prior.heightRem) ||
+      heightRem === (drag.painted ?? drag.prior.heightRem) &&
       userSet !== (drag.painted !== null || drag.prior.userSet)
     ) {
       finish(false);
@@ -190,14 +229,8 @@ export function BottomTabsSplitterView({
     const next = Math.min(bounds.maxRem, Math.max(bounds.minRem, raw));
     if (next === (drag.painted ?? drag.startRem)) return;
     drag.painted = next;
+    drag.requested.add(next);
     onResize(next);
-  };
-
-  const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId === e.pointerId) finish(false);
-  };
-  const onPointerCancel = (e: PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId === e.pointerId) finish(true);
   };
 
   const resizeTo = (target: number, bounds: PanelGeometry) => {
@@ -270,10 +303,6 @@ export function BottomTabsSplitterView({
         data-collapse-armed={collapseArmed ? "" : undefined}
         tabIndex={0}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onLostPointerCapture={onPointerCancel}
         onBlur={() => finish(true)}
         onDoubleClick={() => {
           if (!dragRef.current) onReset();

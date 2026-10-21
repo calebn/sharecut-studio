@@ -146,7 +146,7 @@ describe("BottomTabsSplitter", () => {
     },
   );
 
-  it("restores a default on owner capture loss and leaves a no-op preference unset", () => {
+  it("restores a default on owner cancellation and leaves a no-op preference unset", () => {
     render(
       <div>
         <BottomTabsSplitter />
@@ -155,7 +155,7 @@ describe("BottomTabsSplitter", () => {
     const sep = screen.getByRole("separator", { name: "Resize editor panels" });
     fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
     fireEvent.pointerMove(sep, { pointerId: 1, clientY: 280 });
-    fireEvent.lostPointerCapture(sep, { pointerId: 1 });
+    fireEvent.pointerCancel(sep, { pointerId: 1 });
     expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBeNull();
     fireEvent.pointerDown(sep, { pointerId: 2, button: 0, clientY: 300 });
     fireEvent.pointerMove(sep, { pointerId: 2, clientY: 300 });
@@ -380,7 +380,6 @@ describe("measured shell panel bounds", () => {
         for (const cancel of [
           () => fireEvent.keyDown(sep, { key: "Escape" }),
           () => fireEvent.pointerCancel(sep, { pointerId: 17 }),
-          () => fireEvent.lostPointerCapture(sep, { pointerId: 17 }),
           () => fireEvent.blur(sep),
         ]) {
           fireEvent.pointerDown(sep, {
@@ -427,7 +426,7 @@ describe("measured shell panel bounds", () => {
         expect(Number(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY))).toBe(
           9.25,
         );
-        fireEvent.lostPointerCapture(sep, { pointerId: 2 });
+        fireEvent.pointerCancel(sep, { pointerId: 2 });
         expect(Number(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY))).toBe(
           10.25,
         );

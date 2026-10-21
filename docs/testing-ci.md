@@ -603,7 +603,7 @@ Run it locally (or use `make test-web-e2e`, which runs both suites):
 ```bash
 cd gui/web
 npm ci
-npm run test:e2e:install   # chromium + webkit
+npm run test:e2e:install   # chromium + webkit + firefox
 npm run build
 npm run test:e2e:compat
 ```
