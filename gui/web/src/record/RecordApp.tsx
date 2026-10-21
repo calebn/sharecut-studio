@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  BrandLockup,
   Button,
   CoverScreen,
   ErrorScreen,
@@ -372,7 +373,9 @@ export function RecordApp({ token }: { token: string }) {
     <main className="cover review-shell record-shell">
       <div className="cover-center center stack">
         <header className="stack">
-          <p className="wordmark">Sharecut Studio</p>
+          <p className="wordmark">
+            <BrandLockup name="Sharecut Studio" />
+          </p>
           <h1>{heading}</h1>
           {episodeName ? <p className="lede">{episodeName}</p> : null}
         </header>

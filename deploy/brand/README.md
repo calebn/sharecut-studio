@@ -27,3 +27,10 @@ Do not restyle individual UI surfaces. Lane / clip / warning tokens stay in
 CI: `tests/test_brand_color_roles.py`.
 
 After editing a brand file, copy it to the paths above.
+
+## ShareCut logo
+
+The approved lockup masters, the derived symbol, icon and lockup-geometry files and
+their provenance live in [`logo/`](logo/PROVENANCE.md). Regenerate the derived files
+with `python3 scripts/build_brand_assets.py`; `tests/test_public_sites.py` fails when
+they are stale or when a master no longer matches its recorded blob SHA.
