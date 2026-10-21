@@ -1058,7 +1058,6 @@
           "docs/gui-mobile.md",
           "docs/ui-philosophy.md",
           "docs/communication-philosophy.md",
-          "docs/daw-editing.md",
           "docs/host-online-relay.md",
           "docs/recording-session.md",
           "schemas/episode.project.schema.json"
