@@ -8,10 +8,17 @@ import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import split_clip_at
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
 from podcast_mcp.edits.decisions import reject_edits
-from podcast_mcp.edits.mute_regions import (
+from podcast_mcp.edits.tighten import analyze_fillers_and_pauses, propose_tighten_edits
+from podcast_mcp.edits.transcript_correct import set_words_ignored
+from podcast_mcp.edits.transcript_cuts import append_remove_decision
+from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.audio import MuteEnvelope
+from podcast_mcp.engines.audio_audit import measure_window_rms_db
+from podcast_mcp.engines.clips_ops import split_clip_at
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.mute_regions import (
     IgnoredWordRegions,
     add_source_mute,
     merge_mute_regions,
@@ -19,13 +26,6 @@ from podcast_mcp.edits.mute_regions import (
     mute_spans_for_source_window,
     subtract_source_mute,
 )
-from podcast_mcp.edits.tighten import analyze_fillers_and_pauses, propose_tighten_edits
-from podcast_mcp.edits.transcript_correct import set_words_ignored
-from podcast_mcp.edits.transcript_cuts import append_remove_decision
-from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.engines.audio import MuteEnvelope
-from podcast_mcp.engines.audio_audit import measure_window_rms_db
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.models import (
     Clip,
@@ -151,8 +151,8 @@ def test_overlapping_mutes_render_one_envelope_whatever_their_fills():
 
 
 def test_mute_region_fill_travels_with_its_span():
-    from podcast_mcp.edits.mute_regions import mute_regions_payload, muted_source_spans
     from podcast_mcp.edits.timeline_ops import paste_segment
+    from podcast_mcp.engines.mute_regions import mute_regions_payload, muted_source_spans
     from podcast_mcp.models import RoomToneFill
 
     tone = RoomToneFill(start_s=8.0, end_s=8.5)
@@ -839,7 +839,7 @@ def test_update_pending_mute_and_split_at_bounds(minimal_project):
 
 
 def test_extract_and_rebuild_clips_keep_mute_regions():
-    from podcast_mcp.edits.clips_ops import (
+    from podcast_mcp.engines.clips_ops import (
         extract_clips_in_timeline_range,
         remove_timeline_range_from_clips,
     )
@@ -1152,8 +1152,8 @@ def test_revert_mute_subtracts_regions_without_ripple(tmp_path, sample_wav):
 
 
 def test_paste_trim_and_roll_keep_overlapping_mute_regions_whole():
-    from podcast_mcp.edits.clips_ops import roll_clip_join
     from podcast_mcp.edits.timeline_ops import paste_segment
+    from podcast_mcp.engines.clips_ops import roll_clip_join
     from ripple_helpers import trim
 
     project = EpisodeProject.create("p", "/tmp/ws")
@@ -1715,9 +1715,9 @@ def test_trim_inside_a_mute_keeps_the_kept_part_silent(tmp_path, edge):
 
 
 def test_partial_copy_of_a_mute_pastes_silent_up_to_the_cut(tmp_path):
-    from podcast_mcp.edits.clips_ops import extract_clips_in_timeline_range
-    from podcast_mcp.edits.mute_regions import mute_regions_payload
     from podcast_mcp.edits.timeline_ops import paste_segment
+    from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range
+    from podcast_mcp.engines.mute_regions import mute_regions_payload
 
     project, region, whole = _approved_silent_mute(tmp_path)
     _, silent_end = _silent_span(region)
@@ -1897,7 +1897,7 @@ def test_repeated_rolls_never_duplicate_the_saved_mute_region(tmp_path):
 
 
 def test_roll_between_different_sources_keeps_each_clips_regions():
-    from podcast_mcp.edits.clips_ops import roll_clip_join
+    from podcast_mcp.engines.clips_ops import roll_clip_join
 
     project = EpisodeProject.create("p", "/tmp/ws")
     project.sources.extend(

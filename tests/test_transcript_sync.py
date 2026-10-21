@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
+from podcast_mcp.engines.room_tone import OwnQuietSample, Sample
 from podcast_mcp.engines.transcript_sync import (
     apply_batch_transcript_removes,
 )

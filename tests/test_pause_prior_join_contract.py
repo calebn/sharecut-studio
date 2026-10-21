@@ -13,7 +13,7 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
-from podcast_mcp.edits.clips_ops import uses_crossfade_join
+from podcast_mcp.engines.clips_ops import uses_crossfade_join
 from podcast_mcp.models import Clip, ClipJoinMode
 from podcast_mcp.services.document import EditService
 

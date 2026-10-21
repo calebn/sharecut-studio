@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import roll_join_limits, trim_edge_limits
+from podcast_mcp.engines.clips_ops import roll_join_limits, trim_edge_limits
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
     Clip,

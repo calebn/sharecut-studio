@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.edits.inaudible_cuts import recommend_micro_fades
+from podcast_mcp.engines.clips_ops import (
     new_clip_id,
     set_track_clips,
     update_timeline_duration,
 )
-from podcast_mcp.edits.inaudible_cuts import recommend_micro_fades
 from podcast_mcp.engines.level_profile import (
     PROFILE_SAMPLE_RATE,
     file_level_profile,

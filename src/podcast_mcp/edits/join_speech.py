@@ -17,8 +17,8 @@ from typing import Any, Literal
 import numpy as np
 
 from podcast_mcp.edits.audio_cache import track_level_profile
-from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
+from podcast_mcp.engines.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.models import Clip, EpisodeProject, TranscriptWord
 from podcast_mcp.util.dsp import autocorr_peak, bool_runs, bridge_short_dips, frame_rms_db
 from podcast_mcp.util.process import CalledProcessError

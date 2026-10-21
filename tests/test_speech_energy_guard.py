@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_safety import (
     ResolvedCutScope,
@@ -29,6 +28,7 @@ from podcast_mcp.engines.audio_audit import (
     measure_timeline_rms_db,
     timeline_frame_levels_db,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track, punch_timeline_range_from_clips
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.ungated_audio import raw_timeline_samples

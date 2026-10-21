@@ -15,7 +15,6 @@ from typing import Any, Final, Literal
 from pydantic import BaseModel
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ripple import RippleRemoval, ripple_track_ids
 from podcast_mcp.edits.speech_energy_guard import (
     guard_min_overlap_sec,
@@ -24,6 +23,7 @@ from podcast_mcp.edits.speech_energy_guard import (
     speech_words_in,
 )
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     CutSpeech,

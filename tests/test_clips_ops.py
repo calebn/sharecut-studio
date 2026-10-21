@@ -4,7 +4,8 @@ from math import isclose
 from pathlib import Path
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
+from podcast_mcp.engines.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     abutting_pairs,
     clips_abut,
@@ -12,7 +13,6 @@ from podcast_mcp.edits.clips_ops import (
     remove_timeline_range_from_clips,
     split_clip_at,
 )
-from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
 from podcast_mcp.models import Clip, EditMode, EpisodeProject, MediaAsset, Track, TrackRole
 
 ROOT = Path(__file__).resolve().parents[1]

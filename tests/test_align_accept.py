@@ -691,7 +691,7 @@ def test_gui_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
 
 
 def _split_all(p: EpisodeProject, track_id: str, at: float) -> None:
-    from podcast_mcp.edits.clips_ops import split_clip_at
+    from podcast_mcp.engines.clips_ops import split_clip_at
 
     clip = next(c for c in p.clips if c.track_id == track_id)
     p.clips = [c for c in p.clips if c.id != clip.id] + list(

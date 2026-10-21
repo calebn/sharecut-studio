@@ -392,7 +392,7 @@ join mode only on the right edge. The left edge owns the outgoing fade.
 
 Transcript words and ordinary remove/mute decisions use **source-media seconds**; rendered audio uses **timeline seconds**. `EditDecision.exact_range` is the explicit timeline-clock variant: its islands, destination lanes, observed clips and media seals must stay together. See [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
 
-Never round a clip's samples in a new place: a reader that turns clips into samples lays them out with `engines/sample_grid.lay_out` (the raw projection, `session_air.lane_window` and the peer guard do), and tests the result against the lane after the removal (`tests/test_native_sample_grid.py`).
+Never round a clip's samples in a new place: a reader that turns clips into samples lays them out with `engines/sample_grid.lay_out` (the raw projection, `lane_window.lane_window` and the peer guard do), and tests the result against the lane after the removal (`tests/test_native_sample_grid.py`).
 
 Build reviewed bleed targets with `build_range_target` in `edits/range_target.py`. `propose_range_mute_tool` accepts timeline intervals in that sealed target. Rendering maps approved mutes to each selected occurrence's source clock and preserves the original envelope endpoints when intersecting a playback window.
 

@@ -280,7 +280,7 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
     )
     probe = AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
     with (
-        patch("podcast_mcp.edits.track_media.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.engines.track_media.FFmpegEngine") as eng_cls,
         patch("podcast_mcp.services.media.ingest.schedule_track_waveforms") as waveforms,
     ):
         eng_cls.return_value.probe.return_value = probe
@@ -559,7 +559,7 @@ def test_apply_consolidated_tracks_absolute_paths(
         cross_speaker_offsets={"Host": 0.0},
     )
     probe = AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
-    with patch("podcast_mcp.edits.track_media.FFmpegEngine") as eng_cls:
+    with patch("podcast_mcp.engines.track_media.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
         track_ids = IngestService(ws).apply_consolidated_tracks(result).track_ids
     assert track_ids == ["host"]
@@ -599,7 +599,7 @@ def test_apply_consolidated_tracks_empty_speaker_tracks(
         alignments=[],
         cross_speaker_offsets={},
     )
-    with patch("podcast_mcp.edits.track_media.FFmpegEngine"):
+    with patch("podcast_mcp.engines.track_media.FFmpegEngine"):
         track_ids = IngestService(ws).apply_consolidated_tracks(result).track_ids
     assert track_ids == []
     proj = load_project(minimal_project)

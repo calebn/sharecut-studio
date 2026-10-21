@@ -352,7 +352,7 @@ class TrackRmsCache:
     def window(self, t_start: float, t_end: float) -> np.ndarray:
         """Raw sample slice for [t_start, t_end) timeline seconds; empty if out of range.
 
-        The start and the length are each rounded to a sample, as ``session_air.lane_window``
+        The start and the length are each rounded to a sample, as ``lane_window.lane_window``
         reads the same window uncached, so both readers return the same samples (#1560).
         """
         rng = self._index_range(t_start, t_end)
@@ -882,9 +882,9 @@ def _played_window(
     A rendered stem is the timeline as it was when it was rendered, so it is read only while
     it is fresh. After an edit moves the timeline it holds other audio at these seconds, and
     the lane's own recordings are read through its clips instead (the mapping a pause trim's
-    air is read through, ``edits/session_air.lane_window``).
+    air is read through, ``engines/lane_window.lane_window``).
     """
-    from podcast_mcp.edits.session_air import lane_window
+    from podcast_mcp.engines.lane_window import lane_window
 
     stem = _fresh_stem_path(project, track_id, defaults=defaults)
     if stem is not None:
@@ -1907,13 +1907,13 @@ def recommend_boundary_fades(
     defaults: EffectiveConfig,
 ) -> list[dict[str, Any]]:
     """Recommend clip fades where joins have large level jumps or no fades."""
-    # Deferred: edits/clips_ops.py sits behind the edits package __init__, which
+    # Deferred: engines/clips_ops.py sits behind the edits package __init__, which
     # imports edits/cut_quality.py, which imports back from this module -- a
     # module-level import here would make that a real circular import depending
     # on which module a process happens to touch first. Deferring it until this
     # function actually runs sidesteps the cycle: by then audio_audit has already
     # finished initializing.
-    from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
+    from podcast_mcp.engines.clips_ops import clips_abut, clips_for_track
 
     pol = policy or AnalysisPolicy.from_defaults(defaults=defaults)
     recs: list[dict[str, Any]] = []

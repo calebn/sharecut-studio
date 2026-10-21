@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from contract_project_helpers import contract_project
-from podcast_mcp.edits.clips_ops import roll_clip_join, roll_join_limits
+from podcast_mcp.engines.clips_ops import roll_clip_join, roll_join_limits
 from podcast_mcp.models import Clip
 
 CONTRACT = Path(__file__).resolve().parents[1] / "contracts" / "roll-join-limits.json"

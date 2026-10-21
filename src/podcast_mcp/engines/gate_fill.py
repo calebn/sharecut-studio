@@ -34,7 +34,7 @@ is read from, in order:
    faster than the rise bound, so a gate that closes on a tail with no hold has no steady
    run.
 2. **The track's own room**, when no hold is measured: the quiet runs the room-tone
-   sampler finds in its pauses (``edits/room_tone.py``, #1054), once they add up to
+   sampler finds in its pauses (``engines/room_tone.py``, #1054), once they add up to
    ``MIN_ROOM_SEC``. A gate that stays open through whole pauses has them, and when it
    closes further than ``MAX_HOLD_SEC`` from the voice no hold is measured.
 
@@ -80,7 +80,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.edits.room_tone import (
+from podcast_mcp.engines.room_tone import (
     MIN_BELOW_SPEECH_DB,
     BedUnavailable,
     LiveFloor,

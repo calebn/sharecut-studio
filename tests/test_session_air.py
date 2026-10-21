@@ -11,14 +11,9 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import PauseAir, pause_air_span
-from podcast_mcp.edits.session_air import (
-    Placement,
-    SessionAir,
-    lane_placements,
-    lane_window,
-    primary_media,
-)
+from podcast_mcp.edits.session_air import SessionAir
 from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.lane_window import Placement, lane_placements, lane_window, primary_media
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -272,7 +267,7 @@ def test_a_lane_window_lays_each_placement_where_it_plays_and_is_silent_in_a_hol
     def constant_by_source(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         return np.full(round(duration_sec * sample_rate), start_sec, dtype=np.float32)
 
-    with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=constant_by_source):
+    with patch("podcast_mcp.engines.lane_window.load_mono_window", side_effect=constant_by_source):
         got = lane_window(project, host, 1.5, 3.5, 100)
 
     assert got.tolist() == [1.5] * 50 + [0.0] * 100 + [5.0] * 50

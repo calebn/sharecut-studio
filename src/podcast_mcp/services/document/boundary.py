@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
-from podcast_mcp.edits.clips_ops import neighbour_clips, roll_join_limits, trim_edge_limits
+from podcast_mcp.engines.clips_ops import neighbour_clips, roll_join_limits, trim_edge_limits
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, EditMode, EpisodeProject

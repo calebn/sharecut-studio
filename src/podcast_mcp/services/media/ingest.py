@@ -7,9 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.conversation_align import ingest_alignment_meta_key
-from podcast_mcp.edits.track_media import apply_full_span_media
 from podcast_mcp.engines.alignment_audit import (
     VADWindowRMSCache,
     check_drift,
@@ -19,10 +17,12 @@ from podcast_mcp.engines.alignment_audit import (
     sweep_session_starts,
     vad_speech_intervals,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.session_timeline import (
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
 )
+from podcast_mcp.engines.track_media import apply_full_span_media
 from podcast_mcp.ingest.consolidate import (
     ConsolidateResult,
     consolidate_speakers,
@@ -342,9 +342,9 @@ class IngestService:
 
         def mutate(p) -> None:
             warnings.clear()
-            from podcast_mcp.edits.clips_ops import new_clip_id, set_track_clips
             from podcast_mcp.edits.ingest_placement import place_ingest_sources
-            from podcast_mcp.edits.track_media import (
+            from podcast_mcp.engines.clips_ops import new_clip_id, set_track_clips
+            from podcast_mcp.engines.track_media import (
                 media_asset_from_path,
                 refresh_timeline_duration,
             )

@@ -10,7 +10,30 @@ from pydantic import ValidationError
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipping_truncated
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.edits.comment_remap import remap_review_anchors_for_cuts
+from podcast_mcp.edits.cut_speech import cut_speech_params
+from podcast_mcp.edits.edit_log import archive_timeline_op, seam_source_by_track
+from podcast_mcp.edits.inaudible_cuts import (
+    optimize_timeline_cut_range,
+    recommend_micro_fades,
+)
+from podcast_mcp.edits.join_modes import clamp_clip_fades
+from podcast_mcp.edits.ripple import (
+    RippleRemoval,
+    TrackExtent,
+    TrimPlan,
+    apply_trim_geometry,
+    ripple_insert_clips,
+    ripple_remove_clips,
+    ripple_track_ids,
+)
+from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
+from podcast_mcp.edits.transcript_search import (
+    TranscriptMatch,
+    search_transcript,
+    timeline_span_for_source,
+)
+from podcast_mcp.engines.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     clips_for_track,
     extract_clips_in_timeline_range,
@@ -25,53 +48,30 @@ from podcast_mcp.edits.clips_ops import (
     split_clip_at,
     update_timeline_duration,
 )
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.engines.clips_ops import (
     move_clips as move_clips_bounds,
 )
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.engines.clips_ops import (
     roll_clip_join as roll_clip_join_bounds,
 )
-from podcast_mcp.edits.comment_remap import remap_review_anchors_for_cuts
-from podcast_mcp.edits.cut_speech import cut_speech_params
-from podcast_mcp.edits.edit_log import archive_timeline_op, seam_source_by_track
-from podcast_mcp.edits.inaudible_cuts import (
-    optimize_timeline_cut_range,
-    recommend_micro_fades,
-)
-from podcast_mcp.edits.join_modes import clamp_clip_fades
-from podcast_mcp.edits.mute_regions import (
+from podcast_mcp.engines.mute_regions import (
     IgnoredWordRegions,
     mute_regions_overlapping,
     mute_regions_payload,
 )
-from podcast_mcp.edits.ripple import (
-    RippleRemoval,
-    TrackExtent,
-    TrimPlan,
-    apply_trim_geometry,
-    ripple_insert_clips,
-    ripple_remove_clips,
-    ripple_track_ids,
-)
-from podcast_mcp.edits.room_tone import (
+from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
+from podcast_mcp.engines.room_tone import (
     OwnQuietSample,
     RecordedBedSample,
     SampleAbsent,
     room_tone_span,
 )
-from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
-from podcast_mcp.edits.track_media import full_span_clip
-from podcast_mcp.edits.transcript_search import (
-    TranscriptMatch,
-    search_transcript,
-    timeline_span_for_source,
-)
-from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
     origin_track_id_for_clip,
 )
+from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.engines.transcript_sync import (
     apply_batch_transcript_removes,
     apply_source_transcript_removes,
@@ -1210,7 +1210,7 @@ def fill_with_room_tone(
     min_gap_sec: float = JOIN_GAP_TOLERANCE_SEC,
     defaults: EffectiveConfig,
 ) -> dict:
-    """Fill timeline gaps between clips with the track's room tone (``edits/room_tone.py``).
+    """Fill timeline gaps between clips with the track's room tone (``engines/room_tone.py``).
 
     Only gaps wider than ``min_gap_sec`` are filled; the default is the shared join
     tolerance, so pairs that already render as a join are left alone. A gap with no

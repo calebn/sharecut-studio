@@ -4,7 +4,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.tighten_hits import (
@@ -17,6 +16,7 @@ from podcast_mcp.edits.timeline_span import (
     source_remove_timeline_spans,
     timeline_span_dicts,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     origin_resolver,

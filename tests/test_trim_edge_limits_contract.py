@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from contract_project_helpers import contract_project
-from podcast_mcp.edits.clips_ops import trim_edge_limits
+from podcast_mcp.engines.clips_ops import trim_edge_limits
 from podcast_mcp.models import Clip, EditMode
 
 CONTRACT = Path(__file__).resolve().parents[1] / "contracts" / "trim-edge-limits.json"

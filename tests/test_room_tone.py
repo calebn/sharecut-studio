@@ -12,13 +12,13 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_placement import CutScopeHold
-from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,
     insert_room_tone_pad,
     mute_room_tone_fill,
 )
+from podcast_mcp.engines.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -555,7 +555,7 @@ def test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull(tmp_path: Pat
 def test_room_tone_is_picked_once_and_recorded_with_the_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     project = _project(tmp_path, host=_host_audio())
     assert room_tone.read_room_tone_pool(project, "host") is None
@@ -589,7 +589,7 @@ def test_room_tone_is_picked_once_and_recorded_with_the_project(
 
 
 def test_a_replaced_recording_is_picked_again(tmp_path: Path) -> None:
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     project = _project(tmp_path, host=_host_audio())
     room_tone.record_room_tone_pool(project, "host")
@@ -603,7 +603,7 @@ def test_a_replaced_recording_is_picked_again(tmp_path: Path) -> None:
 def test_a_pool_is_not_picked_without_the_voice_detector(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     project = _project(tmp_path, host=_host_audio())
     monkeypatch.setattr(room_tone, "_voice_detector_missing", lambda: True)
@@ -617,7 +617,7 @@ def test_a_pool_is_not_picked_without_the_voice_detector(
 
 
 def test_the_pool_digest_changes_once_a_pool_is_recorded(tmp_path: Path) -> None:
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     project = _project(tmp_path, host=_host_audio())
     before = room_tone.room_tone_pool_digest(project)
@@ -628,7 +628,7 @@ def test_the_pool_digest_changes_once_a_pool_is_recorded(tmp_path: Path) -> None
 
 
 def test_a_long_recording_gets_an_anchor_about_every_minute(tmp_path: Path) -> None:
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     assert room_tone.POOL_ANCHORS_MIN <= room_tone.POOL_ANCHORS_MAX
     project = _project(tmp_path, host=_host_audio())
@@ -637,7 +637,7 @@ def test_a_long_recording_gets_an_anchor_about_every_minute(tmp_path: Path) -> N
 
 
 def test_the_in_memory_pools_are_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     monkeypatch.setattr(room_tone, "_POOLS_KEPT", 3)
     monkeypatch.setattr(room_tone, "_POOLS", {})
@@ -649,7 +649,7 @@ def test_the_in_memory_pools_are_bounded(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_ensure_pools_records_once_and_skips_unreadable_tracks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     project = _project(tmp_path, host=_host_audio())
     room_tone.ensure_room_tone_pools(project, ["host", "missing", "host"])
@@ -667,7 +667,7 @@ def test_ensure_pools_records_once_and_skips_unreadable_tracks(
 def test_scheduling_a_pool_records_it_in_the_background_once(tmp_path: Path) -> None:
     import threading
 
-    from podcast_mcp.edits import room_tone
+    from podcast_mcp.engines import room_tone
 
     project = _project(tmp_path, host=_host_audio())
     assert room_tone.schedule_room_tone_pool(project, "host") is True

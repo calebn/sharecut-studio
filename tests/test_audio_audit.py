@@ -284,7 +284,7 @@ def test_recommend_boundary_fades_adjacent_clips(tmp_path: Path):
 
 
 def test_recommend_boundary_fades_treats_sub_tolerance_gap_as_join(tmp_path: Path):
-    from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC
+    from podcast_mcp.engines.clips_ops import JOIN_GAP_TOLERANCE_SEC
     from podcast_mcp.models import MediaAsset
 
     project = EpisodeProject.create("ep", str(tmp_path))
@@ -1350,7 +1350,7 @@ def test_rms_for_track_at_timeline_paths(sample_wav: Path, tmp_path: Path):
     assert raw_rms is not None
 
     with patch(
-        "podcast_mcp.edits.session_air.lane_clip_placements",
+        "podcast_mcp.engines.lane_window.lane_clip_placements",
         side_effect=RuntimeError("bad map"),
     ):
         assert (
@@ -1389,7 +1389,7 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
         patch("podcast_mcp.engines.play_audit.stem_is_fresh", return_value=False),
         patch("podcast_mcp.engines.audio_audit.load_mono_window") as stem_read,
         patch(
-            "podcast_mcp.edits.session_air.load_mono_window", return_value=np.zeros(4000)
+            "podcast_mcp.engines.lane_window.load_mono_window", return_value=np.zeros(4000)
         ) as lane,
     ):
         assert (
@@ -1406,7 +1406,7 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
         patch(
             "podcast_mcp.engines.audio_audit.load_mono_window", return_value=np.zeros(4000)
         ) as stem_read,
-        patch("podcast_mcp.edits.session_air.load_mono_window") as lane,
+        patch("podcast_mcp.engines.lane_window.load_mono_window") as lane,
     ):
         assert (
             aa.timeline_window_samples(project, "host", 0.0, 0.5, defaults=load_defaults())

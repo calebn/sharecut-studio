@@ -14,13 +14,13 @@ from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.filler_pacing import (
     pause_trim_is_imperceptible,
 )
-from podcast_mcp.edits.mute_regions import (
-    muted_source_spans,
-    source_span_is_muted,
-)
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.shared_pause import PauseClaim, shared_pause_twins
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
+from podcast_mcp.engines.mute_regions import (
+    muted_source_spans,
+    source_span_is_muted,
+)
 from podcast_mcp.models import (
     ClipMuteRegion,
     EditDecision,

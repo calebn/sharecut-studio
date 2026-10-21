@@ -69,10 +69,29 @@ def test_importing_one_edits_module_loads_no_cut_stack() -> None:
     import sys
 
     code = (
-        "import sys, podcast_mcp.edits.clips_ops;"
+        "import sys, podcast_mcp.edits.ripple;"
         "heavy = [m for m in ('podcast_mcp.edits.cut_application', 'podcast_mcp.edits.tighten',"
         " 'podcast_mcp.edits.transcript_cuts') if m in sys.modules];"
         "print(heavy); sys.exit(1 if heavy else 0)"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_engines_import_nothing_from_edits() -> None:
+    """``engines`` sits below ``edits``: no engines module imports it, inline or not (#1813)."""
+    offenders: list[str] = []
+    for path in sorted((_SRC / "engines").rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path))):
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                names = [mod] + (
+                    [f"{mod}.{a.name}" for a in node.names] if mod == "podcast_mcp" else []
+                )
+            else:
+                continue
+            if any(n == "podcast_mcp.edits" or n.startswith("podcast_mcp.edits.") for n in names):
+                offenders.append(f"{path.relative_to(_SRC)}:{node.lineno}")
+    assert not offenders, offenders

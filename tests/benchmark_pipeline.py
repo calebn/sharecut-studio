@@ -12,12 +12,12 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     analyze_cleanup,
     compute_word_audibility_map,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import (
     Clip,

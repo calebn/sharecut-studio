@@ -433,7 +433,7 @@ more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
   QC skip muted time when they look for stacked copies, so they report exactly the
   audio two lanes play at once: none with `owner` or `lane`, the flagged crosstalk with
   `both`.
-- `--room-tone-fill` lays the track's room tone (`edits/room_tone.py`, #1054) under each
+- `--room-tone-fill` lays the track's room tone (`engines/room_tone.py`, #1054) under each
   mute. It is off by default: the open lane already carries the bed, so every fill adds
   another copy of it to the mix. A gated recording has no room tone and stays silent.
 

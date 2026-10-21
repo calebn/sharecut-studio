@@ -20,7 +20,7 @@ A track with more digital silence than quiet live frames is gated: its bed is th
 silence, and its live frames are speech whose quiet onsets and tails would pass for a
 floor. It has no quiet runs, so no room tone, and the result does not hang on the voice
 detector. Its floor and speech level are still measured: the gate fill reads its speech
-level for the same credibility rule (``edits/gate_fill.py``).
+level for the same credibility rule (``engines/gate_fill.py``).
 
 A request ranks the quiet runs by distance from the cut (all of them sit at the floor,
 so the nearest matches the room at the cut best), takes the window of its length nearest

@@ -11,18 +11,6 @@ from tempfile import TemporaryDirectory
 from typing import Any, Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.bleed_restore import (
-    RESTORE_RENDER_REV,
-    RestoreSupport,
-    active_restore_regions,
-    restore_gains_for_frames,
-    restored_pcm,
-)
-from podcast_mcp.edits.mute_regions import (
-    IgnoredWordRegions,
-    mute_spans_for_source_window,
-    sample_mute_envelopes,
-)
 from podcast_mcp.engines.audio import (
     At,
     FrameTransform,
@@ -36,12 +24,24 @@ from podcast_mcp.engines.audio import (
     rescale_frames,
 )
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, bleed_gate_payload, build_bleed_gate_plan
+from podcast_mcp.engines.bleed_restore import (
+    RESTORE_RENDER_REV,
+    RestoreSupport,
+    active_restore_regions,
+    restore_gains_for_frames,
+    restored_pcm,
+)
 from podcast_mcp.engines.ffmpeg import (
     FFmpegEngine,
     automatic_gain_expression,
     mute_gain_expression,
 )
 from podcast_mcp.engines.media_seek import MediaSeek
+from podcast_mcp.engines.mute_regions import (
+    IgnoredWordRegions,
+    mute_spans_for_source_window,
+    sample_mute_envelopes,
+)
 from podcast_mcp.engines.render_clock import (
     _EVENT,
     ClockBinding,

@@ -6,7 +6,10 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.bleed_text_match import (
+from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
+from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
+from podcast_mcp.engines.bleed_text_match import (
     EchoTwinPath,
     _audibility_score,
     _pick_text_match_winner,
@@ -15,9 +18,6 @@ from podcast_mcp.edits.bleed_text_match import (
     echo_twin_paths,
     overlap_text_match_losers,
 )
-from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
-from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
     Clip,

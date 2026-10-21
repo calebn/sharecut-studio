@@ -16,7 +16,8 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.breath_detect import PauseAir, PauseAirSkip, pause_air_span
-from podcast_mcp.edits.session_air import SessionAir, lane_placements
+from podcast_mcp.edits.session_air import SessionAir
+from podcast_mcp.engines.lane_window import lane_placements
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,

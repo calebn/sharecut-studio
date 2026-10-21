@@ -13,12 +13,12 @@ from typer.testing import CliRunner
 from history_helpers import history_move
 from podcast_mcp.cli.main import app
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import crossfade_ms_at_join, roll_clip_join
 from podcast_mcp.edits.join_modes import (
     default_join_length_ms,
     set_clip_join,
     set_clip_join_mode,
 )
+from podcast_mcp.engines.clips_ops import crossfade_ms_at_join, roll_clip_join
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.render_invalidations import reason_for_operation
 from podcast_mcp.engines.timeline_render import render_track_from_timeline

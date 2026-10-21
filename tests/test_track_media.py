@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.edits.track_media import (
+from podcast_mcp.engines.track_media import (
     apply_full_span_media,
     clip_media_duration,
     media_asset_from_path,

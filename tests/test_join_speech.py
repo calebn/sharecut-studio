@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track, is_splice, splice_joins
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.join_speech import (
     JoinSpeechConfig,
@@ -18,6 +17,7 @@ from podcast_mcp.edits.join_speech import (
     speech_crossing_at_edge,
     speech_crossings_in_window,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track, is_splice, splice_joins
 from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.models import (
     Clip,

@@ -664,7 +664,7 @@ def test_episode_service_add_track_returns_before_waveform(minimal_project, samp
 
 
 def test_episode_service_empty_set_meta_remove(minimal_project, sample_wav):
-    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.engines.clips_ops import clips_for_track
 
     ws = ProjectWorkspace.open(minimal_project)
     svc = EpisodeService(ws)

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.engines.clips_ops import (
     clips_for_track,
     remove_timeline_range_from_clips,
     set_track_clips,

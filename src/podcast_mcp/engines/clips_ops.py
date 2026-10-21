@@ -9,7 +9,8 @@ from itertools import pairwise
 from typing import Any, Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms
-from podcast_mcp.edits.mute_regions import merge_mute_regions, mute_regions_overlapping
+from podcast_mcp.engines.alignment_key import ingest_alignment_key
+from podcast_mcp.engines.mute_regions import merge_mute_regions, mute_regions_overlapping
 from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
@@ -127,8 +128,6 @@ def is_session_join(project: EpisodeProject, timeline_sec: float, edge: str) -> 
 
 
 def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -> None:
-    from podcast_mcp.edits.conversation_align import ingest_alignment_key
-
     track = project.track_by_id(track_id)
     previous = clips_for_track(project, track_id)
     if track is not None:

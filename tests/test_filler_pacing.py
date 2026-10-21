@@ -18,10 +18,10 @@ from podcast_mcp.edits.filler_pacing import (
     flanking_retained_words,
     shrink_cut_for_min_gap,
 )
-from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.tighten import analyze_fillers_and_pauses
 from podcast_mcp.edits.timeline_ops import insert_room_tone_pad
 from podcast_mcp.edits.transcript_cuts import cut_time_range
+from podcast_mcp.engines.room_tone import OwnQuietSample, Sample
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -287,9 +287,9 @@ def test_room_tone_expand_falls_back_when_gap_huge():
 @pytest.mark.parametrize("pad_mode", ["silence", "room_tone"])
 def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_mode):
     from podcast_mcp.edits import cut_application, cut_effects
-    from podcast_mcp.edits.clips_ops import split_clip_at
     from podcast_mcp.edits.cut_application import apply_auto_edits
     from podcast_mcp.edits.timeline_ops import RoomTonePad
+    from podcast_mcp.engines.clips_ops import split_clip_at
     from podcast_mcp.util.batch_scope import batch_scope
 
     words = [

@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits.clips_ops import move_clips, pin_clip_source_id
+from podcast_mcp.engines.clips_ops import move_clips, pin_clip_source_id
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, TrackRole
 from podcast_mcp.services.app.workspace import ProjectWorkspace

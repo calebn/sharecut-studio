@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.conversation_align import (
     LOCKED_METHODS,
     REFERENCE_METHOD,
@@ -25,6 +24,7 @@ from podcast_mcp.edits.review_gate import (
     ReviewSource,
     ReviewStatus,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import Clip, EpisodeProject, TrackRole
 from podcast_mcp.util.atomic_json import load_json_object

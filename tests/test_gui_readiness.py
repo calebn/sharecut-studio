@@ -215,9 +215,9 @@ def _project_with_moved_clip() -> EpisodeProject:
 def test_ripple_across_a_moved_clip_records_the_seam_not_the_source_envelope() -> None:
     import pytest
 
-    from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.edit_log import list_applied_edits
     from podcast_mcp.edits.timeline_ops import move_clips
+    from podcast_mcp.engines.clips_ops import clips_for_track
 
     p = _project_with_moved_clip()
     move_clips(
@@ -274,9 +274,9 @@ def _assert_restore_requires_history(project, record_id):
 
 
 def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
-    from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.edit_log import list_applied_edits
     from podcast_mcp.edits.timeline_ops import move_clips
+    from podcast_mcp.engines.clips_ops import clips_for_track
 
     p = _project_with_moved_clip()
     move_clips(
@@ -297,9 +297,9 @@ def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
 
 
 def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
-    from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.edit_log import list_applied_edits
     from podcast_mcp.edits.timeline_ops import _write_punch_delete, move_clips
+    from podcast_mcp.engines.clips_ops import clips_for_track
 
     p = _project_with_moved_clip()
     move_clips(
@@ -328,7 +328,7 @@ def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(
 ) -> None:
     import pytest
 
-    from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
+    from podcast_mcp.engines.clips_ops import clips_for_track, update_timeline_duration
     from podcast_mcp.models import save_project
     from podcast_mcp.project.history.manager import snapshot_from_project
     from podcast_mcp.services.app import ProjectWorkspace
@@ -390,8 +390,8 @@ def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(
 def test_revert_refuses_a_session_cut_across_a_late_joining_track() -> None:
     import pytest
 
-    from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.edit_log import list_applied_edits
+    from podcast_mcp.engines.clips_ops import clips_for_track
 
     p = _project_with_two_clips()
     p.timeline.tracks[0].media = MediaAsset(path="raw/host.wav", duration_sec=20.0)
@@ -427,9 +427,9 @@ def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
     """Recorded clocks stay within the GUI's APPLIED_EDGE_EPS_SEC through ripple/split/trim/roll."""
     import re
 
-    from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.edit_log import list_applied_edits
     from podcast_mcp.edits.timeline_ops import roll_clip_join, split_clips_at
+    from podcast_mcp.engines.clips_ops import clips_for_track
     from ripple_helpers import trim
 
     ticks_ts = (ROOT / "gui/web/src/timeline/appliedEditTicks.ts").read_text(encoding="utf-8")
