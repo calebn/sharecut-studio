@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { claimTopLayerFloor, enterTopLayerPanel } from "./topLayerFloor";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  claimTopLayerFloor,
+  enterTopLayerPanel,
+  showInTopLayer,
+} from "./topLayerFloor";
 
 function popover(log: string[], name: string): HTMLElement {
   const el = document.createElement("div");
@@ -9,8 +13,13 @@ function popover(log: string[], name: string): HTMLElement {
   el.hidePopover = () => {
     log.push(`hide ${name}`);
   };
+  document.body.append(el);
   return el;
 }
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
 
 describe("top layer floor", () => {
   it("shows the toast region after a panel that opens while it is visible", () => {
@@ -72,5 +81,32 @@ describe("top layer floor", () => {
       proto.showPopover = showPopover;
       proto.hidePopover = hidePopover;
     }
+  });
+
+  it("ignores a region that left the document before a panel opened", () => {
+    const log: string[] = [];
+    const region = popover(log, "toast");
+    const release = claimTopLayerFloor(region);
+    region.remove();
+    const leave = enterTopLayerPanel();
+    leave();
+    expect(log).toEqual([]);
+    release();
+  });
+
+  it("does not hide a panel that left the document before it closed", () => {
+    const log: string[] = [];
+    const panel = popover(log, "panel");
+    const close = showInTopLayer(panel);
+    panel.remove();
+    close();
+    expect(log).toEqual(["show panel"]);
+  });
+
+  it("hides a panel that is still showing when it closes", () => {
+    const log: string[] = [];
+    const panel = popover(log, "panel");
+    showInTopLayer(panel)();
+    expect(log).toEqual(["show panel", "hide panel"]);
   });
 });

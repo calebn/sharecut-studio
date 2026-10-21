@@ -1799,6 +1799,19 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   z-index: var(--z-menu);
 }
 
+/* In the top layer these are popovers: undo the UA's centered, bordered,
+   scrolling box so the layer stays a full-viewport sheet of geometry. */
+:is(.create-menu-layer, .target-chooser)[popover] {
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+}
+
 .create-menu-scrim {
   position: absolute;
   inset: 0;

@@ -351,5 +351,5 @@ consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
-| Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` hand-roll `role="menu"` and stay outside the top layer (the touch chooser drag specs break in WebKit when the chooser is a popover; the create menu shares that layer markup). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); a lane, clip or marker is not focusable, so a keyboard user with no focused target reaches the create actions through the palette and keys only. |
+| Menus: one primitive, context menus from one descriptor | `timeline/CreateMenu.tsx` and `timeline/TargetChooser.tsx` hand-roll `role="menu"` (in the top layer). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); a lane, clip or marker is not focusable, so a keyboard user with no focused target reaches the create actions through the palette and keys only. |
 | Confirms: one primitive | `WhisperDownloadDialog` (`panels/WhisperModelPicker.tsx`) is a hand-built confirm-shaped `Dialog` that also runs the download with progress; it is not `askConfirm`. |
