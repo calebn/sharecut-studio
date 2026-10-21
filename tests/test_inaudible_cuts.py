@@ -810,3 +810,28 @@ def test_absorb_trailing_silence_disabled_and_no_next_word(tmp_path: Path) -> No
             p, "host", 0.2, 0.5, config=enabled, force_enabled=True, defaults=load_defaults()
         )
     assert opt.end >= opt.start
+
+
+def test_cut_word_index_is_kept_until_a_word_changes(tmp_path: Path) -> None:
+    p = _project(tmp_path)
+    transcript = p.transcripts[0]
+    transcript.words = [
+        TranscriptWord(text="a", start=1.0, end=1.2),
+        TranscriptWord(text="b", start=2.0, end=2.2),
+    ]
+    first = CutWordIndex.from_transcript(transcript, "host")
+    assert CutWordIndex.from_transcript(transcript, "host") is first
+    # The index reads each word against its track, so another track gets its own.
+    assert CutWordIndex.from_transcript(transcript, "guest") is not first
+
+    transcript.words[1].suppressed = True
+    changed = CutWordIndex.from_transcript(transcript, "host")
+    assert changed is not first
+    assert changed.live_word_spans(0.0, 5.0) == [(1.0, 1.2)]
+    assert first.live_word_spans(0.0, 5.0) == [(1.0, 1.2), (2.0, 2.2)]
+
+    transcript.words.append(TranscriptWord(text="c", start=3.0, end=3.2))
+    assert CutWordIndex.from_transcript(transcript, "host").live_word_spans(0.0, 5.0) == [
+        (1.0, 1.2),
+        (3.0, 3.2),
+    ]
