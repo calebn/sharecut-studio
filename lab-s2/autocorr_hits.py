@@ -30,7 +30,7 @@ def counting(samples, rate, *, fmin, fmax, interior=False):
     return real(samples, rate, fmin=fmin, fmax=fmax, interior=interior)
 
 
-for module in ("podcast_mcp.edits.voiced_runs", "podcast_mcp.edits.acoustic_gap",
+for module in ("podcast_mcp.util.dsp", "podcast_mcp.edits.voiced_runs", "podcast_mcp.edits.acoustic_gap",
                "podcast_mcp.edits.join_continuity", "podcast_mcp.edits.join_speech"):
     mod = __import__(module, fromlist=["x"])
     mod.autocorr_peak = counting
