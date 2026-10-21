@@ -25,7 +25,7 @@ from manifest import (
 )
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.track_media import apply_full_span_media
+from podcast_mcp.engines.track_media import apply_full_span_media
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import EpisodeProject, Track, TrackRole, Transcript, TranscriptWord
 from podcast_mcp.project.store import ProjectStore

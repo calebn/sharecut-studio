@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import extract_clips_in_timeline_range, split_clip_at
 from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, bleed_gate_payload
+from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range, split_clip_at
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.models import Clip, ClipMuteRegion, EditMode, EpisodeProject, MediaAsset, Track
@@ -202,7 +202,7 @@ def test_inactive_restore_keeps_legacy_pcm_exact(
 def test_same_recording_bytes_survive_relocation_and_source_pinning(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.edits.clips_ops import move_clips
+    from podcast_mcp.engines.clips_ops import move_clips
 
     project = _project(tmp_path)
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.6)])
@@ -269,7 +269,7 @@ def test_joint_choices_union_adjacent_source_regions_before_one_ramp(
 def test_split_preserves_original_restore_ramps_with_only_authored_microfades(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.edits.clips_ops import join_micro_fade_ms
+    from podcast_mcp.engines.clips_ops import join_micro_fade_ms
     from podcast_mcp.models import ClipJoinMode
 
     project = _project(tmp_path)
@@ -323,7 +323,7 @@ def test_render_counterfactual_failure_preserves_output_and_removes_temporary_au
 
 
 def test_restore_pcm_widens_subtraction_saturates_and_preserves_zero_corrections() -> None:
-    from podcast_mcp.edits.bleed_restore import restored_pcm
+    from podcast_mcp.engines.bleed_restore import restored_pcm
 
     baseline = np.array([[30000, -30000], [123, -456], [32767, -32768]], dtype="<i2")
     whole = np.array([[32767, -32768], [123, -456], [32767, -32768]], dtype="<i2")
@@ -341,7 +341,7 @@ def test_restore_pcm_widens_subtraction_saturates_and_preserves_zero_corrections
 
 
 def test_narrow_restore_ramp_uses_saved_bounds_and_caps_each_edge() -> None:
-    from podcast_mcp.edits.bleed_restore import RestoreSupport, restore_gains_for_frames
+    from podcast_mcp.engines.bleed_restore import RestoreSupport, restore_gains_for_frames
 
     support = (
         RestoreSupport(
@@ -373,8 +373,8 @@ def test_restore_keeps_cached_automatic_plan_identity(tmp_path: Path) -> None:
 
 
 def test_roll_does_not_transfer_restore_and_trim_retains_hidden_choices(tmp_path: Path) -> None:
-    from podcast_mcp.edits.clips_ops import roll_clip_join
     from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
+    from podcast_mcp.engines.clips_ops import roll_clip_join
 
     project = _project(tmp_path)
     left, right = split_clip_at(
@@ -572,7 +572,7 @@ def test_fractional_restore_uses_prepared_sample_clock(
 def test_content_memo_observes_atomic_replacement_with_same_size_and_mtime(tmp_path: Path) -> None:
     import os
 
-    from podcast_mcp.edits.bleed_restore import active_restore_regions
+    from podcast_mcp.engines.bleed_restore import active_restore_regions
     from podcast_mcp.util.batch_scope import batch_scope
 
     project = _project(tmp_path)
@@ -637,7 +637,7 @@ def test_media_change_refuses_restore_publication_preserving_prior_artifacts(
             replace_source()
             return digest
 
-        monkeypatch.setattr("podcast_mcp.edits.bleed_restore.sha256_file", change_after_hash)
+        monkeypatch.setattr("podcast_mcp.engines.bleed_restore.sha256_file", change_after_hash)
     elif stage == "after_whole":
         real_render = engine.render_timeline
 

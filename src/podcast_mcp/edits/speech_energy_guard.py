@@ -18,14 +18,7 @@ import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import track_level_profile
-from podcast_mcp.edits.clips_ops import clips_for_track, remove_timeline_range_from_clips
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
-from podcast_mcp.edits.session_air import (
-    SampleRun,
-    lane_clip_placements,
-    lane_placements,
-    read_samples,
-)
 from podcast_mcp.edits.voiced_runs import (
     FRAME_SEC,
     HOP_SEC,
@@ -40,6 +33,13 @@ from podcast_mcp.engines.audio_audit import (
     measure_timeline_rms_db,
     timeline_frame_levels_db,
     timeline_window_samples,
+)
+from podcast_mcp.engines.clips_ops import clips_for_track, remove_timeline_range_from_clips
+from podcast_mcp.engines.lane_window import (
+    SampleRun,
+    lane_clip_placements,
+    lane_placements,
+    read_samples,
 )
 from podcast_mcp.engines.level_profile import (
     LEVEL_FRAME_SEC,

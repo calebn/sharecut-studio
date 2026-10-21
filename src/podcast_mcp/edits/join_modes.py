@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 
 from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
+from podcast_mcp.engines.clips_ops import (
     abutting_pairs,
     clips_for_track,
     crossfade_block_reason,
@@ -14,7 +15,6 @@ from podcast_mcp.edits.clips_ops import (
     neighbour_clips,
     previous_clip,
 )
-from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError

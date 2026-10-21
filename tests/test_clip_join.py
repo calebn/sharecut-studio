@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.engines.clips_ops import (
     clip_index,
     crossfade_block_reason,
     crossfade_ms_at_join,

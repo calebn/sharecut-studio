@@ -11,9 +11,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.gate_fill import detect_gate_holes, fill_gate_holes
-from podcast_mcp.edits.room_tone import room_tone_source_id
+from podcast_mcp.engines.gate_fill import detect_gate_holes, fill_gate_holes
 from podcast_mcp.engines.play_audit import track_render_hash
+from podcast_mcp.engines.room_tone import room_tone_source_id
 from podcast_mcp.engines.timeline_render import (
     render_source_with_chain,
     render_track_from_timeline,

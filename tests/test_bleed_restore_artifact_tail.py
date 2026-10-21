@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.bleed_restore import RestoreSupport
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
+from podcast_mcp.engines.bleed_restore import RestoreSupport
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.render_clock import read_render_clock
 from podcast_mcp.engines.timeline_render import render_track_from_timeline

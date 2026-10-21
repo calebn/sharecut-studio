@@ -12,13 +12,6 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
-from podcast_mcp.edits.clips_ops import (
-    abutting_pairs,
-    clip_split_origin,
-    clips_for_track,
-    punch_timeline_range_from_clips,
-    set_track_clips,
-)
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
@@ -44,7 +37,6 @@ from podcast_mcp.edits.decisions import (
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.join_modes import cap_fade_ms
-from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.source_removals import (
     STALE_REASON,
@@ -65,6 +57,14 @@ from podcast_mcp.edits.timeline_ops import (
     room_tone_pad,
     split_clips_at,
 )
+from podcast_mcp.engines.clips_ops import (
+    abutting_pairs,
+    clip_split_origin,
+    clips_for_track,
+    punch_timeline_range_from_clips,
+    set_track_clips,
+)
+from podcast_mcp.engines.mute_regions import add_source_mute
 from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speaker_mute
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
@@ -511,7 +511,7 @@ def _write_source_remove(
     pads: list[cut_effects.PadEffect],
     defaults: EffectiveConfig,
 ) -> tuple[float, float, list[str], dict]:
-    from podcast_mcp.edits.track_media import full_span_clip
+    from podcast_mcp.engines.track_media import full_span_clip
 
     scope = edit.scope or "session"
     tl_start, tl_end = map(float, span)

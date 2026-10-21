@@ -183,7 +183,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
 
         def apply():
             if operation == "late_pad_fade":
-                from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
+                from podcast_mcp.engines.room_tone import OwnQuietSample, Sample
 
                 monkeypatch.setattr(decisions, "filler_pad_mode", lambda *args, **kw: "room_tone")
                 monkeypatch.setattr(

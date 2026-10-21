@@ -47,7 +47,8 @@ _LOAD_CONTRACTS = """
 import sys
 from podcast_mcp.config import defaults as config
 from podcast_mcp.project.transcript_context import _GLOBAL_DEFAULTS_PATH
-from podcast_mcp.edits import clips_ops, ripple
+from podcast_mcp.edits import ripple
+from podcast_mcp.engines import clips_ops
 from podcast_mcp.engines import ranges
 from podcast_mcp.util import contracts
 from podcast_mcp.util.asset_sources import load_manifest

@@ -22,9 +22,9 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.clips_ops import clips_for_track, set_track_clips, split_clip_at
-from podcast_mcp.edits.track_media import clip_media_duration, refresh_timeline_duration
 from podcast_mcp.engines import bleed_lag_segments, bleed_latency
+from podcast_mcp.engines.alignment_key import ingest_alignment_key, speaker_label
+from podcast_mcp.engines.clips_ops import clips_for_track, set_track_clips, split_clip_at
 from podcast_mcp.engines.envelope_lag import (
     LEVEL_FLOOR_DB,
     level_envelope_db,
@@ -42,6 +42,7 @@ from podcast_mcp.engines.session_timeline import (
     slip_clip_to_shift,
 )
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+from podcast_mcp.engines.track_media import clip_media_duration, refresh_timeline_duration
 from podcast_mcp.engines.transcript_align import (
     WordToken,
     offset_turn_taking_score,
@@ -550,22 +551,11 @@ def equal_duration_dialogue(project: EpisodeProject) -> tuple[list[str], float] 
     return _equal_duration_units(dialogue_align_units(project))
 
 
-def _speaker_label(track: Track) -> str:
-    return track.speaker or track.label or track.id
-
-
-def ingest_alignment_key(track: Track, clip: Clip, *, per_clip: bool) -> str:
-    """``meta.ingest_alignment`` key: ``track_id:clip_id`` per clip, else the speaker label."""
-    return f"{track.id}:{clip.id}" if per_clip else _speaker_label(track)
-
-
 def _speaker_key_unique(project: EpisodeProject, track: Track) -> bool:
     """True when no other dialogue track shares this track's speaker label."""
-    label = _speaker_label(track)
+    label = speaker_label(track)
     return (
-        sum(
-            1 for t in project.tracks if t.role == TrackRole.DIALOGUE and _speaker_label(t) == label
-        )
+        sum(1 for t in project.tracks if t.role == TrackRole.DIALOGUE and speaker_label(t) == label)
         == 1
     )
 

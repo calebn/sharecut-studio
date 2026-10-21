@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
-from podcast_mcp.edits.bleed_restore import RESTORE_RENDER_REV
-from podcast_mcp.edits.clips_ops import clips_for_track
-from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
+from podcast_mcp.engines.bleed_restore import RESTORE_RENDER_REV
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.mute_regions import IgnoredWordRegions, mute_regions_payload
 from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
@@ -109,7 +109,7 @@ def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effe
         "envelope": envelope_audio_payload(env),
     }
     if track is not None and track.gate_fill is not None:
-        from podcast_mcp.edits.gate_fill import gate_fill_payload
+        from podcast_mcp.engines.gate_fill import gate_fill_payload
 
         # Only while set, so stems hashed before gate fill existed stay valid.
         payload["gate_fill"] = gate_fill_payload(project, track)
@@ -139,8 +139,8 @@ def _media_revision(path: Path) -> FileRevision | None:
 def _restore_media_paths(
     project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
 ) -> list[Path]:
-    from podcast_mcp.edits.gate_fill import current_gate_fill_path
     from podcast_mcp.engines.bleed_gate import bleed_gate_payload
+    from podcast_mcp.engines.gate_fill import current_gate_fill_path
 
     paths = set()
     for clip in clips_for_track(project, track_id):

@@ -526,7 +526,7 @@ def test_full_lane_cut_reload_render_and_undo(minimal_project):
 
     import numpy as np
 
-    from podcast_mcp.edits.clips_ops import set_track_clips
+    from podcast_mcp.engines.clips_ops import set_track_clips
     from podcast_mcp.engines.session_timeline import SessionTimeline
     from podcast_mcp.engines.timeline_render import render_track_segment
     from podcast_mcp.models import MediaAsset

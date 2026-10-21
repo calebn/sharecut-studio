@@ -207,7 +207,7 @@ drags detent at soft boundaries ([round 4b](touch-editor-decisions.md#touch-gram
 
 ## Clip join fields
 
-`list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector's Join control and the timeline join popover set a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only and returns the same `join_*` fields, so a caller sees when a crossfade has nothing to blend.
+`list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `engines/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector's Join control and the timeline join popover set a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only and returns the same `join_*` fields, so a caller sees when a crossfade has nothing to blend.
 
 ## Layout (Reaper-style)
 

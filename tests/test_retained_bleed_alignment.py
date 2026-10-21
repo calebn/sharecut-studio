@@ -934,8 +934,8 @@ def test_scoped_delay_decodes_bounded_context_on_two_hour_source_with_null_contr
 def test_ordinary_clip_replacement_preserves_per_clip_manual_recorder_lock(
     tmp_path: Path, operation: str
 ) -> None:
-    from podcast_mcp.edits.clips_ops import punch_timeline_range_from_clips, set_track_clips
     from podcast_mcp.edits.timeline_ops import split_clip
+    from podcast_mcp.engines.clips_ops import punch_timeline_range_from_clips, set_track_clips
     from podcast_mcp.models import SpeakerIngestAlignment
 
     p = _two_phrase_episode(tmp_path)
@@ -1495,7 +1495,7 @@ def test_primary_ignored_words_and_conversation_tokens_do_not_project_to_seconda
     tmp_path: Path,
 ) -> None:
     from podcast_mcp.edits.conversation_align import transcript_for_clip
-    from podcast_mcp.edits.mute_regions import IgnoredWordRegions
+    from podcast_mcp.engines.mute_regions import IgnoredWordRegions
 
     p = _episode(tmp_path)
     _select_secondary_source(p, tmp_path)

@@ -8,7 +8,6 @@ from pydantic import Field
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_check_override import active_override
-from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     LaneSourceExtent,
@@ -26,6 +25,7 @@ from podcast_mcp.edits.source_removals import (
     resize_source_remove,
 )
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
+from podcast_mcp.engines.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     CutIntent,

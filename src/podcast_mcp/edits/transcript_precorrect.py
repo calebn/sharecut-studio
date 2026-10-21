@@ -7,7 +7,6 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.bleed_text_match import pair_word, pair_word_key
 from podcast_mcp.edits.transcript_correct import apply_transcript_corrections
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
@@ -16,6 +15,7 @@ from podcast_mcp.engines.audio_audit import (
     build_track_rms_caches,
     compute_word_audibility_map,
 )
+from podcast_mcp.engines.bleed_text_match import pair_word, pair_word_key
 from podcast_mcp.engines.transcribe import collect_anomalous_asr_duration_flags
 from podcast_mcp.models import EpisodeProject, TranscriptWord
 from podcast_mcp.project.transcript_context import (

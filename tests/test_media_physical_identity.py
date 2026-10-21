@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from podcast_mcp.edits.session_air import Placement, SessionAir, lane_placements
+from podcast_mcp.edits.session_air import SessionAir
+from podcast_mcp.engines.lane_window import Placement, lane_placements
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,

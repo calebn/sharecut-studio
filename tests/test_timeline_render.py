@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC
 from podcast_mcp.engines.audio import (
     At,
     Audio,
@@ -18,6 +17,7 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
     sources,
 )
+from podcast_mcp.engines.clips_ops import JOIN_GAP_TOLERANCE_SEC
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import (
     placed_track_audio,
@@ -755,7 +755,7 @@ def test_render_track_without_clips_uses_full_file(sample_wav: Path, tmp_path: P
 
 
 def test_crossfade_join_helpers():
-    from podcast_mcp.edits.clips_ops import (
+    from podcast_mcp.engines.clips_ops import (
         crossfade_ms_at_join,
         uses_crossfade_join,
     )
@@ -783,7 +783,7 @@ def test_crossfade_join_helpers():
 
 
 def test_crossfade_join_uses_canonical_gap_tolerance():
-    from podcast_mcp.edits.clips_ops import uses_crossfade_join
+    from podcast_mcp.engines.clips_ops import uses_crossfade_join
 
     left = Clip(
         id="left",

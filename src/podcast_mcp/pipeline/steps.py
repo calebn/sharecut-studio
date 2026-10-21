@@ -13,7 +13,6 @@ from uuid import uuid4
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
-from podcast_mcp.edits.room_tone import ensure_room_tone_pools
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.mastering import (
     MasterQcLimits,
@@ -22,6 +21,7 @@ from podcast_mcp.engines.mastering import (
     master_qc_issues,
 )
 from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
+from podcast_mcp.engines.room_tone import ensure_room_tone_pools
 from podcast_mcp.engines.waveform_media import ensure_project_waveforms, schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -530,7 +530,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
 
 
 def fill_gate_holes(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.edits.gate_fill import fill_gate_holes as fill
+    from podcast_mcp.engines.gate_fill import fill_gate_holes as fill
 
     return fill(project, defaults)
 

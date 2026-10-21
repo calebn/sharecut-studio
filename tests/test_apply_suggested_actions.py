@@ -322,8 +322,8 @@ def test_a_lowered_region_renders_at_its_gain_and_a_mute_still_renders_silent(tm
 
     import numpy as np
 
-    from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
+    from podcast_mcp.engines.mute_regions import mute_spans_for_source_window
 
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
@@ -412,7 +412,7 @@ def test_a_cut_the_guard_holds_for_another_speaker_applies_as_a_session_ripple_a
 def test_a_lowered_span_beside_a_mute_keeps_the_mute_and_does_not_widen_it(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
-    from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
+    from podcast_mcp.engines.mute_regions import mute_spans_for_source_window
 
     path = _project(tmp_path, sample_wav)
     proj = load_project(Path(path))

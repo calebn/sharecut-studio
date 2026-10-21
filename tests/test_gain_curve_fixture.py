@@ -74,7 +74,7 @@ _MUTE_FIXTURE = json.loads(
 
 def _render_unit_mute(case: dict) -> np.ndarray:
     """What the render does to a clip of constant 1.0 under its mute regions."""
-    from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
+    from podcast_mcp.engines.mute_regions import mute_spans_for_source_window
     from podcast_mcp.models import Clip, ClipMuteRegion
 
     start, end = case["clip"]["source_start"], case["clip"]["source_end"]

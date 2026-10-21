@@ -11,8 +11,8 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.bleed_restore import RestoreSupport
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
+from podcast_mcp.engines.bleed_restore import RestoreSupport
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.atomic_file import publish_completed_file
@@ -368,7 +368,7 @@ def apply_restored_bleed_gate_plan(
 ) -> Path:
     from contextlib import ExitStack
 
-    from podcast_mcp.edits.bleed_restore import restore_gains_for_frames, restored_pcm
+    from podcast_mcp.engines.bleed_restore import restore_gains_for_frames, restored_pcm
 
     with tempfile.NamedTemporaryFile(suffix=".wav", dir=wav_path.parent, delete=False) as temporary:
         target_path = Path(temporary.name)

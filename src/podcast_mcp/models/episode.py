@@ -257,9 +257,9 @@ class Track(BaseModel):
     # Optional recorded quiet bed (raw/room-tone/{session}/{participant}.wav;
     # the older raw/room-tone/{participant}.wav path still works for existing
     # projects). Filler pads prefer this over room tone sampled from the track
-    # (edits/room_tone.py) when filler_pad_mode is room_tone.
+    # (engines/room_tone.py) when filler_pad_mode is room_tone.
     room_tone: MediaAsset | None = None
-    # Written by the pipeline's fill_gate_holes step (edits/gate_fill.py).
+    # Written by the pipeline's fill_gate_holes step (engines/gate_fill.py).
     gate_fill: GateFill | None = None
     # Staging gain the pipeline's balance step writes (dialogue toward target LUFS).
     gain_db: float = 0.0

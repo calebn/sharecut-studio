@@ -17,8 +17,8 @@ from pause_policy_public_helpers import (
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.breath_detect import PauseAir, pause_air_span
 from podcast_mcp.edits.cut_application import _apply_replace_gap_pad
-from podcast_mcp.edits.gate_fill import fill_gate_holes
 from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.engines.gate_fill import fill_gate_holes
 from podcast_mcp.models import Clip, GateFillSource, Transcript, TranscriptWord
 
 

@@ -26,7 +26,7 @@ def test_a_clip_with_an_unlisted_source_is_a_data_inconsistency_not_a_missing_ta
 
 
 def test_a_clip_whose_source_left_the_project_reads_as_the_same_inconsistency() -> None:
-    from podcast_mcp.edits.clips_ops import source_duration_sec
+    from podcast_mcp.engines.clips_ops import source_duration_sec
     from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
 
     project = EpisodeProject.create("t", "/tmp/ws")
@@ -48,7 +48,7 @@ def test_a_clip_whose_source_left_the_project_reads_as_the_same_inconsistency() 
 def test_a_source_id_from_the_project_is_an_inconsistency_one_from_a_request_a_missing_target() -> (
     None
 ):
-    from podcast_mcp.edits.clips_ops import _same_recording
+    from podcast_mcp.engines.clips_ops import _same_recording
     from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
     from podcast_mcp.util.tracks import recording_audio_path
 

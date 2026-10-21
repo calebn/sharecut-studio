@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import set_track_clips
 from podcast_mcp.edits.ripple import ripple_remove_clips
 from podcast_mcp.edits.timeline_ops import _write_punch_delete
 from podcast_mcp.engines.audio_audit import _played_window
+from podcast_mcp.engines.clips_ops import set_track_clips
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.engines.ungated_audio import raw_timeline_samples, raw_timeline_window

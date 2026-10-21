@@ -15,7 +15,7 @@ import pytest
 
 import benchmark_tighten as bench
 from podcast_mcp.edits import cut_effects
-from podcast_mcp.edits.clips_ops import clip_split_origin
+from podcast_mcp.engines.clips_ops import clip_split_origin
 from podcast_mcp.models import CutIntent
 
 _WORDS = 40

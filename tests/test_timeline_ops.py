@@ -6,7 +6,6 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
-from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.timeline_ops import (
     _write_ripple_delete,
     duplicate_segment,
@@ -20,6 +19,7 @@ from podcast_mcp.edits.timeline_ops import (
     split_clip,
 )
 from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
+from podcast_mcp.engines.room_tone import OwnQuietSample, Sample
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,
@@ -1059,8 +1059,8 @@ def test_move_segment_insert_after_source() -> None:
 
 
 def test_insert_room_tone_pad_falls_back_without_bed() -> None:
-    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.timeline_ops import insert_room_tone_pad
+    from podcast_mcp.engines.room_tone import room_tone_source_id
 
     p = _two_track_project()
     p.clips = [

@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.off_speaker_mute import OffSpeakerPlan, apply_off_speaker_mutes
+from podcast_mcp.engines.mute_regions import add_source_mute
 from podcast_mcp.models import ClipMuteRegion, RoomToneFill
 from test_bleed_restore_core import RATE, _pcm, _project, _render, _restore
 
@@ -70,8 +70,8 @@ def test_automatic_reapply_keeps_restore_and_has_no_authored_change(tmp_path):
 
 
 def test_automatic_full_anchors_survive_split_extract_and_clipboard(tmp_path):
-    from podcast_mcp.edits.clips_ops import extract_clips_in_timeline_range, split_clip_at
     from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
+    from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range, split_clip_at
     from podcast_mcp.models import EditMode, EpisodeProject
 
     project = _project(tmp_path)
@@ -478,7 +478,7 @@ def test_changed_automatic_restore_dependency_keeps_completed_artifact(
 
 
 def test_roll_does_not_union_automatic_ownership_or_restore_into_neighbor(tmp_path):
-    from podcast_mcp.edits.clips_ops import roll_clip_join
+    from podcast_mcp.engines.clips_ops import roll_clip_join
 
     project = _project(tmp_path)
     project.clips[0].source_end = 0.5
@@ -498,7 +498,7 @@ def test_roll_does_not_union_automatic_ownership_or_restore_into_neighbor(tmp_pa
 def test_split_retains_original_automatic_fades_and_restore_edges(tmp_path, monkeypatch, rate):
     import wave
 
-    from podcast_mcp.edits.clips_ops import split_clip_at
+    from podcast_mcp.engines.clips_ops import split_clip_at
     from podcast_mcp.models import ClipOffSpeakerMuteRegion
 
     project = _project(tmp_path)
@@ -514,7 +514,7 @@ def test_split_retains_original_automatic_fades_and_restore_edges(tmp_path, monk
     ]
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.3, 0.6)])
     whole = _render(project, tmp_path / "whole.wav", None)
-    monkeypatch.setattr("podcast_mcp.edits.clips_ops.join_micro_fade_ms", lambda **_kw: 0)
+    monkeypatch.setattr("podcast_mcp.engines.clips_ops.join_micro_fade_ms", lambda **_kw: 0)
     project.clips = list(split_clip_at(project.clips[0], 0.45, defaults=load_defaults()))
     split = _render(project, tmp_path / "split.wav", None)
     np.testing.assert_array_equal(split, whole)

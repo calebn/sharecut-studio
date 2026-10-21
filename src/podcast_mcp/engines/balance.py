@@ -14,7 +14,7 @@ BALANCE_SEMANTICS_REVISION = 1
 def kept_speech_intervals(
     project: EpisodeProject, track_id: str
 ) -> list[tuple[float, float]] | None:
-    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.engines.clips_ops import clips_for_track
     from podcast_mcp.engines.transcript_gated_play import source_word_intervals
     from podcast_mcp.util.intervals import intersect_intervals
 

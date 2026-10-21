@@ -13,7 +13,7 @@ import pytest
 # subprocess so it reproduces the real failure mode.
 #
 # Root cause (fixed): engines/timeline_render.py used to import clip_timeline_end
-# from edits/clips_ops.py, which (via the edits package __init__) transitively
+# from engines/clips_ops.py, which (via the edits package __init__) transitively
 # imports edits/cut_quality.py and edits/audio_cache.py, both of which import
 # back from engines/audio_audit.py -- a real cycle if audio_audit.py (or anything
 # that imports engines/timemap.py, which imports engines/timeline_render.py) is

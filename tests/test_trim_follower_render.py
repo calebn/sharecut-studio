@@ -9,8 +9,8 @@ import pytest
 
 from contract_project_helpers import contract_project
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import update_timeline_duration
 from podcast_mcp.engines.audio import MixAudio
+from podcast_mcp.engines.clips_ops import update_timeline_duration
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.session_timeline import same_source_timeline_overlaps
 from podcast_mcp.engines.timeline_render import render_track_from_timeline

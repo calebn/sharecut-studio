@@ -7,11 +7,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.clips_ops import (
+from podcast_mcp.engines.clips_ops import (
     clips_for_track,
     update_timeline_duration,
 )
-from podcast_mcp.edits.mute_regions import subtract_source_mute
+from podcast_mcp.engines.mute_regions import subtract_source_mute
 from podcast_mcp.engines.session_timeline import seam_source_clocks_over_clips
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (

@@ -17,7 +17,6 @@ from podcast_mcp.edits.acoustic_word import (
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.cut_application import apply_auto_edits
 from podcast_mcp.edits.cut_policy import decision_policy
-from podcast_mcp.edits.mute_regions import muted_source_spans
 from podcast_mcp.edits.pause_floor import peer_speech_indexes
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
@@ -46,6 +45,7 @@ from podcast_mcp.edits.tighten_reasons import (
     is_possible_word_reason,
 )
 from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
+from podcast_mcp.engines.mute_regions import muted_source_spans
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import dialogue_track_ids

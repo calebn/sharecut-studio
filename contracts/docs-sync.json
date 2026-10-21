@@ -389,7 +389,7 @@
       ],
       "gate": {
         "include": [
-          "src/podcast_mcp/edits/gate_fill.py"
+          "src/podcast_mcp/engines/gate_fill.py"
         ]
       }
     },
@@ -481,7 +481,7 @@
           "src/podcast_mcp/edits/align_accept_status.py",
           "src/podcast_mcp/edits/conversation_align.py",
           "src/podcast_mcp/edits/ingest_placement.py",
-          "src/podcast_mcp/edits/track_media.py",
+          "src/podcast_mcp/engines/track_media.py",
           "src/podcast_mcp/cli/ingest.py",
           "src/podcast_mcp/cli/align_cmd.py",
           "src/podcast_mcp/mcp/tools/ingest.py",
@@ -1191,7 +1191,7 @@
         "include": [
           "src/podcast_mcp/edits/tighten/",
           "src/podcast_mcp/edits/word_onset.py",
-          "src/podcast_mcp/edits/mute_regions.py"
+          "src/podcast_mcp/engines/mute_regions.py"
         ]
       }
     },

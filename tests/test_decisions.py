@@ -6,7 +6,6 @@ import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
 from podcast_mcp.edits.cut_application import apply_auto_edits, apply_prefix_edits, approve_edits
 from podcast_mcp.edits.decisions import (
     edit_impact_report,
@@ -27,6 +26,7 @@ from podcast_mcp.edits.timeline_ops import (
     plan_delete_clips,
     split_clips_at,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track, update_timeline_duration
 from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
@@ -923,7 +923,7 @@ def test_format_edit_impact_markdown_lists_applied_segments():
 
 def test_join_rules_follow_shared_gap_tolerance(tmp_path, monkeypatch):
     """Edit-time join fades and the gap summary read JOIN_GAP_TOLERANCE_SEC, not a literal."""
-    import podcast_mcp.edits.clips_ops as clips_ops
+    import podcast_mcp.engines.clips_ops as clips_ops
     from podcast_mcp.edits.cut_application import _write_join_fades
 
     proj = _project_with_clip(tmp_path)

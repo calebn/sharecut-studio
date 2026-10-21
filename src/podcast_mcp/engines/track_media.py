@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from podcast_mcp.edits.clips_ops import new_clip_id, set_track_clips
+from podcast_mcp.engines.clips_ops import new_clip_id, set_track_clips
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track
 from podcast_mcp.util.coded_error import CodedValueError

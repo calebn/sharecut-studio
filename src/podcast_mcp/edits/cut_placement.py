@@ -11,12 +11,11 @@ from dataclasses import dataclass
 from itertools import pairwise
 from typing import TYPE_CHECKING, Literal
 
-from podcast_mcp.edits.clips_ops import uses_crossfade_join
-from podcast_mcp.edits.mute_regions import IgnoredWordRegions
 from podcast_mcp.edits.ripple import ripple_track_ids
-from podcast_mcp.edits.room_tone import room_tone_source_id
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
-from podcast_mcp.edits.track_media import full_span_clip
+from podcast_mcp.engines.clips_ops import uses_crossfade_join
+from podcast_mcp.engines.mute_regions import IgnoredWordRegions
+from podcast_mcp.engines.room_tone import room_tone_source_id
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     TimelineClipSpan,
@@ -25,6 +24,7 @@ from podcast_mcp.engines.session_timeline import (
     origin_track_id_for_clip,
 )
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.models import (
     Clip,
     EditDecision,

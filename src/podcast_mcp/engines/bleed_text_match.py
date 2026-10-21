@@ -11,6 +11,7 @@ from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.lane_words import WordKey, lane_transcripts, transcript_word_key
+from podcast_mcp.engines.overlap_report import overlap_duplicate_report
 from podcast_mcp.models import EpisodeProject, TranscriptWord
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.wer import normalize_token
@@ -209,8 +210,6 @@ def overlap_text_match_losers(
     """
     if not policy.bleed_text_match_enabled:
         return []
-
-    from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
 
     echo_pairs = list(echo_pairs)
     if not echo_pairs:

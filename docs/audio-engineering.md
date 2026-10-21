@@ -22,7 +22,7 @@ holds other audio at the same seconds. The audit reads a stem's audio only while
 `stem_is_fresh` says it is fresh (`_fresh_stem_path`), including when it decodes each track
 once for a long cut's speech guard (`build_track_rms_caches`, with `unprocessed=True` when
 a track has an effects chain, same as reconcile); otherwise it reads the
-recordings through each track's clips (`edits/session_air.lane_window`, on the same native sample grid as the raw projection: `engines/sample_grid.py`).
+recordings through each track's clips (`engines/lane_window.lane_window`, on the same native sample grid as the raw projection: `engines/sample_grid.py`).
 
 ## Reading a spectrogram
 
@@ -460,7 +460,7 @@ recorders. Between words the gate drops the track to exact digital zero. Where e
 track is gated at once the mix falls to dead air. Where one gate dips mid-phrase, the
 voice seems to cut in and out. Editors fill those holes with matched room tone so the
 noise floor stays continuous. The `fill_gate_holes` pipeline step does that
-(`edits/gate_fill.py`, #1111).
+(`engines/gate_fill.py`, #1111).
 
 **Holes come from the media, not from our edits.** A hole is a run, on every channel, of
 samples below half a 16-bit step (−96 dBFS). It is at least 20 ms long, holds an exact
@@ -490,7 +490,7 @@ that power spectrum. It reads that noise from one of two places, in order:
    the track has pauses of its own.
 2. **The track's own room**, when no hold is measured. Some gates stay open through
    whole pauses and close long after the voice, so no closure has the voice within reach.
-   The step then uses the quiet runs the room-tone sampler finds (`edits/room_tone.py`,
+   The step then uses the quiet runs the room-tone sampler finds (`engines/room_tone.py`,
    #1054): stretches within 10 dB of the track's floor, trimmed 150 ms from speech and
    digital silence. It needs at least 1 s of them.
 
