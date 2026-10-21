@@ -170,6 +170,7 @@ def _hide_host_word_aligner(
     if request.node.get_closest_marker("e2e_real"):
         return
     monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.setattr(
         "podcast_mcp.config.defaults.word_aligner_cache_dir", lambda: tmp_path / "word-aligner"
     )

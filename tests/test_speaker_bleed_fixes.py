@@ -195,10 +195,22 @@ def test_speaker_doctor_recommends_speechbrain_before_mock() -> None:
     rz = type("B", (), {"name": lambda self: "resemblyzer"})()
     with patch(
         "podcast_mcp.engines.speaker_id.resolve_speaker_backend",
-        side_effect=[sb, rz, MockSpeakerBackend()],
+        side_effect=[ImportError("no onnx"), sb, rz, MockSpeakerBackend()],
     ):
         doc = speaker_doctor()
     assert doc["recommended"] == "speechbrain-ecapa"
+
+
+def test_speaker_doctor_recommends_the_onnx_backend_first() -> None:
+    onnx = type("B", (), {"name": lambda self: "ecapa-onnx"})()
+    sb = type("B", (), {"name": lambda self: "speechbrain-ecapa"})()
+    with patch(
+        "podcast_mcp.engines.speaker_id.resolve_speaker_backend",
+        side_effect=[onnx, sb, ImportError("no rz"), MockSpeakerBackend()],
+    ):
+        doc = speaker_doctor()
+    assert doc["available_backends"] == ["ecapa-onnx", "speechbrain-ecapa", "mock"]
+    assert doc["recommended"] == "ecapa-onnx"
 
 
 def test_label_track_home_speaker_suppresses_bleed_windows(tmp_path, sample_wav) -> None:

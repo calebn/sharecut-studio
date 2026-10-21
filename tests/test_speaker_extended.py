@@ -836,7 +836,12 @@ def test_resemblyzer_backend_lazy_load_keeps_stdout_clean(monkeypatch, capsys):
 def test_speaker_doctor_handles_import_errors():
     with patch(
         "podcast_mcp.engines.speaker_id.resolve_speaker_backend",
-        side_effect=[MockSpeakerBackend(), ImportError("no sb"), ImportError("no rz")],
+        side_effect=[
+            ImportError("no onnx"),
+            MockSpeakerBackend(),
+            ImportError("no sb"),
+            ImportError("no rz"),
+        ],
     ):
         doc = speaker_doctor()
     assert doc["available_backends"] == ["mock"]

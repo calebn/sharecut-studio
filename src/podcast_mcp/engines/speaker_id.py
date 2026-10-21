@@ -196,6 +196,21 @@ class SpeechBrainBackend:
         return emb.squeeze().detach().cpu().numpy().astype(np.float32)
 
 
+class OnnxEcapaBackend:
+    """ECAPA embeddings from the pinned ONNX export; needs onnxruntime, not torch (#1998)."""
+
+    def __init__(self) -> None:
+        from podcast_mcp.engines.models.speaker_ecapa import EcapaOnnx
+
+        self._model = EcapaOnnx()
+
+    def name(self) -> str:
+        return "ecapa-onnx"
+
+    def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        return self._model.embed(samples)
+
+
 _WEBRTCVAD_IMPORT_FAILURES = frozenset({"webrtcvad", "pkg_resources"})
 
 
@@ -274,6 +289,13 @@ def resolve_speaker_backend(
     name = (backend_name or "auto").lower()
     if name == "mock":
         return MockSpeakerBackend()
+    if name in ("ecapa-onnx", "ecapa", "auto"):
+        from podcast_mcp.engines.models.speaker_ecapa import speaker_ecapa_problem
+
+        if speaker_ecapa_problem() is None:
+            return OnnxEcapaBackend()
+        if name == "ecapa-onnx":
+            raise ImportError(f"speaker backend unavailable: {name} ({speaker_ecapa_problem()})")
     if name in ("speechbrain", "ecapa", "auto"):
         try:
             import torch  # noqa: F401
@@ -1205,10 +1227,10 @@ def run_speaker_attribution(
 
 
 def speaker_doctor() -> dict[str, Any]:
-    priority = ("speechbrain-ecapa", "resemblyzer", "mock")
+    priority = ("ecapa-onnx", "speechbrain-ecapa", "resemblyzer", "mock")
     available: list[str] = []
     # The mock is listed only when it was opted into: it is not a backend to recommend.
-    names = ["speechbrain", "resemblyzer"]
+    names = ["ecapa-onnx", "speechbrain", "resemblyzer"]
     if settings.text(MOCK_BACKEND_ENV).lower() == "mock":
         names.append("mock")
     for name in names:
