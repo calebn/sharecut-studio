@@ -251,4 +251,19 @@ describe("App styles", () => {
       expect(body).toMatch(/-webkit-user-select:\s*none/);
     }
   });
+
+  it("keeps iOS's native text selection and Share callout off the Listen hero chrome on touch (#1874)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(
+      join(here, "styles/partials/transport.css"),
+      "utf8",
+    );
+    const block = css.match(
+      /@media \(pointer: coarse\) \{\s*\.listen-hero \{([^}]*)\}/,
+    );
+    expect(block).toBeTruthy();
+    expect(block![1]).toMatch(/(?<!-)user-select:\s*none/);
+    expect(block![1]).toMatch(/-webkit-user-select:\s*none/);
+    expect(block![1]).toMatch(/-webkit-touch-callout:\s*none/);
+  });
 });
