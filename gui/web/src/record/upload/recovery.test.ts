@@ -12,6 +12,7 @@ import {
   MemorySink,
   ORPHAN_KEEPER_RETENTION_MS,
   pruneExpiredKeeperWavs,
+  roomToneWavPath,
 } from "../keeper/store";
 import { KEEPER_ALL_RECLAIMED_COPY } from "../types";
 import {
@@ -156,6 +157,48 @@ describe("downloadLocalKeepers", () => {
       expect(revokeObjectURL).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("adds the room-tone bed to the archive when the browser holds it, and not otherwise", async () => {
+    vi.useFakeTimers();
+    const blobs: Blob[] = [];
+    const NativeURL = URL;
+    class DownloadURL extends NativeURL {
+      static createObjectURL(blob: Blob) {
+        blobs.push(blob);
+        return `blob:keeper-${blobs.length}`;
+      }
+      static revokeObjectURL = vi.fn();
+    }
+    vi.stubGlobal("URL", DownloadURL);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_guest" };
+    await sink.write(
+      keeperWavPath({ ...ids, segmentIndex: 0 }),
+      new Uint8Array([1]),
+    );
+
+    await downloadLocalKeepers(sink, "room1", "p_guest", 0);
+    await sink.write(roomToneWavPath("room1", "p_guest"), new Uint8Array([2]));
+    await downloadLocalKeepers(sink, "room1", "p_guest", 0);
+
+    const text = async (blob: Blob | undefined) =>
+      new TextDecoder("latin1").decode(await blob!.arrayBuffer());
+    expect(await text(blobs[0])).not.toContain("room-tone.wav");
+    expect(await text(blobs[1])).toContain("room-tone.wav");
+    expect(await text(blobs[1])).toContain(
+      "full-quality-take-1-segment-1-partial.wav",
+    );
+    await vi.runAllTimersAsync();
+  });
+
+  it("does not call a room-tone bed alone a full-quality recording", async () => {
+    const sink = new MemorySink();
+    await sink.write(roomToneWavPath("room1", "p_guest"), new Uint8Array([2]));
+    await expect(
+      downloadLocalKeepers(sink, "room1", "p_guest", 0),
+    ).rejects.toThrow("No full-quality recording is available");
+  });
 
   it("reports a missing local copy rather than silently succeeding", async () => {
     await expect(
