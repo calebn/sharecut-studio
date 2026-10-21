@@ -62,12 +62,10 @@ def evaluate_audio(
     for node in postorder(audio):
         match node:
             case SourceAudio():
-                if node.mute_spans:
-                    return None
                 piece = _slice(source(node.path), node, seek, sample_rate)
                 if node.fill_path is not None:
                     piece = _with_fill(piece, source(node.fill_path), node, seek, sample_rate)
-                stack.append(_edge_fades(piece, node, sample_rate))
+                stack.append(_muted(_edge_fades(piece, node, sample_rate), node, seek, sample_rate))
             case SilenceAudio():
                 stack.append(np.zeros(int(node.duration_sec * sample_rate), dtype=np.float32))
             case SequenceAudio():
@@ -122,6 +120,40 @@ def _edge_fades(piece: np.ndarray, node: SourceAudio, sample_rate: int) -> np.nd
             faded[start : start + count] *= _ramp(count, rising=False)
         faded[start + max(count, 0) :] = 0.0
     return faded
+
+
+def _muted(piece: np.ndarray, node: SourceAudio, seek: MediaSeek, sample_rate: int) -> np.ndarray:
+    """``piece`` under each mute span's gain, as ``FFmpegEngine.mute_gain_expression`` builds it."""
+    if not node.mute_spans:
+        return piece
+    origin = seek.first_sample(node.src_start, sample_rate)
+    gain = np.ones(piece.size, dtype=np.float32)
+    for span in node.mute_spans:
+        if (
+            span.end <= span.start + 1e-6
+            or span.end <= 0
+            or span.start >= node.src_end - node.src_start
+        ):
+            continue
+        env = span.samples(sample_rate, source_start=node.src_start, origin=origin)
+        first, last = max(env.first, 0), min(env.last, piece.size)
+        if last <= first:
+            continue
+        n = np.arange(first, last, dtype=np.float32)
+        floor = np.float32(env.gain)
+        if env.fade_out + env.fade_in > env.last - env.first:
+            curve = np.full(last - first, floor, dtype=np.float32)
+        else:
+            curve = np.full(last - first, floor, dtype=np.float32)
+            rise = env.last - env.fade_in
+            if env.fade_out > 0:
+                out = n < env.first + env.fade_out
+                curve[out] = 1.0 - (1.0 - floor) * (n[out] - env.first) / env.fade_out
+            if env.fade_in > 0:
+                back = n >= rise
+                curve[back] = floor + (1.0 - floor) * (n[back] - rise) / env.fade_in
+        gain[first:last] = np.minimum(gain[first:last], curve)
+    return piece * gain
 
 
 def _ramp(count: int, *, rising: bool) -> np.ndarray:
