@@ -46,3 +46,5 @@ Arm S3 = PR 1956 head (branch `claude/s3-cut-copy`, base a410add) against arm A'
     nice -n 10 python lab-s2/autocorr_hits.py /tmp/arm-S3/episode.project.json 102
 
 Pass: approved and held ids and the project JSON equal arm A' (`lab-s1/diff_projects.py`), with and without the forced word aligner. Report `wall_sec` and peak RSS (RSS should drop: no per-cut word copies). The change assumes no cut writer edits a word's own fields; any word difference between arms is a FAIL. Cloud tile: ids and clips byte-identical, wall 124 s to 96 s under cProfile.
+
+S3 slice 2 gate (hold restarts): also report, per arm, how many times `cut_application._apply_source_remove` ran against the number of pending removes (wrap it with a counter in the harness). On the cloud tile it is one call per remove (a single pass, 96 of 96, 0.62 s per cut after PR 1956), so a "single hold pass" change would save nothing there. Slice 2 is only worth building if Daniela shows calls well above removes (a restart from `mute_base`); if the ratio is about 1.0, close the idea.
