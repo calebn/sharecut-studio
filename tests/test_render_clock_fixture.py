@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.edits.clips_ops import join_render_fields
 from podcast_mcp.engines.audio import (
     At,
     CrossfadeAudio,
@@ -22,6 +21,7 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
     duration,
 )
+from podcast_mcp.engines.clips_ops import join_render_fields
 from podcast_mcp.engines.timeline_render import _ClipContent, _place_clips, _PreparedClip
 from podcast_mcp.models import Clip, ClipJoinMode
 
