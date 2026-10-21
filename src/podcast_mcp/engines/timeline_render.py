@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_restore import RestoreSupport, active_restore_regions
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
