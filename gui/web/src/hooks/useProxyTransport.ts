@@ -154,6 +154,21 @@ export function useProxyTransport(): boolean {
     },
   );
 
+  // A blocked proxy (a failed chunk fetch, a missing manifest) leaves nothing to retry it,
+  // so a second Play would show Pause over a frozen playhead. Each Play after a block asks
+  // for a fresh acceptance; if that fails again, block() stops playback with the error.
+  const retryBlockedProxy = useEffectEvent((): void => {
+    if (!ownsTimeline || active || ownedErrorRef.current === null) return;
+    if (!engineRef.current) {
+      useDawStore.getState().setIsPlaying(false);
+      return;
+    }
+    setRefresh((value) => value + 1);
+  });
+  useEffect(() => {
+    if (isPlaying) retryBlockedProxy();
+  }, [isPlaying]);
+
   useLayoutEffect(() => {
     if (
       accepted &&
