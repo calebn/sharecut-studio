@@ -58,6 +58,11 @@ CLIP_LAYOUTS = {
         (3.4, 8, 3, 40, 40, CROSSFADE),
         (8.5, 12, 7.6, 40, 60, CROSSFADE),
     ],
+    "crossfade over source handles": [
+        (0, 3.2, 0, 15, 25, FADE),
+        (3.0, 8, 3.0, 200, 40, CROSSFADE),
+        (8, 12.2, 7.8, 40, 40, CROSSFADE),
+    ],
     "pads": [(0, 3, 0, 15, 25, FADE), (3.4, 8, 4.2, 15, 25, FADE), (8.5, 12, 10.1, 15, 25, FADE)],
     "mixed joins and pads": [
         (0, 3, 0, 15, 25, FADE),
@@ -310,8 +315,9 @@ def test_unsupported_trees_are_not_evaluated() -> None:
         "mask": (MaskAudio(leaf, 0.0, ((0.1, 0.2),)), "tri"),
         "crossfade curve": (CrossfadeAudio(leaf, leaf, 0.1), "qsin"),
         "overlap longer than a side": (CrossfadeAudio(leaf, leaf, 0.6), "tri"),
-        "overlapping slices of one file": (
-            CrossfadeAudio(leaf, SourceAudio(Path("a"), 0.3, 0.9), 0.1),
+        "duplicated slice": (SequenceAudio(leaf, (leaf,)), "tri"),
+        "reordered slices": (
+            SequenceAudio(SourceAudio(Path("a"), 0.3, 0.9), (leaf,)),
             "tri",
         ),
     }
