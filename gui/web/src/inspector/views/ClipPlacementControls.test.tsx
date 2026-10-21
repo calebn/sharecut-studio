@@ -12,6 +12,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
+import { movingLikeTheQueue } from "../../test/queueDraft";
 import type { ClipRow } from "../../types/project";
 import { ClipPlacementControls } from "./ClipPlacementControls";
 
@@ -34,7 +35,8 @@ beforeEach(() => {
   cancelClipPlacement();
   clearRegisteredCommands();
   registerDawCommands();
-  vi.mocked(moveClips).mockClear();
+  vi.mocked(moveClips).mockReset();
+  vi.mocked(moveClips).mockImplementation(movingLikeTheQueue(async () => null));
   useDawStore.getState().hydrate(
     "/tmp/placement-form",
     minimalProject({
@@ -89,10 +91,13 @@ it("offers native pointer buttons, track and exact start with a rendered preview
 });
 it("disables duplicate Apply while saving and restores retry controls after refusal", async () => {
   let refuse = (_error: Error) => {};
-  vi.mocked(moveClips).mockReturnValueOnce(
-    new Promise<null>((_resolve, reject) => {
-      refuse = reject;
-    }),
+  vi.mocked(moveClips).mockImplementationOnce(
+    movingLikeTheQueue(
+      () =>
+        new Promise<null>((_resolve, reject) => {
+          refuse = reject;
+        }),
+    ),
   );
   render(<ClipPlacementControls clipId="a" busy={false} />);
   fireEvent.click(screen.getByRole("button", { name: "Move clip" }));

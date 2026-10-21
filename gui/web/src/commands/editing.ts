@@ -6,13 +6,13 @@ import {
   rippleDeleteClips,
   splitAtTime,
 } from "../api";
+import { redisplayDrafts } from "../document/applyDocumentUpdate";
 import {
   documentScope,
   isCurrentDocumentScope,
 } from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
-import { patchClipsMove } from "../document/projectPatch";
 import { getClipboard, setClipboard } from "../edit/clipboard";
 import { clipPlacementIsCurrent } from "../edit/clipPlacement";
 import { payloadFromSelection } from "../edit/selectionClipboard";
@@ -433,8 +433,11 @@ export function registerClipMoveCommands(): void {
         return { status: "disabled", reason: "Unknown clip or track" };
       }
       const seqAtStart = currentDocumentSeq();
-      const optimistic = patchClipsMove(previous, clips);
-      s.setProject(optimistic);
+      // The command begins its draft before it first awaits, so showing the
+      // drafts now shows the move at once.
+      const sending = moveClips(s.projectPath, clips);
+      redisplayDrafts();
+      const optimistic = useDawStore.getState().project;
       const sel = s.selection;
       if (sel?.kind === "clip") {
         const moved = clips.find((c) => c.clip_id === sel.id);
@@ -443,7 +446,7 @@ export function registerClipMoveCommands(): void {
         }
       }
       try {
-        const undo = await moveClips(s.projectPath, clips);
+        const undo = await sending;
         if (!isCurrentDocumentScope(scope))
           return { status: "disabled", reason: "The episode changed" };
         useDawStore.getState().announceStatus("Moved clips", { undo });
@@ -451,12 +454,13 @@ export function registerClipMoveCommands(): void {
       } catch (e) {
         if (!isCurrentDocumentScope(scope))
           return { status: "disabled", reason: "The episode changed" };
-        revertOptimisticIfUnchanged(
-          previous,
-          seqAtStart,
-          s.projectPath,
-          optimistic,
-        );
+        if (optimistic)
+          revertOptimisticIfUnchanged(
+            previous,
+            seqAtStart,
+            s.projectPath,
+            optimistic,
+          );
         const msg = errorMessage(e);
         useDawStore
           .getState()
