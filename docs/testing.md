@@ -768,8 +768,7 @@ compatibility suite as two complete engine jobs (`compat-chromium`,
 `compat-webkit`, each `npm run test:e2e:compat -- --project=<engine>`). On a
 pull request it runs every WebKit compat spec in two shards instead
 (`compat-webkit-1of2`, `compat-webkit-2of2`, each
-`--project=webkit --shard=i/2`) and no Chromium compat. The `firefox` compat
-project runs only `drawer-drag.spec.ts` (locally; no CI job yet). All of them run
+`--project=webkit --shard=i/2`) and no Chromium compat. All of them run
 concurrently in separate `frontend-e2e-suites` matrix jobs, and
 `scripts/ci_plan.py` builds the list (see
 [§ Which jobs a run needs](#which-jobs-a-run-needs)). Each runner owns its checkout,
