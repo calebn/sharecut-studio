@@ -396,7 +396,8 @@ does not order it. API-unavailable menus portal an ordinary fixed panel to the
 document body and use `--z-menu`. Among top-layer elements the one shown last
 is on top. To keep the
 `--z-toast` promise that a visible toast sits above a menu, `ui/topLayerFloor.ts`
-makes the toast region a manual popover while any Menu panel is open and
+makes the toast region a manual popover while any top-layer panel (a Menu, the
+create menu, the target chooser or an anchored Dialog) is open and
 re-shows it after each panel opens (a toast that appears later is claimed the
 same way). Closed menus leave the toast on plain `--z-toast` stacking, so
 dialogs and the command palette still cover it. A new top-layer surface that
@@ -405,13 +406,16 @@ z-index. Without the Popover API (see [gui-mobile.md](gui-mobile.md#menu-popover
 the body-level toast stays above the body-level menu because `--z-toast` is
 above `--z-menu`.
 
-A `Dialog` that sits beside its trigger (the join editor, `CreateMenu`,
-`TargetChooser`) is also a manual `popover` in the top layer, placed by
-`ui/useAnchoredPanel.ts` through `ui/useTopLayerPanel.ts`, so it draws above the
-timeline and the sheet host without a z-index and goes through
-`ui/topLayerFloor.ts` like a Menu panel. Every top-layer panel registers with
-`ui/modalGate.ts`, which is why one `overlayOpen()` predicate answers for menus
-and dialogs alike.
+A `Dialog` that sits beside its trigger (the join editor) is also a manual
+`popover` in the top layer, placed by `ui/useAnchoredPanel.ts` through
+`ui/useTopLayerPanel.ts`, so it draws above the timeline and the sheet host
+without a z-index and goes through `ui/topLayerFloor.ts` like a Menu panel. The
+touch `TargetChooser` and the `CreateMenu` are menu-shaped, not dialogs: they
+take `useTopLayerPanel` directly and tell `ui/modalGate.ts` they are open through
+`useMenuKeyboard`. Every top-layer panel registers with `ui/modalGate.ts`, which
+is why one `overlayOpen()` predicate answers for menus and dialogs alike. The
+toast floor only treats a region still in the document as claimed: a detached
+one is skipped, because showing or hiding it throws.
 
 ### Menu placement
 
