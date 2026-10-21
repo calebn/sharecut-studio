@@ -129,6 +129,23 @@ export type EnvelopeDraftEntry = {
   draft: EnvelopeDraft;
 };
 
+/**
+ * Typed but unsaved word-editor fields and the word they belong to. It lives
+ * in the store, not in the inspector, so it outlives the shells swapping on
+ * rotation; `dawStore` drops it when the selection leaves its word.
+ */
+export type WordDraftEntry = {
+  projectPath: string;
+  projectEpoch: number;
+  trackId: string;
+  sourceId: string | null;
+  wordIndex: number;
+  text: string;
+  endIndexStr: string;
+  /** The span text the draft was checked against (#650); Apply still sends this snapshot. */
+  expectedText: string | null;
+};
+
 export interface CommentDraft {
   startSec: number;
   endSec: number | null;
@@ -264,6 +281,7 @@ export interface DawState {
   commentMode: boolean;
   commentDraft: CommentDraft | null;
   envelopeDraft: EnvelopeDraftEntry | null;
+  wordDraft: WordDraftEntry | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
   /** The Transcript panel is in Correct intent: a tapped word edits its text, not the audio. */
@@ -524,6 +542,7 @@ export interface DawState {
   toggleCommentMode: () => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
   setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
+  setWordDraft: (entry: WordDraftEntry | null) => void;
   setToolMode: (mode: ToolMode) => void;
   selectTracks: (trackIds: readonly string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { selectionFromWire } from "../session/wire";
+import { oneWordOf } from "../utils/rangeSelect";
 import { createPresenceSlice } from "./presenceSlice";
 import { createProjectSlice } from "./projectSlice";
 import { createSelectionSlice } from "./selectionSlice";
@@ -48,6 +49,21 @@ useDawStore.subscribe((state) => {
     state.projectPath === entry.projectPath &&
     state.projectEpoch === entry.projectEpoch;
   if (!sameTarget) state.setEnvelopeDraft(null);
+});
+
+/** A word draft belongs to its project and to the one word still selected. */
+useDawStore.subscribe((state) => {
+  const entry = state.wordDraft;
+  if (!entry) return;
+  const word = oneWordOf(state.selection);
+  const sameTarget =
+    word != null &&
+    word.trackId === entry.trackId &&
+    word.sourceId === entry.sourceId &&
+    word.wordIndex === entry.wordIndex &&
+    state.projectPath === entry.projectPath &&
+    state.projectEpoch === entry.projectEpoch;
+  if (!sameTarget) state.setWordDraft(null);
 });
 
 useDawStore.subscribe((state, prev) => {

@@ -56,6 +56,7 @@ import type {
   TranscriptInlineEditFailure,
   TranscriptInlineEditRequest,
   TranscriptReviewCursor,
+  WordDraftEntry,
 } from "./types";
 
 /** Most job ids `useJobStatusAnnouncement` remembers as spoken (oldest dropped first, #704). */
@@ -211,6 +212,7 @@ type UiSlice = Pick<
   | "commentMode"
   | "commentDraft"
   | "envelopeDraft"
+  | "wordDraft"
   | "transcriptFollowPlayhead"
   | "transcriptTimingRequest"
   | "setTranscriptTimingRequest"
@@ -266,6 +268,7 @@ type UiSlice = Pick<
   | "toggleCommentMode"
   | "setCommentDraft"
   | "setEnvelopeDraft"
+  | "setWordDraft"
   | "setToolMode"
   | "setShellBreakpoint"
   | "setPointerKind"
@@ -472,6 +475,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     commentMode: false,
     commentDraft: null as CommentDraft | null,
     envelopeDraft: null as EnvelopeDraftEntry | null,
+    wordDraft: null as WordDraftEntry | null,
     transcriptFollowPlayhead: true,
     transcriptTimingRequest: null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
@@ -667,6 +671,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
     setEnvelopeDraft: (envelopeDraft) => set({ envelopeDraft }),
+    setWordDraft: (wordDraft) => set({ wordDraft }),
     setToolMode: (toolMode: ToolMode) =>
       set({
         toolMode,

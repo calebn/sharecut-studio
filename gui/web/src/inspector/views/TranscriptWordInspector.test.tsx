@@ -4,6 +4,7 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject } from "../../test/fixtures";
 import { ApiError } from "../../utils/apiError";
+import { wordSelection } from "../../utils/rangeSelect";
 import { TranscriptWordInspector } from "./TranscriptWordInspector";
 
 vi.mock("../../api", async (orig) => ({
@@ -148,6 +149,141 @@ describe("TranscriptWordInspector", () => {
       project: project(),
       projectPath: "/tmp/ep",
       transcriptInlineEditFailure: null,
+      selection: null,
+      wordDraft: null,
+    });
+  });
+
+  describe("typed draft across shell changes (#1885)", () => {
+    const target = { trackId: "host", sourceId: null, wordIndex: 0 };
+    const field = () => screen.getByLabelText("Corrected text");
+
+    beforeEach(() => {
+      useDawStore.setState({
+        selection: wordSelection(target),
+        wordDraft: null,
+        projectEpoch: 1,
+      });
+    });
+
+    it.each([
+      ["phone portrait to phone landscape", false, false],
+      ["tablet to phone", false, false],
+      ["desktop docked editor to tablet", true, false],
+      ["phone to desktop docked editor", false, true],
+    ])("keeps the typed text and End index through %s", (_label, from, to) => {
+      const first = render(
+        <TranscriptWordInspector
+          trackId="host"
+          wordIndex={0}
+          embedded={from}
+        />,
+      );
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      fireEvent.change(screen.getByLabelText("End word index"), {
+        target: { value: "1" },
+      });
+      first.unmount();
+      render(
+        <TranscriptWordInspector trackId="host" wordIndex={0} embedded={to} />,
+      );
+      expect(field()).toHaveValue("howdy");
+      expect(screen.getByLabelText("End word index")).toHaveValue(1);
+    });
+
+    it("sends the span text it was checked against, not a fresh read", async () => {
+      const first = render(
+        <TranscriptWordInspector trackId="host" wordIndex={0} />,
+      );
+      fireEvent.change(screen.getByLabelText("End word index"), {
+        target: { value: "1" },
+      });
+      fireEvent.change(field(), { target: { value: "hi you" } });
+      first.unmount();
+      useDawStore.setState({ project: projectWithWords(["hello", "friend"]) });
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+      await act(async () => {});
+      expect(correctTranscriptPhrase).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        1,
+        "hi you",
+        "hello there",
+      );
+    });
+
+    it("shows the saved text when nothing was typed", () => {
+      const first = render(
+        <TranscriptWordInspector trackId="host" wordIndex={0} />,
+      );
+      first.unmount();
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      expect(field()).toHaveValue("hello");
+      expect(useDawStore.getState().wordDraft).toBeNull();
+    });
+
+    it("drops the draft when the selection moves to another word", () => {
+      const first = render(
+        <TranscriptWordInspector trackId="host" wordIndex={0} />,
+      );
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      expect(useDawStore.getState().wordDraft?.text).toBe("howdy");
+      first.unmount();
+      act(() => {
+        useDawStore.setState({
+          selection: wordSelection({ ...target, wordIndex: 1 }),
+        });
+      });
+      expect(useDawStore.getState().wordDraft).toBeNull();
+      act(() => {
+        useDawStore.setState({ selection: wordSelection(target) });
+      });
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      expect(field()).toHaveValue("hello");
+    });
+
+    it("drops the draft when the selection is cleared", () => {
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      act(() => {
+        useDawStore.setState({ selection: null });
+      });
+      expect(useDawStore.getState().wordDraft).toBeNull();
+    });
+
+    it("does not carry a draft into another project", () => {
+      const first = render(
+        <TranscriptWordInspector trackId="host" wordIndex={0} />,
+      );
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      first.unmount();
+      act(() => {
+        useDawStore.setState({ projectEpoch: 2 });
+      });
+      expect(useDawStore.getState().wordDraft).toBeNull();
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      expect(field()).toHaveValue("hello");
+    });
+
+    it("clears the draft once Apply saves it", async () => {
+      vi.mocked(correctTranscriptWord).mockImplementationOnce(
+        applyingWords(["howdy", "there"]),
+      );
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      expect(useDawStore.getState().wordDraft).not.toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+      await act(async () => {});
+      expect(useDawStore.getState().wordDraft).toBeNull();
+    });
+
+    it("drops a draft typed back to the saved text", () => {
+      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      fireEvent.change(field(), { target: { value: "howdy" } });
+      fireEvent.change(field(), { target: { value: "hello" } });
+      expect(useDawStore.getState().wordDraft).toBeNull();
     });
   });
 
