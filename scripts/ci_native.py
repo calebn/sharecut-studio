@@ -122,6 +122,7 @@ NATIVE_WORKLOADS = (
                 "test_registry_lifecycle_actors",
                 "test_sqlite_tx",
                 "test_session_sqlite_initialization",
+                "test_object_store_fixture",
                 "test_share_registry",
                 "test_list_clips_recording",
             )
