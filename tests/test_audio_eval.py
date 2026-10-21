@@ -18,6 +18,7 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
+    SourceMuteEnvelope,
     duration,
     postorder,
 )
@@ -31,6 +32,7 @@ from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
     ClipMuteRegion,
+    ClipOffSpeakerMuteRegion,
     EpisodeProject,
     ProcessingChain,
     ProcessingEffect,
@@ -161,6 +163,37 @@ def test_mute_regions_match_the_ffmpeg_render(tmp_path: Path) -> None:
     assert np.abs(evaluated[:common] - rendered[:common]).max() < 4e-3
 
 
+def test_off_speaker_mutes_match_the_ffmpeg_render(tmp_path: Path) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    clips = [c for c in project.clips if c.track_id == "caleb"]
+    for clip in clips[:3]:
+        clip.off_speaker_mute_regions = [
+            ClipOffSpeakerMuteRegion(
+                start_s=clip.source_start + 0.4, end_s=clip.source_start + 1.1, fade_out_ms=30
+            ),
+            ClipOffSpeakerMuteRegion(
+                start_s=clip.source_start + 1.6, end_s=clip.source_start + 1.65
+            ),
+        ]
+    track = project.track_by_id("caleb")
+    defaults = load_defaults()
+    rendered_path = tmp_path / "render.wav"
+    render_track_from_timeline(project, track, rendered_path, defaults)
+    rendered = load_mono_full(rendered_path)
+
+    audio, curve = unfiltered_track_audio(project, track, defaults)
+    evaluated = evaluate_audio(audio, crossfade_curve=curve, load_source=load_mono_full)
+
+    assert evaluated is not None
+    common = min(evaluated.size, rendered.size)
+    assert abs(evaluated.size - rendered.size) <= 3
+    reference, candidate = _frame_db(rendered[:common]), _frame_db(evaluated[:common])
+    live = reference > LIVE_FLOOR_DB
+    assert np.abs(reference - candidate)[live].max() < FRAME_DB_TOLERANCE
+    assert np.abs(evaluated[:common] - rendered[:common]).max() < 4e-3
+
+
 def test_edge_fades_and_crossfade_are_linear_ramps() -> None:
     ones = np.ones(RATE * 4, dtype=np.float32)
     both = SourceAudio(Path("a"), 0.0, 1.0, fade_in_sec=0.1, fade_out_sec=0.1)
@@ -238,6 +271,21 @@ def test_mixed_channel_layouts_keep_the_render(monkeypatch: pytest.MonkeyPatch) 
     assert not audio_eval.single_layout(SequenceAudio(stereo, (mono,)))
 
 
+def test_off_speaker_gain_follows_the_automatic_envelope() -> None:
+    ones = np.ones(RATE, dtype=np.float32)
+    leaf = SourceAudio(Path("a"), 0.0, 1.0)
+    audio = OffSpeakerAudio(leaf, leaf, (SourceMuteEnvelope(0.25, 0.5, 0.05, 0.05),))
+
+    result = evaluate_audio(audio, crossfade_curve="tri", load_source=lambda _: ones)
+
+    assert result is not None
+    assert result[:2000].tolist() == [1.0] * 2000
+    assert result[2400:3600].tolist() == [0.0] * 1200
+    assert result[2000] == 1.0
+    assert 0.0 < result[2200] < 1.0
+    assert result[4000:].tolist() == [1.0] * (result.size - 4000)
+
+
 def test_gate_fill_is_summed_under_its_source() -> None:
     audio = SequenceAudio(
         SourceAudio(Path("a"), 0.0, 0.25, fill_path=Path("fill")),
@@ -260,7 +308,6 @@ def test_unsupported_trees_are_not_evaluated() -> None:
     leaf = SourceAudio(Path("a"), 0.0, 0.5)
     unsupported = {
         "mask": (MaskAudio(leaf, 0.0, ((0.1, 0.2),)), "tri"),
-        "off speaker": (OffSpeakerAudio(leaf, leaf, ()), "tri"),
         "crossfade curve": (CrossfadeAudio(leaf, leaf, 0.1), "qsin"),
         "overlap longer than a side": (CrossfadeAudio(leaf, leaf, 0.6), "tri"),
         "overlapping slices of one file": (
