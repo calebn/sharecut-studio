@@ -42,7 +42,7 @@ Further held movement cannot restart a canceled gesture. Returning to the origin
 leaves a default preference unset. Focus departure and unmount also cancel while
 the preview still owns the height; a newer independent resize is preserved.
 While a pointer owns the separator, its resize keys stay local and do not alter
-the preview. After release, arrows, Home/End, Enter reset and double-click reset
+the preview. After release, arrows, Home/End, Enter reset and double-click collapse
 remain available. Phone inspectors use Expand/Collapse. These local view changes create no document
 command or History action.
 

@@ -113,7 +113,7 @@ describe("BottomTabsSplitterView", () => {
     expect(sep.getAttribute("aria-valuetext")).toBe("12.5 rem");
     expect(sep.getAttribute("tabindex")).toBe("0");
     expect(sep.getAttribute("title")).toBe(
-      "Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets",
+      "Drag or arrows to resize · Shift for larger steps · End, double-click or drag past the bottom collapses · Escape cancels · Enter resets",
     );
     await expectNoA11yViolations(container);
   });
@@ -130,7 +130,7 @@ describe("BottomTabsSplitterView", () => {
     expect(props.onResize).toHaveBeenLastCalledWith(13);
   });
 
-  it("Home jumps to max, End collapses, and Enter or double-click resets", async () => {
+  it("Home jumps to max, End collapses, and Enter resets", async () => {
     const { props } = renderSplitter();
     const sep = screen.getByRole("separator", {
       name: "Resize editor panels",
@@ -143,8 +143,21 @@ describe("BottomTabsSplitterView", () => {
     expect(props.onResize).toHaveBeenCalledTimes(1);
     await userEvent.keyboard("{Enter}");
     expect(props.onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it("double-click collapses, except right after the splitter mounts", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    const { props } = renderSplitter();
+    const sep = screen.getByRole("separator", {
+      name: "Resize editor panels",
+    });
     await userEvent.dblClick(sep);
-    expect(props.onReset).toHaveBeenCalledTimes(2);
+    expect(props.onCollapse).not.toHaveBeenCalled();
+    now.mockReturnValue(5000);
+    await userEvent.dblClick(sep);
+    expect(props.onCollapse).toHaveBeenCalledTimes(1);
+    expect(props.onReset).not.toHaveBeenCalled();
+    now.mockRestore();
   });
 
   it("seeds keyboard steps from the measured panel without a preference", async () => {

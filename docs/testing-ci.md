@@ -240,6 +240,9 @@ Branded Chrome keeps its full local inventory. Its `browserName` is `chromium`,
 so those conditional scans do not run there. Comment-undo and wordbar retain
 their existing unconditional helper scans in branded Chrome.
 
+The drawer-drag rows also run on Firefox from the opt-in `playwright.firefox.config.ts`
+(`npm run test:e2e:drawer-firefox`), which is why their Firefox cell stays Not run here.
+
 The touch-nudge strip rows and touch-peek theme and motion row describe
 assertions both engines run. WebKit also scans every collected strip state
 with axe before the collected results are asserted.
@@ -263,6 +266,8 @@ with axe before the collected results are asserted.
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the drawer handle drags up and back down repeatedly | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the handle's hit area stays below the timeline's scrollbar and keeps its grip visible | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| double-clicking the drawer handle collapses it and the rail handle reopens it at the same height | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a quick double-click on the rail handle reopens the drawer and leaves it open | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |

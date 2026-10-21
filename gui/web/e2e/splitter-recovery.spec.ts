@@ -22,7 +22,7 @@ for (const { cell: width, theme, reducedMotion } of withAppearance([
     await expect(separator).toBeVisible();
     await expect(separator).toHaveAttribute(
       "title",
-      "Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets",
+      "Drag or arrows to resize · Shift for larger steps · End, double-click or drag past the bottom collapses · Escape cancels · Enter resets",
     );
     await setTheme(page, theme);
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
