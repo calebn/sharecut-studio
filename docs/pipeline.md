@@ -553,6 +553,16 @@ takes 7.5 to 9.3 s against 5.1 to 7.2 s. The reading is cached on the run, so it
 per recording, not per pause.
 
 
+### Which fingerprint answers which question
+
+The repo has three kinds of revision check, and they answer different questions (#1946 surveys the call sites):
+
+- **File identity** (a stat stamp: `util/project_state.py` `(dev, ino, size, mtime_ns)`, `services/document_sync/snapshot_cache.py` with `ctime_ns` added, `util/batch_scope.py` and `util/model_manifest.py` `(mtime_ns, size)`, the play-cache keys `path:mtime_ns`): "is this the same file I looked at before?" Cheap, no read. The extra parts differ on purpose: `ctime_ns` and `ino` catch a replaced file with a restored mtime, and a path in the key keeps shared caches apart.
+- **Render inputs** (the `.hash` beside `artifacts/tracks/<id>.wav`, `premix.wav` and `mastered.wav`): "were these bytes built from the project as it is now?" It names the project snapshot and render parameters, not the file, and is written after the `os.replace` so it only ever names the bytes beside it (#356).
+- **Content** (the proxy-variant hashes in `services/media/proxy_variants.py`): "is this the same audio?", independent of where or when it was written.
+
+Do not substitute one for another: a stat stamp cannot say a stem is stale against an edit, and a `.hash` cannot say a file was replaced behind the render lock.
+
 ### Room-tone levels
 
 With the default `tighten.filler_pad_mode: room_tone`, the first pad or mute fill on a track streams its source audio once at 16 kHz into 10 ms frame levels (`edits/room_tone.py`), cached in-process per file version. Each pick then reads one window of the length it needs and runs Silero on it (an error from Silero rejects that window, so a failing detector leaves the fill silent). On the lab tape's three 28-minute tracks the level pass takes about 1.2 s per track, nearly all of it `ffmpeg` decode (8 kHz decodes no faster). Approving every proposal took 5.5 s (ripple, 26 edits) and 4.5 s (mute, 54) against 3.7 s and 1.8 s for the word-gap sampler it replaced. The level pass (3.6 s for three tracks) is most of that; the picks themselves cost less than the old per-window reads. `filler_pad_mode: silence` reads nothing.
