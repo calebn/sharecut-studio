@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import clips_ops, timeline_ops
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
 from podcast_mcp.models import Clip, EditMode, MediaAsset, Track, TrackRole, load_project

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.review_gate import ReviewGate, ReviewRequiredError
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object

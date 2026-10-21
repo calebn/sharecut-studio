@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig
 from podcast_mcp.edits.acoustic_word import (
     WHISPER_SAMPLE_RATE,

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from pause_policy_public_helpers import RATE, write_wav
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
     Clip,

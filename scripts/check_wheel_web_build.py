@@ -45,7 +45,7 @@ RUNTIME_CONTRACTS = (
 )
 _LOAD_CONTRACTS = """
 import sys
-from podcast_mcp import config
+from podcast_mcp.config import defaults as config
 from podcast_mcp.project.transcript_context import _GLOBAL_DEFAULTS_PATH
 from podcast_mcp.edits import clips_ops, ranges, ripple
 from podcast_mcp.util import contracts

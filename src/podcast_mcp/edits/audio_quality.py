@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,

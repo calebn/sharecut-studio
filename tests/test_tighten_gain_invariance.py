@@ -22,7 +22,7 @@ import pytest
 
 from bleed_helpers import DURATION_SEC, delay, spurts, voices
 from bleed_helpers import RATE as BLEED_RATE
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.silence_islands import suggest_handoff_cut
 from podcast_mcp.edits.speech_energy_guard import _voice_refs, measure_peer_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits

@@ -10,7 +10,7 @@ from unittest.mock import ANY, patch
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
     _snap_to_quiet,

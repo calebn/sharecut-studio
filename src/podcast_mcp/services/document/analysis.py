@@ -64,8 +64,8 @@ from podcast_mcp.effects.presets import (
 )
 from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.document.service_base import WorkspaceService
+from podcast_mcp.services.pipeline.preview import rerender_preview
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock

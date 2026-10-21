@@ -22,7 +22,7 @@ from websockets.frames import Close
 from websockets.http11 import Response
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.runtime_config import RelayConfig
+from podcast_mcp.config.runtime import RelayConfig
 from podcast_mcp.services.collaboration.tunnel import TunnelClient
 from podcast_mcp.services.collaboration.tunnel_failure import (
     FailureKind,
@@ -592,7 +592,7 @@ def test_tunnel_status_route_is_host_only_and_serves_the_snapshot(tmp_path: Path
 
 
 def test_relay_settings_in_the_environment_count_as_set_up(monkeypatch: pytest.MonkeyPatch):
-    from podcast_mcp.runtime_config import default_relay_config_path, relay_configured
+    from podcast_mcp.config.runtime import default_relay_config_path, relay_configured
 
     assert relay_configured() is False
     monkeypatch.setenv("PODCAST_RELAY_URL", RELAY_URL)

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_quality import suppress_bleed_words, suppress_low_audibility_words
 from podcast_mcp.edits.bleed_text_match import EchoTwinPath, _echo_twin_losers
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report

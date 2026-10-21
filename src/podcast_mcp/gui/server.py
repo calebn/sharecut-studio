@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from filelock import Timeout
 
 from podcast_mcp import __version__, settings
+from podcast_mcp.config.runtime import normalize_exact_origin
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.host_mcp import host_mcp_lifespan, mount_host_mcp
 from podcast_mcp.gui.job_events import gui_agent_job_progress_sink, gui_sse_progress_sink
@@ -56,7 +57,6 @@ from podcast_mcp.gui.static_assets import (
     static_bundle_ready,
 )
 from podcast_mcp.gui.validation_errors import format_validation_errors
-from podcast_mcp.runtime_config import normalize_exact_origin
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError

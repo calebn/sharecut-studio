@@ -21,7 +21,7 @@ import urllib.request
 from pathlib import Path
 
 from podcast_mcp import settings
-from podcast_mcp.config import models_dir
+from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.util.asset_sources import (
     asset_entry,
     bootstrap_cdn_base,

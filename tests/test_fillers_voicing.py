@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from pause_policy_public_helpers import room
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex

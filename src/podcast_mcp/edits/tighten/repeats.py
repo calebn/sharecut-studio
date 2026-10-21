@@ -6,7 +6,7 @@ import re
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
-from podcast_mcp.config import bounded_float
+from podcast_mcp.config.defaults import bounded_float
 from podcast_mcp.models import (
     TranscriptWord,
 )

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp import settings
-from podcast_mcp.config import cache_dir
+from podcast_mcp.config.defaults import cache_dir
 from podcast_mcp.engines import FFmpegEngine
 from podcast_mcp.engines.models.whisper import (
     WhisperPinMismatchError,

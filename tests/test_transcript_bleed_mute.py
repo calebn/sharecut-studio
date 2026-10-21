@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_bleed_mute import _track_duration, apply_transcript_bleed_mute
 from podcast_mcp.engines.play_audit import (
     read_stem_hash,

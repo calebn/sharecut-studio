@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import clipped_onsets
 from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts
 from podcast_mcp.edits.comments import add_reply, resolve_comment

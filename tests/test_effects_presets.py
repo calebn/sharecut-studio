@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from podcast_mcp.config import load_defaults, repo_root
+from podcast_mcp.config.defaults import load_defaults, repo_root
 from podcast_mcp.effects.presets import (
     _BUILTIN_PRESETS,
     apply_preset_to_chain,

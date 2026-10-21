@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.balance import balance_status
 from podcast_mcp.engines.play_audit import (
     STEM_DURATION_TOLERANCE_SEC,

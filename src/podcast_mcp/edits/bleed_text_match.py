@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.bleed_echo import EchoPairProfile

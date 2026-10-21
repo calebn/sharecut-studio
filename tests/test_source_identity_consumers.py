@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.decisions import update_pending_edit

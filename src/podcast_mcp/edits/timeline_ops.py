@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipping_truncated
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,

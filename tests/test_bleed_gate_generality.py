@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.models import (
     Clip,

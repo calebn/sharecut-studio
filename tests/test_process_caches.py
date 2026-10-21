@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from unittest.mock import patch
 
-from podcast_mcp.config import repo_root
+from podcast_mcp.config.defaults import repo_root
 from podcast_mcp.engines import vad_silero
 from process_caches import ISOLATED, SHARED, reset_isolated_caches
 

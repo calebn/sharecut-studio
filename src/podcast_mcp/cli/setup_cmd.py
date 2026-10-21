@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.config import cache_dir, repo_root
+from podcast_mcp.config.defaults import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
 from podcast_mcp.services.pipeline import (
     DEFAULT_WHISPER_MODEL,

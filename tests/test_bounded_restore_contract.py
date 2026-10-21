@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.client import Client
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.edit_log import (
     LocalRestoreRequiresHistory,
     require_applied_edit_restore,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 
-from podcast_mcp import config
-from podcast_mcp.config import (
+from podcast_mcp.config import defaults as config
+from podcast_mcp.config.defaults import (
     DEFAULT_MICRO_FADE_MS,
     cache_dir,
     join_micro_fade_ms,

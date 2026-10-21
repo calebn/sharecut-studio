@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import patch
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_precorrect import (
     PrecorrectResult,
     _audibility_score,

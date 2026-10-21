@@ -15,7 +15,7 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.cut_speech import UnconfirmedCutSpeech
 from podcast_mcp.edits.ripple import plan_trim
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject

@@ -24,7 +24,7 @@ from typer.testing import CliRunner
 
 from play_patch import patch_play
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
 from podcast_mcp.engines.balance import balance_basis_digest
@@ -1329,7 +1329,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project):
         patch("podcast_mcp.services.pipeline.service.ffmpeg", return_value=eng),
         patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
         patch.object(steps, "schedule_stem_waveforms"),
-        patch("podcast_mcp.render.maybe_auto_reconcile", return_value={}),
+        patch("podcast_mcp.services.pipeline.preview.maybe_auto_reconcile", return_value={}),
         render_contention_signal(ws.project.workspace_path()) as contended,
     ):
         te = threading.Thread(

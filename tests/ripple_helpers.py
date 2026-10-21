@@ -7,7 +7,7 @@ the public application policy and publication boundary.
 
 from __future__ import annotations
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim
 from podcast_mcp.edits.timeline_ops import (
     _write_ripple_delete,

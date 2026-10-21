@@ -14,7 +14,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
-from podcast_mcp.config import mix_peak_ceiling_db
+from podcast_mcp.config.defaults import mix_peak_ceiling_db
 from podcast_mcp.edits.cut_application import apply_trim
 from podcast_mcp.edits.ripple import plan_trim
 from podcast_mcp.edits.timeline_ops import roll_clip_join

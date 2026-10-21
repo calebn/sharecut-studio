@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project, save_project
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.services.app import ProjectWorkspace
@@ -113,7 +113,7 @@ def test_ok_qc_gives_ok_true(minimal_project: Path, monkeypatch) -> None:
 
 def test_write_export_qc_writes_atomically(minimal_project: Path, monkeypatch) -> None:
     import podcast_mcp.util.atomic_json as atomic_json
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     project = load_project(minimal_project)
     calls: list[Path] = []

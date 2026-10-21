@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
 from podcast_mcp.engines.transcribe import (
     TranscriptionEngine,
@@ -170,7 +170,7 @@ def test_get_model_lazy_loads_whisper(tmp_path, monkeypatch):
     blob = tmp_path / "models--Systran--faster-whisper-tiny" / "blobs" / "model.bin"
     blob.parent.mkdir(parents=True)
     blob.write_bytes(b"x")
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: tmp_path)
 
     engine = TranscriptionEngine(model_size="tiny", device="cpu", defaults=load_defaults())
 

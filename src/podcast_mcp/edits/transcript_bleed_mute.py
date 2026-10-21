@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_review import (
     MAX_REVIEW_CANDIDATES,
     MAX_REVIEW_EXCLUSIONS,

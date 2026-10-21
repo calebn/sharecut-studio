@@ -21,8 +21,8 @@ from typing import Any
 
 import podcast_mcp
 from podcast_mcp import settings
-from podcast_mcp.config import cache_dir, whisper_cache_dir
-from podcast_mcp.distribution import runtime_distribution_metadata
+from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir
+from podcast_mcp.config.distribution import runtime_distribution_metadata
 from podcast_mcp.engines.models.whisper import resolve_whisper_model, whisper_model_is_cached
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.app import resolve_gui_static_root

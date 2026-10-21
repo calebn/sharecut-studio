@@ -131,9 +131,9 @@ The alignment energy VAD, heuristic/Silero breath scans, and silence-island scan
 
 ## Configuration seam
 
-`runtime_config.py` validates host relay and optional
+`config/runtime.py` validates host relay and optional
 S3-compatible storage. Relay fields use explicit > environment > YAML > safe
-default; object-store fields use environment > YAML > disabled. `distribution.py` validates public build identity and exact trusted
+default; object-store fields use environment > YAML > disabled. `config/distribution.py` validates public build identity and exact trusted
 origins. Runtime secrets never enter the distribution profile; Tauri’s build
 script generates Rust constants from that same public profile.
 

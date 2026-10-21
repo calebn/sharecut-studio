@@ -12,7 +12,7 @@ import pytest
 
 import podcast_mcp.services.document.history as history_service_mod
 from play_patch import patch_play
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory

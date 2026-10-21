@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import approve_edits
 from podcast_mcp.edits.focus import propose_focus_cuts
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval

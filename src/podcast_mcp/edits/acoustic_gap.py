@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig, bounded_float
+from podcast_mcp.config.defaults import EffectiveConfig, bounded_float
 from podcast_mcp.edits.acoustic_laugh import has_laugh_bursts
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import classify_breath_samples

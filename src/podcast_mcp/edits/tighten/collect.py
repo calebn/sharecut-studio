@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from podcast_mcp.config import bounded_float
+from podcast_mcp.config.defaults import bounded_float
 from podcast_mcp.edits.tighten_reasons import (
     PAUSE_REASON_PREFIX,
 )

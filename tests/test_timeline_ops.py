@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.timeline_ops import (

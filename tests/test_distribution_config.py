@@ -12,7 +12,7 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.distribution import (
+from podcast_mcp.config.distribution import (
     DistributionProfileError,
     compact_product_name,
     distribution_profile_from_mapping,
@@ -318,7 +318,7 @@ def test_local_config_check_does_not_require_checkout_distribution_profile(
 ) -> None:
     """Installed wheels do not include the contributor development profile."""
     monkeypatch.setattr(
-        "podcast_mcp.distribution.default_distribution_profile_path",
+        "podcast_mcp.config.distribution.default_distribution_profile_path",
         lambda: tmp_path / "config" / "distribution.dev.json",
     )
 

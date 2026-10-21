@@ -8,7 +8,7 @@ from unittest.mock import ANY, Mock
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import timeline_render
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
 from podcast_mcp.engines.ffmpeg import FFmpegEngine

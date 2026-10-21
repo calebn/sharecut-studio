@@ -7,7 +7,7 @@ from array import array
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.effects.presets import add_effect, apply_preset_to_chain
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.timeline_render import render_track_from_timeline

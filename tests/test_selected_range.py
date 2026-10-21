@@ -5,7 +5,7 @@ from copy import deepcopy
 import pytest
 from pydantic import ValidationError
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.range_edits import (
@@ -162,7 +162,7 @@ def test_bulk_exact_approval_composes_same_clip_baseline_and_one_undo(
 
 
 def test_exact_cut_uses_canonical_microfades_and_preserves_outer_edges(tmp_path):
-    from podcast_mcp.config import join_micro_fade_ms
+    from podcast_mcp.config.defaults import join_micro_fade_ms
 
     project = fixture(EpisodeProject.create("range", str(tmp_path)))
     project.clips[1].fade_in_ms = 3

@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from audibility_floors import floors_at
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_quality import suppress_low_audibility_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,

@@ -50,7 +50,7 @@ fn normalized_profile(manifest_dir: &Path, profile_path: &Path) -> serde_json::V
             "import json, sys\n\
              from dataclasses import asdict\n\
              sys.path.insert(0, sys.argv[1])\n\
-             from podcast_mcp.distribution import load_distribution_profile\n\
+             from podcast_mcp.config.distribution import load_distribution_profile\n\
              print(json.dumps(asdict(load_distribution_profile(__import__('pathlib').Path(sys.argv[2])))))",
         )
         .arg(source_dir)

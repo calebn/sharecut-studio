@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten import propose_tighten_edits

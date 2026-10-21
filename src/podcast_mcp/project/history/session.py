@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_check_override import OVERRIDE_PARAM, active_override, stamp_params
 from podcast_mcp.edits.decisions import retire_unplayed_pending
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile

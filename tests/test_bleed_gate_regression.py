@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.engines.play_audit import write_stem_hash

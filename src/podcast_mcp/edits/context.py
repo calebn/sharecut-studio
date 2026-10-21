@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.decisions import edit_impact_report
 from podcast_mcp.edits.transcript_cuts import (
     ensure_combined_transcript,

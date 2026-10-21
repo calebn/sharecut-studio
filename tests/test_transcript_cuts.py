@@ -4,7 +4,7 @@ import wave
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import apply_edit_plan, approve_edits
 from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.transcript_cuts import (

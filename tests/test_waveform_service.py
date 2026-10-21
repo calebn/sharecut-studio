@@ -13,7 +13,7 @@ import pytest
 from filelock import Timeout as FileLockTimeout
 
 import podcast_mcp.services.media.waveform as svc
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import waveform_media as wm
 from podcast_mcp.engines import waveform_pyramid as wm_pyramid
 from podcast_mcp.engines.waveform_pyramid import (

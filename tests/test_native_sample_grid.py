@@ -13,7 +13,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.ripple import ripple_remove_clips
 from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
 from podcast_mcp.engines.audio_audit import _played_window, build_track_rms_caches

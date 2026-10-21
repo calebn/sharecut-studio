@@ -6,7 +6,7 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_restore_targets import (
     BleedRegionKind,
     BleedRestoreChangedError,

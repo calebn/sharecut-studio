@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.render_invalidations import (
     clear_invalidations_for_tracks,

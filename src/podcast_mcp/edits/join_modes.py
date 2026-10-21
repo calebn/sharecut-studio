@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from podcast_mcp.config import EffectiveConfig, join_micro_fade_ms
+from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms
 from podcast_mcp.edits.clips_ops import (
     abutting_pairs,
     clips_for_track,

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp import settings
-from podcast_mcp.runtime_config import ObjectStoreConfig, default_relay_config_path
+from podcast_mcp.config.runtime import ObjectStoreConfig, default_relay_config_path
 from podcast_mcp.services.media.object_store_cors import (
     CorsProbe,
     Fetcher,

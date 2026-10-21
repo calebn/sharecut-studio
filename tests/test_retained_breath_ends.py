@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.cut_safety import ResolvedCutScope

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.room_model import BREATH_BELOW_SPEECH_DB

@@ -36,7 +36,7 @@ from typing import Any, Literal, cast
 
 from filelock import Timeout as FileLockTimeout
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import PCM_WINDOW_TIMEOUT_SEC
 from podcast_mcp.engines.waveform_media import (
     REASON_DECODE_FAILED,

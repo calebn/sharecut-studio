@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from podcast_mcp.config.runtime import RelayConfig, load_relay_config
 from podcast_mcp.models import load_project
-from podcast_mcp.runtime_config import RelayConfig, load_relay_config
 from podcast_mcp.services.collaboration.review_shares import list_usable_shares
 from podcast_mcp.services.collaboration.tunnel_failure import (
     FailureKind,

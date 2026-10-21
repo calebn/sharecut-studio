@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_reconciliation_caches
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.project_state import snapshot_project

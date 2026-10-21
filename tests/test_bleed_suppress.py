@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from audibility_floors import floors_at
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_quality import bleed_words, suppress_bleed_words
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation

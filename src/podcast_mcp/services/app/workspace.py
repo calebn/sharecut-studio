@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.models.episode import EpisodeProject, project_not_found
 from podcast_mcp.project.history import HistoryManager, run_mutation
 from podcast_mcp.project.history.manager import record_and_commit

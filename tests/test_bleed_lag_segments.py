@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.bleed_lag_segments import (
     STEP_COSTS,
     BleedPair,

@@ -5,7 +5,7 @@ import inspect
 import pytest
 
 from model_pin_helpers import plant_pinned_word_aligner
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
 from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
 

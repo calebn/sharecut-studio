@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.timeline_span import map_source_span_fields, source_remove_timeline_spans
 from podcast_mcp.engines.session_timeline import SessionTimeline

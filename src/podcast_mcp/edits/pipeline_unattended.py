@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from podcast_mcp import settings
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 
 
 def is_unattended(*, flag: bool | None = None, defaults: EffectiveConfig) -> bool:

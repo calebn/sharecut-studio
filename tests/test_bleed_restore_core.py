@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import extract_clips_in_timeline_range, split_clip_at
 from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, bleed_gate_payload

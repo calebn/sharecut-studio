@@ -23,7 +23,7 @@ from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Literal
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clips_ops import clips_for_track, is_session_join
 from podcast_mcp.edits.comments import list_comments
 from podcast_mcp.edits.join_speech import SpeechCrossing, speech_crossings_in_window

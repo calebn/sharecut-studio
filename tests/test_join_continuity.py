@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_safety import assess_proposed_cut
 from podcast_mcp.edits.join_continuity import (
     JoinContinuityConfig,

@@ -26,7 +26,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import (
     WAVEFORM_SAMPLE_RATE,
     TrackAudioCache,

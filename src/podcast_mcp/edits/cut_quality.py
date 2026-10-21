@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig, join_micro_fade_ms
+from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms
 from podcast_mcp.edits.audio_cache import JUMP_SAMPLE_RATE, TrackAudioCache, track_level_profile
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,

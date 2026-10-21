@@ -12,7 +12,7 @@ from audition_eval import (
     precision_recall,
     score_labeled_windows,
 )
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
 

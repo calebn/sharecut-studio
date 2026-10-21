@@ -665,16 +665,25 @@ The driver is an unmodified wrapper over `propose_tighten_edits`; it is not part
 of the repo and adds no CI check. Its core:
 
 ```python
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.services.app import ProjectWorkspace
 
 project = ProjectWorkspace.open(path).project.model_copy(deep=True)
 proposal = propose_tighten_edits(project, load_defaults())
 rows = sorted(
-    ({"track": d.track_id, "kind": (d.reason or "").split(":")[0], "start": d.start, "end": d.end,
-      "applied": d.applied, "review": d.review_required, "reason": d.reason}
-     for d in proposal.decisions),
+    (
+        {
+            "track": d.track_id,
+            "kind": (d.reason or "").split(":")[0],
+            "start": d.start,
+            "end": d.end,
+            "applied": d.applied,
+            "review": d.review_required,
+            "reason": d.reason,
+        }
+        for d in proposal.decisions
+    ),
     key=lambda r: (r["track"], r["start"]),
 )
 # Patches: setattr(importlib.import_module(module), name, value) before the call

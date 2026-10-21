@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from model_pin_helpers import plant_pinned_whisper
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 
 
 def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
@@ -18,7 +18,7 @@ def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
     from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
 
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
     # only ingest — must not raise even with empty cache
@@ -40,7 +40,7 @@ def test_ensure_whisper_cached_for_run_raises_when_missing(
     from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
 
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
     with pytest.raises(WhisperWeightsMissingError, match=r"small\.en"):
@@ -57,7 +57,7 @@ def test_ensure_whisper_cached_for_run_ok_when_cached(
 
     cache = tmp_path / "whisper"
     plant_pinned_whisper(cache, "small.en", monkeypatch)
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     ensure_whisper_cached_for_run(
         only_step="transcribe_tracks",
         config={"transcribe": {"model": "small.en"}},
@@ -72,7 +72,7 @@ def test_pipeline_service_run_fails_fast_without_weights(
     from podcast_mcp.services.pipeline import PipelineService
 
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
     ws = ProjectWorkspace.open(minimal_project)
@@ -90,7 +90,7 @@ def test_pipeline_service_run_skips_gate_for_ingest_only(
     from podcast_mcp.services.pipeline import PipelineService
 
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
 
@@ -112,7 +112,7 @@ def test_gui_pipeline_run_409_when_weights_missing(
     from podcast_mcp.services.pipeline.config import config_store
 
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
     path = str(minimal_project)
@@ -153,7 +153,7 @@ def test_gui_pipeline_run_409_on_pin_mismatch(
     cache = tmp_path / "whisper"
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
     (snap / "vocabulary.txt").write_bytes(b"tampered")
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
 
     path = str(minimal_project)
     config_store().put(
@@ -182,7 +182,7 @@ def test_transcription_engine_uses_local_files_only(
     cache = tmp_path / "whisper"
     snap = plant_pinned_whisper(cache, "tiny.en", monkeypatch)
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: cache,
     )
     captured: dict = {}
@@ -209,7 +209,7 @@ def test_transcription_engine_refuses_a_tampered_pinned_snapshot(
     snap = plant_pinned_whisper(cache, "tiny.en", monkeypatch)
     (snap / "config.json").write_bytes(b"tampered")
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: cache,
     )
     called = {"n": 0}
@@ -232,7 +232,7 @@ def test_transcription_engine_raises_when_weights_missing(
     from podcast_mcp.engines.transcribe import TranscriptionEngine
 
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
     eng = TranscriptionEngine("tiny.en", defaults=load_defaults())

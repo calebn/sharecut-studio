@@ -13,7 +13,7 @@ import json
 import sys
 from pathlib import Path
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))

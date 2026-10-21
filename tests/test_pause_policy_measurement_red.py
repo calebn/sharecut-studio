@@ -14,7 +14,7 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import room_tone
 from podcast_mcp.edits.room_tone import room_tone_span
 from podcast_mcp.edits.timeline_ops import fill_with_room_tone, insert_room_tone_pad

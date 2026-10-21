@@ -5,7 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.strip_silence import _kept_source_ranges, strip_silence
 from podcast_mcp.engines.silence import SilenceInterval
 from podcast_mcp.models import (

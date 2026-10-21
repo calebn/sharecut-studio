@@ -205,7 +205,7 @@ value cannot say it, such as a whole number for a `number`). `scripts/export_pip
 writes `contracts/pipeline-params.json`, listing every exposed setting and every YAML key left
 unexposed; `make generated-check` fails when a YAML key is added, removed or retyped without
 regenerating it, so each new key is either given a `_ParamSpec` or visibly left unexposed.
-The YAML itself ships in the wheel as `podcast_mcp/defaults/pipeline.yaml`; `podcast_mcp.config.defaults_dir()` finds it there, or in `.agents/defaults/` in a checkout.
+The YAML itself ships in the wheel as `podcast_mcp/defaults/pipeline.yaml`; `podcast_mcp.config.defaults.defaults_dir()` finds it there, or in `.agents/defaults/` in a checkout.
 
 Tighten application uses the run's supplied settings, including
 `tighten.breath_handling.enabled`. It does not reload global defaults between

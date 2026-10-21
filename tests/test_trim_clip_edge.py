@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 
 from contract_project_helpers import contract_project
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import render_track_from_timeline

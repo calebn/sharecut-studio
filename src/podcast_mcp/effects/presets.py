@@ -16,7 +16,7 @@ import copy
 from collections.abc import Mapping
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.models import EpisodeProject, ProcessingChain, ProcessingEffect
 

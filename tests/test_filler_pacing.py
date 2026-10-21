@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_placement import CutRejected
 from podcast_mcp.edits.cut_safety import ResolvedCutScope
@@ -1082,7 +1082,7 @@ def test_cut_span_uses_speaker_role_when_profiles_exist() -> None:
 
 
 def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
@@ -1116,7 +1116,7 @@ def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
 
 
 def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate
 
@@ -1153,7 +1153,7 @@ def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
 
 
 def test_analyze_candidate_marks_review_when_guard_requests() -> None:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate
@@ -1200,7 +1200,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
 
 
 def test_analyze_candidate_blocked_peer_waits_for_review_as_a_padded_session_ripple() -> None:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.prepare import _analyze_candidate

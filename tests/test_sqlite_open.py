@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.config import repo_root
+from podcast_mcp.config.defaults import repo_root
 from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.services.share_auth.store import ShareIdentityStore

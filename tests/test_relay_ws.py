@@ -923,7 +923,7 @@ def test_relay_presence_frames_drop_when_bucket_exhausted(monkeypatch):
 
 
 def test_per_host_token_with_default_relay_config_host_id(monkeypatch):
-    from podcast_mcp.runtime_config import RelayConfig, relay_host_id_path
+    from podcast_mcp.config.runtime import RelayConfig, relay_host_id_path
 
     cfg = RelayConfig(host_token="host-secret")
     # Default host_id is the persisted per-install id, not a fresh uuid per process.
@@ -966,7 +966,7 @@ def test_host_bound_secret_rejected_under_unmapped_host_id(monkeypatch):
 
 
 def test_restarted_host_readvertises_bound_tokens(monkeypatch):
-    from podcast_mcp.runtime_config import RelayConfig
+    from podcast_mcp.config.runtime import RelayConfig
 
     first = RelayConfig(host_token="host-secret")
     monkeypatch.setenv(

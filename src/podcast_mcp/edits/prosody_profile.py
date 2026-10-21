@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.timeline_span import timeline_span_dicts
 from podcast_mcp.edits.transcript_reuse import audio_identity
 from podcast_mcp.engines.prosody import (

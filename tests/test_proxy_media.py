@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.play_audit import proxy_render_hash
 from podcast_mcp.models import (
     EditDecision,

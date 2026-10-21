@@ -5,7 +5,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
 from podcast_mcp.models import (
     EpisodeProject,

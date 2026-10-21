@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import isclose
 from pathlib import Path
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     abutting_pairs,

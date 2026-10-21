@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_cache import (
     JUMP_SAMPLE_RATE,
     WAVEFORM_SAMPLE_RATE,

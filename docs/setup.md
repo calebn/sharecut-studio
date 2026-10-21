@@ -591,7 +591,7 @@ distribution profile. Configuration is split by responsibility:
 | Self-hosted collaboration | Relay domain/TLS, strong host token, and optionally an S3-compatible store | Relay/tunnel protocol, guest UI, local media-proxy fallback, redacted example |
 | Desktop distributor | Public identity/trust profile, private signing and deployment credentials, an updater key pair, and feed hosting (for example on `cdn.sharecut.studio`) | Validated schema, Tauri overlay generator, reusable build scripts, update feed builder (`scripts/build_update_feed.py`) |
 
-Host runtime configuration lives at `~/.config/podcast_mcp/relay.yaml`; copy
+Host runtime configuration (validated by `src/podcast_mcp/config/runtime.py`; the distribution profile by `src/podcast_mcp/config/distribution.py`) lives at `~/.config/podcast_mcp/relay.yaml`; copy
 [`config/relay.example.yaml`](../config/relay.example.yaml). Relay-field precedence
 is explicit CLI/API argument, environment, YAML, then a safe loopback default.
 The tunnel identity `host_id` (`PODCAST_RELAY_HOST_ID` / YAML `host_id`) defaults to

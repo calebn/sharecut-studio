@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 
 from history_helpers import history_move
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import apply_auto_edits
 from podcast_mcp.edits.cut_speech import LaneSourceExtent, assess_cut_speech
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval

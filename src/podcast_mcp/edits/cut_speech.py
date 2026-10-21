@@ -14,7 +14,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ripple import RippleRemoval, ripple_track_ids
 from podcast_mcp.edits.speech_energy_guard import (

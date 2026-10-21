@@ -6,7 +6,7 @@ import json
 import secrets
 from pathlib import Path
 
-from podcast_mcp.config import mix_peak_ceiling_db
+from podcast_mcp.config.defaults import mix_peak_ceiling_db
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.util.atomic_render import render_atomic

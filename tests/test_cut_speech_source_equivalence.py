@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_speech import (
     LaneSourceExtent,
     RecordingSourceExtent,

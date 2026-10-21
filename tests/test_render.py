@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.render import render_preview_result, rerender_preview
+from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
 from podcast_mcp.util.progress import (
     RecordingProgress,
     bind_progress,
@@ -21,8 +21,8 @@ def test_rerender_preview_ok(tmp_path):
     premix.write_bytes(b"x")
 
     with (
-        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
-        patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner") as runner_cls,
+        patch("podcast_mcp.services.pipeline.preview.maybe_auto_reconcile") as auto_rec,
     ):
         runner_cls.return_value.run = MagicMock()
         auto_rec.return_value = {"status_updates": 0}
@@ -54,8 +54,11 @@ def test_rerender_preview_nested_reconcile_does_not_blow_total(tmp_path):
     with (
         bind_progress(rec),
         progress_task("wrap", "Wrap", total=3, reporter=rec) as parent,
-        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
-        patch("podcast_mcp.render.maybe_auto_reconcile", side_effect=nested_reconcile),
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner") as runner_cls,
+        patch(
+            "podcast_mcp.services.pipeline.preview.maybe_auto_reconcile",
+            side_effect=nested_reconcile,
+        ),
     ):
         runner_cls.return_value.run = MagicMock()
         info = rerender_preview(proj, progress=rec, reconcile=True, defaults=load_defaults())
@@ -84,8 +87,11 @@ def test_render_preview_result_rerenders(tmp_path):
     premix = proj.artifacts_dir() / "premix.wav"
     premix.write_bytes(b"x")
     with (
-        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
-        patch("podcast_mcp.render.maybe_auto_reconcile", return_value={"status_updates": 1}),
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner") as runner_cls,
+        patch(
+            "podcast_mcp.services.pipeline.preview.maybe_auto_reconcile",
+            return_value={"status_updates": 1},
+        ),
     ):
         runner_cls.return_value.run = MagicMock()
         out = render_preview_result(proj, rerender=True, defaults=load_defaults())
@@ -98,8 +104,8 @@ def test_rerender_preview_skips_reconcile_and_missing_premix(tmp_path):
     proj.ensure_dirs()
 
     with (
-        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
-        patch("podcast_mcp.render.mark_reconciliation_stale") as stale,
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner") as runner_cls,
+        patch("podcast_mcp.services.pipeline.preview.mark_reconciliation_stale") as stale,
     ):
         runner_cls.return_value.run = MagicMock()
         info = rerender_preview(proj, reconcile=False, defaults=load_defaults())
@@ -116,8 +122,8 @@ def test_rerender_preview_skips_reconcile_when_fresh(tmp_path):
     mark_reconciliation_fresh(proj, defaults=load_defaults())
 
     with (
-        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
-        patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner") as runner_cls,
+        patch("podcast_mcp.services.pipeline.preview.maybe_auto_reconcile") as auto_rec,
     ):
         runner_cls.return_value.run = MagicMock()
         info = rerender_preview(proj, reconcile=True, defaults=load_defaults())
@@ -139,8 +145,8 @@ def test_rerender_preview_clears_stale_flag_after_mix_when_audio_unchanged(tmp_p
             project.reconciliation_stale = True
 
     with (
-        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
-        patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner") as runner_cls,
+        patch("podcast_mcp.services.pipeline.preview.maybe_auto_reconcile") as auto_rec,
     ):
         runner_cls.return_value.run = MagicMock(side_effect=fake_run)
         rerender_preview(proj, reconcile=True, defaults=load_defaults())
@@ -154,8 +160,8 @@ def test_rerender_preview_missing_premix_keeps_reconciliation(tmp_path):
     proj.ensure_dirs()
 
     with (
-        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
-        patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner") as runner_cls,
+        patch("podcast_mcp.services.pipeline.preview.maybe_auto_reconcile") as auto_rec,
     ):
         runner_cls.return_value.run = MagicMock()
         auto_rec.return_value = {"status_updates": 2}

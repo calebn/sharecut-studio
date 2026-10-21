@@ -13,7 +13,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.word_boundary_metrics import measure_word_boundaries
 from podcast_mcp.util.atomic_json import write_json_atomic

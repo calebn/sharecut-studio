@@ -5,7 +5,7 @@ import json
 from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.models import (
     Clip,
     CutIntent,

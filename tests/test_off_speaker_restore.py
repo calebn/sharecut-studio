@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.off_speaker_mute import OffSpeakerPlan, apply_off_speaker_mutes
 from podcast_mcp.models import ClipMuteRegion, RoomToneFill

@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import typer
 
-from podcast_mcp.runtime_config import (
+from podcast_mcp.config.runtime import (
     ObjectStoreConfig,
     RuntimeConfigError,
     is_loopback_host,

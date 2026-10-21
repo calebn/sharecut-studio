@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, files, pause, project, workspace
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.models import ClipMuteRegion, Transcript, TranscriptWord
 from podcast_mcp.services.document import EditService
