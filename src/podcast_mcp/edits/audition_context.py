@@ -1050,6 +1050,7 @@ def _speaker_roles_for_window(
     timeline_end: float,
 ) -> dict[str, Any] | None:
     from podcast_mcp.engines.speaker_id import (
+        SpeakerBackendUnavailable,
         classify_track_role,
         load_all_profiles,
         resolve_speaker_backend,
@@ -1061,7 +1062,10 @@ def _speaker_roles_for_window(
     if not profiles:
         return None
     ctx = load_transcript_context(project.workspace_path())
-    backend = resolve_speaker_backend()
+    try:
+        backend = resolve_speaker_backend()
+    except SpeakerBackendUnavailable:
+        return None
     st = SessionTimeline(project)
     mid = (timeline_start + timeline_end) / 2.0
     tracks_out: dict[str, Any] = {}

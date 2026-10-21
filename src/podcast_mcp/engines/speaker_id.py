@@ -3,6 +3,7 @@ from __future__ import annotations
 import glob
 import json
 import logging
+import os
 import re
 import sys
 import types
@@ -26,6 +27,7 @@ from podcast_mcp.engines.align import (
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.project.transcript_context import SpeakerIdConfig, TranscriptContext
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
@@ -123,6 +125,23 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     if na < 1e-9 or nb < 1e-9:
         return 0.0
     return float(np.dot(a, b) / (na * nb))
+
+
+MOCK_BACKEND_ENV = "PODCAST_SPEAKER_BACKEND"
+"""Set to ``mock`` to let a bare ``resolve_speaker_backend()`` use the development mock."""
+
+
+class SpeakerBackendUnavailable(CodedValueError, ImportError):
+    """No real speaker backend can be imported here (the packaged app ships none)."""
+
+    code = "speaker_backend_unavailable"
+
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(
+            message
+            or "Speaker recognition isn't available on this computer. "
+            "See the speaker setup instructions to enable it."
+        )
 
 
 class MockSpeakerBackend:
@@ -271,7 +290,11 @@ def resolve_speaker_backend(
         except ImportError:
             pass
     if name == "auto":
-        return MockSpeakerBackend()
+        # The mock's embeddings are made up. Only an explicit request gets them, so a
+        # build without a real backend reports "unavailable" instead of a made-up result.
+        if os.environ.get(MOCK_BACKEND_ENV, "").lower() == "mock":
+            return MockSpeakerBackend()
+        raise SpeakerBackendUnavailable()
     raise ImportError(f"speaker backend unavailable: {name}")
 
 
@@ -1184,7 +1207,11 @@ def run_speaker_attribution(
 def speaker_doctor() -> dict[str, Any]:
     priority = ("speechbrain-ecapa", "resemblyzer", "mock")
     available: list[str] = []
-    for name in ("speechbrain", "resemblyzer", "mock"):
+    # The mock is listed only when it was opted into: it is not a backend to recommend.
+    names = ["speechbrain", "resemblyzer"]
+    if os.environ.get(MOCK_BACKEND_ENV, "").lower() == "mock":
+        names.append("mock")
+    for name in names:
         try:
             b = resolve_speaker_backend(name)
             if b.name() not in available:
