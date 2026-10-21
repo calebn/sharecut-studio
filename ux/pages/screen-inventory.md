@@ -363,7 +363,7 @@ In the desktop transcript, Shift-click extends a range from the original word on
 | Layout | Key | Effect |
 |--------|-----|--------|
 | default (**Restore layout**) | `Mod+1` | Full grid |
-| timeline (**Maximize timeline**) | `Mod+2` | Collapse bottom tabs — more lane height. Dragging the tabs band's handle below its minimum (or End on it) reaches the same state; the **Show editor panels** grab handle on the timeline's bottom edge reopens it |
+| timeline (**Maximize timeline**) | `Mod+2` | Collapse bottom tabs — more lane height. Dragging the tabs band's handle below its minimum, double-clicking it, or End on it reaches the same state; the **Show editor panels** grab handle on the timeline's bottom edge reopens it |
 | text (**Maximize transcript**) | `Mod+3` | Expand transcript; shrink timeline |
 | review (**Review layout**) | `Mod+4` | Comments-forward + mix-oriented chrome |
 

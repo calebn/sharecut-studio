@@ -30,7 +30,7 @@ describe("BottomTabsSplitter", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("resets preference on double-click", async () => {
+  it("resets preference on Enter", async () => {
     window.localStorage.setItem(TABS_HEIGHT_STORAGE_KEY, "18");
     render(
       <div className="bottom-tabs" style={{ height: 200 }}>
@@ -40,7 +40,8 @@ describe("BottomTabsSplitter", () => {
     const sep = screen.getByRole("separator", {
       name: "Resize editor panels",
     });
-    await userEvent.dblClick(sep);
+    sep.focus();
+    await userEvent.keyboard("{Enter}");
     expect(window.localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBeNull();
     expect(
       document.documentElement.style.getPropertyValue("--tabs-height"),

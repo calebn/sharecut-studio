@@ -29,15 +29,18 @@ export interface BottomTabsSplitterViewProps {
   userSet: boolean;
   /** Requested height in rem; the live adapter clamps, persists and applies it. */
   onResize: (rem: number) => void;
-  /** Clear the preference (double-click / Enter). */
+  /** Clear the preference (Enter, Reset panel size). */
   onReset: () => void;
   /**
-   * Collapse the drawer to the tool rail: End, or a drag released more than
+   * Collapse the drawer to the tool rail: End, double-click, or a drag released more than
    * `COLLAPSE_OVERSHOOT_REM` below the minimum. The preference stays saved for
    * reopening; overshoot rollback goes through `onResize` and its resize policy.
    */
   onCollapse: () => void;
 }
+
+/** A double-click this soon after the splitter mounts is the tail of a reopen tap. */
+const REOPEN_DOUBLE_CLICK_MS = 600;
 
 /** How far past the minimum a drag must pull before release collapses. */
 export const COLLAPSE_OVERSHOOT_REM = 1.5;
@@ -60,6 +63,7 @@ export function BottomTabsSplitterView({
   onCollapse,
 }: BottomTabsSplitterViewProps) {
   const separatorRef = useRef<HTMLDivElement>(null);
+  const mountedAt = useRef(performance.now());
   const remSignalRef = useRef<HTMLSpanElement>(null);
   const readGeometry = useCallback((): PanelGeometry => {
     const policy = getPolicyBounds?.() ?? { minRem, maxRem };
@@ -307,10 +311,15 @@ export function BottomTabsSplitterView({
         onPointerDown={onPointerDown}
         onBlur={() => finish(true)}
         onDoubleClick={() => {
-          if (!dragRef.current) onReset();
+          if (dragRef.current) return;
+          // Tapping the rail handle reopens the drawer and puts this splitter
+          // under the second tap of a double-click; that must not close it again.
+          if (performance.now() - mountedAt.current < REOPEN_DOUBLE_CLICK_MS)
+            return;
+          onCollapse();
         }}
         onKeyDown={onKeyDown}
-        title="Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets"
+        title="Drag or arrows to resize · Shift for larger steps · End, double-click or drag past the bottom collapses · Escape cancels · Enter resets"
       >
         <span className="bottom-tabs-splitter-grip" aria-hidden />
         <span ref={remSignalRef} className="splitter-rem-signal" aria-hidden />
