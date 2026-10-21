@@ -717,10 +717,17 @@ def _ungated_cache(
             chain for chain in snapshot.processing_chains if chain.track_id != track_id
         ]
         plain = unfiltered_track_audio(snapshot, track, defaults)
-        if plain is not None and single_layout(plain[0]):
+        if plain is None:
+            reason = "unfiltered audio unavailable"
+        elif not single_layout(plain[0]):
+            reason = "mixed channel layouts"
+        else:
             samples = evaluate_audio(plain[0], crossfade_curve=plain[1], load_source=load_mono_full)
             if samples is not None and samples.size:
+                _LOG.debug("track %s evidence: in-memory evaluation", track_id)
                 return TrackRmsCache.from_samples(samples)
+            reason = "evaluator declined"
+        _LOG.info("track %s evidence: ffmpeg render (%s)", track_id, reason)
     with tempfile.TemporaryDirectory(prefix="podcast-ungated-evidence-") as directory:
         path = Path(directory) / "evidence.wav"
         render_track_from_timeline(snapshot, track, path, defaults)
