@@ -4,14 +4,21 @@ Evaluating a track's audio tree reads each source at its own rate. A whole 48 kH
 a long episode is hundreds of megabytes, and a cut batch builds many tracks, so decodes are
 spooled to a temp file once per (file revision, rate) and each read pulls only the samples it
 needs. Memory stays at one chunk; the page cache does the rest.
+
+A spool never outlives its process. On POSIX each file is opened and unlinked as soon as it is
+decoded, so a SIGTERM or a crash leaves nothing behind; elsewhere the files sit in a
+per-process directory that the next process to spool sweeps once its owner is gone.
 """
 
 from __future__ import annotations
 
 import atexit
+import os
+import re
 import shutil
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -38,17 +45,64 @@ class _Spool:
     path: Path
     size: int
     users: int = 0
+    fd: int | None = None
 
     def read(self, start: int, stop: int) -> np.ndarray:
-        return np.fromfile(
-            self.path, dtype="<f4", count=stop - start, offset=start * _BYTES_PER_SAMPLE
-        )
+        offset = start * _BYTES_PER_SAMPLE
+        if self.fd is None:
+            return np.fromfile(self.path, dtype="<f4", count=stop - start, offset=offset)
+        buffer = bytearray((stop - start) * _BYTES_PER_SAMPLE)
+        if buffer and os.preadv(self.fd, [buffer], offset) != len(buffer):
+            raise OSError(f"short read from the decode spool of {self.path.name}")
+        return np.frombuffer(buffer, dtype="<f4")
+
+    def discard(self) -> None:
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+        self.path.unlink(missing_ok=True)
+
+
+_OWNER = re.compile(r"sharecut-decoded-(\d+)-")
+_ORPHAN_AGE_SEC = 3600
+
+
+def _owner_gone(pid: int) -> bool:
+    if os.name == "nt":
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    return False
+
+
+def _sweep_orphans() -> None:
+    """Remove spool directories whose process is gone, and unowned ones an hour old."""
+    for directory in Path(tempfile.gettempdir()).glob("sharecut-decoded-*"):
+        owner = _OWNER.match(directory.name)
+        try:
+            age = time.time() - directory.stat().st_mtime
+        except OSError:
+            continue
+        if owner:
+            pid = int(owner[1])
+            orphaned = pid != os.getpid() and (
+                _owner_gone(pid) or (os.name == "nt" and age > _ORPHAN_AGE_SEC)
+            )
+        else:
+            orphaned = age > _ORPHAN_AGE_SEC
+        if orphaned:
+            shutil.rmtree(directory, ignore_errors=True)
 
 
 def _spool_directory() -> Path:
     global _directory
     if _directory is None:
-        _directory = Path(tempfile.mkdtemp(prefix="sharecut-decoded-"))
+        _sweep_orphans()
+        _directory = Path(tempfile.mkdtemp(prefix=f"sharecut-decoded-{os.getpid()}-"))
         atexit.register(shutil.rmtree, _directory, ignore_errors=True)
     return _directory
 
@@ -100,7 +154,7 @@ def _evict() -> None:
             continue
         total -= entry.size * _BYTES_PER_SAMPLE
         del _entries[key]
-        entry.path.unlink(missing_ok=True)
+        entry.discard()
 
 
 @contextmanager
@@ -131,6 +185,9 @@ class DecodedSources:
             if entry is None:
                 target = _spool_directory() / f"{len(_entries)}-{abs(hash(key))}.f32"
                 entry = _Spool(target, _decode(path, self.sample_rate, target))
+                if os.name != "nt":
+                    entry.fd = os.open(target, os.O_RDONLY)
+                    target.unlink()
                 _entries[key] = entry
             _entries.move_to_end(key)
             entry.users += 1
