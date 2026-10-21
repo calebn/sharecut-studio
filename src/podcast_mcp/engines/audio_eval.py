@@ -28,6 +28,7 @@ from podcast_mcp.engines.audio import (
     fade_duration,
     postorder,
 )
+from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.media_seek import MediaSeek
 
 EVAL_SAMPLE_RATE = 8000
@@ -131,6 +132,22 @@ def _crossfade(left: np.ndarray, right: np.ndarray, overlap: int) -> np.ndarray 
     seam = left[left.size - overlap :] * _ramp(overlap, rising=False)
     seam = seam + right[:overlap] * _ramp(overlap, rising=True)
     return np.concatenate((left[: left.size - overlap], seam, right[overlap:]))
+
+
+def single_layout(audio: Audio) -> bool:
+    """Whether every source and fill has one channel count: ffmpeg's stereo-to-mono matrix
+    differs from the mean the 8 kHz decode takes, so a mixed track keeps the render."""
+    channels = set()
+    for node in postorder(audio):
+        if isinstance(node, SourceAudio):
+            for path in (node.path, node.fill_path):
+                if path is None:
+                    continue
+                probe = probe_media(path)
+                if probe is None:
+                    return False
+                channels.add(probe.channels)
+    return len(channels) <= 1
 
 
 def _mix(starts: list[float], parts: list[np.ndarray], rate: int) -> np.ndarray:

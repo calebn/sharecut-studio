@@ -23,7 +23,7 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_WORD_SPAN_END_SLACK_SEC,
     word_duration_is_anomalous,
 )
-from podcast_mcp.engines.audio_eval import evaluate_audio
+from podcast_mcp.engines.audio_eval import evaluate_audio, single_layout
 from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, confirmed_likeness, copy_similarity
 from podcast_mcp.engines.envelope_lag import (
     COPY_FRAME_SEC,
@@ -717,7 +717,7 @@ def _ungated_cache(
             chain for chain in snapshot.processing_chains if chain.track_id != track_id
         ]
         plain = unfiltered_track_audio(snapshot, track, defaults)
-        if plain is not None:
+        if plain is not None and single_layout(plain[0]):
             samples = evaluate_audio(plain[0], crossfade_curve=plain[1], load_source=load_mono_full)
             if samples is not None and samples.size:
                 return TrackRmsCache.from_samples(samples)

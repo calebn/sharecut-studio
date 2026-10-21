@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import shutil
+import types
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.engines import audio_audit, timeline_render
+from podcast_mcp.engines import audio_audit, audio_eval, timeline_render
 from podcast_mcp.engines.audio import (
     At,
     CrossfadeAudio,
@@ -18,6 +19,8 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
+    duration,
+    postorder,
 )
 from podcast_mcp.engines.audio_eval import evaluate_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -140,22 +143,60 @@ def test_edge_fades_and_crossfade_are_linear_ramps() -> None:
     assert np.allclose(seam, 1.0, atol=1e-3)
 
 
-def test_mix_places_components_on_the_millisecond_delay_and_sums_overlaps() -> None:
+def test_mix_places_components_on_the_millisecond_delay() -> None:
     ones = np.ones(RATE, dtype=np.float32)
     piece = SourceAudio(Path("a"), 0.0, 0.5)
     mixed = MixAudio(
         At(0.0, piece),
-        (At(0.3004, piece), At(1.0, SilenceAudio(0.25))),
+        (At(0.5004, piece), At(1.0, SilenceAudio(0.25))),
     )
 
     result = evaluate_audio(mixed, crossfade_curve="tri", load_source=lambda _: ones)
 
     assert result is not None
     assert result.size == RATE + 2000
-    assert result[: 300 * 8].tolist() == [1.0] * 2400
-    assert result[2400:4000].tolist() == [2.0] * 1600
-    assert result[4000:6400].tolist() == [1.0] * 2400
-    assert result[6400:].tolist() == [0.0] * (result.size - 6400)
+    assert result[:4000].tolist() == [1.0] * 4000
+    assert result[4000:8000].tolist() == [1.0] * 4000
+    assert result[8000:].tolist() == [0.0] * (result.size - 8000)
+
+
+def test_overlapping_mix_components_sum_like_the_render(tmp_path: Path) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    track = project.track_by_id("caleb")
+    defaults = load_defaults()
+    audio, curve = unfiltered_track_audio(project, track, defaults)
+    mix = next(n for n in postorder(audio) if isinstance(n, MixAudio))
+    starts = [at.start_sec for at in (mix.head, *mix.tail)]
+    ends = [at.start_sec + duration(at.audio) for at in (mix.head, *mix.tail)]
+    assert any(later < earlier for earlier, later in zip(ends, starts[1:], strict=False))
+    rendered_path = tmp_path / "render.wav"
+    render_track_from_timeline(project, track, rendered_path, defaults)
+    rendered = load_mono_full(rendered_path)
+    evaluated = evaluate_audio(audio, crossfade_curve=curve, load_source=load_mono_full)
+    assert evaluated is not None
+    frame = RATE // 10
+    count = min(rendered.size, evaluated.size) // frame * frame
+    live = np.abs(rendered[:count]).reshape(-1, frame).max(axis=1) > 0.01
+    db = [
+        10 * np.log10(np.mean(x[:count].reshape(-1, frame) ** 2, axis=1) + 1e-12)
+        for x in (rendered, evaluated)
+    ]
+    assert np.abs(db[0] - db[1])[live].max() < 0.05
+
+
+def test_mixed_channel_layouts_keep_the_render(monkeypatch: pytest.MonkeyPatch) -> None:
+    channels = {Path("stereo"): 2, Path("mono"): 1}
+    monkeypatch.setattr(
+        audio_eval,
+        "probe_media",
+        lambda path: types.SimpleNamespace(channels=channels[path]),
+    )
+    stereo = SourceAudio(Path("stereo"), 0.0, 0.5)
+    mono = SourceAudio(Path("mono"), 0.0, 0.5)
+
+    assert audio_eval.single_layout(SequenceAudio(stereo, (stereo,)))
+    assert not audio_eval.single_layout(SequenceAudio(stereo, (mono,)))
 
 
 def test_gate_fill_is_summed_under_its_source() -> None:
@@ -231,7 +272,7 @@ def test_chain_track_cache_takes_the_fast_path_without_a_render(
     assert fast.samples.size == 141400
 
 
-def test_fast_cache_equals_the_rendered_cache(tmp_path: Path) -> None:
+def test_fast_cache_equals_the_rendered_cache(tmp_path: Path, render_calls: list[str]) -> None:
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads")
     defaults = load_defaults()
@@ -240,8 +281,10 @@ def test_fast_cache_equals_the_rendered_cache(tmp_path: Path) -> None:
     render_track_from_timeline(project, track, stem, defaults)
     rendered = audio_audit.TrackRmsCache.from_timeline_stem(stem)
 
+    render_calls.clear()
     fast = audio_audit._ungated_cache(project, "caleb", with_chain=False, defaults=defaults)
 
+    assert render_calls == []
     assert fast.samples.size == pytest.approx(rendered.samples.size, abs=3)
     for field in ("room_rms", "speech_rms"):
         assert getattr(fast.profile, field) == pytest.approx(
