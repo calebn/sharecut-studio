@@ -673,8 +673,8 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_WHISPER_MODEL` |  | Whisper model name; overrides preferences and the pipeline default. |
 | `PODCAST_MCP_WORD_ALIGNER_MODEL` |  | Local word-aligner snapshot directory. |
 | `PODCAST_MCP_RNNOISE_MODEL` |  | RNNoise model file. |
-| `PODCAST_MCP_NISQA_MODEL` |  | NISQA weights directory. |
 | `PODCAST_MCP_SPEAKER_ECAPA_MODEL` |  | Speaker-recognition ONNX model file. |
+| `PODCAST_MCP_NISQA_MODEL` |  | NISQA weights directory. |
 | `PODCAST_MCP_FFMPEG` |  | Explicit ffmpeg executable (set together with PODCAST_MCP_FFPROBE). |
 | `PODCAST_MCP_FFPROBE` |  | Explicit ffprobe executable. |
 | `PODCAST_MCP_FFMPEG_BUNDLE` |  | Directory holding the desktop app's bundled FFmpeg pair. |

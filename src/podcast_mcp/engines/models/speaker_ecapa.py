@@ -14,7 +14,6 @@ network path (``podcast bootstrap --component speaker-ecapa``).
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +23,7 @@ from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.util.asset_sources import asset_entry, download_first_ok, ordered_http_urls
-from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.model_manifest import manifest_mismatch
 
 logger = logging.getLogger(__name__)
 
@@ -63,22 +62,15 @@ def speaker_ecapa_path() -> Path:
     return models_dir() / filename
 
 
-@lru_cache(maxsize=4)
-def _sha_of(path: str, mtime_ns: int, size: int) -> str:
-    return sha256_file(Path(path))
-
-
 def speaker_ecapa_problem() -> str | None:
     """Why the model cannot be used (None when it is ready). Hashes once per file state."""
     path = speaker_ecapa_path()
-    try:
-        stat = path.stat()
-    except OSError:
+    if not path.is_file():
         return f"not downloaded; run {SPEAKER_ECAPA_BOOTSTRAP}"
     if speaker_ecapa_override() is not None:
         return None
     _, expected = _pin()
-    if _sha_of(str(path), stat.st_mtime_ns, stat.st_size) != expected:
+    if manifest_mismatch(path.parent, ((path.name, expected),), memoize=True) is not None:
         return f"does not match its pinned download; run {SPEAKER_ECAPA_BOOTSTRAP} --upgrade"
     return None
 

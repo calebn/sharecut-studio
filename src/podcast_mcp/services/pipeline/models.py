@@ -6,6 +6,7 @@ catalogs through the ``services.pipeline`` facade instead.
 
 from __future__ import annotations
 
+from podcast_mcp.engines.models.speaker_ecapa import bootstrap_speaker_ecapa
 from podcast_mcp.engines.models.whisper import (
     DEFAULT_WHISPER_MODEL,
     WHISPER_MODEL_IDS,
@@ -26,6 +27,7 @@ __all__ = [
     "DEFAULT_WORD_ALIGNER",
     "WHISPER_MODEL_IDS",
     "WhisperWeightsMissingError",
+    "bootstrap_speaker_ecapa",
     "bootstrap_whisper_model",
     "bootstrap_word_aligner",
     "persist_whisper_model",

@@ -7,11 +7,11 @@ import typer
 
 from podcast_mcp.config.defaults import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
-from podcast_mcp.engines.models.speaker_ecapa import bootstrap_speaker_ecapa
 from podcast_mcp.services.pipeline import (
     DEFAULT_WHISPER_MODEL,
     DEFAULT_WORD_ALIGNER,
     WHISPER_MODEL_IDS,
+    bootstrap_speaker_ecapa,
     bootstrap_whisper_model,
     bootstrap_word_aligner,
     persist_whisper_model,
