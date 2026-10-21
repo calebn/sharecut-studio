@@ -369,10 +369,11 @@ export async function downloadLocalKeepers(
     // The room-tone bed is its own file beside the takes; add it when the browser still
     // holds it. It is not a recording, so it never counts toward the totals above and its
     // absence (skipped, too loud, or already landed and cleared) is not an error.
+    // An unreadable bed is left out: it must never cost the person their recordings.
     const roomTone = await keeperBlob(
       sink,
       roomToneWavPath(sessionId, participantId),
-    );
+    ).catch(() => null);
     if (roomTone) {
       entries.push({ filename: "room-tone.wav", data: roomTone });
     }
