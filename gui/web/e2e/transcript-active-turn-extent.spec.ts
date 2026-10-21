@@ -95,6 +95,23 @@ for (const viewport of VIEWPORTS) {
       }
     });
     await page.keyboard.press("Home");
+    // Let the virtualized list finish its first measure: a sample taken while
+    // rows are still unmeasured reads a short extent that is not the bug.
+    let settled = 0;
+    let previous = -1;
+    await expect(async () => {
+      const extent = await list.evaluate(
+        (el) =>
+          new Promise<number>((resolve) => {
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => resolve(el.scrollHeight)),
+            );
+          }),
+      );
+      settled = extent === previous ? settled + 1 : 0;
+      previous = extent;
+      expect(settled).toBeGreaterThanOrEqual(5);
+    }).toPass();
     const extents = new Set<number>();
     const activeTurns = new Set<number>();
     for (let sec = 0; sec <= WALK_SECONDS; sec++) {
