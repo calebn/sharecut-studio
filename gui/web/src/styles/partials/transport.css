@@ -462,6 +462,17 @@
   box-shadow: var(--shadow-floating);
 }
 
+/* Chrome, not copy: a long-press on the title or timecode must not open iOS's
+   native text selection and Share callout (#1874). Controls are buttons; the
+   prefixed pair is what Safari 17 honours. */
+@media (pointer: coarse) {
+  .listen-hero {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
 .listen-hero-head {
   display: flex;
   align-items: center;
