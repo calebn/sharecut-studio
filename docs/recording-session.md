@@ -1075,6 +1075,7 @@ durable local copy is being made. Already finalized segments remain available,
 while the failed open segment is not advertised as complete; **Download
 full-quality recording** still exports it, named
 `full-quality-take-<take>-segment-<segment>-partial.wav` (one-based).
+The same archive carries the participant's room-tone bed as `room-tone.wav` while the browser still holds it (a skipped, too-loud or already-cleared bed adds nothing and is not an error). It is not a recording: it does not count toward the downloaded, missing or expired totals, and a browser holding only the bed still reports that no full-quality recording is available (#1216).
 The client offers **Retry full-quality recording** while the take is recording; during
 pause or after Stop, the host must resume or start a take first. Retry waits
 for the failed stream to close (bounded by the close deadline) and starts a
