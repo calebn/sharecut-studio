@@ -72,10 +72,12 @@ test("double-clicking the drawer handle collapses it and the rail handle reopens
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openHostProject(page);
-  await dragSplitter(page, -40);
-  await expect.poll(() => drawerHeight(page)).toBeGreaterThan(220);
+  const handle = page.getByRole("separator", { name: "Resize editor panels" });
+  const start = await drawerHeight(page);
+  await handle.focus();
+  await page.keyboard.press("Shift+ArrowUp");
+  await expect.poll(() => drawerHeight(page)).toBeGreaterThan(start);
   const before = await drawerHeight(page);
-  await page.waitForTimeout(600);
   await doubleClickSplitter(page);
   await expect(page.locator("html")).toHaveAttribute("data-layout", "timeline");
   await expect(page.locator(".bottom-tabs")).toBeHidden();
