@@ -150,6 +150,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("scripts/export_capabilities_copy.py", Scope.GUI),
         ("scripts/export_timeline_zoom.py", Scope.GUI),
         ("scripts/export_limit_contracts.py", Scope.GUI),
+        ("scripts/build_brand_assets.py", Scope.GUI),
         ("scripts/build_large_project_fixture.py", Scope.GUI),
         ("scripts/ux_demo_prepare_shares.py", Scope.GUI),
         ("scripts/**", Scope.OTHER),
