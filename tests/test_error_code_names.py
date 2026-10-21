@@ -78,6 +78,29 @@ def test_a_source_id_from_the_project_is_an_inconsistency_one_from_a_request_a_m
     assert neighbour.value.code == "clip_source_missing"
 
 
+def test_the_restore_audit_reads_a_clip_with_a_missing_source_as_an_inconsistency() -> None:
+    from podcast_mcp.config.defaults import EffectiveConfig
+    from podcast_mcp.engines.play_audit import _restore_media_paths
+    from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
+
+    project = EpisodeProject.create("t", "/tmp/ws")
+    project.tracks.append(Track(id="host", role=TrackRole.DIALOGUE, label="Host"))
+    project.clips.append(
+        Clip(
+            id="a",
+            track_id="host",
+            source_id="ghost",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+        )
+    )
+    with pytest.raises(CodedValueError) as raised:
+        _restore_media_paths(project, "host", defaults=EffectiveConfig())
+    assert raised.value.code == "clip_source_missing"
+    assert not names_missing_target(raised.value)
+
+
 def test_caller_actionable_argument_errors_carry_their_own_codes(tmp_path) -> None:
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.conversation_align import acoustic_clip_offset

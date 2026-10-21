@@ -144,10 +144,16 @@ def _restore_media_paths(
 
     paths = set()
     for clip in clips_for_track(project, track_id):
-        paths.add(recording_audio_path(project, track_id, clip.source_id).resolve())
+        paths.add(
+            recording_audio_path(project, track_id, clip.source_id, from_project=True).resolve()
+        )
         for region in clip.mute_regions:
             if region.fill is not None:
-                paths.add(recording_audio_path(project, track_id, region.fill.source_id).resolve())
+                paths.add(
+                    recording_audio_path(
+                        project, track_id, region.fill.source_id, from_project=True
+                    ).resolve()
+                )
     track = project.track_by_id(track_id)
     if track is not None:
         fill = current_gate_fill_path(project, track)
