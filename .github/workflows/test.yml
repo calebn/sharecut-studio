@@ -252,11 +252,11 @@ jobs:
           cache-dependency-path: gui/web/package-lock.json
 
       - run: npm ci
-      - name: Install GUI Python deps
+      - name: Install exporter Python deps
         # export_project_types.py imports the Pydantic models.
         uses: ./.github/actions/install-locked-python
         with:
-          extras: gui
+          environment: frontend-exporters
       - name: Biome-formatted generated copies are current
         # These exporters need Biome (gui/web/node_modules), so they run here, not
         # in the pytest job. setup-python pins the pytest job's 3.12.

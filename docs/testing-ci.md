@@ -163,14 +163,32 @@ cache. It does not restore an installed environment or
 change PATH. Existing `actions/setup-python` pip caches remain for bootstrap and
 editable builds where callers configure them.
 
-Every invocation exports all requested extras with `uv export --locked
---no-emit-project --no-hashes`. A stale lock fails before dependency installation.
+The default `environment: project` exports all requested extras with `uv export
+--locked --no-emit-project --no-hashes`. A stale lock fails before dependency installation.
 `uv pip install --python "$PYTHON_EXE" --compile-bytecode -r` consumes the exported
 requirements and targets the captured interpreter. Eager bytecode compilation
 preserves pip's existing installation behavior. The final step remains
 `python -m pip install --no-deps -e .`. Neither a cache hit nor a miss skips export,
 installation, caller checks, or the coverage gate. The weekly `extras-import`
 workflow keeps its deliberately unlocked environments to detect upstream changes.
+
+Only `frontend-suite` selects `environment: frontend-exporters`, with no extras.
+It exports `dependency-groups.frontend-exporters` using `uv export --locked
+--only-group frontend-exporters --no-hashes`. The group declares `pydantic`,
+`pyyaml`, `filelock`, `numpy`, and `coolname` with the existing project constraints;
+uv selects their locked transitive dependencies. Installation uses the same
+captured interpreter and bytecode compilation, then runs `uv pip check --python
+"$PYTHON_EXE"` and omits editable project installation. The four generated-file
+exporters still run after `npm ci`, importing the checkout's `src` tree. A new
+unavailable import fails those checks. This group does not install the GUI runtime;
+browser suites keep their `gui` extras.
+
+An unknown environment or exporter mode with nonempty extras fails before
+bootstrap. Exporter mode uses a tagged selection hash distinct from project extras;
+project hashes, cache dimensions, and the shared package-content restore prefix
+keep their existing behavior. Cache hits still require locked export, installation,
+and dependency validation. Export, install, and dependency-check failures stop the
+recipe without falling back to a larger environment.
 
 `tests/test_ci_dependency_cache.py` checks cache identity and executes the shell
 recipe in disposable environments with local command controls. Full package

@@ -99,6 +99,16 @@ podcast doctor
 
 `podcast bootstrap --component nisqa` is opt-in only (not in `--component all`). The default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir when using the neural joinqc path.
 
+## Frontend exporter dependencies
+
+CI's `frontend-suite` uses the `frontend-exporters` dependency group in
+`pyproject.toml`. Its five roots share the project's constraints, and `uv.lock`
+pins their transitive dependencies. The shared installer selects this group with
+`environment: frontend-exporters`, installs the locked export, validates its
+closure, and skips editable project installation. The four generated-file checks
+run against checked-out source after `npm ci`. Contributor installs and browser
+suites keep their existing extras. See [locked Python installation](testing-ci.md#locked-python-installation).
+
 ## Optional downloads and extras
 
 ### Pip extras

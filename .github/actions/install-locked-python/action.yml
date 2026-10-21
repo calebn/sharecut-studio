@@ -1,9 +1,12 @@
 name: Install locked Python dependencies
-description: Install the project's extras at the versions uv.lock pins, so an upstream release cannot change what CI tests
+description: Install the selected Python environment at the versions uv.lock pins
 inputs:
+  environment:
+    description: Python environment to install (project or frontend-exporters)
+    default: project
   extras:
     description: Space-separated optional-dependency extras to install
-    required: true
+    default: ""
 runs:
   using: composite
   steps:
@@ -12,8 +15,19 @@ runs:
       shell: bash
       env:
         EXTRAS: ${{ inputs.extras }}
+        ENVIRONMENT: ${{ inputs.environment }}
       run: |
         set -euo pipefail
+        case "$ENVIRONMENT" in
+          project) ;;
+          frontend-exporters)
+            if [[ -n "${EXTRAS//[[:space:]]/}" ]]; then
+              echo "frontend-exporters does not accept extras" >&2
+              exit 1
+            fi
+            ;;
+          *) echo "Unknown Python environment: $ENVIRONMENT" >&2; exit 1 ;;
+        esac
         python -m pip install --upgrade pip uv
         python - <<'PY' >> "$GITHUB_OUTPUT"
         import hashlib
@@ -24,6 +38,8 @@ runs:
         print(f"python-version={sys.version_info.major}.{sys.version_info.minor}")
         print(f"uv-version={version('uv')}")
         extras = "\n".join(sorted(set(os.environ["EXTRAS"].split())))
+        if os.environ["ENVIRONMENT"] == "frontend-exporters":
+            extras = "\0frontend-exporters"
         print(f"extras-key={hashlib.sha256(extras.encode()).hexdigest()}")
         PY
         cache_dir="$(uv cache dir)"
@@ -38,11 +54,20 @@ runs:
       shell: bash
       env:
         EXTRAS: ${{ inputs.extras }}
+        ENVIRONMENT: ${{ inputs.environment }}
         PYTHON_EXE: ${{ steps.installer.outputs.python-exe }}
       run: |
         set -euo pipefail
-        flags=()
-        for extra in $EXTRAS; do flags+=(--extra "$extra"); done
-        uv export --locked --no-emit-project --no-hashes "${flags[@]}" -o "$RUNNER_TEMP/locked-requirements.txt"
+        if [[ "$ENVIRONMENT" == frontend-exporters ]]; then
+          uv export --locked --only-group frontend-exporters --no-hashes -o "$RUNNER_TEMP/locked-requirements.txt"
+        else
+          flags=()
+          for extra in $EXTRAS; do flags+=(--extra "$extra"); done
+          uv export --locked --no-emit-project --no-hashes "${flags[@]}" -o "$RUNNER_TEMP/locked-requirements.txt"
+        fi
         uv pip install --python "$PYTHON_EXE" --compile-bytecode -r "$RUNNER_TEMP/locked-requirements.txt"
-        python -m pip install --no-deps -e .
+        if [[ "$ENVIRONMENT" == frontend-exporters ]]; then
+          uv pip check --python "$PYTHON_EXE"
+        else
+          python -m pip install --no-deps -e .
+        fi
