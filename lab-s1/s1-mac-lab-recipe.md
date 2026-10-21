@@ -16,3 +16,9 @@ Pass criteria:
 - Fallback frequency: log how many track builds took the ffmpeg render vs the evaluator (any track with mute regions, off-speaker/bleed restore, envelope points, mixed channel layouts, non-tri crossfade keeps the render). If Daniela's chained tracks mostly fall back, the speedup won't show: report which condition.
 - Preview-vs-export: export Daniela's joins before and after is unaffected (S1 changes only proof evidence, not edits); confirm exported WAV sha256 equal between arms.
 Open risk the lab must settle: seam frames can differ up to ~0.2 dB between the evaluator and the render; the A/B equality above is the test.
+
+## Wider A/B (root verdict, required before merge)
+S1 also feeds transcript reconcile (suppressed / audibility_status / dominant_track, which changes gated exports) and tighten propose, not only ApproveEdits. On the same Daniela clone, main vs head, also diff:
+- dry-run `reconcile_transcript` output (fields suppressed, audibility_status, dominant_track per word);
+- the tighten propose output (edit decisions, normalised ids ignored).
+Record `ffmpeg -version` for each arm. Any held/approved/flag difference is a FAIL.
