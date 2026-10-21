@@ -11,6 +11,7 @@ the caller keeps the ffmpeg render.
 from __future__ import annotations
 
 import itertools
+import math
 from collections.abc import Callable
 from pathlib import Path
 
@@ -84,7 +85,9 @@ def evaluate_audio(
                 parts = stack[-len(ats) :]
                 del stack[-len(ats) :]
                 stack.append(_mix([at.start_sec for at in ats], parts, sample_rate))
-            case MaskAudio() | OffSpeakerAudio():
+            case OffSpeakerAudio():
+                stack.append(_off_speaker(stack.pop(), node, seek, sample_rate))
+            case MaskAudio():
                 return None
     return stack[0]
 
@@ -154,6 +157,39 @@ def _muted(piece: np.ndarray, node: SourceAudio, seek: MediaSeek, sample_rate: i
                 curve[back] = floor + (1.0 - floor) * (n[back] - rise) / env.fade_in
         gain[first:last] = np.minimum(gain[first:last], curve)
     return piece * gain
+
+
+def _off_speaker(
+    body: np.ndarray, node: OffSpeakerAudio, seek: MediaSeek, sample_rate: int
+) -> np.ndarray:
+    """``body`` under the automatic off-speaker mute gain (``automatic_gain_expression``)."""
+    if not node.envelopes:
+        return body
+    origin = seek.first_sample(node.primary.src_start, sample_rate)
+
+    def at(seconds: float, *, ceil: bool = False) -> int:
+        frame = (
+            math.ceil(seconds * sample_rate) if ceil else math.floor(seconds * sample_rate + 0.5)
+        )
+        return frame - origin
+
+    n = np.arange(body.size, dtype=np.float64)
+    gain = np.ones(body.size, dtype=np.float64)
+    for env in node.envelopes:
+        first, fall = at(env.start), at(env.start + env.fade_out_sec)
+        rise, last = at(env.end - env.fade_in_sec), at(env.end)
+        if fall > rise:
+            fall, rise = first, last
+        part = np.ones(body.size, dtype=np.float64)
+        part[(n >= first) & (n < fall)] = (fall - n[(n >= first) & (n < fall)]) / max(
+            fall - first, 1
+        )
+        part[(n >= fall) & (n < rise)] = 0.0
+        part[(n >= rise) & (n < last)] = (n[(n >= rise) & (n < last)] - rise) / max(last - rise, 1)
+        gain = np.minimum(gain, part)
+    for start, end in node.bypass_windows:
+        gain[(n >= at(start, ceil=True)) & (n < at(end, ceil=True))] = 1.0
+    return (body * gain).astype(np.float32)
 
 
 def _ramp(count: int, *, rising: bool) -> np.ndarray:
