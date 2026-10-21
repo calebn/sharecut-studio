@@ -95,7 +95,13 @@ for (const { cell: width, theme, reducedMotion } of withAppearance([
       (element, id) => element.releasePointerCapture(id!),
       owner,
     );
+    // Safari drops capture mid-drag on its own, so losing it must not end the
+    // drag: the pointer keeps resizing, and Escape still restores.
     await page.mouse.move(x, next.y - 96);
+    await expect
+      .poll(async () => (await snapshot()).height)
+      .toBeGreaterThan(stored.height);
+    await page.keyboard.press("Escape");
     await expect.poll(snapshot).toEqual(stored);
     await page.mouse.up();
     await separator.press("Enter");
