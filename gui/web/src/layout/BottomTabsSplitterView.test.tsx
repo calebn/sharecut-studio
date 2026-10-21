@@ -415,4 +415,15 @@ describe("BottomTabsSplitterView", () => {
     fireEvent.pointerMove(sep, { pointerId: 2, clientY: 250 });
     expect(props.onResize.mock.calls.length).toBeGreaterThan(painted + 1);
   });
+
+  it("restores the height from before a drag whose release was dropped", () => {
+    const props = renderLiveSplitter();
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 280 });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 280 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 260 });
+    fireEvent.keyDown(sep, { key: "Escape" });
+    expect(props.onResize.mock.calls.at(-1)?.[0]).toBe(12.5);
+  });
 });

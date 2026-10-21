@@ -421,6 +421,17 @@ html[data-shell="phone"] .guest-attention-dismiss {
 .bottom-tabs-splitter:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: calc(-1 * var(--focus-ring-offset));
+  /* The clipped top edge cuts the ring, so the visible strip is tinted too. */
+  --splitter-focus-tint: color-mix(
+    in srgb,
+    var(--color-accent) 22%,
+    transparent
+  );
+  background: var(--splitter-focus-tint);
+}
+
+.bottom-tabs-splitter:focus-visible .bottom-tabs-splitter-grip {
+  background: var(--color-accent);
 }
 
 .bottom-tabs-splitter-grip {

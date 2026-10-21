@@ -160,7 +160,9 @@ export function BottomTabsSplitterView({
     if (e.pointerType === "mouse" && e.button !== 0) return;
     // The same pointer pressing again means its release was dropped; that
     // must not wedge every later drag. Another pointer's drag is left alone.
-    if (dragRef.current?.pointerId === e.pointerId) finish(true);
+    const carried =
+      dragRef.current?.pointerId === e.pointerId ? dragRef.current : null;
+    if (carried) finish(true);
     else if (dragRef.current) return;
     e.preventDefault();
     e.currentTarget.focus({ preventScroll: true });
@@ -169,9 +171,9 @@ export function BottomTabsSplitterView({
     dragRef.current = {
       pointerId: e.pointerId,
       target: e.currentTarget,
-      prior: { heightRem, userSet },
+      prior: carried?.prior ?? { heightRem, userSet },
       painted: null,
-      requested: new Set(),
+      requested: new Set(carried?.requested),
       collapse: false,
       startY: e.clientY,
       startRem:
