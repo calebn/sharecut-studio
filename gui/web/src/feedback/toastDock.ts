@@ -14,6 +14,13 @@ const FLOOR_SELECTORS = [
   ".bottom-sheet:not(.bottom-sheet--column)",
 ] as const;
 
+/**
+ * Controls that sit in the page body and that a toast must not cover: Listen's
+ * Play row. On a short phone the band above the bottom chrome is only just
+ * taller than the toast, so docking there would land on them.
+ */
+const KEEP_CLEAR_SELECTORS = [".listen-hero-controls"] as const;
+
 /** Phone chrome docked to the top edge; the toast stays below it. */
 const CEILING_SELECTORS = [
   ".daw-shell--phone .daw-shell-transport",
@@ -36,6 +43,8 @@ export type ToastDockInput = {
    * sheet.
    */
   pressedPx?: { top: number; bottom: number } | null;
+  /** Vertical extents of body controls the toast must clear (Listen's Play row). */
+  keepClearPx?: readonly { top: number; bottom: number }[];
 };
 
 /**
@@ -45,8 +54,10 @@ export type ToastDockInput = {
  * transport fits it, so it covers neither controls nor sheet fields. A
  * full-height sheet leaves no such band; the toast then sits above the mode
  * nav, over the sheet's scrolling body, which the person can scroll past. If
- * that spot covers the control just pressed, the toast moves just above that
- * control, or just below it when there is no room above.
+ * that spot covers the control just pressed or a control that must stay clear
+ * (Listen's Play row on a short phone), the toast moves just above it, or just
+ * below it when there is no room above; the first spot that covers none of
+ * them wins.
  */
 export function toastDockBottomPx({
   viewportHeight,
@@ -56,24 +67,29 @@ export function toastDockBottomPx({
   toastHeightPx,
   gapPx,
   pressedPx,
+  keepClearPx = [],
 }: ToastDockInput): number {
   const floor = Math.min(navTopPx, ...floorTopsPx);
   const fits = floor - ceilingPx >= toastHeightPx + 2 * gapPx;
   const dockBottom = fits ? floor : navTopPx;
-  const covers =
-    pressedPx != null &&
-    pressedPx.top < dockBottom - gapPx &&
-    pressedPx.bottom > dockBottom - gapPx - toastHeightPx;
-  if (!covers) {
-    return viewportHeight - dockBottom + gapPx;
+  const spot = dockBottom - gapPx;
+  const avoid = pressedPx ? [pressedPx, ...keepClearPx] : [...keepClearPx];
+  const clear = (bottom: number) =>
+    avoid.every(
+      (extent) =>
+        extent.top >= bottom || extent.bottom <= bottom - toastHeightPx,
+    );
+  if (clear(spot)) {
+    return viewportHeight - spot;
   }
-  if (pressedPx.top - gapPx - toastHeightPx >= ceilingPx + gapPx) {
-    return viewportHeight - pressedPx.top + gapPx;
-  }
-  if (pressedPx.bottom + gapPx + toastHeightPx <= navTopPx - gapPx) {
-    return viewportHeight - (pressedPx.bottom + gapPx + toastHeightPx);
-  }
-  return viewportHeight - dockBottom + gapPx;
+  const above = avoid
+    .map((extent) => extent.top - gapPx)
+    .filter((bottom) => bottom - toastHeightPx >= ceilingPx + gapPx);
+  const below = avoid
+    .map((extent) => extent.bottom + gapPx + toastHeightPx)
+    .filter((bottom) => bottom <= navTopPx - gapPx);
+  const moved = [...above, ...below].find(clear);
+  return viewportHeight - (moved ?? spot);
 }
 
 function shownRects(selectors: readonly string[]): DOMRect[] {
@@ -135,6 +151,7 @@ export function usePhoneToastDock(
         toastHeightPx: card.getBoundingClientRect().height,
         gapPx: gapRem * rootPx,
         pressedPx: pressedExtent(),
+        keepClearPx: shownRects(KEEP_CLEAR_SELECTORS),
       });
       const value = `${bottomPx / rootPx}rem`;
       if (region.style.getPropertyValue("--toast-dock-bottom") !== value) {
