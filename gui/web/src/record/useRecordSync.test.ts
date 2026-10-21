@@ -16,7 +16,7 @@ const loadRecordParticipant = vi.fn();
 const saveRecordParticipant = vi.fn();
 const clearRecordParticipant = vi.fn();
 
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   loadRecordParticipant: (...args: unknown[]) => loadRecordParticipant(...args),
   saveRecordParticipant: (...args: unknown[]) => saveRecordParticipant(...args),
   clearRecordParticipant: (...args: unknown[]) =>

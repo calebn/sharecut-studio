@@ -49,7 +49,7 @@ vi.mock("./keeper/store", async (importOriginal) => {
   };
 });
 
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   loadRecordParticipant: vi.fn(async () => undefined),
   saveRecordParticipant: vi.fn(async () => undefined),
   clearRecordParticipant: vi.fn(async () => undefined),

@@ -17,11 +17,6 @@ import {
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
-  type OfflineConflict,
-  removeConflictsWhere,
-  removeHostConflictsWhere,
-} from "../state/offlineStore";
-import {
   DocumentCommand,
   type DocumentCommandType,
 } from "../types/documentCommands.generated";
@@ -514,9 +509,7 @@ export async function setEffectBypass(
  * captured `expected_text`), load the host's current transcript words (the
  * `detail` phase) into the store before rethrowing, as `setEnvelope` does for
  * envelopes. The Correct inspector then re-captures its baseline from them,
- * so Apply again retries against the current text (#746). Once a correction
- * lands (not queued), earlier refused corrections of the same word leave
- * Needs attention.
+ * so Apply again retries against the current text (#746).
  */
 async function submitTranscriptCorrection(
   projectPath: string,
@@ -534,54 +527,7 @@ async function submitTranscriptCorrection(
     }
     throw error;
   }
-  if (result.queued !== true) {
-    await clearSupersededCorrectionConflicts(projectPath, type, payload);
-  }
   return replyHistoryHead(result);
-}
-
-/** First word index a transcript correction payload rewrites. */
-function correctionStart(payload: Record<string, unknown>): unknown {
-  return payload.word_index ?? payload.start_word_index;
-}
-
-function isTranscriptCorrection(type: string): boolean {
-  return (
-    type === DocumentCommand.CorrectTranscriptWord ||
-    type === DocumentCommand.CorrectTranscriptPhrase
-  );
-}
-
-/**
- * After a transcript correction lands, live (submitTranscriptCorrection) or
- * replayed from the offline queue (services/offlineQueue/drainOfflineQueue.ts
- * replayQueuedCommands), drop Needs attention entries for earlier refused
- * corrections of the same word (same track and start index), so the banner
- * stops asking the user to redo a correction that has now been made (#746);
- * a no-op for any other command type. A failed cleanup never fails the
- * correction; Dismiss all still clears it.
- */
-export async function clearSupersededCorrectionConflicts(
-  projectPath: string,
-  type: string,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  if (!isTranscriptCorrection(type)) {
-    return;
-  }
-  const superseded = ({ command }: OfflineConflict) =>
-    isTranscriptCorrection(command.type) &&
-    command.payload.track_id === payload.track_id &&
-    command.payload.source_id === payload.source_id &&
-    correctionStart(command.payload) === correctionStart(payload);
-  const token = shareTokenFromKey(projectPath);
-  try {
-    await (token
-      ? removeConflictsWhere(token, superseded)
-      : removeHostConflictsWhere(projectPath, superseded));
-  } catch {
-    // Leave the entry; Dismiss all clears it.
-  }
 }
 
 export async function correctTranscriptWord(

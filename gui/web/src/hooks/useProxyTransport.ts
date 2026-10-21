@@ -21,13 +21,13 @@ import {
   proxyBasisKey,
 } from "../audio/proxyMath";
 import { recoverDocument } from "../document/applyDocumentUpdate";
-import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
 import {
   loadCommandQueue,
   loadOfflineSnapshot,
   mergeOfflineSnapshot,
-} from "../state/offlineStore";
+} from "../services/offlineQueue/offlineStore";
+import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";

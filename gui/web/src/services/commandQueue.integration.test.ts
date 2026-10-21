@@ -7,13 +7,15 @@ const loadHostCommandQueue = vi.fn();
 const removeHostQueuedCommand = vi.fn();
 const settleHostCommandOutcome = vi.fn();
 const settleGuestCommandOutcome = vi.fn();
+const removeHostConflictsWhere = vi.fn(async () => {});
+const removeConflictsWhere = vi.fn(async () => {});
 let persistedHostCommands: { command_id: string; type: string }[] = [];
 
 vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentResult: vi.fn(),
   refreshDocumentDisplay: vi.fn(),
 }));
-vi.mock("../state/offlineStore", () => ({
+vi.mock("./offlineQueue/offlineStore", () => ({
   loadHostCommandQueue,
   enqueueHostCommand,
   removeHostQueuedCommand,
@@ -21,6 +23,8 @@ vi.mock("../state/offlineStore", () => ({
   settleGuestCommandOutcome,
   enqueueCommand,
   removeQueuedCommand: vi.fn(),
+  removeHostConflictsWhere,
+  removeConflictsWhere,
 }));
 
 describe("queued command identity and landed history", () => {
@@ -98,6 +102,51 @@ describe("queued command identity and landed history", () => {
     registerHistoryCommands();
     return { api, execute, useDawStore, ...authority };
   }
+
+  describe("a transcript correction clears superseded Needs attention entries (#746)", () => {
+    const correct = async (reply: Response) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => reply),
+      );
+      const api = await import("../api");
+      return api.correctTranscriptWord(path, "host", 0, "Hi", "hello");
+    };
+
+    it("a landed live correction clears them", async () => {
+      await correct(
+        new Response(
+          JSON.stringify({ ok: true, server_seq: 2, history_head_id: "h1" }),
+          { status: 200 },
+        ),
+      );
+      expect(removeHostConflictsWhere).toHaveBeenCalledWith(
+        path,
+        expect.any(Function),
+      );
+    });
+
+    it("a queued correction clears nothing", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("offline");
+        }),
+      );
+      const api = await import("../api");
+      await api.correctTranscriptWord(path, "host", 0, "Hi", "hello");
+      expect(removeHostConflictsWhere).not.toHaveBeenCalled();
+    });
+
+    it("a refused correction clears nothing", async () => {
+      await expect(
+        correct(
+          new Response(JSON.stringify({ detail: "stale" }), { status: 409 }),
+        ),
+      ).rejects.toBeDefined();
+      expect(removeHostConflictsWhere).not.toHaveBeenCalled();
+    });
+  });
 
   it("uses completed command replies through undo and redo while display lags", async () => {
     const { api, execute, useDawStore } = await laggingHistory();

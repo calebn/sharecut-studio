@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { QueuedCommand } from "../services/offlineQueue/offlineStore";
 import { shareProjectKey } from "../shareMode";
-import type { QueuedCommand } from "../state/offlineStore";
 import {
   QUEUED_NOTICE_POLL_MS,
   useQueuedReviewNotice,
@@ -21,7 +21,7 @@ const {
   loadConflicts: vi.fn(),
 }));
 
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   loadHostCommandCount,
   loadCommandQueue,
   loadHostCommandQueue,

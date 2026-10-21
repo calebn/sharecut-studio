@@ -1,9 +1,9 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { shareTokenFromKey } from "../shareMode";
+import { shareTokenFromKey } from "../../shareMode";
 import {
   documentActivityBusy,
   subscribeDocumentActivity,
-} from "./documentSendOrder";
+} from "../../state/documentSendOrder";
 import {
   dismissConflicts,
   dismissHostConflicts,

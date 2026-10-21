@@ -29,8 +29,10 @@ vi.mock("../../api", async (importOriginal) => ({
   updatePendingEdit: mocks.updatePendingEdit,
   loadPendingCutSuggestion: mocks.loadPendingCutSuggestion,
 }));
-vi.mock("../../state/offlineStore", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../state/offlineStore")>()),
+vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../services/offlineQueue/offlineStore")
+  >()),
   loadHostCommandQueue: mocks.loadHostCommandQueue,
   loadHostConflicts: mocks.loadHostConflicts,
 }));

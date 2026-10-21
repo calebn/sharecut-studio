@@ -34,7 +34,7 @@ vi.mock("./state/documentSendOrder", async (importOriginal) => ({
   DOCUMENT_SEND_WAIT_MS: 200,
 }));
 
-vi.mock("./state/offlineStore", () => ({
+vi.mock("./services/offlineQueue/offlineStore", () => ({
   loadHostCommandQueue,
   enqueueHostCommand,
   removeHostQueuedCommand,

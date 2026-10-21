@@ -1,13 +1,13 @@
 import { useEffect, useSyncExternalStore } from "react";
+import {
+  selectRecoveryOutcome,
+  useOfflineAttention,
+} from "../services/offlineQueue/offlineAttention";
 import { isShareProjectKey } from "../shareMode";
 import {
   documentActivityBusy,
   subscribeDocumentActivity,
 } from "../state/documentSendOrder";
-import {
-  selectRecoveryOutcome,
-  useOfflineAttention,
-} from "../state/offlineAttention";
 import { useDaw } from "../state/useDaw";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { SaveStateDotView } from "./SaveStateDotView";

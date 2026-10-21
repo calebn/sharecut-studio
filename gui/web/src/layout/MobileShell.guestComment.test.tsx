@@ -22,7 +22,7 @@ vi.mock("../api", async (importOriginal) => ({
   createComment: (...args: unknown[]) => createComment(...args),
 }));
 
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   loadConflicts: vi.fn().mockResolvedValue([]),
   loadCommandQueue: vi.fn().mockResolvedValue([]),
   loadHostCommandCount: vi.fn().mockResolvedValue(0),

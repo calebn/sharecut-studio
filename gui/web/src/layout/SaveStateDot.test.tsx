@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
+import { recordVolatileOutcome } from "../services/offlineQueue/offlineAttention";
 import { useDawStore } from "../state/dawStore";
 import { beginDocumentSend } from "../state/documentSendOrder";
-import { recordVolatileOutcome } from "../state/offlineAttention";
 import { minimalProject, offlineConflict } from "../test/fixtures";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
@@ -42,7 +42,7 @@ const offlineStore = vi.hoisted(() => {
 });
 const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
 
-vi.mock("../state/offlineStore", () => offlineStore);
+vi.mock("../services/offlineQueue/offlineStore", () => offlineStore);
 vi.mock("../services/offlineQueue/drainOfflineQueue", () => drain);
 
 const PATH = "/tmp/save-state-1448.json";

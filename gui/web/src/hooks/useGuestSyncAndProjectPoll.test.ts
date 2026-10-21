@@ -15,7 +15,7 @@ vi.mock("../api", () => ({
   loadProjectMeta: (...args: unknown[]) => loadProjectMeta(...args),
 }));
 
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   mergeOfflineSnapshot: vi.fn(async () => undefined),
 }));
 

@@ -19,7 +19,7 @@ const offlineStore = vi.hoisted(() => ({
   loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));
 
-vi.mock("../state/offlineStore", () => offlineStore);
+vi.mock("../services/offlineQueue/offlineStore", () => offlineStore);
 
 const viewport = vi.hoisted(() => ({
   shell: "tablet" as "phone" | "tablet",

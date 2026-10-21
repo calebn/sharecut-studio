@@ -1,5 +1,4 @@
 import { type ReactNode, useCallback, useEffect, useState } from "react";
-import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import {
   loadCommandQueue,
   loadConflicts,
@@ -7,7 +6,8 @@ import {
   loadHostCommandQueue,
   loadHostConflicts,
   type QueuedCommand,
-} from "../state/offlineStore";
+} from "../services/offlineQueue/offlineStore";
+import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 

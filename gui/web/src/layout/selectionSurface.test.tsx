@@ -61,7 +61,7 @@ const offlineStore = vi.hoisted(() => {
   };
 });
 
-vi.mock("../state/offlineStore", () => offlineStore);
+vi.mock("../services/offlineQueue/offlineStore", () => offlineStore);
 
 vi.mock("../waveform/statusStore", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../waveform/statusStore")>()),

@@ -5,10 +5,13 @@ import {
   resetDocumentAuthority,
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
-import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import { clipRow, minimalProject } from "../test/fixtures";
 import { submitQueuedDocumentCommand } from "./commandQueue";
 import { replayQueuedCommands } from "./offlineQueue/drainOfflineQueue";
+import type {
+  OfflineConflict,
+  QueuedCommand,
+} from "./offlineQueue/offlineStore";
 
 const { queues, conflicts, remove, enqueue, addConflict, settle } = vi.hoisted(
   () => {
@@ -53,7 +56,7 @@ const { queues, conflicts, remove, enqueue, addConflict, settle } = vi.hoisted(
     return { queues, conflicts, remove, enqueue, addConflict, settle };
   },
 );
-vi.mock("../state/offlineStore", () => ({
+vi.mock("./offlineQueue/offlineStore", () => ({
   enqueueHostCommand: enqueue,
   enqueueCommand: enqueue,
   removeHostQueuedCommand: remove,

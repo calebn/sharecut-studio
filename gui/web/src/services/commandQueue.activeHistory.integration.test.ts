@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { QueuedCommand } from "../state/offlineStore";
 import { commandLocks } from "../test/commandLocks";
+import type { QueuedCommand } from "./offlineQueue/offlineStore";
 
 const storage = vi.hoisted(() => ({
   rows: [] as QueuedCommand[],
 }));
-vi.mock("../state/offlineStore", () => ({
+vi.mock("./offlineQueue/offlineStore", () => ({
   enqueueCommand: async (_: string, command: (typeof storage.rows)[number]) => {
     const hadPredecessor = storage.rows.length > 0;
     storage.rows.push(command);

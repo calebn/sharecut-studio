@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { attentionRegionLabel } from "../layout/attentionLabel";
+import type { AttentionStatus } from "../services/offlineQueue/offlineAttention";
 import { useDawStore } from "../state/dawStore";
-import type { AttentionStatus } from "../state/offlineAttention";
 
 type Input = {
   projectPath: string;

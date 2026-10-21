@@ -12,14 +12,14 @@ import {
   documentAuthority,
   resetDocumentAuthority,
 } from "../document/authorityState";
-import { shareProjectKey } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
 import {
   loadCommandQueue,
   loadOfflineSnapshot,
   mergeOfflineSnapshot,
   type QueuedCommand,
-} from "../state/offlineStore";
+} from "../services/offlineQueue/offlineStore";
+import { shareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import { useAudioTransport } from "./useAudioTransport";
@@ -46,7 +46,7 @@ vi.mock("../utils/audio", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../utils/audio")>()),
   audioContextCtor: () => class {},
 }));
-vi.mock("../state/offlineStore", () => ({
+vi.mock("../services/offlineQueue/offlineStore", () => ({
   loadOfflineSnapshot: vi.fn(async () => null),
   loadCommandQueue: vi.fn(async () => []),
   mergeOfflineSnapshot: vi.fn(async () => undefined),

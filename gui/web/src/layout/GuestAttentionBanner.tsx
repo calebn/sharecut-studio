@@ -1,12 +1,12 @@
 import { runPointerCommand } from "../commands/pointer";
 import { useOfflineAttentionAnnouncement } from "../hooks/useOfflineAttentionAnnouncement";
 import { requestHostDrain } from "../services/offlineQueue/drainOfflineQueue";
-import { isShareProjectKey } from "../shareMode";
 import {
   dismissAllConflicts,
   refreshOfflineAttention,
   useOfflineAttention,
-} from "../state/offlineAttention";
+} from "../services/offlineQueue/offlineAttention";
+import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 

@@ -13,7 +13,7 @@ describe("host document commands without IndexedDB", () => {
     );
     vi.stubGlobal("fetch", fetchSpy);
 
-    const { enqueueHostCommand } = await import("../state/offlineStore");
+    const { enqueueHostCommand } = await import("./offlineQueue/offlineStore");
     await expect(
       enqueueHostCommand("/no-indexeddb", {
         client_id: "client",
