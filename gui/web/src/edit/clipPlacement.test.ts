@@ -7,9 +7,11 @@ import {
   _resetTrackMutateChainForTests,
   enqueueTrackMutate,
 } from "../commands/trackMutation";
+import { beginDocumentDraft } from "../document/pendingDrafts";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import { movingLikeTheQueue } from "../test/queueDraft";
 import type { ClipRow } from "../types/project";
 import {
   applyClipPlacement,
@@ -20,12 +22,19 @@ import {
 } from "./clipPlacement";
 
 vi.mock("../services/commandQueue", () => ({
-  submitQueuedDocumentCommand: vi.fn(async () => ({
-    ok: true,
-    queued: true,
-    command_id: "queued-move",
-    client_seq: 1,
-  })),
+  // Like the real queue, the draft begins before the first await and a queued
+  // reply keeps it.
+  submitQueuedDocumentCommand: vi.fn(
+    async (_path: string, type: string, payload: Record<string, unknown>) => {
+      beginDocumentDraft("queued-move", type, payload);
+      return {
+        ok: true,
+        queued: true,
+        command_id: "queued-move",
+        client_seq: 1,
+      };
+    },
+  ),
 }));
 vi.mock("../api", () => ({ moveClips: vi.fn(async () => null) }));
 const clip = (
@@ -63,7 +72,9 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
   _resetTrackMutateChainForTests();
-  vi.mocked(moveClips).mockReset().mockResolvedValue(null);
+  vi.mocked(moveClips)
+    .mockReset()
+    .mockImplementation(movingLikeTheQueue(async () => null));
   useDawStore.getState().hydrate(
     "/tmp/placement",
     minimalProject({
@@ -270,7 +281,9 @@ describe("local clip placement owner", () => {
     },
   );
   it("keeps a refused move available for correction and retry", async () => {
-    vi.mocked(moveClips).mockRejectedValueOnce(new Error("Save refused"));
+    vi.mocked(moveClips).mockImplementationOnce(
+      movingLikeTheQueue(() => Promise.reject(new Error("Save refused"))),
+    );
     const before = useDawStore.getState().project;
     const token = begin();
     updateClipPlacement(token, "7", "guest");
@@ -288,10 +301,12 @@ describe("local clip placement owner", () => {
   });
   it("late rejection cannot clear a draft on a replacement project", async () => {
     const held = deferred();
-    vi.mocked(moveClips).mockReturnValueOnce(
-      held.promise.then(() => {
-        throw new Error("Late refusal");
-      }),
+    vi.mocked(moveClips).mockImplementationOnce(
+      movingLikeTheQueue(() =>
+        held.promise.then(() => {
+          throw new Error("Late refusal");
+        }),
+      ),
     );
     const token = begin();
     updateClipPlacement(token, "7", "guest");
@@ -317,7 +332,9 @@ describe("local clip placement owner", () => {
   });
   it("late success cannot clear a replacement owner", async () => {
     const held = deferred();
-    vi.mocked(moveClips).mockReturnValueOnce(held.promise);
+    vi.mocked(moveClips).mockImplementationOnce(
+      movingLikeTheQueue(() => held.promise as Promise<null>),
+    );
     const token = begin();
     updateClipPlacement(token, "7", "guest");
     const applying = applyClipPlacement(token);
