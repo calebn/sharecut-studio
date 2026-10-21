@@ -34,6 +34,7 @@ export type DocumentCommandType =
   | "RestoreClipBleed"
   | "RollClipJoin"
   | "SetActionDone"
+  | "SetBleedAlignmentMode"
   | "SetClipFade"
   | "SetClipJoin"
   | "SetEffectBypass"
@@ -53,6 +54,8 @@ export type DocumentCommandType =
   | "StageUtteranceCut"
   | "StageWordsCut"
   | "SuggestPendingEdit"
+  | "SuppressBleed"
+  | "SuppressLowAudibility"
   | "TrimClipEdge"
   | "UndoHistory"
   | "UpdateChapter"
@@ -95,6 +98,7 @@ export const DocumentCommand = {
   RestoreClipBleed: "RestoreClipBleed",
   RollClipJoin: "RollClipJoin",
   SetActionDone: "SetActionDone",
+  SetBleedAlignmentMode: "SetBleedAlignmentMode",
   SetClipFade: "SetClipFade",
   SetClipJoin: "SetClipJoin",
   SetEffectBypass: "SetEffectBypass",
@@ -114,6 +118,8 @@ export const DocumentCommand = {
   StageUtteranceCut: "StageUtteranceCut",
   StageWordsCut: "StageWordsCut",
   SuggestPendingEdit: "SuggestPendingEdit",
+  SuppressBleed: "SuppressBleed",
+  SuppressLowAudibility: "SuppressLowAudibility",
   TrimClipEdge: "TrimClipEdge",
   UndoHistory: "UndoHistory",
   UpdateChapter: "UpdateChapter",

@@ -992,10 +992,11 @@ def apply_low_audibility_suppression_tool(
     words: JsonObjectList | None = None,
 ) -> str:
     """Suppress low-audibility transcript words, optionally only ``words``; leaves audio unchanged."""
-    ws = ProjectWorkspace.open(project_path)
     return to_json(
-        AnalysisService(ws).suppress_low_audibility(
-            track_id=track_id, speaker=speaker, word_keys=words
+        submit_host_command_result(
+            project_path,
+            "SuppressLowAudibility",
+            {"track_id": track_id, "speaker": speaker, "words": words},
         )
     )
 
@@ -1088,16 +1089,30 @@ def apply_bleed_suppression_tool(
     dry_run: bool = False,
 ) -> str:
     """Suppress mic-bleed words (dry_run previews without applying)."""
-    ws = ProjectWorkspace.open(project_path)
+    if not (apply and not dry_run):
+        ws = ProjectWorkspace.open(project_path)
+        return to_json(
+            AnalysisService(ws).preview_suppress_bleed(
+                track_id=track_id,
+                speaker=speaker,
+                word_keys=words,
+                exclude_word_keys=exclude_words,
+                start_sec=start_sec,
+                end_sec=end_sec,
+            )
+        )
     return to_json(
-        AnalysisService(ws).suppress_bleed(
-            track_id=track_id,
-            speaker=speaker,
-            word_keys=words,
-            exclude_word_keys=exclude_words,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            apply=apply and not dry_run,
+        submit_host_command_result(
+            project_path,
+            "SuppressBleed",
+            {
+                "track_id": track_id,
+                "speaker": speaker,
+                "words": words,
+                "exclude_words": exclude_words,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+            },
         )
     )
 
@@ -1209,15 +1224,18 @@ def set_retained_bleed_alignment_mode_tool(
 
     Manual and declined choices prevent later automatic correction; auto resets that choice.
     """
-    ws = ProjectWorkspace.open(project_path)
     return to_json(
-        AnalysisService(ws).set_bleed_alignment_mode(
-            decision_id,
-            mode,
-            track_id=track_id,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            override_placement_lock=override_placement_lock,
+        submit_host_command_result(
+            project_path,
+            "SetBleedAlignmentMode",
+            {
+                "decision_id": decision_id,
+                "mode": mode,
+                "track_id": track_id,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+                "override_placement_lock": override_placement_lock,
+            },
         )
     )
 

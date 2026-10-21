@@ -354,11 +354,10 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
         svc.reconciliation_status.return_value = {"stale": False}
         svc.reconcile_transcript.return_value = {"changed": 0, "dry_run": True}
         svc.list_bleed_words.return_value = [{"text": "bleed"}]
-        svc.suppress_bleed.return_value = {"would_suppress": 1}
+        svc.preview_suppress_bleed.return_value = {"would_suppress": 1}
         svc.overlap_duplicates.return_value = {"pairs": []}
         svc.apply_bleed_mute.return_value = {"dry_run": True, "candidate_count": 0}
         svc.low_audibility_words.return_value = []
-        svc.suppress_low_audibility.return_value = {"suppressed": 0}
         svc.gate_overreach.return_value = {"clips": []}
         svc.audibility_map.return_value = []
         svc.flagged_words.return_value = []
@@ -398,7 +397,7 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
     assert overlap["pairs"] == []
     assert gate_preview["dry_run"] is True
     assert low_aud == []
-    assert suppressed_low["suppressed"] == 0
+    assert suppressed_low["suppressed_count"] == 0
     assert gate["clips"] == []
     assert aud_map == []
     assert flagged == []
@@ -429,8 +428,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         svc.cut_range.return_value = {"operation": "ripple_delete"}
         svc.shorten_word_gaps.return_value = {"operation": "shorten_word_gaps"}
         svc.reconcile_transcript.return_value = {"changed": 0}
-        svc.suppress_bleed.return_value = {"suppressed": 0}
-        svc.suppress_low_audibility.return_value = {"suppressed": 1}
+        svc.preview_suppress_bleed.return_value = {"suppressed": 0}
 
         json.loads(
             mcp_timeline.strip_silence_tool(
@@ -468,7 +466,8 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         json.loads(
             mcp_timeline.apply_low_audibility_suppression_tool(
                 path,
-                words=[{"word_index": 0, "text": "hello"}],
+                track_id="host",
+                words=[{"track_id": "host", "word_index": 0}],
             )
         )
         batch = json.loads(
