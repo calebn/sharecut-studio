@@ -58,7 +58,7 @@ from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
 if TYPE_CHECKING:
-    from podcast_mcp.edits.bleed_fill import BleedFill
+    from podcast_mcp.engines.bleed_fill import BleedFill
 
 BLEED_GATE_REV = 19
 EVIDENCE_RATE = 8000
@@ -164,7 +164,7 @@ class BleedGatePlan:
         gain = gains if gains is not None else self.gains_for_frames(first_frame, count, rate)
         if not (gain < 1.0).any():
             return None
-        from podcast_mcp.edits.bleed_fill import PCM16_SCALE
+        from podcast_mcp.engines.bleed_fill import PCM16_SCALE
 
         noise = self.fill.noise(first_frame, count, rate)
         # Whole 16-bit steps, so the gate and Bleed Restore's subtraction see the same value.
@@ -960,7 +960,7 @@ def _mute_fill(
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
         return None, "no media"
-    from podcast_mcp.edits.bleed_fill import measure_bleed_fill
+    from podcast_mcp.engines.bleed_fill import measure_bleed_fill
 
     try:
         made = measure_bleed_fill(project, track, quiet_runs)
@@ -1045,7 +1045,7 @@ def bleed_gate_payload(
             }
         )
     policy = AnalysisPolicy.from_defaults(defaults=defaults)
-    from podcast_mcp.edits.bleed_fill import BLEED_FILL_REV
+    from podcast_mcp.engines.bleed_fill import BLEED_FILL_REV
 
     return {
         "revision": BLEED_GATE_REV,

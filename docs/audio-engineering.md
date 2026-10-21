@@ -587,7 +587,7 @@ carries a fill, `BleedGatePlan.fill`, and everywhere the plan's gain is applied 
 takes `noise x (1 - gain)`. The fill ramps in as the mute ramps out over the same 20 ms, so
 the two always sum to the room.
 
-**Sources**, tried in order, all the lane's own (`edits/bleed_fill.py`, `edits/gate_fill.py`):
+**Sources**, tried in order, all the lane's own (`engines/bleed_fill.py`, `engines/gate_fill.py`):
 
 1. the lane's recorded room-tone bed (`track.room_tone`);
 2. comfort noise read from the stretches the plan found to hold neither a foreign copy nor
