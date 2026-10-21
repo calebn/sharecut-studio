@@ -6,9 +6,10 @@ Arms, all from the same Daniela clone state, one run each at N=20 and N=102 (sam
 | --- | --- | --- |
 | A | 7741ffc | main before any S2 change |
 | B | 632704d | + PR 1949 (transcript word index kept on the words) |
-| C | PR 1950 head (efac330) | + one autocorrelation answer per distinct frame per batch |
+| C1 | PR 1950 first commit (5aa5c18) | + one autocorrelation answer per distinct frame per batch |
+| C2 | PR 1950 head (33c57ef) | + clip membership by identity in `exact_source_span` (no model equality) |
 | D | S1 (PR 1948) head | chain tracks on the evaluator (separate thread's recipe) |
-| E | D + C merged | the combination, once S1 lands |
+| E | D + C2 merged | the combination, once S1 lands |
 
 Later S2 PRs (audio facts store, `_owned_peer_frames` readers) add arms F, G on this table.
 
@@ -30,7 +31,8 @@ Pass criteria (any difference in approved or held ids is a FAIL, even a single o
 
 What the lab must settle:
 - Arm B vs A: the word index memo is exact by construction (invalidated on any word or list change); expect ids equal and the transcript scan cost gone. Report the wall delta.
-- Arm C vs B: on the cloud tile the audio repeats 24 times, so the 99.9% hit rate is a lab number. On Daniela the hit rate is what decides whether PR 1950 is worth keeping: if distinct/calls stays above ~0.7, say so and PR 1950 should be closed instead of merged.
-- Peak memory (RSS) of arm C at N=102 should stay below arm B plus about 100 MB (16-byte digest plus a tuple per distinct frame, kept until the batch ends).
+- Arm C1 vs B: on the cloud tile the audio repeats 24 times, so the 99.9% hit rate is a lab number. On Daniela the hit rate is what decides whether PR 1950 is worth keeping: if distinct/calls stays above ~0.7, say so and PR 1950 should be closed instead of merged.
+- Arm C2 vs C1: only the model-equality cost should move; ids must stay equal.
+- Peak memory (RSS) of arm C1 at N=102 should stay below arm B plus about 100 MB (16-byte digest plus a tuple per distinct frame, kept until the batch ends).
 
 Daniela audio stays on the Mac; nothing from the clone, its audio or its results beyond the numbers above goes into the repo or a PR comment.
