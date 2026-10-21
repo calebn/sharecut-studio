@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 
-from podcast_mcp.edits.ranges import SPAN_EPS_S, clamp_spans
+from podcast_mcp.engines.ranges import SPAN_EPS_S, clamp_spans
 from podcast_mcp.models import SourceClippingRegion, SourceRecording
 
 

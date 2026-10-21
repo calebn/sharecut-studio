@@ -10,10 +10,10 @@ from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits.bleed_restore import RESTORE_RENDER_REV
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
-from podcast_mcp.edits.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic

@@ -340,7 +340,7 @@ def test_run_speaker_attribution_apply_respects_lock(tmp_path, sample_wav) -> No
                 margin=0.8,
             ),
         ),
-        patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
+        patch("podcast_mcp.engines.transcript_sync.rebuild_combined"),
     ):
         report = run_speaker_attribution(
             proj, ctx, dry_run=False, backend=MockSpeakerBackend(), defaults=load_defaults()
@@ -512,7 +512,7 @@ def test_assess_speaker_cut_role_and_label_apply(tmp_path, sample_wav) -> None:
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=own,
         ),
-        patch("podcast_mcp.edits.transcript_sync.rebuild_combined") as rebuild,
+        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         out = label_window(
             proj,
@@ -860,7 +860,7 @@ def test_label_window_bleed_apply(tmp_path, sample_wav) -> None:
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=bleed,
         ),
-        patch("podcast_mcp.edits.transcript_sync.rebuild_combined") as rebuild,
+        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         out = label_window(
             proj,
@@ -901,7 +901,7 @@ def test_label_window_bleed_apply_respects_lock(tmp_path, sample_wav) -> None:
     )
     with (
         patch("podcast_mcp.engines.speaker_id.score_window", return_value=bleed),
-        patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
+        patch("podcast_mcp.engines.transcript_sync.rebuild_combined"),
     ):
         label_window(
             proj,
@@ -1169,7 +1169,7 @@ def test_label_window_own_apply(tmp_path, sample_wav) -> None:
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=own,
         ),
-        patch("podcast_mcp.edits.transcript_sync.rebuild_combined") as rebuild,
+        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         out = label_window(
             proj,
@@ -1361,7 +1361,7 @@ def test_home_speaker_gate_apply_respects_lock(tmp_path, sample_wav) -> None:
         patch("podcast_mcp.engines.speaker_id._speech_regions", return_value=[(1.0, 1.5)]),
         patch("podcast_mcp.engines.speaker_id.score_window", return_value=bleed),
         patch("podcast_mcp.engines.speaker_id._classify_role", return_value=("bleed", "guest")),
-        patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
+        patch("podcast_mcp.engines.transcript_sync.rebuild_combined"),
     ):
         report = label_track_home_speaker(
             project,

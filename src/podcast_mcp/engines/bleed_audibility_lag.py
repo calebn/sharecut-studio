@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from podcast_mcp.edits.bleed_lag_segments import BleedPair, LagSteps, lag_segments
-from podcast_mcp.edits.bleed_latency import DEFAULT_SETTINGS, FRAME_SEC, HOP_SEC
+from podcast_mcp.engines.bleed_lag_segments import BleedPair, LagSteps, lag_segments
+from podcast_mcp.engines.bleed_latency import DEFAULT_SETTINGS, FRAME_SEC, HOP_SEC
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, copy_levels_db
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_timeline_point_to_source
 from podcast_mcp.models import EpisodeProject

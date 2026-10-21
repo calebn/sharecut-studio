@@ -44,7 +44,6 @@ from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
-from podcast_mcp.edits.off_speaker_regions import MuteOwnership, add_off_speaker_mute
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.source_removals import (
     STALE_REASON,
@@ -65,10 +64,11 @@ from podcast_mcp.edits.timeline_ops import (
     room_tone_pad,
     split_clips_at,
 )
-from podcast_mcp.edits.transcript_sync import rebuild_combined
+from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speaker_mute
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
 )
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     MUTE_FADE_MS,
     Clip,

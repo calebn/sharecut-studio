@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.edits.bleed_latency import FRAME_SEC, HOP_SEC
+from podcast_mcp.engines.bleed_latency import FRAME_SEC, HOP_SEC
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, level_envelope_db
 from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole

@@ -44,7 +44,6 @@ from podcast_mcp.edits.mute_regions import (
     mute_regions_overlapping,
     mute_regions_payload,
 )
-from podcast_mcp.edits.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.edits.ripple import (
     RippleRemoval,
     TrackExtent,
@@ -67,17 +66,18 @@ from podcast_mcp.edits.transcript_search import (
     search_transcript,
     timeline_span_for_source,
 )
-from podcast_mcp.edits.transcript_sync import (
+from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
+from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
+    clip_source_to_timeline_shift,
+    origin_track_id_for_clip,
+)
+from podcast_mcp.engines.transcript_sync import (
     apply_batch_transcript_removes,
     apply_source_transcript_removes,
     rebuild_combined,
     restore_archived_words,
     timeline_removes_by_transcript,
-)
-from podcast_mcp.engines.session_timeline import (
-    SessionTimeline,
-    clip_source_to_timeline_shift,
-    origin_track_id_for_clip,
 )
 from podcast_mcp.models import (
     Clip,

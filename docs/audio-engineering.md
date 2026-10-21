@@ -1393,7 +1393,7 @@ Whole-lane recorder latency is the last stage of pipeline `align_tracks`.
 on another mic from level envelopes, tested against shifted nulls. It abstains
 when the best lag sits on the search boundary or is not a strict peak. Reuse it for
 any other copy-lag measurement instead of a private estimator.
-`edits/bleed_latency.py` measures every ordered lane pair in windows, rejects
+`engines/bleed_latency.py` measures every ordered lane pair in windows, rejects
 scattered or drifting pairs (a window settles when it agrees with the median or a
 neighbour, and drift is a trend inside runs between steps, so a long step is not
 drift), and solves one latency per lane by weighted least
@@ -1405,7 +1405,7 @@ loads the lane envelopes near their planned placement (`measure_bleed_latency`
 reports lags back where each lane sits, where direction is judged), folds the
 decisions into the plans (`bleed_lag`, or `candidate_offset_sec` with a `proposal`), and keeps a lane
 whose corrected placement is within `align.bleed_lag_deadband_sec` of where it
-sits (`bleed_lag_kept`). `edits/bleed_lag_segments.py` then finds where such a
+sits (`bleed_lag_kept`). `engines/bleed_lag_segments.py` then finds where such a
 lane's latency steps from every latency-explained pair it shares with a track on the
 reference clock (`BleedPair`, each searched around its `steady_lag` measured on the
 lane's media), in the lane's source time, with each step in a silence of its

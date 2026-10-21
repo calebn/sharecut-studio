@@ -175,7 +175,7 @@ module = [
     "podcast_mcp.util.timebase",
     "podcast_mcp.engines.session_timeline",
     "podcast_mcp.engines.timemap",
-    "podcast_mcp.edits.transcript_sync",
+    "podcast_mcp.engines.transcript_sync",
     "podcast_mcp.engines.transcript_gated_play",
     "podcast_mcp.edits.transcript_bleed_mute",
 ]

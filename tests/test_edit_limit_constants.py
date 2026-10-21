@@ -6,7 +6,8 @@ import json
 import re
 from pathlib import Path
 
-from podcast_mcp.edits import clips_ops, ranges, ripple
+from podcast_mcp.edits import clips_ops, ripple
+from podcast_mcp.engines import ranges
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"

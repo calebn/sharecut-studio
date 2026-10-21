@@ -287,7 +287,7 @@ def test_run_speaker_attribution_apply_path(tmp_path, sample_wav):
             "podcast_mcp.engines.speaker_id.score_window",
             return_value=bleed_score,
         ),
-        patch("podcast_mcp.edits.transcript_sync.rebuild_combined") as rebuild,
+        patch("podcast_mcp.engines.transcript_sync.rebuild_combined") as rebuild,
     ):
         result = run_speaker_attribution(
             project,

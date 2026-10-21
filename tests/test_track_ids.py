@@ -1,4 +1,4 @@
-from podcast_mcp.edits.track_ids import SAFE_TRACK_ID, slug_track_id
+from podcast_mcp.engines.track_ids import SAFE_TRACK_ID, slug_track_id
 
 
 def test_slug_track_id_strips_path_segments():

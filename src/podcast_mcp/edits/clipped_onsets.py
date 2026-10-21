@@ -74,7 +74,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.bleed_latency import (
+from podcast_mcp.edits.comments import add_comment, delete_comment, update_comment
+from podcast_mcp.edits.conversation_align import LATENCY_RATE
+from podcast_mcp.engines.bleed_latency import (
     DOMINANCE_DB,
     FRAME_SEC,
     HOP_SEC,
@@ -82,8 +84,6 @@ from podcast_mcp.edits.bleed_latency import (
     TOLERANCE_SEC,
     measure_pair,
 )
-from podcast_mcp.edits.comments import add_comment, delete_comment, update_comment
-from podcast_mcp.edits.conversation_align import LATENCY_RATE
 from podcast_mcp.engines.envelope_lag import (
     LEVEL_FLOOR_DB,
     MIN_CORRELATION,

@@ -241,7 +241,7 @@ def test_set_words_ignored_bad_range_raises() -> None:
 
 def test_set_words_ignored_does_not_touch_text_or_combined() -> None:
     p = _ignore_project()
-    from podcast_mcp.edits.transcript_sync import rebuild_combined
+    from podcast_mcp.engines.transcript_sync import rebuild_combined
 
     rebuild_combined(p, defaults=load_defaults())
     before_text = " ".join(

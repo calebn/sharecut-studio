@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms
 from podcast_mcp.edits.mute_regions import merge_mute_regions, mute_regions_overlapping
-from podcast_mcp.edits.ranges import SPAN_EPS_S
+from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
     clip_timeline_point_to_source,

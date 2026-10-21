@@ -5,7 +5,6 @@ from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_text_match import overlap_text_match_losers
-from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCacheSet,
@@ -14,6 +13,7 @@ from podcast_mcp.engines.audio_audit import (
 )
 from podcast_mcp.engines.lane_words import WordKey, transcript_word_key, word_key
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.progress import (
     ProgressReporter,

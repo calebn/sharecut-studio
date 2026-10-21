@@ -473,8 +473,8 @@ def test_sandwiched_zero_duration_deferred_not_suppressed(tmp_path: Path):
 
 
 def test_effective_copy_lag_follows_lane_latency_steps() -> None:
-    from podcast_mcp.edits.bleed_lag_segments import LagSegment, LagSteps
     from podcast_mcp.engines.bleed_audibility_lag import effective_copy_lag_sec
+    from podcast_mcp.engines.bleed_lag_segments import LagSegment, LagSteps
 
     steps = LagSteps(
         (
