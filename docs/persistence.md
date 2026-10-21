@@ -4,6 +4,20 @@ Durable stores used by Podcast MCP. **Before adding a new JSON sidecar or
 sqlite file**, read this doc and extend an existing store. Update this file and
 [AGENTS.md](../AGENTS.md) in the same change.
 
+The six persistent SQLite owners (session sync, record participants, live comments,
+uploads, share identity, and share registry) close their connections when their last
+owner is collected. The weak cache and pins retain their existing sharing rules.
+Explicit `close()` remains the deterministic teardown path. Private per-connection
+finalizers capture the actual connection and existing lock, never the owner, and
+do not commit. Failed explicit close leaves cleanup armed; registry recovery retains
+cleanup for an old connection whose close failed while adopting its replacement.
+Post-open initialization failures close promptly without replacing the original error.
+Finalizers do not run for still-live owners at interpreter exit, because a daemon
+thread can hold their store locks. Normal collection, cycles, and cross-thread release
+still close connections.
+Tests close their own connections explicitly. SQLite's connection context commits or
+rolls back but does not close; use an outer `contextlib.closing` when both are needed.
+
 Lock sidecars (`*.lock`) coordinate processes and store nothing. `util/file_locks.py` is the only
 module that builds a `FileLock` or calls `fcntl.flock`, and `util/project_state.py` is the only
 place that names a project's lock files, one function per sidecar:

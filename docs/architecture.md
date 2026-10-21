@@ -47,8 +47,9 @@ sqlite tables (`record_*`) rather than a new plane — see [recording-session.md
 share registry once per call; `edits.timeline_ops.list_clips` passes it to pure
 HMAC derivation in `edits.clips_ops.recording_key`. Every SQLite store (session sync, share identity, share registry, relay reports) opens through
 `util/sqlite_open.open_sqlite`: WAL by way of the bounded `util/sqlite_wal.ensure_wal`
-transition, then a busy timeout (5 s unless the store passes another); session setup retains
-its per-path locks and timing controls. A failed registry secret transaction closes
+transition, then a busy timeout (5 s unless the store passes another); persistent owners
+use its per-connection lifetime cleanup as described in [persistence.md](persistence.md).
+Session setup retains its per-path locks and timing controls. A failed registry secret transaction closes
 its connection. The process-wide getter and each registry operation recover from
 durable state before token lookup, including directly injected registry owners.
 

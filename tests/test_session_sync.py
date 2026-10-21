@@ -10,6 +10,7 @@ import sys
 import time
 import weakref
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from threading import Event, get_ident
 from typing import Literal
 
@@ -1535,22 +1536,22 @@ def test_list_clients_expires_stale_presence(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
 
     proj = load_project(minimal_project)
-    store = SyncStore(sync_db_path(proj))
-    store.touch_client("stale", role="viewer", label="Old")
-    store.touch_client("fresh", role="viewer", label="New")
-    # Age the stale client beyond the 30s default window.
-    with store._lock:
-        store._conn.execute(
-            "UPDATE clients SET last_seen_ns = ? WHERE client_id = ?",
-            (0, "stale"),
-        )
-        store._conn.commit()
-    clients = store.list_clients(max_age_ns=30_000_000_000)
-    ids = {c["client_id"] for c in clients}
-    assert "fresh" in ids
-    assert "stale" not in ids
-    # Explicit short TTL still filters.
-    assert store.list_clients(max_age_ns=1) == []
+    with closing(SyncStore(sync_db_path(proj))) as store:
+        store.touch_client("stale", role="viewer", label="Old")
+        store.touch_client("fresh", role="viewer", label="New")
+        # Age the stale client beyond the 30s default window.
+        with store._lock:
+            store._conn.execute(
+                "UPDATE clients SET last_seen_ns = ? WHERE client_id = ?",
+                (0, "stale"),
+            )
+            store._conn.commit()
+        clients = store.list_clients(max_age_ns=30_000_000_000)
+        ids = {c["client_id"] for c in clients}
+        assert "fresh" in ids
+        assert "stale" not in ids
+        # Explicit short TTL still filters.
+        assert store.list_clients(max_age_ns=1) == []
 
 
 def test_store_commands_after_and_close(minimal_project) -> None:

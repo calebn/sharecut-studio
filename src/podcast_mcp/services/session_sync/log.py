@@ -16,6 +16,7 @@ from weakref import WeakValueDictionary
 from podcast_mcp.services.session_sync.commands import presence_color_index
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.sqlite_open import close_sqlite_connection, sqlite_connection_finalizer
 from podcast_mcp.util.sqlite_tx import immediate_transaction
 
 _TABLE_PREFIX_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -300,10 +301,11 @@ class SyncStore:
         self._sql = _sql_bundle(self._p)
         self._lock = threading.RLock()
         self._tx_depth = 0
+        self._client_generation: dict[str, int] = {}
         if create:
             db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = connect_session_db(db_path, create=create, schema=_schema(self._p))
-        self._client_generation: dict[str, int] = {}
+        self._connection_finalizer = sqlite_connection_finalizer(self, self._conn, lock=self._lock)
 
     def claim_client(self, client_id: str) -> int:
         with self._lock:
@@ -313,7 +315,7 @@ class SyncStore:
 
     def close(self) -> None:
         with self._lock:
-            self._conn.close()
+            close_sqlite_connection(self._conn, self._connection_finalizer)
 
     def _get_snapshot_unlocked(self) -> dict[str, Any] | None:
         row = self._conn.execute(self._sql["get_snapshot"]).fetchone()

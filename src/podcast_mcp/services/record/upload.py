@@ -22,6 +22,7 @@ from podcast_mcp.util.body_limits import record_upload_max_part_bytes
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import progress_task
+from podcast_mcp.util.sqlite_open import close_sqlite_connection, sqlite_connection_finalizer
 from podcast_mcp.util.wav import pcm_wav_header
 
 KEEPER_SAMPLE_RATE = 48_000
@@ -359,18 +360,26 @@ class RecordUploadStore:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._conn = connect_session_db(db_path, schema=_SCHEMA)
-        with self._lock:
-            existing = {
-                str(row["name"])
-                for row in self._conn.execute("PRAGMA table_info(record_upload_files)")
-            }
-            for name, ddl in _FILE_COLUMN_MIGRATIONS.items():
-                if name not in existing:
-                    self._conn.execute(f"ALTER TABLE record_upload_files ADD COLUMN {name} {ddl}")
+        self._connection_finalizer = sqlite_connection_finalizer(self, self._conn, lock=self._lock)
+        try:
+            with self._lock:
+                existing = {
+                    str(row["name"])
+                    for row in self._conn.execute("PRAGMA table_info(record_upload_files)")
+                }
+                for name, ddl in _FILE_COLUMN_MIGRATIONS.items():
+                    if name not in existing:
+                        self._conn.execute(
+                            f"ALTER TABLE record_upload_files ADD COLUMN {name} {ddl}"
+                        )
+        except BaseException:
+            with contextlib.suppress(BaseException):
+                self.close()
+            raise
 
     def close(self) -> None:
         with self._lock:
-            self._conn.close()
+            close_sqlite_connection(self._conn, self._connection_finalizer)
 
     def part_sha256(
         self,

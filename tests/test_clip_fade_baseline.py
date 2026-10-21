@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 
 import pytest
 
@@ -62,7 +63,7 @@ def test_raw_fade_after_undo_refuses_without_persisted_changes(minimal_project):
     assert history["can_redo"] is True
 
     def journal():
-        with sqlite3.connect(document_db_path(svc.project)) as connection:
+        with closing(sqlite3.connect(document_db_path(svc.project))) as connection, connection:
             return connection.execute("SELECT * FROM commands ORDER BY server_seq").fetchall()
 
     rows = journal()

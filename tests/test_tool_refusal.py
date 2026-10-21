@@ -9,6 +9,7 @@ them).
 from __future__ import annotations
 
 import pickle
+from contextlib import closing
 
 import pytest
 from filelock import Timeout
@@ -144,8 +145,10 @@ def test_sqlite_write_lock_is_a_fixed_refusal(tmp_path):
 
     database = tmp_path / "private.sqlite"
     with (
-        sqlite3.connect(database, timeout=0, isolation_level=None) as first,
-        sqlite3.connect(database, timeout=0, isolation_level=None) as second,
+        closing(sqlite3.connect(database, timeout=0, isolation_level=None)) as first,
+        first,
+        closing(sqlite3.connect(database, timeout=0, isolation_level=None)) as second,
+        second,
     ):
         first.execute("CREATE TABLE writes (value TEXT)")
         first.execute("BEGIN IMMEDIATE")

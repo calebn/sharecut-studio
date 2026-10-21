@@ -68,6 +68,7 @@ def _ws_recv(ws, *, timeout: float = 5.0) -> dict:
     return json.loads(raw)
 
 
+@contextlib.contextmanager
 def _tunnel_hello_register(
     base: str,
     *,
@@ -76,32 +77,53 @@ def _tunnel_hello_register(
     capabilities: list[str],
     host_token: str = "secret",
 ):
-    tunnel = ws_connect(f"{base}/tunnel", open_timeout=5, close_timeout=5)
-    _ws_send(
-        tunnel,
-        {"type": "hello", "host_token": host_token, "host_id": host_id},
-    )
-    hello = _ws_recv(tunnel)
-    assert hello.get("ok") is True
-    shares = attach_share_claims(
-        [{"token": token, "capabilities": capabilities}],
-        host_id=host_id,
-        secret=host_token,
-    )
-    _ws_send(
-        tunnel,
-        {
-            "type": "register",
-            "shares": shares,
-        },
-    )
-    assert _ws_recv(tunnel).get("ok") is True
-    return tunnel
+    with ws_connect(f"{base}/tunnel", open_timeout=5, close_timeout=5) as tunnel:
+        _ws_send(
+            tunnel,
+            {"type": "hello", "host_token": host_token, "host_id": host_id},
+        )
+        hello = _ws_recv(tunnel)
+        assert hello.get("ok") is True
+        shares = attach_share_claims(
+            [{"token": token, "capabilities": capabilities}],
+            host_id=host_id,
+            secret=host_token,
+        )
+        _ws_send(
+            tunnel,
+            {
+                "type": "register",
+                "shares": shares,
+            },
+        )
+        assert _ws_recv(tunnel).get("ok") is True
+        yield tunnel
 
 
 def test_parse_host_tokens_empty(monkeypatch):
     monkeypatch.delenv("PODCAST_RELAY_HOST_TOKENS", raising=False)
     assert _parse_host_tokens() == (set(), {})
+
+
+def test_tunnel_handshake_failure_closes_connection_before_yield(monkeypatch):
+    connections = []
+    connect = ws_connect
+
+    def tracked_connect(*args, **kwargs):
+        connection = connect(*args, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(__name__ + ".ws_connect", tracked_connect)
+    monkeypatch.setattr(__name__ + "._ws_recv", lambda tunnel: {"ok": False})
+    with _live_relay(monkeypatch) as base:
+        with pytest.raises(AssertionError):
+            with _tunnel_hello_register(
+                base, host_id="failed-handshake", token="token", capabilities=["view"]
+            ):
+                pytest.fail("failed hello must not yield a tunnel")
+    assert len(connections) == 1
+    assert connections[0].socket.fileno() == -1
 
 
 def test_parse_host_tokens_csv(monkeypatch):
@@ -534,13 +556,12 @@ def test_guest_daw_ws_host_offline(monkeypatch):
 
 def test_guest_daw_ws_emits_ws_open(monkeypatch):
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-ws",
             token="gtok",
             capabilities=["view", "play"],
-        )
-        try:
+        ) as tunnel:
             with ws_connect(
                 f"{base}/api/review/gtok/daw/ws", open_timeout=5, close_timeout=5
             ) as guest:
@@ -574,19 +595,16 @@ def test_guest_daw_ws_emits_ws_open(monkeypatch):
                 assert data_msg["type"] == "ws_data"
                 assert data_msg["id"] == stream_id
                 assert data_msg["text"] == '{"type":"ping"}'
-        finally:
-            tunnel.close()
 
 
 def test_record_ws_bridged(monkeypatch):
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-rec",
             token="rtok",
             capabilities=["join", "monitor", "comment"],
-        )
-        try:
+        ) as tunnel:
             with ws_connect(f"{base}/api/rec/rtok/ws", open_timeout=5, close_timeout=5) as guest:
                 open_msg = _ws_recv(tunnel)
                 assert open_msg["type"] == "ws_open"
@@ -626,20 +644,17 @@ def test_record_ws_bridged(monkeypatch):
                     guest.recv(timeout=5)
                 assert closed.value.rcvd is not None
                 assert closed.value.rcvd.code == 4403
-        finally:
-            tunnel.close()
 
 
 def test_record_ws_relays_invite_closed_error_before_4403(monkeypatch):
     """The guest UI keeps "Invite link closed" only if the Error frame precedes the 4403 close."""
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-rec-closed",
             token="rtok-closed",
             capabilities=["join", "monitor", "comment"],
-        )
-        try:
+        ) as tunnel:
             with ws_connect(
                 f"{base}/api/rec/rtok-closed/ws", open_timeout=5, close_timeout=5
             ) as guest:
@@ -678,19 +693,16 @@ def test_record_ws_relays_invite_closed_error_before_4403(monkeypatch):
                     guest.recv(timeout=5)
                 assert closed.value.rcvd is not None
                 assert closed.value.rcvd.code == 4403
-        finally:
-            tunnel.close()
 
 
 def test_guest_daw_ws_requires_view_cap(monkeypatch):
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-noview",
             token="noview",
             capabilities=["play"],
-        )
-        try:
+        ):
             try:
                 with ws_connect(
                     f"{base}/api/review/noview/daw/ws",
@@ -701,8 +713,6 @@ def test_guest_daw_ws_requires_view_cap(monkeypatch):
                     raise AssertionError("expected close without view")
             except Exception:
                 pass
-        finally:
-            tunnel.close()
 
 
 def test_guest_daw_ws_concurrency_limit(monkeypatch):
@@ -722,13 +732,12 @@ def test_guest_daw_ws_concurrency_limit(monkeypatch):
 def test_guest_daw_ws_empty_caps_allowed(monkeypatch):
     """Empty capabilities list skips the view check (host enforces)."""
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-emptycaps",
             token="ecap",
             capabilities=[],
-        )
-        try:
+        ) as tunnel:
             with ws_connect(
                 f"{base}/api/review/ecap/daw/ws", open_timeout=5, close_timeout=5
             ) as guest:
@@ -745,8 +754,6 @@ def test_guest_daw_ws_empty_caps_allowed(monkeypatch):
                 )
                 with contextlib.suppress(Exception):
                     guest.recv(timeout=5)
-        finally:
-            tunnel.close()
 
 
 def test_unregister_tunnel_closes_ws_streams():
@@ -768,13 +775,12 @@ def test_guest_daw_ws_concurrency_rejected_live(monkeypatch):
 
     reset_relay_limiters_for_tests()
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-rej",
             token="rej",
             capabilities=["view"],
-        )
-        try:
+        ):
             assert get_relay_limiters().ws_concurrent.try_enter("rej").allowed
             try:
                 with ws_connect(
@@ -788,8 +794,6 @@ def test_guest_daw_ws_concurrency_rejected_live(monkeypatch):
                 pass
             finally:
                 get_relay_limiters().ws_concurrent.exit("rej")
-        finally:
-            tunnel.close()
 
 
 def test_guest_daw_ws_msg_rate_limit_drops(monkeypatch):
@@ -799,13 +803,12 @@ def test_guest_daw_ws_msg_rate_limit_drops(monkeypatch):
 
     reset_relay_limiters_for_tests()
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-msg",
             token="mtok",
             capabilities=["view"],
-        )
-        try:
+        ) as tunnel:
             with ws_connect(
                 f"{base}/api/review/mtok/daw/ws", open_timeout=5, close_timeout=5
             ) as guest:
@@ -826,8 +829,6 @@ def test_guest_daw_ws_msg_rate_limit_drops(monkeypatch):
                 )
                 with contextlib.suppress(Exception):
                     guest.recv(timeout=5)
-        finally:
-            tunnel.close()
 
 
 def test_relay_presence_frames_use_presence_bucket(monkeypatch):
@@ -846,13 +847,12 @@ def test_relay_presence_frames_use_presence_bucket(monkeypatch):
     assert is_presence_ws_text('{"type":"RosterRequest"}')
     assert not is_presence_ws_text('{"type":"Command"}')
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-presence",
             token="ptok",
             capabilities=["view"],
-        )
-        try:
+        ) as tunnel:
             with ws_connect(
                 f"{base}/api/review/ptok/daw/ws", open_timeout=5, close_timeout=5
             ) as guest:
@@ -873,8 +873,6 @@ def test_relay_presence_frames_use_presence_bucket(monkeypatch):
                 )
                 with contextlib.suppress(Exception):
                     guest.recv(timeout=5)
-        finally:
-            tunnel.close()
 
 
 def test_relay_presence_frames_drop_when_bucket_exhausted(monkeypatch):
@@ -887,13 +885,12 @@ def test_relay_presence_frames_drop_when_bucket_exhausted(monkeypatch):
 
     reset_relay_limiters_for_tests()
     with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
+        with _tunnel_hello_register(
             base,
             host_id="host-presence-deny",
             token="pdny",
             capabilities=["view"],
-        )
-        try:
+        ) as tunnel:
             with ws_connect(
                 f"{base}/api/review/pdny/daw/ws", open_timeout=5, close_timeout=5
             ) as guest:
@@ -918,8 +915,6 @@ def test_relay_presence_frames_drop_when_bucket_exhausted(monkeypatch):
                 )
                 with contextlib.suppress(Exception):
                     guest.recv(timeout=5)
-        finally:
-            tunnel.close()
 
 
 def test_per_host_token_with_default_relay_config_host_id(monkeypatch):

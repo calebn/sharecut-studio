@@ -5,7 +5,9 @@ from __future__ import annotations
 import contextlib
 import sqlite3
 import time
+import weakref
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Literal
 
@@ -13,6 +15,37 @@ from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_MS
 from podcast_mcp.util.sqlite_wal import retry_transient, switch_to_wal
 
 IsolationLevel = Literal["DEFERRED", "EXCLUSIVE", "IMMEDIATE"] | None
+
+
+def _close_finalized_sqlite(
+    connection: sqlite3.Connection, lock: AbstractContextManager[object] | None
+) -> None:
+    with lock if lock is not None else contextlib.nullcontext():
+        connection.close()
+
+
+def sqlite_connection_finalizer(
+    owner: object,
+    connection: sqlite3.Connection,
+    *,
+    lock: AbstractContextManager[object] | None = None,
+) -> weakref.finalize:
+    """Adopt a connection without retaining its owner or waiting on locks at exit."""
+    try:
+        cleanup = weakref.finalize(owner, _close_finalized_sqlite, connection, lock)
+        # Live daemon threads can hold store locks during interpreter shutdown.
+        cleanup.atexit = False
+        return cleanup
+    except BaseException:
+        with contextlib.suppress(BaseException):
+            connection.close()
+        raise
+
+
+def close_sqlite_connection(connection: sqlite3.Connection, cleanup: weakref.finalize) -> None:
+    """Detach lifetime cleanup only after explicit close succeeds."""
+    connection.close()
+    cleanup.detach()
 
 
 def schema_setup(script: str) -> Callable[[sqlite3.Connection], None]:
