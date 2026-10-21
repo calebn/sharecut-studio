@@ -38,6 +38,8 @@ from podcast_mcp.models import (
     ProcessingEffect,
     load_project,
 )
+from podcast_mcp.util.binaries import resolve_ffmpeg_pair
+from podcast_mcp.util.process import run
 
 FIXTURE = Path(__file__).parent / "fixtures" / "lab_tighten" / "caleb_um_pause"
 RATE = 8000
@@ -96,9 +98,29 @@ def _ffmpeg_or_skip() -> None:
         pytest.skip("ffmpeg not available")
 
 
-def _project(tmp_path: Path, layout: str) -> EpisodeProject:
+def _project(tmp_path: Path, layout: str, *, mono_rate: int | None = None) -> EpisodeProject:
     workspace = tmp_path / "project"
     shutil.copytree(FIXTURE, workspace)
+    if mono_rate is not None:
+        source = workspace / "raw" / "caleb.flac"
+        converted = tmp_path / "converted.flac"
+        run(
+            [
+                resolve_ffmpeg_pair().ffmpeg,
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                str(source),
+                "-ac",
+                "1",
+                "-ar",
+                str(mono_rate),
+                str(converted),
+            ],
+            check=True,
+        )
+        shutil.move(converted, source)
     project = load_project(workspace / "episode.project.json")
     project.timeline.clips = [c for c in project.clips if c.track_id != "caleb"] + [
         Clip(
@@ -377,6 +399,64 @@ def _chained(project: EpisodeProject) -> EpisodeProject:
         ProcessingChain(track_id="caleb", effects=[ProcessingEffect(effect="highpass", params={})])
     ]
     return project
+
+
+@pytest.mark.parametrize(
+    "layout",
+    ["cuts between 8 kHz samples", "crossfades between 8 kHz samples", "mixed joins and pads"],
+)
+def test_evaluation_matches_the_render_of_a_44100_hz_mono_track(
+    layout: str, tmp_path: Path
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, layout, mono_rate=44100)
+    track = project.track_by_id("caleb")
+    defaults = load_defaults()
+    rendered_path = tmp_path / "render.wav"
+    render_track_from_timeline(project, track, rendered_path, defaults)
+    rendered = load_mono_full(rendered_path)
+
+    evaluated, reason = audio_audit.evaluate_track_audio(
+        unfiltered_track_audio(project, track, defaults)
+    )
+
+    assert evaluated is not None, reason
+    assert evaluated.size == rendered.size
+    assert np.abs(evaluated - rendered).max() < SAMPLE_TOLERANCE
+
+
+def test_chunk_edges_inside_slices_change_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    rng = np.random.default_rng(3)
+    source = rng.normal(0, 0.1, 3 * RATE).astype(np.float32)
+    mask = SourceAudio(Path("a"), 0.1, 1.4, 0.02, 0.03)
+    audio = MixAudio(
+        At(
+            0.0,
+            SequenceAudio(
+                CrossfadeAudio(mask, SourceAudio(Path("a"), 1.5, 2.6, 0.0, 0.03), 0.01),
+                (SilenceAudio(0.2), SourceAudio(Path("a"), 0.3, 0.9, 0.01, 0.01)),
+            ),
+        ),
+        (At(0.7, SourceAudio(Path("a"), 2.0, 2.5, 0.01, 0.01)),),
+    )
+    whole = evaluate_audio(audio, crossfade_curve="tri", load_source=lambda _: source)
+    monkeypatch.setattr(audio_eval, "CHUNK_SAMPLES", 777)
+
+    def passthrough(chunks, _from, _to):  # type: ignore[no-untyped-def]
+        return np.concatenate(list(chunks))
+
+    chunked = audio_eval.evaluate_resampled(
+        audio,
+        crossfade_curve="tri",
+        reader=lambda _: audio_eval.ArrayReader(source),
+        sample_rate=RATE,
+        target_rate=RATE,
+        resample=passthrough,
+    )
+
+    assert whole is not None
+    assert chunked is not None
+    np.testing.assert_array_equal(chunked, whole)
 
 
 def test_chain_track_cache_takes_the_fast_path_without_a_render(
