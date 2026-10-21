@@ -8,7 +8,7 @@ make test        # coverage gate + parallel; excludes e2e_slow / e2e_real
 .venv/bin/pytest -n auto -m "not e2e_slow and not e2e_real"
 ```
 
-Pytest is configured in `pyproject.toml` to **fail if line+branch coverage drops below 95%** for `podcast_mcp`.
+The required `pytest` job uses Python 3.14 and coverage 7.16.2 with CTracer. `pyproject.toml` collects line and branch coverage for `podcast_mcp` and `podcast_relay` with a 95% floor; the independent `coverage report --fail-under=95` gate also remains required. See [CI runtime](testing-ci.md#python-test-runtime).
 
 Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
 
