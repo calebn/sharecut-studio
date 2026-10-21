@@ -22,6 +22,9 @@ from podcast_mcp.engines.audio import (
     duration,
     postorder,
 )
+from podcast_mcp.engines.audio import (
+    sources as audio_sources,
+)
 from podcast_mcp.engines.audio_eval import evaluate_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, unfiltered_track_audio
@@ -34,8 +37,11 @@ from podcast_mcp.models import (
     ClipMuteRegion,
     ClipOffSpeakerMuteRegion,
     EpisodeProject,
+    GateFill,
+    GateFillSource,
     ProcessingChain,
     ProcessingEffect,
+    SourceRecording,
     load_project,
 )
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
@@ -561,3 +567,118 @@ def test_unfiltered_audio_declines_what_the_render_would_filter(tmp_path: Path) 
     empty = _project(tmp_path / "empty", "fade joins")
     empty.timeline.clips = [c for c in empty.clips if c.track_id != "caleb"]
     assert unfiltered_track_audio(empty, empty.track_by_id("caleb"), defaults) is None
+
+
+def _convert(source: Path, target: Path, *, rate: int | None = None, gain: float = 1.0) -> None:
+    args = ["-af", f"volume={gain}"] if gain != 1.0 else []
+    if rate is not None:
+        args += ["-ar", str(rate)]
+    run(
+        [resolve_ffmpeg_pair().ffmpeg, "-v", "error", "-y", "-i", str(source), *args, str(target)],
+        check=True,
+    )
+
+
+def _with_second_source(
+    project: EpisodeProject, workspace: Path, *, rate: int | None = None
+) -> list[Clip]:
+    """The track's clips over two recordings: the second is another speaker's file."""
+    path = workspace / "raw" / "second.flac"
+    _convert(workspace / "raw" / "audra.flac", path, rate=rate)
+    project.sources = [SourceRecording(id="second", path="raw/second.flac")]
+    clips = [c for c in project.clips if c.track_id == "caleb"]
+    for clip, source_id in zip(clips, [None, "second", "second", None, "second"], strict=True):
+        clip.source_id = source_id
+    return clips
+
+
+def _with_gate_fill(project: EpisodeProject, workspace: Path) -> None:
+    track = project.track_by_id("caleb")
+    media = workspace / "raw" / "caleb.flac"
+    _convert(workspace / "raw" / "lana.flac", workspace / "raw" / "fill.wav", gain=0.2)
+    stat = media.stat()
+    track.gate_fill = GateFill(
+        source=GateFillSource.COMFORT_NOISE,
+        path="raw/fill.wav",
+        media_size=stat.st_size,
+        media_mtime_ns=stat.st_mtime_ns,
+        holes=1,
+        filled_sec=1.0,
+        level_db=-40.0,
+        fade_ms=20,
+    )
+
+
+def _assert_evaluation_matches_render(project: EpisodeProject, tmp_path: Path) -> None:
+    track = project.track_by_id("caleb")
+    defaults = load_defaults()
+    rendered_path = tmp_path / "render.wav"
+    render_track_from_timeline(project, track, rendered_path, defaults)
+    rendered = load_mono_full(rendered_path)
+
+    evaluated, reason = audio_audit.evaluate_track_audio(
+        unfiltered_track_audio(project, track, defaults)
+    )
+
+    assert evaluated is not None, reason
+    assert abs(evaluated.size - rendered.size) <= 3
+    common = min(evaluated.size, rendered.size)
+    assert np.abs(evaluated[:common] - rendered[:common]).max() < SAMPLE_TOLERANCE
+    reference, candidate = _frame_db(rendered[:common]), _frame_db(evaluated[:common])
+    live = reference > LIVE_FLOOR_DB
+    assert live.sum() > 10
+    assert np.abs(reference - candidate)[live].max() < FRAME_DB_TOLERANCE
+
+
+def test_several_sources_on_one_track_match_the_ffmpeg_render(tmp_path: Path) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    clips = _with_second_source(project, tmp_path / "project")
+    assert len({clip.source_id for clip in clips}) == 2
+
+    _assert_evaluation_matches_render(project, tmp_path)
+
+
+def test_gate_fill_under_the_tracks_own_media_matches_the_ffmpeg_render(tmp_path: Path) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    _with_gate_fill(project, tmp_path / "project")
+    defaults = load_defaults()
+    audio, _ = unfiltered_track_audio(project, project.track_by_id("caleb"), defaults)
+    assert any(leaf.fill_path is not None for leaf in audio_sources(audio))
+
+    _assert_evaluation_matches_render(project, tmp_path)
+
+
+def test_gate_fill_stays_under_the_primary_media_when_sources_are_mixed(tmp_path: Path) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    workspace = tmp_path / "project"
+    _with_second_source(project, workspace)
+    _with_gate_fill(project, workspace)
+    defaults = load_defaults()
+    audio, _ = unfiltered_track_audio(project, project.track_by_id("caleb"), defaults)
+    leaves = list(audio_sources(audio))
+    assert {leaf.fill_path is not None for leaf in leaves} == {True, False}
+    assert all((leaf.fill_path is None) == (leaf.source_id == "second") for leaf in leaves)
+
+    _assert_evaluation_matches_render(project, tmp_path)
+
+
+def test_sources_at_different_rates_keep_the_render(
+    tmp_path: Path, render_calls: list[str]
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    _with_second_source(project, tmp_path / "project", rate=44100)
+    defaults = load_defaults()
+
+    evaluated, reason = audio_audit.evaluate_track_audio(
+        unfiltered_track_audio(project, project.track_by_id("caleb"), defaults)
+    )
+    cache = audio_audit._ungated_cache(project, "caleb", with_chain=False, defaults=defaults)
+
+    assert evaluated is None
+    assert reason == "sources at different sample rates"
+    assert render_calls == ["caleb"]
+    assert cache.samples.size > 0
