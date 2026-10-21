@@ -341,8 +341,15 @@ async function undoStaysReachable(
       { before, after },
     );
   }
+  // Leave the open body scrolled as far as it goes: collapsing must show the
+  // strip's top again, not the end of the scroll the taller size had (#1762).
+  const sheetBody = page.locator(".bottom-sheet-body");
+  await sheetBody.evaluate((body) => {
+    body.scrollTop = body.scrollHeight;
+  });
   await page.getByRole("button", { name: "Collapse to strip" }).click();
   await page.waitForTimeout(350);
+  expect(await sheetBody.evaluate((body) => body.scrollTop)).toBe(0);
   await check("peek", headerHistory);
   await expect(headerHistory.locator(".compact-history-caption")).toHaveCount(
     0,
