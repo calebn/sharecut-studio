@@ -140,6 +140,56 @@ describe("useSelectionSheet placement", () => {
     );
   });
 
+  it("keeps the full Inspector for an automatic-reduction band, whose session lives in its body", () => {
+    stubRotation(false);
+    useDawStore.setState({
+      selection: {
+        kind: "bleedAttenuation",
+        id: "c2",
+        trackId: "host",
+        regionKey: null,
+      },
+      selectionHit: null,
+    });
+    const { result } = renderHook(() => useSelectionSheet("phone"));
+    expect(result.current.open).toBe(true);
+    expect(result.current.compact).toBeUndefined();
+  });
+
+  it("scrolls the picked band above the sheet it opens over it", () => {
+    stubRotation(false);
+    document.body.innerHTML = `
+      <div class="timeline-scroll"><div class="marker-lane" style="position: sticky"></div>
+        <div data-hit-kind="bleed-attenuation" data-hit-id="late_gate:0"></div></div>
+      <div class="bottom-sheet-root"><div class="bottom-sheet bottom-sheet--inspector"></div></div>`;
+    const place = (el: Element, top: number, bottom: number) => {
+      el.getBoundingClientRect = () =>
+        ({ top, bottom, left: 0, right: 360, height: bottom - top }) as DOMRect;
+    };
+    const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
+    place(scroller, 52, 700);
+    place(document.querySelector(".marker-lane")!, 52, 96);
+    place(document.querySelector("[data-hit-kind]")!, 500, 530);
+    place(document.querySelector(".bottom-sheet-root")!, 0, 748);
+    Object.defineProperty(
+      document.querySelector(".bottom-sheet"),
+      "offsetHeight",
+      { value: 360 },
+    );
+    useDawStore.setState({
+      selection: {
+        kind: "bleedAttenuation",
+        id: "c2",
+        trackId: "host",
+        regionKey: "late_gate:0",
+      },
+      selectionHit: null,
+    });
+    renderHook(() => useSelectionSheet("phone"));
+    expect(scroller.scrollTop).toBe(150);
+    document.body.replaceChildren();
+  });
+
   it("closes through the same handler in a column", () => {
     stubMatchMedia(true);
     const { result } = renderHook(() => useSelectionSheet("phone"));
