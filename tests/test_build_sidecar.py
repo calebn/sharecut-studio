@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -660,3 +661,26 @@ def test_sidecar_forwards_only_selected_prebuilt_inputs(monkeypatch, tmp_path):
         "Developer ID fixture",
     ]
     assert "--archive" not in calls[1]
+
+
+def test_freeze_smoke_requires_packaged_defaults(tmp_path: Path) -> None:
+    """The frozen runtime must carry ``podcast_mcp/defaults``; without it defaults read ``{}`` (#1905)."""
+    mod = _load_build_sidecar()
+    pkg = tmp_path / "podcast_mcp"
+    (pkg / "config").mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "config" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "config" / "defaults.py").write_text(
+        "from pathlib import Path\n"
+        "def defaults_dir():\n    return Path(__file__).resolve().parents[1] / 'defaults'\n"
+        "def bundled_defaults():\n"
+        "    f = defaults_dir() / 'pipeline.yaml'\n"
+        "    return {'tighten': {'x': 1}} if f.is_file() else {}\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "PYTHONPATH": str(tmp_path)}
+    cmd = [sys.executable, "-c", mod.DEFAULTS_SMOKE]
+    assert subprocess.run(cmd, env=env, capture_output=True).returncode != 0
+    (pkg / "defaults").mkdir()
+    (pkg / "defaults" / "pipeline.yaml").write_text("tighten: {x: 1}\n", encoding="utf-8")
+    assert subprocess.run(cmd, env=env, capture_output=True).returncode == 0

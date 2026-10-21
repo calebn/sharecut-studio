@@ -388,6 +388,14 @@ def write_python_home_marker(runtime: Path, prefix: Path) -> None:
 
 FREEZE_SMOKE = "import datetime, encodings, math, uvicorn"
 
+# An install without ``podcast_mcp/defaults`` reads ``{}`` as pipeline defaults (#1905).
+DEFAULTS_SMOKE = (
+    "from podcast_mcp.config.defaults import defaults_dir, bundled_defaults; "
+    "d = defaults_dir(); "
+    "assert d.name == 'defaults' and d.parent.name == 'podcast_mcp', d; "
+    "assert bundled_defaults().get('tighten'), 'packaged pipeline.yaml is missing or empty'"
+)
+
 
 def managed_cpython_executable(uv: str, *, env: dict[str, str]) -> str:
     """Return uv-managed 3.12, not a repo ``.venv`` / PATH interpreter."""
@@ -409,8 +417,9 @@ def managed_cpython_executable(uv: str, *, env: dict[str, str]) -> str:
 
 
 def assert_frozen_interpreter(venv_py: Path) -> None:
-    """Fail the freeze if the venv cannot import stdlib + uvicorn."""
+    """Fail the freeze if the venv cannot import stdlib + uvicorn or lacks the packaged defaults."""
     subprocess.check_call([str(venv_py), "-c", FREEZE_SMOKE])
+    subprocess.check_call([str(venv_py), "-c", DEFAULTS_SMOKE])
 
 
 def extension_wheels(directory: Path) -> list[Path]:
