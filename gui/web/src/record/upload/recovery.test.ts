@@ -192,6 +192,43 @@ describe("downloadLocalKeepers", () => {
     await vi.runAllTimersAsync();
   });
 
+  it("leaves out an unreadable room-tone bed rather than failing the recordings", async () => {
+    vi.useFakeTimers();
+    const blobs: Blob[] = [];
+    const NativeURL = URL;
+    class DownloadURL extends NativeURL {
+      static createObjectURL(blob: Blob) {
+        blobs.push(blob);
+        return "blob:keeper";
+      }
+      static revokeObjectURL = vi.fn();
+    }
+    vi.stubGlobal("URL", DownloadURL);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_guest" };
+    await sink.write(
+      keeperWavPath({ ...ids, segmentIndex: 0 }),
+      new Uint8Array([1]),
+    );
+    const bed = roomToneWavPath("room1", "p_guest");
+    await sink.write(bed, new Uint8Array([2]));
+    const readBlob = sink.readBlob.bind(sink);
+    vi.spyOn(sink, "readBlob").mockImplementation(async (path: string) => {
+      if (path === bed) throw new Error("NotReadableError");
+      return readBlob(path);
+    });
+
+    await downloadLocalKeepers(sink, "room1", "p_guest", 0);
+
+    const text = new TextDecoder("latin1").decode(
+      await blobs[0]!.arrayBuffer(),
+    );
+    expect(text).toContain("full-quality-take-1-segment-1-partial.wav");
+    expect(text).not.toContain("room-tone.wav");
+    await vi.runAllTimersAsync();
+  });
+
   it("does not call a room-tone bed alone a full-quality recording", async () => {
     const sink = new MemorySink();
     await sink.write(roomToneWavPath("room1", "p_guest"), new Uint8Array([2]));
