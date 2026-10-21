@@ -17,14 +17,17 @@ function supportsPopover(el: HTMLElement): boolean {
 }
 
 function hideFloor(): void {
-  if (floor && floorShown) {
+  if (floor?.isConnected && floorShown) {
     floor.hidePopover();
   }
   floorShown = false;
 }
 
 function settleFloor(): void {
-  if (!floor || !supportsPopover(floor)) {
+  // A region React already detached is no longer in the document: the browser
+  // hid it, and showing or hiding it would throw and unmount the app.
+  if (!floor?.isConnected || !supportsPopover(floor)) {
+    floorShown = false;
     return;
   }
   hideFloor();
@@ -82,6 +85,10 @@ export function showInTopLayer(panel: HTMLElement): () => void {
   const leave = enterTopLayerPanel();
   return () => {
     leave();
-    panel.hidePopover();
+    // A panel that React already detached was hidden by the browser, and
+    // `hidePopover()` would throw on it and unmount the app.
+    if (panel.isConnected) {
+      panel.hidePopover();
+    }
   };
 }

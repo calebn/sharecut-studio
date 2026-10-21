@@ -88,16 +88,15 @@ describe("CreateMenu", () => {
     expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 
-  it("stays out of the top layer: no popover attribute and no showPopover call", () => {
+  it("enters the top layer as a popover and leaves it on close", () => {
     const show = vi.spyOn(HTMLElement.prototype, "showPopover");
     const hide = vi.spyOn(HTMLElement.prototype, "hidePopover");
     const { unmount } = open("/tmp/ep.project.json");
     const layer = document.body.querySelector(".create-menu-layer");
     expect(layer).not.toBeNull();
-    expect(layer).not.toHaveAttribute("popover");
-    expect(show.mock.contexts).not.toContain(layer);
+    expect(show.mock.contexts).toContain(layer);
     unmount();
-    expect(hide.mock.contexts).not.toContain(layer);
+    expect(hide.mock.contexts).toContain(layer);
     show.mockRestore();
     hide.mockRestore();
   });

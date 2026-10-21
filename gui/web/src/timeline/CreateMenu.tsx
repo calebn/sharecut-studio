@@ -20,6 +20,7 @@ import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
 import { MenuItem } from "../ui/Menu";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
+import { useTopLayerPanel } from "../ui/useTopLayerPanel";
 import { bladeCutNote } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
 import { type ChooserBounds, layoutMenu, naturalSize } from "./chooserLayout";
@@ -98,6 +99,7 @@ export function CreateMenu({
 }: CreateMenuProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const topLayer = useTopLayerPanel();
   const [size, setSize] = useState<{ width: number; height: number } | null>(
     null,
   );
@@ -163,7 +165,12 @@ export function CreateMenu({
   const episode = list.filter((item) => item.entry.scope === "episode");
 
   return createPortal(
-    <div className="create-menu-layer" data-placement={layout.placement}>
+    <div
+      ref={topLayer.ref}
+      popover={topLayer.popover}
+      className="create-menu-layer"
+      data-placement={layout.placement}
+    >
       <div
         className="create-menu-scrim"
         onPointerDown={(e) => {
