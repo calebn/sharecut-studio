@@ -524,11 +524,30 @@ export async function saveCommandQueue(
 }
 
 /**
- * Append `cmd` to the guest queue, or replace the row with its `command_id`
- * where it stands: a replay re-admits the row it is sending, and moving it to
- * the tail would reorder it behind later edits if the pass stops there.
- * `hadPredecessor` tells a live send whether older rows are queued ahead.
+ * The one admission rule for both queues: append `cmd`, or keep the row that
+ * already has its `command_id` where it stands. A replay re-admits the row it
+ * is sending, and neither rewriting it nor moving it to the tail may reorder it
+ * behind later edits if the pass stops there. `hadPredecessor` tells a live
+ * send whether older rows are queued ahead.
  */
+function admitCommand(
+  queue: QueuedCommand[],
+  cmd: QueuedCommand,
+  append: (queue: QueuedCommand[], cmd: QueuedCommand) => QueuedCommand,
+): { items: QueuedCommand[]; result: QueueAdmission } {
+  const index = queue.findIndex((item) => item.command_id === cmd.command_id);
+  if (index >= 0) {
+    return {
+      items: queue,
+      result: { persisted: true, hadPredecessor: index > 0 },
+    };
+  }
+  return {
+    items: [...queue, append(queue, cmd)],
+    result: { persisted: true, hadPredecessor: queue.length > 0 },
+  };
+}
+
 export async function enqueueCommand(
   token: string,
   cmd: QueuedCommand,
@@ -540,21 +559,7 @@ export async function enqueueCommand(
   return updateStoredList<QueuedCommand, QueueAdmission>(
     queueKey(token),
     parseCommandList,
-    (queue) => {
-      const index = queue.findIndex(
-        (existing) => existing.command_id === cmd.command_id,
-      );
-      return {
-        items:
-          index < 0
-            ? [...queue, cmd]
-            : queue.map((existing, at) => (at === index ? cmd : existing)),
-        result: {
-          persisted: true,
-          hadPredecessor: index < 0 ? queue.length > 0 : index > 0,
-        },
-      };
-    },
+    (queue) => admitCommand(queue, cmd, (_queue, row) => row),
   );
 }
 
@@ -583,18 +588,12 @@ export async function enqueueHostCommand(
     return updateHostQueue(
       projectPath,
       (existing) => {
-        const existingIndex = existing.findIndex(
-          (item) => item.command_id === cmd.command_id,
+        const { items, result } = admitCommand(
+          existing,
+          cmd,
+          chainQueuedEnvelopeBaseline,
         );
-        if (existingIndex >= 0) {
-          return {
-            queue: existing,
-            result: { persisted: true, hadPredecessor: existingIndex > 0 },
-          };
-        }
-        const queue = [...existing, chainQueuedEnvelopeBaseline(existing, cmd)];
-        const hadPredecessor = existing.length > 0;
-        return { queue, result: { persisted: true, hadPredecessor } };
+        return { queue: items, result };
       },
       onPersistenceFailure,
     );
