@@ -60,9 +60,16 @@ def main() -> None:
     plan = build_bleed_gate_plan(project, a.track, defaults=defaults)
     track = project.track_by_id(a.track)
     path = resolve_under_workspace(project, track.media.path)
-    mono = np.concatenate(list(FFmpegEngine().stream_mono_f32(path, sample_rate=RATE)))
+    def levels(wav) -> tuple[np.ndarray, np.ndarray]:
+        x = np.concatenate(list(FFmpegEngine().stream_mono_f32(wav, sample_rate=RATE)))
+        return x, frame_rms_db_stream(iter([x]), FRAME, FRAME, floor_db=DIGITAL_SILENCE_DB)
+
+    # Two clocks: the quiet runs are on the source media's clock, the pause list on the
+    # stem's (cuts removed). Read each on its own clock.
+    mono, db = levels(path)
     voice_dbfs = -20 * np.log10(float(track_profile(mono, RATE).voice_gain))
-    db = frame_rms_db_stream(iter([mono]), FRAME, FRAME, floor_db=DIGITAL_SILENCE_DB)
+    stem = project.artifacts_dir() / "tracks" / f"{a.track}.wav"
+    stem_db = levels(stem)[1] if stem.exists() else None
     runs = seen.get("quiet_runs", [])
     report = {
         "reduction": str(plan.reduction),
@@ -76,7 +83,11 @@ def main() -> None:
                        "frames": percentiles(slice_frames(db, runs))},
     }
     if a.pauses:
-        report["harness_pauses"] = percentiles(slice_frames(db, json.load(open(a.pauses))))
+        if stem_db is None:
+            report["harness_pauses"] = "no stem to read the pause list on"
+        else:
+            report["harness_pauses_on_stem"] = percentiles(
+                slice_frames(stem_db, json.load(open(a.pauses))))
     print(json.dumps(report, indent=2, default=str))
 
 
