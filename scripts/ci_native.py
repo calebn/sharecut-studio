@@ -181,7 +181,7 @@ NATIVE_RULES = tuple(
                 "scripts/generate_distribution_config.py",
                 "scripts/tauri_sidecar_hook.py",
                 "config/distribution.dev.json",
-                "src/podcast_mcp/distribution.py",
+                "src/podcast_mcp/config/distribution.py",
                 "src/podcast_mcp/settings.py",
                 "src/podcast_mcp/__init__.py",
             ),

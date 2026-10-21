@@ -24,7 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
         (["gui/web/src/App.tsx"], {"web"}),
         (["gui/desktop/src-tauri/src/main.rs"], {"cargo"}),
         (["src/podcast_mcp/edits/tighten/propose.py"], {"pinned", "resolver", "lock", "registry"}),
-        (["src/podcast_mcp/distribution.py"], {"cargo", "pinned", "resolver", "lock", "registry"}),
+        (
+            ["src/podcast_mcp/config/distribution.py"],
+            {"cargo", "pinned", "resolver", "lock", "registry"},
+        ),
         (["scripts/build_sidecar.py"], {"cargo", "payload", "lock", "registry"}),
         (["contracts/ffmpeg-artifacts.json"], {"payload", "lock", "registry"}),
         (["contracts/test-wait-allowlist.json"], set()),
