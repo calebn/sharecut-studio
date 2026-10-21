@@ -1,6 +1,6 @@
 # Host-online relay
 
-> **Packaging:** the edge lives in the `podcast_relay` package (`podcast-relay` CLI). `podcast_mcp` never imports it: the tunnel frames (`protocol.py`), share claims (`share_claims.py`) and guest WS close log (`guest_ws_log.py`) both sides use live in `podcast_mcp.util.relay_protocol`, which the relay image copies as a package (`tests/test_relay_dockerfile.py`, `tests/test_service_boundaries.py`). Share/record/remote-MCP/guest surfaces (HTTP, MCP mint, `podcast review share*` CLI) mount through the FOSS `collaboration` [Sharecut Studio Extension](extensions.md) (`PODCAST_EXTENSIONS=` disables them). An independently installed `online` provider can mount account/auth surfaces. Document/session APIs stay in FOSS core. See [extension-seams.md](extension-seams.md).
+> **Packaging:** the edge lives in the `podcast_relay` package (`podcast-relay` CLI). `podcast_mcp` never imports it: the tunnel frames (`protocol.py`), share claims (`share_claims.py`) and guest WS close log (`guest_ws_log.py`) both sides use live in `podcast_mcp.util.relay_protocol`, which the relay image copies as a package (`tests/test_relay_dockerfile.py`, `tests/test_service_boundaries.py`). Share/record/remote-MCP/guest surfaces (HTTP, MCP mint, `podcast review share*` CLI) mount through the FOSS `collaboration` [ShareCut Studio Extension](extensions.md) (`PODCAST_EXTENSIONS=` disables them). An independently installed `online` provider can mount account/auth surfaces. Document/session APIs stay in FOSS core. See [extension-seams.md](extension-seams.md).
 
 Share your podcast project with guests or remote MCP clients while your laptop is
 online — no port-forwarding required.
@@ -236,9 +236,9 @@ Two axes (Google Docs–shaped):
 
 | Role | Caps | Guest UI |
 |------|------|----------|
-| **Viewer** | `play`, `view` | Sharecut Studio, read-only |
-| **Commenter** (default) | Viewer + `comment`, `reply`, `action`, `suggest` | Sharecut Studio with comments and Suggest cut. Suggestions wait for an Editor or the host. **No login** on link shares |
-| **Editor** | Commenter + `edit` | Sharecut Studio; edits directly and approves or rejects suggestions |
+| **Viewer** | `play`, `view` | ShareCut Studio, read-only |
+| **Commenter** (default) | Viewer + `comment`, `reply`, `action`, `suggest` | ShareCut Studio with comments and Suggest cut. Suggestions wait for an Editor or the host. **No login** on link shares |
+| **Editor** | Commenter + `edit` | ShareCut Studio; edits directly and approves or rejects suggestions |
 | **Owner** | Host laptop only | full stdio MCP **or** GUI `http://127.0.0.1:8765/mcp` (not a guest share) |
 
 `mcp` is not part of any role. `--with-mcp` adds it to the chosen role. The role decides which document commands a guest runs (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`), so a capability set that holds no role in full runs none. There is no `--capabilities` flag.
@@ -256,7 +256,7 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 | Capability | Meaning |
 |------------|---------|
 | `play`     | Stream review-mix / guest DAW audio |
-| `view`     | Read-only **Sharecut Studio** (timeline, tracks, waveform pyramid tiles, premix) |
+| `view`     | Read-only **ShareCut Studio** (timeline, tracks, waveform pyramid tiles, premix) |
 | `comment`  | Add timeline comments |
 | `reply`    | Reply to existing comments |
 | `join`     | Be recorded in a record room (no MCP) |
@@ -265,7 +265,7 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 | `edit`     | Editor only. Apply Pass 1–2 document commands (approve/reject any pending edit including exact range proposals, restore, fades, join, clip body move / `MoveClips`, undo/redo) **and apply** structural ops and selected ranges (`EditSelectedRange`) on the guest document route and guest MCP alike |
 | `mcp`      | Allow **capability-scoped** remote MCP at `{base}/mcp/{token}/mcp` (same powers as the other caps on this token — not the full host MCP surface) |
 
-Default for new shares: **Commenter**, Anyone with the link. Every role holds `view`, so `/r/{token}` opens Sharecut Studio for all three. There is no separate listen page: a share without `view` has no page, and no role, CLI flag, MCP tool or Share dialog option mints one.
+Default for new shares: **Commenter**, Anyone with the link. Every role holds `view`, so `/r/{token}` opens ShareCut Studio for all three. There is no separate listen page: a share without `view` has no page, and no role, CLI flag, MCP tool or Share dialog option mints one.
 
 A review link **follows the latest published version**: publishing a fix (`review publish-version`) changes what the same URL plays, so the host keeps one link and never re-sends it. Pass `--version <id>` to freeze the link on one version, or `--pin` to freeze it on the active version now; the Share dialog marks such links "Frozen on …" and offers **Freeze on the current version** when it mints one (`POST /api/shares` with `freeze: true`). The guest project view (`/api/review/{token}/project`, `link_follows_latest`, `newer_version`) says which version is heard and whether a newer one exists, and the guest page shows it as a line under the shared-view banner (#1785): the heard version's label, "Newer version available" on a frozen link (a frozen link cannot play it, so the line says to ask the host for a new link), and a **Reload** button when a following link's version changed. The page reads it on load, every 30 s and when the tab returns. MCP `create_review_share_tool` takes the same `version_id` (frozen) and `pin`.
 
@@ -320,7 +320,7 @@ shares need a user-bound agent Bearer (or future MCP OAuth) — not Claude `none
 authenticate which MCP client is calling — not the Docs-like document ACL. Claude directory /
 DCR is not required for link-share authless connectors.
 
-### Guest Sharecut Studio APIs (token-scoped)
+### Guest ShareCut Studio APIs (token-scoped)
 
 All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` paths):
 
@@ -366,7 +366,7 @@ When an S3-compatible object store is configured on the **host**:
 If object storage is unset or upload fails, the host streams local `mix.mp3` through the
 tunnel (still much smaller than WAV).
 
-### Proxy media (Sharecut Studio `view`)
+### Proxy media (ShareCut Studio `view`)
 
 Guests with `play`+`view` prefer **FX source-clock proxy chunks** (64 kbps mono MP3,
 60 s windows with 200 ms overlap) instead of live WAV stems/premix:
@@ -376,7 +376,7 @@ Guests with `play`+`view` prefer **FX source-clock proxy chunks** (64 kbps mono 
 2. Share create / lazy `GET /api/review/{token}/daw/proxy/manifest` uploads chunks to object storage
    when configured and returns per-chunk URLs (presigned or local fallback
    `/api/review/{token}/daw/proxy/{track_id}/{hash}/{i}`).
-3. Guest Sharecut Studio (`useProxyTransport`) decodes a sliding window via Web Audio and
+3. Guest ShareCut Studio (`useProxyTransport`) decodes a sliding window via Web Audio and
    schedules clips from the project file. Host lossless WAV remains the only mixdown/export path.
 
 The host probes the first signed track chunk for the public guest origin. A blocked bucket
@@ -491,7 +491,7 @@ refuse relayed traffic (see § Security notes). It also rewrites share HTML so r
 `<base href="/r/{token}/">` so Vite's relative lazy chunks (`base: './'`) resolve under
 the share path when the document URL has no trailing slash.
 
-Tunnel and relay stream large responses (e.g. fallback review MP3 / Sharecut Studio WAV) as
+Tunnel and relay stream large responses (e.g. fallback review MP3 / ShareCut Studio WAV) as
 chunked ``http_response`` frames with ``eof`` so WebSocket keepalive stays healthy.
 The tunnel strips ``Content-Encoding`` / ``Content-Length`` on streamed bodies after
 httpx decompresses them — keeping a compressed length with a decoded body resets
@@ -508,7 +508,7 @@ token (web guest parity) — not the full local `podcast-mcp` stdio tool surface
 (or the owner GUI URL `http://127.0.0.1:8765/mcp`).
 
 **Share agent = share user:** a collaborator with any role who connects
-MCP to that share should be able to take the same actions they can in Sharecut Studio
+MCP to that share should be able to take the same actions they can in ShareCut Studio
 with that role. `play` means both can hear: humans use in-browser transport; agents use
 share HTTP URLs plus a windowed hear-context bundle (captions, waveform/spectrogram)
 — not host `afplay`. HTTP is the source of truth (same routes the GUI uses);
@@ -525,7 +525,7 @@ never get host CLI, pipeline, ingest, or `afplay` on the host laptop.
 
 | Catalog | Job | Runtime? |
 |---------|-----|----------|
-| [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json) | Host adapter coverage (Sharecut Studio / **host** MCP / CLI / skills). `omit.guest` is the docs Host-only column only. | No |
+| [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json) | Host adapter coverage (ShareCut Studio / **host** MCP / CLI / skills). `omit.guest` is the docs Host-only column only. | No |
 | [`services/collaboration/share_capabilities.py`](../src/podcast_mcp/services/collaboration/share_capabilities.py) | Token ACL bits (`play` / `view` / `comment` / …) | Yes |
 | [`document_sync/capabilities.py`](../src/podcast_mcp/services/document_sync/capabilities.py) | Document-command types a share may submit | Yes |
 | [`remote_mcp/allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py) | Which `guest_*` tools those bits unlock | Yes (agent transport) |
@@ -561,7 +561,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 
 **Denied even when `mcp` is set:** pipeline run, full ingest consolidate, episode create (never on guest), host-speaker `play`, FX/transcript host-only mutations, absolute paths / history dumps, **comment resolve** (host-only: no share HTTP or guest MCP). An **Editor** link may still use `guest_submit_document_command` for volume envelopes (`SetEnvelope`, as the host does) and track CRUD (`AddTrack` / `SetTrackMedia` / …) and `guest_upload_media` / the HTTP chunked media upload route; that is not the host `ingest_*` / `episode_create` surface. Owner GUI REST/WS routes (project, pipeline, export, diagnostics, bootstrap, record, shares, transcript, comments, session/document sync) require the **host role** (`require_host` / `authorize_host`, #393): relay-tunneled requests never satisfy it, even on loopback or in non-strict mode. See § Security notes.
 
-**Audio:** `guest_audio_info` (full-file stream URLs), `guest_pending_preview` (pending cut), and `guest_audition_context` (arbitrary timeline window: captions + windowed hum/clip in `warnings`; per-track `prosody` + top-level `prosody_notes` read from the host's cached `analyze_prosody` profile, where guests get an allowlisted copy: a `missing`/`stale` window carries only its `status`, an `unavailable` one adds the generic `error: "prosody unavailable"`, and never the host rerun hint or exception text; optional wave/spec PNG) return relative share URLs (`/api/review/{token}/…`). Agents must stream via HTTP — remote MCP does **not** play on the host laptop. Sharecut Studio plays the same share-route render for a human guest's Suggested; `guest_pending_preview` is its agent twin (optional `visual` waveform/spectrogram PNGs). The hear-context contract is additive (new fields later without a new cap bit). Host `audition_context_tool` puts the same DSP in typed `hypotheses[]`.
+**Audio:** `guest_audio_info` (full-file stream URLs), `guest_pending_preview` (pending cut), and `guest_audition_context` (arbitrary timeline window: captions + windowed hum/clip in `warnings`; per-track `prosody` + top-level `prosody_notes` read from the host's cached `analyze_prosody` profile, where guests get an allowlisted copy: a `missing`/`stale` window carries only its `status`, an `unavailable` one adds the generic `error: "prosody unavailable"`, and never the host rerun hint or exception text; optional wave/spec PNG) return relative share URLs (`/api/review/{token}/…`). Agents must stream via HTTP — remote MCP does **not** play on the host laptop. ShareCut Studio plays the same share-route render for a human guest's Suggested; `guest_pending_preview` is its agent twin (optional `visual` waveform/spectrogram PNGs). The hear-context contract is additive (new fields later without a new cap bit). Host `audition_context_tool` puts the same DSP in typed `hypotheses[]`.
 
 ### Enable on the host
 
@@ -645,7 +645,7 @@ Guest WS fanout (host→guest) is unlimited; only inbound guest→host text fram
 | `PODCAST_RELAY_TOKEN_RPM` / `_BURST` | Per-token relay HTTP |
 | `PODCAST_RELAY_IP_RPM` / `_BURST` | Per-IP relay HTTP |
 | `PODCAST_RELAY_TOKEN_CONCURRENT` / `_HOST_CONCURRENT` / `_AUDIO_CONCURRENT` | In-flight caps |
-| `PODCAST_RELAY_WS_CONCURRENT` | Max guest Sharecut Studio WS per share token (default 8) |
+| `PODCAST_RELAY_WS_CONCURRENT` | Max guest ShareCut Studio WS per share token (default 8) |
 | `PODCAST_RELAY_WS_MSG_RPM` / `_BURST` | Inbound guest→host WS text frames (non-presence) |
 | `PODCAST_RELAY_WS_PRESENCE_RPM` / `_BURST` | Inbound guest→host Presence frames (coarse pre-filter; host limiter is authoritative) |
 | `PODCAST_RELAY_REGISTER_RPM` / `_BURST` | Tunnel hello/register |
@@ -653,7 +653,7 @@ Guest WS fanout (host→guest) is unlimited; only inbound guest→host text fram
 | `PODCAST_RATE_LIMIT_READ_RPM` / `_BURST` | Host JSON reads + MCP reads |
 | `PODCAST_RATE_LIMIT_MUTATE_RPM` / `_BURST` | Host POSTs + MCP mutations |
 | `PODCAST_RATE_LIMIT_AUDIO_CONCURRENT` | Host audio streams |
-| `PODCAST_GUEST_WS_CONCURRENT` | Host-side max guest Sharecut Studio WS per token (default 8) |
+| `PODCAST_GUEST_WS_CONCURRENT` | Host-side max guest ShareCut Studio WS per token (default 8) |
 | `PODCAST_GUEST_WS_PRESENCE_RPM` / `_BURST` | Host per-connection guest Presence frames (900/min burst 60) |
 | `PODCAST_GUEST_WS_PRESENCE_TOKEN_RPM` / `_BURST` | Host per-token guest Presence frames (3600/min burst 200) |
 | `PODCAST_WS_ROSTER_REQUEST_RPM` / `_BURST` | Per-client-id `RosterRequest` replies on the host and guest session sockets (60/min burst 1; the budget survives a reconnect) |

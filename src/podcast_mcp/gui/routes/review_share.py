@@ -817,7 +817,7 @@ async def daw_ws(
     client_id: str | None = Query(None),
     name: str | None = Query(None),
 ) -> None:
-    """Guest Sharecut Studio dual-plane fanout (Presence inbound; share-token auth)."""
+    """Guest ShareCut Studio dual-plane fanout (Presence inbound; share-token auth)."""
     try:
         restricted = await _admit_review_ws(websocket, token)
         if restricted is None:

@@ -32,7 +32,7 @@ function loadGuestTokens(): GuestTokens | null {
 
 async function expectLoadedDemo(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Sharecut Studio UX demo",
+    "ShareCut Studio UX demo",
   );
   await expect(page.locator(".timecode-total").first()).toContainText(
     "01:00.000",
@@ -106,7 +106,7 @@ test.describe("UX demo screenshots", () => {
     await desktop.close();
   });
 
-  test("capture guest Sharecut Studio share", async ({ browser }) => {
+  test("capture guest ShareCut Studio share", async ({ browser }) => {
     test.skip(
       !process.env.UX_DEMO_SCREENSHOTS,
       "Set UX_DEMO_SCREENSHOTS=1 to refresh ux/assets/screens",

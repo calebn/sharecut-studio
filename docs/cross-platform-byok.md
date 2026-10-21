@@ -1,17 +1,17 @@
-# Cross-platform Sharecut Studio and bring-your-own agent
+# Cross-platform ShareCut Studio and bring-your-own agent
 
 **Status:** deferred long-horizon path. Do **not** implement this as a project now. Use it to steer architecture so a later native iOS/Android app and in-app agent do not require a rewrite.
 
 Near-term work stays desktop packaging, episode format, MCP, and the existing phone **web** shell ([gui-mobile.md](gui-mobile.md)). This document is the detailed counterpart to the one-line pointers in [ROADMAP.md](../ROADMAP.md). When implementing, start at [When it is time to build](#when-it-is-time-to-build) so you do not re-run the 2026 research.
 
-**Thesis:** the user talks to **their** model (API key on the device). That model calls **our** tools. Tools mutate **episode.project.json** and bounce audio through a media engine. UI is the existing React Sharecut Studio. Platforms differ only in *how* Python (or a port of it) and FFmpeg are hosted.
+**Thesis:** the user talks to **their** model (API key on the device). That model calls **our** tools. Tools mutate **episode.project.json** and bounce audio through a media engine. UI is the existing React ShareCut Studio. Platforms differ only in *how* Python (or a port of it) and FFmpeg are hosted.
 
 System assistants (Siri App Intents, Android App Functions) are optional OS glue later (play, search, share sheet). They cannot drive a full editorial pass. Do not design the product around them.
 
 ```mermaid
 flowchart TB
   subgraph shared [Same_on_every_OS]
-    UI[gui_web_Sharecut Studio]
+    UI[gui_web_ShareCut Studio]
     Chat[BYOK_agent_chat]
     Tools[MCP_and_document_commands]
     Domain[services_edits_pipeline]
@@ -53,7 +53,7 @@ Follow these **now**, while shipping unrelated features. They are cheap constrai
 2. **Keep filtergraph construction in one place.** `render_timeline`, `filter_audio`, loudnorm, deess, `arnndn`, concat/acrossfade strings must stay next to `FFmpegEngine` so an FFmpegKit `execute("-y -i …")` backend can reuse them.
 3. **Keep playback separate from bounce.** `PlayService` / session transport / guest Web Audio scheduler are not FFmpeg live graphs. Mobile will use AVAudioEngine / Oboe for scrub; FFmpeg stays offline render. Do not merge play and render into one “just call ffmpeg” path.
 4. **Keep episode format v2 as the portable document.** Phone and PC must round-trip the same `episode.project.json` + media folder ([episode-format-v2.md](episode-format-v2.md)). Do not invent a mobile-only project schema or a second clip model.
-5. **Keep the React Sharecut Studio as the only DAW UI.** Native shells are windows around [`gui/web`](../gui/web) ([gui-mobile.md](gui-mobile.md)). Do not start a SwiftUI/Jetpack timeline “just for mobile.”
+5. **Keep the React ShareCut Studio as the only DAW UI.** Native shells are windows around [`gui/web`](../gui/web) ([gui-mobile.md](gui-mobile.md)). Do not start a SwiftUI/Jetpack timeline “just for mobile.”
 6. **Keep adapters thin.** New surfaces (chat, future Siri, Shortcuts) call `services/` and document commands ([entry-points.md](entry-points.md), [capabilities.manifest.json](../contracts/capabilities.manifest.json)). If you add an in-app agent later, it is another adapter, not a fork of `EditService`.
 7. **Preserve owner vs guest.** Review-share remote MCP stays a **guest** allowlist ([host-online-relay.md](host-online-relay.md) § Remote MCP, [`allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py)). Do not “just enable pipeline on the share token” so a phone can edit. An owner phone is a host session, not a cooler guest link.
 8. **Prefer MCP tool profiles when touching registration.** Named slices (`edit`, `transcript`, `review`, `pipeline`, `full`) are still a ROADMAP item — they are **not** implemented yet (`register_all` registers everything). They are how an in-app agent stays under LLM tool-count caps. Do not grow `register_all` as an undifferentiated dump if you are already in that code.
@@ -111,7 +111,7 @@ In-app MCP host, not an IDE, not the OS assistant.
 6. Destructive tools (ripple, approve-all, pipeline, master) stay listen-first / confirm.
 7. Owner session ≠ review-share guest.
 
-This is how a **full editorial pass** works on a phone: the model decides; local tools apply. Cursor already proves the loop on desktop via stdio MCP. Sharecut Studio chat just hosts it.
+This is how a **full editorial pass** works on a phone: the model decides; local tools apply. Cursor already proves the loop on desktop via stdio MCP. ShareCut Studio chat just hosts it.
 
 Whenever this becomes real: **desktop chat first** (sidecar already there). Mobile chat without an on-device engine only works while a Mac/PC is reachable.
 

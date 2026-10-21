@@ -1,4 +1,4 @@
-/** Sharecut Studio Extensions — feature manifest from GET /api/features (absent = no render). */
+/** ShareCut Studio Extensions — feature manifest from GET /api/features (absent = no render). */
 
 import { apiSend, HOST_KEY, recordProjectKey } from "../api/http";
 import { shareProjectKey } from "../shareMode";

@@ -1,4 +1,4 @@
-"""ExtensionBackend protocol - public SPI for Sharecut Studio Extensions."""
+"""ExtensionBackend protocol - public SPI for ShareCut Studio Extensions."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-/* Sharecut Studio UI library layout + control interaction primitive (theme tokens only). */
+/* ShareCut Studio UI library layout + control interaction primitive (theme tokens only). */
 
 .ui-menu-root {
   --menu-item-min-block-size: var(--control-height);

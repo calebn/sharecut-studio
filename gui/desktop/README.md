@@ -1,6 +1,6 @@
-# Sharecut Studio desktop (Tauri 2)
+# ShareCut Studio desktop (Tauri 2)
 
-Native host shell for Sharecut Studio. **Does not rewrite the DAW** — it spawns the
+Native host shell for ShareCut Studio. **Does not rewrite the DAW** — it spawns the
 existing FastAPI viewer (`podcast gui`) and, in **production**, waits until the
 sidecar listen file, sock→pid ownership, and token-gated `/api/health` succeed,
 then navigates the WebView to `http://127.0.0.1:<discovered-port>/`

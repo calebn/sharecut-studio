@@ -26,7 +26,7 @@ pub fn sidecar_log_path() -> PathBuf {
             return PathBuf::from(home)
                 .join("Library")
                 .join("Logs")
-                .join("Sharecut Studio")
+                .join("ShareCut Studio")
                 .join("sidecar.log");
         }
         return PathBuf::from(home)

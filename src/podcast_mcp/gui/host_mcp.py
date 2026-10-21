@@ -21,7 +21,7 @@ from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 
 HOST_MCP_PATH = "/mcp"
 
-NO_OPEN_PROJECT = "No episode is open in Sharecut Studio. Open a project in the DAW, then retry."
+NO_OPEN_PROJECT = "No episode is open in ShareCut Studio. Open a project in the DAW, then retry."
 
 _request_app: ContextVar[FastAPI | None] = ContextVar("host_mcp_app", default=None)
 _call_tool_wrapped = False

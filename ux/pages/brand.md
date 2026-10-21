@@ -1,6 +1,6 @@
-# Sharecut styling guidelines
+# ShareCut styling guidelines
 
-Living checklist for product pages and Sharecut Studio chrome. Change **tokens**, not one-off hex. If a new surface would look like an unstyled system-ui column with default-blue links, it is out of guideline.
+Living checklist for product pages and ShareCut Studio chrome. Change **tokens**, not one-off hex. If a new surface would look like an unstyled system-ui column with default-blue links, it is out of guideline.
 
 ## Voice
 
@@ -9,22 +9,22 @@ The [catalog guide](https://github.com/calebn/sharecut-studio/blob/main/docs/des
 explains how to run it and add stories. This page owns brand and styling
 guidance; the examples read their values from the production CSS tokens.
 
-Sharecut is a studio you would send a guest into: calm, listen-first, no “AI” chrome, no magic. **Sudo Science** (parent) may stay drier. Do not brand the dense editor as a landing page.
+ShareCut is a studio you would send a guest into: calm, listen-first, no “AI” chrome, no magic. **Sudo Science** (parent) may stay drier. Do not brand the dense editor as a landing page.
 
 ## Two rooms, one token family
 
 | Room | Surfaces | Type |
 |------|----------|------|
 | Reading | sharecut.studio, `/download/`, sudo.science, HomeScreen, record lobby | Body ≥ `1rem`, line-height ~1.4–1.5 |
-| Mixing | Sharecut Studio with a project open | `--font-size-ui` (~0.8125rem) |
+| Mixing | ShareCut Studio with a project open | `--font-size-ui` (~0.8125rem) |
 
-Same `--color-*` roles in both rooms. Shared scale + brand colors live in [`deploy/brand/brand-tokens.css`](https://github.com/calebn/sharecut-studio/blob/main/deploy/brand/brand-tokens.css) (synced to Sharecut Studio `gui/web/src/styles/theme/`). Light/dark: `data-theme` on `<html>` wins, else OS `prefers-color-scheme` (`:root:not([data-theme])`). Sharecut Studio preference API is [`useTheme`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/src/hooks/useTheme.ts). Playhead and clip hues are **functional**, not brand paint.
+Same `--color-*` roles in both rooms. Shared scale + brand colors live in [`deploy/brand/brand-tokens.css`](https://github.com/calebn/sharecut-studio/blob/main/deploy/brand/brand-tokens.css) (synced to ShareCut Studio `gui/web/src/styles/theme/`). Light/dark: `data-theme` on `<html>` wins, else OS `prefers-color-scheme` (`:root:not([data-theme])`). ShareCut Studio preference API is [`useTheme`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/src/hooks/useTheme.ts). Playhead and clip hues are **functional**, not brand paint.
 
-Sharecut Studio tokens: [`gui/web/src/styles/theme/`](https://github.com/calebn/sharecut-studio/tree/main/gui/web/src/styles/theme). Marketing CSS: [`deploy/brand/marketing.css`](https://github.com/calebn/sharecut-studio/blob/main/deploy/brand/marketing.css). Shared Cover/Stack/Box layout: [`deploy/brand/cover-layout.css`](https://github.com/calebn/sharecut-studio/blob/main/deploy/brand/cover-layout.css) (synced to [`gui/web/src/styles/partials/cover-layout.css`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/src/styles/partials/cover-layout.css); imported by `reading.css`).
+ShareCut Studio tokens: [`gui/web/src/styles/theme/`](https://github.com/calebn/sharecut-studio/tree/main/gui/web/src/styles/theme). Marketing CSS: [`deploy/brand/marketing.css`](https://github.com/calebn/sharecut-studio/blob/main/deploy/brand/marketing.css). Shared Cover/Stack/Box layout: [`deploy/brand/cover-layout.css`](https://github.com/calebn/sharecut-studio/blob/main/deploy/brand/cover-layout.css) (synced to [`gui/web/src/styles/partials/cover-layout.css`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/src/styles/partials/cover-layout.css); imported by `reading.css`).
 
 ## Planes (information hierarchy)
 
-Paint and markup share one stack. Sharecut Studio uses the five-rung ladder from [design tokens](https://github.com/calebn/sharecut-studio/blob/main/docs/design-tokens.md#surface-ladder): **canvas** frames the app (status bar), **base** holds the panes (track headers, bottom panel), **raised** holds the inspector and cards, **overlay** holds menus, sheets, toasts, and dialogs, and **sunken** holds wells, meters, and code. The transport is a fixed dark focal strip in either theme. The stage (`--color-timeline-*`) is light in light mode, one recessed step below the panes so clips carry the color, and darkest in dark mode. In light mode, overlays lift with shadow and a dark scrim rather than a darker tint. Timeline `--z-*` roles express paint order inside local stacking contexts; their layer order is in [design tokens](https://github.com/calebn/sharecut-studio/blob/main/docs/design-tokens.md#elevation), separate from chrome elevation.
+Paint and markup share one stack. ShareCut Studio uses the five-rung ladder from [design tokens](https://github.com/calebn/sharecut-studio/blob/main/docs/design-tokens.md#surface-ladder): **canvas** frames the app (status bar), **base** holds the panes (track headers, bottom panel), **raised** holds the inspector and cards, **overlay** holds menus, sheets, toasts, and dialogs, and **sunken** holds wells, meters, and code. The transport is a fixed dark focal strip in either theme. The stage (`--color-timeline-*`) is light in light mode, one recessed step below the panes so clips carry the color, and darkest in dark mode. In light mode, overlays lift with shadow and a dark scrim rather than a darker tint. Timeline `--z-*` roles express paint order inside local stacking contexts; their layer order is in [design tokens](https://github.com/calebn/sharecut-studio/blob/main/docs/design-tokens.md#elevation), separate from chrome elevation.
 
 | Plane | Meaning | Markup | Token |
 |-------|---------|--------|-------|
@@ -85,7 +85,7 @@ Layout classes are **arrangement**; plane classes are **what the thing is**:
 | **Switcher** | Intrinsic wrap of equal-ish items (`flex-basis` threshold) |
 | **Box** | Surface object; add `.elevated` when it is temporary |
 
-Nest primitives instead of descendant layout: `.box.stack.tight` (inner rhythm via `--stack-space`), not margin on `.box h2`. `.box h2 { font-size }` is type, not layout. Card body mute is `.note`; `.lede` stays the identity lead. Sharecut Studio mixer chrome (timeline, transport grid) is not Cover/Stack — it stays in `layout.css` / `timeline.css`.
+Nest primitives instead of descendant layout: `.box.stack.tight` (inner rhythm via `--stack-space`), not margin on `.box h2`. `.box h2 { font-size }` is type, not layout. Card body mute is `.note`; `.lede` stays the identity lead. ShareCut Studio mixer chrome (timeline, transport grid) is not Cover/Stack — it stays in `layout.css` / `timeline.css`.
 
 Typical reading page:
 
@@ -108,7 +108,7 @@ One primary action per view (`Button variant="primary"` or `.primary`). Everythi
 
 ## Mixing-room control states
 
-Sharecut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/web/docs/ui-library.md`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/docs/ui-library.md)). Domain CSS may size padding; it must not invent a second hover/focus recipe. Timeline `--z-*` and canvas widgets (clips, fade handles, playhead) are **not** chrome states — do not copper the playhead.
+ShareCut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/web/docs/ui-library.md`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/docs/ui-library.md)). Domain CSS may size padding; it must not invent a second hover/focus recipe. Timeline `--z-*` and canvas widgets (clips, fade handles, playhead) are **not** chrome states — do not copper the playhead.
 
 | State | When it must show | How |
 |-------|-------------------|-----|
@@ -149,4 +149,4 @@ as fields and preserves selected half and full heights.
 
 ## How to add a page
 
-Reuse `deploy/brand/brand-tokens.css` / `marketing.css` / `cover-layout.css` or Sharecut Studio tokens; add copy; do not fork a third palette or a page-specific Cover/Stack/Box sheet. Nest primitives (`box stack tight`). Mute card copy with `.note`, not `.lede`. If you need a new value, add a token first. Query tests by role and accessible name, not CSS class names.
+Reuse `deploy/brand/brand-tokens.css` / `marketing.css` / `cover-layout.css` or ShareCut Studio tokens; add copy; do not fork a third palette or a page-specific Cover/Stack/Box sheet. Nest primitives (`box stack tight`). Mute card copy with `.note`, not `.lede`. If you need a new value, add a token first. Query tests by role and accessible name, not CSS class names.

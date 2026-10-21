@@ -1,11 +1,11 @@
 /**
- * Shared Sharecut scale + brand colors.
+ * Shared ShareCut scale + brand colors.
  * Theme contract (all rooms):
- *   1. html[data-theme="light"|"dark"] wins (Sharecut Studio useTheme).
+ *   1. html[data-theme="light"|"dark"] wins (ShareCut Studio useTheme).
  *   2. Else follow prefers-color-scheme on :root:not([data-theme]).
  *   3. Dark baseline is :root / :root[data-theme="dark"].
  * Source of truth — copies in public dirs + gui/web theme must match
- * (tests/test_public_sites.py). Lane/clips/danger stay in Sharecut Studio themes.
+ * (tests/test_public_sites.py). Lane/clips/danger stay in ShareCut Studio themes.
  */
 
 :root,

@@ -1,4 +1,4 @@
-"""Stable and experimental feature / slot IDs for Sharecut Studio Extensions."""
+"""Stable and experimental feature / slot IDs for ShareCut Studio Extensions."""
 
 from __future__ import annotations
 

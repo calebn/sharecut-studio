@@ -47,7 +47,7 @@ async function expectInspectorFooterTouchTargets(page: Page) {
   }
 }
 
-test.describe("Sharecut Studio mobile smoke", () => {
+test.describe("ShareCut Studio mobile smoke", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test("phone shell shows mode nav and is axe-clean", async ({ page }) => {

@@ -1,4 +1,4 @@
-/** True when keyboard events should not trigger Sharecut Studio shortcuts. */
+/** True when keyboard events should not trigger ShareCut Studio shortcuts. */
 export function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) {
     return false;

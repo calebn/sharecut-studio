@@ -6,7 +6,7 @@ import { HOME_SCREEN_HINT_DISMISSED_KEY } from "../utils/homeScreenHint";
 import { HomeScreenHint } from "./HomeScreenHint";
 
 const HINT =
-  "In Safari's Share menu, choose Add to Home Screen to open Sharecut full screen.";
+  "In Safari's Share menu, choose Add to Home Screen to open ShareCut full screen.";
 
 function browse(standalone: boolean) {
   for (const [key, value] of Object.entries({ standalone, maxTouchPoints: 5 }))
@@ -46,7 +46,7 @@ describe("HomeScreenHint", () => {
     expect(screen.queryByText(HINT)).toBeNull();
   });
 
-  it("stays away once Sharecut runs from the Home Screen", () => {
+  it("stays away once ShareCut runs from the Home Screen", () => {
     browse(true);
     render(<HomeScreenHint />);
     expect(screen.queryByText(HINT)).toBeNull();

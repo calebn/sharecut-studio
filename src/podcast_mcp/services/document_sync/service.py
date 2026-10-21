@@ -1016,7 +1016,7 @@ def notify_comments_changed(
 
 
 def after_agent_mutation(project_path: str | Path | ProjectWorkspace) -> None:
-    """Notify open Sharecut Studio tabs after an MCP tool or record-landing mutation
+    """Notify open ShareCut Studio tabs after an MCP tool or record-landing mutation
     (not document submit).
 
     Journals a seq-advancing ``ExternalMutate`` row (#661): in the GUI process it reaches

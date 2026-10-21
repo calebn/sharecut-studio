@@ -357,7 +357,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Speaker attribution",
   },
   "agent.gui": {
-    label: "Open Sharecut Studio GUI",
+    label: "Open ShareCut Studio GUI",
   },
   "daw.view.transcriptAnnotate": {
     label: "Annotate transcript",

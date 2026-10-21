@@ -1,7 +1,7 @@
-# Sharecut Studio communication philosophy
+# ShareCut Studio communication philosophy
 
 This guide sets the voice, terminology, control placement, and ergonomics rules
-for Sharecut Studio. It is the companion to the
+for ShareCut Studio. It is the companion to the
 [UI philosophy](ui-philosophy.md). Where the two overlap, the UI philosophy
 wins; § [Reconciled with ui-philosophy](#reconciled-with-ui-philosophy) lists
 each resolved conflict.

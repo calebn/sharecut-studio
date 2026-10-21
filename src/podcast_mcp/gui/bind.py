@@ -1,6 +1,6 @@
 """Exclusive loopback listen socket for the GUI sidecar.
 
-Packaged Sharecut Studio binds ``127.0.0.1:0`` (ephemeral) so :8765 is not a
+Packaged ShareCut Studio binds ``127.0.0.1:0`` (ephemeral) so :8765 is not a
 stable squat target. CLI ``podcast gui`` still defaults to 8765.
 """
 

@@ -2,7 +2,7 @@
  * The Add to Home Screen hint (#1077). iPhone Safari gives web pages no way
  * to hide its bars: no `minimal-ui` since iOS 8, a Fullscreen API for video
  * only, and it collapses them only while the document itself scrolls, which
- * the fixed app shell never does. Opened from the Home Screen, Sharecut runs
+ * the fixed app shell never does. Opened from the Home Screen, ShareCut runs
  * as a web app with no browser chrome (`manifest.webmanifest`,
  * `display: standalone`), so that is the phone's full-screen path. A Safari
  * tab shows the hint as a banner until it is dismissed in that browser; More
@@ -18,13 +18,13 @@ export interface HomeScreenEnv {
 }
 
 export const HOME_SCREEN_HINT =
-  "In Safari's Share menu, choose Add to Home Screen to open Sharecut full screen.";
+  "In Safari's Share menu, choose Add to Home Screen to open ShareCut full screen.";
 
 /** Per browser, like the other `sharecut.*` conveniences: not project state. */
 export const HOME_SCREEN_HINT_DISMISSED_KEY =
   "sharecut.homeScreenHintDismissed";
 
-/** True in an iPhone or iPad Safari tab, not once Sharecut runs from the Home Screen. */
+/** True in an iPhone or iPad Safari tab, not once ShareCut runs from the Home Screen. */
 export function offersHomeScreenHint(env: HomeScreenEnv): boolean {
   return (
     env.standalone === false && env.maxTouchPoints > 0 && env.displayModeBrowser

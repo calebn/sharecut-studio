@@ -54,7 +54,7 @@ describe("HostMcpDialog", () => {
     ).toBeTruthy();
     const url = localHostMcpUrl();
     expect(screen.getByLabelText("MCP URL")).toHaveValue(url);
-    expect(screen.getByText(/Keep Sharecut Studio running/)).toBeTruthy();
+    expect(screen.getByText(/Keep ShareCut Studio running/)).toBeTruthy();
     expect(screen.getByLabelText("Cursor snippet")).toHaveValue(
       mcpClientSnippet(url),
     );

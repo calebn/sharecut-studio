@@ -135,7 +135,7 @@ export function HomeScreen() {
       <div className="cover-center center stack" data-daw-app-chrome>
         <header className="stack">
           <h1 className="wordmark">
-            <BrandLockup name="Sharecut Studio" />
+            <BrandLockup name="ShareCut Studio" />
           </h1>
           <p className="lede">
             Create or open an episode project to start arranging.

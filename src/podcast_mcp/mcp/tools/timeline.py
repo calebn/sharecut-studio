@@ -424,7 +424,7 @@ def split_clip_tool(
 
     Pass ``track_ids`` for multi-track blade cuts.
     When omitted, uses ``track_id`` / ``speaker``, or all dialogue tracks.
-    Submits ``SplitAtTime`` on the document plane (same path as Sharecut Studio blade).
+    Submits ``SplitAtTime`` on the document plane (same path as ShareCut Studio blade).
     """
     from podcast_mcp.util.tracks import dialogue_track_ids
 

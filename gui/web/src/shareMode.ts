@@ -1,4 +1,4 @@
-/** Virtual project keys for token-scoped guest Sharecut Studio (`share:{token}`). */
+/** Virtual project keys for token-scoped guest ShareCut Studio (`share:{token}`). */
 
 export const SHARE_PREFIX = "share:";
 

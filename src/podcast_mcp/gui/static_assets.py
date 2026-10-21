@@ -16,7 +16,7 @@ _REPO_GUI_DIST = Path(__file__).resolve().parents[3] / "gui" / "web" / "dist"
 
 
 def packaged_gui_dist() -> Path:
-    """Sharecut Studio web build inside an installed wheel.
+    """ShareCut Studio web build inside an installed wheel.
 
     ``hatch_build.py`` copies ``gui/web/dist`` here (``wheel-web-dist`` in
     ``pyproject.toml``) when the wheel is built after ``npm run build``.
@@ -25,7 +25,7 @@ def packaged_gui_dist() -> Path:
 
 
 def repo_gui_dist() -> Path:
-    """Sharecut Studio web build as laid out in this repository."""
+    """ShareCut Studio web build as laid out in this repository."""
     return _REPO_GUI_DIST
 
 
@@ -45,7 +45,7 @@ def resolve_gui_static_root() -> Path:
 
 
 def static_bundle_ready(root: Path) -> bool:
-    """True when ``root`` holds a built Sharecut Studio (``index.html`` present)."""
+    """True when ``root`` holds a built ShareCut Studio (``index.html`` present)."""
     return (root / "index.html").is_file()
 
 
@@ -56,7 +56,7 @@ def missing_bundle_message(root: Path) -> str:
     not, and lands here until ``PODCAST_GUI_DIST`` points at a checkout's build.
     """
     return (
-        f"Sharecut Studio web build not found at {root}. "
+        f"ShareCut Studio web build not found at {root}. "
         "This install does not include it: from a source checkout run "
         "`cd gui/web && npm ci && npm run build`, then start `podcast gui` with "
         "PODCAST_GUI_DIST=<checkout>/gui/web/dist."
@@ -68,8 +68,8 @@ def missing_bundle_response(root: Path) -> HTMLResponse:
     message = html.escape(missing_bundle_message(root)).replace("`", "")
     body = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        "<title>Sharecut Studio web build missing</title></head><body>"
-        "<h1>Sharecut Studio web build missing</h1>"
+        "<title>ShareCut Studio web build missing</title></head><body>"
+        "<h1>ShareCut Studio web build missing</h1>"
         f"<p>{message}</p>"
         "<p>The API and host MCP endpoint are running; only the browser UI is unavailable.</p>"
         "</body></html>"

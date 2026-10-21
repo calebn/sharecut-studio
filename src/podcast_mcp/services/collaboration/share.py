@@ -755,7 +755,7 @@ def sanitize_guest_project_view(
     # History can embed local paths in labels/params - keep only the opaque head.
     if "history" in out:
         out["history"] = _guest_history(out["history"])
-    # Guest Sharecut Studio keeps a zeroed impact stub so StatusBar/ImpactPanel stay safe.
+    # Guest ShareCut Studio keeps a zeroed impact stub so StatusBar/ImpactPanel stay safe.
     if full or "edit_impact" in out:
         out["edit_impact"] = dict(_GUEST_IMPACT_STUB)
     if full or "social_clips" in out:
@@ -918,7 +918,7 @@ def share_project_view(token: str) -> dict[str, Any]:
 
 
 def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str, Any]:
-    """Sharecut Studio ProjectView for guests with the ``view`` capability."""
+    """ShareCut Studio ProjectView for guests with the ``view`` capability."""
     from podcast_mcp.services.document_sync import dump_projection_locked
 
     _row, ws = require_share_cap(token, CAP_VIEW)
@@ -928,7 +928,7 @@ def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str,
 
 
 def share_daw_meta(token: str) -> dict[str, Any]:
-    """Poll meta for guest Sharecut Studio (mtime/size + document seq when readable; no filesystem path)."""
+    """Poll meta for guest ShareCut Studio (mtime/size + document seq when readable; no filesystem path)."""
     _row, ws = require_share_cap(token, CAP_VIEW)
     return document_poll_meta(ws.path)
 
@@ -1047,7 +1047,7 @@ def share_daw_waveform_snap(
 
 
 def share_proxy_manifest(token: str) -> dict[str, Any]:
-    """Per-track proxy chunk URLs for guest Sharecut Studio (object storage or local fallback)."""
+    """Per-track proxy chunk URLs for guest ShareCut Studio (object storage or local fallback)."""
     from podcast_mcp.services.media import (
         ensure_proxy_manifest,
         presigned_proxy_urls,

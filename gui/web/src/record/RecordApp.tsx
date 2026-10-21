@@ -374,7 +374,7 @@ export function RecordApp({ token }: { token: string }) {
       <div className="cover-center center stack">
         <header className="stack">
           <p className="wordmark">
-            <BrandLockup name="Sharecut Studio" />
+            <BrandLockup name="ShareCut Studio" />
           </p>
           <h1>{heading}</h1>
           {episodeName ? <p className="lede">{episodeName}</p> : null}

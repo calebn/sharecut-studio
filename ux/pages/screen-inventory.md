@@ -1,4 +1,4 @@
-# Screen inventory — Sharecut Studio
+# Screen inventory — ShareCut Studio
 
 Per-surface **display schemas**: what regions exist, what data they show, empty/loading states, and what’s out of scope. Pair with [Domain glossary](#/glossary) for field definitions.
 
@@ -131,7 +131,7 @@ with fictional links, including its in-place confirmations. The live
 | **Purpose** | Copy the local Streamable HTTP MCP URL so Cursor/Claude talk to the running DAW |
 | **Open** | Menu → Project → **Connect agent…** (`mcp.connect`); home **Connect agent…** |
 | **Primary actions** | **Copy URL** (`http://127.0.0.1:8765/mcp`) · **Copy snippet** (Cursor `mcpServers` JSON) |
-| **Data shown** | Loopback MCP URL; client snippet; reminder to keep Sharecut Studio running |
+| **Data shown** | Loopback MCP URL; client snippet; reminder to keep ShareCut Studio running |
 | **Empty / error** | No episode open: URL still copies, tools error until a project is open |
 | **Out of scope** | Writing `~/.cursor/mcp.json`; PATH-installing `podcast-mcp`; guest share-token MCP (that stays on Share…) |
 
@@ -373,12 +373,12 @@ The transport layout control maximizes/restores (named **Maximize timeline** or 
 
 ## Guest / share (`/r/{token}`)
 
-Every review role (Viewer, Commenter, Editor) holds `view`, so every role opens Sharecut Studio guest. There is one guest surface for review links.
+Every review role (Viewer, Commenter, Editor) holds `view`, so every role opens ShareCut Studio guest. There is one guest surface for review links.
 
 ```mermaid
 flowchart LR
   shareLink["Review link /r/token"] --> hasView{Has view?}
-  hasView -->|yes, every role| dawGuest[Sharecut Studio guest]
+  hasView -->|yes, every role| dawGuest[ShareCut Studio guest]
   hasView -->|no, API-only share| noPage[Error: link does not open the project]
 ```
 
@@ -386,7 +386,7 @@ flowchart LR
 
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
-| Viewer, Commenter (default) or Editor | **Sharecut Studio guest** | Timeline / Listen / Text / More gated by role. Mode **banner** at top. |
+| Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Timeline / Listen / Text / More gated by role. Mode **banner** at top. |
 | Any capability set without `view` (API only, no role mints one) | **Error screen** | "This link does not open the project." with "Ask the person who shared it for a new link." beneath it in muted text. |
 
 Step flows: [Guest journeys](#/journeys).
@@ -395,8 +395,8 @@ Step flows: [Guest journeys](#/journeys).
 
 | Cap | Guest can… |
 |-----|------------|
-| `play` | Hear the review mix or session audio in Sharecut Studio |
-| `view` | Open Sharecut Studio guest (timeline, transcript, sanitized project) |
+| `play` | Hear the review mix or session audio in ShareCut Studio |
+| `view` | Open ShareCut Studio guest (timeline, transcript, sanitized project) |
 | `comment` | Leave time-anchored comments |
 | `reply` | Reply in a comment thread |
 | `action` | Check off comment action items |
@@ -404,7 +404,7 @@ Step flows: [Guest journeys](#/journeys).
 | `edit` | Editor only. Approve/reject pending, fades/joins, FX bypass, apply structural cuts |
 | `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (host Share dialog copies the MCP URL when the host allowed AI assistants; **no guest in-app MCP connect UI**) |
 
-### Sharecut Studio guest chrome (when `view` is granted)
+### ShareCut Studio guest chrome (when `view` is granted)
 
 | Banner string | Role (`guest_mode`) |
 |---------------|--------------|

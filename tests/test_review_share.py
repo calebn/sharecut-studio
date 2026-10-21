@@ -88,7 +88,7 @@ def test_share_create_and_api(minimal_project, sample_wav, tmp_workspace, monkey
     dist = tmp_path / "dist"
     dist.mkdir()
     (dist / "index.html").write_text(
-        "<!DOCTYPE html><html><head><title>Sharecut Studio</title></head><body></body></html>",
+        "<!DOCTYPE html><html><head><title>ShareCut Studio</title></head><body></body></html>",
         encoding="utf-8",
     )
     client = TestClient(create_app(static_dir=dist))

@@ -1,6 +1,6 @@
 # Podcast MCP
 
-FOSS podcast production toolkit: multitrack projects, per-track transcription, transcript-driven tightening, FFmpeg processing, Sharecut Studio (a full DAW-style editor in the browser and the desktop app), and agent skills under `.agents/`. The scope of the current beta is in [docs/beta-plan.md](docs/beta-plan.md).
+FOSS podcast production toolkit: multitrack projects, per-track transcription, transcript-driven tightening, FFmpeg processing, ShareCut Studio (a full DAW-style editor in the browser and the desktop app), and agent skills under `.agents/`. The scope of the current beta is in [docs/beta-plan.md](docs/beta-plan.md).
 
 **Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv) recommended (`install.sh` falls back to `.venv` + `pip`), and a matching FFmpeg/FFprobe 9.0.2 or later 9.x pair for source use. Desktop packaging selects a pinned prebuilt 9.0.2 pair. The release catalog pins the same platform archives for CI and desktop packaging.
 
@@ -37,7 +37,7 @@ uv sync --all-extras
 source .venv/bin/activate   # or: uv run …
 podcast bootstrap --component all
 podcast doctor
-# Optional Sharecut Studio UI (needs Node 24+):
+# Optional ShareCut Studio UI (needs Node 24+):
 cd gui/web && npm ci && npm run build && cd ../..
 ```
 
@@ -60,7 +60,7 @@ The frontend CI suite uses a [locked exporter dependency group](docs/setup.md#fr
 | `src/podcast_mcp/` | Python package — CLI, MCP, services, domain, GUI API, Extensions SPI |
 | `podcast_online` | Optional private/provider extension, installed independently when needed; its source is not part of this repository |
 | `src/podcast_relay/` | FOSS reverse-tunnel edge (`podcast-relay`) |
-| `gui/web/` | Sharecut Studio viewer (React + Vite) |
+| `gui/web/` | ShareCut Studio viewer (React + Vite) |
 | `deploy/relay/` | FOSS host-online share relay (Docker Compose examples) |
 | `contracts/` | Published caps / feature-id contract artifacts |
 | `.agents/` | Skills, rules, MCP template, pipeline defaults |
@@ -76,7 +76,7 @@ podcast track add --project /path/to/my_episode/episode.project.json --id host -
 podcast pipeline run --project /path/to/my_episode/episode.project.json
 ```
 
-**Sharecut Studio (editor):**
+**ShareCut Studio (editor):**
 
 ```bash
 uv sync --extra gui
@@ -109,7 +109,7 @@ Host MCP agents can read and replace it with revision checks. See the
 
 ## Documentation
 
-- [Sharecut Studio Extensions](docs/extensions.md) — public plugin SPI (absent = no render); [seams](docs/extension-seams.md)
+- [ShareCut Studio Extensions](docs/extensions.md) — public plugin SPI (absent = no render); [seams](docs/extension-seams.md)
 - [Host-online relay](docs/host-online-relay.md) — Docker share edge, tunnel, **capability-scoped remote MCP** (via the FOSS collaboration extension)
 - [Share tokens and registry backups](docs/share-tokens.md#backup--restore) — create a new private backup with `podcast review backup-registry`; `--dest` requires an unused name in an existing trusted private directory.
 - [Recording session (design)](docs/recording-session.md) — record links, full-quality recording on each device, mix-minus monitor, consent

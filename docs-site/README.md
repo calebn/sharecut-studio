@@ -2,7 +2,7 @@
 
 Shareable API / contract docs for Podcast MCP, published at **https://docs.sharecut.studio/**.
 
-**Local-first:** document-command contract is core Sharecut Studio. **Share HTTP** and
+**Local-first:** document-command contract is core ShareCut Studio. **Share HTTP** and
 **remote MCP** pages describe surfaces mounted by the built-in FOSS `collaboration`
 extension (optional FOSS relay for public URLs).
 

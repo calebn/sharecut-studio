@@ -13,7 +13,7 @@ import { linearToDb } from "../utils/audio";
 /**
  * Default clip threshold in dBFS, **sample peak only**.
  *
- * Sharecut does not oversample or detect inter-sample (true) peaks. The
+ * ShareCut does not oversample or detect inter-sample (true) peaks. The
  * -1 dBFS margin is headroom for overs this meter cannot see. The same
  * threshold drives the live LED, the encoder's clip regions, the post-take
  * report and the timeline flags.

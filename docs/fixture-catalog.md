@@ -9,7 +9,7 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 | Fixture | Path | Size | Gold labels | Purpose |
 |---------|------|------|-------------|---------|
 | `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Whole LibriSpeech utterances; published text and MFA-derived timings, not hand-checked | CLI/MCP smoke, edits, social, history; GUI Playwright (waveform pyramids build on demand) |
-| `sharecut_ux_demo` | `tests/fixtures/sharecut_ux_demo/` | same audio (symlinked) | UX showcase seed | Sharecut Studio UX Pages demo; pending edit, comments, chapters |
+| `sharecut_ux_demo` | `tests/fixtures/sharecut_ux_demo/` | same audio (symlinked) | UX showcase seed | ShareCut Studio UX Pages demo; pending edit, comments, chapters |
 | `asr_gold` | `tests/fixtures/asr_gold/` | ~0.55 MB, 3 utterances | LibriSpeech official | ASR WER regression (`test_asr_gold_wer.py`) |
 | `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~10.6 MB | Manifest + word JSON; one tone per word so `echo_risk` measures the bleed path (#774) | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |
 | `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/` | ~10.6 MB | AMI word XML + synthetic audio | Synthetic bleed calibration using AMI overlap timings (nightly) |

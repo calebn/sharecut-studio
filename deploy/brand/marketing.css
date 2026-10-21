@@ -2,7 +2,7 @@
 @import "./cover-layout.css";
 
 /**
- * Sharecut marketing layout + page helpers.
+ * ShareCut marketing layout + page helpers.
  * Cover paints the place (canvas). Box is a durable object (surface).
  * .box.elevated is a temporary object. .primary is an act.
  * Scale + brand colors: brand-tokens.css. Cover/Stack/Cluster/Switcher/Box:

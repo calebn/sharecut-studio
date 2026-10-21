@@ -1,4 +1,4 @@
-"""Hatch build hook that ships the Sharecut Studio web build when one exists.
+"""Hatch build hook that ships the ShareCut Studio web build when one exists.
 
 A static ``force-include`` of the web build fails every build in a tree without
 ``npm run build``, so the hook adds it only when ``index.html`` is there. Paths

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze a per-OS Sharecut Studio sidecar (CPython + gui extras + web dist).
+"""Freeze a per-OS ShareCut Studio sidecar (CPython + gui extras + web dist).
 
 Contributor ``tauri dev`` keeps ``gui/desktop/binaries/sharecut-sidecar`` (bash).
 This script writes a gitignored runtime tree and a target-triple launcher that
@@ -55,7 +55,7 @@ if [ -z "$ROOT" ] && [ -d "$EXEDIR/../lib" ]; then
   done
 fi
 if [ -z "$ROOT" ]; then
-  echo "Sharecut Studio sidecar: {runtime} not found next to $0" >&2
+  echo "ShareCut Studio sidecar: {runtime} not found next to $0" >&2
   exit 1
 fi
 export PODCAST_GUI_DIST="$ROOT/web-dist"
@@ -104,7 +104,7 @@ if [ -n "${{PYTHONHOME:-}}" ] && [ -f "$ROOT/venv/pyvenv.cfg" ]; then
 fi
 PY="$ROOT/venv/bin/python"
 if [ ! -x "$PY" ]; then
-  echo "Sharecut Studio sidecar: python not found at $PY" >&2
+  echo "ShareCut Studio sidecar: python not found at $PY" >&2
   exit 1
 fi
 # Packaged parent sets PODCAST_SIDECAR_EPHEMERAL=1; Python resolved_bind_port uses 0.
@@ -119,7 +119,7 @@ set ROOT=
 if exist "%EXEDIR%{runtime}\\venv\\Scripts\\python.exe" set ROOT=%EXEDIR%{runtime}
 if not defined ROOT if exist "%EXEDIR%resources\\{runtime}\\venv\\Scripts\\python.exe" set ROOT=%EXEDIR%resources\\{runtime}
 if not defined ROOT (
-  echo Sharecut Studio sidecar: {runtime} not found next to %~f0 1>&2
+  echo ShareCut Studio sidecar: {runtime} not found next to %~f0 1>&2
   exit /b 1
 )
 set PODCAST_GUI_DIST=%ROOT%\\web-dist
@@ -137,7 +137,7 @@ if not defined PYTHONHOME (
 )
 set PY=%ROOT%\\venv\\Scripts\\python.exe
 if not exist "%PY%" (
-  echo Sharecut Studio sidecar: python not found at %PY% 1>&2
+  echo ShareCut Studio sidecar: python not found at %PY% 1>&2
   exit /b 1
 )
 REM Packaged parent sets PODCAST_SIDECAR_EPHEMERAL=1; Python resolved_bind_port uses 0.

@@ -1,6 +1,6 @@
-# Sharecut Studio frontend (`gui/web`)
+# ShareCut Studio frontend (`gui/web`)
 
-React + TypeScript + Vite UI for the podcast Sharecut Studio viewer and guest review app.
+React + TypeScript + Vite UI for the podcast ShareCut Studio viewer and guest review app.
 
 ## Scripts
 
@@ -401,7 +401,7 @@ Semantic CSS variables live under `src/styles/theme/`:
 |------|------|
 | `brand-tokens.css` | Shared scale + brand `--color-*` (sync-copy from `deploy/brand/`; self-contained — see below) |
 | `primitives.css` | **Primitive tier:** raw `--primitive-*` literals, theme-invariant; never `var()`, never consumed by components |
-| `tokens.css` | Sharecut Studio-only scales (`--space-*`, `--font-size-*`, `--motion-*`, `--z-*`), layout dimensions, and composite paint recipes |
+| `tokens.css` | ShareCut Studio-only scales (`--space-*`, `--font-size-*`, `--motion-*`, `--z-*`), layout dimensions, and composite paint recipes |
 | `theme-dark.css` | **Semantic tier:** dark `--color-*` roles mapped onto primitives |
 | `theme-light.css` | **Semantic tier:** light `--color-*` roles + `prefers-color-scheme` when no `data-theme` |
 | `../theme.css` | Imports bundled IBM Plex fonts, brand-tokens, primitives, then the three above |
@@ -437,7 +437,7 @@ Root switching (same CSS contract as marketing):
 ### Adding a token
 
 1. **Shared brand / scale:** edit `deploy/brand/brand-tokens.css`, copy to public dirs and `src/styles/theme/brand-tokens.css`.
-2. **Sharecut Studio-only:** declare scales, layout dimensions, motion values, and composite paint recipes in `theme/tokens.css`. Define semantic color roles in `theme-dark.css`, `theme-light.css`, or `theme-fixed.css`. For a new **color**, add its raw value to `theme/primitives.css` (`--primitive-<family>-<step>`), then map it onto a `--color-*` semantic role in both themes using the same selectors as brand-tokens. Never put raw hex in the theme files; never consume `--primitive-*` directly from components. See [docs/design-tokens.md](../../docs/design-tokens.md).
+2. **ShareCut Studio-only:** declare scales, layout dimensions, motion values, and composite paint recipes in `theme/tokens.css`. Define semantic color roles in `theme-dark.css`, `theme-light.css`, or `theme-fixed.css`. For a new **color**, add its raw value to `theme/primitives.css` (`--primitive-<family>-<step>`), then map it onto a `--color-*` semantic role in both themes using the same selectors as brand-tokens. Never put raw hex in the theme files; never consume `--primitive-*` directly from components. See [docs/design-tokens.md](../../docs/design-tokens.md).
 3. Use `var(--…)` in partials / components — **never** invent one-off hex/`rgb` outside `src/styles/theme/`. Stylelint enforces this in CI.
 
 Domain CSS is split into `@import` partials from `src/styles/daw.css`, in cascade order: `partials/base.css`, `reading.css`, `layout.css` (shell grid, tabs, track headers), `timeline.css`, `inspector.css`, `panels.css`, `bottom-sheet.css`, `command-palette.css`, `ui.css` (library atoms), `transport.css` (the fixed-dark transport strip and the phone Listen card that shares its paint), `presence.css`, `ingest.css`, `record.css`, `responsive.css` (shells and breakpoints), and `stage.css` (timeline lighting and row interaction depth). `record-entry.css` loads a subset for the guest recording app. Keep transport paint in `transport.css` only: it must import after `ui.css` and before `responsive.css`, so phone rules still override the strip.
@@ -448,7 +448,7 @@ See [`docs/gui-mobile.md`](../../docs/gui-mobile.md). Breakpoints: phone `<768`,
 
 ## UI library (`src/ui/`)
 
-Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md) for charter, command-bus bridge, and catalog. Domain folders (`inspector/`, `panels/`, `timeline/`) stay and **compose** the library.
+ShareCut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md) for charter, command-bus bridge, and catalog. Domain folders (`inspector/`, `panels/`, `timeline/`) stay and **compose** the library.
 
 | Export | Use for |
 |--------|---------|

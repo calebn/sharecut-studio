@@ -1,11 +1,11 @@
-# See the UI — Sharecut Studio UX demo
+# See the UI — ShareCut Studio UX demo
 
-Always-on reference for what Sharecut Studio shows. Two layers:
+Always-on reference for what ShareCut Studio shows. Two layers:
 
 1. **Screenshots on this site** (below) — visible without installing anything.
 2. **Live fixture in the repo** — open locally to click through the real shell.
 
-> Host screenshots cover phone Listen / Timeline / Text and desktop. Guest screenshots show **Sharecut Studio guest** on a Commenter link (the default role).
+> Host screenshots cover phone Listen / Timeline / Text and desktop. Guest screenshots show **ShareCut Studio guest** on a Commenter link (the default role).
 
 ## Open the live demo (local)
 
@@ -29,7 +29,7 @@ podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json --por
 # Terminal B — publish review mix + create tokens
 PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite \
   python3 scripts/ux_demo_prepare_shares.py --base-url http://127.0.0.1:8777
-# Open the printed Sharecut Studio guest (Commenter) URL
+# Open the printed ShareCut Studio guest (Commenter) URL
 ```
 
 Or refresh all Pages PNGs (host + guest): `make ux-demo-screens` (defaults to port **8777** so a local `:8766` GUI does not block Playwright).
@@ -68,9 +68,9 @@ Audio is **symlinked** from `aligned_dialogue/raw` so the demo stays on the same
 
 ## Screenshots — guest share
 
-![Sharecut Studio guest on phone](../assets/screens/guest-sharecut-phone.png)
+![ShareCut Studio guest on phone](../assets/screens/guest-sharecut-phone.png)
 
-![Sharecut Studio guest on desktop](../assets/screens/guest-sharecut-desktop.png)
+![ShareCut Studio guest on desktop](../assets/screens/guest-sharecut-desktop.png)
 
 If images are missing after a fresh clone, run `make ux-demo-screens` (needs GUI extra + Playwright Chromium).
 

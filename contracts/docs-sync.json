@@ -554,7 +554,7 @@
     },
     {
       "id": "sharecut-studio-css-units-theme-tokens",
-      "when": "Sharecut Studio CSS units / theme tokens / Stylelint",
+      "when": "ShareCut Studio CSS units / theme tokens / Stylelint",
       "update": "`docs/design-tokens.md` (naming system), `.agents/rules/gui-styling.md`, `docs/contributing.md` § frontend, `gui/web/README.md`, `ux/pages/brand.md` § Units, `docs/gui-mobile.md`",
       "docs": [
         "docs/design-tokens.md",
@@ -575,7 +575,7 @@
     },
     {
       "id": "sharecut-studio-mobile-responsive-shells",
-      "when": "Sharecut Studio mobile / responsive shells",
+      "when": "ShareCut Studio mobile / responsive shells",
       "update": "`docs/gui-mobile.md`, `docs/gui-viewer.md` § Responsive shells, `ROADMAP.md` § Follow-up",
       "docs": [
         "docs/gui-mobile.md",
@@ -600,7 +600,7 @@
     },
     {
       "id": "user-facing-copy-and-controls",
-      "when": "Sharecut Studio user-facing copy, terminology, control placement, menus, dialogs, empty states, or feedback",
+      "when": "ShareCut Studio user-facing copy, terminology, control placement, menus, dialogs, empty states, or feedback",
       "update": "`docs/communication-philosophy.md` (Terminology table in the same PR that adds or renames a concept; Changelog when a rule changes; UI philosophy wins on conflict), partner terms in `ux/pages/domain-glossary.md`",
       "docs": [
         "docs/communication-philosophy.md",
@@ -610,7 +610,7 @@
     },
     {
       "id": "sharecut-studio-interaction-system",
-      "when": "Sharecut Studio interaction grammar (selection kinds and surfaces, command targets, menus, dialogs and sheets, feedback channel, keyboard and touch equivalents)",
+      "when": "ShareCut Studio interaction grammar (selection kinds and surfaces, command targets, menus, dialogs and sheets, feedback channel, keyboard and touch equivalents)",
       "update": "`docs/interaction-system.md` (the rule, the registry row, the checklist line, and the Shipped gaps table when a gap closes)",
       "docs": [
         "docs/interaction-system.md"
@@ -646,7 +646,7 @@
     },
     {
       "id": "sharecut-studio-editability",
-      "when": "Sharecut Studio editability (cuts, joins, FX, transcript in GUI)",
+      "when": "ShareCut Studio editability (cuts, joins, FX, transcript in GUI)",
       "update": "`docs/daw-editing.md`, `ROADMAP.md` § Follow-up, `docs/session-sync.md` § Document plane",
       "docs": [
         "docs/daw-editing.md",
@@ -675,7 +675,7 @@
     },
     {
       "id": "sharecut-studio-keyboard-command-bus",
-      "when": "Sharecut Studio keyboard / command bus",
+      "when": "ShareCut Studio keyboard / command bus",
       "update": "`gui/web/README.md` (command bus: `execute`); never add a second window `keydown` listener — see `commands/governance.test.ts`",
       "docs": [
         "gui/web/README.md"
@@ -699,7 +699,7 @@
     },
     {
       "id": "sharecut-studio-shortcut-cheatsheet",
-      "when": "Sharecut Studio shortcut cheatsheet (docs + UX site)",
+      "when": "ShareCut Studio shortcut cheatsheet (docs + UX site)",
       "update": "Regenerate with `make cheatsheet` after keymap/catalog changes; `make cheatsheet-check` / pre-commit `keymap-cheatsheet`; live: `ux/pages/shortcuts.md` → https://ux.sharecut.studio/#/shortcuts (links to capabilities catalog)",
       "docs": [
         "ux/pages/shortcuts.md"
@@ -715,7 +715,7 @@
     },
     {
       "id": "sharecut-studio-desktop-packaging",
-      "when": "Sharecut Studio desktop (Tauri) / packaging",
+      "when": "ShareCut Studio desktop (Tauri) / packaging",
       "update": "`docs/desktop-packaging.md`, `gui/desktop/`, `contracts/bootstrap-assets.json`, first-run `/api/bootstrap/*`; distribution operations are private",
       "docs": [
         "docs/desktop-packaging.md",
@@ -751,7 +751,7 @@
     },
     {
       "id": "sharecut-studio-extensions-api-freemium-split",
-      "when": "Sharecut Studio Extensions API / freemium split seams",
+      "when": "ShareCut Studio Extensions API / freemium split seams",
       "update": "`docs/extensions.md`, `docs/extension-seams.md`, `contracts/caps.json`, `podcast_mcp.extensions`, external provider packages such as `podcast_online`, `podcast_relay`, `PODCAST_EXTENSIONS`",
       "docs": [
         "docs/extensions.md",
@@ -921,7 +921,7 @@
     {
       "id": "testing-or-coverage-policy",
       "when": "Testing or coverage policy",
-      "update": "`docs/testing.md`, `pyproject.toml`; Python: `make lint-py` / Ruff+Bandit+Vulture+Deptry+mypy; Sharecut Studio frontend: `make test-web`, `make test-web-e2e` (axe), `gui/web/README.md`; Tauri host: `make test-desktop` / `docs/desktop-packaging.md`",
+      "update": "`docs/testing.md`, `pyproject.toml`; Python: `make lint-py` / Ruff+Bandit+Vulture+Deptry+mypy; ShareCut Studio frontend: `make test-web`, `make test-web-e2e` (axe), `gui/web/README.md`; Tauri host: `make test-desktop` / `docs/desktop-packaging.md`",
       "docs": [
         "docs/testing.md",
         "docs/testing-ci.md",

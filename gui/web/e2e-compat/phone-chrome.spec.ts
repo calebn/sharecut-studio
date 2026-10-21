@@ -287,7 +287,7 @@ test("the phone timeline shows Undo and Redo; a Safari tab offers the Home Scree
     const hint = page.getByRole("complementary", { name: "Full screen" });
     await expect(
       hint.getByText(
-        "In Safari's Share menu, choose Add to Home Screen to open Sharecut full screen.",
+        "In Safari's Share menu, choose Add to Home Screen to open ShareCut full screen.",
         { exact: true },
       ),
     ).toBeVisible();

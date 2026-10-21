@@ -11,5 +11,5 @@ fi
 if command -v podcast >/dev/null 2>&1; then
   exec podcast gui --host 127.0.0.1 --port 8765 --no-open "$@"
 fi
-echo "Sharecut Studio sidecar: install podcast-mcp (uv sync --extra gui) or put podcast on PATH" >&2
+echo "ShareCut Studio sidecar: install podcast-mcp (uv sync --extra gui) or put podcast on PATH" >&2
 exit 1

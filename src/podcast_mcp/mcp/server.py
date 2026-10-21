@@ -22,7 +22,7 @@ register_all(mcp)
 
 _HELP_TEXT = f"""podcast-mcp {__version__}
 
-Sharecut Studio MCP server. Runs on stdio by default so any MCP
+ShareCut Studio MCP server. Runs on stdio by default so any MCP
 harness (Claude Code, Claude Desktop, Cursor, Cline, Windsurf, ...)
 can launch it with zero configuration:
 

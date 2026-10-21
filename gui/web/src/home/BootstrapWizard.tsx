@@ -127,10 +127,10 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       aria-label="Setup"
     >
       <div className="bootstrap-wizard-header stack">
-        <h1>Set up Sharecut Studio</h1>
+        <h1>Set up ShareCut Studio</h1>
         <p>
           Download a Whisper speech model once. Audio tools are bundled with
-          Sharecut Studio. Nothing downloads until you click Continue. The
+          ShareCut Studio. Nothing downloads until you click Continue. The
           recommended model has the lowest practical WER; pick a smaller one
           only if you need to save disk.
         </p>
@@ -145,7 +145,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
           Audio tools: {ffmpegOk ? "ready" : "unavailable"}
           {!ffmpegOk ? (
             <p>
-              Reinstall Sharecut Studio, or follow the{" "}
+              Reinstall ShareCut Studio, or follow the{" "}
               <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair">
                 source setup guide
               </a>

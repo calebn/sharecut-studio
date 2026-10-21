@@ -18,7 +18,7 @@ async function expectNoHorizontalScroll(guest: Page, width: number) {
 }
 
 for (const theme of ["light", "dark"] as const) {
-  test(`a Commenter link opens Sharecut Studio, comments and replies at 1440 in ${theme}`, async ({
+  test(`a Commenter link opens ShareCut Studio, comments and replies at 1440 in ${theme}`, async ({
     browser,
   }) => {
     await withShareableProject(async (projectPath) => {

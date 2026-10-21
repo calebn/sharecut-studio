@@ -1,6 +1,6 @@
 # sharecut_ux_demo
 
-Canonical **Sharecut Studio UX showcase** fixture for the [UX Pages pack](../../../ux/README.md).
+Canonical **ShareCut Studio UX showcase** fixture for the [UX Pages pack](../../../ux/README.md).
 
 Built from `aligned_dialogue` plus seeded pending edits, comments, chapters, transcript
 chips, mix/FX, and a social clip - so phone Listen / Timeline / Text / More and desktop

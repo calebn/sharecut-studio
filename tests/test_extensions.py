@@ -1,4 +1,4 @@
-"""Tests for Sharecut Studio Extensions API (FeatureRegistry, soft-load, absent=no-mount)."""
+"""Tests for ShareCut Studio Extensions API (FeatureRegistry, soft-load, absent=no-mount)."""
 
 from __future__ import annotations
 

@@ -79,7 +79,7 @@ export function StyleGuide() {
   return (
     <article className="style-guide" aria-labelledby="style-guide-title">
       <header className="style-guide-intro">
-        <h1 id="style-guide-title">Sharecut Studio style guide</h1>
+        <h1 id="style-guide-title">ShareCut Studio style guide</h1>
         <p>
           A calm place to listen, record, and edit. Use this guide to choose the
           right pattern, then inspect its live states.

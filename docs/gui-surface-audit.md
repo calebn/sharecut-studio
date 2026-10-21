@@ -1,6 +1,6 @@
 # Full GUI audit and fixes
 
-Reviewed 2026-09-30 with Impeccable against the existing Sharecut visual identity.
+Reviewed 2026-09-30 with Impeccable against the existing ShareCut visual identity.
 The scope includes every production React area, shared styles, recording and
 review routes, and native startup/error/close surfaces. Refinement preserves task
 behavior and the distinction between dense editor chrome and reading rooms.

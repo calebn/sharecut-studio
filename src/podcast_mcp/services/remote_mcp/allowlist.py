@@ -1,4 +1,4 @@
-"""Capability → guest MCP tool allowlists (parity with Sharecut Studio / document commands)."""
+"""Capability → guest MCP tool allowlists (parity with ShareCut Studio / document commands)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from podcast_mcp.services.document_sync import (
     edit_commands_allowed,
 )
 
-# Read / listen (project summary without full Sharecut Studio).
+# Read / listen (project summary without full ShareCut Studio).
 PLAY_TOOLS: frozenset[str] = frozenset(
     {
         "guest_get_review_summary",
@@ -24,7 +24,7 @@ PLAY_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Full guest Sharecut Studio reads (requires ``view``).
+# Full guest ShareCut Studio reads (requires ``view``).
 VIEW_TOOLS: frozenset[str] = frozenset(
     {
         "guest_get_project",

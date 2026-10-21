@@ -1,4 +1,4 @@
-# Sharecut Studio UI library
+# ShareCut Studio UI library
 
 Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / shadcn / Tailwind.** Domain folders (`timeline/`, `layout/` transport chrome, `inspector/` views) compose this library; they do not reimplement overlays, menus, or pressed toggles.
 

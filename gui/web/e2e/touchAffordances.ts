@@ -356,7 +356,7 @@ export async function exerciseTouchSheetAffordances(
     await page.getByRole("button", { name: "Gestures", exact: true }).click();
     const gestures = page.getByRole("dialog", { name: "Gestures" });
     await expect(gestures).toContainText(
-      "Undo: Undo the last action. Optional Sharecut shortcut.",
+      "Undo: Undo the last action. Optional ShareCut shortcut.",
     );
     await page.keyboard.press("Escape");
     await expect(gestures).toHaveCount(0);

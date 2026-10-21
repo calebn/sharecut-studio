@@ -39,12 +39,12 @@ e2e-slow:
 e2e-real:
 	uv run pytest -m e2e_real --no-cov -q 2>/dev/null || .venv/bin/pytest -m e2e_real --no-cov -q 2>/dev/null || pytest -m e2e_real --no-cov -q
 
-# Sharecut Studio frontend: oxlint + Stylelint + Biome format check + typecheck +
+# ShareCut Studio frontend: oxlint + Stylelint + Biome format check + typecheck +
 # vitest (component axe) + production build. Mirrors CI `frontend-suite` job.
 test-web:
 	cd gui/web && npm ci && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npx vite-node scripts/generate-keymap-cheatsheet.ts --check
 
-# Sharecut Studio Playwright smoke + full-page axe gate against aligned_dialogue
+# ShareCut Studio Playwright smoke + full-page axe gate against aligned_dialogue
 # + Chromium/WebKit compat matrix (requires `[gui]` extra). Mirrors CI `frontend-e2e` job.
 test-web-e2e:
 	cd gui/web && npm ci && VITE_SHARECUT_E2E=1 npm run build && npm run test:e2e:install && npm run test:e2e && npm run test:e2e:compat
@@ -77,7 +77,7 @@ desktop-linux-appimage-docker:
 	./scripts/desktop/build_linux_appimage_docker.sh
 
 # Optional local mirror of required GitHub CI: Python quality + coverage +
-# Sharecut Studio unit/a11y + Playwright axe. GitHub Actions remains the gate
+# ShareCut Studio unit/a11y + Playwright axe. GitHub Actions remains the gate
 # for public pushes and pull requests.
 .PHONY: ci-body
 ci:
@@ -175,7 +175,7 @@ golden-ear:
 ux-demo:
 	uv run python scripts/build_ux_demo_fixture.py
 
-# Capture Sharecut Studio screenshots into ux/assets/screens for the UX site.
+# Capture ShareCut Studio screenshots into ux/assets/screens for the UX site.
 # Uses port 8777 by default so a local :8766 GUI does not block Playwright.
 ux-demo-screens:
 	cd gui/web && npm run build && \

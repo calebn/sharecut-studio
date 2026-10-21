@@ -1,6 +1,6 @@
-# Using Sharecut Studio on mobile
+# Using ShareCut Studio on mobile
 
-Sharecut Studio works on your phone, not just your desktop. The mobile version isn't a shrunken-down desktop — it's designed around what you actually do on a phone.
+ShareCut Studio works on your phone, not just your desktop. The mobile version isn't a shrunken-down desktop — it's designed around what you actually do on a phone.
 
 > **Google Docs:** use **Copy Markdown** on this UX site, then paste into Docs. Keep this page as the source of truth.
 
@@ -147,7 +147,7 @@ controls are in the compact transport Menu on Timeline, Text, or More.
 
 | Gesture | What it does |
 |---------|--------------|
-| **Two-finger tap** | Optional Sharecut shortcut for Undo |
+| **Two-finger tap** | Optional ShareCut shortcut for Undo |
 | **Pinch** | Zoom the timeline in/out |
 | **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts). In Select mode, hold a word and drag across more to select a range; Range actions also add or drop a word at either end. On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to add an envelope point, a blade cut, a chapter or a comment |
 | **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears in the app toast afterwards (for the most recent one only) and reopens the comment, even after you leave Comments |
@@ -187,7 +187,7 @@ The phone layout groups controls by task so they fit a smaller screen.
 
 ### Full screen on iPhone
 
-Safari's address bar and toolbar take a lot of room, especially with the phone held sideways, and Safari doesn't let a web page hide them. To get the room back, **add Sharecut to your Home Screen**: in Safari's Share menu, choose **Add to Home Screen**. Opened from its icon, Sharecut runs full screen with no browser bars. The first time you open Sharecut in Safari, a banner at the top says so; **Dismiss** hides it on that phone for good, and More keeps the tip.
+Safari's address bar and toolbar take a lot of room, especially with the phone held sideways, and Safari doesn't let a web page hide them. To get the room back, **add ShareCut to your Home Screen**: in Safari's Share menu, choose **Add to Home Screen**. Opened from its icon, ShareCut runs full screen with no browser bars. The first time you open ShareCut in Safari, a banner at the top says so; **Dismiss** hides it on that phone for good, and More keeps the tip.
 
 Held sideways, tracks get shorter so at least three fit on screen, and the controls keep their full-size touch targets. The empty marker band under the ruler steps aside until there are markers to show. The layout also stays clear of the camera cutout and the home indicator.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate Sharecut Studio shortcut cheatsheets from KEYMAP_COMMANDS + COMMANDS.
+ * Generate ShareCut Studio shortcut cheatsheets from KEYMAP_COMMANDS + COMMANDS.
  *
  * Writes:
  *   docs/daw-shortcuts.md          — engineer README
@@ -98,11 +98,11 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
   );
   lines.push("");
   lines.push(
-    "Shortcuts dispatch through the Sharecut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere.",
+    "Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere.",
   );
   lines.push("");
   lines.push(
-    "Open the in-app cheatsheet with **?** while Sharecut Studio is focused.",
+    "Open the in-app cheatsheet with **?** while ShareCut Studio is focused.",
   );
   lines.push("");
 
@@ -169,9 +169,9 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
 
 function wrapEngineerDoc(body: string): string {
   return [
-    "# Sharecut Studio keyboard shortcuts",
+    "# ShareCut Studio keyboard shortcuts",
     "",
-    "Engineer reference for Sharecut Studio shortcuts and the command bus.",
+    "Engineer reference for ShareCut Studio shortcuts and the command bus.",
     "",
     "Partner-facing copy (UX site / Google Docs): [ux/pages/shortcuts.md](../ux/pages/shortcuts.md) — live at [ux.sharecut.studio/#/shortcuts](https://ux.sharecut.studio/#/shortcuts) (**Copy Markdown** → paste into Google Docs).",
     "",
@@ -188,11 +188,11 @@ function wrapUxPage(body: string): string {
   return [
     "# Keyboard shortcuts",
     "",
-    "Sharecut Studio shortcut reference for hosts and UX partners.",
+    "ShareCut Studio shortcut reference for hosts and UX partners.",
     "",
     "> **Google Docs:** use **Copy Markdown** on this UX site, then paste into Docs. Keep this page as the source of truth — it regenerates from the product keymap.",
     "",
-    "Live product cheatsheet: press **?** in Sharecut Studio.",
+    "Live product cheatsheet: press **?** in ShareCut Studio.",
     "",
     "Host capability matrix (GUI / MCP / CLI / skills): [docs.sharecut.studio/#/capabilities](https://docs.sharecut.studio/#/capabilities).",
     "",

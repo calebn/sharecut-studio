@@ -23,7 +23,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Review mix** | Frozen listen file for guests (link previews and agents) |
 | **Review link** | `/r/…` URL with limited powers. It works until the host chooses **Stop sharing**; it never expires on its own |
 | **Viewer / Commenter / Editor** | Review-link roles, as in Google Docs. Viewer views and plays; Commenter (default) also comments and suggests edits; Editor also edits directly and approves or rejects suggestions |
-| **Sharecut Studio guest** | Full-ish timeline UI; every review role opens it |
+| **ShareCut Studio guest** | Full-ish timeline UI; every review role opens it |
 | **Mode banner** | Top strip naming Shared edit / comment / read-only view |
 | **Proxy listen** | Short MP3 chunks for guest playback (faster than full WAVs) |
 | **Needs attention** | Host pending edits and host/guest offline conflicts |
@@ -63,7 +63,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | Concept | User-facing meaning | Storage | Screens |
 |---------|---------------------|---------|---------|
 | **Episode / project** | The session being edited | `episode.project.json` (`meta`, …) | All |
-| **Host home** | New / Open before a project is loaded | `POST /api/project/create\|open\|pick` | Loopback Sharecut Studio only (not guests) |
+| **Host home** | New / Open before a project is loaded | `POST /api/project/create\|open\|pick` | Loopback ShareCut Studio only (not guests) |
 | **Mix sheet** | Phone More → Mix controls all tracks. Hosts and Editors save M and Volume; other guests use local M. S is local for everyone | Existing track mix and listen state | Phone full-height sheet |
 | **Track** | One speaker/mic (or bed) | `timeline.tracks` (+ sources) | Timeline headers, Mix, FX inspector |
 | **Clip** | Kept audio placed on the session | `timeline.clips` | Timeline lanes, body-drag move, fade/join inspector |
@@ -86,8 +86,8 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **History snapshot** | Undoable full editable state | `history/` + project cursor | History panel (host) |
 | **Artifact / premix** | Rendered audio for listen | `artifacts/`, `render` | Transport audition, Listen |
 | **Export** | Deliverables + bounce | `export/`, `export/bounces/` | Ship: Pipeline / `Mod+Shift+E`. Lightweight stems/range: Bounce… / `Mod+Shift+B` |
-| **Share token** | Guest access + capabilities | relay / review routes (pass-through; audio/media may transit, not stored on the relay; object storage stores mix/proxy when configured) | Sharecut Studio guest |
-| **Guest banner** | Labels Sharecut Studio share mode | share bootstrap `guest_mode` | Top of Sharecut Studio guest / phone shell |
+| **Share token** | Guest access + capabilities | relay / review routes (pass-through; audio/media may transit, not stored on the relay; object storage stores mix/proxy when configured) | ShareCut Studio guest |
+| **Guest banner** | Labels ShareCut Studio share mode | share bootstrap `guest_mode` | Top of ShareCut Studio guest / phone shell |
 | **Home Screen banner** | Points an iPhone or iPad Safari tab to Add to Home Screen, the phone's full-screen path; shown until dismissed | browser storage `sharecut.homeScreenHintDismissed` | Top of the phone or tablet shell; More keeps the tip as a line |
 | **Proxy media** | Guest listen chunks (MP3) | `timeline.tracks[].proxy` + CDN/local URLs | Guest transport |
 | **Offline edit queue** | Host or guest commands waiting for reconnect | browser storage `host-queue:{projectPath}` / `queue:{token}` | Host pending count → Needs attention; conflicts → Needs attention; each replay keeps its command id and sequence, and a different edit reusing a sequence comes back as a conflict in Needs attention; overlapping replay triggers (reconnect, `online`) join one running replay instead of sending twice; a replay of an edit the server saved just before it stopped is recognized as applied, never applied twice |
@@ -128,7 +128,7 @@ my_episode/
 
 ```mermaid
 flowchart LR
-  P[episode.project.json] --> GUI[Sharecut Studio]
+  P[episode.project.json] --> GUI[ShareCut Studio]
   P --> CLI[CLI / MCP agents]
   P --> H[history snapshots]
   raw[raw/] --> ART[artifacts/]
@@ -238,7 +238,7 @@ Commenter and Viewer links can view them but cannot edit.
 
 If the words a transcript correction, Suppress, or Ignore targets change (another tab, a
 guest, or an agent) before it lands, an edit that carries the text it expected is refused
-as a conflict instead of changing a different word. Sharecut Studio's inline word
+as a conflict instead of changing a different word. ShareCut Studio's inline word
 editor always sends that text, and the Correct inspector sends it whenever it can confirm the
 current text of every word in the range (otherwise it says so under Apply); Suppress and Ignore
 send the word or range's currently displayed text, or no guard when that text can't be
@@ -257,7 +257,7 @@ re-read the selection and try again. Undoing your own correction does not count 
 ```mermaid
 sequenceDiagram
   participant U as User / Guest
-  participant UI as Sharecut Studio
+  participant UI as ShareCut Studio
   participant S as Services
   participant P as episode.project.json
   U->>UI: Select + Approve / edit
@@ -291,7 +291,7 @@ Do **not** rename MCP tool IDs lightly; UI labels can diverge.
 
 - `schemas/episode.project.schema.json` — validation for engineers  
 - `transcripts/*.json` caches — project JSON wins  
-- Internal sqlite session logs — sync plumbing. One user-visible edge: if another Sharecut process holds the project for over 30 s, an edit is refused with a "project is busy, try again" message (HTTP 503 with `X-Sharecut-Error-Code: project_busy` / a WS `project_busy` error) and can be retried unchanged. An agent working from another process (stdio MCP, CLI) shows up in open tabs within about a second.  
+- Internal sqlite session logs — sync plumbing. One user-visible edge: if another ShareCut process holds the project for over 30 s, an edit is refused with a "project is busy, try again" message (HTTP 503 with `X-Sharecut-Error-Code: project_busy` / a WS `project_busy` error) and can be retried unchanged. An agent working from another process (stdio MCP, CLI) shows up in open tabs within about a second.  
 - Rate limits — the host and the relay refuse a request that exceeds a link's rate with HTTP 429 and a `Retry-After` header. The body names the bucket and the seconds to wait (`retry_after_sec`), so a client can show "try again in N seconds" and retry unchanged. Host routes and the relay answer in the same shape.  
 - Python package layout — unless designing CLI flows  
 

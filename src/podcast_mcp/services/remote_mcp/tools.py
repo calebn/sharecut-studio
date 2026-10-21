@@ -71,7 +71,7 @@ def guest_get_review_summary() -> dict[str, Any]:
 
 
 def guest_get_project() -> dict[str, Any]:
-    """Sanitized Sharecut Studio project view (requires ``view``)."""
+    """Sanitized ShareCut Studio project view (requires ``view``)."""
     _require_tool("guest_get_project")
     ctx = get_remote_mcp_context()
     return share_daw_project_view(ctx.token)
@@ -366,9 +366,9 @@ TOOL_HANDLERS: dict[str, Any] = {
 
 TOOL_DESCRIPTIONS: dict[str, str] = {
     "guest_get_review_summary": "Review-mode project summary for this share (no host paths).",
-    "guest_get_project": "Sanitized Sharecut Studio project view (requires view capability).",
+    "guest_get_project": "Sanitized ShareCut Studio project view (requires view capability).",
     "guest_get_session_presence": (
-        "Who is in the Sharecut Studio session: display names, cursor, selection, "
+        "Who is in the ShareCut Studio session: display names, cursor, selection, "
         "viewport, transport, follow relationships (requires view)."
     ),
     "guest_list_clips": "List timeline clips from the guest project view.",

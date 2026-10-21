@@ -121,7 +121,7 @@ def _render_generated(data: dict[str, Any]) -> str:
         "(https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). "
         "Do not edit by hand — run `make schema-export`.",
         "",
-        f"**{n_caps}** capabilities · **{n_cmds}** Sharecut Studio commands · **{n_keys}** keyed · "
+        f"**{n_caps}** capabilities · **{n_cmds}** ShareCut Studio commands · **{n_keys}** keyed · "
         f"**{n_mcp}** MCP tools · **{n_skills}** skills on rows "
         f"(+ **{len(hub)}** hub skills).",
         "",
@@ -129,7 +129,7 @@ def _render_generated(data: dict[str, Any]) -> str:
         "Document plane: [Document commands](#/document-commands). "
         "Guest MCP allowlist: [Remote MCP](#/remote-mcp).",
         "",
-        "## Sharecut Studio capabilities",
+        "## ShareCut Studio capabilities",
         "",
         "Effect `project` changes the saved project, review state, transcripts or "
         "artifacts, and needs an MCP or CLI surface (or an owner-approved reason, "
@@ -166,7 +166,7 @@ def _render_generated(data: dict[str, Any]) -> str:
             "",
             "## Agent workflows",
             "",
-            "Host/agent capabilities without a Sharecut Studio `command` id "
+            "Host/agent capabilities without a ShareCut Studio `command` id "
             "(pipeline, transcript, NL, clips, …).",
             "",
             "| Label | Effect | MCP | CLI | Skill | Host-only |",
@@ -215,7 +215,7 @@ def _apply_markers(page: str, generated: str) -> str:
 def _page_shell() -> str:
     return f"""# Capabilities
 
-Host product capabilities and which adapters exist (Sharecut Studio command / GUI /
+Host product capabilities and which adapters exist (ShareCut Studio command / GUI /
 keyboard, MCP, CLI, skill). Source of truth:
 [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json).
 

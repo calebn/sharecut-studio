@@ -1,6 +1,6 @@
 # Design tokens — naming system
 
-How we name CSS custom properties in Sharecut Studio, so a new contributor can
+How we name CSS custom properties in ShareCut Studio, so a new contributor can
 tell where a token lives, what it's for, and whether they may mint a new one.
 
 For visual examples, open Storybook **Style guide → Start here**. Its space

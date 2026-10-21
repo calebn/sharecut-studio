@@ -13,21 +13,21 @@ the host's private secret.
 
 ## 1. Cold open → listen → comment (Commenter)
 
-**Setup:** A Commenter link, the default role. Every review role opens Sharecut Studio; there is no separate listen page. Guest opens the link on a phone or a laptop.
+**Setup:** A Commenter link, the default role. Every review role opens ShareCut Studio; there is no separate listen page. Guest opens the link on a phone or a laptop.
 
 ```mermaid
 flowchart TD
-  open[Open review link] --> daw[Sharecut Studio guest + banner]
+  open[Open review link] --> daw[ShareCut Studio guest + banner]
   daw --> play[Play the review mix]
   play --> scrub[Scrub to a moment]
   scrub --> note[Type in the comment field, Post comment]
-  note --> done[Host sees comment in Sharecut Studio]
+  note --> done[Host sees comment in ShareCut Studio]
 ```
 
-1. Guest lands in Sharecut Studio under the banner "Shared comment view · You can comment and suggest edits". A line under it names the version heard: *Hearing "Rough cut". This link follows the latest version, so it can change.* (or *This link stays on this version.* on a frozen link). If the host publishes a newer cut, a following link turns amber with *The shared version changed to "Intro fix". Reload to hear it.* and a **Reload** button; a frozen link turns amber with *Newer version available: "Intro fix". Ask {host} for a new link.*, since a frozen link cannot play it. The page checks on load, every 30 seconds and when the tab returns.
+1. Guest lands in ShareCut Studio under the banner "Shared comment view · You can comment and suggest edits". A line under it names the version heard: *Hearing "Rough cut". This link follows the latest version, so it can change.* (or *This link stays on this version.* on a frozen link). If the host publishes a newer cut, a following link turns amber with *The shared version changed to "Intro fix". Reload to hear it.* and a **Reload** button; a frozen link turns amber with *Newer version available: "Intro fix". Ask {host} for a new link.*, since a frozen link cannot play it. The page checks on load, every 30 seconds and when the tab returns.
 2. The comment field is already on screen: docked above the mode bar in **Listen** on a phone, and at the top of the **Comments** tab, which the link opens on, on a tablet or laptop. Nothing else is open; the Inspector stays closed until the guest selects something.
 3. Guest plays and scrubs, types a note and chooses **Post comment**: tap the field, type, tap **Post comment**, with no mode, menu or ruler first. The **at 0:12** chip beside Post shows where it lands, the playhead (0:00 before playing) or a selected range, and pressing it changes the time (a range stays a range). After Post the field clears and a toast confirms it. On tablet and desktop the field keeps focus for the next note; on the phone the keyboard closes, because the guest goes back to listening and the keyboard would cover half the view. No Inspector opens on any screen size; the comment appears in the list and on the ruler. Replies and action-item check-offs work on the same thread; the Comments panel says "Commenting as Guest".
-4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the review link.
+4. After the host resolves feedback in ShareCut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the review link.
 5. If the host laptop sleeps / tunnel drops, the guest sees an offline page (not a broken blank app).
 
 A Viewer (listen-only) link shows no comment field.
@@ -36,7 +36,7 @@ An unavailable or revoked link shows an error. A share built without `view` (API
 
 The comment fields fit narrow phones without horizontal page scrolling.
 
-**Success:** First useful comment in under five minutes without explaining "Sharecut Studio."
+**Success:** First useful comment in under five minutes without explaining "ShareCut Studio."
 
 ---
 
@@ -67,7 +67,7 @@ receive no isolated selected-track audio through this action.
 
 ```mermaid
 flowchart TD
-  open[Open review link] --> daw[Sharecut Studio guest + banner]
+  open[Open review link] --> daw[ShareCut Studio guest + banner]
   daw --> listen[Listen or Timeline]
   listen --> select[Select a region / pending]
   select --> propose[Propose cut - not hard apply]
@@ -111,7 +111,7 @@ flowchart TD
 
 ## 4. Offline edits → Needs attention
 
-**Setup:** Sharecut Studio guest (`view`) loses network while editing; reconnects later.
+**Setup:** ShareCut Studio guest (`view`) loses network while editing; reconnects later.
 
 ```mermaid
 flowchart TD
@@ -160,15 +160,15 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 
 | Guest intent | Need on the token | UI |
 |--------------|-------------------|-----|
-| Listen + comment | Commenter (default) | Sharecut Studio guest |
-| See timeline / transcript | Viewer | Sharecut Studio guest |
-| Comment, propose cuts (transcript Select or timeline range) | Commenter (default) | Sharecut Studio guest |
-| Apply cuts directly, approve cuts | Editor | Sharecut Studio guest (transcript Select, Timeline, inspector) |
+| Listen + comment | Commenter (default) | ShareCut Studio guest |
+| See timeline / transcript | Viewer | ShareCut Studio guest |
+| Comment, propose cuts (transcript Select or timeline range) | Commenter (default) | ShareCut Studio guest |
+| Apply cuts directly, approve cuts | Editor | ShareCut Studio guest (transcript Select, Timeline, inspector) |
 | Hear Suggested (agent) | `play` + `view` + `mcp` | `guest_pending_preview` → share HTTP WAV/PNG |
 | Hear a span (agent) | `play` + `view` + `mcp` | `guest_audition_context` → captions + windowed hum/clip warnings; optional wave/spec |
 | Join a record session | record `join` + `monitor` + `comment` | Record lobby / room (`/rec/{token}`) |
 | Produce a record session | record `monitor` + `comment` | Record lobby / room (not recorded) |
-| Reply / check off actions | Commenter or Editor (`reply` / `action`) | Sharecut Studio guest (same HTTP as the agent) |
+| Reply / check off actions | Commenter or Editor (`reply` / `action`) | ShareCut Studio guest (same HTTP as the agent) |
 | Agent tools | Any role + `mcp` (`--with-mcp`) | External client → `{base}/mcp/{token}/mcp` (SSE `notifications/progress` when `progressToken` is set + guest WS chip) |
 
 ---

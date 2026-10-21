@@ -6,7 +6,7 @@
 Contract docs for agents and engineers integrating with **capabilities**,
 **document commands**, **guest share HTTP**, and **remote MCP**.
 
-> **Local-first:** document commands work on the host Sharecut Studio alone.
+> **Local-first:** document commands work on the host ShareCut Studio alone.
 > **Share HTTP** and **remote MCP** use the built-in FOSS `collaboration`
 > extension (disable with `PODCAST_EXTENSIONS=`). Internet guests also need a FOSS
 > `podcast tunnel` + relay. See [extensions](https://github.com/calebn/sharecut-studio/blob/main/docs/extensions.md)

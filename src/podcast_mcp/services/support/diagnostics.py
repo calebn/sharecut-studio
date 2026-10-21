@@ -82,7 +82,7 @@ ENV_ALLOWLIST = (
     "PODCAST_SHARE_REGISTRY",
 )
 _BOOL_VALUES = frozenset({"0", "1", "true", "false", "yes", "no", "on", "off"})
-_README = """Sharecut Studio diagnostics bundle
+_README = """ShareCut Studio diagnostics bundle
 =================================
 
 This zip was created on your machine. Creation does not upload it.
@@ -158,7 +158,7 @@ def sidecar_log_candidates() -> list[Path]:
     if xdg:
         paths.append(Path(xdg) / "SharecutStudio" / "sidecar.log")
     home = Path.home()
-    paths.append(home / "Library" / "Logs" / "Sharecut Studio" / "sidecar.log")
+    paths.append(home / "Library" / "Logs" / "ShareCut Studio" / "sidecar.log")
     paths.append(home / ".local" / "state" / "SharecutStudio" / "sidecar.log")
     seen: set[Path] = set()
     unique: list[Path] = []

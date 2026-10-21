@@ -16,8 +16,8 @@ PACKAGED_CLI_ENV = "PODCAST_PACKAGED_CLI"
 """Set to ``1`` by the packaged ``sharecut-sidecar --cli`` launcher."""
 
 PACKAGED_CLI_GUI_REFUSAL = (
-    "Sharecut Studio packaged CLI: 'gui' is not supported; "
-    "launch or focus the installed Sharecut Studio app instead."
+    "ShareCut Studio packaged CLI: 'gui' is not supported; "
+    "launch or focus the installed ShareCut Studio app instead."
 )
 
 

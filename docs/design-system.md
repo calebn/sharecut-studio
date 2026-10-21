@@ -1,6 +1,6 @@
 # Design system — Storybook source of truth
 
-The visual catalog for Sharecut Studio's component library. Storybook is
+The visual catalog for ShareCut Studio's component library. Storybook is
 **dev-only**: it renders the real production components (`src/ui/`) against the
 real theme tokens, and publishes to GitHub Pages. It is never bundled into the
 app or desktop builds.

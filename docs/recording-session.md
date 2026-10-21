@@ -10,7 +10,7 @@ Optional 3 s room-tone beds land at `raw/room-tone/{session}/{participant}.wav`
 (the older `raw/room-tone/{participant}.wav` path still works for projects
 that used it).
 
-**Terminology.** In Sharecut Studio copy a participant's *keeper* is their
+**Terminology.** In ShareCut Studio copy a participant's *keeper* is their
 **full-quality recording**: the lossless WAV captured on their own device and
 saved to the project during the session. Its status reads **Saving to
 project…**, then **Saved to project**, per participant and per segment (a
@@ -69,7 +69,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 
 **Honest gaps vs expectation:**
 
-- Riverside is always-on cloud. Sharecut beta needs the **host laptop online**.
+- Riverside is always-on cloud. ShareCut beta needs the **host laptop online**.
   Mitigation: keep recording locally + resume chunked upload; guest copy
   "Host offline: still recording locally."
 - Video-first creators expect cameras on day one. **Audio-first MVP**; external
@@ -650,7 +650,7 @@ re-invite them as a **producer** (not recorded) instead.
 
 ## Metering and clipping
 
-**Sample peak only** (#174). Sharecut does not oversample or detect
+**Sample peak only** (#174). ShareCut does not oversample or detect
 inter-sample (true) peaks; the -1 dBFS threshold (`DEFAULT_CLIP_DB`) is headroom
 for overs the meter cannot see. One threshold drives everything: the live LED,
 the encoder's clip regions, the post-take report and the timeline flags.
@@ -772,7 +772,7 @@ closes when the last meter leaves. The keeper capture graph remains separate
 because it owns its sample rate and recording lifetime. Each person sees only
 **their own** input meter (device check, guest room, host Record room panel):
 a peak meter with a latching clip LED and headroom guidance. It measures
-**sample peak only**; Sharecut does not detect inter-sample (true) peaks (#174).
+**sample peak only**; ShareCut does not detect inter-sample (true) peaks (#174).
 Safari has no `permissions.query({name:"microphone"})`; Chromium can
 pre-detect `denied`. After the mic is granted, recorded clients see an optional
 **Record 3 seconds of room tone** step (skip allowed) that uses keeper
@@ -919,9 +919,9 @@ stateDiagram-v2
 | Open speakers | "Use headphones. Playing the room on speakers will echo into every mic." |
 | Mic grant | "Allow microphone" |
 | Mic blocked | "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
-| Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry." |
+| Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow ShareCut Studio in your system microphone privacy settings, then Retry." |
 | Mic permission prompt in the macOS or Windows Tauri desktop app | "Waiting for the operating system microphone permission prompt…" |
-| Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open Sharecut Studio in your browser and allow microphone access there." |
+| Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open ShareCut Studio in your browser and allow microphone access there." |
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Invite closed | Heading "Invite link closed"; "The host closed this invite link to new participants. Ask the host for a new link." |

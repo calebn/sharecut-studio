@@ -4,7 +4,7 @@ import { e2eProjectPath } from "./env";
 import { hostOfflineQueueCount } from "./offlineQueue";
 import { interceptCommentCommands, postHostComment } from "./queuedComment";
 
-test.describe("Sharecut Studio smoke", () => {
+test.describe("ShareCut Studio smoke", () => {
   test("loads fixture project shell and is axe-clean on chrome", async ({
     page,
   }) => {
