@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import { refreshDocumentDisplay } from "../document/applyDocumentUpdate";
+import {
+  beginDocumentDraft,
+  finishDocumentDraft,
+} from "../document/pendingDrafts";
 import { matchKeymapCommands } from "../keymap/registry";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
@@ -31,6 +36,22 @@ vi.mock("../api", async (importOriginal) => ({
   startRenderPreview: vi.fn(),
   waitForPipelineJob: vi.fn(),
 }));
+
+/** Like the real queue: the draft begins before the first await, and ends with the command. */
+function holdReorder(held: Promise<Record<string, unknown>>) {
+  vi.mocked(api.reorderTrackCommand).mockImplementation(
+    (_path, trackId, index) => {
+      beginDocumentDraft("reorder", "ReorderTrack", {
+        track_id: trackId,
+        index,
+      });
+      return held.finally(() => {
+        finishDocumentDraft("reorder");
+        refreshDocumentDisplay();
+      });
+    },
+  );
+}
 
 function threeTracks() {
   return minimalProject({
@@ -225,7 +246,7 @@ describe("track.reorder / moveUp / moveDown", () => {
         resolve({});
       };
     });
-    vi.mocked(api.reorderTrackCommand).mockImplementation(async () => held);
+    holdReorder(held);
     const first = execute("track.moveUp");
     const second = execute("track.moveUp");
     release();
@@ -243,7 +264,7 @@ describe("track.reorder / moveUp / moveDown", () => {
         resolve({});
       };
     });
-    vi.mocked(api.reorderTrackCommand).mockImplementation(async () => held);
+    holdReorder(held);
     const pending = execute(
       "track.reorder",
       { trackId: "c", index: 0 },

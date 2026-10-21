@@ -757,4 +757,44 @@ describe("live identity admission before side effects", () => {
     expect(enqueueHostCommand).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+  it.each([
+    [
+      "ReorderTrack",
+      { track_id: "b", index: 0 },
+      (ids: string[], _labels: string[]) => expect(ids).toEqual(["b", "a"]),
+    ],
+    [
+      "SetTrackMeta",
+      { track_id: "a", label: "New" },
+      (_ids: string[], labels: string[]) =>
+        expect(labels).toEqual(["New", "B"]),
+    ],
+  ])(
+    "begins the %s draft before its first await, so redisplayDrafts shows it at once",
+    async (type, payload, expectShown) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => new Promise(() => undefined)),
+      );
+      const { useDawStore } = await import("../state/dawStore");
+      const { minimalProject, sampleTrack } = await import("../test/fixtures");
+      const { overlayDocumentDrafts } = await import(
+        "../document/pendingDrafts"
+      );
+      const project = minimalProject({
+        tracks: [
+          sampleTrack({ id: "a", label: "A" }),
+          sampleTrack({ id: "b", label: "B" }),
+        ],
+      });
+      useDawStore.getState().hydrate("/resolved", project);
+      const { submitQueuedDocumentCommand } = await import("./commandQueue");
+      void submitQueuedDocumentCommand("/resolved", type, payload);
+      const shown = overlayDocumentDrafts(project);
+      expectShown(
+        shown.tracks.map((t) => t.id),
+        shown.tracks.map((t) => t.label),
+      );
+    },
+  );
 });

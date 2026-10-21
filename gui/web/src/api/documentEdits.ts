@@ -1,4 +1,7 @@
-import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import {
+  applyDocumentSnapshot,
+  redisplayDrafts,
+} from "../document/applyDocumentUpdate";
 import {
   activateDocumentScope,
   type DocumentScope,
@@ -29,7 +32,6 @@ import {
   parseHistoryEntryId,
 } from "../types/project";
 import { ApiError } from "../utils/apiError";
-import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { type HeldCut, type ReviewOutcome } from "../utils/pendingReviewPass";
 import { apiFetch, HOST_KEY } from "./http";
 import { loadDocumentState } from "./project";
@@ -722,7 +724,8 @@ export async function setEnvelope(
   if (result.queued === true) {
     // Show the queued edit, and make it the next edit's baseline: replay
     // applies queued commands in order, so the host will hold these points.
-    applyQueuedEnvelope(projectPath, trackId, points);
+    // The envelope draft the submit began still holds them.
+    if (useDawStore.getState().projectPath === projectPath) redisplayDrafts();
   }
   return replyHistoryHead(result);
 }
@@ -735,21 +738,6 @@ async function refreshProjectPhase(
   const scope = activateDocumentScope(projectPath);
   const snapshot = await loadDocumentState(projectPath, "full");
   if (isCurrentDocumentScope(scope)) applyDocumentSnapshot(snapshot, { scope });
-}
-
-function applyQueuedEnvelope(
-  projectPath: string,
-  trackId: string,
-  points: AutomationPoint[],
-): void {
-  const state = useDawStore.getState();
-  if (state.projectPath !== projectPath) return;
-  const project = state.projectEditBasis();
-  if (!project) return;
-  state.setProject({
-    ...project,
-    envelopes: withVolumeEnvelopePoints(project.envelopes, trackId, points),
-  });
 }
 
 export async function addChapter(

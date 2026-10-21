@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTrackMetaCommand } from "../api";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { resetDocumentSeqForTests } from "../document/cursor";
+import { beginDocumentDraft } from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -13,6 +14,19 @@ vi.mock("../api", async (original) => ({
   setTrackMetaCommand: vi.fn(async () => ({})),
 }));
 const track = sampleTrack({ speaker: "Host", label: "Host mic" });
+
+/** Like the real queue, the draft begins before the command's first await. */
+function savesWith(reply: Record<string, unknown>) {
+  vi.mocked(setTrackMetaCommand).mockImplementation(
+    async (_path, trackId, fields) => {
+      beginDocumentDraft("save", "SetTrackMeta", {
+        track_id: trackId,
+        ...fields,
+      });
+      return reply;
+    },
+  );
+}
 
 function open() {
   const onClose = vi.fn();
@@ -33,7 +47,8 @@ function open() {
 describe("TranscriptSpeakerEditor", () => {
   beforeEach(() => {
     resetDocumentSeqForTests();
-    vi.mocked(setTrackMetaCommand).mockReset().mockResolvedValue({});
+    vi.mocked(setTrackMetaCommand).mockReset();
+    savesWith({});
     useDawStore.setState({
       projectPath: "/tmp/ep",
       project: minimalProject({
@@ -113,10 +128,7 @@ describe("TranscriptSpeakerEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
   it("keeps queued speaker saves visible in transcript rows", async () => {
-    vi.mocked(setTrackMetaCommand).mockResolvedValue({
-      ok: true,
-      queued: true,
-    });
+    savesWith({ ok: true, queued: true });
     const { onClose } = open();
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "Mira" },

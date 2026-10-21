@@ -8,9 +8,9 @@ import {
   replyHistoryHead,
 } from "../api";
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
+import { redisplayDrafts } from "../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
-import { patchTracksOrder } from "../document/projectPatch";
 import { askConfirm, askText } from "../feedback/ask";
 import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -90,21 +90,25 @@ async function applyTrackReorder(
     return { status: "disabled", reason: "Unknown track" };
   }
   const seqAtStart = currentDocumentSeq();
-  const optimistic = patchTracksOrder(previous, trackId, index);
-  s.setProject(optimistic);
+  // The command begins its draft before it first awaits, so showing the drafts
+  // now shows the new order at once.
+  const sending = reorderTrackCommand(s.projectPath, trackId, index);
+  redisplayDrafts();
+  const optimistic = useDawStore.getState().project;
   try {
-    const reply = await reorderTrackCommand(s.projectPath, trackId, index);
+    const reply = await sending;
     useDawStore.getState().announceStatus("Reordered track", {
       undo: replyHistoryHead(reply),
     });
     return { status: "ok" };
   } catch (e) {
-    revertOptimisticIfUnchanged(
-      previous,
-      seqAtStart,
-      s.projectPath,
-      optimistic,
-    );
+    if (optimistic)
+      revertOptimisticIfUnchanged(
+        previous,
+        seqAtStart,
+        s.projectPath,
+        optimistic,
+      );
     const msg = errorMessage(e);
     useDawStore
       .getState()
