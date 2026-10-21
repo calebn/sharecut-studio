@@ -53,7 +53,7 @@ const MUTE_FADE_MS = 5;
 
 /**
  * A clip's mute regions as the render's non-overlapping spans (`_envelopes` in
- * `edits/mute_regions.py`): same-gain overlaps merge, the quieter span keeps an overlap.
+ * `engines/mute_regions.py`): same-gain overlaps merge, the quieter span keeps an overlap.
  */
 export function muteSpansOf(
   regions: readonly MuteRegionLike[] | undefined,

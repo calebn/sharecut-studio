@@ -33,7 +33,7 @@ export function contractTrack(track: ContractTrack): TrackView {
 
 /**
  * A `list_clips` row: what the clip plays is its source's file and length, or
- * the track's media when it names none (`edits/clips_ops.recording_key`,
+ * the track's media when it names none (`engines/clips_ops.recording_key`,
  * `source_duration_sec`; `tests/test_list_clips_recording.py` pins them). The key is
  * opaque, so the fixture derives one from the file path: equal files, equal keys.
  */

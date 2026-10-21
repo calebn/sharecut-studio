@@ -49,7 +49,7 @@ export interface ClipRow {
   source_id: string | null;
   /**
    * Length (s) of the recording this clip plays; null when unmeasured. A trim
-   * stops the out edge there (`edits/clips_ops.trim_edge_limits`).
+   * stops the out edge there (`engines/clips_ops.trim_edge_limits`).
    */
   source_duration_sec: number | null;
   /**
