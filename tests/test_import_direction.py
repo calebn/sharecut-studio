@@ -59,3 +59,20 @@ def test_projection_types_have_no_gui_imports() -> None:
     rel = "services/document_sync/projection_types.py"
     found = _all_gui_imports(_SRC / rel)
     assert not found, f"{rel} must stay GUI-free, found: {found}"
+
+
+def test_importing_one_edits_module_loads_no_cut_stack() -> None:
+    """``podcast_mcp.edits`` resolves its names lazily, so a leaf import does not drag in
+    cut_application, tighten or transcript_cuts (the cycle the cut modules once hid behind
+    inline imports, #1813)."""
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, podcast_mcp.edits.clips_ops;"
+        "heavy = [m for m in ('podcast_mcp.edits.cut_application', 'podcast_mcp.edits.tighten',"
+        " 'podcast_mcp.edits.transcript_cuts') if m in sys.modules];"
+        "print(heavy); sys.exit(1 if heavy else 0)"
+    )
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stdout + done.stderr
