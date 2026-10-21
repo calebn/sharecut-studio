@@ -1,4 +1,4 @@
-"""Host bootstrap status and downloads for first-run Sharecut Studio UX.
+"""Host bootstrap status and downloads for first-run ShareCut Studio UX.
 
 CLI ``podcast bootstrap`` remains the contributor path. The GUI calls this
 service so first-run never requires a terminal. Downloads stay opt-in (no

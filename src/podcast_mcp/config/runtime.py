@@ -1,6 +1,6 @@
 """Validated host runtime configuration for self-hosted collaboration.
 
-Runtime settings belong to the machine running Sharecut.  They are deliberately
+Runtime settings belong to the machine running ShareCut.  They are deliberately
 separate from the build-time desktop distribution profile.
 """
 

@@ -1,6 +1,6 @@
 # UX pack home
 
-Welcome. This site is the **shareable UX onboarding kit** for Podcast MCP / Sharecut Studio.
+Welcome. This site is the **shareable UX onboarding kit** for Podcast MCP / ShareCut Studio.
 
 > **Orientation kit** (updated 2026-07-22): product framing for partners — not a Figma design system. Host phone/desktop screenshots are gallery-backed; guest collaboration is documented under [Screens](#/screens) and [Guest journeys](#/journeys), with guest screenshots on [See the UI](#/demo).
 
@@ -14,8 +14,8 @@ Welcome. This site is the **shareable UX onboarding kit** for Podcast MCP / Shar
 | [Screen inventory](#/screens) | What each mode shows (display schemas) |
 | [Guest journeys](#/journeys) | Step flows for review links |
 | [Domain glossary](#/glossary) | Concepts ↔ project files ↔ UI |
-| [Keyboard shortcuts](#/shortcuts) | Sharecut Studio keys — **Copy Markdown** → Google Docs |
-| [Mobile](#/mobile) | Using Sharecut Studio on your phone |
+| [Keyboard shortcuts](#/shortcuts) | ShareCut Studio keys — **Copy Markdown** → Google Docs |
+| [Mobile](#/mobile) | Using ShareCut Studio on your phone |
 | [UX backlog](#/backlog) | Open design decisions |
 
 ## How to use with Google Docs

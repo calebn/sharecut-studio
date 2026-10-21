@@ -1,4 +1,4 @@
-# Desktop packaging (Sharecut Studio / Tauri)
+# Desktop packaging (ShareCut Studio / Tauri)
 
 Stage 1 host installer: **Tauri 2 + Python sidecar**. The React DAW and FastAPI
 engine are unchanged; the native app is a window + process manager.
@@ -7,7 +7,7 @@ engine are unchanged; the native app is a window + process manager.
 
 | Surface | Location |
 |---------|----------|
-| Sharecut Studio UI + engine | FOSS — `gui/web`, `src/podcast_mcp` |
+| ShareCut Studio UI + engine | FOSS — `gui/web`, `src/podcast_mcp` |
 | FOSS share (mint + guest against **any** relay) | FOSS — share routes / tunnel **client** |
 | Generic `podcast-relay` Compose | FOSS — `deploy/relay` (self-host) |
 | Tauri **source** | FOSS — [`gui/desktop/`](../gui/desktop/) |
@@ -111,7 +111,7 @@ Default speech model is **large-v3-turbo**. Users can pick a smaller size in the
 First run checks the bundled FFmpeg pair and downloads Whisper, with optional RNNoise.
 Torch / speaker / joinqc are **not** exposed in the GUI.
 
-**Open project:** Sharecut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
+**Open project:** ShareCut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
 
 ## Closing while recording
 
@@ -513,7 +513,7 @@ writable, stop the engine, install, and relaunch. The engine runs from inside
 the bundle being replaced, so it is always stopped before the swap on every
 platform. If the install fails after that, the host starts the engine again on
 the old version, the item reads **Update failed — retry…**, and the message says
-Sharecut Studio is still on the old version (only if the engine cannot restart
+ShareCut Studio is still on the old version (only if the engine cannot restart
 does it say to restart the app). Once files are replaced the item reads **Restart to Finish Update…**
 instead of downloading again.
 
@@ -534,7 +534,7 @@ instead of downloading again.
   needs to own the `.app` or its parent folder, because `/Applications` is sticky
   and another user's bundle cannot be swapped. If it is not writable or owned
   it does not self-install, because the plugin would raise an administrator
-  prompt with no time limit. It shows a notice instead: "Move Sharecut Studio to
+  prompt with no time limit. It shows a notice instead: "Move ShareCut Studio to
   Applications first" for a disk image or translocated app, otherwise
   a pointer to the download page.
 - **Network timeouts.** The feed check has a 30 second limit. The download has
@@ -815,7 +815,7 @@ to check each request's origin against the engine origin:
 Do **not** widen `capabilities/default.json` or add `remote.urls`. Full
 deny-by-default for camera / geolocation / notifications remains
 [v1](../ROADMAP.md#packaging--trust). Handler install failures log to stderr
-(`Sharecut Studio: failed to install WebView microphone handler`).
+(`ShareCut Studio: failed to install WebView microphone handler`).
 
 ## Deep links
 

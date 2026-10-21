@@ -1,4 +1,4 @@
-/** Light Sharecut Studio-only colors. Shared brand colors: brand-tokens.css.
+/** Light ShareCut Studio-only colors. Shared brand colors: brand-tokens.css.
  * Selectors match the brand theme contract (`[data-theme=light]` /
  * prefers + `:root:not([data-theme])`). */
 

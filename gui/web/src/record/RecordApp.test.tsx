@@ -647,7 +647,7 @@ describe("RecordApp", () => {
   });
 
   it("restores the previous document title after unmount", async () => {
-    document.title = "Sharecut Studio";
+    document.title = "ShareCut Studio";
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -661,7 +661,7 @@ describe("RecordApp", () => {
       expect(document.title).toBe("Producer (not recorded) | Shot of Truth");
     });
     unmount();
-    expect(document.title).toBe("Sharecut Studio");
+    expect(document.title).toBe("ShareCut Studio");
   });
 
   it("requires skip of room tone when upload is on", async () => {

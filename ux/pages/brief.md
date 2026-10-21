@@ -1,4 +1,4 @@
-# UX brief — Podcast MCP / Sharecut Studio
+# UX brief — Podcast MCP / ShareCut Studio
 
 Shareable product framing for UX partners. Engineer detail lives in repo `docs/`; this pack stays in product language.
 
@@ -11,7 +11,7 @@ requirements for reviewable edits, recovery, export, and a free core workflow.
 
 **Podcast MCP** is a FOSS podcast production toolkit: multitrack episode projects, transcript-driven editing, FFmpeg cleanup/mix/master, and an agent-friendly tool surface (CLI + MCP skills).
 
-**Sharecut Studio** is the web DAW / review UI for an episode: listen, inspect timeline and transcript, approve agent-suggested cuts, leave time-anchored comments, and (on review links) collaborate as a guest.
+**ShareCut Studio** is the web DAW / review UI for an episode: listen, inspect timeline and transcript, approve agent-suggested cuts, leave time-anchored comments, and (on review links) collaborate as a guest.
 
 It is **not** a full Pro Tools replacement. It is closer to **Descript + a Reaper-style session inspector**, with an AI agent that proposes the same kinds of mutations a human can approve.
 
@@ -27,7 +27,7 @@ Personas are **jobs**, not demographics.
 |--|--|
 | **Goal** | Ship a clean, dense episode without losing trust in cuts |
 | **Fears** | Clicky joins, accidental deletes, guest feedback she can’t find |
-| **Surface** | Local Sharecut Studio (desktop/tablet/phone) + CLI/MCP agents |
+| **Surface** | Local ShareCut Studio (desktop/tablet/phone) + CLI/MCP agents |
 | **Scenario** | On the train: open Listen, tap Pending, audition around a filler cut, Approve |
 
 ### Guest reviewer — “Jordan”
@@ -36,7 +36,7 @@ Personas are **jobs**, not demographics.
 |--|--|
 | **Goal** | Leave useful feedback without installing tooling |
 | **Fears** | “Am I allowed to edit?”; link dead because host laptop slept |
-| **Surface** | Review link `/r/{token}`. Every review role (Viewer, Commenter by default, Editor) opens Sharecut Studio guest |
+| **Surface** | Review link `/r/{token}`. Every review role (Viewer, Commenter by default, Editor) opens ShareCut Studio guest |
 | **Scenario** | Phone: play review mix, leave a note at 11:02, optionally Suggest cut (Commenter link) |
 
 ### AI assistant — “Claude on the review link”
@@ -157,8 +157,8 @@ Guest step flows: [Guest journeys](#/journeys).
 
 | Surface | Audience | Notes |
 |---------|----------|-------|
-| **Sharecut Studio host** | Editor | Full project; document commands + pipeline |
-| **Sharecut Studio guest** | Every review role | Mode banner; role gates; proxy MP3 when available; no Impact/History/Pipeline |
+| **ShareCut Studio host** | Editor | Full project; document commands + pipeline |
+| **ShareCut Studio guest** | Every review role | Mode banner; role gates; proxy MP3 when available; no Impact/History/Pipeline |
 | **CLI / MCP** | Agent + power user | Same domain services; not a parallel product |
 | **Remote MCP (share)** | Agent as guest | Same caps as the share; `{base}/mcp/{token}/mcp` |
 

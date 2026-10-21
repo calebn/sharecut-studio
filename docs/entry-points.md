@@ -1,7 +1,7 @@
 # Entry points (capability registration)
 
 Product capabilities are registered in [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json).
-That file is the contract for **which host surfaces** exist (Sharecut Studio command / GUI / keyboard / **host** MCP / CLI / skill). Adapters stay thin; business logic stays in `services/`.
+That file is the contract for **which host surfaces** exist (ShareCut Studio command / GUI / keyboard / **host** MCP / CLI / skill). Adapters stay thin; business logic stays in `services/`.
 
 It is **not** the share ACL. Token bits live in [`share_capabilities.py`](../src/podcast_mcp/services/collaboration/share_capabilities.py); guest MCP tools in [`remote_mcp/allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py); share HTTP in the guest OpenAPI export. The capabilities catalog MCP column lists **host stdio / local GUI Streamable HTTP** names (`split_clip_tool`, `play_audio_tool`) — the same `MCPServer` on `podcast-mcp` stdio and on `http://127.0.0.1:8765/mcp`. Share agents call guest HTTP / `guest_submit_document_command`, never those host names. `omit.guest` is a documentation Host-only annotation — not `has_capability`. Do not add `guest_*` to `surfaces.mcp`.
 
@@ -10,7 +10,7 @@ It is **not** the share ACL. Token bits live in [`share_capabilities.py`](../src
 ```text
 Capability Manifest  →  make generated-check (CI / pre-commit)
         │
-        ├─ Sharecut Studio: COMMANDS + keymap → execute(id) → services / document sync
+        ├─ ShareCut Studio: COMMANDS + keymap → execute(id) → services / document sync
         ├─ MCP / CLI: thin wrappers → same services
         └─ Skills: instruct agents which MCP/CLI to call (no FFmpeg forks)
 ```
@@ -18,7 +18,7 @@ Capability Manifest  →  make generated-check (CI / pre-commit)
 Rules:
 
 1. **Service first** — never put mix/encode/edit logic in GUI, skill markdown, or MCP adapters.
-2. **Command bus for Sharecut Studio** — if the capability has GUI chrome, it must have a `surfaces.command` and call `execute(id)`.
+2. **Command bus for ShareCut Studio** — if the capability has GUI chrome, it must have a `surfaces.command` and call `execute(id)`.
 3. **Keyboard** — required when `industry_standard_key: true`; otherwise set `omit.keyboard_reason`.
 4. **Agent (enforced)** — every row declares `effect`. `project` means the action changes the saved episode project, review state, transcripts or artifacts (record take state in `artifacts/session/sync.db` counts, so record start, pause, resume and stop are `project`); `session` means live, unsaved working state (transport, playhead, selection, solo, presence, clipboard); `view` means only how this client shows things (layout, zoom, panels, modes, dialogs). An `effect: project` row must list `surfaces.mcp` or `surfaces.cli`, or carry an owner-approved `omit.agent_reason`; `make generated-check` fails otherwise, and also fails a reason left beside an agent surface. Every `surfaces.mcp` name must be a registered tool, and every `surfaces.cli` entry (a string or a list, one command per entry, such as `podcast edit delete-clips --mode ripple`) must resolve in the real Typer tree, options included. An agent twin calls the same service as the GUI; where the GUI sends a document command, the twin submits that command with `submit_host_document_command` (`services/document_sync`), so open tabs see it and History can undo it. One tool may serve several rows (`approve_edits_tool` covers Apply hit, and `apply_suggested_actions_tool` covers Apply suggested actions, through the same `edits/tighten_hits` and `edits/sound_actions` rules the Tighten tab reads). Add `skill` only for multi-step procedures.
 5. **Guest** — share/remote MCP stays on the guest allowlist (`allowlist.py`). Host capabilities with `omit.guest: true` are documented as host-only; runtime share gates use `has_capability` + document-command allowlists.
@@ -38,7 +38,7 @@ Rules:
    - GUI chrome must set `surfaces.gui` **and** a non-empty `tooltip` (toggles also need `tooltip_pressed` + `"toggle": true`).
    - Copy is generated to `gui/web/src/capabilities/copy.ts` (`capabilityTooltip`) — do not hardcode toolbar/handle strings in React.
 3. Add only the declared adapters:
-   - Sharecut Studio: `gui/web/src/commands/catalog.ts` + `register.ts` + chrome → `execute`
+   - ShareCut Studio: `gui/web/src/commands/catalog.ts` + `register.ts` + chrome → `execute`
    - Keyboard: `gui/web/src/keymap/registry.ts` (if industry / product wants it)
    - MCP: `mcp/tools/` + `register_all`
    - CLI: `cli/` twin
@@ -60,7 +60,7 @@ and prompt limits stay in the service rather than adapters.
 
 Hard fail when a `COMMANDS` / keymap / registered MCP tool / skill is missing from the manifest (hubs/deprecated skills live under `hub_skills`), when an `effect: project` row has no MCP or CLI surface and no `omit.agent_reason`, when a `surfaces.cli` entry names a command or option the `podcast` CLI does not have, or when the published docs catalog is stale. The catalog shows each row's effect; an approved agent reason appears in its CLI column.
 
-Repo automation skills such as `sharecut-poteto` and the upstream UI design skill `impeccable` also live under `hub_skills`: they guide contributors but do not add a Sharecut Studio product command or MCP tool.
+Repo automation skills such as `sharecut-poteto` and the upstream UI design skill `impeccable` also live under `hub_skills`: they guide contributors but do not add a ShareCut Studio product command or MCP tool.
 
 ## Matrix
 
@@ -69,7 +69,7 @@ Live browsable matrix: [docs.sharecut.studio/#/capabilities](https://docs.sharec
 
 | Area | Typical GUI | Keyboard | Agent |
 |------|-------------|----------|-------|
-| Transport / tools / edit / history | Sharecut Studio chrome | See `make cheatsheet` | session / edit / history MCP |
+| Transport / tools / edit / history | ShareCut Studio chrome | See `make cheatsheet` | session / edit / history MCP |
 | Presence / follow | Avatar stack, ghosts, follow banner | Escape unfollows | `get_session_presence_tool` / `guest_get_session_presence` |
 | Bounce / export | Menu + dialog | Mod+Shift+B / E | `podcast-bounce-export` / `podcast-master-export` |
 | Pipeline / transcript / NL / clips | Pipeline tab / inspectors | F2: inline correction on a focused Navigate word; native Enter seeks | matching skills + MCP |

@@ -303,7 +303,7 @@ describe("HomeScreen", () => {
     window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     render(<HomeScreen />);
     expect(
-      screen.getByRole("heading", { name: "Sharecut Studio" }),
+      screen.getByRole("heading", { name: "ShareCut Studio" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "New project…" })).toBeTruthy();
   });

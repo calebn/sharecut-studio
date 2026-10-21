@@ -1,10 +1,10 @@
 # Keyboard shortcuts
 
-Sharecut Studio shortcut reference for hosts and UX partners.
+ShareCut Studio shortcut reference for hosts and UX partners.
 
 > **Google Docs:** use **Copy Markdown** on this UX site, then paste into Docs. Keep this page as the source of truth — it regenerates from the product keymap.
 
-Live product cheatsheet: press **?** in Sharecut Studio.
+Live product cheatsheet: press **?** in ShareCut Studio.
 
 Host capability matrix (GUI / MCP / CLI / skills): [docs.sharecut.studio/#/capabilities](https://docs.sharecut.studio/#/capabilities).
 
@@ -12,9 +12,9 @@ Host capability matrix (GUI / MCP / CLI / skills): [docs.sharecut.studio/#/capab
 
 > **Auto-generated** from [`gui/web/src/keymap/registry.ts`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/src/keymap/registry.ts) and [`gui/web/src/commands/catalog.ts`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/src/commands/catalog.ts). Do not edit by hand — run `make cheatsheet`.
 
-Shortcuts dispatch through the Sharecut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere.
+Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere.
 
-Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
+Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 ## transport
 

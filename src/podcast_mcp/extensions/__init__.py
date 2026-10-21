@@ -1,4 +1,4 @@
-"""Sharecut Studio Extensions API - public SPI for optional features (share, community plugins)."""
+"""ShareCut Studio Extensions API - public SPI for optional features (share, community plugins)."""
 
 from __future__ import annotations
 

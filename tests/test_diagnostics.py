@@ -119,7 +119,7 @@ def test_build_bundle_contents_and_doctor_reuse(
             "ffprobe": {"ok": True, "version": "ffprobe", "path": "ffprobe"},
         },
     )
-    logs = tmp_path / "home" / "Library" / "Logs" / "Sharecut Studio"
+    logs = tmp_path / "home" / "Library" / "Logs" / "ShareCut Studio"
     logs.mkdir(parents=True)
     (logs / "sidecar.log").write_text(
         "hit /r/fantastic-acoustic-whale and secret=hunter2\n",
@@ -312,7 +312,7 @@ def test_sidecar_candidates_env_and_dedupe(tmp_path: Path, monkeypatch: pytest.M
     orig = Path.resolve
 
     def boom(self: Path) -> Path:
-        if "Sharecut Studio" in str(self):
+        if "ShareCut Studio" in str(self):
             raise OSError("x")
         return orig(self)
 
@@ -366,7 +366,7 @@ def test_build_bundle_logs_jobs_and_env(tmp_path: Path, monkeypatch: pytest.Monk
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(Path, "home", lambda: home)
-    macos = home / "Library" / "Logs" / "Sharecut Studio"
+    macos = home / "Library" / "Logs" / "ShareCut Studio"
     linux = home / ".local" / "state" / "SharecutStudio"
     macos.mkdir(parents=True)
     linux.mkdir(parents=True)

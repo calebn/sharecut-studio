@@ -222,10 +222,10 @@ Requires the FOSS `collaboration` extension (default; disable with `PODCAST_EXTE
 3. Optional Restricted: `--general-access restricted --invite a@b.com` (sign-in; `podcast review revoke-invite` removes a person without rotating the coolname). Optional `--require-sign-in` on link shares for high sensitivity.
 4. **Preferred (internet):** run the FOSS Docker relay + `podcast tunnel` so guests use the relay origin — see [host-online-relay.md](host-online-relay.md). LAN-only: bind GUI with `podcast gui --host 0.0.0.0` and set `PODCAST_REVIEW_CORS_ORIGINS` to exact `https://` origins as needed (no `*`; see [setup.md](setup.md#public-review-share-optional)).
 5. Guests open `/r/{token}` only (no filesystem paths) — coolname slug, e.g. `/r/fantastic-acoustic-whale`:
-   - **Viewer** → read-only Sharecut Studio (timeline + premix)
-   - **Commenter (default)** → Sharecut Studio with comments and Suggest cut; suggestions wait for an Editor or the host
-   - **Editor** → Sharecut Studio that also edits directly and approves or rejects suggestions
-   - Every role holds `view`, so every review link opens Sharecut Studio. There is no separate listen-and-comment page; a share built without `view` (API only, no role mints one) opens an error.
+   - **Viewer** → read-only ShareCut Studio (timeline + premix)
+   - **Commenter (default)** → ShareCut Studio with comments and Suggest cut; suggestions wait for an Editor or the host
+   - **Editor** → ShareCut Studio that also edits directly and approves or rejects suggestions
+   - Every role holds `view`, so every review link opens ShareCut Studio. There is no separate listen-and-comment page; a share built without `view` (API only, no role mints one) opens an error.
    - Document `<title>` and Open Graph / Twitter meta (`og:title`, `og:audio`, …) are injected server-side from the episode name and review mix so Messages / social previews show the episode title and can offer inline audio when `play` is granted (prefer HTTPS object storage URL when uploaded; otherwise `{public}/api/review/{token}/audio`).
 6. Host sees comments in the DAW via project poll / document sync.
 7. Optional **remote MCP**: `--with-mcp` (plus the role the agent should have). With `podcast tunnel`, clients connect to `{base}/mcp/{token}/mcp` with the **same powers as the web guest** — see [host-online-relay.md](host-online-relay.md) § Remote MCP. Restricted shares need `POST /auth/agent-credential` Bearer tokens.

@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Sharecut Studio records your microphone for podcast takes in this window.</string>
+	<string>ShareCut Studio records your microphone for podcast takes in this window.</string>
 </dict>
 </plist>

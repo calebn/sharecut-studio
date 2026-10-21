@@ -1,6 +1,6 @@
 {
-  "name": "Sharecut Studio",
-  "short_name": "Sharecut",
+  "name": "ShareCut Studio",
+  "short_name": "ShareCut",
   "description": "Record, edit and review podcast episodes.",
   "display": "standalone",
   "theme_color": "#1b1815",

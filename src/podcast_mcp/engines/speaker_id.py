@@ -186,7 +186,7 @@ def _unavailable_webrtcvad(name: str) -> Any:
     raise ImportError(
         f"webrtcvad.{name} is unavailable: webrtcvad does not import in this environment, "
         "so silence trimming via resemblyzer.preprocess_wav cannot run. "
-        "Sharecut only uses the voice encoder."
+        "ShareCut only uses the voice encoder."
     )
 
 

@@ -245,7 +245,7 @@ def _resolve_ffmpeg_pair_uncached(ffmpeg: str | None, ffprobe: str | None) -> FF
         if commands is None:
             raise FFmpegPairResolutionError(
                 f"Declared FFmpeg bundle {bundle!r} is incomplete or not executable. "
-                "Reinstall Sharecut Studio or supply a supported explicit pair."
+                "Reinstall ShareCut Studio or supply a supported explicit pair."
             )
         try:
             pair = _validate(*commands, "bundle")

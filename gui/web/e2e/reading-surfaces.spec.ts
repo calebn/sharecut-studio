@@ -10,7 +10,7 @@ test.describe("reading surfaces", () => {
     });
     await page.goto("/?home=1");
     await expect(
-      page.getByRole("heading", { name: /^Sharecut Studio$/ }),
+      page.getByRole("heading", { name: /^ShareCut Studio$/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "New project…" }),

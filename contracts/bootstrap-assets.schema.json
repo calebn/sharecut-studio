@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Sharecut Studio bootstrap asset pins",
+  "title": "ShareCut Studio bootstrap asset pins",
   "type": "object",
   "required": ["version", "assets"],
   "properties": {

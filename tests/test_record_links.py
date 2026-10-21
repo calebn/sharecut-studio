@@ -51,7 +51,7 @@ def _dist(tmp_path: Path) -> Path:
     dist = tmp_path / "dist"
     dist.mkdir()
     (dist / "index.html").write_text(
-        "<!DOCTYPE html><html><head><title>Sharecut Studio</title></head><body></body></html>",
+        "<!DOCTYPE html><html><head><title>ShareCut Studio</title></head><body></body></html>",
         encoding="utf-8",
     )
     return dist

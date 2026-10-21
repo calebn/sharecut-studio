@@ -21,7 +21,7 @@ function modelContext(): ModelContext | null {
   return nav.modelContext ?? null;
 }
 
-/** Sharecut Studio: play/seek go through the command bus. */
+/** ShareCut Studio: play/seek go through the command bus. */
 export function registerDawWebMcpTools(): () => void {
   const mc = modelContext();
   if (!mc?.registerTool) {
@@ -31,7 +31,7 @@ export function registerDawWebMcpTools(): () => void {
   const tools: RegisterToolInput[] = [
     {
       name: "play_pause",
-      description: "Toggle Sharecut Studio playback.",
+      description: "Toggle ShareCut Studio playback.",
       inputSchema: { type: "object", properties: {} },
       execute: async () => {
         return execute("transport.togglePlay", {}, { skipWhen: true });
@@ -40,7 +40,7 @@ export function registerDawWebMcpTools(): () => void {
     {
       name: "seek_timeline",
       description:
-        "Seek the Sharecut Studio playhead to a timeline position in seconds.",
+        "Seek the ShareCut Studio playhead to a timeline position in seconds.",
       inputSchema: {
         type: "object",
         properties: {

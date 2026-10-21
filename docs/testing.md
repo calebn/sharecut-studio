@@ -39,7 +39,7 @@ browser matrix dimension by the distinct failure it can catch. Keep broad
 exploratory sweeps and deliberate faults in PR evidence unless a case protects
 a distinct important regression.
 
-`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in parallel with a `frontend-suite` job for Sharecut Studio (`gui/web`).
+`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in parallel with a `frontend-suite` job for ShareCut Studio (`gui/web`).
 
 Hang protection: `pytest-timeout` (`--timeout=60` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server because Starlette `TestClient` nested sockets can deadlock. Enter socket contexts before handshake and explicitly close test-owned SQLite resources; see [ownership and Python runtime checks](testing-ci.md#python-test-runtime).
 
@@ -410,7 +410,7 @@ fixture manifest pins source revision and original M4A hashes,
 source and reviewed timeline intervals, literal owner listening labels,
 ownership uncertainty, reviewed mute intent, native format, and file plus decoded
 PCM seals. The repository owner authorized publishing these short clips as
-Sharecut Studio fixtures. This statement does not invent a license for the
+ShareCut Studio fixtures. This statement does not invent a license for the
 source recordings. Full recordings and episode project JSON are excluded.
 
 The cases preserve the owner's wording and corrections. The sounds initially
@@ -967,7 +967,7 @@ Unit coverage: `tests/test_security_hardening.py` (413 oversized CL / no-CL, und
 **Host GUI**
 
 1. `PODCAST_GUI_MAX_BODY_BYTES=1024 podcast gui --project <fixture>`
-2. In Sharecut Studio, perform a small mutating action (e.g. timeline comment) — must succeed.
+2. In ShareCut Studio, perform a small mutating action (e.g. timeline comment) — must succeed.
 3. `curl`/DevTools POST a >1 KiB body to a non-media mutating API — expect **413** `{detail, limit_bytes}`.
 
 **Relay via Docker** (see [host-online-relay.md](host-online-relay.md) § Quick start)

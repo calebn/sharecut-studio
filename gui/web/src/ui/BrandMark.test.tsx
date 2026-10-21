@@ -24,11 +24,11 @@ describe("brand artwork", () => {
   it("names the product as text and hides the artwork from assistive tech", async () => {
     const { container } = render(
       <h1>
-        <BrandLockup name="Sharecut Studio" />
+        <BrandLockup name="ShareCut Studio" />
       </h1>,
     );
     expect(
-      screen.getByRole("heading", { name: "Sharecut Studio" }),
+      screen.getByRole("heading", { name: "ShareCut Studio" }),
     ).toBeTruthy();
     expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
       "true",

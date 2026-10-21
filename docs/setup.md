@@ -5,7 +5,7 @@
 - Python 3.11+
 - A matching FFmpeg and FFprobe 9.0.2 or later 9.x pair for source installs. Desktop releases include the pinned 9.0.2 pair.
 - [uv](https://github.com/astral-sh/uv) (recommended; `install.sh` falls back to a plain `.venv` + `pip` if not present)
-- For the Sharecut Studio viewer only: Node.js 24+ (npm) to build `gui/web`
+- For the ShareCut Studio viewer only: Node.js 24+ (npm) to build `gui/web`
 
 ## Full local install
 
@@ -47,7 +47,7 @@ Optional next steps:
 
 ```bash
 podcast bootstrap --component all
-cd gui/web && npm ci && npm run build && cd ../..   # Sharecut Studio static assets
+cd gui/web && npm ci && npm run build && cd ../..   # ShareCut Studio static assets
 make hooks                                          # lint-staged + check-only pre-commit hooks
 make worktree-setup                                 # per git worktree: hooks + venv (incl. pre-commit) + gui/web node_modules
 podcast gui --project /path/to/episode.project.json
@@ -85,7 +85,7 @@ uv sync --all-extras
 source .venv/bin/activate   # or: uv run …
 podcast bootstrap --component all
 podcast doctor
-# Optional Sharecut Studio UI (Node 24+):
+# Optional ShareCut Studio UI (Node 24+):
 cd gui/web && npm ci && npm run build && cd ../..
 ```
 
@@ -153,7 +153,7 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
 
 | Component | What it fetches | Needed for |
 |-----------|------------------|------------|
-| `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the Sharecut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.engines.models.whisper.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch reports `[fail]` with a `--upgrade` hint; any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
+| `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the ShareCut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.engines.models.whisper.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch reports `[fail]` with a `--upgrade` hint; any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset |
 | `silero-vad` | Nothing — verifies the model bundled with `faster-whisper` | Optional VAD breath handling |
 | `nisqa` | NISQA weights (**opt-in only**; not included in `--component all`) | Neural join QC with `joinqc` extra. Default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir if needed |
@@ -222,7 +222,7 @@ podcast bootstrap --component nisqa    # only when using joinqc neural path
 podcast bootstrap --component word-aligner  # precise word boundaries turn on by default once downloaded (transcribe.forced_alignment.enabled)
 ```
 
-### npm (Sharecut Studio viewer)
+### npm (ShareCut Studio viewer)
 
 Not fetched by Python bootstrap. After the `gui` extra:
 
@@ -243,9 +243,9 @@ npm run build-storybook  # static storybook-static/
 See [design-system.md](design-system.md) for story conventions and the GitHub
 Pages prerequisite. Storybook is separate from the app and desktop bundles.
 
-### Sharecut Studio first-run (GUI)
+### ShareCut Studio first-run (GUI)
 
-On the host home screen (no `?project=`), Sharecut Studio checks `GET /api/bootstrap/status`
+On the host home screen (no `?project=`), ShareCut Studio checks `GET /api/bootstrap/status`
 and reports audio-tool readiness. It can download Whisper via `POST /api/bootstrap/run` (progress on
 `GET /api/bootstrap/events` — same progress plane as pipeline jobs; see [progress.md](progress.md)). The wizard lets you pick a Whisper size; default is
 **large-v3-turbo** (lowest practical WER, ~1.6 GB). Same assets as `podcast bootstrap`;
@@ -415,7 +415,7 @@ uv run make test       # or: .venv/bin/pytest
 Note: transcription (`faster-whisper`, core dependency) already ships
 `onnxruntime` and a bundled Silero VAD model. Whisper **weights** are not
 auto-pulled by pipeline Run or transcription — download them via
-`podcast bootstrap --component whisper`, the Sharecut Studio first-run wizard, or
+`podcast bootstrap --component whisper`, the ShareCut Studio first-run wizard, or
 the Pipeline picker before running those steps. Neither needs a speaker
 extra. `torch`/`speechbrain` are only for the optional enrollment-based
 speaker ID workflow; a fully functional install (transcribe, tighten, mix,
@@ -533,7 +533,7 @@ All bootstrapped/downloaded assets live under `~/.cache/podcast_mcp/`
 | `word-aligner/` | Opt-in forced-aligner Hugging Face snapshot |
 
 Model weights stay outside the repository and installed package. Fetch models
-with `podcast bootstrap` or the Sharecut Studio wizard / Pipeline picker. Pipeline
+with `podcast bootstrap` or the ShareCut Studio wizard / Pipeline picker. Pipeline
 Run and transcription do not auto-download Whisper weights. Desktop releases
 include their pinned audio tools inside `sharecut-runtime/ffmpeg`, separate from
 this user cache. Source installs supply a supported pair through explicit paths,
@@ -572,12 +572,12 @@ Studio's [Wordbar](daw-editing.md#wordbar-source-timing) previews the selected o
 
 Playback cache cleanup runs when a new audition path is resolved. It removes WAVs older than seven days and, above 512 WAVs, the oldest entries written at least an hour ago; a 4096-WAV hard cap also bounds a burst of new previews. This includes composed, A/B, and pending previews. Non-WAV files are retained. Transcript gating of PCM16 stems streams one second at a time, preserving their channels and changing only samples inside the requested window; unsupported WAV formats raise an error.
 
-## Sharecut Studio Extensions (self-hosted collaboration / optional provider)
+## ShareCut Studio Extensions (self-hosted collaboration / optional provider)
 
 Share, record, remote-MCP, and guest `/r/{token}` routes load through the public [Extensions API](extensions.md). The FOSS `collaboration` extension is enabled by default and does not require an account. A separately installed `online` provider extension can add account/auth surfaces.
 
 ```bash
-# Pure local Sharecut Studio (no share routes, no share MCP mint tool, no `podcast review share*`)
+# Pure local ShareCut Studio (no share routes, no share MCP mint tool, no `podcast review share*`)
 export PODCAST_EXTENSIONS=
 podcast gui --project episode.project.json
 
@@ -595,7 +595,7 @@ See [extension-seams.md](extension-seams.md). Self-host relay: [host-online-rela
 Local editing works without a relay, service account, object store, CDN, or
 distribution profile. Configuration is split by responsibility:
 
-| Mode | You provide | Sharecut/FOSS provides |
+| Mode | You provide | ShareCut/FOSS provides |
 |------|-------------|------------------------|
 | Local | Project files and optional machine preferences | Loopback GUI, editing, pipeline, export, development desktop profile |
 | Self-hosted collaboration | Relay domain/TLS, strong host token, and optionally an S3-compatible store | Relay/tunnel protocol, guest UI, local media-proxy fallback, redacted example |
@@ -813,7 +813,7 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 
 ## Read-only GUI viewer
 
-Sharecut Studio is the full editor, not only a viewer. Install the optional `gui` extra (included in `./install.sh`), build the web UI once, then launch:
+ShareCut Studio is the full editor, not only a viewer. Install the optional `gui` extra (included in `./install.sh`), build the web UI once, then launch:
 
 ```bash
 cd gui/web && npm ci && npm run build && cd ../..
@@ -863,7 +863,7 @@ checkout's `gui/web/dist`.
 When none of them holds `index.html` (a source tree before `npm run build`, or a
 wheel built without one), the product says so:
 
-- `podcast gui` prints one `Warning: Sharecut Studio web build not found at <dir>. ...`
+- `podcast gui` prints one `Warning: ShareCut Studio web build not found at <dir>. ...`
   line on stderr before `Viewer: <url>` and keeps serving the API and host MCP.
 - `GET /` returns a short HTML page (HTTP 503, `Cache-Control: no-store`) with
   the same guidance instead of a 404. `/api/*` and `/mcp` are unaffected.
@@ -927,7 +927,7 @@ restore](share-tokens.md#backup--restore) before moving registry data.
 
 `PODCAST_REVIEW_CORS_ORIGINS` is a comma-separated list of **exact origins** (`https://host[:port]`, or `http://` on loopback only) added to the loopback defaults (`127.0.0.1` / `localhost` on ports `5173` and `8765`). The GUI allows credentialed cross-origin requests from these origins, so `*`, wildcards, paths, query strings, fragments, user info, and non-loopback `http://` entries are refused and `podcast gui` fails to start with an error naming the variable. A trailing slash and letter case are normalized (`https://A.example/` becomes `https://a.example`). Unset or blank keeps the defaults. Same-origin pages (the GUI's own host) need no entry.
 
-Guests use `/r/{token}` or `/rec/{token}` only (no `?project=` paths). `--role viewer|commenter|editor` picks the review-link role (default Commenter). Every role opens Sharecut Studio. Mint a recording room with `--kind record` (prints guest + producer `/rec/` URLs). Grant `--with-mcp` for capability-scoped remote MCP at `{base}/mcp/{token}/mcp` — host usually needs `podcast tunnel`. (`/r/{token}/mcp` is an accepted alias of the MCP bridge.) Restricted ACL + Google/GitHub login: [share-tokens.md](share-tokens.md) § Identity. See [timeline-comments.md](timeline-comments.md) § Public review share and [host-online-relay.md](host-online-relay.md) § Remote MCP. `podcast tunnel` prints one timestamped stderr line per state change (connecting, connected with the public URL and share count, disconnected with the reason, reconnecting with backoff) and exits `1` on a rejected host token or bad relay URL instead of retrying; Share says whether guests can open your links (or nothing on a local-only host) — see [host-online-relay.md](host-online-relay.md) § Tunnel status. Share/MCP traffic is rate-limited by default (generous budgets; `PODCAST_RATE_LIMIT=0` / `PODCAST_RELAY_RATE_LIMIT=0` to disable) — see [host-online-relay.md](host-online-relay.md) § Rate limiting. With an object store configured, `podcast relay bucket-check` says whether guests can read its media and `podcast relay bucket-setup` adds the CORS rule they need with an admin key, safe to run again — see [host-online-relay.md](host-online-relay.md) § Object-store bucket setup.
+Guests use `/r/{token}` or `/rec/{token}` only (no `?project=` paths). `--role viewer|commenter|editor` picks the review-link role (default Commenter). Every role opens ShareCut Studio. Mint a recording room with `--kind record` (prints guest + producer `/rec/` URLs). Grant `--with-mcp` for capability-scoped remote MCP at `{base}/mcp/{token}/mcp` — host usually needs `podcast tunnel`. (`/r/{token}/mcp` is an accepted alias of the MCP bridge.) Restricted ACL + Google/GitHub login: [share-tokens.md](share-tokens.md) § Identity. See [timeline-comments.md](timeline-comments.md) § Public review share and [host-online-relay.md](host-online-relay.md) § Remote MCP. `podcast tunnel` prints one timestamped stderr line per state change (connecting, connected with the public URL and share count, disconnected with the reason, reconnecting with backoff) and exits `1` on a rejected host token or bad relay URL instead of retrying; Share says whether guests can open your links (or nothing on a local-only host) — see [host-online-relay.md](host-online-relay.md) § Tunnel status. Share/MCP traffic is rate-limited by default (generous budgets; `PODCAST_RATE_LIMIT=0` / `PODCAST_RELAY_RATE_LIMIT=0` to disable) — see [host-online-relay.md](host-online-relay.md) § Rate limiting. With an object store configured, `podcast relay bucket-check` says whether guests can read its media and `podcast relay bucket-setup` adds the CORS rule they need with an admin key, safe to run again — see [host-online-relay.md](host-online-relay.md) § Object-store bucket setup.
 
 ```bash
 podcast gui --project episode.project.json --no-open
@@ -978,7 +978,7 @@ services. Their implementation is under `src/podcast_mcp/services/support/`.
 Pipeline execution, configuration, and component bootstrap use the public
 `podcast_mcp.services.pipeline` facade.
 
-If Sharecut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. Self-hosted installations can keep using Open support and attach the local zip manually.
+If ShareCut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. Self-hosted installations can keep using Open support and attach the local zip manually.
 
 ```bash
 podcast doctor --bundle            # writes ~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip

@@ -274,7 +274,7 @@ evidence:
 - #958 and #963 (#961) shipped the repair; physical device acceptance stays in #960 and #301
 - docs/gui-audit-decisions.tsv: the 2026-09-30 audit trail for edit-boundary touch drag (reflow, cancel, precision)
 enforced-by:
-- gui/web/src/ui/GesturesSheet.test.tsx::describes two-finger Undo as an optional Sharecut shortcut
+- gui/web/src/ui/GesturesSheet.test.tsx::describes two-finger Undo as an optional ShareCut shortcut
 - gui/web/src/ui/BottomSheet.test.tsx::keeps fixed sheets closable without a resize action or drag cue
 - gui/web/e2e/touch-affordances.spec.ts::sheet affordances remain available at 200% text scale
 - docs-sync: decision-touch-input
@@ -291,14 +291,14 @@ resize action `min-inline-size` and `min-block-size: var(--touch-min)`. Rebalanc
 the remaining header with existing `--space-3` and `--space-4` tokens. Fixed
 sheets without `onExpandedChange` remain fixed and show no resize affordance.
 
-The command catalog says **"Undo the last action. Optional Sharecut shortcut."**
+The command catalog says **"Undo the last action. Optional ShareCut shortcut."**
 The inaccurate hook comment is removed. The implementation still calls
 `execute("history.undo")`. The recognizer and its tests are unchanged. No help copy claims an iOS convention or a
 particular visible Undo route. Source confirms More contains a History route in
 `gui/web/src/layout/MobileShell.tsx`; help copy does not depend on it.
 Apple's [iPhone Undo and redo guide](https://support.apple.com/en-au/guide/iphone/iph1a9cae52c/ios)
 documents the three-finger text editing gesture. That system convention does
-not establish Sharecut's separate two-finger shortcut.
+not establish ShareCut's separate two-finger shortcut.
 
 Exact seek remains outside this patch. `layout/TransportTimecode.tsx` uses
 `ui/Timecode.tsx` for the text readout. `commands/seek.ts` dispatches existing
@@ -328,7 +328,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: comment list/controller | Swipe left resolves; visible Resolve/Reopen and Undo toast | Only enabled for eligible open host comments in the list. Preview reveals a cue; threshold release uses `comment.resolve`; vertical movement, cancel, or hold restores the row. Existing command failures and latest-only Undo toast remain. Embedded threads do not opt in. | **Keep.** Existing comment recovery browser coverage includes Chromium/WebKit phone; physical device verification remains pending. |
 | BottomSheet: `ui/BottomSheet.tsx` | **Only the compact inspector's drawer drags and flicks** (its header, round 4b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (peek/half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it is clear at the strip and dims the timeline at half and full; confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
-| Transport, Gestures help and History: `MobileShell` More hub, command catalog | Two-finger tap is an optional Sharecut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. Phone More lists History and Gestures. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional Sharecut copy. |
+| Transport, Gestures help and History: `MobileShell` More hub, command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. Phone More lists History and Gestures. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional ShareCut copy. |
 
 ## Explicit disposition
 
@@ -430,7 +430,7 @@ this repository. Official [Motion gesture docs](https://motion.dev/docs/react-ge
 cover hover, tap, pan, drag, focus, and in-view animation; the overview does not
 document a first-class pinch recognizer. The [dnd-kit React quickstart](https://dndkit.com/react/quickstart/)
 covers `DragDropProvider` integration for draggable, droppable, and sortable
-content. Those are source-document comparisons; neither package owns Sharecut
+content. Those are source-document comparisons; neither package owns ShareCut
 command, permission, history, or stale-update behavior.
 
 The sections below record the later comparison that settled this.

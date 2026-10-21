@@ -1,5 +1,5 @@
 /**
- * Sharecut Studio keybinding catalog (keys → command ids).
+ * ShareCut Studio keybinding catalog (keys → command ids).
  *
  * Character-key shortcuts (letters, digits, Space) are WCAG 2.1.4 sensitive:
  * handlers must scope them via command when-clauses, or later offer disable/remap.

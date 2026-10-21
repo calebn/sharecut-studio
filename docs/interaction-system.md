@@ -1,6 +1,6 @@
 # Interaction system
 
-This document is the grammar for how a person acts on Sharecut Studio and how
+This document is the grammar for how a person acts on ShareCut Studio and how
 the UI answers. It names one path for each kind of interaction, where that path
 is declared, and the checklist a new interaction passes before it ships. It
 governs `gui/web/` on every shell (desktop, tablet, phone) and every input

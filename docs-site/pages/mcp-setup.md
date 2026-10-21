@@ -1,6 +1,6 @@
-# Set up local Sharecut Studio MCP
+# Set up local ShareCut Studio MCP
 
-Sharecut Studio can run as a local MCP server with no account, API key, or
+ShareCut Studio can run as a local MCP server with no account, API key, or
 network connection. `podcast-mcp` communicates over standard input and output.
 
 ## Verify the install
@@ -74,7 +74,7 @@ Restart or reload the MCP client after updating its configuration.
 
 ## Co-edit with the desktop GUI
 
-When Sharecut Studio is open, **Menu > Connect agent...** provides the local
+When ShareCut Studio is open, **Menu > Connect agent...** provides the local
 Streamable HTTP endpoint:
 
 ```text

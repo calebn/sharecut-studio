@@ -1,9 +1,9 @@
 # podcast-relay
 
-FOSS reverse-tunnel edge for host-online Sharecut Studio sharing.
+FOSS reverse-tunnel edge for host-online ShareCut Studio sharing.
 
 - **Does:** opaque HTTP/WS proxy from guests to a host that opens a tunnel; rate limits; healthz
-- **Does not:** user accounts, billing, episode file storage, Sharecut Studio UI
+- **Does not:** user accounts, billing, episode file storage, ShareCut Studio UI
 
 Protocol: `podcast_mcp.util.relay_protocol.protocol` (`PROTOCOL_VERSION`, frame helpers).
 

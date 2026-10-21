@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert a release wheel ships the Sharecut Studio web build (#1085), its contracts and defaults.
+"""Assert a release wheel ships the ShareCut Studio web build (#1085), its contracts and defaults.
 
 Checks that ``index.html`` and every ``./`` file it references sit under the
 packaged web root, that the runtime-loaded ``contracts/*.json`` ship as

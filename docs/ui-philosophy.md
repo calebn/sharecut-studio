@@ -1,4 +1,4 @@
-# Sharecut Studio UI philosophy: earn trust in the beta
+# ShareCut Studio UI philosophy: earn trust in the beta
 
 This document is the design contract for beta UI work. It describes intended
 behavior, not a claim that every surface already implements it. Apply it when

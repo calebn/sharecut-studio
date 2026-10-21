@@ -37,7 +37,7 @@ widths take their themes from `withAppearance`, so both themes are checked on
 each screen across the three). It also covers long comments and vocabulary announcements, phone
 Pipeline parameters/model-download focus handoff, and repeated menu-trigger
 clicks. `gui/web/e2e/review-surface.spec.ts` checks that a Commenter link opens
-Sharecut Studio in both themes: at 1440px the guest posts a
+ShareCut Studio in both themes: at 1440px the guest posts a
 comment and a reply, and at 320px Comments sit one action away under More. Both
 widths check overflow and axe. `gui/web/src/App.review.test.tsx` pins that a share
 without `view` shows an error instead of a listen page.

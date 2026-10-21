@@ -4,7 +4,7 @@ import { BrandLockup, BrandSymbol } from "./index";
 const meta = {
   title: "Atoms/BrandMark",
   component: BrandLockup,
-  args: { name: "Sharecut Studio" },
+  args: { name: "ShareCut Studio" },
 } satisfies Meta<typeof BrandLockup>;
 
 export default meta;

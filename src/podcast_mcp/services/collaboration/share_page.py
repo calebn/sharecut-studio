@@ -218,7 +218,7 @@ def render_record_spa_html(
 ) -> str:
     """Inject record-lobby title + website OG tags (no audio)."""
     title = "Join the recording"
-    description = "You have been invited to record with Sharecut Studio. Use headphones."
+    description = "You have been invited to record with ShareCut Studio. Use headphones."
     page_url = f"{public_origin.rstrip('/')}/rec/{token}"
     try:
         from podcast_mcp.services.collaboration.share import open_share_workspace

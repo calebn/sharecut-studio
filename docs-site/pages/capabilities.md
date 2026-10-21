@@ -1,6 +1,6 @@
 # Capabilities
 
-Host product capabilities and which adapters exist (Sharecut Studio command / GUI /
+Host product capabilities and which adapters exist (ShareCut Studio command / GUI /
 keyboard, MCP, CLI, skill). Source of truth:
 [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json).
 
@@ -19,11 +19,11 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**119** capabilities · **103** Sharecut Studio commands · **55** keyed · **185** MCP tools · **17** skills on rows (+ **19** hub skills).
+**119** capabilities · **103** ShareCut Studio commands · **55** keyed · **185** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
-## Sharecut Studio capabilities
+## ShareCut Studio capabilities
 
 Effect `project` changes the saved project, review state, transcripts or artifacts, and needs an MCP or CLI surface (or an owner-approved reason, shown in the CLI column). `session` changes live unsaved state; `view` changes only this client's display.
 
@@ -135,7 +135,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 
 ## Agent workflows
 
-Host/agent capabilities without a Sharecut Studio `command` id (pipeline, transcript, NL, clips, …).
+Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transcript, NL, clips, …).
 
 | Label | Effect | MCP | CLI | Skill | Host-only |
 | ----- | ------ | --- | --- | ----- | --------- |
@@ -154,7 +154,7 @@ Host/agent capabilities without a Sharecut Studio `command` id (pipeline, transc
 | Ingest alignment | project | `ingest_import_folder_tool`, `ingest_suggest_alignment_tool`, `ingest_verify_alignment_tool`, `play_compare_tool` | `podcast ingest` | `podcast-align-audio` | yes |
 | Align accept gate | project | `align_status_tool`, `align_brief_tool`, `align_done_tool`, `align_waive_tool` | `podcast align` | `podcast-align-audio` | yes |
 | Speaker attribution | project | `speaker_doctor_tool`, `speaker_enroll_tool`, `speaker_profiles_tool`, `speaker_score_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, +6 | `podcast speaker` | `podcast-speaker-attribution` | yes |
-| Open Sharecut Studio GUI | session | `open_gui_tool` | `podcast gui` | `podcast-open-gui` | yes |
+| Open ShareCut Studio GUI | session | `open_gui_tool` | `podcast gui` | `podcast-open-gui` | yes |
 
 ## Hub skills
 

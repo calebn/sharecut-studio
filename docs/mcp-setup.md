@@ -1,12 +1,12 @@
-# Connecting your agent to Sharecut Studio (MCP)
+# Connecting your agent to ShareCut Studio (MCP)
 
-Sharecut Studio exposes local Model Context Protocol (MCP) tools. This guide
+ShareCut Studio exposes local Model Context Protocol (MCP) tools. This guide
 covers the two local connection modes:
 
 | Mode | Use it when | Episode selection |
 | --- | --- | --- |
-| **stdio** | The agent works independently on a project | Pass `project_path`, or set a default with `PODCAST_MCP_PROJECT`. While Sharecut Studio serves that project, the tool call runs in Studio (one writer, no "Project is busy"); otherwise it runs in the stdio process. |
-| **GUI-attached Streamable HTTP** | You are editing with Sharecut Studio open | Tools use the episode currently open in the GUI. |
+| **stdio** | The agent works independently on a project | Pass `project_path`, or set a default with `PODCAST_MCP_PROJECT`. While ShareCut Studio serves that project, the tool call runs in Studio (one writer, no "Project is busy"); otherwise it runs in the stdio process. |
+| **GUI-attached Streamable HTTP** | You are editing with ShareCut Studio open | Tools use the episode currently open in the GUI. |
 
 Both modes are local. They do not require an API key or account. The GUI MCP
 endpoint binds to loopback only; do not expose it through a tunnel or a public
@@ -185,7 +185,7 @@ For Windows, use `"command": "C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\pod
 1. Run `podcast gui` and open an episode.
 2. Choose **Menu → Connect agent…** to copy the URL:
    `http://127.0.0.1:8765/mcp`
-3. Keep Sharecut Studio running while the agent is connected.
+3. Keep ShareCut Studio running while the agent is connected.
 
 The endpoint is loopback-only and applies tools to the currently open episode.
 It is not OAuth, not a share token, and is unsuitable for remote or
@@ -194,7 +194,7 @@ collaborator agents; use a review share's remote MCP endpoint for those cases
 
 The GUI host transport is stateless: each request is handled independently and
 the server does not issue or require a sticky `Mcp-Session-Id` header. The
-currently open episode is selected by Sharecut Studio for every request. This
+currently open episode is selected by ShareCut Studio for every request. This
 does not change stdio MCP sessions or guest/share-token MCP, which keep their
 existing transport behavior.
 
@@ -274,7 +274,7 @@ appropriate.
   not a bare `podcast-mcp` command.
 - **Tools are missing after configuration changes:** restart the client or
   reload its MCP servers.
-- **GUI tools say no episode is open:** open an episode in Sharecut Studio;
+- **GUI tools say no episode is open:** open an episode in ShareCut Studio;
   GUI-attached tools act on the pinned GUI episode.
 - **The GUI URL will not connect from another machine:** this is expected. Host
   MCP is loopback-only by design.

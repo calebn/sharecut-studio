@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "description": "Capability registration contract: Sharecut Studio command/GUI/keyboard + MCP/CLI/skills.",
+  "description": "Capability registration contract: ShareCut Studio command/GUI/keyboard + MCP/CLI/skills.",
   "hub_skills": [
     "impeccable",
     "podcast-balance-levels",
@@ -28,7 +28,7 @@
       "id": "daw.transport.togglePlay",
       "label": "Play / pause",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "editorFocused"
@@ -57,7 +57,7 @@
       "id": "daw.transport.seek",
       "label": "Seek playhead",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "always"
@@ -76,7 +76,7 @@
       "id": "daw.transport.stop",
       "label": "Stop playback",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "always"
@@ -103,7 +103,7 @@
       "id": "daw.transport.audition",
       "label": "Audition Full mix / Edited stems / Original",
       "effect": "session",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -130,7 +130,7 @@
       "id": "daw.presence.follow",
       "label": "Follow",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/session_sync",
+      "service": "ShareCut Studio command bus \u2192 services/session_sync",
       "industry_standard_key": false,
       "gates": [
         "always"
@@ -157,7 +157,7 @@
       "id": "daw.presence.unfollow",
       "label": "Stop following",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/session_sync",
+      "service": "ShareCut Studio command bus \u2192 services/session_sync",
       "industry_standard_key": true,
       "gates": [
         "following"
@@ -180,7 +180,7 @@
       "id": "daw.tool.select",
       "label": "Select tool",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -203,7 +203,7 @@
       "id": "daw.tool.blade",
       "label": "Blade tool",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineAndStructural"
@@ -226,7 +226,7 @@
       "id": "daw.review.exitCommentMode",
       "label": "Exit comment mode",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "commentMode"
@@ -242,7 +242,7 @@
       "id": "daw.edit.clearSelection",
       "label": "Clear selection",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hasInspectorSelection"
@@ -258,7 +258,7 @@
       "id": "daw.create.menu",
       "label": "Create here",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -274,7 +274,7 @@
       "id": "daw.review.toggleCommentMode",
       "label": "Toggle comment mode",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "always"
@@ -297,7 +297,7 @@
       "id": "daw.review.resolveComment",
       "label": "Resolve comment",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 comment patch service",
+      "service": "ShareCut Studio command bus \u2192 comment patch service",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -329,7 +329,7 @@
       "id": "daw.tighten.applyHit",
       "label": "Apply tighten hit",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 ApproveEdits",
+      "service": "ShareCut Studio command bus \u2192 ApproveEdits",
       "industry_standard_key": false,
       "gates": [
         "tightenPanelOpen"
@@ -357,7 +357,7 @@
       "id": "daw.tighten.skipHit",
       "label": "Skip tighten hit",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 RejectEdits",
+      "service": "ShareCut Studio command bus \u2192 RejectEdits",
       "industry_standard_key": false,
       "gates": [
         "tightenPanelOpen"
@@ -385,7 +385,7 @@
       "id": "daw.tighten.applySuggested",
       "label": "Apply suggested actions",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 ApplySuggestedActions",
+      "service": "ShareCut Studio command bus \u2192 ApplySuggestedActions",
       "industry_standard_key": false,
       "gates": [
         "tightenPanelOpen"
@@ -413,7 +413,7 @@
       "id": "daw.tighten.reviseSuggested",
       "label": "Change an applied sound",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 ApplySuggestedActions (revise)",
+      "service": "ShareCut Studio command bus \u2192 ApplySuggestedActions (revise)",
       "industry_standard_key": false,
       "gates": [
         "tightenPanelOpen"
@@ -442,7 +442,7 @@
       "id": "daw.tighten.previewHit",
       "label": "Preview tighten hit",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 listen-first preview",
+      "service": "ShareCut Studio command bus \u2192 listen-first preview",
       "industry_standard_key": false,
       "gates": [
         "tightenPanelOpen"
@@ -466,7 +466,7 @@
       "id": "daw.tighten.goToHit",
       "label": "Go to tighten hit",
       "effect": "session",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": false,
       "gates": [
         "tightenPanelOpen"
@@ -491,7 +491,7 @@
       "id": "daw.layout.default",
       "label": "Restore layout",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "layoutShell"
@@ -514,7 +514,7 @@
       "id": "daw.layout.timeline",
       "label": "Maximize timeline",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "layoutShell"
@@ -537,7 +537,7 @@
       "id": "daw.layout.text",
       "label": "Maximize transcript",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "layoutShell"
@@ -560,7 +560,7 @@
       "id": "daw.layout.review",
       "label": "Review layout",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "layoutShell"
@@ -583,7 +583,7 @@
       "id": "daw.navigation.nudgePlayheadBack",
       "label": "Nudge playhead back",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "always"
@@ -598,7 +598,7 @@
       "id": "daw.navigation.nudgePlayheadForward",
       "label": "Nudge playhead forward",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "always"
@@ -613,7 +613,7 @@
       "id": "daw.navigation.goToStart",
       "label": "Go to start",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "always"
@@ -629,7 +629,7 @@
       "id": "daw.navigation.goToEnd",
       "label": "Go to end",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "always"
@@ -645,7 +645,7 @@
       "id": "daw.edit.bladeCut",
       "label": "Blade cut",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canSuggestStructural"
@@ -677,7 +677,7 @@
       "id": "daw.edit.delete",
       "label": "Delete clip",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 DeleteClip document command (mode gap)",
+      "service": "ShareCut Studio command bus \u2192 DeleteClip document command (mode gap)",
       "industry_standard_key": true,
       "gates": [
         "canSuggestStructural"
@@ -704,7 +704,7 @@
       "id": "daw.track.remove",
       "label": "Remove track",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "trackInspectorSelected"
@@ -731,7 +731,7 @@
       "id": "daw.track.splitSpeakers",
       "label": "Split speakers\u2026",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/media (SpeakerService)",
+      "service": "ShareCut Studio command bus \u2192 services/media (SpeakerService)",
       "industry_standard_key": false,
       "gates": [
         "canSplitSpeakers"
@@ -761,7 +761,7 @@
       "id": "daw.track.reorder",
       "label": "Reorder track",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "canIngestMedia"
@@ -790,7 +790,7 @@
       "id": "daw.track.moveUp",
       "label": "Move track up",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canMoveSelectedTrackUp"
@@ -817,7 +817,7 @@
       "id": "daw.track.moveDown",
       "label": "Move track down",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canMoveSelectedTrackDown"
@@ -844,7 +844,7 @@
       "id": "daw.edit.rippleDelete",
       "label": "Ripple delete clip",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 DeleteClip document command (mode ripple; asks before cutting another track's speech)",
+      "service": "ShareCut Studio command bus \u2192 DeleteClip document command (mode ripple; asks before cutting another track's speech)",
       "industry_standard_key": true,
       "gates": [
         "canSuggestStructural"
@@ -872,7 +872,7 @@
       "id": "daw.edit.copy",
       "label": "Copy",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hasProject"
@@ -891,7 +891,7 @@
       "id": "daw.edit.cut",
       "label": "Cut",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 DeleteClip / CutRange document command (mode ripple; asks before cutting another track's speech)",
+      "service": "ShareCut Studio command bus \u2192 DeleteClip / CutRange document command (mode ripple; asks before cutting another track's speech)",
       "industry_standard_key": true,
       "gates": [
         "canApplyPass12"
@@ -916,7 +916,7 @@
       "id": "daw.edit.paste",
       "label": "Paste",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 PasteSegment document command (mode ripple or gap)",
+      "service": "ShareCut Studio command bus \u2192 PasteSegment document command (mode ripple or gap)",
       "industry_standard_key": true,
       "gates": [
         "canApplyPass12"
@@ -935,7 +935,7 @@
       "id": "daw.track.selectAll",
       "label": "Select all tracks",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -951,7 +951,7 @@
       "id": "daw.track.deselectAll",
       "label": "Deselect all tracks",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -974,7 +974,7 @@
       "id": "daw.track.muteToggle",
       "label": "Toggle track mute",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hasProject"
@@ -1003,7 +1003,7 @@
       "id": "daw.track.soloToggle",
       "label": "Toggle track solo",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hasProject"
@@ -1028,7 +1028,7 @@
       "id": "daw.track.clearSolo",
       "label": "Clear solo",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -1054,7 +1054,7 @@
       "id": "daw.track.setVolume",
       "label": "Set track volume",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "canEditMix"
@@ -1082,7 +1082,7 @@
       "id": "daw.view.zoomIn",
       "label": "Zoom in",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -1110,7 +1110,7 @@
       "id": "daw.view.zoomOut",
       "label": "Zoom out",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -1138,7 +1138,7 @@
       "id": "daw.view.fit",
       "label": "Fit session width",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -1162,7 +1162,7 @@
       "id": "daw.view.setTab",
       "label": "Switch editor tab",
       "effect": "view",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -1188,7 +1188,7 @@
       "id": "daw.view.setMobileMode",
       "label": "Switch phone mode",
       "effect": "view",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -1213,7 +1213,7 @@
       "id": "daw.view.waveformZoomIn",
       "label": "Waveform amplitude zoom in",
       "effect": "view",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -1237,7 +1237,7 @@
       "id": "daw.view.waveformZoomOut",
       "label": "Waveform amplitude zoom out",
       "effect": "view",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -1264,7 +1264,7 @@
       "tooltip": "Fit tracks to window height",
       "tooltip_pressed": "Use a fixed track height",
       "toggle": true,
-      "service": "Sharecut Studio UI",
+      "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "always"
@@ -1289,7 +1289,7 @@
       "label": "Increase track height",
       "effect": "view",
       "tooltip": "Increase track height",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -1312,7 +1312,7 @@
       "label": "Decrease track height",
       "effect": "view",
       "tooltip": "Decrease track height",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": true,
       "gates": [
         "timelineFocused"
@@ -1334,7 +1334,7 @@
       "id": "daw.history.undo",
       "label": "Undo",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hasProject"
@@ -1370,7 +1370,7 @@
       "id": "daw.history.redo",
       "label": "Redo",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hasProject"
@@ -1400,7 +1400,7 @@
       "id": "daw.ui.toggleCommandPalette",
       "label": "Commands and shortcuts",
       "effect": "view",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "always"
@@ -1425,7 +1425,7 @@
       "id": "daw.render.refreshMix",
       "label": "Refresh mix",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canRefreshMix"
@@ -1454,7 +1454,7 @@
       "id": "daw.export.bounce",
       "label": "Bounce\u2026",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hostProjectLoaded"
@@ -1863,7 +1863,7 @@
       "id": "daw.export.deliverables",
       "label": "Export deliverables\u2026",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "hostProjectLoaded"
@@ -1894,7 +1894,7 @@
       "id": "daw.project.new",
       "label": "New project…",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canManageProjects"
@@ -1923,7 +1923,7 @@
       "id": "daw.project.open",
       "label": "Open project…",
       "effect": "session",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canManageProjects"
@@ -1948,7 +1948,7 @@
       "id": "daw.track.add",
       "label": "New track",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canIngestMedia"
@@ -1978,7 +1978,7 @@
       "id": "daw.media.import",
       "label": "Import audio…",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
         "canIngestMedia"
@@ -2429,7 +2429,7 @@
     },
     {
       "id": "agent.gui",
-      "label": "Open Sharecut Studio GUI",
+      "label": "Open ShareCut Studio GUI",
       "effect": "session",
       "service": "gui_launch",
       "industry_standard_key": false,
@@ -2455,7 +2455,7 @@
       "tooltip": "Annotate: show edit boundaries, low-confidence words, unsuppressed words with no matching speech, and cut-away text",
       "tooltip_pressed": "Hide annotate marks (clean reading view)",
       "toggle": true,
-      "service": "Sharecut Studio UI",
+      "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "always"
@@ -2481,7 +2481,7 @@
       "tooltip": "Correct: click a word to fix ASR text or suppress it (text only; audio and timing unchanged), or ignore it to mute its audio at render (no cut)",
       "tooltip_pressed": "Exit Correct (restore seek-on-click)",
       "toggle": true,
-      "service": "Sharecut Studio UI",
+      "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -2545,7 +2545,7 @@
       "label": "Edit focused transcript word",
       "effect": "project",
       "tooltip": "F2: edit the focused timed word in Navigate mode; Enter saves, Escape cancels",
-      "service": "Sharecut Studio UI",
+      "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -2572,7 +2572,7 @@
       "tooltip": "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
       "tooltip_pressed": "Exit Select (restore seek-on-click)",
       "toggle": true,
-      "service": "Sharecut Studio UI",
+      "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -2597,7 +2597,7 @@
       "label": "Extend transcript range",
       "effect": "view",
       "tooltip": "Extend the selected word range by a word at either edge; on touch, long-press a word in Select mode and drag",
-      "service": "Sharecut Studio UI",
+      "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -2626,7 +2626,7 @@
       "effect": "project",
       "tooltip": "Ignore: strike through and mute the selection at render (no cut); Restore brings it back",
       "tooltip_pressed": "Restore: un-mute the selection and remove its strikethrough",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -2657,7 +2657,7 @@
       "label": "Next low-confidence word",
       "effect": "session",
       "tooltip": "Next low-confidence word: seek and scroll to it, wrapping to the first; in Correct mode it opens in the word editor",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -2683,7 +2683,7 @@
       "label": "Previous low-confidence word",
       "effect": "session",
       "tooltip": "Previous low-confidence word: seek and scroll to it, wrapping to the last; in Correct mode it opens in the word editor",
-      "service": "Sharecut Studio command bus",
+      "service": "ShareCut Studio command bus",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -2711,7 +2711,7 @@
       "tooltip": "Show words removed by timeline cuts (drag boundaries to restore)",
       "tooltip_pressed": "Hide cut-away words",
       "toggle": true,
-      "service": "Sharecut Studio UI",
+      "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "always"
@@ -2735,7 +2735,7 @@
       "label": "Trim clip edge",
       "effect": "project",
       "tooltip": "Drag or use focused Left/Right arrows to trim a clip edge",
-      "service": "Sharecut Studio \u2192 TrimClipEdge document command (mode ripple or gap; a ripple asks before cutting another track's speech)",
+      "service": "ShareCut Studio \u2192 TrimClipEdge document command (mode ripple or gap; a ripple asks before cutting another track's speech)",
       "industry_standard_key": false,
       "gates": [
         "focusedTrimHandle"
@@ -2766,7 +2766,7 @@
       "label": "Move clips",
       "effect": "project",
       "tooltip": "Move clip in the inspector previews time and target track before Apply move; clip-body drag also moves clips",
-      "service": "Sharecut Studio \u2192 MoveClips document command",
+      "service": "ShareCut Studio \u2192 MoveClips document command",
       "industry_standard_key": false,
       "gates": [
         "canApplyPass12"
@@ -2798,7 +2798,7 @@
       "label": "Add chapter at playhead",
       "effect": "project",
       "tooltip": "Add a chapter marker at the playhead \u00b7 turns Markers on",
-      "service": "Sharecut Studio \u2192 AddChapter document command",
+      "service": "ShareCut Studio \u2192 AddChapter document command",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -2832,7 +2832,7 @@
       "label": "Add envelope point",
       "effect": "project",
       "tooltip": "Add a volume envelope point at the held time, at the level already there",
-      "service": "Sharecut Studio \u2192 SetEnvelope document command",
+      "service": "ShareCut Studio \u2192 SetEnvelope document command",
       "industry_standard_key": false,
       "gates": [
         "canEditEnvelopes"
@@ -2889,7 +2889,7 @@
       "label": "Restore original audio",
       "effect": "project",
       "tooltip": "Restore one selected automatic reduction in this clip occurrence",
-      "service": "Sharecut Studio → RestoreClipBleed document command",
+      "service": "ShareCut Studio → RestoreClipBleed document command",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -2917,7 +2917,7 @@
       "label": "Roll clip join",
       "effect": "project",
       "tooltip": "Drag join to roll both clip edges \u00b7 clips stay flush",
-      "service": "Sharecut Studio \u2192 RollClipJoin document command",
+      "service": "ShareCut Studio \u2192 RollClipJoin document command",
       "industry_standard_key": false,
       "gates": [
         "canApplyPass12"
@@ -2949,7 +2949,7 @@
       "label": "Set clip fade",
       "effect": "project",
       "tooltip": "Drag or use focused Left/Right arrows to set fade length",
-      "service": "Sharecut Studio \u2192 SetClipFade document command",
+      "service": "ShareCut Studio \u2192 SetClipFade document command",
       "industry_standard_key": false,
       "gates": [
         "focusedFadeHandle"
@@ -2979,7 +2979,7 @@
       "label": "Set clip join",
       "effect": "project",
       "tooltip": "How this clip meets the previous one: cut, fade or crossfade, with its length",
-      "service": "Sharecut Studio \u2192 SetClipJoin document command",
+      "service": "ShareCut Studio \u2192 SetClipJoin document command",
       "industry_standard_key": false,
       "gates": [
         "canApplyPass12"
@@ -3200,7 +3200,7 @@
       "id": "daw.range.arm",
       "label": "Select a range",
       "effect": "view",
-      "service": "Sharecut Studio range selection",
+      "service": "ShareCut Studio range selection",
       "industry_standard_key": false,
       "gates": [
         "hasProject"

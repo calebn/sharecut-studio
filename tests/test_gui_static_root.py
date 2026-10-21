@@ -1,4 +1,4 @@
-"""PODCAST_GUI_DIST vs repo-layout Sharecut Studio static root."""
+"""PODCAST_GUI_DIST vs repo-layout ShareCut Studio static root."""
 
 from __future__ import annotations
 

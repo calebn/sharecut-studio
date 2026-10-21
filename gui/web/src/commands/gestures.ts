@@ -26,7 +26,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     gesture: "Two-finger tap",
     touch: "two-finger-tap",
     commandIds: ["history.undo"],
-    description: "Undo the last action. Optional Sharecut shortcut.",
+    description: "Undo the last action. Optional ShareCut shortcut.",
   },
   {
     gesture: "Long-press",

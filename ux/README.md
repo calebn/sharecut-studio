@@ -1,6 +1,6 @@
 # UX onboarding pack
 
-Shareable UX docs for Podcast MCP / Sharecut Studio, published at **https://ux.sharecut.studio/**.
+Shareable UX docs for Podcast MCP / ShareCut Studio, published at **https://ux.sharecut.studio/**.
 
 API & contracts (document commands, share HTTP, remote MCP): **https://docs.sharecut.studio/** ([`docs-site/`](../docs-site/README.md)).
 
@@ -57,7 +57,7 @@ Canonical showcase fixture: [`tests/fixtures/sharecut_ux_demo/`](../tests/fixtur
 - Human LibriSpeech audio **symlinked** from `aligned_dialogue/raw` (no duplicate WAVs). Seeded transcript chips and pending word removal use the same source labels.
 - Regenerate: `make ux-demo` / `python3 scripts/build_ux_demo_fixture.py`
 - Open: `podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json`
-- Site gallery: [See the UI](https://ux.sharecut.studio/#/demo) (`make ux-demo-screens` refreshes PNGs under `assets/screens/`, including the guest Sharecut Studio share)
+- Site gallery: [See the UI](https://ux.sharecut.studio/#/demo) (`make ux-demo-screens` refreshes PNGs under `assets/screens/`, including the guest ShareCut Studio share)
 
 Screenshot capture copies the existing demo project into a disposable workspace.
 The npm E2E wrapper owns its registry, identity, and guest-token manifest; guest
@@ -74,7 +74,7 @@ cd ux && python3 -m http.server 8766
 
 ## Keeping docs accurate (anti-drift)
 
-When Sharecut Studio shells, the UI or communication philosophy, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
+When ShareCut Studio shells, the UI or communication philosophy, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
 
 1. Update the matching `ux/pages/*.md` (and demo fixture / screenshots if the UI changed).
 2. The `ux-pack` row of the docs-sync map ([contracts/docs-sync.json](../contracts/docs-sync.json)) is the source of truth, generated into [AGENTS.md](../AGENTS.md) § Docs in sync. `make docs-sync` runs the same PR-diff gate CI runs before you open a PR; the `docs-sync` pre-commit hook runs the equivalent check on staged files but only warns (CI is the gate). See [docs/contributing.md § Docs in sync](../docs/contributing.md#docs-in-sync).

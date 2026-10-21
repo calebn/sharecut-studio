@@ -79,11 +79,11 @@ fn close_guard_message(risk: sharecut::CloseRisk) -> (&'static str, &'static str
         ),
         sharecut::CloseRisk::Guest => (
             "Recording may still be writing",
-            "Your guest recording is active or finishing. Quit Sharecut Studio anyway?",
+            "Your guest recording is active or finishing. Quit ShareCut Studio anyway?",
         ),
         sharecut::CloseRisk::Unknown => (
             "Recording status could not be verified",
-            "Sharecut Studio could not verify whether recording has finished. Quit anyway?",
+            "ShareCut Studio could not verify whether recording has finished. Quit anyway?",
         ),
     }
 }
@@ -141,7 +141,7 @@ fn request_close_confirmation(webview: &WebviewWindow, risk: sharecut::CloseRisk
                 }
                 closing_webview
                     .dialog()
-                    .message("Sharecut Studio could not close the window. The recording room remains open. Try Quit again.")
+                    .message("ShareCut Studio could not close the window. The recording room remains open. Try Quit again.")
                     .title("Could not quit")
                     .buttons(MessageDialogButtons::Ok)
                     .parent(&closing_webview)
@@ -616,7 +616,7 @@ fn eval_js(win: &WebviewWindow, js: &str) {
 fn show_sidecar_error(app: &tauri::AppHandle, detail: &str) {
     let log = sidecar_log_path();
     let msg = format!(
-        "Could not start the Sharecut engine ({detail}). Log: {}",
+        "Could not start the ShareCut engine ({detail}). Log: {}",
         log.display()
     );
     if let Some(win) = app.get_webview_window("main") {
@@ -748,7 +748,7 @@ fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
     // `RunEvent::Exit` sets this before it takes the lock, so a spawn that
     // loses the race to a quit never leaves an orphan engine behind.
     if !sharecut::spawn_allowed(&EXITING) {
-        return Err("Sharecut Studio is quitting".to_string());
+        return Err("ShareCut Studio is quitting".to_string());
     }
     *slot = Some(spawn_sidecar()?);
     Ok(())

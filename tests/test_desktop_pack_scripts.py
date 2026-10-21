@@ -289,7 +289,7 @@ def test_tauri_production_window_waits_on_splash() -> None:
     assert "url" not in windows[0]
     splash = (ROOT / "gui/desktop/splash/index.html").read_text(encoding="utf-8")
     assert "127.0.0.1:8765" not in splash
-    assert "Starting Sharecut Studio" in splash
+    assert "Starting ShareCut Studio" in splash
     assert 'role="status"' in splash
     assert 'aria-live="polite"' in splash
     main_rs = (ROOT / "gui/desktop/src-tauri/src/main.rs").read_text(encoding="utf-8")

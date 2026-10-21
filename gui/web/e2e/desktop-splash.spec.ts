@@ -17,7 +17,7 @@ for (const { cell: width, theme } of withAppearance([360, 820])) {
       document.documentElement.dataset.theme = value;
     }, theme);
     await expect(page.getByRole("status")).toHaveText(
-      "Starting Sharecut Studio…",
+      "Starting ShareCut Studio…",
     );
     await page.getByRole("status").evaluate((element) => {
       element.textContent =

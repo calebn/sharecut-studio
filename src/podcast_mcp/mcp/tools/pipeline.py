@@ -33,7 +33,7 @@ def pipeline_run(
     """Run the production pipeline. Optional skip_steps (step names) / config (object) override yaml.
 
     When use_working_set is true (default), also reads/writes the GUI session
-    working set so agents and Sharecut Studio share the same visible config.
+    working set so agents and ShareCut Studio share the same visible config.
     Omit ``unattended`` to leave the working-set Batch mode unchanged.
     Existing transcripts are reused; ``force_transcribe=true`` re-runs ASR for this run
     only (not persisted). ``retime_words=true`` re-times stored transcripts with the forced

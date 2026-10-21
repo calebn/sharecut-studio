@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build / refresh the Sharecut Studio UX demo fixture from aligned_dialogue.
+"""Build / refresh the ShareCut Studio UX demo fixture from aligned_dialogue.
 
 Copies the committed smoke fixture's project shape, rewrites workspace paths,
 symlinks raw WAVs (no audio duplication), and seeds UI showcase data:
@@ -46,7 +46,7 @@ def main() -> int:
         link.symlink_to(target)
 
     data = json.loads((SRC / "episode.project.json").read_text(encoding="utf-8"))
-    data["meta"]["name"] = "Sharecut Studio UX demo"
+    data["meta"]["name"] = "ShareCut Studio UX demo"
     data["meta"]["workspace_dir"] = "."
     data["meta"]["created_at"] = _now()
 
@@ -203,7 +203,7 @@ def main() -> int:
     (DEST / "README.md").write_text(
         """# sharecut_ux_demo
 
-Canonical **Sharecut Studio UX showcase** fixture for the [UX Pages pack](../../../ux/README.md).
+Canonical **ShareCut Studio UX showcase** fixture for the [UX Pages pack](../../../ux/README.md).
 
 Built from `aligned_dialogue` plus seeded pending edits, comments, chapters, transcript
 chips, mix/FX, and a social clip - so phone Listen / Timeline / Text / More and desktop
@@ -231,7 +231,7 @@ Screenshots for the UX site: `make ux-demo-screens`.
     from podcast_mcp.project.store import ProjectStore
 
     proj = ProjectStore(out).load()
-    assert proj.meta.name == "Sharecut Studio UX demo"
+    assert proj.meta.name == "ShareCut Studio UX demo"
     assert any(not d.applied for d in proj.edit_decisions)
     assert proj.review and len(proj.review.comments) >= 2
     print(f"wrote {out} ({len(proj.edit_decisions)} pending, {len(proj.review.comments)} comments)")

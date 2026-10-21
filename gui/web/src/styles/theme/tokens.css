@@ -1,5 +1,5 @@
 /**
- * Sharecut Studio-only scales, motion, elevation, layout, and paint recipes.
+ * ShareCut Studio-only scales, motion, elevation, layout, and paint recipes.
  * Shared type/space/brand colors: brand-tokens.css.
  * Functional colors: theme-dark.css / theme-light.css (same light/dark contract).
  * Lane/ruler heights stay CSS px for timeline canvas math (see utils/layout.ts).
@@ -10,7 +10,7 @@
   --wordbar-handle-size: 1rem;
   --wordbar-label-height: 2rem;
 
-  /* Typography (Sharecut Studio density) */
+  /* Typography (ShareCut Studio density) */
   --font-size-micro: 0.625rem;
   --font-size-caption: 0.6875rem;
   --font-size-small: 0.75rem;
@@ -42,7 +42,7 @@
   --space-5: 1rem;
   --space-6: 1.5rem;
 
-  /* Radii (xs/sm are Sharecut Studio-only; md/lg from brand-tokens.css) */
+  /* Radii (xs/sm are ShareCut Studio-only; md/lg from brand-tokens.css) */
   --radius-xs: 0.125rem;
   --radius-sm: 0.1875rem;
   --radius-xl: 0.5rem;

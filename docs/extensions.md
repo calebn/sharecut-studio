@@ -1,6 +1,6 @@
-# Sharecut Studio Extensions API
+# ShareCut Studio Extensions API
 
-Public extension SPI for Podcast MCP / Sharecut Studio. Optional features (share, accounts, community tools) load through the same mechanism — **absent = no mount / no MCP tool / no CLI mint / no UI render**.
+Public extension SPI for Podcast MCP / ShareCut Studio. Optional features (share, accounts, community tools) load through the same mechanism — **absent = no mount / no MCP tool / no CLI mint / no UI render**.
 
 ## Security / trust
 

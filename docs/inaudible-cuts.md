@@ -32,7 +32,7 @@ that identity. The batch releases these facts when it ends.
 
 ## DAW snap overlay
 
-Sharecut Studio paints a **quiet wash** from the loaded peak-pyramid tiles (max-pooled per CSS pixel over the mounted tile range, at 8 px/s and above) and **snap ticks** from `GET /api/waveform-snap` / guest `daw/waveform-snap` (`AnalysisService.waveform_snap_window`). That reuses `preview_inaudible_cut` and windowed `silence_islands_from_hops` — not a second snapper. Blade/trim/pending-edge drag magnets to those ticks (`snap=true` on `UpdatePendingEdit` is the same optimizer). Viewers get the wash; Commenters and Editors get ticks + magnet. Ticks load around the dragged trim edge, else the blade hover inside the clip, else the paused playhead inside it, after an 80 ms debounce; a playing playhead does not fetch ticks. Overlay fetches abort when that focus moves and must not stall pointer or play.
+ShareCut Studio paints a **quiet wash** from the loaded peak-pyramid tiles (max-pooled per CSS pixel over the mounted tile range, at 8 px/s and above) and **snap ticks** from `GET /api/waveform-snap` / guest `daw/waveform-snap` (`AnalysisService.waveform_snap_window`). That reuses `preview_inaudible_cut` and windowed `silence_islands_from_hops` — not a second snapper. Blade/trim/pending-edge drag magnets to those ticks (`snap=true` on `UpdatePendingEdit` is the same optimizer). Viewers get the wash; Commenters and Editors get ticks + magnet. Ticks load around the dragged trim edge, else the blade hover inside the clip, else the paused playhead inside it, after an 80 ms debounce; a playing playhead does not fetch ticks. Overlay fetches abort when that focus moves and must not stall pointer or play.
 
 ## Fade vs crossfade
 
@@ -51,8 +51,8 @@ Normal dialogue **ripple** cuts from tighten, NL, and focus set `join_in_mode=fa
 | Situation | Tool / behavior |
 |-----------|-----------------|
 | Normal dialogue cuts (tighten, focus, ripple, NL) | Automatic — `join_in_mode=fade`; no extra call |
-| Cuts still clicky | `fade_joins_tool` / `podcast edit fade-joins` / Sharecut Studio clip inspector |
-| Per-clip join mode **and fades** | `set_clip_join_tool` / `podcast edit set-clip-join` / Sharecut Studio join control (`fade` \| `crossfade` \| `cut`; crossfade sets left fade-out and right fade-in to `length_ms`, default `tighten.crossfade_ms`; cut zeroes both, so a later Fade/Crossfade reseeds the defaults; undo restores the earlier fades). `set_join_mode_tool` sets the mode only, so a crossfade with no fades renders as a plain join (its result reports `join_crossfade_blocked`) |
+| Cuts still clicky | `fade_joins_tool` / `podcast edit fade-joins` / ShareCut Studio clip inspector |
+| Per-clip join mode **and fades** | `set_clip_join_tool` / `podcast edit set-clip-join` / ShareCut Studio join control (`fade` \| `crossfade` \| `cut`; crossfade sets left fade-out and right fade-in to `length_ms`, default `tighten.crossfade_ms`; cut zeroes both, so a later Fade/Crossfade reseeds the defaults; undo restores the earlier fades). `set_join_mode_tool` sets the mode only, so a crossfade with no fades renders as a plain join (its result reports `join_crossfade_blocked`) |
 | Re-render old project / fix multitrack sync | `fade_joins_tool` then `assemble_timeline` |
 | Music bed, intro/outro blend, explicit overlap soften | `crossfade_joins_tool` / `podcast edit crossfade-joins` |
 | Harsh boundaries from analyze | `recommend_fades_tool` → `apply_fade_recommendations_tool` (fade mode) |
@@ -322,7 +322,7 @@ See also [filler-cut-quality.md](filler-cut-quality.md) for gate + re-enable cri
 - `join_quality_tool` / `join_qa_sweep_tool` — score one join or sweep every splice (default timebase `timeline`); sweep rows carry `speech` (voiced speech cut through at the join) and the report `speech_cross_count`.
 - `audition_context_tool` — `speech_crosses_cut` for every splice in the window plus `echo_risk` and `clip_skew`; its `evidence.fix` names the `trim_clip_edge_tool` call, already run through the trim's own audio check (`evidence.fix_check`: `passes`, `held` with the reasons, or `unchecked`; `mode=ripple` for a session-wide cut, so every track's edge moves and the episode stays in sync; `mode=gap` for a track-local punch, so only that clip's edge moves).
 - `join_label_tool` — record explicit pass/fail A/B labels into `artifacts/join_labels.jsonl`.
-- `update_pending_edit_tool` — nudge a pending decision’s source range; `snap=true` (default) runs `optimize_source_cut_range` before save (Sharecut Studio drag/inspector uses the same path via `UpdatePendingEdit`).
+- `update_pending_edit_tool` — nudge a pending decision’s source range; `snap=true` (default) runs `optimize_source_cut_range` before save (ShareCut Studio drag/inspector uses the same path via `UpdatePendingEdit`).
 - Cut tools accept optional `use_inaudible_opt=false` to skip optimization for one call.
 
 ## Skills

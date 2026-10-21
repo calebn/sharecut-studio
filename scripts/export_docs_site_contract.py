@@ -148,29 +148,29 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ),
 }
 
-# Named guest MCP twin, or ``http-only:`` reason (Sharecut Studio-only / no named MCP).
+# Named guest MCP twin, or ``http-only:`` reason (ShareCut Studio-only / no named MCP).
 _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("POST", "/api/review/{token}/daw/range-audio"): "http-only: contextual range playback",
     ("GET", "/api/review/{token}/project"): "guest_get_review_summary",
-    ("GET", "/api/review/{token}/features"): "http-only: extension manifest for Sharecut Studio",
+    ("GET", "/api/review/{token}/features"): "http-only: extension manifest for ShareCut Studio",
     ("GET", "/api/review/{token}/audio"): "guest_audio_info",
     ("GET", "/api/review/{token}/daw/project"): "guest_get_project",
     ("GET", "/api/review/{token}/daw/document/state"): "http-only: sequenced DAW recovery",
     ("POST", "/api/review/{token}/daw/boundary/context"): (
-        "http-only: Sharecut Studio guarded boundary dragging"
+        "http-only: ShareCut Studio guarded boundary dragging"
     ),
-    ("GET", "/api/review/{token}/daw/meta"): "http-only: poll mtime for Sharecut Studio reload",
+    ("GET", "/api/review/{token}/daw/meta"): "http-only: poll mtime for ShareCut Studio reload",
     ("GET", "/api/review/{token}/daw/waveform/status"): (
-        "http-only: Sharecut Studio waveform; agents use guest_audition_context"
+        "http-only: ShareCut Studio waveform; agents use guest_audition_context"
     ),
     ("GET", "/api/review/{token}/daw/waveform/tiles/{key}"): (
-        "http-only: Sharecut Studio waveform; agents use guest_audition_context"
+        "http-only: ShareCut Studio waveform; agents use guest_audition_context"
     ),
     ("GET", "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"): (
-        "http-only: Sharecut Studio pending-cut comparison; not a named MCP tool"
+        "http-only: ShareCut Studio pending-cut comparison; not a named MCP tool"
     ),
     ("GET", "/api/review/{token}/daw/waveform-snap"): (
-        "http-only: Sharecut Studio snap ticks; not a named MCP tool"
+        "http-only: ShareCut Studio snap ticks; not a named MCP tool"
     ),
     ("GET", "/api/review/{token}/daw/audio"): "guest_audio_info",
     ("GET", "/api/review/{token}/daw/pending-preview"): "guest_pending_preview",
@@ -178,10 +178,10 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("GET", "/api/review/{token}/daw/audition-context"): "guest_audition_context",
     ("GET", "/api/review/{token}/daw/audition-context-image"): "guest_audition_context",
     ("GET", "/api/review/{token}/daw/proxy/manifest"): (
-        "http-only: Sharecut Studio proxy chunks; not a named MCP tool"
+        "http-only: ShareCut Studio proxy chunks; not a named MCP tool"
     ),
     ("GET", "/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}"): (
-        "http-only: Sharecut Studio proxy chunks; not a named MCP tool"
+        "http-only: ShareCut Studio proxy chunks; not a named MCP tool"
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): "guest_render_preview",
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): "guest_render_preview_job",
@@ -371,7 +371,7 @@ def _render_share_routes() -> str:
         "> **Auto-generated** from FastAPI guest routes + curated cap notes. "
         "Run `make schema-export`.",
         "",
-        "### Guest Sharecut Studio / review routes",
+        "### Guest ShareCut Studio / review routes",
         "",
         "| Method | Route | Cap | Notes |",
         "|--------|-------|-----|-------|",

@@ -12,9 +12,9 @@ export const MIC_RETRY_LABEL = "Retry";
 export const MIC_DENIED_COPY =
   "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry.";
 export const MIC_DESKTOP_DENIED_COPY =
-  "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry.";
+  "Microphone access is blocked by your operating system. Allow ShareCut Studio in your system microphone privacy settings, then Retry.";
 export const MIC_LINUX_DESKTOP_DENIED_COPY =
-  "Microphone access is blocked in this Linux desktop window. Retry once, or open Sharecut Studio in your browser and allow microphone access there.";
+  "Microphone access is blocked in this Linux desktop window. Retry once, or open ShareCut Studio in your browser and allow microphone access there.";
 export const MIC_UNAVAILABLE_COPY =
   "No microphone was found. Connect an input device, then Retry.";
 export const MIC_ERROR_COPY = "Couldn't open the microphone. Retry.";

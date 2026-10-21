@@ -430,7 +430,7 @@ describe("MobileShell", () => {
 
   it("explains Add to Home Screen in a banner and in More only in an iOS Safari tab", async () => {
     const user = userEvent.setup();
-    const hint = /choose Add to Home Screen to open Sharecut full screen/;
+    const hint = /choose Add to Home Screen to open ShareCut full screen/;
     const setNavigator = (values: Record<string, unknown>) => {
       for (const [key, value] of Object.entries(values))
         Object.defineProperty(navigator, key, { value, configurable: true });

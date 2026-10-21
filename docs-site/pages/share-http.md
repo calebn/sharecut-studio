@@ -14,7 +14,7 @@ Full narrative: [docs/host-online-relay.md](https://github.com/calebn/sharecut-s
 | Cap | Meaning |
 |-----|---------|
 | `play` | Stream review-mix / guest DAW audio |
-| `view` | Read-only Sharecut Studio (timeline, tracks, waveform pyramid tiles, premix) |
+| `view` | Read-only ShareCut Studio (timeline, tracks, waveform pyramid tiles, premix) |
 | `comment` | Add timeline comments (body max **8000** chars) |
 | `reply` | Reply to existing comments |
 | `action` | Toggle comment action items |
@@ -29,7 +29,7 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 
 > **Auto-generated** from FastAPI guest routes + curated cap notes. Run `make schema-export`.
 
-### Guest Sharecut Studio / review routes
+### Guest ShareCut Studio / review routes
 
 | Method | Route | Cap | Notes |
 |--------|-------|-----|-------|

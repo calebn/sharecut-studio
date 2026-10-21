@@ -274,7 +274,7 @@ pub fn remove(bin: &Path, launchers: &[(String, PathBuf); 2]) -> io::Result<()> 
                 return Err(io::Error::new(
                     io::ErrorKind::PermissionDenied,
                     format!(
-                        "{} is not a Sharecut link; it was left alone",
+                        "{} is not a ShareCut link; it was left alone",
                         link.display()
                     ),
                 ))

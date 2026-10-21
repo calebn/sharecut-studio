@@ -156,7 +156,7 @@ def _publish(
         return existing
     body = json.dumps(
         {
-            "title": f"[Beta report] Sharecut Studio {version}"[:_TITLE_LIMIT],
+            "title": f"[Beta report] ShareCut Studio {version}"[:_TITLE_LIMIT],
             "body": f"{description}\n\nDiagnostics ZIP (public for 30 days): {bundle_url}\n\n<!-- sharecut-report-id:{report_id} -->",
             "labels": ["beta-report"],
         }

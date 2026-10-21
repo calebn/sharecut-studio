@@ -1,4 +1,4 @@
-"""Guards for the Sharecut Studio UX demo fixture used by the UX Pages pack."""
+"""Guards for the ShareCut Studio UX demo fixture used by the UX Pages pack."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def test_ux_demo_fixture_files_exist(rel: str) -> None:
 
 def test_ux_demo_fixture_loads_and_has_showcase_data() -> None:
     project = ProjectStore(PROJECT).load()
-    assert project.meta.name == "Sharecut Studio UX demo"
+    assert project.meta.name == "ShareCut Studio UX demo"
     pending = [d for d in project.edit_decisions if not d.applied]
     assert pending, "expected at least one pending edit for Impact / overlays"
     assert project.review and len(project.review.comments) >= 2

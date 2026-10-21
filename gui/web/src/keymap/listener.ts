@@ -11,7 +11,7 @@ import {
 import { isButtonActivation, isTypingTarget } from "./typing";
 
 /**
- * Sole window-level Sharecut Studio shortcut listener (governance choke-point).
+ * Sole window-level ShareCut Studio shortcut listener (governance choke-point).
  * Component-local Escape (e.g. BottomSheet) may use separate listeners —
  * see commands/governance.test.ts allowlist. One gate decides what runs while
  * an overlay is open (`keymapHandoff` in `ui/modalGate`): an open menu holds

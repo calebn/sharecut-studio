@@ -1,5 +1,5 @@
 /**
- * Viewport shell breakpoints for Sharecut Studio (phone / tablet / desktop).
+ * Viewport shell breakpoints for ShareCut Studio (phone / tablet / desktop).
  * Align with docs/gui-mobile.md and CSS data-shell / .daw-shell--*.
  *
  * Prefer matchMedia (same CSS px as layout) over window.outerWidth. DevTools

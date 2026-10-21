@@ -55,7 +55,7 @@ describe("BootstrapWizard", () => {
       <BootstrapWizard onReady={onReady} onSkip={vi.fn()} />,
     );
     expect(
-      await screen.findByRole("heading", { name: "Set up Sharecut Studio" }),
+      await screen.findByRole("heading", { name: "Set up ShareCut Studio" }),
     ).toBeTruthy();
     expect(container.querySelector(".box.elevated")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
@@ -120,7 +120,7 @@ describe("BootstrapWizard", () => {
     }));
     render(<BootstrapWizard onReady={onReady} onSkip={vi.fn()} />);
     expect(
-      await screen.findByRole("heading", { name: "Set up Sharecut Studio" }),
+      await screen.findByRole("heading", { name: "Set up ShareCut Studio" }),
     ).toBeTruthy();
     expect(onReady).not.toHaveBeenCalled();
     await user.selectOptions(screen.getByLabelText("Speech model"), "small.en");

@@ -25,7 +25,7 @@ def get_session_state_tool(project_path: str) -> str:
 
 
 def get_session_presence_tool(project_path: str) -> str:
-    """Who is in the Sharecut Studio session: display names, cursor, selection, viewport, transport, follow relationships.
+    """Who is in the ShareCut Studio session: display names, cursor, selection, viewport, transport, follow relationships.
 
     `viewport` is the time window a follower should show. Near the start of a
     phone's fixed-playhead timeline it begins at 0 and can be wider than what
@@ -38,7 +38,7 @@ def get_session_presence_tool(project_path: str) -> str:
             {
                 "available": True,
                 "clients": [],
-                "hint": "No live clients. Open Sharecut Studio or wait for a guest to join.",
+                "hint": "No live clients. Open ShareCut Studio or wait for a guest to join.",
             },
             indent=2,
         )

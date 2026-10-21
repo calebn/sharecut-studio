@@ -1,6 +1,6 @@
-# Sharecut Studio keyboard shortcuts
+# ShareCut Studio keyboard shortcuts
 
-Engineer reference for Sharecut Studio shortcuts and the command bus.
+Engineer reference for ShareCut Studio shortcuts and the command bus.
 
 Partner-facing copy (UX site / Google Docs): [ux/pages/shortcuts.md](../ux/pages/shortcuts.md) — live at [ux.sharecut.studio/#/shortcuts](https://ux.sharecut.studio/#/shortcuts) (**Copy Markdown** → paste into Google Docs).
 
@@ -10,9 +10,9 @@ Full host surface matrix (command / MCP / CLI / skill): [docs.sharecut.studio/#/
 
 > **Auto-generated** from [`gui/web/src/keymap/registry.ts`](../gui/web/src/keymap/registry.ts) and [`gui/web/src/commands/catalog.ts`](../gui/web/src/commands/catalog.ts). Do not edit by hand — run `make cheatsheet`.
 
-Shortcuts dispatch through the Sharecut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere.
+Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere.
 
-Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
+Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 ## transport
 

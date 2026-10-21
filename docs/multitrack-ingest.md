@@ -385,7 +385,7 @@ The tool does not guess speaker names. List **one speaker per person** in `inges
 A room mic or a phone recorder puts several people on one file. `podcast speaker split`
 (MCP `speaker_split_tool`, `SpeakerService.split_speakers`) turns that lane into one
 lane per speaker, so each can be levelled, EQ'd and processed like a multitrack
-episode (#1095). Sharecut Studio runs the same service from the track inspector
+episode (#1095). ShareCut Studio runs the same service from the track inspector
 (**Split speakers…**, below).
 
 ```bash
@@ -437,7 +437,7 @@ more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
   mute. It is off by default: the open lane already carries the bed, so every fill adds
   another copy of it to the mix. A gated recording has no room tone and stays silent.
 
-**In Sharecut Studio.** **Split speakers…** sits beside **Replace audio…** in the track
+**In ShareCut Studio.** **Split speakers…** sits beside **Replace audio…** in the track
 inspector (host only) and in the command palette (`track.splitSpeakers`). It is disabled
 with its reason beside it when the track has no audio or is already a lane of a split
 (the project view's `TrackView.speaker_split_id`). The dialog asks for the speaker

@@ -191,7 +191,7 @@ def _project_mismatch_page(request: Request, served: Path) -> HTMLResponse:
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Project not served &mdash; Sharecut Studio</title>
+    <title>Project not served &mdash; ShareCut Studio</title>
     <link rel="stylesheet" href="/recovery.css" />
   </head>
   <body class="recovery-page">
@@ -307,7 +307,7 @@ def create_app(
 
     @app.get("/api/features")
     def api_features() -> dict[str, Any]:
-        """Sharecut Studio Extensions manifest (absent features = empty list)."""
+        """ShareCut Studio Extensions manifest (absent features = empty list)."""
         return registry.to_manifest()
 
     static_root = static_dir or resolve_gui_static_root()
@@ -350,10 +350,10 @@ def create_app(
                 )
 
                 project_obj = load_project(Path(served))
-                name = (project_obj.meta.name or "").strip() or "Sharecut Studio"
+                name = (project_obj.meta.name or "").strip() or "ShareCut Studio"
                 head = build_share_head_tags(
                     title=name,
-                    description=f"Sharecut Studio - {name}",
+                    description=f"ShareCut Studio - {name}",
                     page_url=str(request.base_url).rstrip("/") + "/",
                 )
                 body = inject_share_document_head(

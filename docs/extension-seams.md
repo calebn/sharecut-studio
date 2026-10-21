@@ -27,10 +27,10 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 
 ## Locked hole decisions
 
-1. **FOSS share without a provider:** FOSS ships share **mint** + guest Sharecut Studio + tunnel **client**. Users point the tunnel at **any** self-hosted `podcast-relay` (generic Compose under `deploy/relay`). Provider defaults, accounts, quotas, and branded downloads are outside this repository and are not required to edit or to share.
+1. **FOSS share without a provider:** FOSS ships share **mint** + guest ShareCut Studio + tunnel **client**. Users point the tunnel at **any** self-hosted `podcast-relay` (generic Compose under `deploy/relay`). Provider defaults, accounts, quotas, and branded downloads are outside this repository and are not required to edit or to share.
 2. **Tunnel client:** stays in FOSS (`podcast tunnel`) as protocol-only; a provider integration may add its own account or quota workflow.
 3. **Guest SPA:** separate `/r/{token}` entry served only when `share.ui.routes` is contributed; host chrome uses Slots.
-4. **LAN shares:** no public share URLs in default FOSS path without a relay; LAN bind remains for local Sharecut Studio only.
+4. **LAN shares:** no public share URLs in default FOSS path without a relay; LAN bind remains for local ShareCut Studio only.
 5. **Hybrid utils:** FOSS keeps `rate_limit` / `body_limits` / local `proxy_media`; object-store provider integration and hosted defaults stay outside the collaboration composer.
 6. **Caps:** FOSS exports frozen names (`extensions/caps.py`) and the link-share role→cap policy. An optional provider may add account policy through a narrow hook; it does not replace anonymous link identity.
 
@@ -42,5 +42,5 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 - `PODCAST_EXTENSIONS=collaboration,example` → collaboration plus `extension.status.0`.
 - With an installed `online` provider, `PODCAST_EXTENSIONS=collaboration,online` → the same collaboration surfaces exactly once plus provider account/auth.
 - With an installed `online` provider, `PODCAST_EXTENSIONS=online` → provider account/auth only; it never implies collaboration.
-- FOSS always keeps: Sharecut Studio core routes, `podcast review publish-version|list-versions|set-active`, `podcast tunnel`, document commands.
+- FOSS always keeps: ShareCut Studio core routes, `podcast review publish-version|list-versions|set-active`, `podcast tunnel`, document commands.
 - Prefer contract/integration over browser e2e for collab seams (nightly e2e budget only).

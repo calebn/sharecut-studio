@@ -37,7 +37,7 @@ issue.
 
 **Problem:** Guests arrive cold on phone. Capability tiers must feel obvious without host chrome.
 
-**Shipped (engineering):** Google Docs review roles (Viewer, Commenter by default, Editor), each opening Sharecut Studio guest; mode banner on Sharecut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
+**Shipped (engineering):** Google Docs review roles (Viewer, Commenter by default, Editor), each opening ShareCut Studio guest; mode banner on ShareCut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
 
 **Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; plain-language Needs attention bodies; stopped-link copy.
 
@@ -101,7 +101,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 | Legacy overview removed (#429) | The uint8 overview waveform and its host/guest routes are gone; pyramids are the only waveform source. A brand-new or re-pointed track shows the "Generating waveform…" hint until its pyramid builds (there is no pre-built overview to fall back on), so review that first-open moment on long imports. |
 | Near-sample zoom (#429) | Zoom now runs to 48,000 px/s (about a pixel per sample at 48 kHz), capped per session so a long episode stays under 15 M px of timeline. Hosts see individual samples drawn as a line; guests stop at pyramid resolution. The ruler labels to the millisecond (`m:ss.fff`) at deep zoom and drops decimals for whole-second steps. To review: label density and legibility at every zoom (labels read `0:02` when zoomed out, and the ruler slider announces the same whole-second text), how the deep-zoom line reads in both themes, and whether guests need a cue that they are at their resolution limit. |
 | Config module paths (#1820) | Decision (2026-10-21): no user-facing change. Host relay and distribution config moved to `podcast_mcp/config/runtime.py` and `config/distribution.py`; the `relay.yaml` keys, environment names and share/tunnel copy are unchanged, so no screen, copy or journey needs review. |
-| Full design system | Only if polish/scale demands it; Sharecut Studio uses CSS tokens today |
+| Full design system | Only if polish/scale demands it; ShareCut Studio uses CSS tokens today |
 | Marketing site | Separate from this UX pack |
 | Annotated FigJam wireframes | Optional; until then use [Screens](#/screens) ASCII + [Guest journeys](#/journeys). Add a FigJam link here when one exists. |
 
@@ -111,12 +111,12 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 
 **Recruit:** 2 hosts (edit podcasts), 3 guests (smart phone users, not DAW experts). 25–30 minutes each.
 
-**Setup:** Host Sharecut Studio demo fixture + one Commenter link (see [Demo](#/demo)).
+**Setup:** Host ShareCut Studio demo fixture + one Commenter link (see [Demo](#/demo)).
 
 | # | Task | Success looks like |
 |---|------|--------------------|
 | 1 | Open the Commenter share; leave one comment | Comment posts without coaching; &lt; 5 min |
-| 2 | Open Sharecut Studio guest; say what you can do | Mentions banner / listen / suggest correctly |
+| 2 | Open ShareCut Studio guest; say what you can do | Mentions banner / listen / suggest correctly |
 | 3 | Find and audition a pending cut (host phone) | Reaches Play around without Impact confusion |
 | 4 | (Optional) Simulate offline conflict → Needs attention | Notices banner; can dismiss |
 
@@ -134,7 +134,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 | 2026-10-20 | Share registry, share capabilities, review shares and review versions move from `edits/` to `services/collaboration/` so the domain layer holds no sqlite or services edge (internal only; no guest or host UI change) (#1820) | Eng | [share-tokens](https://github.com/calebn/sharecut-studio/blob/main/docs/share-tokens.md) |
 | 2026-10-20 | Tunnel frames, share claims and the guest-stream close log move to `podcast_mcp.util.relay_protocol`, so the host never imports the relay package; the close log's logger name is now `podcast_mcp.util.relay_protocol.guest_ws_log` (ops only; no guest UI change) (#1820) | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) |
 | 2026-10-20 | `create_relay_app` is split into per-concern routers (`podcast_relay/routes/`: status, tunnel, proxy, guest_ws) over an explicit `RelayState`; routes, headers, close codes and rate limits are unchanged (ops only; no guest UI change) (#1820) | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) |
-| 2026-10-06 | ReviewApp (the listen-and-comment page) is deleted. Every review role holds `view` and opens Sharecut Studio guest; a share without `view` shows an error. Guest journey 1 is now the Commenter cold open in Sharecut Studio | Eng | [Screens](#/screens), [Journeys](#/journeys) |
+| 2026-10-06 | ReviewApp (the listen-and-comment page) is deleted. Every review role holds `view` and opens ShareCut Studio guest; a share without `view` shows an error. Guest journey 1 is now the Commenter cold open in ShareCut Studio | Eng | [Screens](#/screens), [Journeys](#/journeys) |
 | 2026-10-06 | Tunnel status: `podcast tunnel` prints one line per connection state change (connecting, connected, disconnected with reason, reconnecting with backoff, failed) and exits on an auth or config failure; Share says whether guests can open your links (“Reconnecting…” with a retry countdown, “Not reachable online” with How to fix, “Online sharing is off”; nothing on a local-only host) from the same state (#1091) | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md), [Screens](#/screens) |
 | 2026-09-27 | Host document WS `/api/document/ws` is server→client only (hello Snapshot + Applied fan-out); edits always go through `POST /api/document/command`; `authorize_client` re-checks every 30s and a revoked grant closes `4403` and the host tab stops reconnecting; a failed fan-out pump closes `1011` so the client reconnects (#565) | Eng | [session-sync](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md) |
 | 2026-09-14 | Whole-DAW follow: Look/Hear/Do rubric; chrome ghosts via `data-presence-anchor`; guests degrade host-only tabs and non-Mix audition in the banner; mute/solo/audition do not unfollow | Eng | [session-sync](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |
@@ -142,7 +142,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 | 2026-09-14 | Guest share WS echoes assigned `client_id` so a followed guest does not see their own ghost | Eng | [session-sync](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |
 | 2026-09-14 | Follow chrome per shell: phone listen-along + Ferrite center needle; tablet/desktop viewport follow; rem/`@container app` + `@container transport` touch floors | Eng | [Screens](#/screens), [gui-mobile](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |
 | 2026-09-14 | Follow mode + ghost cursors: avatar stack, canvas presence, loose listen sync, Esc unfollows; phone More → People | Eng | [Screens](#/screens), [Glossary](#/glossary), [session-sync](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |
-| 2026-07-22 | Guest share chrome: ReviewApp default vs Sharecut Studio+`view`; mode banner; proxy listen; offline queue / Needs attention; Presence on desktop/tablet only | Eng | [Screens](#/screens), [Journeys](#/journeys), [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) |
+| 2026-07-22 | Guest share chrome: ReviewApp default vs ShareCut Studio+`view`; mode banner; proxy listen; offline queue / Needs attention; Presence on desktop/tablet only | Eng | [Screens](#/screens), [Journeys](#/journeys), [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) |
 | 2026-07-22 | UX pack framed as orientation kit; dual-track glossary; guest journeys page | Eng | [Home](#/), [Glossary](#/glossary) |
 | 2026-08-14 | Share API hardening: typed document commands, comment body max 8000, action-done HTTP twin, content-addressed proxy URLs, tunnel HMAC claims | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) |
 | 2026-08-14 | Document-command contract: OpenAPI/MCP boundary rejects + schema sync docs in session-sync | Eng | [session-sync](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md) |
@@ -179,7 +179,7 @@ gantt
   dateFormat  YYYY-MM-DD
   section Learn
   Read brief + glossary           :a1, 2026-07-13, 2d
-  Use Sharecut Studio host + guest link :a2, after a1, 2d
+  Use ShareCut Studio host + guest link :a2, after a1, 2d
   section Decide
   Naming hallway test            :b1, after a2, 3d
   Guest review IA copy           :b2, after a2, 5d

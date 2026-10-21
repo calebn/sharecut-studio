@@ -242,7 +242,7 @@ fn apply_python_home(cmd: &mut Command, runtime: &Path, keep_inherited: bool) {
     if let Some(home) = bundled_cpython_prefix(runtime) {
         if let Err(err) = sync_pyvenv_cfg(runtime, &home) {
             eprintln!(
-                "Sharecut Studio sidecar: could not update {}: {err}",
+                "ShareCut Studio sidecar: could not update {}: {err}",
                 runtime.join("venv").join("pyvenv.cfg").display()
             );
         }
@@ -306,8 +306,8 @@ fn report_windows_cli_unsupported() {
         fn AttachConsole(process_id: u32) -> i32;
     }
     const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
-    let msg = "Sharecut Studio sidecar: --cli is not supported on Windows yet; \
-               use the installed Sharecut Studio app or the pip `podcast` CLI.";
+    let msg = "ShareCut Studio sidecar: --cli is not supported on Windows yet; \
+               use the installed ShareCut Studio app or the pip `podcast` CLI.";
     unsafe {
         AttachConsole(ATTACH_PARENT_PROCESS);
     }
@@ -327,12 +327,12 @@ fn main() {
         }
     }
     let exe = env::current_exe().unwrap_or_else(|err| {
-        eprintln!("Sharecut Studio sidecar: current_exe failed: {err}");
+        eprintln!("ShareCut Studio sidecar: current_exe failed: {err}");
         exit(1);
     });
     let Some(runtime) = runtime_dir(&exe) else {
         eprintln!(
-            "Sharecut Studio sidecar: sharecut-runtime not found next to {}",
+            "ShareCut Studio sidecar: sharecut-runtime not found next to {}",
             exe.display()
         );
         exit(1);
@@ -341,7 +341,7 @@ fn main() {
     let py = python_bin(&runtime);
     if !py.is_file() {
         eprintln!(
-            "Sharecut Studio sidecar: python not found at {}",
+            "ShareCut Studio sidecar: python not found at {}",
             py.display()
         );
         exit(1);
@@ -351,7 +351,7 @@ fn main() {
     {
         use std::os::unix::process::CommandExt;
         let err = cmd.exec();
-        eprintln!("Sharecut Studio sidecar: exec failed: {err}");
+        eprintln!("ShareCut Studio sidecar: exec failed: {err}");
         exit(1);
     }
     #[cfg(not(unix))]
@@ -359,7 +359,7 @@ fn main() {
         match cmd.spawn() {
             Ok(child) => exit(wait_windows_python(child)),
             Err(err) => {
-                eprintln!("Sharecut Studio sidecar: spawn failed: {err}");
+                eprintln!("ShareCut Studio sidecar: spawn failed: {err}");
                 exit(1);
             }
         }
@@ -606,7 +606,7 @@ fn wait_windows_python(mut child: std::process::Child) -> i32 {
     match child.wait() {
         Ok(status) => status.code().unwrap_or(1),
         Err(err) => {
-            eprintln!("Sharecut Studio sidecar: wait failed: {err}");
+            eprintln!("ShareCut Studio sidecar: wait failed: {err}");
             1
         }
     }
