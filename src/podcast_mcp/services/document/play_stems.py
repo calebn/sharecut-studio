@@ -23,7 +23,7 @@ from podcast_mcp.engines.play_audit import (
 from podcast_mcp.engines.timeline_render import render_track_segment
 from podcast_mcp.engines.timemap import timeline_range_to_source
 from podcast_mcp.services.media import schedule_stem_waveforms
-from podcast_mcp.services.pipeline.preview import rerender_preview
+from podcast_mcp.services.pipeline import rerender_preview
 from podcast_mcp.services.session_sync import publish_agent_play
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError, CodedValueError
