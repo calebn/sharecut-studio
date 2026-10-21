@@ -18,6 +18,7 @@ import wave
 
 import numpy as np
 
+MIN_CORR_SEC = 0.25
 EDGE_SEC = 0.05          # spans are judged inside this margin (the 20 ms ramps are excluded)
 BAND_EDGES = 1000.0 * 2.0 ** (np.arange(-7, 4) / 3.0)   # 1/3 octave, ~100 Hz .. ~8 kHz
 OVERALL_DB, BAND_DB = 2.0, 3.0   # same rubric as the gate-fill harness
@@ -47,14 +48,27 @@ def longest_zero_run(x: np.ndarray) -> int:
     return int((edges[1::2] - edges[::2]).max()) if edges.size else 0
 
 
+def lower_half(chunks: list[np.ndarray], rate: int) -> np.ndarray:
+    """The quietest half of the pauses' 10 ms blocks: the room, not breaths or word tails.
+
+    Pauses picked by a level threshold also hold breaths, lip noise and decaying word tails.
+    The gate's bed is a median for the same reason, so the reference is the lower half."""
+    block = rate // 100
+    blocks = [c[i:i + block] for c in chunks for i in range(0, len(c) - block + 1, block)]
+    if not blocks:
+        return np.zeros(0)
+    level = np.array([np.mean(b * b) for b in blocks])
+    keep = level <= np.median(level)
+    return np.concatenate([b for b, k in zip(blocks, keep) if k])
+
+
 def dbfs(x: np.ndarray) -> float:
     r = float(np.sqrt(np.mean(np.square(x)))) if x.size else 0.0
     return 20 * np.log10(r) if r > 0 else SILENCE_DBFS
 
 
-def bands(chunks: list[np.ndarray], rate: int) -> np.ndarray:
+def bands(chunks: list[np.ndarray], rate: int, n: int = 8192) -> np.ndarray:
     """Mean power per 1/3-octave band, dB (Welch-style, Hann, 8192 pts)."""
-    n = 8192
     acc = np.zeros(n // 2 + 1)
     count = 0
     win = np.hanning(n)
@@ -103,11 +117,15 @@ def main() -> int:
     checks["after_longest_zero_run_samples"] = longest_zero_run(inside_a)
 
     own_pause = cut(after, rate, pauses)
-    pause_db = dbfs(np.concatenate(own_pause)) if own_pause else None
-    checks["lane_pause_rms_dbfs"] = pause_db
+    all_pause_db = dbfs(np.concatenate(own_pause)) if own_pause else None
+    room = lower_half(own_pause, rate)
+    pause_db = dbfs(room) if room.size else None
+    checks["lane_pauses_all_rms_dbfs"] = all_pause_db      # informational: includes breaths and tails
+    checks["lane_room_rms_dbfs"] = pause_db                # quietest half of the pauses: the reference
+    checks["pause_seconds"] = round(sum(len(c) for c in own_pause) / rate, 1)
     overall = None if pause_db is None else abs(checks["after_rms_dbfs"] - pause_db)
     checks["overall_delta_db"] = overall
-    band_delta = bands(cut(after, rate, spans, EDGE_SEC), rate) - bands(own_pause, rate)
+    band_delta = bands(cut(after, rate, spans, EDGE_SEC), rate, 2048) - bands([room], rate, 2048)
     checks["band_delta_db"] = [None if np.isnan(d) else round(float(d), 2) for d in band_delta]
     checks["seam_ratio_before"] = seam(before, rate, spans)
     checks["seam_ratio_after"] = seam(after, rate, spans)
@@ -122,9 +140,14 @@ def main() -> int:
         peer, prate = read(a.peer)
         n = min(len(peer), len(after))
         if prate == rate:
-            c = [np.corrcoef(peer[int((s + EDGE_SEC) * rate):int((e - EDGE_SEC) * rate)],
-                             after[int((s + EDGE_SEC) * rate):int((e - EDGE_SEC) * rate)])[0, 1]
-                 for s, e in spans if int((e - EDGE_SEC) * rate) <= n]
+            # Short windows correlate by chance (2 samples correlate at +-1), so only spans
+            # with at least MIN_CORR_SEC left after the edge margin count.
+            c = []
+            for s0, e0 in spans:
+                lo, hi = int((s0 + EDGE_SEC) * rate), int((e0 - EDGE_SEC) * rate)
+                if hi - lo >= MIN_CORR_SEC * rate and hi <= n:
+                    c.append(np.corrcoef(peer[lo:hi], after[lo:hi])[0, 1])
+            checks["peer_correlation_spans_used"] = len(c)
             checks["peer_correlation_max_abs"] = float(np.nanmax(np.abs(c))) if c else None
 
     fails = []

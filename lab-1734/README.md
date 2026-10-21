@@ -12,7 +12,8 @@ without the forced aligner. Audio stays on the Mac. Never post audio, stems or s
 1. Copy the project fresh for the arm, set the arm's flag in the copy's defaults override.
 2. On **main**: `podcast edit apply-bleed-mute --dry-run` (note per-track `bleed_reduction`; the host lane must read `mute`), then apply. Copy the host stem to `~/lab-1734/<arm>/host_main.wav`.
 3. Fresh copy again. On the **PR head**: same dry-run (new fields `room_tone_fill` / `room_tone_fill_reason` per candidate: expect source `room_tone_bed` or `comfort_noise`, not a reason) then apply. Copy the host stem to `host_pr.wav`.
-4. Pull the muted spans from the dry-run candidates into `spans.json` (`[[start_sec, end_sec], ...]`, timeline seconds). Pick 3 to 10 pauses where the host is silent and Vicky is silent (also seconds, same clock) into `pauses.json`; at least 30 s in all.
+4. Run `diagnose_fill.py` (in the PR head's venv, on the scratch copy): `python diagnose_fill.py <project> dani --pauses pauses.json`. It prints the gate's bed re the lane's voice level AND in dBFS, the quiet runs the fill was read from (seconds, digital-silence share, level percentiles) and the same for your pauses. The bed is relative to the voice level, so compare dBFS to dBFS.
+4b. Pull the muted spans from the dry-run candidates into `spans.json` (`[[start_sec, end_sec], ...]`, timeline seconds). Pick 3 to 10 pauses where the host is silent and Vicky is silent (also seconds, same clock) into `pauses.json`; at least 30 s in all. On a recorder-gated lane like Daniela's host there are few (about 45 s). A threshold such as "below -48 dBFS on both lanes" also catches breaths and word tails, so the script judges the fill against the quietest half of the pauses' 10 ms blocks (the room, the same idea as the gate's median bed); `lane_pauses_all_rms_dbfs` is printed for information only. Pauses must not overlap the muted spans.
 5. Run the measurement (cloud-tested on a synthetic episode: PASS on a filled mute, FAIL on a silent one):
    `python3 measure_mute_fill.py --before host_main.wav --after host_pr.wav --peer <vicky stem> --spans spans.json --pauses pauses.json --out report-<arm>.json`
 6. **Listen** to 3 muted spans on each arm (host stem solo, then the mix): the room should not drop out, and Vicky should not be audible in it.
@@ -21,7 +22,7 @@ without the forced aligner. Audio stays on the Mac. Never post audio, stems or s
 - no run of exact zeros over 10 ms inside a muted span (main fails this, that is the bug)
 - muted-span level within 2 dB of the host's own pauses, every 1/3-octave band within 3 dB
 - audio outside the muted spans (50 ms margin) within 1 LSB of main
-- peer correlation inside the spans at most 0.2
+- peer correlation inside the spans at most 0.2, over spans with at least 0.25 s left after the 50 ms edge margin (shorter windows correlate by chance; the report prints how many spans were used)
 - no click at span edges
 
 Report back: the two JSON reports, the per-track dry-run lines, any listening notes. Do not
