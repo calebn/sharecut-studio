@@ -227,6 +227,28 @@ def render_track_from_timeline(
     )
 
 
+def unfiltered_track_audio(
+    project: EpisodeProject, track: Track, defaults: EffectiveConfig
+) -> tuple[Audio, str] | None:
+    """The tree ``render_track_from_timeline`` renders and its crossfade curve, when that
+    render adds no filter, gate or restore step after the tree; else None."""
+    clips = clips_for_track(project, track.id)
+    envelope = project.volume_envelope_for(track.id)
+    if (
+        not track.media
+        or not clips
+        or track.transcript_gate
+        or (envelope and envelope.points)
+        or any(
+            chain.track_id == track.id and any(not fx.bypass for fx in chain.effects)
+            for chain in project.processing_chains
+        )
+    ):
+        return None
+    curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
+    return placed_track_audio(project, track, clips).audio, curve
+
+
 @dataclass(frozen=True)
 class _ClipContent:
     timeline_start: float

@@ -1,0 +1,141 @@
+"""In-memory evaluation of a declarative ``Audio`` tree, at the evidence sample rate.
+
+``FFmpegEngine.render_timeline`` turns an ``Audio`` tree into a filtergraph. This module
+evaluates the same tree with numpy on the 8 kHz mono decode of each source, so a caller
+that only needs the track's levels skips the render and the wav decode. It supports the
+plain subset (slices, edge fades, fade and triangular crossfade joins, delayed mixes,
+silence, gate-fill sums). Anything else makes :func:`evaluate_audio` return ``None``, and
+the caller keeps the ffmpeg render.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from pathlib import Path
+
+import numpy as np
+
+from podcast_mcp.engines.audio import (
+    Audio,
+    CrossfadeAudio,
+    MaskAudio,
+    MixAudio,
+    OffSpeakerAudio,
+    SequenceAudio,
+    SilenceAudio,
+    SourceAudio,
+    delay_milliseconds,
+    fade_duration,
+    postorder,
+)
+from podcast_mcp.engines.media_seek import MediaSeek
+
+EVAL_SAMPLE_RATE = 8000
+
+
+def evaluate_audio(
+    audio: Audio,
+    *,
+    crossfade_curve: str,
+    load_source: Callable[[Path], np.ndarray],
+    sample_rate: int = EVAL_SAMPLE_RATE,
+) -> np.ndarray | None:
+    """Mono samples the render of ``audio`` decodes to, or None when it is not plain.
+
+    ``load_source`` returns a file's mono decode at ``sample_rate``.
+    """
+    if crossfade_curve != "tri":
+        return None
+    loaded: dict[Path, np.ndarray] = {}
+
+    def source(path: Path) -> np.ndarray:
+        if path not in loaded:
+            loaded[path] = load_source(path)
+        return loaded[path]
+
+    seek = MediaSeek.at(0)
+    stack: list[np.ndarray] = []
+    for node in postorder(audio):
+        match node:
+            case SourceAudio():
+                if node.mute_spans:
+                    return None
+                piece = _slice(source(node.path), node, seek, sample_rate)
+                if node.fill_path is not None:
+                    piece = _with_fill(piece, source(node.fill_path), node, seek, sample_rate)
+                stack.append(_edge_fades(piece, node, sample_rate))
+            case SilenceAudio():
+                stack.append(np.zeros(int(node.duration_sec * sample_rate), dtype=np.float32))
+            case SequenceAudio():
+                count = len(node.tail) + 1
+                parts = stack[-count:]
+                del stack[-count:]
+                stack.append(np.concatenate(parts))
+            case CrossfadeAudio():
+                right, left = stack.pop(), stack.pop()
+                joined = _crossfade(left, right, round(node.overlap_sec * sample_rate))
+                if joined is None:
+                    return None
+                stack.append(joined)
+            case MixAudio():
+                ats = (node.head, *node.tail)
+                parts = stack[-len(ats) :]
+                del stack[-len(ats) :]
+                stack.append(_mix([at.start_sec for at in ats], parts, sample_rate))
+            case MaskAudio() | OffSpeakerAudio():
+                return None
+    return stack[0]
+
+
+def _slice(samples: np.ndarray, node: SourceAudio, seek: MediaSeek, sample_rate: int) -> np.ndarray:
+    first = seek.first_sample(node.src_start, sample_rate)
+    last = seek.first_sample(node.src_end, sample_rate)
+    return samples[first:last]
+
+
+def _with_fill(
+    piece: np.ndarray, fill: np.ndarray, node: SourceAudio, seek: MediaSeek, sample_rate: int
+) -> np.ndarray:
+    under = _slice(fill, node, seek, sample_rate)[: piece.size]
+    summed = piece.copy()
+    summed[: under.size] += under
+    return summed
+
+
+def _edge_fades(piece: np.ndarray, node: SourceAudio, sample_rate: int) -> np.ndarray:
+    if node.fade_in_sec <= 0 and node.fade_out_sec <= 0:
+        return piece
+    length = node.src_end - node.src_start
+    faded = piece.astype(np.float32, copy=True)
+    if node.fade_in_sec > 0:
+        count = min(faded.size, round(fade_duration(length, node.fade_in_sec) * sample_rate))
+        faded[:count] *= _ramp(count, rising=True)
+    if node.fade_out_sec > 0:
+        d = fade_duration(length, node.fade_out_sec)
+        start = round(max(0.0, length - d) * sample_rate)
+        count = min(faded.size - start, round(d * sample_rate))
+        if count > 0:
+            faded[start : start + count] *= _ramp(count, rising=False)
+        faded[start + max(count, 0) :] = 0.0
+    return faded
+
+
+def _ramp(count: int, *, rising: bool) -> np.ndarray:
+    up = np.arange(count, dtype=np.float32) / max(count, 1)
+    return up if rising else 1.0 - up
+
+
+def _crossfade(left: np.ndarray, right: np.ndarray, overlap: int) -> np.ndarray | None:
+    if overlap < 1 or left.size < overlap or right.size < overlap:
+        return None
+    seam = left[left.size - overlap :] * _ramp(overlap, rising=False)
+    seam = seam + right[:overlap] * _ramp(overlap, rising=True)
+    return np.concatenate((left[: left.size - overlap], seam, right[overlap:]))
+
+
+def _mix(starts: list[float], parts: list[np.ndarray], rate: int) -> np.ndarray:
+    offsets = [delay_milliseconds(start) * rate // 1000 for start in starts]
+    mixed = np.zeros(max(o + p.size for o, p in zip(offsets, parts, strict=True)), dtype=np.float32)
+    for offset, part in zip(offsets, parts, strict=True):
+        mixed[offset : offset + part.size] += part
+    return mixed
