@@ -757,3 +757,17 @@ procedure, not a new server-enforced merge hold or an atomic base lock. Existing
 repository settings are unchanged. Additional required contexts, strict settings,
 or a merge queue require an owner decision. Do not arm auto-merge before the
 full release receipt is valid.
+
+## SQLite registry failure diagnostics
+
+For a concurrent registry initialization failure, inspect the first child-process
+traceback before the parent's queue timeout. A terminal `retry_transient` failure
+adds a note to the original SQLite `OperationalError` with `sqlite_errorcode`,
+`sqlite_errorname`, `sqlite_version`, `attempts`, `elapsed_sec`, and
+`terminal_reason`. `not_transient` means the existing classifier rejected that
+attempt; `deadline` means a qualifying error reached the retry deadline.
+The code and name describe the terminal attempt and are `None` when unavailable.
+Elapsed time includes the work in each attempt and the retry sleeps, so a SQLite
+busy wait can carry it past the deadline. The note records no database path,
+SQL, or secret values. A passing native run proves non-reproduction in that run;
+it does not establish the cause of an earlier Windows failure.
