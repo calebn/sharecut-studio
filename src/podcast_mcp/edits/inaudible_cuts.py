@@ -18,7 +18,7 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache, track_level_profile
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.level_profile import LevelProfile, file_level_profile
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import EpisodeProject, Track, Transcript
+from podcast_mcp.models import EpisodeProject, Track, Transcript, TranscriptWord
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
@@ -123,8 +123,20 @@ class CutWordIndex:
 
     @classmethod
     def from_transcript(cls, tr: Transcript | None, track_id: str) -> CutWordIndex:
-        """The index of one transcript's words (none when it is ``None``)."""
-        words = tr.words if tr is not None else []
+        """The index of one transcript's words (none when it is ``None``).
+
+        A proof asks for the same transcript's index dozens of times per cut, so it is kept on
+        the transcript's words until any word changes (``Transcript.memoize_words``, #729). The
+        index is made of tuples and an immutable interval index, so sharing it is safe.
+        """
+        if tr is None:
+            return cls._index_words([], track_id)
+        return tr.memoize_words(
+            f"cut_word_index:{track_id}", lambda: cls._index_words(tr.words, track_id)
+        )
+
+    @classmethod
+    def _index_words(cls, words: list[TranscriptWord], track_id: str) -> CutWordIndex:
         live_spans = tuple(
             (float(w.start), float(w.end)) for w in words if not w.suppressed and w.end > w.start
         )
