@@ -261,6 +261,8 @@ with axe before the collected results are asserted.
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | snap ticks, mute regions and a live trim ghost share the ruler geometry | `gui/web/e2e-compat/timeline-geometry.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the drawer handle drags up and back down repeatedly | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the handle's hit area stays below the timeline's scrollbar and keeps its grip visible | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
@@ -603,7 +605,7 @@ Run it locally (or use `make test-web-e2e`, which runs both suites):
 ```bash
 cd gui/web
 npm ci
-npm run test:e2e:install   # chromium + webkit + firefox
+npm run test:e2e:install   # chromium + webkit
 npm run build
 npm run test:e2e:compat
 ```
