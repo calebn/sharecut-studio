@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import math
 import subprocess
 from collections.abc import Iterable, Mapping, Sequence
@@ -390,6 +391,23 @@ def _apply_replace_gap_pad(
     return samples
 
 
+def _cut_copy(project: EpisodeProject) -> EpisodeProject:
+    """A deep copy of ``project`` that keeps its transcript words as the same objects.
+
+    A cut archives, restores and rebuilds words (new lists, new archive entries) but
+    never changes a word's own fields (``transcript_sync``: word times stay source
+    seconds and survivors are never shifted), and the words are most of what a deep
+    copy walks.
+    """
+    memo: dict[int, object] = {}
+    for transcript in project.transcripts:
+        for word in transcript.words:
+            memo[id(word)] = word
+        for archived in transcript.archived_words:
+            memo[id(archived.word)] = archived.word
+    return copy.deepcopy(project, memo)
+
+
 def _apply_source_remove(
     project: EpisodeProject,
     edit: EditDecision,
@@ -414,7 +432,7 @@ def _apply_source_remove(
 
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
 
-    candidate = project.model_copy(deep=True)
+    candidate = _cut_copy(project)
     pads: list[cut_effects.PadEffect] = []
     manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
     with ExitStack() as proof:
@@ -851,7 +869,7 @@ def approve_edits(
     on_timeline = {e.id: edit_timeline_range(project, e) for e in removes}
     asked: list[CutSpeechConfirmation] = []
     asked_ids: list[str] = []
-    mute_base = project.model_copy(deep=True)
+    mute_base = _cut_copy(project)
     mute_ids = applied_ids.copy()
     excluded: set[str] = set()
     demoted: list[str] = []
@@ -865,7 +883,7 @@ def approve_edits(
         return any(_beside(a, x) for x in others)
 
     while True:
-        project = mute_base.model_copy(deep=True)
+        project = _cut_copy(mute_base)
         applied_ids = mute_ids.copy()
         applied_removes = []
         survivors = [edit for edit in removes if edit.id not in excluded]
