@@ -183,6 +183,7 @@ export function useProxyTransport(): boolean {
     if (!projectPath || !isShareProjectKey(projectPath)) return;
     let disposed = false;
     acceptedKeyRef.current = null;
+    ownedErrorRef.current = null;
     recoveredRefs.current.clear();
     pendingManifest.current = null;
     try {
