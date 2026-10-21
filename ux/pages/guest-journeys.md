@@ -327,7 +327,8 @@ flowchart TD
    **Resume saving** and **Download full-quality recording** for an incomplete
    or stalled take. The host's panel shows the same two states for every
    recorded participant and segment. Download produces one ZIP containing all
-   retained segments. This device's copy stays in browser storage
+   retained segments, plus `room-tone.wav` when this device still holds
+   your room-tone bed. This device's copy stays in browser storage
    (`Sharecut Recordings/`) until a fresh host status confirms the segment is
    on the timeline.
    The finalized WAV is then reclaimed only when its SHA-256 and byte length
