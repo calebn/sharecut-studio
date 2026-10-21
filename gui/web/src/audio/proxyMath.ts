@@ -4,7 +4,6 @@ import {
   isCutJoin,
 } from "../edit/joinRender";
 import { DocumentCommand } from "../types/documentCommands.generated";
-import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow, ProjectView } from "../types/project";
 import { originTrackId } from "../utils/timebase";
 import {
@@ -14,6 +13,7 @@ import {
   muteSpansOf,
   type VolumePoint,
 } from "./gainCurve";
+import { placeLikeRender } from "./renderClock";
 
 export interface ProxyArtifactManifest {
   readonly hash: string;
@@ -324,95 +324,6 @@ export function offsetInChunk(
   overlapMs: number,
 ): number {
   return Math.max(0, srcSec - chunkFileStartSec(idx, chunkSec, overlapMs));
-}
-
-/** Seconds render overlaps `clip` into its left neighbour (0 unless the join blends). */
-function crossfadeOverlapSec(clip: ClipRow): number {
-  if (
-    !isCrossfadeJoin(clip) ||
-    clip.join_left_clip_id == null ||
-    clip.join_crossfade_blocked
-  )
-    return 0;
-  const ms = clip.join_crossfade_ms ?? 0;
-  if (ms <= 0) return 0;
-  // `timeline_render._place_clips`: overlap is capped at half the right clip.
-  const body = Math.max(0, clip.timeline_end - clip.timeline_start);
-  return Math.max(0.001, Math.min(ms / 1000, body * 0.5));
-}
-
-/**
- * Place each lane's clips as render does: a crossfade join overlaps the two
- * clips and pulls everything after it earlier by the overlap, so the preview
- * plays the same audio on the same clock as the export. `overlapIn` is the
- * overlap at a clip's incoming join, `overlapOut` at its outgoing one.
- */
-function placeLikeRender(clips: readonly ClipRow[]): {
-  readonly placed: readonly ClipRow[];
-  readonly overlapIn: ReadonlyMap<string, number>;
-  readonly overlapOut: ReadonlyMap<string, number>;
-} {
-  const overlapIn = new Map<string, number>();
-  const overlapOut = new Map<string, number>();
-  const placedStart = new Map<string, number>();
-  const byTrack = new Map<string, ClipRow[]>();
-  for (const clip of clips) {
-    const lane = byTrack.get(clip.track_id);
-    if (lane) lane.push(clip);
-    else byTrack.set(clip.track_id, [clip]);
-  }
-  // `timeline_render._place_clips`: a clip's start is its authored start less
-  // the clock shift so far (snapped to the frontier inside the join
-  // tolerance); a blending join starts it `overlap` before the left clip ends.
-  for (const lane of byTrack.values()) {
-    const ordered = [...lane].sort(
-      (a, b) => a.timeline_start - b.timeline_start,
-    );
-    let prev: ClipRow | undefined;
-    let componentEnd = Number.NaN;
-    let frontier = 0;
-    let authoredFrontier = 0;
-    let clockShift = 0;
-    for (const clip of ordered) {
-      const body = Math.max(0, clip.timeline_end - clip.timeline_start);
-      const overlap =
-        prev && clip.join_left_clip_id === prev.id
-          ? crossfadeOverlapSec(clip)
-          : 0;
-      let start: number;
-      if (overlap > 0 && prev) {
-        overlapIn.set(clip.id, overlap);
-        overlapOut.set(prev.id, overlap);
-        start = componentEnd - overlap;
-        componentEnd += body - overlap;
-      } else {
-        start = Math.max(0, clip.timeline_start - clockShift);
-        if (Math.abs(start - frontier) <= JOIN_GAP_TOLERANCE_SEC)
-          start = frontier;
-        if (prev && Math.abs(start - componentEnd) < 1e-9) {
-          componentEnd += body;
-        } else {
-          componentEnd = start + body;
-        }
-      }
-      placedStart.set(clip.id, start);
-      frontier = Math.max(frontier, componentEnd);
-      authoredFrontier = Math.max(authoredFrontier, clip.timeline_end);
-      clockShift = authoredFrontier - frontier;
-      prev = clip;
-    }
-  }
-  const placed = clips.map((clip) => {
-    const start = placedStart.get(clip.id) ?? clip.timeline_start;
-    return start === clip.timeline_start
-      ? clip
-      : {
-          ...clip,
-          timeline_start: start,
-          timeline_end: start + (clip.timeline_end - clip.timeline_start),
-        };
-  });
-  return { placed, overlapIn, overlapOut };
 }
 
 export function buildSchedule(
