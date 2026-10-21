@@ -64,6 +64,12 @@ CLIP_LAYOUTS = {
         (8, 12.2, 7.8, 40, 40, CROSSFADE),
     ],
     "pads": [(0, 3, 0, 15, 25, FADE), (3.4, 8, 4.2, 15, 25, FADE), (8.5, 12, 10.1, 15, 25, FADE)],
+    "reordered and repeated slices": [
+        (8.5, 12, 0, 15, 25, FADE),
+        (0, 3, 3.5, 15, 25, FADE),
+        (8.5, 10, 7.0, 15, 25, FADE),
+        (3.4, 8, 9.0, 15, 25, FADE),
+    ],
     "mixed joins and pads": [
         (0, 3, 0, 15, 25, FADE),
         (3.4, 8, 3, 40, 40, CROSSFADE),
@@ -376,6 +382,20 @@ def test_chain_track_cache_takes_the_fast_path_without_a_render(
     assert fast.sample_rate == RATE
     assert fast.recording_profile is not None
     assert fast.samples.size == 141400
+
+
+def test_reordered_slices_take_the_fast_path_without_a_render(
+    tmp_path: Path, render_calls: list[str]
+) -> None:
+    _ffmpeg_or_skip()
+    project = _chained(_project(tmp_path, "reordered and repeated slices"))
+
+    caches = audio_audit.build_track_rms_caches(
+        project, track_ids=["caleb"], unprocessed=True, defaults=load_defaults()
+    )
+
+    assert render_calls == []
+    assert caches.caches["caleb"].samples.size > 0
 
 
 def test_fast_cache_equals_the_rendered_cache(tmp_path: Path, render_calls: list[str]) -> None:
