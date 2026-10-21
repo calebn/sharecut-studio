@@ -8,15 +8,16 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from podcast_mcp.util.fingerprint import file_stamp
+
 FileCertificate = tuple[int, int, int, int, int]
 
 
 def file_certificate(path: Path) -> FileCertificate | None:
     try:
-        stat = path.stat()
+        return file_stamp(path)
     except FileNotFoundError:
         return None
-    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
 
 
 @dataclass(frozen=True)

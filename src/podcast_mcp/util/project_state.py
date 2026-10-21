@@ -22,6 +22,7 @@ from podcast_mcp.models import (
     workspace_artifacts_dir,
 )
 from podcast_mcp.util.file_locks import file_lock_holder_pid, shared_file_lock
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import CancelledProgress
@@ -173,8 +174,7 @@ def snapshot_project(project: EpisodeProject) -> EpisodeProject:
 
 def file_revision(path: Path) -> FileRevision:
     """Identity of a file that may be atomically replaced."""
-    stat = path.stat()
-    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+    return file_stamp(path).revision
 
 
 def file_revision_key(path: Path) -> str:

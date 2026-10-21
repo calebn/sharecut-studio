@@ -555,9 +555,9 @@ per recording, not per pause.
 
 ### Which fingerprint answers which question
 
-The repo has three kinds of revision check, and they answer different questions (#1946 surveys the call sites):
+The repo has three kinds of revision check, and they answer different questions (#1946, #1895):
 
-- **File identity** (a stat stamp: `util/project_state.py` `(dev, ino, size, mtime_ns)`, `services/document_sync/snapshot_cache.py` with `ctime_ns` added, `util/batch_scope.py` and `util/model_manifest.py` `(mtime_ns, size)`, the play-cache keys `path:mtime_ns`): "is this the same file I looked at before?" Cheap, no read. The extra parts differ on purpose: `ctime_ns` and `ino` catch a replaced file with a restored mtime, and a path in the key keeps shared caches apart.
+- **File identity** (a stat stamp, `util/fingerprint.py` `file_stamp`: `(dev, ino, size, mtime_ns, ctime_ns)`): "is this the same file I looked at before?" Cheap, no read. Each site keeps the part it always did and builds its own key from it: `util/project_state.py` `.revision` `(dev, ino, size, mtime_ns)`, `services/document_sync/snapshot_cache.py`, `project/store.py`, `services/document/boundary.py` and `services/collaboration/review_versions.py` the whole stamp, `util/batch_scope.py`, `util/model_manifest.py`, the sync poll meta and the golden-ear fingerprint `.content` `(size, mtime_ns)`, the play-cache keys `path:mtime_ns` (`mtime_ns_if_file`). The extra parts differ on purpose: `ctime_ns` and `ino` catch a replaced file with a restored mtime, and a path in the key keeps shared caches apart. A few readers keep their own `stat` on purpose, because their keys carry other parts or compare against a stored value (pinned in `tests/test_fingerprint.py`).
 - **Render inputs** (the `.hash` beside `artifacts/tracks/<id>.wav`, `premix.wav` and `mastered.wav`): "were these bytes built from the project as it is now?" It names the project snapshot and render parameters, not the file, and is written after the `os.replace` so it only ever names the bytes beside it (#356).
 - **Content** (the proxy-variant hashes in `services/media/proxy_variants.py`): "is this the same audio?", independent of where or when it was written.
 

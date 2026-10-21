@@ -31,6 +31,7 @@ from podcast_mcp.project.io import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.wav import open_wav
@@ -96,8 +97,8 @@ def min_gated_n_for(limit: int) -> int:
 
 def source_fingerprint(src_file: Path) -> dict[str, Any]:
     path = src_file.resolve()
-    st = path.stat()
-    return {"path": str(path), "mtime_ns": st.st_mtime_ns, "size": st.st_size}
+    size, mtime_ns = file_stamp(path).content
+    return {"path": str(path), "mtime_ns": mtime_ns, "size": size}
 
 
 def _copy_premix(src_ws: Path, dest_ws: Path) -> None:
