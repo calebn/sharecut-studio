@@ -9,6 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.engines.models.whisper import resolve_whisper_model
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs.catalog import JobCatalog
@@ -33,7 +34,6 @@ from podcast_mcp.services.media import (
 )
 from podcast_mcp.services.pipeline import PipelineService, run_bootstrap
 from podcast_mcp.util.progress import bind_progress
-from podcast_mcp.engines.models.whisper import resolve_whisper_model
 
 
 class JobManager:
