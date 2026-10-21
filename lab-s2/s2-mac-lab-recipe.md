@@ -1,0 +1,36 @@
+# S2 (#1944) Mac lab before/after recipe, with S1 and PR 1949
+
+Arms, all from the same Daniela clone state, one run each at N=20 and N=102 (same machine, quiet, record load average):
+
+| Arm | Ref | What it adds |
+| --- | --- | --- |
+| A | 7741ffc | main before any S2 change |
+| B | 632704d | + PR 1949 (transcript word index kept on the words) |
+| C | PR 1950 head (efac330) | + one autocorrelation answer per distinct frame per batch |
+| D | S1 (PR 1948) head | chain tracks on the evaluator (separate thread's recipe) |
+| E | D + C merged | the combination, once S1 lands |
+
+Later S2 PRs (audio facts store, `_owned_peer_frames` readers) add arms F, G on this table.
+
+Build and run per arm (the S1 recipe's steps 1 to 3 give the clone and the warm state). For S2 use the in-process harness so the autocorrelation hit rate is read too:
+
+    git checkout <ref>   # in a worktree, never the main checkout
+    cp -Rc <daniela-102-state> /tmp/arm-<X>   # fresh clone per arm
+    nice -n 10 python lab-s2/autocorr_hits.py /tmp/arm-<X>/episode.project.json 102
+
+(The S1 recipe's HTTP route `POST /api/document/command` with `ApproveEdits` is the same code path; use it for the arm that must match S1's numbers exactly. Never port 8801, never `pkill -f "gui --project"`.)
+
+Compare with the S1 comparer: `python lab-s1/diff_projects.py <arm-A project json> <arm-X project json>`.
+
+Pass criteria (any difference in approved or held ids is a FAIL, even a single one):
+1. Project JSON after the batch equals arm A's (ids and timestamps ignored, floats within 1 ms): same clips, same edit-log rows, same pending list.
+2. The printed `held` list is identical across arms.
+3. Run the whole matrix twice: once with the forced word aligner (`pipeline run --only transcribe_tracks --retime-words`) and once with Whisper word times alone (poteto lab rule: boundary-sensitive changes are checked both ways).
+4. Report per arm: `wall_sec`, `autocorr_calls`, `autocorr_distinct` (hit rate = 1 - distinct/calls), load average.
+
+What the lab must settle:
+- Arm B vs A: the word index memo is exact by construction (invalidated on any word or list change); expect ids equal and the transcript scan cost gone. Report the wall delta.
+- Arm C vs B: on the cloud tile the audio repeats 24 times, so the 99.9% hit rate is a lab number. On Daniela the hit rate is what decides whether PR 1950 is worth keeping: if distinct/calls stays above ~0.7, say so and PR 1950 should be closed instead of merged.
+- Peak memory (RSS) of arm C at N=102 should stay below arm B plus about 100 MB (16-byte digest plus a tuple per distinct frame, kept until the batch ends).
+
+Daniela audio stays on the Mac; nothing from the clone, its audio or its results beyond the numbers above goes into the repo or a PR comment.
