@@ -292,6 +292,7 @@ with axe before the collected results are asserted.
 | the drawer handle drags up and back down repeatedly | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the handle's hit area stays below the timeline's scrollbar and keeps its grip visible | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | double-clicking the drawer handle collapses it and the rail handle reopens it at the same height | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the collapsed rail handle stays above the timeline's horizontal scrollbar | `gui/web/e2e-compat/drawer-scrollbar.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |

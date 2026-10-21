@@ -1,5 +1,6 @@
 import { type PointerEvent, useEffect, useRef } from "react";
 import { executePointerCommand } from "../commands/pointer";
+import { useResizeObserver } from "../ui/useResizeObserver";
 
 /** An upward swipe this long (px) reopens, so a thumb never has to land a tap. */
 export const REOPEN_SWIPE_PX = 8;
@@ -28,6 +29,21 @@ export function CollapsedDrawerHandleView({
       buttonRef.current?.focus({ preventScroll: true });
     }
   }, []);
+  const railRef = useRef<HTMLDivElement>(null);
+  // The handle reaches up over the timeline from the row's line, which puts
+  // it on the timeline's horizontal scrollbar; lift it by the scrollbar's
+  // thickness so a vertical swipe never grabs the scrollbar (#1966). A
+  // scrollbar appearing resizes the content, not the scroller's own box, so
+  // the content is observed too.
+  const scroller = () =>
+    document.querySelector<HTMLElement>(".timeline-scroll");
+  useResizeObserver([scroller, () => scroller()?.firstElementChild], () => {
+    const el = scroller();
+    railRef.current?.style.setProperty(
+      "--drawer-reopen-lift",
+      `${el ? el.offsetHeight - el.clientHeight : 0}px`,
+    );
+  });
   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     swipe.current = { pointerId: e.pointerId, startY: e.clientY };
   };
@@ -43,7 +59,7 @@ export function CollapsedDrawerHandleView({
     swipe.current = null;
   };
   return (
-    <div className="drawer-reopen">
+    <div className="drawer-reopen" ref={railRef}>
       <button
         ref={buttonRef}
         type="button"
