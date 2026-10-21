@@ -108,6 +108,7 @@ pins their transitive dependencies. The shared installer selects this group with
 closure, and skips editable project installation. The four generated-file checks
 run against checked-out source after `npm ci`. Contributor installs and browser
 suites keep their existing extras. See [locked Python installation](testing-ci.md#locked-python-installation).
+CI places pytest, browser, and extras temporary work in [runner-owned storage](testing-ci.md#temporary-storage).
 
 ## Optional downloads and extras
 

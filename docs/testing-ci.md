@@ -149,6 +149,18 @@ covered only in `tests/test_record_host_reconnect.py`
 (`test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold`,
 `test_restart_without_leave_still_pauses_on_host_join`).
 
+### Temporary storage
+
+The `pytest` and `frontend-e2e-suites` jobs in `test.yml` and the `extras` job in
+`extras-import.yml` first write `TMPDIR=$RUNNER_TEMP` to `$GITHUB_ENV` before
+checkout or installation. Later steps inherit that value. Python temporary
+directories, clean extra environments, and Node E2E fixture copies therefore use
+the runner-owned temporary directory instead of a potentially quota-limited `/tmp`
+tmpfs. The pytest context artifact, browser dependency-install log, and extras
+probe log record `TMPDIR` and `df -hT /tmp "$TMPDIR"` before their workloads.
+The relocation preserves fixture isolation, cleanup ownership, concurrency, and
+the 95% coverage gate.
+
 ### Locked Python installation
 
 `.github/actions/install-locked-python` serves Linux and Windows callers with

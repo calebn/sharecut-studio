@@ -47,6 +47,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - name: Use runner temporary storage
+        run: printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -66,4 +69,7 @@ jobs:
       - name: Import each extra in a clean venv
         env:
           PODCAST_CHECK_EXTRAS: "1"
-        run: uv run --no-sync pytest -o addopts="" -n 3 --timeout=1500 -m extras_install tests/test_extras_import.py
+        run: |
+          printf 'TMPDIR: %s\n' "$TMPDIR"
+          df -hT /tmp "$TMPDIR"
+          uv run --no-sync pytest -o addopts="" -n 3 --timeout=1500 -m extras_install tests/test_extras_import.py
