@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import venv
@@ -91,11 +92,21 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     }
     browser_steps = jobs["frontend-e2e-suites"]["steps"]
     browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
-    assert browser["run"] == (
-        "printf 'TMPDIR: %s\\n' \"$TMPDIR\"\n"
-        'df -hT /tmp "$TMPDIR"\n'
-        "npm ci\nnpx playwright install --with-deps ${{ matrix.browser }}\n"
-    )
+    assert browser["run"].splitlines() == [
+        "printf 'TMPDIR: %s\\n' \"$TMPDIR\"",
+        'df -hT /tmp "$TMPDIR"',
+        "python - <<'PY'",
+        "import os",
+        "from pathlib import Path",
+        "",
+        "from podcast_mcp.util.registry_privacy import registry_privacy",
+        "",
+        'with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:',
+        "    verify()",
+        "PY",
+        "npm ci",
+        "npx playwright install --with-deps ${{ matrix.browser }}",
+    ]
     assert "if" not in browser and not browser.get("continue-on-error")
     matrix = jobs["frontend-e2e-suites"]["strategy"]["matrix"]
     assert matrix == "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
@@ -539,16 +550,46 @@ def test_ci_jobs_use_runner_owned_temporary_storage(
     assert "if" not in step and not step.get("continue-on-error")
     runner_temp = tmp_path / "runner temp"
     runner_temp.mkdir()
+    controls = tmp_path / "controls"
+    controls.mkdir()
+    mktemp = controls / "mktemp"
+    mktemp.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "%s\\n" "$@" > "$MKTEMP_LOG"\n'
+        'test "$#" -eq 2\n'
+        'test "$1" = "-d"\n'
+        'test "$2" = "/var/tmp/sharecut-ci.XXXXXX"\n'
+        'exec "$REAL_MKTEMP" -d "$PRIVATE_TEMP_PARENT/sharecut-ci.XXXXXX"\n'
+    )
+    mktemp.chmod(0o755)
+    real_mktemp = shutil.which("mktemp")
+    assert real_mktemp is not None
+    mktemp_log = tmp_path / "mktemp-args"
     github_env = tmp_path / "github-env"
     subprocess.run(
         ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", step["run"]],
-        env={**os.environ, "RUNNER_TEMP": str(runner_temp), "GITHUB_ENV": str(github_env)},
+        env={
+            **os.environ,
+            "PATH": str(controls) + os.pathsep + os.environ["PATH"],
+            "RUNNER_TEMP": str(runner_temp),
+            "GITHUB_ENV": str(github_env),
+            "MKTEMP_LOG": str(mktemp_log),
+            "REAL_MKTEMP": real_mktemp,
+            "PRIVATE_TEMP_PARENT": str(runner_temp),
+        },
         check=True,
         capture_output=True,
         text=True,
     )
     exported = dict(line.split("=", 1) for line in github_env.read_text().splitlines())
-    assert exported == {"TMPDIR": str(runner_temp)}
+    assert mktemp_log.read_text().splitlines() == ["-d", "/var/tmp/sharecut-ci.XXXXXX"]
+    assert set(exported) == {"TMPDIR"}
+    private_temp = Path(exported["TMPDIR"])
+    assert private_temp.parent == runner_temp
+    assert private_temp.name.startswith("sharecut-ci.")
+    assert private_temp.stat().st_mode & 0o777 == 0o700
+    assert private_temp.stat().st_uid == os.geteuid()
     env = {**os.environ, **exported}
     python = subprocess.run(
         [sys.executable, "-c", "import tempfile; print(tempfile.gettempdir())"],
@@ -564,8 +605,8 @@ def test_ci_jobs_use_runner_owned_temporary_storage(
         capture_output=True,
         text=True,
     )
-    assert Path(python.stdout.strip()).resolve() == runner_temp.resolve()
-    assert Path(node.stdout.strip()).resolve() == runner_temp.resolve()
+    assert Path(python.stdout.strip()).resolve() == private_temp.resolve()
+    assert Path(node.stdout.strip()).resolve() == private_temp.resolve()
 
 
 def test_only_the_three_quota_affected_jobs_select_runner_temporary_storage() -> None:
@@ -598,3 +639,85 @@ def test_quota_affected_jobs_record_temporary_paths_and_filesystem_capacity(
     assert "printf 'TMPDIR: %s\\n' \"$TMPDIR\"" in step["run"]
     assert 'df -hT /tmp "$TMPDIR"' in step["run"]
     assert "if" not in step and not step.get("continue-on-error")
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job_name", "step_name"),
+    [
+        ("test.yml", "pytest", "Record pytest run context"),
+        ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines"),
+        ("extras-import.yml", "extras", "Import each extra in a clean venv"),
+    ],
+)
+def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
+    workflow: str, job_name: str, step_name: str, tmp_path: Path
+) -> None:
+    job = load_github_yaml(ROOT / ".github/workflows" / workflow)["jobs"][job_name]
+    step = next(step for step in job["steps"] if step.get("name") == step_name)
+    code = step["run"].split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
+    assert 'with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:' in code
+    command = "uv run --no-sync python" if job_name == "extras" else "python"
+    start = step["run"].index(command + " - <<'PY'")
+    end = step["run"].index("\nPY", start) + len("\nPY")
+    preflight = step["run"][start:end]
+    if job_name == "pytest":
+        workload = next(s for s in job["steps"] if s.get("name") == "Run tests with coverage gate")
+        assert job["steps"].index(step) < job["steps"].index(workload)
+    else:
+        workload_command = "uv run --no-sync pytest" if job_name == "extras" else "npm ci"
+        assert end < step["run"].index(workload_command)
+    private_temp = tmp_path / "private temp"
+    private_temp.mkdir(mode=0o700)
+    sentinel = tmp_path / "workload-started"
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pyproject.toml").write_bytes((ROOT / "pyproject.toml").read_bytes())
+    for mode, accepted in [(0o700, True), (0o755, False)]:
+        private_temp.chmod(mode)
+        permissions = {
+            path: (path.stat().st_uid, path.stat().st_mode)
+            for path in (private_temp, *private_temp.parents)
+        }
+        before = list(private_temp.iterdir())
+        checked = subprocess.run(
+            [sys.executable, "-c", code],
+            env={**os.environ, "TMPDIR": str(private_temp)},
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert (checked.returncode == 0) == accepted, checked.stderr
+        assert private_temp.stat().st_mode & 0o777 == mode
+        assert list(private_temp.iterdir()) == before
+        sentinel.unlink(missing_ok=True)
+        result = subprocess.run(
+            [
+                "bash",
+                "--noprofile",
+                "--norc",
+                "-e",
+                "-o",
+                "pipefail",
+                "-c",
+                preflight + '\nprintf reached > "$PREFLIGHT_SENTINEL"',
+            ],
+            env={
+                **os.environ,
+                "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"],
+                "TMPDIR": str(private_temp),
+                "PREFLIGHT_SENTINEL": str(sentinel),
+                "UV_PROJECT_ENVIRONMENT": sys.prefix,
+            },
+            cwd=project,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert (result.returncode == 0) == accepted, result.stderr
+        assert sentinel.exists() == accepted
+        assert not (project / ".venv").exists()
+        assert {
+            path: (path.stat().st_uid, path.stat().st_mode) for path in permissions
+        } == permissions
+        if not accepted:
+            assert "RegistryPrivacyError" in result.stderr
