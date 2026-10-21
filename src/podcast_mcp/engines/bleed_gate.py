@@ -167,7 +167,8 @@ class BleedGatePlan:
         from podcast_mcp.edits.bleed_fill import PCM16_SCALE
 
         noise = self.fill.noise(first_frame, count, rate)
-        return ((1.0 - gain) * noise * np.float32(PCM16_SCALE)).astype(np.float32)
+        # Whole 16-bit steps, so the gate and Bleed Restore's subtraction see the same value.
+        return np.rint((1.0 - gain) * noise * np.float32(PCM16_SCALE)).astype(np.float32)
 
     @cached_property
     def _attenuation_index(self) -> HalfOpenIntervalIndex:
@@ -963,7 +964,7 @@ def _mute_fill(
 
     try:
         made = measure_bleed_fill(project, track, quiet_runs)
-    except (OSError, ValueError, wave.Error, CalledProcessError) as exc:
+    except Exception as exc:  # a fill that cannot be measured never fails the plan
         return None, f"room tone unreadable: {exc}"
     return (None, made) if isinstance(made, str) else (made, None)
 
