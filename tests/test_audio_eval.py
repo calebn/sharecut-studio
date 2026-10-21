@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import audio_audit, audio_eval, timeline_render
 from podcast_mcp.engines.audio import (
     At,
