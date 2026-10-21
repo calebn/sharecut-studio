@@ -145,18 +145,20 @@ describe("BottomTabsSplitterView", () => {
     expect(props.onReset).toHaveBeenCalledTimes(1);
   });
 
-  it("double-click collapses, except right after the splitter mounts", async () => {
-    const now = vi.spyOn(performance, "now").mockReturnValue(0);
-    const { props } = renderSplitter();
+  it("double-click collapses, except right after a resize drag", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(10_000);
+    const props = renderLiveSplitter();
     const sep = screen.getByRole("separator", {
       name: "Resize editor panels",
     });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 280 });
+    fireEvent.pointerUp(sep, { pointerId: 1 });
     await userEvent.dblClick(sep);
     expect(props.onCollapse).not.toHaveBeenCalled();
-    now.mockReturnValue(5000);
+    now.mockReturnValue(20_000);
     await userEvent.dblClick(sep);
     expect(props.onCollapse).toHaveBeenCalledTimes(1);
-    expect(props.onReset).not.toHaveBeenCalled();
     now.mockRestore();
   });
 

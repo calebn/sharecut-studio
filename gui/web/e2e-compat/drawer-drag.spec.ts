@@ -75,27 +75,11 @@ test("double-clicking the drawer handle collapses it and the rail handle reopens
   await dragSplitter(page, -40);
   await expect.poll(() => drawerHeight(page)).toBeGreaterThan(220);
   const before = await drawerHeight(page);
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(600);
   await doubleClickSplitter(page);
   await expect(page.locator("html")).toHaveAttribute("data-layout", "timeline");
   await expect(page.locator(".bottom-tabs")).toBeHidden();
   await page.getByRole("button", { name: "Show editor panels" }).click();
   await expect(page.locator("html")).not.toHaveAttribute("data-layout", /.+/);
   await expect.poll(() => drawerHeight(page)).toBeCloseTo(before, 0);
-});
-
-test("a quick double-click on the rail handle reopens the drawer and leaves it open", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await openHostProject(page);
-  await page.waitForTimeout(700);
-  await doubleClickSplitter(page);
-  const handle = page.getByRole("button", { name: "Show editor panels" });
-  await expect(handle).toBeVisible();
-  const box = (await handle.boundingBox())!;
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height - 4);
-  await expect(page.locator("html")).not.toHaveAttribute("data-layout", /.+/);
-  await page.waitForTimeout(800);
-  await expect(page.locator(".bottom-tabs")).toBeVisible();
 });

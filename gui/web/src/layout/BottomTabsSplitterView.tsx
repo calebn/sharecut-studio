@@ -39,8 +39,8 @@ export interface BottomTabsSplitterViewProps {
   onCollapse: () => void;
 }
 
-/** A double-click this soon after the splitter mounts is the tail of a reopen tap. */
-const REOPEN_DOUBLE_CLICK_MS = 600;
+/** A double-click this soon after a resize drag ended is a drag plus a click, not a double-click. */
+const POST_DRAG_DOUBLE_CLICK_MS = 500;
 
 /** How far past the minimum a drag must pull before release collapses. */
 export const COLLAPSE_OVERSHOOT_REM = 1.5;
@@ -63,7 +63,7 @@ export function BottomTabsSplitterView({
   onCollapse,
 }: BottomTabsSplitterViewProps) {
   const separatorRef = useRef<HTMLDivElement>(null);
-  const mountedAt = useRef(performance.now());
+  const lastDragEnd = useRef(Number.NEGATIVE_INFINITY);
   const remSignalRef = useRef<HTMLSpanElement>(null);
   const readGeometry = useCallback((): PanelGeometry => {
     const policy = getPolicyBounds?.() ?? { minRem, maxRem };
@@ -139,6 +139,7 @@ export function BottomTabsSplitterView({
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
+    if (drag.painted !== null) lastDragEnd.current = performance.now();
     stopListening.current?.();
     stopListening.current = null;
     setCollapseArmed(false);
@@ -312,9 +313,10 @@ export function BottomTabsSplitterView({
         onBlur={() => finish(true)}
         onDoubleClick={() => {
           if (dragRef.current) return;
-          // Tapping the rail handle reopens the drawer and puts this splitter
-          // under the second tap of a double-click; that must not close it again.
-          if (performance.now() - mountedAt.current < REOPEN_DOUBLE_CLICK_MS)
+          if (
+            performance.now() - lastDragEnd.current <
+            POST_DRAG_DOUBLE_CLICK_MS
+          )
             return;
           onCollapse();
         }}
