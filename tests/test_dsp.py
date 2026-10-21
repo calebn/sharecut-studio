@@ -333,3 +333,42 @@ def test_valley_basin_is_the_lower_half_of_the_valley_in_every_recording_level()
     assert np.flatnonzero(basin).tolist() == [3, 4, 5, 6, 7]
     assert np.array_equal(valley_basins(levels + 40.0, 10.0), basin)
     assert not valley_basins(levels, 21.0).any()
+
+
+def test_autocorr_peak_is_answered_once_per_frame_inside_a_batch_scope(monkeypatch) -> None:
+    from podcast_mcp.util import dsp
+    from podcast_mcp.util.batch_scope import batch_scope
+
+    sr = 8000
+    t = np.arange(1600) / sr
+    voiced = np.sin(2 * np.pi * 200 * t)
+    calls = []
+    real = dsp._autocorr_peak
+
+    def counting(samples, rate, **kwargs):
+        calls.append(1)
+        return real(samples, rate, **kwargs)
+
+    monkeypatch.setattr(dsp, "_autocorr_peak", counting)
+    expected = real(voiced, sr, fmin=70, fmax=400)
+
+    assert autocorr_peak(voiced, sr, fmin=70, fmax=400) == expected
+    assert autocorr_peak(voiced, sr, fmin=70, fmax=400) == expected
+    assert len(calls) == 2  # outside a scope nothing is kept
+
+    calls.clear()
+    with batch_scope():
+        assert autocorr_peak(voiced, sr, fmin=70, fmax=400) == expected
+        assert autocorr_peak(voiced.copy(), sr, fmin=70, fmax=400) == expected
+        assert len(calls) == 1
+        # What the answer depends on is part of the key: the frame, the rate, the pitch
+        # range, the interior rule and the sample type.
+        assert autocorr_peak(voiced * 0.5, sr, fmin=70, fmax=400) == pytest.approx(expected)
+        assert autocorr_peak(voiced, sr, fmin=70, fmax=300) == real(voiced, sr, fmin=70, fmax=300)
+        assert autocorr_peak(voiced, sr, fmin=70, fmax=400, interior=True) == real(
+            voiced, sr, fmin=70, fmax=400, interior=True
+        )
+        assert autocorr_peak(voiced.astype(np.float32), sr, fmin=70, fmax=400) == real(
+            voiced.astype(np.float32), sr, fmin=70, fmax=400
+        )
+        assert len(calls) == 5

@@ -6,12 +6,15 @@ level floors and pitch ranges cannot silently drift between private copies.
 
 from __future__ import annotations
 
+import hashlib
 import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
 import numpy as np
+
+from podcast_mcp.util.batch_scope import in_scope, scoped
 
 # What a frame of zeros reads: the one absolute level a detector may compare with, since
 # it is the same at any recording gain (docs/audio-engineering.md § Detection levels).
@@ -293,6 +296,32 @@ def frame_rms_db_stream(
 
 
 def autocorr_peak(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    fmin: float,
+    fmax: float,
+    interior: bool = False,
+) -> tuple[float, float] | None:
+    """:func:`_autocorr_peak`, answered once per distinct frame while a batch scope is open.
+
+    Each cut of a batch re-reads the same audio, and the autocorrelation is the costliest
+    step of the voicing test. The answer depends on the frame's samples alone, so the
+    frame's digest (not its position) is the key: the same audio read at another time, or
+    after an earlier cut moved it, is the same answer.
+    """
+    if not in_scope():
+        return _autocorr_peak(samples, sample_rate, fmin=fmin, fmax=fmax, interior=interior)
+    digest = hashlib.blake2b(
+        np.ascontiguousarray(samples).tobytes(), digest_size=16, person=samples.dtype.str.encode()
+    ).digest()
+    return scoped(
+        ("autocorr_peak", sample_rate, fmin, fmax, interior, samples.shape, digest),
+        lambda: _autocorr_peak(samples, sample_rate, fmin=fmin, fmax=fmax, interior=interior),
+    )
+
+
+def _autocorr_peak(
     samples: np.ndarray,
     sample_rate: int,
     *,

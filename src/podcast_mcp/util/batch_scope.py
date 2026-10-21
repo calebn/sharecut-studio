@@ -34,6 +34,11 @@ def batch_scope() -> Iterator[None]:
         _scope.reset(token)
 
 
+def in_scope() -> bool:
+    """Whether a batch scope is open, so a caller can skip building a key it would not use."""
+    return _scope.get() is not None
+
+
 def scoped(key: Hashable, make: Callable[[], T]) -> T:
     """``make()``, or the scope's earlier result for ``key``. Outside a scope, ``make()``."""
     scope = _scope.get()
