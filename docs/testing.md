@@ -362,7 +362,7 @@ caller also caches uv package content by OS, architecture, Python minor, uv vers
 export requested extras with `uv export --locked`, install those exact pins
 into the captured interpreter with bytecode compilation, then pip-install the editable project.
 Only `frontend-suite` selects the locked `frontend-exporters` group, checks its closure, and skips editable installation. Cache hits skip no checks.
-See [locked Python installation](testing-ci.md#locked-python-installation) and [runner temporary storage](testing-ci.md#temporary-storage) for pytest, browser, and extras jobs.
+See [locked Python installation](testing-ci.md#locked-python-installation) and [private temporary storage](testing-ci.md#temporary-storage) for pytest, browser, and extras jobs.
 Browser engines, browser system dependencies, virtual environments, and installed
 Node packages are not cached. Each browser matrix job installs only its declared
 engine and its system dependencies with Playwright `--with-deps`.

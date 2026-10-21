@@ -152,14 +152,20 @@ covered only in `tests/test_record_host_reconnect.py`
 ### Temporary storage
 
 The `pytest` and `frontend-e2e-suites` jobs in `test.yml` and the `extras` job in
-`extras-import.yml` first write `TMPDIR=$RUNNER_TEMP` to `$GITHUB_ENV` before
-checkout or installation. Later steps inherit that value. Python temporary
-directories, clean extra environments, and Node E2E fixture copies therefore use
-the runner-owned temporary directory instead of a potentially quota-limited `/tmp`
-tmpfs. The pytest context artifact, browser dependency-install log, and extras
-probe log record `TMPDIR` and `df -hT /tmp "$TMPDIR"` before their workloads.
-The relocation preserves fixture isolation, cleanup ownership, concurrency, and
-the 95% coverage gate.
+`extras-import.yml` first create a random private directory under `/var/tmp` with
+`umask 077` and `mktemp -d /var/tmp/sharecut-ci.XXXXXX`. The runner owns this
+mode-0700 leaf; the shared parent remains root-owned. The first step publishes
+`TMPDIR` through `$GITHUB_ENV` before checkout or installation, so Python temporary
+directories, clean extra environments, and Node E2E fixture copies inherit it.
+This avoids the `/tmp` tmpfs quota and the extended ACLs on hosted `/home` ancestry.
+
+After dependencies are installed, each job calls the production `registry_privacy`
+guard with empty names and `create=False`, then invokes its verifier. This read-only
+preflight checks the leaf and every ancestor without creating registry files or
+changing permissions. A rejected path stops the workload. The pytest context
+artifact, browser dependency-install log, and extras probe log record `TMPDIR` and
+`df -hT /tmp "$TMPDIR"`. Fixture isolation, existing cleanup ownership, concurrency,
+and the 95% coverage gate remain unchanged.
 
 ### Locked Python installation
 

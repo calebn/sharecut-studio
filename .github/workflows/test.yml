@@ -43,7 +43,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Use runner temporary storage
-        run: printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        run: |
+          umask 077
+          tmpdir="$(mktemp -d /var/tmp/sharecut-ci.XXXXXX)"
+          printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v7
         with:
@@ -123,7 +126,12 @@ jobs:
             python - <<'PY'
           import os
           from importlib.metadata import version
+          from pathlib import Path
 
+          from podcast_mcp.util.registry_privacy import registry_privacy
+
+          with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:
+              verify()
           print(f"Visible logical CPUs: {os.cpu_count()}")
           print(f"CPU affinity count: {len(os.sched_getaffinity(0))}")
           for package in ("pytest", "pytest-xdist", "pytest-cov", "coverage"):
@@ -337,7 +345,10 @@ jobs:
       TEST_AREA: ${{ startsWith(matrix.name, 'main-') && 'main-e2e' || 'compat-e2e' }}
     steps:
       - name: Use runner temporary storage
-        run: printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        run: |
+          umask 077
+          tmpdir="$(mktemp -d /var/tmp/sharecut-ci.XXXXXX)"
+          printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v7
 
@@ -368,6 +379,15 @@ jobs:
         run: |
           printf 'TMPDIR: %s\n' "$TMPDIR"
           df -hT /tmp "$TMPDIR"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from podcast_mcp.util.registry_privacy import registry_privacy
+
+          with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:
+              verify()
+          PY
           npm ci
           npx playwright install --with-deps ${{ matrix.browser }}
 
