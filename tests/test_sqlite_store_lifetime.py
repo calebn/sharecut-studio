@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import gc
 import sqlite3
+import subprocess
+import sys
 import threading
 import weakref
 from collections.abc import Callable, Iterator
 from contextlib import closing
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 
 import pytest
@@ -60,6 +63,41 @@ _CACHED_STORES = (
     cached_record_live_comment_store,
     cached_record_upload_store,
 )
+
+
+def test_interpreter_exits_with_live_store_lock_held_by_daemon(tmp_path: Path) -> None:
+    script = dedent("""
+        import sys
+        import threading
+        from pathlib import Path
+
+        from podcast_mcp.services.session_sync.log import SyncStore
+
+        store = SyncStore(Path(sys.argv[1]))
+        held = threading.Event()
+
+        def hold_lock():
+            with store._lock:
+                held.set()
+                threading.Event().wait()
+
+        threading.Thread(target=hold_lock, daemon=True).start()
+        assert held.wait(5), "daemon did not acquire the store lock"
+        print("live store lock held by daemon", flush=True)
+        """)
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script, str(tmp_path / "sync.sqlite")],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"interpreter shutdown timed out; stdout={exc.stdout!r}; stderr={exc.stderr!r}")
+    diagnostics = f"stdout={result.stdout!r}; stderr={result.stderr!r}"
+    assert result.returncode == 0, diagnostics
+    assert result.stdout.strip() == "live store lock held by daemon", diagnostics
 
 
 @pytest.mark.parametrize("store_type", _STORE_TYPES, ids=lambda cls: cls.__name__)
