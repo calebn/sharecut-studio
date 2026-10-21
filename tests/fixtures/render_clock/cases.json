@@ -335,6 +335,59 @@
       ]
     },
     {
+      "name": "a_crossfaded_clip_under_a_millisecond_can_shorten_the_frontier",
+      "clips": [
+        {
+          "id": "a",
+          "track_id": "host",
+          "source_start": 0.0,
+          "source_end": 5.0,
+          "timeline_start": 0.0,
+          "timeline_end": 5.0,
+          "join_in_mode": "cut",
+          "fade_in_ms": 0,
+          "fade_out_ms": 200,
+          "join_left_clip_id": null,
+          "join_render_mode": null,
+          "join_crossfade_ms": 0,
+          "join_crossfade_blocked": null,
+          "placed_start": 0.0
+        },
+        {
+          "id": "b",
+          "track_id": "host",
+          "source_start": 0.0,
+          "source_end": 0.0004999999999997229,
+          "timeline_start": 5.0,
+          "timeline_end": 5.0005,
+          "join_in_mode": "crossfade",
+          "fade_in_ms": 200,
+          "fade_out_ms": 0,
+          "join_left_clip_id": "a",
+          "join_render_mode": "crossfade",
+          "join_crossfade_ms": 200,
+          "join_crossfade_blocked": null,
+          "placed_start": 4.999
+        },
+        {
+          "id": "c",
+          "track_id": "host",
+          "source_start": 0.0,
+          "source_end": 3.9995000000000003,
+          "timeline_start": 5.0005,
+          "timeline_end": 9.0,
+          "join_in_mode": "cut",
+          "fade_in_ms": 0,
+          "fade_out_ms": 0,
+          "join_left_clip_id": "b",
+          "join_render_mode": "cut",
+          "join_crossfade_ms": 0,
+          "join_crossfade_blocked": null,
+          "placed_start": 4.999499999999999
+        }
+      ]
+    },
+    {
       "name": "lanes_shift_independently",
       "clips": [
         {

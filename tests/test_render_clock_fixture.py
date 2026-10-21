@@ -85,6 +85,11 @@ _CASES: dict[str, list[Clip]] = {
         _clip("b", "host", 4, 8, _XFADE, 250, 0),
         _clip("c", "host", 8.0005, 10),
     ],
+    "a_crossfaded_clip_under_a_millisecond_can_shorten_the_frontier": [
+        _clip("a", "host", 0, 5, fade_out=200),
+        _clip("b", "host", 5, 5.0005, _XFADE, 200, 0),
+        _clip("c", "host", 5.0005, 9),
+    ],
     "lanes_shift_independently": [
         _clip("h1", "host", 0, 5, fade_out=200),
         _clip("h2", "host", 5, 9, _XFADE, 200, 0),

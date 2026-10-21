@@ -98,4 +98,35 @@ describe("render clock pinned to timeline_render._place_clips (#1888)", () => {
     expect(clock.authoredAt("host", 4.9, "b")).toBeCloseTo(5.1, 9);
     expect(clock.authoredAt("host", 4.9)).toBeCloseTo(5.1, 9);
   });
+
+  it("stays the identity through float noise in abutting cut clips", () => {
+    const starts = [0, 0.123, 1.457, 2.891, 3.333, 7.771];
+    const clips = starts.slice(0, -1).map((start, index) => ({
+      ...rows(CASES[0])[0],
+      id: `n${index}`,
+      timeline_start: start,
+      timeline_end: starts[index + 1],
+      source_end: starts[index + 1] - start,
+    }));
+    const clock = buildRenderClock(clips);
+    expect(clock.identity).toBe(true);
+    expect(clock.renderedAt("host", 3)).toBe(3);
+  });
+
+  it("converts unhinted seconds before, between, after and on the edges of a shifted lane", () => {
+    const c = CASES.find(
+      (x) => x.name === "overlaps_add_up_across_a_chain_and_a_gap",
+    );
+    if (!c) throw new Error("missing case");
+    const clock = buildRenderClock(rows(c));
+    // a 0-4, b 4-8, c 8-11 and d 15-18 placed at 0, 3.7, 7.3 and 14.3.
+    expect(clock.renderedAt("host", 3.9)).toBeCloseTo(3.9, 9);
+    expect(clock.renderedAt("host", 6)).toBeCloseTo(5.7, 9);
+    expect(clock.renderedAt("host", 11)).toBeCloseTo(10.3, 9);
+    expect(clock.renderedAt("host", 16)).toBeCloseTo(15.3, 9);
+    expect(clock.renderedAt("host", 30)).toBeCloseTo(29.3, 9);
+    expect(clock.authoredAt("host", 5.7)).toBeCloseTo(6, 9);
+    expect(clock.authoredAt("host", 12)).toBeCloseTo(12.7, 9);
+    expect(clock.authoredAt("host", 29.3)).toBeCloseTo(30, 9);
+  });
 });
