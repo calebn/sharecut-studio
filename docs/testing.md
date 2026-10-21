@@ -548,6 +548,9 @@ SQLite registry coverage remains active on Windows;
 that those flags are `True` on POSIX and `False` on Windows, so CI cannot silently start skipping
 them everywhere.
 
+For concurrent registry failures, inspect the first child traceback and its
+[SQLite retry note](testing-ci.md#sqlite-registry-failure-diagnostics) before the parent queue timeout.
+
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 
 `test_review_versions.py` / `test_review_share.py` cover review-media path containment (`..`, absolute, and symlink escapes; guest routes and host `/api/audio?kind=review` return 400), and `tests/test_workspace_paths.py` covers `resolve_within`.

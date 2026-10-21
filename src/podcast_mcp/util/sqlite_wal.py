@@ -48,17 +48,27 @@ def retry_transient(
     """Run *step* until it stops answering busy or transiently readonly, for up to *timeout_sec*.
 
     *step* must be safe to repeat; any other error, and the last transient one at the
-    deadline, is raised.
+    deadline, is raised with a note describing the terminal attempt.
     """
-    deadline = monotonic() + timeout_sec
+    started = monotonic()
+    deadline = started + timeout_sec
+    attempts = 0
     while True:
         try:
+            attempts += 1
             step()
             return
         except sqlite3.OperationalError as exc:
-            if not (is_sqlite_busy(exc) or _transient_readonly(connection, exc)):
-                raise
-            if monotonic() >= deadline:
+            transient = is_sqlite_busy(exc) or _transient_readonly(connection, exc)
+            now = monotonic()
+            if not transient or now >= deadline:
+                reason = "deadline" if transient else "not_transient"
+                exc.add_note(
+                    f"SQLite retry failed: sqlite_errorcode={getattr(exc, 'sqlite_errorcode', None)} "
+                    f"sqlite_errorname={getattr(exc, 'sqlite_errorname', None)} "
+                    f"sqlite_version={sqlite3.sqlite_version} attempts={attempts} "
+                    f"elapsed_sec={now - started:.6f} terminal_reason={reason}"
+                )
                 raise
             sleep(retry_sec)
 
