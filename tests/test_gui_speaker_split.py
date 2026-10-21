@@ -440,6 +440,22 @@ def test_the_route_returns_a_plain_coded_refusal_when_speaker_recognition_is_una
     assert "extra" not in res.json()["detail"]
 
 
+def test_the_route_maps_an_unavailable_backend_to_409(
+    room: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.speaker_id import SpeakerBackendUnavailable
+
+    def _raise(name=None):
+        raise SpeakerBackendUnavailable()
+
+    monkeypatch.setattr("podcast_mcp.services.media.speaker.resolve_speaker_backend", _raise)
+    res = _client().post(
+        "/api/speaker/split", json={"path": str(room), "track_id": "room", "speaker_count": 2}
+    )
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "speaker_backend_unavailable"
+
+
 def test_the_speaker_doctor_route_is_host_only_and_uses_the_service_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
