@@ -11,6 +11,15 @@ from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.config.defaults import whisper_cache_dir
+from podcast_mcp.engines.models.speaker_ecapa import (
+    SPEAKER_ECAPA_ASSET,
+    SPEAKER_ECAPA_BOOTSTRAP,
+    SPEAKER_ECAPA_LABEL,
+    SPEAKER_ECAPA_LICENSE,
+    SPEAKER_ECAPA_SIZE,
+    bootstrap_speaker_ecapa,
+    speaker_ecapa_problem,
+)
 from podcast_mcp.engines.models.whisper import (
     WHISPER_BOOTSTRAP,
     WhisperPinMismatchError,
@@ -42,7 +51,7 @@ DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = ("whisper",)
 OPTIONAL_COMPONENTS: tuple[str, ...] = ("rnnoise",)
 # Opt-in (like the CLI's nisqa / word-aligner): downloaded only when a request names it;
 # never a first-run default. Studio offers it next to the Pipeline field that uses it.
-OPT_IN_COMPONENTS: tuple[str, ...] = ("word-aligner",)
+OPT_IN_COMPONENTS: tuple[str, ...] = ("word-aligner", "speaker-ecapa")
 ALL_GUI_COMPONENTS: tuple[str, ...] = (
     DEFAULT_FIRST_RUN_COMPONENTS + OPTIONAL_COMPONENTS + OPT_IN_COMPONENTS
 )
@@ -123,6 +132,27 @@ def word_aligner_component() -> dict[str, Any]:
     )
 
 
+def speaker_ecapa_component() -> dict[str, Any]:
+    """Opt-in speaker-recognition model readiness (no download)."""
+    problem = speaker_ecapa_problem()
+    base: dict[str, Any] = {
+        "model": SPEAKER_ECAPA_ASSET,
+        "label": SPEAKER_ECAPA_LABEL,
+        "size": SPEAKER_ECAPA_SIZE,
+        "license": SPEAKER_ECAPA_LICENSE,
+        "required_for_first_run": False,
+        "opt_in": True,
+    }
+    if problem is None:
+        return {**base, "ok": True}
+    return {
+        **base,
+        "ok": False,
+        "hint": f"{SPEAKER_ECAPA_LABEL} {problem}",
+        "bootstrap": SPEAKER_ECAPA_BOOTSTRAP,
+    }
+
+
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     """Return GUI first-run readiness without downloads."""
     from podcast_mcp.engines.vad_silero import is_available as silero_available
@@ -156,6 +186,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "note": "bundled with faster-whisper; no download",
         },
         "word-aligner": word_aligner_component(),
+        "speaker-ecapa": speaker_ecapa_component(),
     }
     ready = ffmpeg_ok and all(
         components[name]["ok"] for name in DEFAULT_FIRST_RUN_COMPONENTS if name in components
@@ -212,6 +243,8 @@ def run_bootstrap(
                 results[name] = _run_rnnoise(force=force)
             elif name == "word-aligner":
                 results[name] = _run_word_aligner(force=force)
+            elif name == "speaker-ecapa":
+                results[name] = _run_speaker_ecapa(force=force)
             task.advance(1, message=f"Done {name}", total=total)
         task.message("Bootstrap complete")
 
@@ -234,6 +267,13 @@ def _run_rnnoise(*, force: bool) -> dict[str, Any]:
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
     return {"ok": True, "path": str(path)}
+
+
+def _run_speaker_ecapa(*, force: bool) -> dict[str, Any]:
+    try:
+        return bootstrap_speaker_ecapa(force=force)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 def _run_word_aligner(*, force: bool) -> dict[str, Any]:

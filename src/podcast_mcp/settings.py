@@ -105,6 +105,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         ("PODCAST_MCP_WORD_ALIGNER_MODEL", "Local word-aligner snapshot directory."),
         ("PODCAST_MCP_RNNOISE_MODEL", "RNNoise model file."),
+        ("PODCAST_MCP_SPEAKER_ECAPA_MODEL", "Speaker-recognition ONNX model file."),
         ("PODCAST_MCP_NISQA_MODEL", "NISQA weights directory."),
         (
             "PODCAST_MCP_FFMPEG",

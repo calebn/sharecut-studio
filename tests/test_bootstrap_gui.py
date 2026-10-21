@@ -52,7 +52,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     assert aligner["required_for_first_run"] is False
     assert aligner["model"] == "onnx-base"
     assert aligner["bootstrap"] == "podcast bootstrap --component word-aligner"
-    assert status["opt_in_components"] == ["word-aligner"]
+    assert status["opt_in_components"] == ["word-aligner", "speaker-ecapa"]
     assert "word-aligner" not in status["default_components"]
     assert "word-aligner" not in status["optional_components"]
 

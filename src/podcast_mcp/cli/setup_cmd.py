@@ -7,6 +7,7 @@ import typer
 
 from podcast_mcp.config.defaults import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
+from podcast_mcp.engines.models.speaker_ecapa import bootstrap_speaker_ecapa
 from podcast_mcp.services.pipeline import (
     DEFAULT_WHISPER_MODEL,
     DEFAULT_WORD_ALIGNER,
@@ -25,8 +26,8 @@ from podcast_mcp.util.model_assets import (
 
 setup_app = typer.Typer(help="Install and verify Podcast MCP.")
 
-_COMPONENTS = ("whisper", "rnnoise", "silero-vad", "nisqa", "word-aligner")
-_OPT_IN_COMPONENTS = ("nisqa", "word-aligner")
+_COMPONENTS = ("whisper", "rnnoise", "silero-vad", "nisqa", "word-aligner", "speaker-ecapa")
+_OPT_IN_COMPONENTS = ("nisqa", "word-aligner", "speaker-ecapa")
 
 
 @setup_app.command("setup")
@@ -173,7 +174,7 @@ def bootstrap(
         raise typer.Exit(2)
 
     wanted: tuple[str, ...] = _COMPONENTS if component == "all" else (component,)
-    # Opt-in components (NISQA, the forced word aligner) never pull on `--component all`.
+    # Opt-in components (NISQA, the forced word aligner, speaker recognition) never pull on `--component all`.
     if component == "all":
         wanted = tuple(c for c in wanted if c not in _OPT_IN_COMPONENTS)
     ok = True
@@ -192,6 +193,8 @@ def bootstrap(
         ok = _bootstrap_nisqa_component(force=upgrade) and ok
     if "word-aligner" in wanted:
         ok = _bootstrap_word_aligner_component(force=upgrade) and ok
+    if "speaker-ecapa" in wanted:
+        ok = _bootstrap_speaker_ecapa_component(force=upgrade) and ok
 
     if not ok:
         raise typer.Exit(1)
@@ -246,6 +249,17 @@ def _bootstrap_word_aligner_component(*, force: bool) -> bool:
         typer.echo(f"[fail] word-aligner: {exc}", err=True)
         return False
     typer.echo(f"[ok] word-aligner {result['model']!r}: {result['path']}")
+    return True
+
+
+def _bootstrap_speaker_ecapa_component(*, force: bool) -> bool:
+    try:
+        result = bootstrap_speaker_ecapa(force=force)
+    except Exception as exc:  # network / pin failures
+        typer.echo(f"[fail] speaker-ecapa: {exc}", err=True)
+        return False
+    verb = "[skip]" if result.get("skipped") else "[ok]"
+    typer.echo(f"{verb} speaker-ecapa: {result['path']}")
     return True
 
 
