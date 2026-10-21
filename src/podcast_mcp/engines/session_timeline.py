@@ -712,16 +712,18 @@ class SessionTimeline:
             track.media.path if track.media and track.media.path else f"track:{track_id}",
         )
         placement_cursor = timeline_start
-        recording_clips = self._recording_clips(track_id)
+        # The recording's clips are drawn from the project's own list, so identity says what
+        # equality would; comparing clip models field by field made this scan quadratic.
+        recording_clips = {id(c) for c in self._recording_clips(track_id)}
         for clip in sorted(
-            (c for c in self._project.clips if c.track_id == track_id or c in recording_clips),
+            (c for c in self._project.clips if c.track_id == track_id or id(c) in recording_clips),
             key=lambda c: c.timeline_start,
         ):
             lo = max(timeline_start, clip.timeline_start)
             hi = min(timeline_cursor, clip.timeline_end)
             if hi <= lo + _EPS:
                 continue
-            if clip not in recording_clips:
+            if id(clip) not in recording_clips:
                 return None
             if clip.source_id and _clip_source_path(self._project, clip) is None:
                 return None
