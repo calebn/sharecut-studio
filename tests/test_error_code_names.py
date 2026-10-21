@@ -25,6 +25,26 @@ def test_a_clip_with_an_unlisted_source_is_a_data_inconsistency_not_a_missing_ta
     assert not names_missing_target(raised.value)
 
 
+def test_a_clip_whose_source_left_the_project_reads_as_the_same_inconsistency() -> None:
+    from podcast_mcp.edits.clips_ops import source_duration_sec
+    from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
+
+    project = EpisodeProject.create("t", "/tmp/ws")
+    project.tracks.append(Track(id="host", role=TrackRole.DIALOGUE, label="Host"))
+    clip = Clip(
+        id="c1",
+        track_id="host",
+        source_id="ghost",
+        source_start=0.0,
+        source_end=1.0,
+        timeline_start=0.0,
+    )
+    with pytest.raises(CodedValueError) as raised:
+        source_duration_sec(project, clip)
+    assert raised.value.code == "clip_source_missing"
+    assert not names_missing_target(raised.value)
+
+
 def test_caller_actionable_argument_errors_carry_their_own_codes(tmp_path) -> None:
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.conversation_align import acoustic_clip_offset
