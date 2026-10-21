@@ -437,11 +437,25 @@ def _version_text_only(
     before: str, after: str, old: str, new: str, expected_version_field_count: int
 ) -> bool:
     parts = before.split(old)
-    expression = f"({re.escape(old)}|{re.escape(new)})".join(map(re.escape, parts))
-    match = re.fullmatch(expression, after)
-    return (
-        match is not None
-        and sum(value == new for value in match.groups()) == expected_version_field_count
+    states = {(0, 0)}
+    for part in parts[:-1]:
+        next_states: set[tuple[int, int]] = set()
+        for offset, changed in states:
+            if not after.startswith(part, offset):
+                continue
+            offset += len(part)
+            if after.startswith(old, offset):
+                next_states.add((offset + len(old), changed))
+            if changed < expected_version_field_count and after.startswith(new, offset):
+                next_states.add((offset + len(new), changed + 1))
+        if not next_states:
+            return False
+        states = next_states
+    return any(
+        changed == expected_version_field_count
+        and offset + len(parts[-1]) == len(after)
+        and after.startswith(parts[-1], offset)
+        for offset, changed in states
     )
 
 
