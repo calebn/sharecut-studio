@@ -8,7 +8,7 @@ applies the plan's gain adds ``noise x (1 - gain)`` over the muted spans, so the
 the same ramps the mute does and the two sum to the track's room at every sample.
 
 The fill is the track's own room, from the same sources as the recorder-gate fill
-(``edits/gate_fill.py``): its registered room-tone bed, else comfort noise matched to its
+(``engines/gate_fill.py``): its registered room-tone bed, else comfort noise matched to its
 noise under speech. It never reads another track (bleed is never the main audio, #945), and
 a track whose noise is not a floor stays silent: ``measure_bleed_fill`` returns the reason.
 
@@ -28,7 +28,7 @@ from functools import cached_property, lru_cache
 
 import numpy as np
 
-from podcast_mcp.edits.gate_fill import measure_track_fill, synthesise_noise
+from podcast_mcp.engines.gate_fill import measure_track_fill, synthesise_noise
 from podcast_mcp.models import EpisodeProject, GateFillSource, Track
 
 log = logging.getLogger(__name__)

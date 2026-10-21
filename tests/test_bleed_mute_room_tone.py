@@ -11,10 +11,10 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.bleed_fill import BleedFill, measure_bleed_fill
-from podcast_mcp.edits.bleed_restore import restored_pcm
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
+from podcast_mcp.engines.bleed_fill import BleedFill, measure_bleed_fill
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
+from podcast_mcp.engines.bleed_restore import restored_pcm
 from podcast_mcp.engines.play_audit import track_render_hash, write_stem_hash
 from podcast_mcp.engines.transcript_gated_play import (
     _gate_pcm_chunk,
@@ -272,7 +272,7 @@ def test_a_fill_that_cannot_be_measured_never_fails_the_plan(
     def broken(*_args: object, **_kwargs: object) -> object:
         raise RuntimeError("ffmpeg exited 1")
 
-    monkeypatch.setattr("podcast_mcp.edits.bleed_fill.measure_bleed_fill", broken)
+    monkeypatch.setattr("podcast_mcp.engines.bleed_fill.measure_bleed_fill", broken)
     plan = build_bleed_gate_plan(project, "host", defaults=_defaults())
 
     assert plan.fill is None
