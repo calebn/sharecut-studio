@@ -127,6 +127,9 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   Reconcile's evidence is each track before its effects chain
   (`build_reconciliation_caches(..., unprocessed=True)`): a compressor's threshold is an
   absolute level, so a processed stem moves less than the recording's gain does (#1495).
+  A track with no volume envelope, gate, mute, or Bleed Restore gets that evidence by
+  evaluating its `Audio` tree in memory (`engines/audio_eval.py`, 8 kHz, equal to the ffmpeg
+  render within its numerics); any other track keeps the ffmpeg render (#1943).
   Its levels are compared on a voice scale: each track's levels and floors lose one fixed
   offset, its own voice level (`LevelProfile.path_reference_db`), so every mic's own speaker
   sits at 0 dB. Raw levels cannot be compared across mics (a call recording can carry a

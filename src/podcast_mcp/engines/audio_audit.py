@@ -23,6 +23,7 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_WORD_SPAN_END_SLACK_SEC,
     word_duration_is_anomalous,
 )
+from podcast_mcp.engines.audio_eval import evaluate_audio
 from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, confirmed_likeness, copy_similarity
 from podcast_mcp.engines.envelope_lag import (
     COPY_FRAME_SEC,
@@ -314,6 +315,16 @@ class TrackRmsCache:
     def speech_profile(self) -> LevelProfile:
         """Speech-band profile for reconcile audibility (#1377)."""
         return speech_level_profile(self.samples, int(self.sample_rate))
+
+    @classmethod
+    def from_samples(
+        cls, samples: np.ndarray, *, sample_rate: int = _RMS_SAMPLE_RATE
+    ) -> TrackRmsCache:
+        return cls(
+            samples=samples,
+            sample_rate=sample_rate,
+            recording_profile=track_profile(samples, sample_rate),
+        )
 
     @classmethod
     def from_timeline_stem(
@@ -689,7 +700,10 @@ def _ungated_cache(
 
     ``with_chain=False`` also leaves the track's effects chain out of the render.
     """
-    from podcast_mcp.engines.timeline_render import render_track_from_timeline
+    from podcast_mcp.engines.timeline_render import (
+        render_track_from_timeline,
+        unfiltered_track_audio,
+    )
 
     track = snapshot.track_by_id(track_id)
     if track is None:
@@ -702,6 +716,11 @@ def _ungated_cache(
         snapshot.processing_chains = [
             chain for chain in snapshot.processing_chains if chain.track_id != track_id
         ]
+        plain = unfiltered_track_audio(snapshot, track, defaults)
+        if plain is not None:
+            samples = evaluate_audio(plain[0], crossfade_curve=plain[1], load_source=load_mono_full)
+            if samples is not None and samples.size:
+                return TrackRmsCache.from_samples(samples)
     with tempfile.TemporaryDirectory(prefix="podcast-ungated-evidence-") as directory:
         path = Path(directory) / "evidence.wav"
         render_track_from_timeline(snapshot, track, path, defaults)
