@@ -1,6 +1,10 @@
 """Shared brand assets remain synchronized with the local product surfaces."""
 
+import hashlib
 import json
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,13 +57,48 @@ def test_home_screen_icons_match_the_manifest() -> None:
     assert _png_size(app / "apple-touch-icon.png") == (180, 180)
 
 
-def test_home_screen_icon_keeps_the_brand_mark() -> None:
-    """The full-bleed Home Screen icon draws the same mark as the app icon."""
+LOGO = ROOT / "deploy/brand/logo"
 
-    def mark(path: Path) -> list[str]:
-        lines = path.read_text(encoding="utf-8").splitlines()
-        return [line.strip() for line in lines if line.strip().startswith(("<path", "<circle"))]
 
-    source = mark(ROOT / "gui/desktop/src-tauri/app-icon.svg")
-    assert source
-    assert mark(ROOT / "gui/web/public/assets/app/icon.svg") == source
+def _path_data(path: Path) -> list[str]:
+    return re.findall(r' d="([^"]+)"', path.read_text(encoding="utf-8"))
+
+
+def _git_blob_sha(path: Path) -> str:
+    data = path.read_bytes()
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def test_vendored_logo_masters_match_their_recorded_provenance() -> None:
+    """The lockup SVGs are the approved masters, byte for byte (#1923)."""
+    provenance = (LOGO / "PROVENANCE.md").read_text(encoding="utf-8")
+    for name in ("logo-dark.svg", "logo-light.svg"):
+        assert _git_blob_sha(LOGO / name) in provenance, name
+
+
+def test_every_icon_and_the_splash_draw_the_master_symbol() -> None:
+    """The app icons and the splash reuse the master's symbol paths without redrawing them."""
+    symbol = _path_data(LOGO / "logo-dark.svg")[:4]
+    assert len(symbol) == 4
+    for path in (
+        ROOT / "gui/desktop/src-tauri/app-icon.svg",
+        ROOT / "gui/desktop/src-tauri/app-icon-macos.svg",
+        ROOT / "gui/web/public/assets/app/icon.svg",
+        LOGO / "symbol-dark.svg",
+        LOGO / "symbol-light.svg",
+        LOGO / "symbol-mono.svg",
+        ROOT / "gui/desktop/splash/index.html",
+    ):
+        assert _path_data(path) == symbol, path
+    assert _path_data(LOGO / "logo-light.svg")[:4] == symbol
+
+
+def test_derived_brand_assets_are_current() -> None:
+    """`scripts/build_brand_assets.py` has been rerun after any master or icon change."""
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/build_brand_assets.py"), "--check"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

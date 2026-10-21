@@ -1182,3 +1182,41 @@ html[data-shell] .ui-toast-region--inspector-flow {
   min-block-size: var(--touch-min);
   min-inline-size: var(--touch-min);
 }
+
+/* ShareCut lockup and symbol (#1923). The artwork reads its colours from the theme:
+   upper tracks and wordmark take the text token, lower tracks the decorative accent. */
+.brand-lockup,
+.brand-symbol {
+  display: block;
+  inline-size: auto;
+  flex: none;
+}
+
+.brand-lockup {
+  block-size: 2.25rem;
+}
+
+.brand-symbol {
+  block-size: 1.5rem;
+}
+
+.brand-lockup .brand-tone-ink,
+.brand-symbol .brand-tone-ink {
+  fill: var(--color-text-primary);
+}
+
+.brand-lockup .brand-tone-accent,
+.brand-symbol .brand-tone-accent {
+  fill: var(--color-accent);
+}
+
+.brand-lockup-name {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

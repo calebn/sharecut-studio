@@ -6,7 +6,7 @@ import {
 } from "../api";
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
-import { Button, Field } from "../ui";
+import { BrandLockup, Button, Field } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { projectUrl } from "../utils/projectUrl";
@@ -134,7 +134,9 @@ export function HomeScreen() {
     <main className="cover home-screen">
       <div className="cover-center center stack" data-daw-app-chrome>
         <header className="stack">
-          <h1 className="wordmark">Sharecut Studio</h1>
+          <h1 className="wordmark">
+            <BrandLockup name="Sharecut Studio" />
+          </h1>
           <p className="lede">
             Create or open an episode project to start arranging.
           </p>
