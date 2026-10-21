@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -52,8 +53,7 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
     return automatic_xdist_workers(os.cpu_count())
 
 
-@pytest.fixture(autouse=True)
-def _private_windows_test_directory(tmp_path: Path) -> None:
+def _make_windows_test_directory_private(path: Path) -> None:
     if os.name != "nt":
         return
     from podcast_mcp.util.registry_backup_windows import _WindowsAPI
@@ -62,7 +62,7 @@ def _private_windows_test_directory(tmp_path: Path) -> None:
     subprocess.run(
         [
             str(Path(os.environ["SYSTEMROOT"]) / "System32" / "icacls.exe"),
-            str(tmp_path),
+            str(path),
             "/inheritance:r",
             "/grant:r",
             f"*{api.user_sid}:(OI)(CI)F",
@@ -72,6 +72,18 @@ def _private_windows_test_directory(tmp_path: Path) -> None:
         check=True,
         capture_output=True,
     )
+
+
+@pytest.fixture(autouse=True)
+def _private_windows_test_directory(tmp_path: Path) -> None:
+    _make_windows_test_directory_private(tmp_path)
+
+
+@pytest.fixture(scope="session")
+def _object_store_config_parent(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    parent = tmp_path_factory.mktemp("no_host_object_store")
+    _make_windows_test_directory_private(parent)
+    return parent
 
 
 @pytest.fixture(autouse=True)
@@ -203,7 +215,7 @@ def _isolate_session_authz_env() -> None:
 
 @pytest.fixture(autouse=True)
 def _isolate_host_object_store(
-    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+    monkeypatch: pytest.MonkeyPatch, _object_store_config_parent: Path
 ) -> None:
     """Do not use host object-store credentials or environment in unit tests.
 
@@ -213,7 +225,8 @@ def _isolate_host_object_store(
     """
     for key in _OBJECT_STORE_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
-    empty = tmp_path_factory.mktemp("no_host_object_store") / "relay.yaml"
+    child = Path(tempfile.mkdtemp(prefix="test-", dir=_object_store_config_parent))
+    empty = child / "relay.yaml"
     empty.write_text("{}\n", encoding="utf-8")
     real_load = object_store_util.load_object_store_config
 
