@@ -33,6 +33,16 @@ function show(project: ProjectView): ProjectView {
   useDawStore.getState().setProject(displayed);
   return displayed;
 }
+/**
+ * Show the displayed project again with every pending draft laid over it. Unlike
+ * `refreshDocumentDisplay`, it starts from what is displayed (the edit basis),
+ * so data a sequenced snapshot never stored (returned comments, action results)
+ * stays.
+ */
+export function redisplayDrafts(): void {
+  const basis = useDawStore.getState().projectEditBasis();
+  if (basis) show(basis);
+}
 export function refreshDocumentDisplay(): void {
   if (
     documentAuthority.project &&

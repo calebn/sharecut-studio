@@ -14,9 +14,12 @@ const requestHostDrain = vi.fn();
 
 const applyDocumentSnapshot = vi.fn();
 
+const redisplayDrafts = vi.fn();
+
 vi.mock("./document/applyDocumentUpdate", () => ({
   applyDocumentResult,
   applyDocumentSnapshot,
+  redisplayDrafts,
   refreshDocumentDisplay: vi.fn(),
   mergeGuestActionDone: vi.fn(),
   mergeReturnedComment: vi.fn(),
@@ -1359,6 +1362,11 @@ describe("host document command queue", () => {
         ],
       }),
     );
+    // The module is mocked for the other tests; this one needs the real redisplay.
+    const actual = await vi.importActual<
+      typeof import("./document/applyDocumentUpdate")
+    >("./document/applyDocumentUpdate");
+    redisplayDrafts.mockImplementation(actual.redisplayDrafts);
     const { setEnvelope } = await import("./api");
     const next = [{ id: "a", time: 0, value: 0.5 }];
 

@@ -164,8 +164,13 @@ describe("trim nudge document writers", () => {
     mergeReturnedComment({ ...comment, body: "Already returned" });
     const button = render(<Harness />).getByRole("button");
     fireEvent.keyDown(button, { key: "Enter" });
-    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
-      queued: true,
+    // A queued reply leaves the draft the real submit began in place.
+    vi.mocked(submitQueuedDocumentCommand).mockImplementationOnce(async () => {
+      beginDocumentDraft("queued-envelope", "SetEnvelope", {
+        track_id: "host",
+        points: [{ id: "p", time: 1, value: 0.5 }],
+      });
+      return { queued: true };
     });
     await setEnvelope(
       "/tmp/one.json",
@@ -197,8 +202,18 @@ describe("trim nudge document writers", () => {
       const meta = renderHook(() => useTrackMetaMutation("host"));
       fireEvent.keyDown(button, { key: "Enter" });
       const pending = deferred<Record<string, unknown>>();
-      vi.mocked(submitQueuedDocumentCommand).mockReturnValueOnce(
-        pending.promise,
+      // The real queue begins the draft before it first awaits and ends it
+      // when the command fails. The writer's own rollback restores the display.
+      vi.mocked(submitQueuedDocumentCommand).mockImplementationOnce(
+        (_path, type, payload) => {
+          if (writer !== "reorder" && writer !== "metadata")
+            return pending.promise;
+          beginDocumentDraft("writer", type, payload ?? {});
+          return pending.promise.catch((error) => {
+            finishDocumentDraft("writer");
+            throw error;
+          });
+        },
       );
       let send!: Promise<unknown>;
       await act(async () => {

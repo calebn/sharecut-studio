@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { refreshDocumentDisplay } from "../../document/applyDocumentUpdate";
+import {
+  beginDocumentDraft,
+  finishDocumentDraft,
+} from "../../document/pendingDrafts";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -96,7 +101,19 @@ describe("TrackInspector", () => {
         reject(err ?? new Error("network"));
       };
     });
-    setTrackMetaCommand.mockImplementation(async () => held);
+    // Like the real queue: the draft begins before the first await.
+    setTrackMetaCommand.mockImplementation(
+      (_path: string, trackId: string, fields: Record<string, unknown>) => {
+        beginDocumentDraft("meta", "SetTrackMeta", {
+          track_id: trackId,
+          ...fields,
+        });
+        return held.finally(() => {
+          finishDocumentDraft("meta");
+          refreshDocumentDisplay();
+        });
+      },
+    );
 
     render(<TrackInspector track={hostTrack} effects={[]} />);
     const input = screen.getByDisplayValue("Host");
