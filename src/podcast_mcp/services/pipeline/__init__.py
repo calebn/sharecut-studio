@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         validate_whisper_model,
         word_aligner_is_cached,
     )
+    from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
     from podcast_mcp.services.pipeline.service import (
         AudioExportResult,
         PipelineRunResult,
@@ -64,6 +65,8 @@ __all__ = [
     "persist_whisper_model",
     "pipeline_step_states",
     "prosody_params_for",
+    "render_preview_result",
+    "rerender_preview",
     "resolve_whisper_model",
     "run_bootstrap",
     "run_defaults_for",
@@ -89,6 +92,8 @@ _MODULE_BY_NAME = {
     "PipelineRunResult": "service",
     "PipelineService": "service",
     "format_export_qc_lines": "service",
+    "render_preview_result": "preview",
+    "rerender_preview": "preview",
     "component_status": "bootstrap",
     "run_bootstrap": "bootstrap",
     "analyze_working_set": "config",

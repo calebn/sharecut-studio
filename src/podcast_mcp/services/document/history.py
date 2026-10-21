@@ -11,7 +11,7 @@ from podcast_mcp.project.history.diff import diff_snapshots
 from podcast_mcp.project.history.summary import format_history_group_title, summarize_diff
 from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
+from podcast_mcp.services.pipeline import render_preview_result, rerender_preview
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
 log = logging.getLogger(__name__)
