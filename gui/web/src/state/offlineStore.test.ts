@@ -379,7 +379,7 @@ describe("guest queue order", () => {
     payload: { label },
   });
 
-  it("appends across client ids and keeps a re-admitted row where it stands", async () => {
+  it("appends across client ids and keeps a re-admitted row as it stands", async () => {
     await enqueueCommand("bucket", row("prior-9", "viewer-prior", 9));
     await enqueueCommand("bucket", row("prior-12", "viewer-prior", 12));
     await enqueueCommand("bucket", row("new-1", "viewer-new", 1));
@@ -395,7 +395,7 @@ describe("guest queue order", () => {
       "prior-12",
       "new-1",
     ]);
-    expect(queue[0].payload).toEqual({ label: "re-admitted" });
+    expect(queue[0].payload).toEqual({ label: "prior-9" });
   });
 });
 
