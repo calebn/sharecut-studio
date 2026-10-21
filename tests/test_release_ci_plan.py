@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
+from itertools import product
 from pathlib import Path
 
 import pytest
@@ -377,6 +379,74 @@ def test_version_edit_in_comment_is_full(release_repo: Path) -> None:
     write(release_repo, path, FILES[path].replace("0.1.1", "0.1.2") + "# version was 0.1.2\n")
     commit(release_repo)
     assert_full(release_repo)
+
+
+@pytest.mark.parametrize(
+    "before,after,count,expected",
+    [
+        ("0.1.10.1.1", "0.1.10.1.10", 1, True),
+        ("0.1.10.1.1", "0.1.100.1.1", 1, True),
+        ("0.1.10.1.1", "0.1.100.1.10", 2, True),
+        ("0.1.10.1.1", "0.1.100.1.10", 1, False),
+        ("0.1.1 / 0.1.10", "0.1.10 / 0.1.10", 1, True),
+        ("0.1.1 / 0.1.10", "0.1.10 / 0.1.100", 1, False),
+        ("0.1.1 / 0.1.10", "0.1.10 / 0.1.1", 1, False),
+        ('"0.1.1" # 0.1.1\n', '"0.1.10" # 0.1.1\n', 1, True),
+        ('"0.1.1" # 0.1.1\n', '"0.1.10" # 0.1.10\n', 1, False),
+        ('"0.1.1"\n', "'0.1.10'\n", 1, False),
+        ('"0.1.1"\n', '"0.1.10"\r\n', 1, False),
+    ],
+)
+def test_version_text_preserves_exact_literals_and_change_count(
+    before: str, after: str, count: int, expected: bool
+) -> None:
+    assert cp._version_text_only(before, after, "0.1.1", "0.1.10", count) is expected
+
+
+@pytest.mark.parametrize("old,new", [("a", "aa"), ("aa", "a"), ("a", "b"), (".", "a")])
+def test_version_text_matches_bounded_regex_oracle(old: str, new: str) -> None:
+    texts = ["".join(chars) for size in range(5) for chars in product("ab.", repeat=size)]
+    for before in (text for text in texts if len(text) < 4):
+        expression = f"({re.escape(old)}|{re.escape(new)})".join(map(re.escape, before.split(old)))
+        oracle = re.compile(expression)
+        for after in texts:
+            match = oracle.fullmatch(after)
+            for count in range(4):
+                expected = (
+                    match is not None and sum(value == new for value in match.groups()) == count
+                )
+                assert cp._version_text_only(before, after, old, new, count) is expected, (
+                    before,
+                    after,
+                    old,
+                    new,
+                    count,
+                )
+
+
+@pytest.mark.parametrize(
+    "comment",
+    ["# old 0.1.1, new 0.1.10\n", "# old 0.1.10, new 0.1.10\n", "# old 0.1.10, new 0.1.1\n"],
+)
+def test_prefix_release_preserves_version_tokens_in_comments(
+    release_repo: Path, comment: str
+) -> None:
+    original_comment = "# old 0.1.1, new 0.1.10\n"
+    git(release_repo, "checkout", "-q", "main")
+    write(release_repo, "pyproject.toml", FILES["pyproject.toml"] + original_comment)
+    commit(release_repo)
+    git(release_repo, "checkout", "-q", BRANCH)
+    git(release_repo, "merge", "-q", "-s", "ours", "main", "--no-edit")
+    for path in FILES:
+        write(release_repo, path, FILES[path].replace("0.1.1", "0.1.10"))
+    write(release_repo, "CHANGELOG.md", "prefix release notes\n")
+    target = release_repo / "pyproject.toml"
+    write(release_repo, "pyproject.toml", target.read_text() + comment)
+    commit(release_repo)
+    if comment == original_comment:
+        assert isinstance(classify(release_repo), cp.ReleaseProof)
+    else:
+        assert_full(release_repo)
 
 
 def test_cli_diff_failure_emits_full_plan(monkeypatch, capsys) -> None:
