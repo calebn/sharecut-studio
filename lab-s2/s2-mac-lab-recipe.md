@@ -36,3 +36,13 @@ What the lab must settle:
 - Peak memory (RSS) of arm C1 at N=102 should stay below arm B plus about 100 MB (16-byte digest plus a tuple per distinct frame, kept until the batch ends).
 
 Daniela audio stays on the Mac; nothing from the clone, its audio or its results beyond the numbers above goes into the repo or a PR comment.
+
+## S3 arm (PR 1956, #1945, first slice: per-cut copy keeps word objects)
+
+Arm S3 = PR 1956 head (branch `claude/s3-cut-copy`, base a410add) against arm A' = a410add (current main; arm A's 7741ffc predates #1813). Same recipe, same clone, same harness:
+
+    git worktree add /tmp/wt-s3 origin/claude/s3-cut-copy
+    cp -Rc <daniela-102-state> /tmp/arm-S3
+    nice -n 10 python lab-s2/autocorr_hits.py /tmp/arm-S3/episode.project.json 102
+
+Pass: approved and held ids and the project JSON equal arm A' (`lab-s1/diff_projects.py`), with and without the forced word aligner. Report `wall_sec` and peak RSS (RSS should drop: no per-cut word copies). The change assumes no cut writer edits a word's own fields; any word difference between arms is a FAIL. Cloud tile: ids and clips byte-identical, wall 124 s to 96 s under cProfile.
