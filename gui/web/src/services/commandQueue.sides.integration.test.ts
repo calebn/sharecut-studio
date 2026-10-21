@@ -10,6 +10,8 @@ const settleHostCommandOutcome = vi.fn();
 const settleGuestCommandOutcome = vi.fn();
 const postHostDocumentCommand = vi.fn();
 const postGuestDocumentCommand = vi.fn();
+const requestHostDrainLazy = vi.fn();
+const requestGuestDrainLazy = vi.fn();
 
 vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentResult: vi.fn(),
@@ -18,6 +20,10 @@ vi.mock("../document/applyDocumentUpdate", () => ({
 vi.mock("../api/documentTransport", () => ({
   postHostDocumentCommand,
   postGuestDocumentCommand,
+}));
+vi.mock("../state/requestDrainLazy", () => ({
+  requestHostDrainLazy,
+  requestGuestDrainLazy,
 }));
 vi.mock("../state/offlineStore", () => ({
   loadHostCommandQueue,
@@ -216,4 +222,183 @@ describe.each([
       }
     },
   );
+});
+
+describe.each([
+  { side: "host", path: "/tmp/episode.project.json" },
+  { side: "guest", path: "share:tok" },
+])("$side behind an earlier command", ({ side, path }) => {
+  const host = side === "host";
+  const post = host ? postHostDocumentCommand : postGuestDocumentCommand;
+  const enqueue = host ? enqueueHostCommand : enqueueCommand;
+  const load = host ? loadHostCommandQueue : loadCommandQueue;
+  const drain = host ? requestHostDrainLazy : requestGuestDrainLazy;
+
+  beforeEach(() => {
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: commandLocks(),
+    });
+    sessionStorage.clear();
+    vi.resetModules();
+    vi.clearAllMocks();
+    enqueue.mockResolvedValue({ persisted: true, hadPredecessor: true });
+    settleHostCommandOutcome.mockResolvedValue(undefined);
+    settleGuestCommandOutcome.mockResolvedValue(undefined);
+    post.mockResolvedValue({ ok: true, data: { ok: true } });
+  });
+
+  async function submit() {
+    const { submitDocumentCommand } = await import("../api");
+    return submitDocumentCommand(
+      path,
+      "SetTrackMeta",
+      { label: "mine" },
+      {
+        client_id: "c",
+        command_id: "cmd-1",
+        client_seq: 3,
+      },
+    );
+  }
+
+  it("sends the command when it is the head of the queue, adopting the queued payload on the host only", async () => {
+    load.mockResolvedValue([
+      {
+        command_id: "cmd-1",
+        client_id: "c",
+        client_seq: 3,
+        type: "SetTrackMeta",
+        payload: { label: "queued" },
+        created_at: 1,
+      },
+    ]);
+    await expect(submit()).resolves.toEqual({ ok: true });
+    expect(post.mock.calls[0]?.at(-1)).toMatchObject({
+      payload: { label: host ? "queued" : "mine" },
+    });
+    expect(drain).not.toHaveBeenCalled();
+  });
+
+  it("stays queued and asks for a drain when an older command is ahead", async () => {
+    load.mockResolvedValue([
+      {
+        command_id: "older",
+        client_id: "c",
+        client_seq: 2,
+        type: "SetTrackMeta",
+        payload: {},
+        created_at: 1,
+      },
+    ]);
+    await expect(submit()).resolves.toEqual({
+      ok: true,
+      queued: true,
+      command_id: "cmd-1",
+      client_seq: 3,
+    });
+    expect(post).not.toHaveBeenCalled();
+    expect(drain).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("host persistence fallback", () => {
+  const path = "/tmp/episode.project.json";
+
+  beforeEach(() => {
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: commandLocks(),
+    });
+    sessionStorage.clear();
+    vi.resetModules();
+    vi.clearAllMocks();
+    enqueueHostCommand.mockImplementation(
+      async (_path: string, _cmd: unknown, onFail: () => void) => {
+        onFail();
+        throw new Error("storage unavailable");
+      },
+    );
+    settleHostCommandOutcome.mockResolvedValue(undefined);
+    postHostDocumentCommand.mockResolvedValue({ ok: true, data: { ok: true } });
+  });
+
+  async function submit() {
+    const { submitDocumentCommand } = await import("../api");
+    return submitDocumentCommand(path, "SetTrackMeta", { label: "x" });
+  }
+
+  it("sends directly when a readable queue is empty", async () => {
+    loadHostCommandQueue.mockResolvedValue([]);
+    await expect(submit()).resolves.toEqual({ ok: true });
+    expect(postHostDocumentCommand).toHaveBeenCalledTimes(1);
+    // Nothing was persisted, so landing removes no row.
+    expect(settleHostCommandOutcome.mock.calls[0]?.[3]).toBe(false);
+  });
+
+  it("refuses to send past older offline edits", async () => {
+    loadHostCommandQueue.mockResolvedValue([{ command_id: "older" }]);
+    await expect(submit()).rejects.toThrow(
+      "Cannot send this edit while older offline edits are pending",
+    );
+    expect(postHostDocumentCommand).not.toHaveBeenCalled();
+  });
+
+  it("rethrows the storage error when the queue cannot be read", async () => {
+    loadHostCommandQueue.mockRejectedValue(new Error("unreadable"));
+    await expect(submit()).rejects.toThrow("storage unavailable");
+    expect(postHostDocumentCommand).not.toHaveBeenCalled();
+  });
+});
+
+describe("guest offline structural edits", () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: commandLocks(),
+    });
+    sessionStorage.clear();
+    vi.resetModules();
+    vi.clearAllMocks();
+    enqueueCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: false,
+    });
+    settleGuestCommandOutcome.mockResolvedValue(undefined);
+    postGuestDocumentCommand.mockResolvedValue({
+      ok: true,
+      data: { ok: true },
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  async function submit(type: "DeleteClip" | "SetTrackMeta") {
+    const { submitDocumentCommand } = await import("../api");
+    return submitDocumentCommand("share:tok", type, {});
+  }
+
+  it("proposes a structural command while offline", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await submit("DeleteClip");
+    expect(enqueueCommand.mock.calls[0]?.[1]).toMatchObject({
+      structural_mode: "propose",
+    });
+    expect(postGuestDocumentCommand.mock.calls[0]?.[1]).toMatchObject({
+      structural_mode: "propose",
+      role: "guest",
+    });
+  });
+
+  it("leaves a non-structural command and an online send unmarked", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await submit("SetTrackMeta");
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    await submit("DeleteClip");
+    for (const [, cmd] of enqueueCommand.mock.calls) {
+      expect(cmd.structural_mode).toBeUndefined();
+    }
+    for (const [, body] of postGuestDocumentCommand.mock.calls) {
+      expect(body).not.toHaveProperty("structural_mode");
+    }
+  });
 });

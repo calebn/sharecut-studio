@@ -607,8 +607,8 @@ interface SubmitSide {
   structuralMode(): "propose" | "apply" | undefined;
   /** Persist the command; throws when it must not be sent without a record. */
   admit(cmd: QueuedCommand): Promise<QueueAdmission>;
-  loadQueue(): Promise<QueuedCommand[]>;
-  requestDrain(): void;
+  loadQueue: () => Promise<QueuedCommand[]>;
+  requestDrain: () => void;
   post(body: Record<string, unknown>): Promise<DocumentCommandReply>;
   /** Post the queued head's payload when an earlier send left it ahead of us. */
   adoptQueuedPayload: boolean;
