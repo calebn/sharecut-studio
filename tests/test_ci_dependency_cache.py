@@ -4,10 +4,12 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 import venv
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
 
 from github_yaml import load_github_yaml
 
@@ -36,6 +38,14 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         python = next(
             step for step in steps if step.get("uses", "").startswith("actions/setup-python@")
         )
+        assert (
+            python["with"]["python-version"]
+            == {
+                "pytest": "3.14",
+                "pytest-python-floor": "3.11",
+                "frontend-e2e-suites": "3.12",
+            }[name]
+        )
         assert python["with"]["cache"] == "pip"
         assert python["with"]["cache-dependency-path"].splitlines() == ["pyproject.toml", "uv.lock"]
         install = next(step for step in steps if step.get("uses") == LOCKED_INSTALL)
@@ -49,6 +59,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         for step in jobs["frontend-suite"]["steps"]
         if step.get("uses", "").startswith("actions/setup-python@")
     )
+    assert frontend_python["with"]["python-version"] == "3.12"
     assert "cache" not in frontend_python["with"]
     frontend_steps = jobs["frontend-suite"]["steps"]
     frontend_install = next(step for step in frontend_steps if step.get("uses") == LOCKED_INSTALL)
@@ -74,6 +85,18 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     assert next(
         i for i, step in enumerate(frontend_steps) if step.get("run") == "npm ci"
     ) < frontend_steps.index(exporters)
+    assert jobs["pytest"]["env"]["COVERAGE_CORE"] == "ctrace"
+    assert all(
+        "COVERAGE_CORE" not in job.get("env", {}) for name, job in jobs.items() if name != "pytest"
+    )
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    assert "coverage[toml]>=7.16.2" in project["project"]["optional-dependencies"]["dev"]
+    assert project["project"]["requires-python"] == ">=3.11"
+    assert project["tool"]["ruff"]["target-version"] == "py311"
+    assert project["tool"]["mypy"]["python_version"] == "3.12"
+    lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    coverage = next(package for package in lock["package"] if package["name"] == "coverage")
+    assert Version(coverage["version"]) >= Version("7.16.2")
     pytest_steps = jobs["pytest"]["steps"]
     test = next(step for step in pytest_steps if step.get("name") == "Run tests with coverage gate")
     assert test["if"] == "steps.plan.outputs.pytest == 'full'"
@@ -642,15 +665,16 @@ def test_quota_affected_jobs_record_temporary_paths_and_filesystem_capacity(
 
 
 @pytest.mark.parametrize(
-    ("workflow", "job_name", "step_name"),
+    ("workflow", "job_name", "step_name", "coverage_core"),
     [
-        ("test.yml", "pytest", "Record pytest run context"),
-        ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines"),
-        ("extras-import.yml", "extras", "Import each extra in a clean venv"),
+        ("test.yml", "pytest", "Record pytest run context", "ctrace"),
+        ("test.yml", "pytest", "Record pytest run context", "pytrace"),
+        ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines", "ctrace"),
+        ("extras-import.yml", "extras", "Import each extra in a clean venv", "ctrace"),
     ],
 )
 def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
-    workflow: str, job_name: str, step_name: str, tmp_path: Path
+    workflow: str, job_name: str, step_name: str, coverage_core: str, tmp_path: Path
 ) -> None:
     job = load_github_yaml(ROOT / ".github/workflows" / workflow)["jobs"][job_name]
     step = next(step for step in job["steps"] if step.get("name") == step_name)
@@ -672,7 +696,8 @@ def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
     project = tmp_path / "project"
     project.mkdir()
     (project / "pyproject.toml").write_bytes((ROOT / "pyproject.toml").read_bytes())
-    for mode, accepted in [(0o700, True), (0o755, False)]:
+    for mode in (0o700, 0o755):
+        accepted = mode == 0o700 and coverage_core == "ctrace"
         private_temp.chmod(mode)
         permissions = {
             path: (path.stat().st_uid, path.stat().st_mode)
@@ -681,7 +706,8 @@ def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
         before = list(private_temp.iterdir())
         checked = subprocess.run(
             [sys.executable, "-c", code],
-            env={**os.environ, "TMPDIR": str(private_temp)},
+            env={**os.environ, "TMPDIR": str(private_temp), "COVERAGE_CORE": coverage_core},
+            cwd=project,
             text=True,
             capture_output=True,
             check=False,
@@ -706,6 +732,7 @@ def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
                 "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"],
                 "TMPDIR": str(private_temp),
                 "PREFLIGHT_SENTINEL": str(sentinel),
+                "COVERAGE_CORE": coverage_core,
                 "UV_PROJECT_ENVIRONMENT": sys.prefix,
             },
             cwd=project,
@@ -716,8 +743,13 @@ def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
         assert (result.returncode == 0) == accepted, result.stderr
         assert sentinel.exists() == accepted
         assert not (project / ".venv").exists()
+        assert not list(project.glob(".coverage*"))
+        if job_name == "pytest" and mode == 0o700:
+            assert f"Coverage core: {'CTracer' if accepted else 'PyTracer'}" in result.stdout
+            if not accepted:
+                assert "Expected CTracer, got PyTracer" in result.stderr
         assert {
             path: (path.stat().st_uid, path.stat().st_mode) for path in permissions
         } == permissions
-        if not accepted:
+        if mode != 0o700:
             assert "RegistryPrivacyError" in result.stderr

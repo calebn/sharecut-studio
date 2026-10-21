@@ -24,6 +24,14 @@ podcast doctor
 
 `./install.sh` runs `uv sync --extra dev --extra gui --extra relay --extra prosody` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
 
+The `dev` extra requires `coverage[toml]>=7.16.2`; `uv.lock` pins coverage 7.16.2.
+To reproduce the required Python CI runtime in an isolated checkout, run:
+
+```bash
+uv sync --python 3.14 --extra dev --extra gui --extra relay --extra prosody
+COVERAGE_CORE=ctrace uv run --no-sync make test
+```
+
 For a packaged Sharecut Studio app on macOS, Linux `.deb`, or AppImage, use the native app menu's **Install Command Line Tools…** to install `podcast` and `podcast-mcp` in `~/.local/bin`. The app offers this once after its first successful engine start. Add `~/.local/bin` to your shell PATH if the app reports it missing. The same menu removes only commands owned by this app. AppImage installs wrappers that call the absolute `.AppImage` path, so keep the AppImage at that path; before moving it, remove the wrappers, then install again from the new path. You can also run `SharecutStudio.AppImage --cli <podcast arguments>` or `SharecutStudio.AppImage --mcp <podcast-mcp arguments>` directly.
 
 The core install includes `filelock` to coordinate transcript-refine status
