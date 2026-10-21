@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig, bounded_float
+from podcast_mcp.config.defaults import EffectiveConfig, bounded_float
 from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,

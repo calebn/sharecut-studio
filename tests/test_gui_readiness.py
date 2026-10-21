@@ -3,7 +3,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.models import (
     Clip,

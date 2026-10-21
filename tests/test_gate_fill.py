@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.gate_fill import detect_gate_holes, fill_gate_holes
 from podcast_mcp.edits.room_tone import room_tone_source_id
 from podcast_mcp.engines.play_audit import track_render_hash

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.align_accept_status import (
     ALIGN_GATE,
     AlignAcceptRequiredError,

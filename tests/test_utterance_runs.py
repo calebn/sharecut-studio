@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.utterance_runs import (
     transcript_word_runs,

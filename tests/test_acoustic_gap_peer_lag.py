@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 
 from bleed_helpers import DURATION_SEC, RATE, delay, voices, write_wav
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audio_cache import build_track_audio_caches
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten import propose_tighten_edits

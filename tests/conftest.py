@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podcast_mcp.config import repo_root
+from podcast_mcp.config.defaults import repo_root
 from podcast_mcp.models import EpisodeProject, Track, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
@@ -149,7 +149,7 @@ def _hide_host_word_aligner(
         return
     monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
     monkeypatch.setattr(
-        "podcast_mcp.config.word_aligner_cache_dir", lambda: tmp_path / "word-aligner"
+        "podcast_mcp.config.defaults.word_aligner_cache_dir", lambda: tmp_path / "word-aligner"
     )
 
 

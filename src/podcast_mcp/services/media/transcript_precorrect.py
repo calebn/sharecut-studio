@@ -8,7 +8,7 @@ from typing import Any
 
 from filelock import Timeout
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.project.io import resolve_project_path

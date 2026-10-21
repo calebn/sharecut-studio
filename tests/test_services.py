@@ -5,7 +5,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.models import (
     Clip,
     CombinedTranscript,

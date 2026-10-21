@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.conversation_align import (
     LOCKED_METHODS,

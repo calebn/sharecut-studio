@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits import bleed_lag_segments, bleed_latency
 from podcast_mcp.edits.clips_ops import clips_for_track, set_track_clips, split_clip_at
 from podcast_mcp.edits.ranges import merge_timeline_ranges

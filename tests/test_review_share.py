@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
 from podcast_mcp.models import load_project, save_project
@@ -2503,7 +2503,7 @@ def test_guest_client_ids_carry_the_prefix_the_gui_counts_as_guests() -> None:
     """Pin the Python GUEST_CLIENT_ID_PREFIX (producer and consumers) to the GUI's."""
     import re
 
-    from podcast_mcp.config import repo_root
+    from podcast_mcp.config.defaults import repo_root
     from podcast_mcp.gui.routes.review_share import _guest_client_id
     from podcast_mcp.services.session_sync.commands import GUEST_CLIENT_ID_PREFIX
 

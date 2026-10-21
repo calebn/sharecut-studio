@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from contract_project_helpers import contract_project
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim, ripple_track_ids
 from podcast_mcp.models import Clip, EditMode
 from podcast_mcp.util.coded_error import CodedValueError

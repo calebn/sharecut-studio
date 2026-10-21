@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from history_helpers import history_move
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.gui.assembler import projection_dependencies
 from podcast_mcp.models import (

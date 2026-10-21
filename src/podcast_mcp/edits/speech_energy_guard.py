@@ -16,7 +16,7 @@ from typing import Any, Literal, NamedTuple
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import track_level_profile
 from podcast_mcp.edits.clips_ops import clips_for_track, remove_timeline_range_from_clips
 from podcast_mcp.edits.join_speech import JoinSpeechConfig

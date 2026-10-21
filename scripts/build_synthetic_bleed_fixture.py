@@ -15,7 +15,7 @@ import yaml
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models.episode import (
@@ -292,7 +292,7 @@ def _validate_bleed(
     *,
     min_bleed_total: int,
 ) -> int:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.transcript_reconcile import audibility_map
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.pipeline import steps as pipeline_steps

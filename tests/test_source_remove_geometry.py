@@ -9,9 +9,9 @@ from types import SimpleNamespace
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
-from podcast_mcp.config import load_defaults
-from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
-from podcast_mcp.edits.cut_placement import CutScopeHold
+from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits import cut_policy, cut_safety
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits

@@ -29,7 +29,9 @@ Each layer owns one concern. Per-module ownership notes, caches and the FFmpeg p
 11. **Extensions** (`podcast_mcp.extensions`) — feature registry and soft-load SPI; the FOSS `collaboration` extension. See [extensions.md](extensions.md).
 12. **Relay** (`podcast_relay`) — imports `podcast_mcp.util` only; `podcast_mcp` never imports it (wire code shared with `services/collaboration/tunnel.py` lives in `util/relay_protocol/`). host-online reverse tunnel edge (`create_relay_app` includes the per-concern routers under `podcast_relay/routes/`); the host connects with `podcast tunnel`. See [host-online-relay.md](host-online-relay.md).
 
-**Project package** (`podcast_mcp.project`): `io` (open, resolve and relocate a project), `store` (canonical load and commit, history index), `merge` (three-way merge for long-job saves), `transcript_context` (episode glossary YAML with its own writer lock) and `history/` (undo/redo, `run_mutation`, rollback). It sits beside the layers above rather than in one of them: it imports `models` and `util` (and `engines.asr_timing`, `config` for transcript-context defaults) and is imported by `engines.speaker_id`, `edits`, `pipeline`, `services` and the adapters. The package `__init__` stays empty so importing one module never loads the others.
+**Project package** (`podcast_mcp.project`): `io` (open, resolve and relocate a project), `store` (canonical load and commit, history index), `merge` (three-way merge for long-job saves), `transcript_context` (episode glossary YAML with its own writer lock) and `history/` (undo/redo, `run_mutation`, rollback). It sits beside the layers above rather than in one of them: it imports `models` and `util` (and `engines.asr_timing`, `config.defaults` for transcript-context defaults) and is imported by `engines.speaker_id`, `edits`, `pipeline`, `services` and the adapters. The package `__init__` stays empty so importing one module never loads the others.
+
+**Config package** (`podcast_mcp.config`): `defaults` (shipped pipeline YAML defaults, effective-config merge and the user config/cache directories), `runtime` (validated host relay and object-store configuration) and `distribution` (validated public build identity). `podcast_mcp.settings` stays at the package root as the environment-variable registry. The package `__init__` stays empty, so import the submodule you need (`from podcast_mcp.config.defaults import ...`). `rerender_preview` lives in `services/pipeline/preview.py` with the other pipeline orchestration.
 
 **Episode state:** `episode.project.json` v2 is the single source of truth. See [episode-format-v2.md](episode-format-v2.md).
 
@@ -278,7 +280,7 @@ Any operation that can change what the listener hears must keep per-track transc
 | Hook | When it runs | What happens |
 |------|----------------|--------------|
 | [`run_mutation`](../src/podcast_mcp/project/history/session.py) | Every `ProjectWorkspace.mutate` (cuts, FX, gain, timeline ops, etc.) | Marks stale when `audio_state_fingerprint()` changes; reconciles only if stems already match the new state (rare — follow FX/cuts with `render_preview`) |
-| [`rerender_preview`](../src/podcast_mcp/render.py) | After `assemble_timeline` (+ music mix) | Auto-reconciles when `analysis.reconcile_on_render` is true (default) and `transcript_mode` is not `off` |
+| [`rerender_preview`](../src/podcast_mcp/services/pipeline/preview.py) | After `assemble_timeline` (+ music mix) | Auto-reconciles when `analysis.reconcile_on_render` is true (default) and `transcript_mode` is not `off` |
 | [`PipelineRunner`](../src/podcast_mcp/pipeline/runner.py) | Audio-affecting pipeline steps | Marks stale; full pipeline runs `reconcile_transcript` after `render_dialogue_stems` (pass 1) and after `assemble_timeline` (pass 2) |
 | [`reconcile_transcript`](../src/podcast_mcp/pipeline/steps.py) pipeline step | Pass 1 and pass 2 in ordered pipeline | Same engine as `reconcile_transcript_tool` |
 

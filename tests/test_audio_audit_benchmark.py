@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from optional_projects import cleanup_test_project
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio_audit import (
     TrackRmsCache,

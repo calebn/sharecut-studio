@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clips_ops import (
     new_clip_id,
     set_track_clips,

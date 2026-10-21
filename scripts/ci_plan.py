@@ -116,6 +116,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("src/podcast_mcp/mcp/**", Scope.GUI),
         ("src/podcast_mcp/extensions/**", Scope.GUI),
         ("src/podcast_mcp/project/**", Scope.GUI),
+        ("src/podcast_mcp/config/**", Scope.GUI),
         ("src/podcast_mcp/cli/**", Scope.GUI),
         ("src/podcast_mcp/*.py", Scope.GUI),
         # Audio and edit algorithms: pytest owns them on PRs; main and nightly

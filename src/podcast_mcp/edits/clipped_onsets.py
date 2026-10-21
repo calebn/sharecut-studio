@@ -73,7 +73,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_latency import (
     DOMINANCE_DB,
     FRAME_SEC,

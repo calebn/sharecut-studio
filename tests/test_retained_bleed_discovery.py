@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import retained_bleed_alignment as api
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from test_retained_bleed_alignment import RATE, _episode, _read, _write, gate_abstains

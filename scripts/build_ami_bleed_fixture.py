@@ -34,7 +34,7 @@ from build_synthetic_bleed_fixture import (
     _validate_bleed,
 )
 from import_ami_words import import_meeting_words
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 
 DEFAULT_MEETING = "ES2002a"
 DEFAULT_SLICE = (120.0, 180.0)

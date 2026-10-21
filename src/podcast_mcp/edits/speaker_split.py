@@ -23,7 +23,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clips_ops import clips_for_track, new_clip_id
 from podcast_mcp.edits.mute_regions import add_source_mute, merge_mute_regions
 from podcast_mcp.edits.timeline_ops import mute_room_tone_fill

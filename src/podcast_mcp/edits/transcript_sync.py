@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.ranges import overlaps_remove_range
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,

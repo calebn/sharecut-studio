@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.runtime_config import (
+from podcast_mcp.config.runtime import (
     RelayConfig,
     RuntimeConfigError,
     default_relay_config_path,
@@ -279,7 +279,7 @@ def test_default_relay_config_uses_persisted_host_id() -> None:
 def test_persisted_host_id_unwritable_falls_back_to_ephemeral(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import podcast_mcp.runtime_config as rc
+    import podcast_mcp.config.runtime as rc
 
     def _deny(*_a, **_k):
         raise PermissionError("read-only")
@@ -294,7 +294,7 @@ def test_persisted_host_id_unwritable_falls_back_to_ephemeral(
 def test_persisted_host_id_uses_winner_of_create_race(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import podcast_mcp.runtime_config as rc
+    import podcast_mcp.config.runtime as rc
 
     cfg = tmp_path / "relay.yaml"
 

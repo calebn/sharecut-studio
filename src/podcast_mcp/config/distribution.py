@@ -79,7 +79,7 @@ def compact_product_name(profile: DistributionProfile) -> str:
 
 
 def default_distribution_profile_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "config" / "distribution.dev.json"
+    return Path(__file__).resolve().parents[3] / "config" / "distribution.dev.json"
 
 
 def _validate_public_https_url(name: str, raw: Any, *, origin: bool = False) -> str:

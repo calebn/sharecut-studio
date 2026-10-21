@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from contract_project_helpers import contract_project
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import update_timeline_duration
 from podcast_mcp.engines.audio import MixAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine

@@ -9,7 +9,7 @@ from contextlib import contextmanager
 import pytest
 from filelock import Timeout
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.play_audit import publish_stem
 from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.pipeline.runner import PipelineRunner

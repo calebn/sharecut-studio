@@ -4,15 +4,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.audio_audit import analyze_gate_overreach
 from podcast_mcp.engines.play_audit import proxy_render_hash, stem_is_fresh, track_render_hash
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, Transcript, TranscriptWord
-from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import PlayRequest, PlayService
 from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.pipeline.preview import rerender_preview
 
 
 def gated_project(tmp_path: Path) -> EpisodeProject:

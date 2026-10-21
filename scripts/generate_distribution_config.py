@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 def main(argv: list[str] | None = None) -> int:
-    from podcast_mcp.distribution import (
+    from podcast_mcp.config.distribution import (
         DistributionProfileError,
         compact_product_name,
         default_distribution_profile_path,

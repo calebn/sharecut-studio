@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcript_gated_play import (
     dialogue_tracks_for_play,
     gate_stem_window,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.util.wer import tokens_from_text, word_error_rate
 

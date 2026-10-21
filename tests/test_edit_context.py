@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.context import build_edit_context
 from podcast_mcp.models import CombinedTranscript, CombinedUtterance, EpisodeProject
 

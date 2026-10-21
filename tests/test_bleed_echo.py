@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import bleed_echo
 from podcast_mcp.engines.bleed_echo import (
     EchoConfig,

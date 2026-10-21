@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from podcast_mcp.config import EffectiveConfig, load_defaults
+from podcast_mcp.config.defaults import EffectiveConfig, load_defaults
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.speech_energy_guard import validate_speech_energy_on_conflict
 from podcast_mcp.effects.presets import resolve_presets

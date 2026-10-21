@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from podcast_mcp.config import EffectiveConfig
-from podcast_mcp.edits.cut_placement import CutScopeHold
-from podcast_mcp.edits.cut_safety import hold_is_overridable, inspect_source_remove
+from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.cut_safety import CutScopeHold, hold_is_overridable, inspect_source_remove
 from podcast_mcp.edits.cut_speech import assess_cut_speech
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,

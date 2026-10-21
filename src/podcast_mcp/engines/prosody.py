@@ -53,7 +53,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import SILENT, profile_from_levels
 from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db, frame_rms_db_stream

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.focus import (
     _episode_duration,
     _has_hook,

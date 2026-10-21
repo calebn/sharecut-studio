@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audition_context import HYPOTHESIS_CATALOG, build_audition_context
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import (

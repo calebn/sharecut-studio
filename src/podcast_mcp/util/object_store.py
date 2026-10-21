@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import BinaryIO, TypeAlias
 
-from podcast_mcp.runtime_config import ObjectStoreConfig, load_object_store_config
+from podcast_mcp.config.runtime import ObjectStoreConfig, load_object_store_config
 
 
 class ObjectStoreClient:

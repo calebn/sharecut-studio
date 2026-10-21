@@ -8,7 +8,7 @@ from mcp.client import Client
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import roll_clip_join
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server

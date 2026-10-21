@@ -539,7 +539,7 @@ def test_fade_cap_view_matches_the_writer_and_refreshes_with_clips(
 ) -> None:
     import yaml
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.timeline_ops import set_clip_fade
     from podcast_mcp.gui.assembler import build_track_views
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole

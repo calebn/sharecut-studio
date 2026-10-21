@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import numpy as np
 from filelock import FileLock, Timeout
 
-from podcast_mcp.config import EffectiveConfig, whisper_cache_dir
+from podcast_mcp.config.defaults import EffectiveConfig, whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,

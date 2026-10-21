@@ -16,7 +16,7 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.align import (
     _MAX_WAV_CHANNELS,
     _MAX_WAV_RATE,

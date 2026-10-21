@@ -183,7 +183,7 @@ WHISPER_PINS: dict[str, PinnedSnapshot] = {
 
 
 def prefs_path() -> Path:
-    from podcast_mcp.config import cache_dir
+    from podcast_mcp.config.defaults import cache_dir
 
     return cache_dir() / "prefs.yaml"
 
@@ -334,7 +334,7 @@ def _unpinned_weights_on_disk(model: str) -> bool:
     Requires ``model.bin`` or ``model.safetensors`` under a path that belongs to
     ``model`` so a partial Hugging Face download does not count as ready.
     """
-    from podcast_mcp.config import whisper_cache_dir
+    from podcast_mcp.config.defaults import whisper_cache_dir
 
     root = whisper_cache_dir()
     if not root.is_dir():
@@ -349,7 +349,7 @@ def _unpinned_weights_on_disk(model: str) -> bool:
 
 def _pinned_snapshot_dir(model: str, pin: PinnedSnapshot) -> Path:
     """The complete local pinned snapshot for ``model``; never downloads."""
-    from podcast_mcp.config import whisper_cache_dir
+    from podcast_mcp.config.defaults import whisper_cache_dir
 
     try:
         return resolve_pinned_snapshot(pin, whisper_cache_dir())
@@ -435,7 +435,7 @@ def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str
     downloaded. The hash-then-load window is intrinsic and stays inside the same OS-user
     trust boundary (guest and share callers cannot reach it).
     """
-    from podcast_mcp.config import whisper_cache_dir
+    from podcast_mcp.config.defaults import whisper_cache_dir
 
     canonical = validate_whisper_model(model_size)
     pin = WHISPER_PINS.get(canonical)

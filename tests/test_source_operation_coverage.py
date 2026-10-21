@@ -5,7 +5,7 @@ import wave
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project

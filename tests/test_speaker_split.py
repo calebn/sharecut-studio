@@ -13,7 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.mute_regions import source_span_is_muted
 from podcast_mcp.edits.speaker_split import (
     SPLIT_FADE_MS,

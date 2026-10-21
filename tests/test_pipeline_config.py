@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.pipeline.meta import (
     PARAM_FIELDS,
     cascade_disable,
@@ -395,7 +395,7 @@ def test_component_status_whisper_requires_cached_weights(tmp_path, monkeypatch)
 
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
 
     status = pc.component_status(whisper_model="large-v3-turbo")
     assert status["whisper"]["ok"] is False
@@ -413,7 +413,7 @@ def test_component_status_whisper_pin_mismatch(tmp_path, monkeypatch) -> None:
 
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     snap = plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
     (snap / "model.bin").write_bytes(b"tampered")
 
@@ -432,7 +432,7 @@ def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> 
 
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     proj = tmp_path / "ep.project.json"
     proj.write_text("{}", encoding="utf-8")
     store = pc.config_store()
@@ -1164,7 +1164,7 @@ def test_balance_depends_on_compress() -> None:
 
 
 def test_premix_peak_ceiling_default_is_defined_once() -> None:
-    from podcast_mcp.config import DEFAULT_PREMIX_PEAK_CEILING_DB, mix_peak_ceiling_db
+    from podcast_mcp.config.defaults import DEFAULT_PREMIX_PEAK_CEILING_DB, mix_peak_ceiling_db
 
     field = next(f for f in PARAM_FIELDS if f.path == "mix.premix_peak_ceiling_db")
     assert field.default == DEFAULT_PREMIX_PEAK_CEILING_DB
@@ -1215,7 +1215,7 @@ def test_prosody_params_for_ignores_a_config_read(tmp_path, monkeypatch):
 
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     proj = tmp_path / "ep5.project.json"
     proj.write_text("{}", encoding="utf-8")
     store = config_store()
@@ -1515,7 +1515,7 @@ def _pipeline_params_exporter():
 
 
 def test_every_yaml_leaf_is_exposed_or_listed_unexposed() -> None:
-    from podcast_mcp.config import bundled_defaults
+    from podcast_mcp.config.defaults import bundled_defaults
 
     exporter = _pipeline_params_exporter()
     leaves = set(exporter._leaves(bundled_defaults()))
@@ -1527,7 +1527,7 @@ def test_every_yaml_leaf_is_exposed_or_listed_unexposed() -> None:
 
 
 def test_a_new_yaml_key_changes_the_pinned_contract(monkeypatch: pytest.MonkeyPatch) -> None:
-    from podcast_mcp import config
+    from podcast_mcp.config import defaults as config
 
     exporter = _pipeline_params_exporter()
     before = exporter._dumps(exporter.contract())
@@ -1538,7 +1538,7 @@ def test_a_new_yaml_key_changes_the_pinned_contract(monkeypatch: pytest.MonkeyPa
 
 
 def test_param_field_types_follow_the_yaml_value() -> None:
-    from podcast_mcp.config import bundled_defaults
+    from podcast_mcp.config.defaults import bundled_defaults
 
     defaults = bundled_defaults()
     for field in PARAM_FIELDS:

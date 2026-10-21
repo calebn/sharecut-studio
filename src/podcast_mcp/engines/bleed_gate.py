@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.audio_audit import AnalysisPolicy, BleedHandling, BleedReduction
 from podcast_mcp.engines.copy_timbre import (
     LIKENESS_FRAMES,

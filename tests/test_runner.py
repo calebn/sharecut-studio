@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.models import load_project
 from podcast_mcp.pipeline import PipelineRunner
 

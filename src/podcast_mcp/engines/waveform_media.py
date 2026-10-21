@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh
 from podcast_mcp.engines.waveform_pyramid import (

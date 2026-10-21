@@ -24,8 +24,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
 
-from podcast_mcp.config import cache_dir
-from podcast_mcp.runtime_config import RelayConfig
+from podcast_mcp.config.defaults import cache_dir
+from podcast_mcp.config.runtime import RelayConfig
 from podcast_mcp.services.collaboration.tunnel_failure import TunnelFailure
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.redact import redact_secrets

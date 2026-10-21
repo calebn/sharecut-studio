@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from podcast_mcp.config import join_micro_fade_ms
+from podcast_mcp.config.defaults import join_micro_fade_ms
 from podcast_mcp.edits import cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.cut_placement import CutRejected

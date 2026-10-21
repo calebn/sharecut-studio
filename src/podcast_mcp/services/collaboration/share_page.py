@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Any
 
-from podcast_mcp.runtime_config import load_relay_config
+from podcast_mcp.config.runtime import load_relay_config
 from podcast_mcp.services.collaboration.review_versions import get_version
 from podcast_mcp.services.collaboration.share_capabilities import CAP_PLAY, has_capability
 

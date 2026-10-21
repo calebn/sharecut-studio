@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.play_audit import premix_path

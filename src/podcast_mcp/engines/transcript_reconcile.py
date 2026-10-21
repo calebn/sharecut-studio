@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_text_match import overlap_text_match_losers
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import (

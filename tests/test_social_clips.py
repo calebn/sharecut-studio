@@ -18,7 +18,7 @@ from podcast_mcp.clips.social import (
     propose_social_clips,
     reject_social_clips,
 )
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,

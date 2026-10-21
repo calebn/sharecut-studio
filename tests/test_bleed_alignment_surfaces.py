@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.mcp.tools import timeline
-from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import AnalysisService
+from podcast_mcp.services.pipeline.preview import rerender_preview
 from test_retained_bleed_alignment import _episode
 
 

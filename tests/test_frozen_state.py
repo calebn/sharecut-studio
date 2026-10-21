@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import play_audit
 from podcast_mcp.util.batch_scope import frozen, frozen_state
 

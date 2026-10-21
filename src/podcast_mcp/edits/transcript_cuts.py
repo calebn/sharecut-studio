@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_SPLIT_REASON,

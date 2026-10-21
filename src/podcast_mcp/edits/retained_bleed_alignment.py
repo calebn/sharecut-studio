@@ -12,7 +12,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clips_ops import (
     clips_for_track,
     punch_timeline_range_from_clips,

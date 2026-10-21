@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import yaml
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB

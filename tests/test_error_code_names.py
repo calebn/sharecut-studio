@@ -26,7 +26,7 @@ def test_a_clip_with_an_unlisted_source_is_a_data_inconsistency_not_a_missing_ta
 
 
 def test_caller_actionable_argument_errors_carry_their_own_codes(tmp_path) -> None:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.conversation_align import acoustic_clip_offset
     from podcast_mcp.edits.retained_bleed_alignment import plan_retained_bleed_alignment
     from podcast_mcp.edits.timeline_ops import move_clips

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
 from podcast_mcp.edits.cut_application import apply_auto_edits, apply_prefix_edits, approve_edits
 from podcast_mcp.edits.decisions import (

@@ -9,7 +9,7 @@ from uuid import uuid4
 import yaml
 from filelock import FileLock
 
-from podcast_mcp.config import defaults_dir
+from podcast_mcp.config.defaults import defaults_dir
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dicts import deep_merge

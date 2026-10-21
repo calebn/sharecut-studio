@@ -285,8 +285,8 @@ def test_cors_wildcard_env_fails_closed_instead_of_reflecting_origin(
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
+    from podcast_mcp.config.runtime import RuntimeConfigError
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.runtime_config import RuntimeConfigError
 
     monkeypatch.setenv(_CORS_ENV, "*")
     try:
@@ -335,8 +335,8 @@ def test_cors_origins_env_rejects_non_exact_origins(
     monkeypatch: pytest.MonkeyPatch, value: str
 ) -> None:
     pytest.importorskip("fastapi")
+    from podcast_mcp.config.runtime import RuntimeConfigError
     from podcast_mcp.gui.server import _cors_origins
-    from podcast_mcp.runtime_config import RuntimeConfigError
 
     monkeypatch.setenv(_CORS_ENV, value)
     with pytest.raises(RuntimeConfigError, match=_CORS_ENV) as exc:

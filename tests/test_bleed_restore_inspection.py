@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
 from podcast_mcp.models import Clip, ClipOffSpeakerMuteRegion, EpisodeProject, MediaAsset, Track

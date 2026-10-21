@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from podcast_mcp.config import whisper_cache_dir
+from podcast_mcp.config.defaults import whisper_cache_dir
 from podcast_mcp.engines.models.whisper import (
     WHISPER_BOOTSTRAP,
     WhisperPinMismatchError,

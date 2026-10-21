@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import clips_for_track, is_splice, splice_joins
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.join_speech import (

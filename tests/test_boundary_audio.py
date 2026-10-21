@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from filelock import Timeout
 
-from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+from podcast_mcp.config.defaults import load_defaults, mix_peak_ceiling_db
 from podcast_mcp.edits.timeline_ops import roll_clip_join
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash

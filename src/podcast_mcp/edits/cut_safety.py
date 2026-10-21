@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits import cut_speech, join_continuity, speech_energy_guard
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import (

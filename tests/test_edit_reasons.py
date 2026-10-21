@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from podcast_mcp.config import repo_root
+from podcast_mcp.config.defaults import repo_root
 from podcast_mcp.edits.edit_reasons import LABELLED_REASON_CODES, LABELLED_REASON_PREFIXES
 from podcast_mcp.edits.tighten_hits import TIGHTEN_REASON_PREFIXES
 

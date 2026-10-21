@@ -37,7 +37,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.align import xcorr_lag_window
 from podcast_mcp.engines.bleed_delay import (
     LongDelayConfig,

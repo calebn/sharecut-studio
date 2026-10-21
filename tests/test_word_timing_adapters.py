@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
 from podcast_mcp.engines.waveform_media import collect_media_refs, track_media_refs
 from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline

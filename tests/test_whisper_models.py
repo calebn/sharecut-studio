@@ -177,7 +177,7 @@ def test_whisper_model_is_cached_missing_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "no-such-whisper-dir",
     )
     from podcast_mcp.engines.models.whisper import catalog_payload
@@ -206,7 +206,7 @@ def test_whisper_model_is_cached_requires_weight_file(
     blobs = cache / "models--Systran--faster-whisper-base" / "blobs"
     blobs.mkdir(parents=True)
     (blobs / "partial.chunk").write_bytes(b"x")
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     assert whisper_model_is_cached("base") is False
 
     (blobs / "model.safetensors").write_bytes(b"x")
@@ -217,7 +217,7 @@ def test_snapshot_at_another_revision_is_not_cached(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cache = tmp_path / "whisper"
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     pin = WHISPER_PINS["small.en"]
     other_rev = "1111111111111111111111111111111111111a"
     snap = cache / f"models--{pin.hf_repo.replace('/', '--')}" / "snapshots" / other_rev
@@ -230,7 +230,7 @@ def test_snapshot_at_another_revision_is_not_cached(
 
 def test_missing_pinned_file_is_not_cached(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cache = tmp_path / "whisper"
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
     (snap / "tokenizer.json").unlink()
 
@@ -245,7 +245,7 @@ def test_status_check_memoises_whisper_hashes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cache = tmp_path / "whisper"
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
     pin = WHISPER_PINS["small.en"]
     calls: list[Path] = []
@@ -267,7 +267,7 @@ def test_status_check_memoises_whisper_hashes(
 def test_bootstrap_whisper_model_downloads_and_persists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.config import whisper_cache_dir
+    from podcast_mcp.config.defaults import whisper_cache_dir
 
     cache = whisper_cache_dir()
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
@@ -296,7 +296,7 @@ def test_bootstrap_whisper_model_downloads_and_persists(
 def test_bootstrap_whisper_model_force_redownloads(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.config import whisper_cache_dir
+    from podcast_mcp.config.defaults import whisper_cache_dir
 
     cache = whisper_cache_dir()
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
@@ -335,7 +335,7 @@ def test_bootstrap_unpinned_size_uses_faster_whisper(
 ) -> None:
     from unittest.mock import MagicMock, patch
 
-    from podcast_mcp.config import whisper_cache_dir
+    from podcast_mcp.config.defaults import whisper_cache_dir
 
     calls: list[dict] = []
 
@@ -369,7 +369,7 @@ def test_ensure_whisper_model_cached_raises_when_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.config.whisper_cache_dir",
+        "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty-whisper",
     )
     with pytest.raises(WhisperWeightsMissingError, match=r"small\.en") as exc_info:
@@ -382,7 +382,7 @@ def test_ensure_whisper_model_cached_ok_with_weight_file(
 ) -> None:
     cache = tmp_path / "whisper"
     plant_pinned_whisper(cache, "small.en", monkeypatch)
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     assert ensure_whisper_model_cached("small.en") == "small.en"
 
 
@@ -391,7 +391,7 @@ def test_resolve_whisper_model_path_returns_verified_snapshot_dir(
 ) -> None:
     cache = tmp_path / "whisper"
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     assert resolve_whisper_model_path("small.en") == str(snap)
 
 
@@ -402,14 +402,14 @@ def test_resolve_whisper_model_path_unpinned_returns_size_id(
     blobs = cache / "models--Systran--faster-whisper-base" / "blobs"
     blobs.mkdir(parents=True)
     (blobs / "model.bin").write_bytes(b"x")
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     assert resolve_whisper_model_path("base") == "base"
 
 
 def test_tampered_vocabulary_fails_status_load_and_bootstrap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.config import whisper_cache_dir
+    from podcast_mcp.config.defaults import whisper_cache_dir
 
     cache = whisper_cache_dir()
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
@@ -464,7 +464,7 @@ def test_resolve_whisper_model_path_maps_a_vanishing_file_to_missing(
 ) -> None:
     cache = tmp_path / "whisper"
     plant_pinned_whisper(cache, "small.en", monkeypatch)
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
 
     def raise_oserror(p: Path) -> str:
         raise FileNotFoundError(p)
@@ -480,7 +480,7 @@ def test_run_gate_rehashes_a_file_a_status_poll_remembered(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cache = tmp_path / "whisper"
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
     assert whisper_model_is_cached("small.en", memoize=True) is True
     target = snap / "vocabulary.txt"

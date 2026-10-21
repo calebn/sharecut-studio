@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.cut_policy import decision_policy
 from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.models import (

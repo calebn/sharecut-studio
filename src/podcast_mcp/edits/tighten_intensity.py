@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from podcast_mcp.config import shipped_tighten_defaults
+from podcast_mcp.config.defaults import shipped_tighten_defaults
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dicts import deep_merge
 

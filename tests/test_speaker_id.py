@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_safety import ResolvedCutScope, resolve_cut_scope
 from podcast_mcp.edits.transcript_precorrect import _should_run_speaker
 from podcast_mcp.engines.speaker_id import (

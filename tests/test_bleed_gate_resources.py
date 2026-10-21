@@ -6,7 +6,7 @@ import shutil
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import bleed_gate
 from test_bleed_gate_regression import RATE, _episode, _read_pcm, _write_pcm
 
@@ -118,7 +118,7 @@ def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_pe
 
 @pytest.mark.parametrize("state", ["fresh", "stale", "gated"])
 def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch, state):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.engines import timeline_render
     from podcast_mcp.engines.audio_audit import TrackRmsCache, build_track_rms_caches
     from podcast_mcp.engines.play_audit import write_stem_hash

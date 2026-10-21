@@ -121,7 +121,7 @@ def test_bootstrap_whisper_tampered_snapshot_fails_with_upgrade_hint(
     from model_pin_helpers import plant_pinned_whisper
 
     cache = tmp_path / "cache" / "whisper"
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
     (snap / "vocabulary.txt").write_bytes(b"tampered")
     monkeypatch.setattr(

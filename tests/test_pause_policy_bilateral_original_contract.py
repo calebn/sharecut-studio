@@ -33,7 +33,7 @@ def _enabled(monkeypatch, mode):
     cfg["tighten"].update(leave_in_if_risky=True, join_continuity_gate=True)
     cfg["join_continuity"] = {"neural": False, "calibrate": False}
     configure(monkeypatch, cfg)
-    for target in ("podcast_mcp.config.load_defaults",):
+    for target in ("podcast_mcp.config.defaults.load_defaults",):
         monkeypatch.setattr(target, lambda: copy.deepcopy(cfg))
     return cfg
 

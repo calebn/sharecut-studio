@@ -13,8 +13,8 @@ from podcast_mcp.models import AutomationEnvelope, AutomationPoint, PipelineRun,
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
-from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_cancel_scope, render_lock

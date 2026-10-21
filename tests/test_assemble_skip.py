@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.models import (

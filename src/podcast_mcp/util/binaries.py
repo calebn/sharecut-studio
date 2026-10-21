@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp import settings
-from podcast_mcp.config import bin_cache_dir
+from podcast_mcp.config.defaults import bin_cache_dir
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.process import TimeoutExpired, run

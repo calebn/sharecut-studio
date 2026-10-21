@@ -6,7 +6,7 @@ from unittest.mock import ANY, patch
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.breath_detect import (
     BreathSpan,
     PauseAir,
@@ -264,7 +264,7 @@ def test_analyze_fillers_integration(tmp_path):
             ],
         )
     ]
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     defaults = load_defaults()
     # This gated speech fixture has no measurable room-tone contrast.
@@ -1360,7 +1360,7 @@ def test_isolated_punctuated_discourse_marker_still_demoted():
 
 
 def _shipped_tighten_defaults() -> dict:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     return {"tighten": {**load_defaults()["tighten"], "max_pause_sec": 99.0}}
 
@@ -1786,7 +1786,7 @@ def test_discourse_skip_counts_surfaced_in_summary():
 
 
 def test_discourse_config_defaults_round_trip():
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.tighten.lexicon import (
         DEFAULT_DISCOURSE_CONFIDENCE_MAX,
         DEFAULT_DISCOURSE_MARKERS,
@@ -2329,7 +2329,7 @@ def test_discourse_leading_silence_and_trailing_like():
 
 
 def test_discourse_bounds_reject_invalid_numbers():
-    from podcast_mcp.config import bounded_float
+    from podcast_mcp.config.defaults import bounded_float
 
     assert bounded_float("nope", 0.35, 0.0, 5.0) == 0.35
     assert bounded_float(None, 0.35, 0.0, 5.0) == 0.35
@@ -2504,7 +2504,7 @@ def test_repetition_candidates_flag_off_skips_repetition():
 
 
 def test_intensity_tiers_are_nested_and_ordered():
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.tighten.collect import _collect_candidates
     from podcast_mcp.edits.tighten_intensity import apply_tighten_intensity
 
@@ -2886,7 +2886,7 @@ def _audio_project(
 def test_audio_padded_filler_with_edges_in_activity_is_proposed(tmp_path):
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     # Room tone 35 dB over the floor joins the um's onset and tail into one run that
@@ -2920,7 +2920,7 @@ def test_audio_padded_filler_with_edges_in_activity_is_proposed(tmp_path):
 def test_audio_padded_filler_cut_ends_before_a_plosive_burst(tmp_path):
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     noise = np.random.default_rng(3).standard_normal(round(0.1 * 16_000))
     burst = noise[: round(0.008 * 16_000)] * 10 ** (-50 / 20)
@@ -2952,7 +2952,7 @@ def test_audio_padded_filler_cut_ends_before_a_plosive_burst(tmp_path):
 def test_audio_mute_ends_before_a_plosive_burst_and_carries_it(tmp_path):
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     noise = np.random.default_rng(3).standard_normal(round(0.1 * 16_000))
     project = _audio_project(
@@ -2996,7 +2996,7 @@ def test_audio_mute_ends_before_a_plosive_burst_and_carries_it(tmp_path):
 def test_audio_mute_proposes_only_audible_acoustic_runs_apart_from_kept_words(
     tmp_path, level_db, proposed, skips
 ):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     project = _audio_project(
         tmp_path,
@@ -3038,7 +3038,7 @@ def test_audio_mute_proposes_only_audible_acoustic_runs_apart_from_kept_words(
 def test_audio_acoustic_run_in_a_short_gap_is_muted_but_not_rippled(
     tmp_path, edit_mode, proposed, skips
 ):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     project = _audio_project(
         tmp_path,
@@ -3074,7 +3074,7 @@ def _breathy_voice(sec: float, *, level_db: float = -20.0, rate: int = 16_000):
 
 
 def _acoustic_mute_defaults() -> dict:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     defaults = load_defaults()
     defaults["tighten"]["edit_mode"] = "mute"
@@ -3177,7 +3177,7 @@ def test_acoustic_mute_too_short_beside_a_kept_words_voice_is_skipped(tmp_path, 
     ],
 )
 def test_cut_starting_in_a_kept_words_tail_starts_after_its_voice(tmp_path, reason, start):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.plan import _between_kept_voices, _CutPlan
@@ -3274,7 +3274,7 @@ def _owner_cases_project(tmp_path, gain_db: float) -> EpisodeProject:
 
 @pytest.mark.parametrize("gain_db", _GAINS_DB)
 def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.plan import (
@@ -3339,7 +3339,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
     ],
 )
 def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.cut_placement import CutRejected
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
@@ -3632,7 +3632,7 @@ def test_a_real_word_the_transcript_dropped_is_not_proposed_as_a_filler_decaying
 
 
 def test_the_plan_flags_the_valley_when_the_word_time_falls_in_it(tmp_path):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.plan import _between_kept_voices, _CutPlan
@@ -3727,7 +3727,7 @@ def test_a_filler_decaying_into_a_word_is_held_at_approval_by_the_same_rule_that
 
 
 def _decaying_uh_plan_inputs(tmp_path, reason: str, cut_kind: str, end: float = 1.45):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
     from podcast_mcp.edits.tighten.plan import _CutPlan
@@ -3857,7 +3857,7 @@ def test_a_contributor_ends_in_the_valley_only_when_it_is_an_acoustic_cut_in_the
 
 
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     def proposal(*, guest_talking: bool):
         project = _audio_project(
@@ -3908,7 +3908,7 @@ def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
 def test_audio_cut_that_would_stop_inside_the_filler_is_dropped_as_next_onset(tmp_path, edit_mode):
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     noise = np.random.default_rng(3).standard_normal(round(0.1 * 16_000))
     project = _audio_project(
@@ -3945,10 +3945,10 @@ def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
 
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.engines.play_audit import premix_path
-    from podcast_mcp.render import rerender_preview
+    from podcast_mcp.services.pipeline.preview import rerender_preview
 
     rate = 48_000
     noise = np.random.default_rng(3).standard_normal(round(0.05 * rate))
@@ -4000,7 +4000,7 @@ def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
 def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_at):
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
 
@@ -4044,7 +4044,7 @@ def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_
 def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_path):
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
 
@@ -4099,7 +4099,7 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
 def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
     import numpy as np
 
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.cut_quality import recommend_prev_word_lead_out_ms
     from podcast_mcp.edits.tighten.candidate import _CutCandidate
@@ -4160,7 +4160,7 @@ def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
 
 
 def _late_filler_defaults(join: str) -> dict:
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
 
     defaults = load_defaults()
     defaults["tighten"]["filler_room_tone_replace"] = join == "padded"

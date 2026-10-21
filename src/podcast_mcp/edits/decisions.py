@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_check_override import active_override
 from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.edits.cut_speech import (

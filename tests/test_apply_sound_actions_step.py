@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import suggested_actions
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig
 from podcast_mcp.models import (

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.bleed_text_match import pair_word, pair_word_key
 from podcast_mcp.edits.transcript_correct import apply_transcript_corrections
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report

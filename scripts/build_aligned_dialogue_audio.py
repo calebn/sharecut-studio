@@ -22,7 +22,7 @@ import numpy as np
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 from podcast_mcp.project.store import ProjectStore

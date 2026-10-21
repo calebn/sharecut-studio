@@ -456,7 +456,7 @@ def test_prompt_hides_only_the_secret(relay_config: Path, monkeypatch: pytest.Mo
 
 
 def test_admin_keys_are_not_accepted_by_the_runtime_loaders(tmp_path: Path) -> None:
-    from podcast_mcp.runtime_config import (
+    from podcast_mcp.config.runtime import (
         RuntimeConfigError,
         load_object_store_config,
         load_relay_config,

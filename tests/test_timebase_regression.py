@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcript_gated_play import word_intervals
 from podcast_mcp.models import (

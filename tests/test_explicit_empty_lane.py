@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import set_track_clips
 from podcast_mcp.edits.ripple import ripple_remove_clips
 from podcast_mcp.edits.timeline_ops import _write_punch_delete

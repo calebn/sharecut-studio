@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.tighten.candidate import _cut_span_is_bleed_not_owner
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,

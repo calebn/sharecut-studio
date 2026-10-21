@@ -56,7 +56,7 @@ def _enabled(monkeypatch, *, optimize=False, mode="room_tone"):
     )
     cfg["join_continuity"] = {"neural": False, "calibrate": False}
     configure(monkeypatch, cfg)
-    for target in ("podcast_mcp.config.load_defaults",):
+    for target in ("podcast_mcp.config.defaults.load_defaults",):
         monkeypatch.setattr(target, lambda: copy.deepcopy(cfg))
     return cfg
 

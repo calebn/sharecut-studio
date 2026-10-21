@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.review_gate import ReviewGate, ReviewSource
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 

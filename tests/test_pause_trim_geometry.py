@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from pause_policy_public_helpers import room, voice, write_wav
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.gui.server import create_app

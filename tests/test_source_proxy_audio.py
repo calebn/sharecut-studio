@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import source_proxy_audio as proxy
 from podcast_mcp.engines import timeline_render, transcript_gated_play
 from podcast_mcp.engines.bleed_gate import BleedGatePlan

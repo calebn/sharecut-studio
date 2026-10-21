@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.audition_context import build_audition_context
 from podcast_mcp.models import (
     Clip,

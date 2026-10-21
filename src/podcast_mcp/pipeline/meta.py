@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from podcast_mcp.config import bundled_defaults
+from podcast_mcp.config.defaults import bundled_defaults
 from podcast_mcp.edits.tighten_intensity import TIGHTEN_INTENSITIES
 from podcast_mcp.engines.models.whisper import WHISPER_SIZE_ENUM
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES

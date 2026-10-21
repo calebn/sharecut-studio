@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError

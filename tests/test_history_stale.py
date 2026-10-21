@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.render_invalidations import record_invalidation

@@ -179,7 +179,7 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
             model.id, f"{WORD_ALIGNER_ENV}={override} has no vocab.json or {model.onnx_file}"
         )
 
-    from podcast_mcp.config import word_aligner_cache_dir
+    from podcast_mcp.config.defaults import word_aligner_cache_dir
 
     try:
         return resolve_pinned_snapshot(model.pin, word_aligner_cache_dir())
@@ -236,7 +236,7 @@ def bootstrap_word_aligner(
 
     A cached snapshot that fails its pin is re-fetched once even without ``force``.
     """
-    from podcast_mcp.config import word_aligner_cache_dir
+    from podcast_mcp.config.defaults import word_aligner_cache_dir
 
     model = word_aligner_model(model_id)
     # Intentional download path: the only word-aligner download (never local_files_only).

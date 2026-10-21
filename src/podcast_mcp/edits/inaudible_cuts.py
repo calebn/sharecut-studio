@@ -9,7 +9,7 @@ from typing import Literal
 
 import numpy as np
 
-from podcast_mcp.config import (
+from podcast_mcp.config.defaults import (
     DEFAULT_MICRO_FADE_MS,
     EffectiveConfig,
     join_micro_fade_ms,

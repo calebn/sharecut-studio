@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.export.transcript import (
     CaptionLimits,
     combined_transcript_markdown,

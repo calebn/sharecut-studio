@@ -7,7 +7,7 @@ import wave
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.range_edits import range_geometry, range_media_seal
 from podcast_mcp.models import Clip, MediaAsset, Track
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
@@ -170,7 +170,7 @@ def test_concurrent_host_and_guest_previews_keep_separate_pcm(minimal_project, t
 
 @pytest.mark.parametrize("moved", [False, True])
 def test_full_cut_retains_authoritative_extent_in_full_stem(minimal_project, tmp_path, moved):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.edits.range_edits import edit_selected_range
     from podcast_mcp.engines.timeline_render import render_track_from_timeline
     from podcast_mcp.models import load_project, save_project

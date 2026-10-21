@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from history_helpers import history_move
 from podcast_mcp.cli.main import app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clips_ops import crossfade_ms_at_join, roll_clip_join
 from podcast_mcp.edits.join_modes import (
     default_join_length_ms,

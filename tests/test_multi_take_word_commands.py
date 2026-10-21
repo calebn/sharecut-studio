@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_correct import (
     correct_phrase,
     correct_word,

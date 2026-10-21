@@ -345,7 +345,7 @@
         "include": [
           "src/podcast_mcp/edits/join_modes.py",
           "src/podcast_mcp/engines/timeline_render.py",
-          "src/podcast_mcp/render.py",
+          "src/podcast_mcp/services/pipeline/preview.py",
           "contracts/join-length-limits.json",
           "gui/web/src/edit/joinRender.ts",
           "gui/web/src/edit/fadeLimits.ts"
@@ -735,7 +735,7 @@
           "contracts/bootstrap-assets.schema.json",
           "contracts/distribution-profile.schema.json",
           "config/distribution.dev.json",
-          "src/podcast_mcp/distribution.py",
+          "src/podcast_mcp/config/distribution.py",
           "src/podcast_mcp/gui/routes/bootstrap.py",
           "src/podcast_mcp/gui/host_file_dialog.py",
           "gui/web/src/desktop/",
@@ -871,7 +871,7 @@
       "advisory": {
         "include": [
           "src/podcast_mcp/pipeline/",
-          "src/podcast_mcp/config.py",
+          "src/podcast_mcp/config/defaults.py",
           "src/podcast_mcp/services/pipeline/config.py",
           "src/podcast_mcp/export/names.py",
           "src/podcast_mcp/util/workspace_paths.py"

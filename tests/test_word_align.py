@@ -14,7 +14,7 @@ import pytest
 from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend, RecordingBackend
 from model_pin_helpers import pin_word_aligner_to_fake_snapshot
 from pcm_fakes import FakeStreamEngine
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.audio_audit import load_mono_full
 from podcast_mcp.engines.ctc_forced_align import (
     ALIGNMENT_SCORE_METHOD,

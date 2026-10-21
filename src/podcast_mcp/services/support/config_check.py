@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
-from podcast_mcp.distribution import DistributionProfileError, load_distribution_profile
-from podcast_mcp.runtime_config import (
+from podcast_mcp.config.distribution import DistributionProfileError, load_distribution_profile
+from podcast_mcp.config.runtime import (
     RuntimeConfigError,
     is_loopback_host,
     load_host_runtime_config,

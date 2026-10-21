@@ -8,7 +8,7 @@ import wave
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.pending_preview import (
     SUGGEST_REASON_SPLIT,
     SUGGEST_REASON_UNMAPPED,
@@ -208,10 +208,10 @@ def _premix_window(ws, start: float, end: float, *, approve: str | None = None):
     from pathlib import Path
 
     from podcast_mcp.edits.cut_application import approve_edits
-    from podcast_mcp.render import rerender_preview
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService
     from podcast_mcp.services.document.play import PlayRequest
+    from podcast_mcp.services.pipeline.preview import rerender_preview
 
     root = ws.project.workspace_path()
     copy = Path(tempfile.mkdtemp(dir=root.parent)) / root.name
@@ -322,9 +322,9 @@ def test_suggested_preview_follows_mix_changes_since_the_last_premix(minimal_pro
 def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_one(
     minimal_project, monkeypatch
 ) -> None:
-    from podcast_mcp.render import rerender_preview
     from podcast_mcp.services.document import PlayService
     from podcast_mcp.services.document import play_stems as play_module
+    from podcast_mcp.services.pipeline.preview import rerender_preview
 
     ws = _rendered_project(
         minimal_project,

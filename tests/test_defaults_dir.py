@@ -5,7 +5,7 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-from podcast_mcp import config
+from podcast_mcp.config import defaults as config
 from podcast_mcp.project.transcript_context import _GLOBAL_DEFAULTS_PATH
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +19,7 @@ def test_a_checkout_reads_the_repo_defaults() -> None:
 
 
 def test_the_packaged_directory_wins_when_it_exists(monkeypatch) -> None:
-    packaged = Path(config.__file__).resolve().parent / "defaults"
+    packaged = Path(config.__file__).resolve().parents[1] / "defaults"
     real_is_dir = Path.is_dir
     monkeypatch.setattr(
         Path, "is_dir", lambda self: True if self == packaged else real_is_dir(self)

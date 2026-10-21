@@ -13,7 +13,7 @@ from starlette.websockets import WebSocketDisconnect
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.comments import (
     add_action_item,
     add_comment,

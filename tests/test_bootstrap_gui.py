@@ -16,7 +16,7 @@ def _isolate_bootstrap_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None:
-    from podcast_mcp import config
+    from podcast_mcp.config import defaults as config
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
@@ -215,7 +215,7 @@ def test_whisper_component_requires_matching_model(tmp_path: Path, monkeypatch) 
     blobs = cache / "models--Systran--faster-whisper-small" / "blobs"
     blobs.mkdir(parents=True)
     (blobs / "x").write_text("x")
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     assert boot.whisper_component("small")["ok"] is False
 
     (blobs / "model.bin").write_bytes(b"x")
@@ -230,7 +230,7 @@ def test_whisper_component_large_v3_does_not_match_turbo(tmp_path: Path, monkeyp
 
     cache = tmp_path / "whisper"
     plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
 
     assert boot.whisper_component("large-v3-turbo")["ok"] is True
     assert boot.whisper_component("large-v3")["ok"] is False
@@ -598,7 +598,7 @@ def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
 
     clear_manifest_memo()
     cache = tmp_path / "whisper"
-    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
     good = (snap / "vocabulary.txt").read_bytes()
     (snap / "vocabulary.txt").write_bytes(b"tampered")

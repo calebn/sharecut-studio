@@ -7,8 +7,8 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
-from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
+from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits import cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.clips_ops import (

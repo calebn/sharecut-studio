@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from bleed_helpers import RATE, delay, voices
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCache,

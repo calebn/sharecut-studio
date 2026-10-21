@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pause_policy_public_helpers import workspace
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.models import CutIntent, load_project

@@ -207,7 +207,7 @@ def test_set_envelope_goes_through_document_log_and_baseline(tmp_path):
 
 
 def test_propose_and_apply_edits(tmp_path, monkeypatch):
-    from podcast_mcp.config import load_defaults
+    from podcast_mcp.config.defaults import load_defaults
     from source_review_helpers import finite_primary_recording
 
     defaults = load_defaults()

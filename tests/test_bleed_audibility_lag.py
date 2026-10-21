@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.bleed_lag_segments import LagSegment, LagSteps
 from podcast_mcp.engines import audio_audit as aa
 from podcast_mcp.engines.audio_audit import (

@@ -14,12 +14,12 @@ from podcast_mcp.util.bounded_cache import BoundedCache
 EffectiveConfig = dict[str, Any]
 """The merged pipeline config one request runs against: the project's staged working set, else shipped defaults."""
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def defaults_dir() -> Path:
     """Shipped default YAMLs: ``podcast_mcp/defaults`` in a wheel, ``<repo>/.agents/defaults`` in a checkout."""
-    packaged = Path(__file__).resolve().parent / "defaults"
+    packaged = Path(__file__).resolve().parents[1] / "defaults"
     return packaged if packaged.is_dir() else _REPO_ROOT / ".agents" / "defaults"
 
 

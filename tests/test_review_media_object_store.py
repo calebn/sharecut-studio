@@ -9,9 +9,9 @@ from typing import cast
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.config.runtime import RuntimeConfigError
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.runtime_config import RuntimeConfigError
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_versions import get_version

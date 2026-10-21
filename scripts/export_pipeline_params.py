@@ -34,7 +34,7 @@ def _leaves(node: Any, prefix: str = "") -> Iterator[str]:
 
 def contract() -> dict[str, Any]:
     sys.path.insert(0, str(ROOT / "src"))
-    from podcast_mcp.config import bundled_defaults
+    from podcast_mcp.config.defaults import bundled_defaults
     from podcast_mcp.pipeline.meta import PARAM_FIELDS
 
     exposed = {f.path for f in PARAM_FIELDS}

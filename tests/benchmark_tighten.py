@@ -20,7 +20,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.decisions import edit_timeline_range

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_reconcile import audibility_map, overlap_duplicate_report
 from podcast_mcp.models import load_project
 from podcast_mcp.pipeline import steps as pipeline_steps

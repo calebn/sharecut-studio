@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from filelock import Timeout
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.tighten_hits import is_tighten_reason, join_risk_from_decision
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import (

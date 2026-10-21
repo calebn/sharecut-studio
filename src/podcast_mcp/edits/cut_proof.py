@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
 from podcast_mcp.models import EpisodeProject

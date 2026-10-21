@@ -23,7 +23,7 @@ from threading import Lock
 if os.name == "posix":
     import fcntl
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,

@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.config import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_quality import _filter_rows_by_time
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
