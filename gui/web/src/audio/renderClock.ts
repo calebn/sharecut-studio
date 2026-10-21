@@ -1,11 +1,10 @@
-import { isCrossfadeJoin } from "../edit/joinRender";
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 
 /** Seconds render overlaps `clip` into its left neighbour (0 unless the join blends). */
 function crossfadeOverlapSec(clip: ClipRow): number {
   if (
-    !isCrossfadeJoin(clip) ||
+    clip.join_in_mode !== "crossfade" ||
     clip.join_left_clip_id == null ||
     clip.join_crossfade_blocked
   )
