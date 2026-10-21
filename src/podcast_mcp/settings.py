@@ -124,6 +124,10 @@ VARIABLES: tuple[Variable, ...] = (
         ("PODCAST_PROGRESS", "Progress output; 0, false or no turns it off.", "1"),
         ("PODCAST_PROGRESS_COMPLIANCE", "Progress compliance checks (diagnostics only)."),
         (
+            "PODCAST_SPEAKER_BACKEND",
+            "Set to mock to opt in to the development speaker mock (tests, development).",
+        ),
+        (
             "PODCAST_NO_STUDIO_HANDOFF",
             "Run CLI commands directly instead of through the Studio serving the project.",
         ),
