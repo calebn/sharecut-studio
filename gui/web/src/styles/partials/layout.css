@@ -1111,6 +1111,18 @@ button.save-dot {
   min-inline-size: 0;
 }
 
+/* The rail is a row of touch controls, not copy. Without this, a long-press on
+   an icon button starts iOS's selection loupe or the Copy / Look Up callout,
+   which cancels the pointer sequence before the label peek can show (#1878,
+   #1874). The prefixed pair is what Safari 17 honours. */
+@media (pointer: coarse) {
+  .editing-tool-rail {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
 /* Labels never break inside a button. */
 .editing-tool-rail .ui-control {
   white-space: nowrap;
