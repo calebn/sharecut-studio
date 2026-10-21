@@ -370,7 +370,8 @@ def recording_key(project: EpisodeProject, clip: Clip, *, secret: bytes) -> str 
     """
     try:
         path = workspace_relpath(
-            project, recording_audio_path(project, clip.track_id, clip.source_id)
+            project,
+            recording_audio_path(project, clip.track_id, clip.source_id, from_project=True),
         )
     except (CodedError, ValueError):
         return None
@@ -383,8 +384,8 @@ def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
     if first.track_id == second.track_id and first.source_id == second.source_id:
         return True
     return same_recording(
-        recording_audio_path(project, first.track_id, first.source_id),
-        recording_audio_path(project, second.track_id, second.source_id),
+        recording_audio_path(project, first.track_id, first.source_id, from_project=True),
+        recording_audio_path(project, second.track_id, second.source_id, from_project=True),
     )
 
 

@@ -90,13 +90,27 @@ def mixed_dialogue_track_ids(project: EpisodeProject) -> list[str]:
     return [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE and not t.muted]
 
 
-def recording_audio_path(project: EpisodeProject, track_id: str, source_id: str | None) -> Path:
-    """Resolve exact raw recording media; None selects the track's primary media."""
+def recording_audio_path(
+    project: EpisodeProject,
+    track_id: str,
+    source_id: str | None,
+    *,
+    from_project: bool = False,
+) -> Path:
+    """Resolve exact raw recording media; None selects the track's primary media.
+
+    ``from_project`` says *source_id* came from the project's own clips, not from a
+    request: an unlisted one is then a data inconsistency (``clip_source_missing``,
+    never read as a vanished request target), where a request's is ``source_not_found``.
+    """
     if source_id is None:
         return resolve_under_workspace(project, str(track_audio_path(project, track_id)))
     if project.track_by_id(track_id) is None:
         raise CodedKeyError(f"unknown track {track_id!r}", code="track_not_found")
     source = project.source_by_id(source_id)
     if source is None:
-        raise CodedKeyError(f"unknown source recording {source_id!r}", code="source_not_found")
+        message = f"unknown source recording {source_id!r}"
+        if from_project:
+            raise CodedValueError(message, code="clip_source_missing")
+        raise CodedKeyError(message, code="source_not_found")
     return resolve_under_workspace(project, source.path)

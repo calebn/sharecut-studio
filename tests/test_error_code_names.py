@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.services.document_sync.errors import names_missing_target
-from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 
 
 def test_data_inconsistency_codes_are_not_a_missing_target() -> None:
@@ -43,6 +43,39 @@ def test_a_clip_whose_source_left_the_project_reads_as_the_same_inconsistency() 
         source_duration_sec(project, clip)
     assert raised.value.code == "clip_source_missing"
     assert not names_missing_target(raised.value)
+
+
+def test_a_source_id_from_the_project_is_an_inconsistency_one_from_a_request_a_missing_target() -> (
+    None
+):
+    from podcast_mcp.edits.clips_ops import _same_recording
+    from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
+    from podcast_mcp.util.tracks import recording_audio_path
+
+    project = EpisodeProject.create("t", "/tmp/ws")
+    project.tracks.append(Track(id="host", role=TrackRole.DIALOGUE, label="Host"))
+    with pytest.raises(CodedKeyError) as requested:
+        recording_audio_path(project, "host", "ghost")
+    assert requested.value.code == "source_not_found"
+    assert names_missing_target(requested.value)
+    with pytest.raises(CodedValueError) as from_clip:
+        recording_audio_path(project, "host", "ghost", from_project=True)
+    assert from_clip.value.code == "clip_source_missing"
+    assert not names_missing_target(from_clip.value)
+
+    def clip(clip_id: str, source_id: str) -> Clip:
+        return Clip(
+            id=clip_id,
+            track_id="host",
+            source_id=source_id,
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+        )
+
+    with pytest.raises(CodedValueError) as neighbour:
+        _same_recording(project, clip("a", "ghost"), clip("b", "other"))
+    assert neighbour.value.code == "clip_source_missing"
 
 
 def test_caller_actionable_argument_errors_carry_their_own_codes(tmp_path) -> None:
