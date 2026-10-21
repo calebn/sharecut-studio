@@ -67,6 +67,7 @@ jobs:
           tests/test_registry_lifecycle_actors.py
           tests/test_sqlite_tx.py
           tests/test_session_sqlite_initialization.py
+          tests/test_object_store_fixture.py
           tests/test_share_registry.py
           tests/test_list_clips_recording.py
           2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/registry-pytest.log";

@@ -174,6 +174,24 @@ The supported Python floor remains 3.11, Ruff targets `py311`, and mypy targets
 collection, exclusions, worker policy, marker selection, and both 95% gates
 remain unchanged.
 
+### Object-store fixture allocation
+
+`tests/conftest.py` allocates one private object-store parent per pytest worker
+session, then an atomic random child directory with fresh `relay.yaml` for each
+test. This avoids a second numbered scan of pytest's growing base directory for
+every test. The YAML stays outside `tmp_path`, retains real parsing and explicit
+config-path support, and never shares mutable state between tests. The existing
+six object-store environment keys are still cleared for every test.
+
+The parent and children have private POSIX directory modes. On Windows the
+parent receives the same restricted inheritable DACL as `tmp_path`, before any
+child is created. Children and YAML inherit grants for the current user, SYSTEM
+and administrators. A failed ACL operation or allocation fails setup. Pytest
+owns the parent and its diagnostic retention; there is no per-test cleanup
+manager. `tests/test_object_store_fixture.py` checks real loaders, fresh mutable
+files, explicit paths, live overrides, restoration, failure paths and privacy.
+The existing native Windows registry job also runs these contracts on NTFS.
+
 ### Temporary storage
 
 The `pytest` and `frontend-e2e-suites` jobs in `test.yml` and the `extras` job in

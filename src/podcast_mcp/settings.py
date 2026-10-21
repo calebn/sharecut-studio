@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 ON_VALUES = frozenset({"1", "true", "yes", "on"})
+_RELAY_DEFAULT_BIND = "0.0.0.0"  # nosec B104
 
 
 @dataclass(frozen=True)
@@ -189,7 +190,7 @@ VARIABLES: tuple[Variable, ...] = (
             "PODCAST_RELAY_ALLOW_OPEN_TUNNEL",
             "Let the relay start with no host tokens, local/dev only (1, true, yes, on).",
         ),
-        ("PODCAST_RELAY_HOST", "Interface the relay binds.", "0.0.0.0"),  # nosec B104
+        ("PODCAST_RELAY_HOST", "Interface the relay binds.", _RELAY_DEFAULT_BIND),
         ("PODCAST_RELAY_PORT", "Port the relay binds.", "8081"),
         (
             "PODCAST_RELAY_FORWARDED_ALLOW_IPS",
