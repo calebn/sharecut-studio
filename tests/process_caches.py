@@ -65,6 +65,9 @@ SHARED: dict[str, str] = {
     "podcast_mcp.engines.gate_fill:_detect": (
         "Keyed by path and file revision; reads only the decoded audio."
     ),
+    "podcast_mcp.edits.bleed_fill:_loop": (
+        "Keyed by the fill's spectrum and the sample rate; a pure function of both."
+    ),
     "podcast_mcp.services.remote_mcp.tools:_arguments_model": (
         "Keyed by the handler function itself; a patched handler is a new key."
     ),
