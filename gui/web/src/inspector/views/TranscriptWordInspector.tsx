@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
@@ -99,15 +99,31 @@ export function TranscriptWordInspector({
   const mountedRef = useMountedRef();
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  const [text, setText] = useState(() => word?.text ?? "");
-  const [endIndexStr, setEndIndexStr] = useState(() => String(wordIndex));
+  // Typed but unsaved fields outlive this component: a rotation swaps the
+  // shell and remounts it (#1885), so they are mirrored into the store below.
+  const projectEpoch = useDaw((s) => s.projectEpoch);
+  const [restored] = useState(() => {
+    const entry = useDawStore.getState().wordDraft;
+    return entry &&
+      entry.projectPath === projectPath &&
+      entry.projectEpoch === projectEpoch &&
+      entry.trackId === trackId &&
+      entry.sourceId === sourceId &&
+      entry.wordIndex === wordIndex
+      ? entry
+      : null;
+  });
+  const [text, setText] = useState(() => restored?.text ?? word?.text ?? "");
+  const [endIndexStr, setEndIndexStr] = useState(
+    () => restored?.endIndexStr ?? String(wordIndex),
+  );
   // Span text the user saw when the draft was seeded or End index last
   // changed (#650). Apply sends this snapshot, never a fresh read, so a peer
   // edit inside the range since then is refused with a 409.
-  const [expectedText, setExpectedText] = useState<string | null>(
-    () => wordSpanText,
+  const [expectedText, setExpectedText] = useState<string | null>(() =>
+    restored ? restored.expectedText : wordSpanText,
   );
-  const [seeded, setSeeded] = useState(() => word != null);
+  const [seeded, setSeeded] = useState(() => restored != null || word != null);
   if (!seeded && word != null) {
     setSeeded(true);
     setText(word.text);
@@ -134,6 +150,45 @@ export function TranscriptWordInspector({
       setExpectedText(restored.text);
     }
   }
+
+  const draftDirty =
+    seeded &&
+    (text !== (word?.text ?? text) || endIndexStr !== String(wordIndex));
+  useEffect(() => {
+    const store = useDawStore.getState();
+    const mine = store.wordDraft;
+    const isMine =
+      mine != null &&
+      mine.projectPath === projectPath &&
+      mine.projectEpoch === projectEpoch &&
+      mine.trackId === trackId &&
+      mine.sourceId === sourceId &&
+      mine.wordIndex === wordIndex;
+    if (draftDirty) {
+      store.setWordDraft({
+        projectPath,
+        projectEpoch,
+        trackId,
+        sourceId,
+        wordIndex,
+        text,
+        endIndexStr,
+        expectedText,
+      });
+    } else if (isMine) {
+      store.setWordDraft(null);
+    }
+  }, [
+    draftDirty,
+    text,
+    endIndexStr,
+    expectedText,
+    projectPath,
+    projectEpoch,
+    trackId,
+    sourceId,
+    wordIndex,
+  ]);
 
   const changeEndIndex = (value: string) => {
     setEndIndexStr(value);
