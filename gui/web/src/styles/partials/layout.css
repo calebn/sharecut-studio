@@ -464,7 +464,7 @@ html[data-shell="phone"] .guest-attention-dismiss {
 .drawer-reopen-handle {
   position: absolute;
   inset-inline-start: 50%;
-  inset-block-end: 0;
+  inset-block-end: var(--drawer-reopen-lift, 0);
   inline-size: min(100%, 12rem);
   transform: translateX(-50%);
   block-size: var(--touch-min);
