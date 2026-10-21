@@ -128,10 +128,13 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   (`build_reconciliation_caches(..., unprocessed=True)`): a compressor's threshold is an
   absolute level, so a processed stem moves less than the recording's gain does (#1495).
   A track with no volume envelope, gate, mute, or Bleed Restore gets that evidence by
-  evaluating its `Audio` tree in memory (`engines/audio_eval.py`) at the sources' 48 kHz rate and
-  converting once to 8 kHz, as the render's wav is when decoded, so a cut between 8 kHz samples
-  lands where the render puts it (equal samples to 1e-3, same length); any other track, or
-  sources at another rate, keeps the ffmpeg render (#1943).
+  evaluating its `Audio` tree in memory (`engines/audio_eval.py`): the tree compiles to pieces
+  that read any sample range, sources are decoded once to a temp file at their own rate
+  (`engines/decoded_source.py`), and the result streams through one ffmpeg resample to 8 kHz, as
+  decoding the render's wav does. A cut between 8 kHz samples therefore lands where the render
+  puts it (equal samples to 1e-3, same length, at 48 kHz and 44.1 kHz), and a 50-minute track
+  costs about 100 MB beyond its 87 MB result. A track whose sources differ in rate or channel
+  count, or any other track, keeps the ffmpeg render (#1943).
   Its levels are compared on a voice scale: each track's levels and floors lose one fixed
   offset, its own voice level (`LevelProfile.path_reference_db`), so every mic's own speaker
   sits at 0 dB. Raw levels cannot be compared across mics (a call recording can carry a

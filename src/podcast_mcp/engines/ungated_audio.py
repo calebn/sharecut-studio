@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import contextlib
+import subprocess
+import threading
+from collections.abc import Iterator
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +22,7 @@ from podcast_mcp.util.batch_scope import scoped_by_file
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.util.process import run
+from podcast_mcp.util.process import popen, run
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.wav import open_wav
 
@@ -58,11 +62,15 @@ def _decode_f32_uncached(
     return samples
 
 
-def resample_mono(samples: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
-    """``samples`` converted by ffmpeg exactly as decoding a wav of them at ``to_rate`` would."""
+def resample_stream(chunks: Iterator[np.ndarray], from_rate: int, to_rate: int) -> np.ndarray:
+    """Mono ``chunks`` converted by ffmpeg exactly as decoding a wav of them at ``to_rate`` would.
+
+    The chunks stream through one ffmpeg process, so the converter's state carries across
+    chunk edges as it does across a file, and only the converted result is held.
+    """
     if from_rate == to_rate:
-        return samples
-    result = run(
+        return np.concatenate(list(chunks))
+    process = popen(
         [
             resolve_ffmpeg_pair().ffmpeg,
             "-v",
@@ -81,11 +89,37 @@ def resample_mono(samples: np.ndarray, from_rate: int, to_rate: int) -> np.ndarr
             "f32le",
             "pipe:1",
         ],
-        input=np.ascontiguousarray(samples, dtype=np.float32).tobytes(),
-        capture_output=True,
-        check=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    return np.frombuffer(result.stdout, dtype=np.float32)
+    failure: list[BaseException] = []
+
+    def feed() -> None:
+        assert process.stdin is not None
+        try:
+            for chunk in chunks:
+                process.stdin.write(np.ascontiguousarray(chunk, dtype="<f4").tobytes())
+        except BrokenPipeError:
+            pass
+        except BaseException as exc:
+            failure.append(exc)
+        finally:
+            with contextlib.suppress(BrokenPipeError):
+                process.stdin.close()
+
+    feeder = threading.Thread(target=feed, daemon=True)
+    feeder.start()
+    assert process.stdout is not None and process.stderr is not None
+    converted = process.stdout.read()
+    error = process.stderr.read()
+    feeder.join()
+    code = process.wait()
+    if failure:
+        raise failure[0]
+    if code != 0:
+        raise RuntimeError(f"ffmpeg resample failed: {error.decode(errors='replace')[-500:]}")
+    return np.frombuffer(converted, dtype="<f4")
 
 
 def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:

@@ -24,8 +24,9 @@ from podcast_mcp.engines.asr_timing import (
     word_duration_is_anomalous,
 )
 from podcast_mcp.engines.audio import Audio
-from podcast_mcp.engines.audio_eval import common_rate, evaluate_audio, single_layout
+from podcast_mcp.engines.audio_eval import common_rate, evaluate_resampled, single_layout
 from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, confirmed_likeness, copy_similarity
+from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.envelope_lag import (
     COPY_FRAME_SEC,
     COPY_HOP_SEC,
@@ -53,7 +54,7 @@ from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import (
     load_mono_full,
     raw_samples_on_timeline,
-    resample_mono,
+    resample_stream,
 )
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -599,15 +600,12 @@ def build_reconciliation_caches(
     return build_track_rms_caches(project, unprocessed=True, defaults=defaults)
 
 
-_RENDER_RATE = 48_000
-
-
 def evaluate_track_audio(plain: tuple[Audio, str] | None) -> tuple[np.ndarray | None, str]:
     """Evidence samples (8 kHz mono) for a track's unfiltered audio, or why the render is needed.
 
-    The tree is evaluated at the sources' own rate and converted once, as the render's wav is
-    when it is decoded: slices start between 8 kHz samples, and slicing an 8 kHz decode
-    instead would shift every cut by a fraction of a sample.
+    The tree is evaluated at the sources' own rate, in chunks, and converted once to 8 kHz as
+    decoding the render's wav is: slices start between 8 kHz samples, and slicing an 8 kHz
+    decode instead would shift every cut by a fraction of a sample.
     """
     if plain is None:
         return None, "unfiltered audio unavailable"
@@ -615,17 +613,20 @@ def evaluate_track_audio(plain: tuple[Audio, str] | None) -> tuple[np.ndarray | 
     if not single_layout(audio):
         return None, "mixed channel layouts"
     rate = common_rate(audio)
-    if rate is None or rate != _RENDER_RATE:
-        return None, "sources are not all 48 kHz"
-    samples = evaluate_audio(
-        audio,
-        crossfade_curve=curve,
-        load_source=lambda path: load_mono_full(path, sample_rate=rate),
-        sample_rate=rate,
-    )
+    if rate is None:
+        return None, "sources at different sample rates"
+    with decoded_sources(rate) as reader:
+        samples = evaluate_resampled(
+            audio,
+            crossfade_curve=curve,
+            reader=reader,
+            sample_rate=rate,
+            target_rate=_RMS_SAMPLE_RATE,
+            resample=resample_stream,
+        )
     if samples is None or not samples.size:
         return None, "evaluator declined"
-    return resample_mono(samples, rate, _RMS_SAMPLE_RATE), ""
+    return samples, ""
 
 
 def build_track_rms_caches(
