@@ -8,7 +8,9 @@ import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import { useHostSync } from "./useHostSync";
 
-vi.mock("../state/requestDrainLazy", () => ({ requestHostDrainLazy: vi.fn() }));
+vi.mock("../services/offlineQueue/requestDrainLazy", () => ({
+  requestHostDrainLazy: vi.fn(),
+}));
 vi.mock("../api", () => ({
   loadSessionMeta: vi.fn(async () => ({ exists: false })),
   loadSessionState: vi.fn(async () => null),

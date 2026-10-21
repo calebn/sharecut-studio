@@ -10,7 +10,9 @@ import type { SessionState } from "../types/session";
 import { SANITY_POLL_MS } from "./useFileMetaPoll";
 import { useHostSync } from "./useHostSync";
 
-vi.mock("../state/requestDrainLazy", () => ({ requestHostDrainLazy: vi.fn() }));
+vi.mock("../services/offlineQueue/requestDrainLazy", () => ({
+  requestHostDrainLazy: vi.fn(),
+}));
 
 vi.mock("../api", () => ({
   loadSessionMeta: vi.fn(async () => ({

@@ -17,6 +17,7 @@ import {
   type PresenceCarryingFrame,
 } from "../presence/presenceFrames";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
+import { requestGuestDrainLazy } from "../services/offlineQueue/requestDrainLazy";
 import {
   mergeSessionAppliedDelta,
   type SessionAppliedDelta,
@@ -29,7 +30,6 @@ import type { WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { mergeOfflineSnapshot } from "../state/offlineStore";
-import { requestGuestDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";

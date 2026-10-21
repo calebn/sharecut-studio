@@ -53,10 +53,6 @@ import {
   settleGuestCommandOutcome,
   settleHostCommandOutcome,
 } from "../state/offlineStore";
-import {
-  requestGuestDrainLazy,
-  requestHostDrainLazy,
-} from "../state/requestDrainLazy";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { parseHistoryEntryId } from "../types/project";
 import { ApiError, isRetryLater } from "../utils/apiError";
@@ -66,6 +62,10 @@ import {
   nextDocumentClientSeq,
 } from "../utils/documentClient";
 import { raceTimeout } from "../utils/raceTimeout";
+import {
+  requestGuestDrainLazy,
+  requestHostDrainLazy,
+} from "./offlineQueue/requestDrainLazy";
 
 type CommandIdentity = Pick<
   QueuedCommand,

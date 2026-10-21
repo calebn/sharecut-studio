@@ -36,7 +36,7 @@ function useHostDocument(
   );
 }
 
-vi.mock("../state/requestDrainLazy", () => ({
+vi.mock("../services/offlineQueue/requestDrainLazy", () => ({
   requestHostDrainLazy: vi.fn(),
 }));
 
@@ -316,7 +316,9 @@ describe("useHostDocument", () => {
 
   it("drains the offline queue on the sanity cadence, plus online", async () => {
     vi.useFakeTimers();
-    const { requestHostDrainLazy } = await import("../state/requestDrainLazy");
+    const { requestHostDrainLazy } = await import(
+      "../services/offlineQueue/requestDrainLazy"
+    );
     vi.mocked(requestHostDrainLazy).mockClear();
     const { unmount } = renderHook(() =>
       useHostDocument("/tmp/ep.json", () => undefined, true),

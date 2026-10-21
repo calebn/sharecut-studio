@@ -22,7 +22,9 @@ vi.mock("./document/applyDocumentUpdate", () => ({
   mergeReturnedComment: vi.fn(),
 }));
 
-vi.mock("./state/drainOfflineQueue", () => ({ requestHostDrain }));
+vi.mock("./services/offlineQueue/drainOfflineQueue", () => ({
+  requestHostDrain,
+}));
 
 vi.mock("./state/documentSendOrder", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./state/documentSendOrder")>()),

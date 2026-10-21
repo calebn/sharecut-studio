@@ -54,7 +54,7 @@ vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentResult: vi.fn(),
   refreshDocumentDisplay: vi.fn(),
 }));
-vi.mock("../state/requestDrainLazy", () => ({
+vi.mock("./offlineQueue/requestDrainLazy", () => ({
   requestHostDrainLazy: vi.fn(),
   requestGuestDrainLazy: vi.fn(),
 }));
@@ -179,7 +179,9 @@ it.each(["host", "guest"])(
       authority.documentScope(),
     );
     await vi.waitFor(() => expect(posted).toEqual(["UndoHistory"]));
-    const { replayQueuedCommands } = await import("../state/drainOfflineQueue");
+    const { replayQueuedCommands } = await import(
+      "./offlineQueue/drainOfflineQueue"
+    );
     const history = storage.rows[0];
     const source = {
       path,

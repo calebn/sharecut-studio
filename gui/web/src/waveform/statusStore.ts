@@ -35,7 +35,7 @@ type Poller = {
   inflight: AbortController | null;
   /**
    * Another poll was asked for while one was in flight. The same coalescing
-   * as `coalescedDrain` (state/drainOfflineQueue.ts); see the note there
+   * as `coalescedDrain` (services/offlineQueue/drainOfflineQueue.ts); see the note there
    * before adding a third copy.
    */
   again: boolean;

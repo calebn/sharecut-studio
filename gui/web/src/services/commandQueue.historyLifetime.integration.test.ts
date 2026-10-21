@@ -23,7 +23,7 @@ vi.mock("../document/applyDocumentUpdate", () => ({
   refreshDocumentDisplay: vi.fn(),
 }));
 vi.mock("../state/offlineStore", () => queue);
-vi.mock("../state/requestDrainLazy", () => ({
+vi.mock("./offlineQueue/requestDrainLazy", () => ({
   requestHostDrainLazy: drainRequests.host,
   requestGuestDrainLazy: drainRequests.guest,
 }));
@@ -215,7 +215,7 @@ describe("history command lifetime at queue admission", () => {
       const fetchSpy = vi.fn();
       vi.stubGlobal("fetch", fetchSpy);
       const { replayQueuedCommands } = await import(
-        "../state/drainOfflineQueue"
+        "./offlineQueue/drainOfflineQueue"
       );
       const source = {
         path: "/tmp/history-replay.json",

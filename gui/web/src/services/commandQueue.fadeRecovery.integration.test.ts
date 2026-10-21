@@ -5,10 +5,10 @@ import {
   resetDocumentAuthority,
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
-import { replayQueuedCommands } from "../state/drainOfflineQueue";
 import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import { clipRow, minimalProject } from "../test/fixtures";
 import { submitQueuedDocumentCommand } from "./commandQueue";
+import { replayQueuedCommands } from "./offlineQueue/drainOfflineQueue";
 
 const { queues, conflicts, remove, enqueue, addConflict, settle } = vi.hoisted(
   () => {

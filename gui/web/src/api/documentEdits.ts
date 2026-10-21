@@ -552,7 +552,7 @@ function isTranscriptCorrection(type: string): boolean {
 
 /**
  * After a transcript correction lands, live (submitTranscriptCorrection) or
- * replayed from the offline queue (state/drainOfflineQueue.ts
+ * replayed from the offline queue (services/offlineQueue/drainOfflineQueue.ts
  * replayQueuedCommands), drop Needs attention entries for earlier refused
  * corrections of the same word (same track and start index), so the banner
  * stops asking the user to redo a correction that has now been made (#746);
