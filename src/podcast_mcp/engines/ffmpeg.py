@@ -185,6 +185,8 @@ def _delay_filter(delay_sec: float, sample_rate: int) -> str:
     Placed on ``ms * rate // 1000`` samples, as the evaluation does (#2025). ``sample_rate``
     is the rate the render graph negotiates at this delay: the leading ``aformat`` resamples
     the audio to it before ``adelay``, so the pin never moves the rate the mix runs at.
+    The trailing ``aformat`` keeps ``adelay``'s out-link at that rate when a filter downstream
+    of the mix forces another rate and the dry run disagrees with the real run (#2082).
 
     When ``atrim`` has cut the first frame on a seeked input, ``adelay`` emits its lead-in
     frames with no timestamp (``NOPTS``), and a later ``apad`` or ``atrim`` drops them: a
