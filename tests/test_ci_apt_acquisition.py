@@ -444,3 +444,45 @@ def test_healthy_metadata_never_starts_the_secondary(api, endpoint, tmp_path, mo
     assert transport.acquire(plan, tmp_path / "InRelease").source == 0
     assert len(launched) == 1
     assert state["requests"] == ["primary"]
+
+
+@pytest.mark.parametrize("interrupt", ["SIGTERM", "SIGINT"])
+def test_cancellation_during_child_registration_reaps_the_child(endpoint, tmp_path, interrupt):
+    base, state = endpoint
+    state.update(primary="slow", secondary="slow")
+    code = """import os,signal,sys
+from pathlib import Path
+import ci_apt_acquisition as transport
+from ci_apt_method import cancelled
+source=Path(transport.__file__)
+line=next(i for i,text in enumerate(source.read_text().splitlines(),1) if "attempts.append(Attempt(process, path))" in text)
+observed=[]
+signal.signal(getattr(signal,sys.argv[3]),cancelled)
+def inject(frame,event,arg):
+    if event=="line" and frame.f_code.co_filename==str(source) and frame.f_lineno==line:
+        sys.settrace(None)
+        observed.append(frame.f_locals["process"])
+        os.kill(os.getpid(),getattr(signal,sys.argv[3]))
+    return inject
+try:
+    sys.settrace(inject)
+    transport.acquire(transport.FetchPlan(transport.AptSignedMetadata(1024),(sys.argv[1]+"/primary",sys.argv[1]+"/secondary")),Path(sys.argv[2]))
+except SystemExit:
+    assert observed and observed[0].poll() is not None, "curl survived cancellation before registration"
+    assert not Path(sys.argv[2]).exists()
+finally:
+    sys.settrace(None)
+    for child in observed:
+        if child.poll() is None:
+            child.terminate()
+            child.wait(timeout=3)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, base, str(tmp_path / "InRelease"), interrupt],
+        cwd=SCRIPTS,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not list(tmp_path.glob(".sharecut-apt-*"))
