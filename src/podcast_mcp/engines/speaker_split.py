@@ -146,6 +146,13 @@ def _window_samples(samples: np.ndarray, center: float, window_sec: float) -> in
     return max(min(round(window_sec * RATE), samples.size - start), 0)
 
 
+def _span_centers(start: float, end: float, duration: float, window_sec: float) -> list[float]:
+    """Window centres on the hop grid inside ``[start, end]``, none past the last usable window."""
+    first = start + window_sec / 2
+    stop = min(end, duration + window_sec) - window_sec / 2 + 1e-9
+    return np.arange(first, stop, HOP_SEC).tolist() if first < stop else []
+
+
 def _enrollment_centroids(
     samples: np.ndarray,
     enrollment: Mapping[int, Sequence[Span]],
@@ -158,12 +165,7 @@ def _enrollment_centroids(
         centers = [
             c
             for start, end in spans
-            for c in np.arange(
-                start + window_sec / 2,
-                min(end, duration + window_sec) - window_sec / 2 + 1e-9,
-                HOP_SEC,
-            ).tolist()
-            or [(start + end) / 2]
+            for c in _span_centers(start, end, duration, window_sec) or [(start + end) / 2]
         ]
         centers = [c for c in centers if _window_samples(samples, c, window_sec) >= MIN_SAMPLES]
         if not centers and spans:
