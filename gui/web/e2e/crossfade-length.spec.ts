@@ -186,6 +186,9 @@ for (const width of [1280, 390]) {
         await expect(page.locator(".join-edit-caption")).toContainText(
           "Draft overlap 10 ms",
         );
+        await expect(panel).toContainText(
+          "Renders as a 10 ms crossfade overlap.",
+        );
         await page.mouse.up();
       }
       await expect

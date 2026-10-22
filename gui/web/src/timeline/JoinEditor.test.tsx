@@ -175,7 +175,7 @@ describe("JoinEditor coupled length", () => {
     move();
     expect(container.querySelector(".join-blend")).toBeNull();
   });
-  it("captions the drawn overlap, not the dragged length, when render headroom caps it", () => {
+  it("captions and notes the drawn overlap, not the dragged length, when render headroom caps it", () => {
     const { container } = mount();
     move(1300);
     expect(screen.getByText(/Draft overlap 2500 ms/)).toBeInTheDocument();
@@ -183,6 +183,11 @@ describe("JoinEditor coupled length", () => {
     expect(container.querySelector(".join-blend")).toHaveStyle({
       width: "125px",
     });
+    expect(
+      screen.getByText("Renders as a 2500 ms crossfade overlap."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Renders as a 20 ms/)).toBeNull();
+    expect(screen.getByText("5000 ms")).toBeInTheDocument();
   });
   it("captions a zero overlap while dragging a join whose left recording is unmeasured", () => {
     const { container } = mount({
@@ -190,6 +195,9 @@ describe("JoinEditor coupled length", () => {
     });
     move(1300);
     expect(screen.getByText(/Draft overlap 0 ms/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Renders as a 0 ms crossfade overlap."),
+    ).toBeInTheDocument();
     expect(container.querySelector(".join-blend")).toBeNull();
   });
   it("uses final release coordinates even without a move event", () => {
