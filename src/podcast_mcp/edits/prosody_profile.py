@@ -44,6 +44,7 @@ from podcast_mcp.engines.transcribe import TranscribeJob, cache_id_part, track_t
 from podcast_mcp.models import EpisodeProject, Transcript
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
@@ -228,7 +229,7 @@ def _existing_profile(project: EpisodeProject, track_id: str) -> ProsodyProfile 
     stamped: list[tuple[int, Path]] = []
     for path in _track_profile_paths(project, track_id):
         try:
-            stamped.append((path.stat().st_mtime_ns, path))
+            stamped.append((file_stamp(path).mtime_ns, path))
         except OSError:  # removed between listing and stat (a concurrent prune)
             continue
     for _mtime, path in sorted(stamped, reverse=True):
@@ -287,8 +288,7 @@ def _analyze_track(
             outcome = "reused"
         else:
             analysis = analyze_prosody_file(job.audio, words, params, cancel_check=cancel_check)
-            after = job.audio.stat()
-            if (after.st_size, after.st_mtime_ns) != (size, mtime_ns):
+            if file_stamp(job.audio).content != (size, mtime_ns):
                 # Rewritten after hashing (e.g. between the two no-transcript decodes):
                 # the profile no longer matches the audio identity it would be cached under.
                 raise RuntimeError(
@@ -414,10 +414,10 @@ def load_track_profile(
     try:
         from podcast_mcp.util.tracks import track_audio_path
 
-        st = track_audio_path(project, track_id).stat()
+        stamp = file_stamp(track_audio_path(project, track_id))
     except (OSError, ValueError):
         return ProfileLookup(profile, "stale", "Track media is unreadable; re-run analyze_prosody.")
-    if (profile.audio_size, profile.audio_mtime_ns) != (st.st_size, st.st_mtime_ns):
+    if (profile.audio_size, profile.audio_mtime_ns) != stamp.content:
         return ProfileLookup(
             profile,
             "stale",
