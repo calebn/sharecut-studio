@@ -215,6 +215,18 @@ describe("chipLabel", () => {
   it("offers no zoom to a chip that cannot split", () => {
     expect(chipLabel(chip(null))).toBe("3 edits: 2 cuts, 1 crossfade");
   });
+
+  it("starts with the drawn 99+ when a chip holds more than 99 joins (WCAG 2.5.3)", () => {
+    const many = Array.from({ length: 120 }, (_, i) =>
+      mark(i, { kind: i % 2 ? "join-cut" : "join-crossfade" }, `m${i}`),
+    );
+    expect(chipLabel({ ...chip(300), marks: many })).toBe(
+      "99+ edits: 60 cuts, 60 crossfades. Zoom in",
+    );
+    expect(chipLabel({ ...chip(300), marks: many.slice(0, 99) })).toMatch(
+      /^99 edits:/,
+    );
+  });
 });
 
 describe("planLaneMarks tier, label and room", () => {

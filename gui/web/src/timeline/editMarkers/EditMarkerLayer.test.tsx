@@ -181,6 +181,20 @@ describe("EditMarkerLayer tiers and labels", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("keeps the length in a crossfade's name when its label is not drawn", () => {
+    const { left, right } = pair("a", 2, "crossfade");
+    const { container } = render(
+      <EditMarkerLayer
+        plan={planOf([left, withLength(right, 120)], 200)}
+        onZoomChip={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".edit-mark-label")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Crossfade 120 ms join at 0:02.0" }),
+    ).toBeInTheDocument();
+  });
+
   it("draws no label on a crossfade below the wide tier", () => {
     const { left, right } = pair("a", 2, "crossfade");
     const { container } = render(
@@ -316,6 +330,23 @@ describe("EditMarkerLayer chips", () => {
     const view = render(
       <EditMarkerLayer plan={planOf(clips, 10)} onZoomChip={vi.fn()} />,
     );
+    view.rerender(
+      <EditMarkerLayer plan={planOf(clips, 300)} onZoomChip={vi.fn()} />,
+    );
+    expect(document.body).toHaveFocus();
+  });
+
+  it("does not pull focus from the body to a mark that was gone when focus left it", () => {
+    const clips = threeJoins();
+    const view = render(
+      <EditMarkerLayer plan={planOf(clips, 300)} onZoomChip={vi.fn()} />,
+    );
+    screen.getByRole("button", { name: "Cut join at 0:01.1" }).focus();
+    view.rerender(
+      <EditMarkerLayer plan={planOf([], 300)} onZoomChip={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    document.body.focus();
     view.rerender(
       <EditMarkerLayer plan={planOf(clips, 300)} onZoomChip={vi.fn()} />,
     );

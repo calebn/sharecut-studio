@@ -13,6 +13,7 @@ import { useDaw } from "../../state/useDaw";
 import { EDIT_GLYPH_PATH, EDIT_MARKERS } from "../../utils/editMarkerRegistry";
 import { hitTargetProps } from "../hitTargets";
 import {
+  chipCount,
   chipLabel,
   joinPopoverId,
   type LanePlan,
@@ -24,9 +25,6 @@ interface EditMarkerLayerProps {
   plan: LanePlan;
   onZoomChip: (chip: PlacedChip) => void;
 }
-
-const chipCount = (chip: PlacedChip) =>
-  chip.marks.length > 99 ? "99+" : chip.marks.length;
 
 type Track = (id: string) => {
   onFocus: () => void;
@@ -104,7 +102,7 @@ function Glyph({
         })}
         {...track(mark.id)}
         style={{ left: xPx }}
-        aria-label={`${joinSeamLabel(mark.kind, mark.sec, symbol.labelAllowed ? symbol.label : undefined)}${blocked ? ", will not blend" : ""}`}
+        aria-label={`${joinSeamLabel(mark.kind, mark.sec, symbol.label)}${blocked ? ", will not blend" : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? joinPopoverId(mark.clipId) : undefined}
@@ -192,6 +190,7 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
     }
     const holder = items.find((item) => item.ids.includes(id));
     if (holder == null) {
+      focused.current = null;
       return;
     }
     const target = elements.current.has(holder.key)
