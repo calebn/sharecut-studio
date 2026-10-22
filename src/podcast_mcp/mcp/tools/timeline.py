@@ -587,8 +587,24 @@ def fill_with_room_tone_tool(
     project_path: str,
     track_id: str | None = None,
     speaker: str | None = None,
+    start_sec: float | None = None,
+    end_sec: float | None = None,
 ) -> str:
-    """Fill a track's silences with its own room tone."""
+    """Fill a track's silences with its own room tone.
+
+    With ``start_sec`` and ``end_sec`` (timeline seconds, plus ``track_id``) only the
+    clip-free time inside that range is filled; clips are never touched.
+    """
+    if start_sec is not None or end_sec is not None:
+        if track_id is None or start_sec is None or end_sec is None:
+            raise ValueError("a range fill needs track_id, start_sec and end_sec")
+        return to_json(
+            submit_host_command_result(
+                project_path,
+                "FillRoomTone",
+                {"track_id": track_id, "start_sec": start_sec, "end_sec": end_sec},
+            )
+        )
     ws = ProjectWorkspace.open(project_path)
     return to_json(TimelineService(ws).fill_room_tone(track_id=track_id, speaker=speaker))
 

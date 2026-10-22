@@ -3419,6 +3419,121 @@
         "title": "FadeJoinsPayload",
         "type": "object"
       },
+      "FillRoomToneCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/FillRoomTonePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "FillRoomTone",
+            "default": "FillRoomTone",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "FillRoomToneCommand",
+        "type": "object"
+      },
+      "FillRoomTonePayload": {
+        "properties": {
+          "end_sec": {
+            "minimum": 0.0,
+            "title": "End Sec",
+            "type": "number"
+          },
+          "start_sec": {
+            "minimum": 0.0,
+            "title": "Start Sec",
+            "type": "number"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "start_sec",
+          "end_sec"
+        ],
+        "title": "FillRoomTonePayload",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -10657,6 +10772,7 @@
                     "DuplicateSegment": "#/components/schemas/DuplicateSegmentCommand",
                     "EditSelectedRange": "#/components/schemas/EditSelectedRangeCommand",
                     "FadeJoins": "#/components/schemas/FadeJoinsCommand",
+                    "FillRoomTone": "#/components/schemas/FillRoomToneCommand",
                     "InsertGap": "#/components/schemas/InsertGapCommand",
                     "MoveByText": "#/components/schemas/MoveByTextCommand",
                     "MoveClips": "#/components/schemas/MoveClipsCommand",
@@ -10875,6 +10991,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/InsertGapCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FillRoomToneCommand"
                   },
                   {
                     "$ref": "#/components/schemas/FadeJoinsCommand"

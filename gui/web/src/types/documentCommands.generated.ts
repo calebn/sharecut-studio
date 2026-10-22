@@ -24,6 +24,7 @@ export type DocumentCommandType =
   | "DuplicateSegment"
   | "EditSelectedRange"
   | "FadeJoins"
+  | "FillRoomTone"
   | "InsertGap"
   | "MoveByText"
   | "MoveClips"
@@ -97,6 +98,7 @@ export const DocumentCommand = {
   DuplicateSegment: "DuplicateSegment",
   EditSelectedRange: "EditSelectedRange",
   FadeJoins: "FadeJoins",
+  FillRoomTone: "FillRoomTone",
   InsertGap: "InsertGap",
   MoveByText: "MoveByText",
   MoveClips: "MoveClips",

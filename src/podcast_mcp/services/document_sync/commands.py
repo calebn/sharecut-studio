@@ -66,6 +66,7 @@ DocumentCommandType = Literal[
     "DuplicateSegment",
     "MoveSegment",
     "InsertGap",
+    "FillRoomTone",
     "FadeJoins",
     "CrossfadeJoins",
     "MoveByText",

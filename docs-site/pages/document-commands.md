@@ -54,6 +54,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `EditSelectedRange` | `action` (cut \| mute), `target` (object) | `override_audio_checks` (boolean) |
 | `FadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
+| `FillRoomTone` | `end_sec` (number), `start_sec` (number), `track_id` (string) | — |
 | `InsertGap` | `at_time` (number) | `duration_sec` (number) |
 | `MoveByText` | `destination_query` (string), `source_query` (string) | `position` (string) |
 | `MoveClips` | `clips` (array[object]) | — |
@@ -102,7 +103,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 70 command types._
+_Generated 71 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`
