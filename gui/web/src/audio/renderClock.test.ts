@@ -91,6 +91,27 @@ describe("render clock pinned to timeline_render._place_clips (#1888)", () => {
     expect(placed.borrowOut.get(left.id) ?? 0).toBeLessThanOrEqual(0.002);
   });
 
+  it.each(["left", "right"] as const)(
+    "borrows nothing when the %s recording's length is unmeasured, as the server does",
+    (side) => {
+      const c = CASES.find((x) => x.name === "one_blending_join_moves_nothing");
+      if (!c) throw new Error("missing case");
+      const base = rows(c);
+      const right = base.find((r) => r.join_borrow_sec);
+      const left = base.find((r) => r.id === right?.join_left_clip_id);
+      if (!right || !left) throw new Error("missing join");
+      const target = side === "left" ? left : right;
+      const unmeasured = base.map((r) =>
+        r === target ? { ...r, source_duration_sec: null } : r,
+      );
+      const placed = placeLikeRender(unmeasured);
+      expect(placed.borrowOut.get(left.id) ?? 0).toBe(0);
+      expect(placed.borrowIn.get(right.id) ?? 0).toBe(0);
+      expect(placed.overlapIn.get(right.id) ?? 0).toBe(0);
+      expect(placed.overlapOut.get(left.id) ?? 0).toBe(0);
+    },
+  );
+
   it("shifts only the lane that closes a gap, and carries the shift on", () => {
     const c = CASES.find(
       (x) =>

@@ -24,7 +24,15 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.clips_ops import crossfade_borrow_sec, join_render_fields
 from podcast_mcp.engines.timeline_render import placed_track_audio
-from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, MediaAsset, Track, TrackRole
+from podcast_mcp.models import (
+    Clip,
+    ClipJoinMode,
+    ClipMuteRegion,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+)
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "render_clock" / "cases.json"
 
@@ -42,6 +50,7 @@ def _clip(
     fade_in: int = 0,
     fade_out: int = 0,
     room: float = 10.0,
+    mutes: tuple[tuple[float, float], ...] = (),
 ) -> Clip:
     return Clip(
         id=clip_id,
@@ -52,6 +61,7 @@ def _clip(
         fade_in_ms=fade_in,
         fade_out_ms=fade_out,
         join_in_mode=mode,
+        mute_regions=[ClipMuteRegion(start_s=a, end_s=b) for a, b in mutes],
     )
 
 
@@ -116,7 +126,24 @@ _CASES: dict[str, list[Clip]] = {
         _clip("anchor", "host", 5, 11, fade_out=100),
         _clip("later", "host", 11, 13, _XFADE, 100, 0),
     ],
+    "an_unmeasured_recording_joins_without_a_blend": [
+        _clip("a", "host", 0, 5, fade_out=200),
+        _clip("b", "host", 5, 9, _XFADE, 200, 0),
+        _clip("c", "host", 9, 12),
+    ],
+    "an_owner_mute_at_the_edge_joins_without_a_blend": [
+        _clip("a", "host", 0, 5, fade_out=200, mutes=((12.0, 15.0),)),
+        _clip("b", "host", 5, 9, _XFADE, 200, 0),
+        _clip("c", "host", 9, 12),
+    ],
+    "an_owner_mute_past_the_edge_caps_the_borrow": [
+        _clip("a", "host", 0, 5, fade_out=100, mutes=((15.02, 15.05),)),
+        _clip("b", "host", 5, 9, _XFADE, 100, 0),
+        _clip("c", "host", 9, 12),
+    ],
 }
+
+_UNMEASURED = {"an_unmeasured_recording_joins_without_a_blend"}
 
 
 def _leaf_starts(audio: object, base: float, out: dict[str, tuple[float, float]]) -> None:
@@ -139,7 +166,7 @@ def _leaf_starts(audio: object, base: float, out: dict[str, tuple[float, float]]
             raise AssertionError(type(audio))
 
 
-def _case_rows(clips: list[Clip], tmp_path: Path) -> list[dict]:
+def _case_rows(clips: list[Clip], tmp_path: Path, measured: bool = True) -> list[dict]:
     """Clip rows as the project view reports them, plus where the render places each."""
     lanes: dict[str, list[Clip]] = {}
     for clip in clips:
@@ -147,6 +174,8 @@ def _case_rows(clips: list[Clip], tmp_path: Path) -> list[dict]:
     project = EpisodeProject.create("render_clock", str(tmp_path))
     (tmp_path / "raw").mkdir(parents=True, exist_ok=True)
     project.timeline.tracks = []
+    project.timeline.clips = clips
+    recording_sec = _RECORDING_SEC if measured else None
     for track_id in lanes:
         (tmp_path / "raw" / f"{track_id}.wav").write_bytes(b"")
         project.timeline.tracks.append(
@@ -154,7 +183,7 @@ def _case_rows(clips: list[Clip], tmp_path: Path) -> list[dict]:
                 id=track_id,
                 label=track_id,
                 role=TrackRole.DIALOGUE,
-                media=MediaAsset(path=f"raw/{track_id}.wav", duration_sec=_RECORDING_SEC),
+                media=MediaAsset(path=f"raw/{track_id}.wav", duration_sec=recording_sec),
             )
         )
     placed: dict[str, float] = {}
@@ -172,7 +201,7 @@ def _case_rows(clips: list[Clip], tmp_path: Path) -> list[dict]:
                 "track_id": clip.track_id,
                 "source_start": clip.source_start,
                 "source_end": clip.source_end,
-                "source_duration_sec": _RECORDING_SEC,
+                "source_duration_sec": recording_sec,
                 "timeline_start": clip.timeline_start,
                 "timeline_end": clip.timeline_end,
                 "join_in_mode": clip.join_in_mode.value,
@@ -186,7 +215,7 @@ def _case_rows(clips: list[Clip], tmp_path: Path) -> list[dict]:
 def _build(tmp_path: Path) -> dict:
     return {
         "cases": [
-            {"name": name, "clips": _case_rows(clips, tmp_path / name)}
+            {"name": name, "clips": _case_rows(clips, tmp_path / name, name not in _UNMEASURED)}
             for name, clips in _CASES.items()
         ],
     }

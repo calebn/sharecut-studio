@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import random
 from itertools import pairwise
 
 import pytest
 
 from podcast_mcp.engines.clips_ops import (
+    MuteIndex,
     clip_index,
     crossfade_block_reason,
     crossfade_borrow_sec,
@@ -22,8 +24,11 @@ from podcast_mcp.models import (
     ClipMuteRegion,
     EpisodeProject,
     MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
+    Transcript,
+    TranscriptWord,
 )
 
 
@@ -268,3 +273,150 @@ def test_a_mute_ending_at_the_clips_own_edge_stops_the_borrow(side: str):
     left.mute_regions = [ClipMuteRegion(start_s=1.2, end_s=1.7)]
     right.mute_regions = [ClipMuteRegion(start_s=5.3, end_s=5.5)]
     assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.02)
+
+
+def test_a_mute_ending_at_the_edge_stops_the_borrow_where_the_bisect_bound_rounds_up():
+    p = _project()
+    left = _clip("a", 0.574, 2.874, fade_out_ms=40)
+    left.mute_regions = [ClipMuteRegion(start_s=0.813, end_s=2.874)]
+    right = _clip("b", 2.874, 4, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
+    p.clips = [left, right]
+    assert MuteIndex(p).room_after(left, 0.02) == 0.0
+    assert crossfade_borrow_sec(p, left, right) == 0.0
+
+
+def test_an_owner_mute_ending_half_a_millisecond_short_of_the_edge_stops_the_borrow():
+    p = _project()
+    left = _clip("a", 1, 2, fade_out_ms=40)
+    left.mute_regions = [ClipMuteRegion(start_s=1.5, end_s=1.9995)]
+    right = _clip("b", 2, 3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
+    p.clips = [left, right]
+    assert MuteIndex(p).room_after(left, 0.02) == 0.0
+    assert crossfade_borrow_sec(p, left, right) == 0.0
+
+
+def test_an_owner_mute_at_the_edge_is_found_whatever_the_float_rounding():
+    rng = random.Random(2048)
+    p = _project()
+    after_misses = []
+    before_misses = []
+    for _ in range(4000):
+        start = round(rng.uniform(0, 50), 3)
+        length = round(rng.uniform(0.5, 5), 3)
+        end = round(start + length, 3)
+        inner = round(rng.uniform(start + 0.001, end - 0.001), 3)
+        clip = _clip("a", start, end)
+        clip.mute_regions = [ClipMuteRegion(start_s=inner, end_s=end)]
+        p.clips = [clip]
+        if MuteIndex(p).room_after(clip, 0.02) != 0.0:
+            after_misses.append((start, end, inner))
+        clip.mute_regions = [ClipMuteRegion(start_s=start, end_s=inner)]
+        if MuteIndex(p).room_before(clip, 0.02) != 0.0:
+            before_misses.append((start, end, inner))
+    assert after_misses == []
+    assert before_misses == []
+
+
+def test_an_owner_mute_wholly_past_the_source_end_limits_the_borrow():
+    p = _project()
+    left = _clip("a", 0, 1, fade_out_ms=100)
+    left.mute_regions = [ClipMuteRegion(start_s=1.02, end_s=1.05)]
+    right = _clip("b", 1, 2, fade_in_ms=100, join_in_mode=ClipJoinMode.CROSSFADE)
+    p.clips = [left, right]
+    assert MuteIndex(p).room_after(left, 0.05) == pytest.approx(0.02)
+    assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.02)
+
+
+def test_an_owner_mute_wholly_before_the_source_start_limits_the_head_borrow():
+    p = _project()
+    left = _clip("a", 0, 1, fade_out_ms=100)
+    right = _clip("b", 2, 3, fade_in_ms=100, join_in_mode=ClipJoinMode.CROSSFADE)
+    right.timeline_start = 1.0
+    right.mute_regions = [ClipMuteRegion(start_s=1.9, end_s=1.97)]
+    p.clips = [left, right]
+    assert MuteIndex(p).room_before(right, 0.05) == pytest.approx(0.03)
+    assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.03)
+
+
+def test_an_owner_mute_straddling_the_edge_gives_no_room():
+    p = _project()
+    left = _clip("a", 0, 1, fade_out_ms=100)
+    left.mute_regions = [ClipMuteRegion(start_s=0.9, end_s=1.1)]
+    right = _clip("b", 2, 3, fade_in_ms=100, join_in_mode=ClipJoinMode.CROSSFADE)
+    right.timeline_start = 1.0
+    right.mute_regions = [ClipMuteRegion(start_s=1.9, end_s=2.1)]
+    p.clips = [left, right]
+    index = MuteIndex(p)
+    assert index.room_after(left, 0.05) == 0.0
+    assert index.room_before(right, 0.05) == 0.0
+
+
+@pytest.mark.parametrize("mode", [ClipJoinMode.CUT, ClipJoinMode.FADE])
+def test_a_join_that_is_not_a_crossfade_has_no_block_reason(mode: ClipJoinMode):
+    p = _project()
+    left = _clip("a", 0, 1, fade_out_ms=20)
+    assert (
+        crossfade_block_reason(left, _clip("b", 1, 2, fade_in_ms=20, join_in_mode=mode), p) is None
+    )
+    end = _clip("e", 9, 10, fade_out_ms=20)
+    assert crossfade_block_reason(end, _clip("f", 10, 11, join_in_mode=mode), p) is None
+
+
+@pytest.mark.parametrize("mode", list(ClipJoinMode))
+@pytest.mark.parametrize("left_kw", [{}, {"start": 9, "end": 10}, {"source_id": "gone"}])
+def test_block_reason_agrees_with_the_join_render_fields(mode: ClipJoinMode, left_kw: dict):
+    p = _project()
+    kw = dict(left_kw)
+    start, end = kw.pop("start", 0), kw.pop("end", 1)
+    left = _clip("a", start, end, fade_out_ms=20, **kw)
+    right = _clip("b", end, end + 1, fade_in_ms=20, join_in_mode=mode)
+    assert (
+        crossfade_block_reason(left, right, p)
+        == join_render_fields(left, right, p)["join_crossfade_blocked"]
+    )
+
+
+def _aliased_project(*clips: Clip):
+    p = _project()
+    p.sources = [
+        SourceRecording(id="s1", path="h.wav", duration_sec=10),
+        SourceRecording(id="s2", path="h.wav", duration_sec=10),
+    ]
+    p.clips = list(clips)
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            source_id="s2",
+            words=[TranscriptWord(text="x", start=4.9, end=5.2, confidence=0.9, ignored=True)],
+        )
+    ]
+    return p
+
+
+def _aliased_pair():
+    left = _clip("a", 3, 5, fade_out_ms=40, source_id="s1")
+    right = _clip("b", 5, 7, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE, source_id="s2")
+    return left, right
+
+
+def test_an_ignored_word_on_an_aliased_neighbour_source_stops_the_borrow():
+    left, right = _aliased_pair()
+    p = _aliased_project(left, right)
+    index = MuteIndex(p)
+    assert index.room_after(left, 0.02) == 0.0
+    assert index.room_before(right, 0.02) == 0.0
+    assert crossfade_borrow_sec(p, left, right) == 0.0
+
+
+@pytest.mark.parametrize("right_first", [False, True])
+def test_the_mute_index_does_not_depend_on_which_source_is_asked_first(right_first: bool):
+    left, right = _aliased_pair()
+    p = _aliased_project(left, right)
+    index = MuteIndex(p)
+    if right_first:
+        before = index.room_before(right, 0.02)
+        after = index.room_after(left, 0.02)
+    else:
+        after = index.room_after(left, 0.02)
+        before = index.room_before(right, 0.02)
+    assert (after, before) == (0.0, 0.0)

@@ -41,7 +41,7 @@ export type JoinEditState =
   | { kind: "submitting"; epoch: number }
   | { kind: "failed"; message: string };
 
-function rowStamp(row: ClipRow) {
+export function rowStamp(row: ClipRow) {
   return [
     row.id,
     row.track_id,
@@ -57,6 +57,8 @@ function rowStamp(row: ClipRow) {
     row.join_left_clip_id,
     row.join_crossfade_ms,
     row.join_crossfade_blocked,
+    row.join_borrow_sec,
+    row.source_duration_sec,
   ];
 }
 export function useJoinEdit({
