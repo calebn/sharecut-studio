@@ -128,7 +128,7 @@ async function clusterPoint(page: Page, cluster: Cluster): Promise<Point> {
     const second = (await page.locator(region(24)).first().boundingBox())!;
     return { x: (first.x + first.width + second.x) / 2, y: a.y };
   }
-  // Between the join badge and the top of its roll seam.
+  // Between the join glyph and the top of its roll seam.
   const time = cluster === "join-point" ? 40 : 50;
   const badge = await centerOf(
     page,

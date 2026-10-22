@@ -28,8 +28,8 @@ async function expectPlacedBeside(
   }).toPass();
 }
 
-test.describe("Join badge popover", () => {
-  test("the join badge opens a popover that changes the join mode", async ({
+test.describe("Join glyph popover", () => {
+  test("the join glyph opens a popover that changes the join mode", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -47,10 +47,10 @@ test.describe("Join badge popover", () => {
     try {
       const badge = lane.getByRole("button", { name: /join at/ });
       // The hit area is 24 px wide at any root font size: points 11 px either
-      // side of the badge's centre hit it (the badge itself is 1rem).
+      // side of the glyph's centre hit it (the glyph itself is 12px).
       const expectHitAreaReaches24px = async () => {
         const box = await badge.boundingBox();
-        if (!box) throw new Error("join badge has no box");
+        if (!box) throw new Error("join glyph has no box");
         for (const dx of [-11, 11]) {
           const hit = await page.evaluate(
             ([x, y]) =>
@@ -122,7 +122,7 @@ test.describe("Join badge popover", () => {
     );
     // The second lane sits far enough from the top of the viewport that the
     // popover (opened above, since we leave no room below) has headroom of
-    // its own; the first lane's badge is too close to the top for that.
+    // its own; the first lane's glyph is too close to the top for that.
     const lane = page.locator(".lane-row").nth(1);
     const clips = lane.locator(".clip-block");
     await expect(clips).toHaveCount(1);
@@ -131,7 +131,7 @@ test.describe("Join badge popover", () => {
     await page.keyboard.press("ControlOrMeta+K");
     await expect(clips).toHaveCount(2);
     // Maximize the timeline so the bottom Transcript/Pipeline tabs (pinned
-    // to a minimum height) don't sit over the badge once the window shrinks.
+    // to a minimum height) don't sit over the glyph once the window shrinks.
     await page.getByRole("heading", { level: 1 }).click();
     await page.keyboard.press("ControlOrMeta+2");
     const original = page.viewportSize();
@@ -157,7 +157,7 @@ test.describe("Join badge popover", () => {
       // badge, sized for the current (Cut) panel — via the window resize
       // listener, not the panel's own observer.
       const box = await badge.boundingBox();
-      if (!box || !original) throw new Error("join badge has no box");
+      if (!box || !original) throw new Error("join glyph has no box");
       await page.setViewportSize({
         width: original.width,
         height: Math.ceil(box.y + box.height + 8),

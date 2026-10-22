@@ -220,7 +220,7 @@ function testBody({ file, test }: Proof): string {
 const IN_PLACE: Record<string, string> = {
   "edit.bladeCut": "the blade line splits the clip on the timeline",
   "edit.rollClipJoin": "the join marker moves under the person's hand",
-  "edit.setClipJoin": "the join badge shows the new mode",
+  "edit.setClipJoin": "the join glyph shows the new mode",
   "track.muteToggle": "the lane and its button show the mute",
   "track.setVolume": "the fader shows the level",
   "track.add": "the new lane appears",

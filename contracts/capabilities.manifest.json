@@ -2996,7 +2996,7 @@
         "cli": "podcast edit set-clip-join"
       },
       "omit": {
-        "keyboard_reason": "inspector select and join badge popover; no industry-standard key"
+        "keyboard_reason": "inspector select and join glyph popover; no industry-standard key"
       },
       "presence": {
         "cursor": "time",

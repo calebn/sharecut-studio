@@ -71,7 +71,7 @@ interface TrackLaneProps {
   trackIndex: number;
   /**
    * Sorted by `timeline_start`, as every backend clip list returns them:
-   * ClipBlock's `prevClip`/`nextClip` and the join badges take `clips[i ± 1]`
+   * ClipBlock's `prevClip`/`nextClip` and the join glyphs take `clips[i ± 1]`
    * as a clip's neighbours.
    */
   clips: readonly ClipRow[];

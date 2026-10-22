@@ -493,7 +493,7 @@ describe("useDialogModal fallback focus", () => {
           <button type="button">Timeline control</button>
           {anchor ? (
             <button type="button" ref={anchorRef}>
-              Join badge
+              Join glyph
             </button>
           ) : null}
           <BottomSheet
@@ -736,7 +736,7 @@ describe("useDialogModal unfocusable return target", () => {
         return (
           <>
             <button type="button" ref={returnRef}>
-              Join badge
+              Join glyph
             </button>
             <BottomSheet
               open
@@ -755,7 +755,7 @@ describe("useDialogModal unfocusable return target", () => {
       render(<App />);
       await settle();
       const badge = screen.getByRole("button", {
-        name: "Join badge",
+        name: "Join glyph",
       }) as HTMLButtonElement;
       if (invalid === "disabled") badge.disabled = true;
       if (invalid === "inert") badge.setAttribute("inert", "");
