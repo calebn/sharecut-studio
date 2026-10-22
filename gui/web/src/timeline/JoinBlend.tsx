@@ -91,7 +91,7 @@ export function JoinBlend({
   left?: Pick<ClipRow, "source_end">;
   right?: Pick<ClipRow, "source_start">;
   waves?: JoinWaveSides;
-  zoomPxPerSec?: number;
+  zoomPxPerSec: number;
 }) {
   if (visual.kind !== "blend") return null;
   return (
@@ -102,7 +102,7 @@ export function JoinBlend({
           left={left}
           right={right}
           waves={waves}
-          zoomPxPerSec={zoomPxPerSec ?? 0}
+          zoomPxPerSec={zoomPxPerSec}
         />
       ) : null}
       <svg
