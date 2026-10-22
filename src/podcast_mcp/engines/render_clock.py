@@ -38,6 +38,12 @@ _FORMATS = frozenset(
 )
 
 
+class _NoDecodedFrame(ValueError):
+    def __init__(self, path: Path) -> None:
+        super().__init__(f"No audio frame decoded from {path.name}")
+        self.path = path
+
+
 def clock_error() -> CodedValueError:
     return CodedValueError(
         "Cannot validate bleed Restore render clock", code="bleed_restore_clock_invalid"
@@ -122,6 +128,14 @@ def _ascii_ports(text: str) -> dict[tuple[str, str], _Port]:
     return ports
 
 
+def native_format(ffmpeg: str, path: Path) -> ObservedAudio:
+    """:func:`_native_format` for a Restore render, where a file with no decoded frame breaks the clock."""
+    try:
+        return _native_format(ffmpeg, path)
+    except _NoDecodedFrame as error:
+        raise clock_error() from error
+
+
 def _native_format(ffmpeg: str, path: Path) -> ObservedAudio:
     result = run(
         [
@@ -148,7 +162,7 @@ def _native_format(ffmpeg: str, path: Path) -> ObservedAudio:
         if match["name"] == "descriptor"
     }
     if len(formats) != 1:
-        raise clock_error()
+        raise _NoDecodedFrame(path)
     audio = formats.pop()
     validate_format(audio)
     return audio
@@ -205,6 +219,10 @@ def negotiated_rates(
     try:
         ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths)
         return {name: ports[name, "default"].audio.sample_rate for name in names}
+    except _NoDecodedFrame as error:
+        raise CodedValueError(
+            f"Cannot read the sample rate of {error.path.name}", code="render_rate_unresolved"
+        ) from error
     except (CalledProcessError, KeyError) as error:
         raise CodedValueError(
             "Cannot read the sample rate the render graph negotiates",
@@ -220,7 +238,10 @@ def configure_observers(
     bindings: dict[str, ClockBinding],
     names: list[str],
 ) -> tuple[dict[str, ObservedAudio], dict[str, str]]:
-    ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths)
+    try:
+        ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths)
+    except _NoDecodedFrame as error:
+        raise clock_error() from error
     formats = {}
     for name in names:
         try:
