@@ -56,6 +56,8 @@ _WAV_SUBFORMATS = {
     bytes.fromhex("0100000000001000800000aa00389b71"): 1,
     bytes.fromhex("0300000000001000800000aa00389b71"): 3,
 }
+# On Windows ``st_ctime`` is the creation time, so an in-place rewrite that keeps the size and
+# restores the mtime keeps its key; the delay pins bound what a stale answer can misplace.
 _NATIVE_FORMATS: BoundedCache[tuple[str, Path, FileStamp], ObservedAudio] = BoundedCache(1024)
 _INLINE_GRAPH_MAX_CHARS = 8_000
 _WAV_EXTENSIBLE = 0xFFFE

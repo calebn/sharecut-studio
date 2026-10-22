@@ -488,6 +488,21 @@ Every `adelay` is followed by `asetpts=N/SR/TB`. After `atrim` cuts a seeked inp
 are reframed without padding so frame-evaluated track
 effects and envelopes keep advancing through gaps and after shorter actors end.
 
+Each `adelay` is placed at the rate the render graph runs at there (#2025). One
+`ffprobe -dumpgraph` dry run (`negotiated_rates`) reads that rate from the graph with an
+`abuffer` per distinct input in the format the decoder reports, and the delay is wrapped in
+`aformat=sample_rates=<rate>` before and after `adelay`. The trailing pin keeps `adelay`'s
+output at that rate when a filter after the mix forces another one and the dry run disagrees
+with the real run. A plain RIFF WAV (mono or stereo, integer or float PCM) gives its format
+from the header, with no process spawned (#2082). Every other input, and every input of a
+Restore render, is decoded for one frame by `ffmpeg`, side by side, and the answer is kept
+in memory by path and file stamp until the file changes. A graph over 8,000 characters goes to
+`-/filter_complex <file>` (and `-graph_file <file> -i dummy` for the dry run) so it does not
+count against the command line. A render fails with `render_rate_unresolved` when no rate can
+be read for an input (a file with no decodable audio), and with `render_command_too_long`
+when the operating system refuses the command line, which takes about 120 to 200 distinct
+inputs on Windows.
+
 It then runs the track FX chain **once** over the fully assembled audio. Besides
 collapsing N+1 subprocess spawns into one, this keeps stateful filters
 (`acompressor`, `agate`, `deesser`, `afftdn`, `loudnorm`) continuous across clip
