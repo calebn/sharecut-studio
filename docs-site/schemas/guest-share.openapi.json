@@ -5382,7 +5382,6 @@
             "type": "boolean"
           },
           "query": {
-            "minLength": 1,
             "title": "Query",
             "type": "string"
           },

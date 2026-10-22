@@ -346,10 +346,15 @@ def test_the_command_is_host_only_for_every_share_role():
         assert raised.value.code == "share_capability_required"
 
 
-def test_the_payload_requires_a_non_empty_query():
+def test_the_payload_requires_a_query():
     from podcast_mcp.services.document_sync.payloads import validate_payload
 
     validate_payload("RippleDeleteText", {"query": "hello"})
-    for bad in ({}, {"query": ""}):
-        with pytest.raises(ValueError):
-            validate_payload("RippleDeleteText", bad)
+    with pytest.raises(ValueError):
+        validate_payload("RippleDeleteText", {})
+
+
+def test_an_empty_query_raises_no_transcript_match(episode):
+    with pytest.raises(ValueError) as caught:
+        mcp_timeline.ripple_delete_text_tool(str(episode), "")
+    assert caught.value.code == "no_transcript_match"
