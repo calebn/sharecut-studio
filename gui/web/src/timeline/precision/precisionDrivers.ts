@@ -43,7 +43,11 @@ export function registerPrecisionDriver(
   };
 }
 
+/** Which driver instance holds each draft preview, so a late commit cannot clear a newer drag's. */
+const previewOwner = new Map<string, symbol>();
+
 function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
+  let token: symbol | null = null;
   let origin: ProjectView | null = null;
   let path = "";
   let seq = 0;
@@ -52,13 +56,20 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
   const asDraft = previewsAsDraft(field);
   const key = nudgeKey(field);
   const end = () => {
-    const ended = { from: origin, shown: preview };
+    const ended = { from: origin, shown: preview, owner: token };
     origin = null;
     preview = null;
+    token = null;
     return ended;
   };
-  const revert = (from: ProjectView | null, shown: ProjectView | null) => {
+  const revert = (
+    from: ProjectView | null,
+    shown: ProjectView | null,
+    owner: symbol | null,
+  ) => {
     if (asDraft) {
+      if (!owner || previewOwner.get(key) !== owner) return;
+      previewOwner.delete(key);
       const shown = useDawStore.getState().project;
       if (
         from &&
@@ -79,25 +90,36 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
       path = s.projectPath;
       seq = currentDocumentSeq();
       preview = null;
+      token = Symbol(key);
       value = nudgeAxis(origin, field)?.value ?? Number.NaN;
       return Number.isFinite(value);
     },
     show(next) {
       if (!origin) return;
-      value = next;
-      preview = withNudge(origin, field, next);
+      const shown = withNudge(origin, field, next);
       if (asDraft) {
         const from = origin;
-        showPreview(
-          key,
-          (p) => withNudgeIfUnchanged(p, from, field, next),
-          (p) => withNudge(p, field, next),
-        );
-      } else useDawStore.getState().setProject(preview);
+        try {
+          showPreview(
+            key,
+            (p) => withNudgeIfUnchanged(p, from, field, next),
+            (p) => withNudge(p, field, next),
+          );
+        } catch {
+          // Too many pending drafts: this frame is not shown, so it is not the value to save.
+          return;
+        }
+        if (token) previewOwner.set(key, token);
+      } else useDawStore.getState().setProject(shown);
+      value = next;
+      preview = shown;
     },
     async commit() {
-      const { from, shown } = end();
-      if (!from || !shown) return;
+      const { from, shown, owner } = end();
+      if (!from || !shown) {
+        revert(from, shown, owner);
+        return;
+      }
       const store = useDawStore.getState();
       try {
         const saved = await saveNudge(
@@ -110,23 +132,26 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
         );
         if (saved) {
           // A queued save keeps the value shown through its own command draft.
-          if (asDraft) endPreview(key);
+          if (asDraft && owner && previewOwner.get(key) === owner) {
+            previewOwner.delete(key);
+            endPreview(key);
+          }
           store.announceStatus(NUDGE_KINDS[field.kind].saved, {
             undo: saved.undo,
           });
         } else {
-          revert(from, shown);
+          revert(from, shown, owner);
         }
       } catch (error) {
-        revert(from, shown);
+        revert(from, shown, owner);
         store.announceStatus(`${name} not saved: ${errorMessage(error)}`, {
           tone: "error",
         });
       }
     },
     cancel() {
-      const { from, shown } = end();
-      revert(from, shown);
+      const { from, shown, owner } = end();
+      revert(from, shown, owner);
     },
   };
 }
