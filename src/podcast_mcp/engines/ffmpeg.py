@@ -175,15 +175,24 @@ def _sample_frame_expression(offset: int, source_rate: int) -> str:
     return f"{sign}floor({abs(offset)}*s/{source_rate}+0.5)"
 
 
-def _delay_filter(delay_sec: float) -> str:
+def _delay_filter(delay_sec: float, sample_rate: int) -> str:
     """Silence of ``delay_sec`` in front of the audio, with timestamps renumbered by sample.
+
+    The delay is a whole sample count, ``ms * rate // 1000`` as the evaluation places it:
+    ``adelay=<ms>`` multiplies in float32 and lands up to a sample early at 44.1 kHz and
+    tens of samples off an hour in (#2025). A sample count only means a time at one rate,
+    so ``aformat`` holds the stream at ``sample_rate`` on both sides of ``adelay``; a filter
+    later in the chain that needs another rate (``arnndn`` runs at 48 kHz) resamples after
+    the delay instead of before it.
 
     When ``atrim`` has cut the first frame on a seeked input, ``adelay`` emits its lead-in
     frames with no timestamp (``NOPTS``), and a later ``apad`` or ``atrim`` drops them: a
     1 s lead-in shrinks to 2048 samples. ``asetpts=N/SR/TB`` restamps every frame from
     its sample count, so the silence keeps its length.
     """
-    return f"adelay={delay_milliseconds(delay_sec)}:all=1,asetpts=N/SR/TB"
+    pin = f"aformat=sample_rates={sample_rate}"
+    frames = delay_milliseconds(delay_sec) * sample_rate // 1000
+    return f"{pin},adelay=delays={frames}S:all=1,asetpts=N/SR/TB,{pin}"
 
 
 def _escape_filter_value(value: str) -> str:
@@ -939,6 +948,21 @@ class FFmpegEngine:
             filters.append(f"{inputs}{operation}{label}")
             return label
 
+        delay_rates: dict[Path, int] = {}
+
+        def delay_rate(child: Audio) -> int:
+            """The rate a delayed child is held at: its first recording's (#2025)."""
+            leaves = sources(child)
+            if not leaves:
+                fallback = (
+                    self.probe(source_paths[0]) if source_paths else AudioProbe(0.0, 48000, 2)
+                )
+                return fallback.sample_rate
+            path = leaves[0].path.resolve()
+            if path not in delay_rates:
+                delay_rates[path] = self.probe(path).sample_rate
+            return delay_rates[path]
+
         def compile_audio() -> str:
             nonlocal silence_probe
             node_index = 0
@@ -1008,7 +1032,9 @@ class FFmpegEngine:
                             if at.start_sec > 0:
                                 delay_name = f"delay_{node_index}_{child_index}"
                                 label = emit(
-                                    label, _delay_filter(at.start_sec) + observer(delay_name)
+                                    label,
+                                    _delay_filter(at.start_sec, delay_rate(at.audio))
+                                    + observer(delay_name),
                                 )
                                 bind(delay_name, label)
                             labels.append(label)
