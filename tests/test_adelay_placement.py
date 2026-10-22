@@ -410,11 +410,7 @@ def test_plain_render_unreadable_non_wav_raises_render_rate_unresolved(tmp_path:
     assert error.value.code == "render_rate_unresolved"
 
 
-def test_multistream_head_renders_at_first_stream_rate(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    head = SourceAudio(media.multistream(tmp_path, "kid.ogg"), 0.0, 1.0)
-    audio = MixAudio(At(0.0, head), (At(0.25, _zeros(tmp_path / "child.wav", 44100, 1.0)),))
+def _captured_graphs(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     graphs: list[str] = []
     real_run = ff.run
 
@@ -424,6 +420,15 @@ def test_multistream_head_renders_at_first_stream_rate(
         return real_run(cmd, *args, **kwargs)
 
     monkeypatch.setattr(ff, "run", capture_run)
+    return graphs
+
+
+def test_multistream_head_renders_at_first_stream_rate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    head = SourceAudio(media.multistream(tmp_path, "kid.ogg"), 0.0, 1.0)
+    audio = MixAudio(At(0.0, head), (At(0.25, _zeros(tmp_path / "child.wav", 44100, 1.0)),))
+    graphs = _captured_graphs(monkeypatch)
     plain = FFmpegEngine().render_timeline(tmp_path / "plain.wav", audio, "anull")
     assert "aformat=sample_rates=22050,adelay=delays=5512S" in graphs[-1]
     rate, samples = _read_wav(plain)
@@ -507,15 +512,7 @@ def test_multi_rate_delays_use_each_inputs_own_rate(
             At(0.73, _zeros(tmp_path / "fast.wav", 48000, 0.5)),
         ),
     )
-    graphs: list[str] = []
-    real_run = ff.run
-
-    def capture_run(cmd, *args, **kwargs):
-        if "-map" in cmd:
-            graphs.append(cmd[cmd.index("-filter_complex") + 1])
-        return real_run(cmd, *args, **kwargs)
-
-    monkeypatch.setattr(ff, "run", capture_run)
+    graphs = _captured_graphs(monkeypatch)
     monkeypatch.setattr(
         ff,
         "negotiated_rates",

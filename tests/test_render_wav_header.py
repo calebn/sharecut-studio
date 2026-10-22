@@ -235,27 +235,23 @@ def _list_before_data(size: int) -> bytes:
     return _riff(_fmt_chunk(_Wav()), _chunk(b"LIST", b"INFO"[:size]), _chunk(b"data", _PCM))
 
 
-def _undecodable_wavs() -> dict[str, Callable[[], bytes]]:
-    return {
-        **{
-            f"LIST under 4 bytes, {size}": lambda size=size: _list_before_data(size)
-            for size in range(4)
-        },
-        "SMV0 chunk": lambda: _riff(
-            _fmt_chunk(_Wav()), _chunk(b"SMV0", bytes(8)), _chunk(b"data", _PCM)
-        ),
-        "XMA2 before fmt": lambda: _riff(
-            _chunk(b"XMA2", bytes(34)), _fmt_chunk(_Wav()), _chunk(b"data", _PCM)
-        ),
-        "stereo data 2 bytes": lambda: _plain(_Wav(channels=2), bytes(2)),
-        "mono data 1 byte": lambda: _plain(_Wav(), bytes(1)),
-        "data size 0, 1 trailing byte": lambda: _riff(
-            _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 0) + bytes(1)
-        ),
-    }
-
-
-_UNDECODABLE = _undecodable_wavs()
+_UNDECODABLE: dict[str, Callable[[], bytes]] = {
+    **{
+        f"LIST under 4 bytes, {size}": lambda size=size: _list_before_data(size)
+        for size in range(4)
+    },
+    "SMV0 chunk": lambda: _riff(
+        _fmt_chunk(_Wav()), _chunk(b"SMV0", bytes(8)), _chunk(b"data", _PCM)
+    ),
+    "XMA2 before fmt": lambda: _riff(
+        _chunk(b"XMA2", bytes(34)), _fmt_chunk(_Wav()), _chunk(b"data", _PCM)
+    ),
+    "stereo data 2 bytes": lambda: _plain(_Wav(channels=2), bytes(2)),
+    "mono data 1 byte": lambda: _plain(_Wav(), bytes(1)),
+    "data size 0, 1 trailing byte": lambda: _riff(
+        _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 0) + bytes(1)
+    ),
+}
 _DEFERRED: dict[str, Callable[[Path], bytes]] = {
     **{name: lambda _, build=build: build() for name, build in _UNDECODABLE.items()},
     "three channels": lambda _: _plain(_Wav(channels=3), _samples("s16", 3, 8)),
@@ -362,10 +358,7 @@ def test_native_format_probes_the_audio_stream_beside_video(
     tmp_path: Path, build: Callable[[Path], Path]
 ) -> None:
     path = build(tmp_path)
-    rate, fmt, layout = media.first_stream_format(path)
-    audio = render_clock._native_format(FFmpegEngine().ffmpeg, path)
-    assert (audio.sample_rate, audio.channel_layout) == (rate, layout)
-    assert audio.sample_fmt == fmt
+    assert _probed(path) == media.first_stream_format(path)
 
 
 def test_native_format_probe_maps_the_first_audio_stream(
