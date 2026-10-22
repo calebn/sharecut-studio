@@ -11,6 +11,7 @@ import { isRangeSelection } from "../edit/rangeSelection";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
+import { useRealignViewport } from "../hooks/useRealignViewport";
 import { useViewportClass } from "../hooks/useViewportClass";
 import {
   audioFilesFromDrop,
@@ -93,6 +94,7 @@ function StudioShellAdapter({
   }));
 
   const shell = useViewportClass();
+  useRealignViewport();
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const loadingSession = project == null;
   const emptySession = !loadingSession && (project?.tracks.length ?? 0) === 0;
