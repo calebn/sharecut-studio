@@ -3,7 +3,7 @@
     PYTHONPATH=src:tests PERIOD=10 nice -n 10 python scripts/lab1987/probe_approve_rss.py <clone dir containing episode.project.json> [EVERY]
 
 Copies the project to a temp dir (never touches the original), analyzes pauses if no removes are pending,
-approves every EVERY-th pending remove in one batch, and logs RSS, live EpisodeProject count and live
+approves every EVERY-th pending remove in one batch (FORCE_ANALYZE=1 INTENSITY=aggressive re-runs the pause analysis for more removes), and logs RSS, live EpisodeProject count and live
 ndarray MB every PERIOD seconds. Exits (code 3) if RSS passes LIMIT_MB (default 6000).
 """
 
@@ -42,10 +42,10 @@ def pending() -> list[str]:
     ]
 
 
-if not pending():
+if os.environ.get("FORCE_ANALYZE") or not pending():
     PipelineService(ProjectWorkspace.open(path)).run(
         only_step="analyze_fillers_pauses",
-        config={"tighten": {"enabled": True, "intensity": "medium"}},
+        config={"tighten": {"enabled": True, "intensity": os.environ.get("INTENSITY", "medium")}},
     )
 ids = pending()[::every]
 print("pending removes selected", len(ids), flush=True)
@@ -80,7 +80,9 @@ def sampler() -> None:
 
 
 threading.Thread(target=sampler, daemon=True).start()
-n = EditService(ws).approve(ids, held_out=[], asked_out=[])
+held: list = []
+asked: list = []
+n = EditService(ws).approve(ids, held_out=held, asked_out=asked)
 stop = True
-print(f"approved {n} wall {time.time() - t0:.0f}s", flush=True)
+print(f"held {len(held)} asked {len(asked)} approved {n} wall {time.time() - t0:.0f}s", flush=True)
 shutil.rmtree(work.parent, ignore_errors=True)
