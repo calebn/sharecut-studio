@@ -3,10 +3,7 @@ import { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
 export { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
 
 import { setTrackFaderCommand, setTrackMuteCommand } from "../api";
-import {
-  endPreview,
-  showPreview,
-} from "../document/applyDocumentUpdate";
+import { endPreview, showPreview } from "../document/applyDocumentUpdate";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView, TrackView } from "../types/project";
@@ -183,7 +180,9 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
             : project,
         );
       }
-      useDawStore.getState().announceStatus(`Mix change failed: ${reason}`, { tone: "error" });
+      useDawStore
+        .getState()
+        .announceStatus(`Mix change failed: ${reason}`, { tone: "error" });
     }
   } finally {
     for (const resolve of waiters) {
