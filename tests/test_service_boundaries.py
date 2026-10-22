@@ -41,7 +41,7 @@ _ADAPTER_EXCEPTIONS = {
 
 _DOMAIN_PACKAGES = ("podcast_mcp.edits", "podcast_mcp.engines", "podcast_mcp.pipeline")
 _ADAPTER_NAMES = ("gui", "cli", "mcp")
-_ADAPTER_DOMAIN_ALLOWLIST_SIZE = 37
+_ADAPTER_DOMAIN_ALLOWLIST_SIZE = 36
 _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     "podcast_mcp.cli.cut_speech": {
         "podcast_mcp.edits.audio_check_override",
@@ -105,7 +105,6 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
         "podcast_mcp.edits.envelopes",
     },
     "podcast_mcp.mcp.tools.timeline": {
-        "podcast_mcp.edits.audio_check_override",
         "podcast_mcp.edits.transcript_timing",
     },
 }
