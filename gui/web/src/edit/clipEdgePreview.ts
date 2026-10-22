@@ -92,7 +92,7 @@ export function clipGeometryDuringRoll(
 
 /**
  * `clip` with a roll preview applied, as a row, so join rules such as
- * `isDrawnJoin` see what ClipBlock draws live. Returns `clip` itself when the
+ * `isJoin` see what ClipBlock draws live. Returns `clip` itself when the
  * preview does not touch it.
  */
 export function clipRowDuringRoll<

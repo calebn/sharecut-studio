@@ -1,12 +1,12 @@
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
-import type { ClipRow, JoinMode } from "../types/project";
+import type { ClipRow } from "../types/project";
+import {
+  JOIN_MODE_OPTIONS,
+  type JoinMarkerKind,
+  joinKind,
+  markerLabel,
+} from "../utils/editMarkerRegistry";
 import { formatRulerTime } from "../utils/time";
-
-export const JOIN_MODE_OPTIONS: { value: JoinMode; label: string }[] = [
-  { value: "cut", label: "Cut (no fade)" },
-  { value: "fade", label: "Fade at join (dip)" },
-  { value: "crossfade", label: "Crossfade (overlap both clips)" },
-];
 
 export function joinModeLabel(mode: string): string {
   return JOIN_MODE_OPTIONS.find((o) => o.value === mode)?.label ?? mode;
@@ -31,17 +31,9 @@ export function isCrossfadeJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
   return clip.join_in_mode === "crossfade";
 }
 
-/** Neighbours narrower than this on screen get no drawn join (badge); the clip inspector's Join control still covers it. */
-export const MIN_JOIN_CLIP_PX = 24;
-
 type JoinClip = Pick<
   ClipRow,
-  | "id"
-  | "source_start"
-  | "source_end"
-  | "timeline_start"
-  | "timeline_end"
-  | "join_left_clip_id"
+  "id" | "timeline_start" | "timeline_end" | "join_left_clip_id"
 >;
 
 /** `clips_ops.clips_abut`: `right` starts within the join tolerance of `left`'s end (overlaps count). */
@@ -52,15 +44,10 @@ export function clipsAbut(
   return right.timeline_start - left.timeline_end <= JOIN_GAP_TOLERANCE_SEC;
 }
 
-/**
- * True when the timeline draws the join `left` → `right` (#690): abutting
- * neighbours whose join names `left` (older servers omit the id), both at
- * least MIN_JOIN_CLIP_PX wide at `zoomPxPerSec`.
- */
-export function isDrawnJoin(
+/** True when the timeline draws the join `left` → `right`: abutting neighbours whose join names `left` (older servers omit the id). */
+export function isJoin(
   left: JoinClip | null | undefined,
   right: JoinClip,
-  zoomPxPerSec: number,
 ): boolean {
   if (left == null) {
     return false;
@@ -71,49 +58,15 @@ export function isDrawnJoin(
   ) {
     return false;
   }
-  if (!clipsAbut(left, right)) {
-    return false;
-  }
-  const narrowSec = Math.min(
-    left.source_end - left.source_start,
-    right.source_end - right.source_start,
-  );
-  return narrowSec * zoomPxPerSec >= MIN_JOIN_CLIP_PX;
+  return clipsAbut(left, right);
 }
-
-export type JoinGlyph = "cut" | "fade" | "crossfade";
-
-/** | cut, ╲╱ fade, ✕ crossfade in a 12 × 12 box. */
-export const JOIN_GLYPH_PATH: Record<JoinGlyph, string> = {
-  cut: "M6 1V11",
-  fade: "M1 2L6 10L11 2",
-  crossfade: "M1 1L11 11M11 1L1 11",
-};
-
-/** The badge glyph for `right`'s incoming join (an unknown mode reads as fade, as render treats it). */
-export function joinGlyph(right: Pick<ClipRow, "join_in_mode">): JoinGlyph {
-  if (right.join_in_mode === "cut") {
-    return "cut";
-  }
-  return right.join_in_mode === "crossfade" ? "crossfade" : "fade";
-}
-
-/** Short mode words for the join badge (and the join popover). */
-export const JOIN_MODE_SHORT: Record<JoinGlyph, string> = {
-  cut: "Cut",
-  fade: "Fade",
-  crossfade: "Crossfade",
-};
-
-/** The join modes in popover order. */
-export const JOIN_GLYPHS: readonly JoinGlyph[] = ["cut", "fade", "crossfade"];
 
 /** Seconds of context either side of the seam when auditioning a join (inspector footer and popover). */
 export const JOIN_AUDITION_PAD_SEC = 0.75;
 
 /** "Fade join at 0:05.0": the join badge's name and the popover's title. */
-export function joinSeamLabel(glyph: JoinGlyph, seamSec: number): string {
-  return `${JOIN_MODE_SHORT[glyph]} join at ${formatRulerTime(seamSec, 0.1)}`;
+export function joinSeamLabel(kind: JoinMarkerKind, seamSec: number): string {
+  return `${markerLabel(kind)} join at ${formatRulerTime(seamSec, 0.1)}`;
 }
 
 /**
@@ -187,8 +140,17 @@ export type JoinVisual =
   | { kind: "blocked"; reason: string }
   | { kind: "blend"; lengthMs: number; leftPx: number; widthPx: number };
 
-export function joinVisual(right: ClipRow, zoomPxPerSec: number): JoinVisual {
-  if (joinGlyph(right) !== "crossfade") return { kind: "ordinary" };
+export function joinVisual(
+  right: Pick<
+    ClipRow,
+    | "join_in_mode"
+    | "join_crossfade_blocked"
+    | "join_crossfade_ms"
+    | "timeline_start"
+  >,
+  zoomPxPerSec: number,
+): JoinVisual {
+  if (joinKind(right) !== "join-crossfade") return { kind: "ordinary" };
   if (right.join_crossfade_blocked != null)
     return { kind: "blocked", reason: right.join_crossfade_blocked };
   const lengthMs = right.join_crossfade_ms;
@@ -290,7 +252,7 @@ export function projectJoinDraft(
   right: ClipRow,
   ms: number,
 ): ClipRow {
-  if (joinGlyph(right) !== "crossfade") return right;
+  if (joinKind(right) !== "join-crossfade") return right;
   // The browser cannot see mutes, so a saved no_headroom is kept for the drag.
   // It is length-curable only for a mute 5-10 ms past the edge (needs a ~20 ms
   // or shorter drag); a source gap under 20 ms is not curable by length.

@@ -1,15 +1,10 @@
 /** Plain-language names for a pending edit's type and reason code. */
 
 import type { PendingEditView, TrackView } from "../types/project";
+import { knownPendingKind, markerLabel } from "./editMarkerRegistry";
 import { capitalize } from "./format";
 import { type TightenClass, tightenClassOfReason } from "./tightenHits";
 import { clockLabel } from "./time";
-
-const TYPE_LABELS: Record<string, string> = {
-  remove: "Cut",
-  mute: "Mute",
-  split: "Split",
-};
 
 // Keys mirror src/podcast_mcp/edits/edit_reasons.py; tests/test_edit_reasons.py fails when one is missing.
 const REASON_LABELS: Record<string, string> = {
@@ -43,7 +38,8 @@ const TIGHTEN_REASON_LABELS: Record<TightenClass, (tail: string) => string> = {
 };
 
 export function pendingTypeLabel(type: string): string {
-  return TYPE_LABELS[type] ?? capitalize(type);
+  const kind = knownPendingKind(type);
+  return kind ? markerLabel(kind) : capitalize(type);
 }
 
 export function pendingListRowLabel(

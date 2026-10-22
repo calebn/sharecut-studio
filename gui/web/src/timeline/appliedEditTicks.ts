@@ -3,6 +3,7 @@ import type {
   ClipRow,
   ExactRangeTarget,
 } from "../types/project";
+import { markerLabel } from "../utils/editMarkerRegistry";
 import { capitalize } from "../utils/format";
 import { sourceSecInClipToTimeline } from "../utils/timebase";
 
@@ -15,6 +16,7 @@ export interface AppliedTick {
   key: string;
   recordId: string;
   kind: AppliedTickKind;
+  mute: boolean;
   sec: number;
 }
 
@@ -330,16 +332,16 @@ const OPERATION_LABELS: Record<string, string> = {
 export function appliedEditTitle(record: AppliedEditRecord): string {
   let label: string;
   if (isMuteRecord(record)) {
-    label = "Mute";
+    label = markerLabel("applied-mute");
   } else if (record.operation === "edit_selected_range") {
-    label = "Cut";
+    label = markerLabel("applied-seam");
   } else if (record.operation in OPERATION_LABELS) {
     label = OPERATION_LABELS[record.operation];
   } else if (
     record.operation === "approve_edits" ||
     record.operation === "apply_prefix_edits"
   ) {
-    label = "Cut";
+    label = markerLabel("applied-seam");
   } else {
     label = capitalize(record.operation.replaceAll("_", " "));
   }
@@ -393,6 +395,7 @@ export function appliedEditTicks(
       continue;
     }
     const { kind, secs } = recordSecs(record, trackId, clips);
+    const mute = isMuteRecord(record);
     // De-dup by position alone: every anchor of a record shares its one `kind`.
     // An operation that mixes seam and edge anchors must key this on (kind, sec).
     const deduped: number[] = [];
@@ -402,7 +405,13 @@ export function appliedEditTicks(
       }
     }
     deduped.forEach((sec, i) => {
-      out.push({ key: `${record.id}:${i}`, recordId: record.id, kind, sec });
+      out.push({
+        key: `${record.id}:${i}`,
+        recordId: record.id,
+        kind,
+        mute,
+        sec,
+      });
     });
   }
   return out;

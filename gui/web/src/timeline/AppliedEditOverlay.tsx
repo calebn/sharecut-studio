@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { AppliedEditRecord, ClipRow } from "../types/project";
+import { appliedKind, markerVariant } from "../utils/editMarkerRegistry";
 import { appliedEditTicks } from "./appliedEditTicks";
 
 interface AppliedEditOverlayProps {
@@ -43,7 +44,7 @@ export function AppliedEditOverlay({
       {ticks.map((t) => (
         <div
           key={t.key}
-          className={`applied-tick applied-tick--${t.kind}${
+          className={`applied-tick applied-tick--${markerVariant(appliedKind(t))}${
             selectedId === t.recordId ? " selected" : ""
           }`}
           style={{ left: t.sec * zoomPxPerSec }}
