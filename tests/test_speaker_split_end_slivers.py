@@ -147,3 +147,15 @@ def test_end_near_the_last_usable_window_matches_a_longer_span(offset: float) ->
     reference = _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, duration + window + 5.0)]})
 
     assert edge.turns == reference.turns
+
+
+@pytest.mark.parametrize("start", [3e18, 1e19])
+def test_span_starting_astronomically_past_the_end_is_refused_in_plain_words(
+    start: float,
+) -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+
+    with pytest.raises(CodedValueError) as raised:
+        _attribute(audio, {0: [(0.5, 4.0)], 1: [(start, float(np.nextafter(start, np.inf)))]})
+
+    assert raised.value.code == "enrollment_past_end"
