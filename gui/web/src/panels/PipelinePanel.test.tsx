@@ -1,28 +1,46 @@
 import {
   act,
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Answer, Question } from "../feedback/ask";
 import { expectNoA11yViolations } from "../test/a11y";
 import { answerQuestions } from "../test/ask";
+import {
+  modelStatus,
+  modelsApi,
+  modelsWrapper,
+  registryRows,
+} from "../test/renderWithModels";
 import type { PipelineConfigResponse } from "../types/pipeline";
 import { PipelinePanel } from "./PipelinePanel";
 import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
 
 const confirmReply = vi.fn<(question: Question) => Answer>();
 
+/** The panel reads model downloads from the models controller; this one hands out `downloadModel`. */
+function render(ui: ReactElement) {
+  return rtlRender(ui, {
+    wrapper: modelsWrapper(
+      modelsApi({
+        status: modelStatus(registryRows()),
+        download: downloadModel,
+      }),
+    ),
+  });
+}
+
 const loadPipelineConfig = vi.fn();
 const putPipelineConfig = vi.fn();
 const analyzePipeline = vi.fn();
 const startPipelineRun = vi.fn();
 const cancelPipelineRun = vi.fn();
-const runBootstrap = vi.fn();
-const waitForBootstrapJob = vi.fn();
+const downloadModel = vi.fn();
 const loadTranscriptVocabulary = vi.fn();
 const saveTranscriptVocabulary = vi.fn();
 const waitForPipelineJob = vi.fn();
@@ -33,8 +51,6 @@ vi.mock("../api", () => ({
   analyzePipeline: (...args: unknown[]) => analyzePipeline(...args),
   startPipelineRun: (...args: unknown[]) => startPipelineRun(...args),
   cancelPipelineRun: (...args: unknown[]) => cancelPipelineRun(...args),
-  runBootstrap: (...args: unknown[]) => runBootstrap(...args),
-  waitForBootstrapJob: (...args: unknown[]) => waitForBootstrapJob(...args),
   loadTranscriptVocabulary: (...args: unknown[]) =>
     loadTranscriptVocabulary(...args),
   saveTranscriptVocabulary: (...args: unknown[]) =>
@@ -683,6 +699,7 @@ describe("PipelinePanel", () => {
   beforeEach(() => {
     shellBreakpoint = "desktop";
     vi.clearAllMocks();
+    downloadModel.mockResolvedValue({ kind: "ok" });
     waitForPipelineJob.mockReset();
     // A running Analyze from another viewer stays running unless a test finishes it.
     waitForPipelineJob.mockImplementation(() => new Promise(() => {}));
@@ -808,17 +825,6 @@ describe("PipelinePanel", () => {
     loadPipelineConfig
       .mockResolvedValueOnce(alignerConfig(true, false))
       .mockResolvedValue(alignerConfig(true, true));
-    const bootJob = {
-      id: "boot1",
-      kind: "bootstrap",
-      components: ["word-aligner"],
-      whisper_model: "",
-      status: "ok",
-      message: "Ready",
-    };
-    runBootstrap.mockResolvedValue({ job: bootJob });
-    waitForBootstrapJob.mockResolvedValue(bootJob);
-
     render(
       <main>
         <PipelinePanel />
@@ -838,9 +844,7 @@ describe("PipelinePanel", () => {
       screen.getByRole("button", { name: "Download word aligner" }),
     );
     await waitFor(() => {
-      expect(runBootstrap).toHaveBeenCalledWith({
-        components: ["word-aligner"],
-      });
+      expect(downloadModel).toHaveBeenCalledWith(["word-aligner"], undefined);
     });
     await waitFor(() => {
       expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
@@ -1270,7 +1274,7 @@ describe("PipelinePanel", () => {
     await waitFor(() => {
       expect(putPipelineConfig).toHaveBeenCalled();
     });
-    expect(runBootstrap).not.toHaveBeenCalled();
+    expect(downloadModel).not.toHaveBeenCalled();
     const body = putPipelineConfig.mock.calls.at(-1)?.[1] as {
       config: { transcribe: { model: string } };
     };
@@ -1311,34 +1315,6 @@ describe("PipelinePanel", () => {
 
   it("downloads via bootstrap then persists the selected model", async () => {
     const user = userEvent.setup();
-    runBootstrap.mockResolvedValue({
-      job: {
-        id: "boot1",
-        kind: "bootstrap",
-        components: ["whisper"],
-        whisper_model: "large-v3-turbo",
-        status: "running",
-        message: "Fetching weights…",
-      },
-    });
-    waitForBootstrapJob.mockImplementation(async (_id, opts) => {
-      opts?.onUpdate?.({
-        id: "boot1",
-        kind: "bootstrap",
-        components: ["whisper"],
-        whisper_model: "large-v3-turbo",
-        status: "running",
-        message: "Fetching weights…",
-      });
-      return {
-        id: "boot1",
-        kind: "bootstrap",
-        components: ["whisper"],
-        whisper_model: "large-v3-turbo",
-        status: "ok",
-        message: "Ready",
-      };
-    });
     putPipelineConfig.mockImplementation(async (_path, body) => ({
       ...structuredClone(baseConfig),
       ...body,
@@ -1375,16 +1351,9 @@ describe("PipelinePanel", () => {
     await user.selectOptions(select, "large-v3-turbo");
     await user.click(await screen.findByRole("button", { name: "Download" }));
     await waitFor(() => {
-      expect(runBootstrap).toHaveBeenCalledWith({
-        components: ["whisper"],
-        whisper_model: "large-v3-turbo",
+      expect(downloadModel).toHaveBeenCalledWith(["whisper"], {
+        whisperModel: "large-v3-turbo",
       });
-    });
-    await waitFor(() => {
-      expect(waitForBootstrapJob).toHaveBeenCalledWith(
-        "boot1",
-        expect.any(Object),
-      );
     });
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -1395,16 +1364,6 @@ describe("PipelinePanel", () => {
   it("downloads Whisper before re-transcribing when the model is missing", async () => {
     const user = userEvent.setup();
     answerQuestions(confirmReply.mockReturnValue(true));
-    const bootJob = {
-      id: "boot1",
-      kind: "bootstrap",
-      components: ["whisper"],
-      whisper_model: "large-v3-turbo",
-      status: "ok",
-      message: "Ready",
-    };
-    runBootstrap.mockResolvedValue({ job: bootJob });
-    waitForBootstrapJob.mockResolvedValue(bootJob);
     const turboConfig = {
       ...structuredClone(baseConfig),
       config: { ...baseConfig.config, transcribe: { model: "large-v3-turbo" } },

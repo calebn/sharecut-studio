@@ -1,182 +1,172 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { ANOTHER_DOWNLOAD_REASON } from "../models";
 import { expectNoA11yViolations } from "../test/a11y";
-
-const runBootstrap = vi.fn();
-const waitForBootstrapJob = vi.fn();
-
-vi.mock("../api", () => ({
-  runBootstrap: (...args: unknown[]) => runBootstrap(...args),
-  waitForBootstrapJob: (...args: unknown[]) => waitForBootstrapJob(...args),
-}));
-
+import {
+  type ModelsFixture,
+  modelRow,
+  modelStatus,
+  renderWithModels,
+} from "../test/renderWithModels";
 import { BUSY_REASON } from "../ui/disabledReason";
-import { ApiError } from "../utils/apiError";
 import { WordAlignerStatus } from "./WordAlignerStatus";
 
+const ALIGNER = modelRow({
+  id: "word-aligner",
+  label: "Word aligner",
+  purpose: "precise word boundaries",
+  size: "~360 MB",
+  size_bytes: null,
+});
+
+function fixture(over: Partial<ModelsFixture> = {}): ModelsFixture {
+  return { status: modelStatus([ALIGNER]), ...over };
+}
+
+const MISSING = { state: "missing", tier: "offered", size: "~360 MB" } as const;
+const INSTALLED = {
+  state: "installed",
+  tier: "offered",
+  size: "~360 MB",
+} as const;
+
+function aligner(
+  props: Partial<ComponentProps<typeof WordAlignerStatus>> = {},
+) {
+  return (
+    <WordAlignerStatus
+      status={MISSING}
+      retiming={false}
+      onDownloaded={vi.fn()}
+      onRetime={vi.fn()}
+      {...props}
+    />
+  );
+}
+
+const DOWNLOAD = { name: "Download word aligner" };
+
 describe("WordAlignerStatus", () => {
-  it("shows the needs-download message when not ok", () => {
-    render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
-    );
+  it("shows the needs-download message when not installed", () => {
+    renderWithModels(aligner(), fixture());
     expect(
       screen.getByText(/Word aligner needs download \(~360 MB\)/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", DOWNLOAD)).toBeInTheDocument();
   });
 
-  it("says a pin-mismatched snapshot needs downloading again", () => {
-    render(
-      <WordAlignerStatus
-        status={{
-          state: "update_needed",
-          tier: "offered",
-          size: "~360 MB",
-        }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
+  it("says an update-needed aligner needs downloading again", () => {
+    renderWithModels(
+      aligner({ status: { ...MISSING, state: "update_needed" } }),
+      fixture(),
     );
     expect(
       screen.getByText(/does not match its pinned download \(~360 MB\)/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/needs download/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", DOWNLOAD)).toBeInTheDocument();
   });
 
-  it("downloads, shows progress, and calls onDownloaded", async () => {
+  it("downloads through the models controller and calls onDownloaded", async () => {
     const user = userEvent.setup();
     const onDownloaded = vi.fn();
-    runBootstrap.mockResolvedValue({
-      job: { id: "job1", status: "running", message: "Starting…" },
-    });
-    waitForBootstrapJob.mockImplementation(
-      async (_id: string, opts?: { onUpdate?: (job: unknown) => void }) => {
-        opts?.onUpdate?.({
-          id: "job1",
+    const { api } = renderWithModels(aligner({ onDownloaded }), fixture());
+    await user.click(screen.getByRole("button", DOWNLOAD));
+    expect(api.download).toHaveBeenCalledWith(["word-aligner"], undefined);
+    await waitFor(() => expect(onDownloaded).toHaveBeenCalled());
+  });
+
+  it("does not call onDownloaded when the download fails", async () => {
+    const user = userEvent.setup();
+    const onDownloaded = vi.fn();
+    const { api } = renderWithModels(
+      aligner({ onDownloaded }),
+      fixture({
+        download: vi.fn(async () => ({
+          kind: "failed" as const,
+          failed: ["word-aligner"],
+        })),
+      }),
+    );
+    await user.click(screen.getByRole("button", DOWNLOAD));
+    await waitFor(() => expect(api.download).toHaveBeenCalled());
+    expect(onDownloaded).not.toHaveBeenCalled();
+  });
+
+  it("shows the live byte bar and a busy button while it downloads", async () => {
+    const { container } = renderWithModels(
+      aligner(),
+      fixture({
+        job: {
+          id: "j",
+          kind: "bootstrap",
+          components: ["word-aligner"],
+          whisper_model: "",
           status: "running",
-          message: "Fetching weights…",
-        });
-        return { id: "job1", status: "ok", message: "Ready" };
-      },
+          download: {
+            component: "word-aligner",
+            bytes: 120_000_000,
+            total: 360_000_000,
+          },
+        },
+      }),
     );
-
-    render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={onDownloaded}
-        onRetime={vi.fn()}
-      />,
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    );
-    expect(runBootstrap).toHaveBeenCalledWith({
-      components: ["word-aligner"],
-    });
-    await waitFor(() => {
-      expect(onDownloaded).toHaveBeenCalled();
-    });
-  });
-
-  it("shows InlineError and re-enables the button on a rejected download", async () => {
-    const user = userEvent.setup();
-    runBootstrap.mockRejectedValue(new Error("network down"));
-
-    render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    );
-    expect(await screen.findByText("network down")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    ).toBeEnabled();
+      screen.getByRole("progressbar", { name: "Word aligner" }),
+    ).toHaveAttribute("aria-valuetext", "120 MB of 360 MB");
+    const button = screen.getByRole("button", { name: "Downloading…" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    await expectNoA11yViolations(container);
   });
 
-  it("hides the environment variable and path in a failed download", async () => {
-    const user = userEvent.setup();
-    runBootstrap.mockRejectedValue(
-      new Error(
-        "word-aligner: no download source: set PODCAST_BOOTSTRAP_CDN_BASE or place the file at /home/x/.cache/p/models/a/m.onnx",
-      ),
+  it("shows the plain failure beside a button that can try again", async () => {
+    const { container } = renderWithModels(
+      aligner(),
+      fixture({
+        failures: {
+          "word-aligner": {
+            kind: "network",
+            plain: "Couldn't reach the download server.",
+          },
+        },
+      }),
     );
-
-    render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't reach the download server.",
     );
-    await user.click(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    );
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Couldn't download the word aligner. Export diagnostics from the command palette and try again.",
-    );
+    expect(screen.getByRole("button", DOWNLOAD)).toBeEnabled();
+    await expectNoA11yViolations(container);
   });
 
-  it("shows a plain busy sentence when another download holds the slot", async () => {
-    const user = userEvent.setup();
-    runBootstrap.mockRejectedValue(
-      new ApiError(
-        "Another download is already running (whisper); try again when it finishes",
-        "bootstrap_job_running",
-        409,
-      ),
+  it("disables Download with the reason while another model downloads", () => {
+    renderWithModels(
+      aligner(),
+      fixture({
+        status: modelStatus([
+          ALIGNER,
+          modelRow({ id: "whisper", tier: "required" }),
+        ]),
+        job: {
+          id: "j",
+          kind: "bootstrap",
+          components: ["whisper"],
+          whisper_model: "large-v3-turbo",
+          status: "running",
+        },
+      }),
     );
-
-    render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    );
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Another download is already running. Try again when it finishes.",
-    );
-    expect(screen.queryByText(/\(whisper\)/)).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    ).toBeEnabled();
+    const button = screen.getByRole("button", DOWNLOAD);
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", ANOTHER_DOWNLOAD_REASON);
   });
 
-  it("shows downloaded and calls onRetime when ok", async () => {
+  it("shows downloaded and calls onRetime when installed", async () => {
     const user = userEvent.setup();
     const onRetime = vi.fn();
-    render(
-      <WordAlignerStatus
-        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={onRetime}
-      />,
-    );
+    renderWithModels(aligner({ status: INSTALLED, onRetime }), fixture());
     expect(
       screen.getByText(/Word aligner is downloaded \(~360 MB\)/i),
     ).toBeInTheDocument();
@@ -185,38 +175,22 @@ describe("WordAlignerStatus", () => {
   });
 
   it("disables both the download and the re-time button", () => {
-    const { rerender } = render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        disabledReason={BUSY_REASON}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
+    const { rerender } = renderWithModels(
+      aligner({ disabledReason: BUSY_REASON }),
+      fixture(),
     );
-    expect(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", DOWNLOAD)).toBeDisabled();
 
-    rerender(
-      <WordAlignerStatus
-        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
-        disabledReason={BUSY_REASON}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
-    );
+    rerender(aligner({ status: INSTALLED, disabledReason: BUSY_REASON }));
     expect(
       screen.getByRole("button", { name: "Re-time words" }),
     ).toBeDisabled();
   });
 
   it("locks to the download and names the reason when the aligner is missing", async () => {
-    const { container } = render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        alignment={{
+    const { container } = renderWithModels(
+      aligner({
+        alignment: {
           enabled: false,
           model: null,
           requested: null,
@@ -224,18 +198,14 @@ describe("WordAlignerStatus", () => {
           blocked: false,
           reason:
             "unavailable: word aligner 'onnx-base' is not downloaded (podcast bootstrap --component word-aligner)",
-        }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
+        },
+      }),
+      fixture(),
     );
     expect(screen.getByRole("status")).toHaveTextContent(
       "Precise word boundaries unavailable: word aligner 'onnx-base' is not downloaded (podcast bootstrap --component word-aligner).",
     );
-    expect(
-      screen.getByRole("button", { name: "Download word aligner" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", DOWNLOAD)).toBeEnabled();
     expect(
       screen.queryByRole("button", { name: "Re-time words" }),
     ).not.toBeInTheDocument();
@@ -245,21 +215,20 @@ describe("WordAlignerStatus", () => {
   it("offers Re-time words when the aligner is downloaded and the field is on by default", async () => {
     const onRetime = vi.fn();
     const user = userEvent.setup();
-    const { container } = render(
-      <WordAlignerStatus
-        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
-        alignment={{
+    const { container } = renderWithModels(
+      aligner({
+        status: INSTALLED,
+        onRetime,
+        alignment: {
           enabled: true,
           model: "onnx-base",
           requested: null,
           installed: true,
           blocked: false,
           reason: "on by default: word aligner 'onnx-base' is installed",
-        }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={onRetime}
-      />,
+        },
+      }),
+      fixture(),
     );
     expect(screen.getByRole("status")).toHaveTextContent(
       "Word aligner is downloaded (~360 MB). Precise word boundaries on by default: word aligner 'onnx-base' is installed.",
@@ -270,21 +239,19 @@ describe("WordAlignerStatus", () => {
   });
 
   it("hides Re-time words when the field is explicitly off", () => {
-    render(
-      <WordAlignerStatus
-        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
-        alignment={{
+    renderWithModels(
+      aligner({
+        status: INSTALLED,
+        alignment: {
           enabled: false,
           model: null,
           requested: false,
           installed: true,
           blocked: false,
           reason: "off: transcribe.forced_alignment.enabled is false",
-        }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
+        },
+      }),
+      fixture(),
     );
     expect(screen.getByRole("status")).toHaveTextContent(
       "Precise word boundaries off: transcribe.forced_alignment.enabled is false.",
@@ -293,38 +260,26 @@ describe("WordAlignerStatus", () => {
   });
 
   it("has no axe violations when needing download", async () => {
-    const { container } = render(
-      <WordAlignerStatus
-        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
-    );
+    const { container } = renderWithModels(aligner(), fixture());
     await expectNoA11yViolations(container);
   });
 
   it("has no axe violations when downloaded", async () => {
-    const { container } = render(
-      <WordAlignerStatus
-        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
-        retiming={false}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
+    const { container } = renderWithModels(
+      aligner({ status: INSTALLED }),
+      fixture(),
     );
     await expectNoA11yViolations(container);
   });
 
   it("shows Re-timing… with aria-busy while retiming", async () => {
-    const { container } = render(
-      <WordAlignerStatus
-        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
-        disabledReason={BUSY_REASON}
-        retiming={true}
-        onDownloaded={vi.fn()}
-        onRetime={vi.fn()}
-      />,
+    const { container } = renderWithModels(
+      aligner({
+        status: INSTALLED,
+        disabledReason: BUSY_REASON,
+        retiming: true,
+      }),
+      fixture(),
     );
     const btn = screen.getByRole("button", { name: "Re-timing…" });
     expect(btn).toBeDisabled();

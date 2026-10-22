@@ -1,12 +1,7 @@
 import { type ReactNode, useId } from "react";
 import { Button, InlineError, Pill } from "../ui";
-import {
-  capitalize,
-  failureHint,
-  progressText,
-  stateText,
-  tierText,
-} from "./format";
+import { capitalize, failureHint, stateText, tierText } from "./format";
+import { ModelProgress } from "./ModelProgress";
 import type { ModelView } from "./types";
 
 export type ModelRowAction =
@@ -113,16 +108,7 @@ export function ModelRow({ model, variantPicker, action }: Props) {
       ) : null}
       {variantPicker}
       {state.kind === "downloading" ? (
-        <div className="model-row-progress">
-          <progress
-            aria-labelledby={nameId}
-            aria-valuetext={progressText(state)}
-            {...(state.total != null
-              ? { value: state.bytes, max: state.total }
-              : {})}
-          />
-          <span className="model-row-bytes">{progressText(state)}</span>
-        </div>
+        <ModelProgress state={state} label={model.label} />
       ) : null}
       {state.kind === "failed" ? (
         <div className="stack tight">

@@ -1,5 +1,5 @@
 import { type RenderResult, render } from "@testing-library/react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { vi } from "vitest";
 import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
 import { overlay, toolsOf } from "../models/controller";
@@ -34,15 +34,22 @@ export function modelsApi(fixture: ModelsFixture): ModelsApi {
   };
 }
 
+/** A `wrapper` for RTL `render` that supplies `api` (so `rerender` keeps it). */
+export function modelsWrapper(api: ModelsApi) {
+  return function ModelsWrapper({ children }: { children: ReactNode }) {
+    return (
+      <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+    );
+  };
+}
+
 /** Render `ui` under a models context holding `fixture`; returns the render and the api spies. */
 export function renderWithModels(
   ui: ReactElement,
   fixture: ModelsFixture,
 ): RenderResult & { api: ModelsApi } {
   const api = modelsApi(fixture);
-  const result = render(
-    <ModelsContext.Provider value={api}>{ui}</ModelsContext.Provider>,
-  );
+  const result = render(ui, { wrapper: modelsWrapper(api) });
   return Object.assign(result, { api });
 }
 
@@ -131,3 +138,8 @@ export function registryRows(): Row[] {
     }),
   ];
 }
+
+/** A `wrapper` over the fresh-machine registry rows, for suites that only need a provider to exist. */
+export const defaultModelsWrapper = modelsWrapper(
+  modelsApi({ status: modelStatus(registryRows()) }),
+);

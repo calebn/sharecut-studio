@@ -1,5 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render as rtlRender,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
@@ -7,7 +13,12 @@ import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { minimalProject } from "../test/fixtures";
+import { defaultModelsWrapper } from "../test/renderWithModels";
 import { MobileShell } from "./MobileShell";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: defaultModelsWrapper });
+}
 
 const offlineStore = vi.hoisted(() => ({
   loadConflicts: vi.fn(),

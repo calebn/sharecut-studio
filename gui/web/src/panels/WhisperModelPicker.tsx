@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { type WhisperModelChoice } from "../api";
-import { useBootstrapDownload } from "../hooks/useBootstrapDownload";
+import { ModelProgress, modelActivity, useModel } from "../models";
 import { Button, Dialog, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 
@@ -122,8 +122,14 @@ export function WhisperDownloadDialog({
   onDownloaded,
 }: DialogProps) {
   const downloadBtnRef = useRef<HTMLButtonElement>(null);
-  const { busy, progress, error, download, reset } =
-    useBootstrapDownload("the Whisper model");
+  const { row, busy: slotBusy, download } = useModel("whisper");
+  const { working, downloading, failure, blockedReason } = modelActivity(
+    row,
+    slotBusy,
+  );
+  /** This dialog started a download; an older failure of the same model is not its news. */
+  const [tried, setTried] = useState(false);
+  const busy = working;
   const dialogOpen = pending != null;
   const pendingModel =
     pending != null
@@ -132,9 +138,9 @@ export function WhisperDownloadDialog({
 
   useEffect(() => {
     if (!dialogOpen) {
-      reset();
+      setTried(false);
     }
-  }, [dialogOpen, reset]);
+  }, [dialogOpen]);
 
   const closeOrRevert = () => {
     if (busy) {
@@ -147,12 +153,8 @@ export function WhisperDownloadDialog({
     if (!pending) {
       return;
     }
-    if (
-      await download({
-        components: ["whisper"],
-        whisper_model: pending.modelId,
-      })
-    ) {
+    setTried(true);
+    if ((await download({ whisperModel: pending.modelId })).kind === "ok") {
       onDownloaded(pending.modelId);
     }
   };
@@ -170,7 +172,7 @@ export function WhisperDownloadDialog({
             ref={downloadBtnRef}
             variant="primary"
             type="button"
-            disabledReason={busy ? BUSY_REASON : undefined}
+            disabledReason={busy ? BUSY_REASON : blockedReason}
             onClick={() => void startDownload()}
           >
             {busy ? "Downloading…" : "Download"}
@@ -209,16 +211,10 @@ export function WhisperDownloadDialog({
         Download it now before transcription, or keep the selection and download
         later. Run will not start until the weights are present.
       </p>
-      {progress ? (
-        <p
-          className="pipeline-whisper-progress"
-          role="status"
-          aria-live="polite"
-        >
-          {progress}
-        </p>
+      {downloading ? (
+        <ModelProgress state={downloading} label="Whisper" />
       ) : null}
-      <InlineError message={error} />
+      <InlineError message={tried ? failure?.plain : null} />
     </Dialog>
   );
 }
