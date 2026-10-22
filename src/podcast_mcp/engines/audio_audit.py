@@ -33,6 +33,7 @@ from podcast_mcp.engines.envelope_lag import (
     copy_lag,
     copy_levels_db,
 )
+from podcast_mcp.engines.ffmpeg import decoded_no_frames, filter_log_text
 from podcast_mcp.engines.lane_words import (
     WordKey,
     lane_transcripts,
@@ -174,7 +175,7 @@ def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float 
 
     Some fields (e.g. Crest factor, Dynamic range) are only printed once in the
     per-channel section for mono audio, not repeated under "Overall" - we take the
-    last occurrence of each label across the full stderr output rather than slicing
+    last occurrence of each label across the filter's own lines rather than slicing
     to the "Overall" section, so both kinds of fields are captured correctly.
     """
     cmd = [
@@ -189,8 +190,9 @@ def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float 
         "null",
         "-",
     ]
-    r = run(cmd, capture_output=True, text=True)
-    text = r.stderr or ""
+    r = run(cmd, capture_output=True)
+    ok = r.returncode == 0 and not decoded_no_frames(r.stderr)
+    text = filter_log_text(r.stderr, "astats") if ok else ""
 
     def _grab(label: str) -> float | None:
         matches = re.findall(rf"{re.escape(label)}:\s*(-?inf|-?[\d.]+)", text)

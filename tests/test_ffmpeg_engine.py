@@ -396,6 +396,9 @@ def test_real_wav_and_mp3_exports_decode(tmp_path: Path) -> None:
         assert 0.15 <= np.sqrt(np.mean(decoded**2)) <= 0.19
 
 
+_SUMMARY_LINE = "[Parsed_ebur128_0 @ 0x1] Summary:"
+
+
 def test_measure_loudness_patterns(tmp_path: Path):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"
@@ -403,18 +406,18 @@ def test_measure_loudness_patterns(tmp_path: Path):
 
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(
-            stderr="Summary:\n  I:         -18.2 LUFS\n", stdout="", returncode=0
+            stderr=f"{_SUMMARY_LINE}\n  I:         -18.2 LUFS\n", returncode=0
         )
         assert eng.measure_loudness(wav) == pytest.approx(-18.2)
 
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(
-            stderr="Integrated loudness: -20.5 LUFS", stdout="", returncode=0
+            stderr=f"{_SUMMARY_LINE}\nIntegrated loudness: -20.5 LUFS", returncode=0
         )
         assert eng.measure_loudness(wav) == pytest.approx(-20.5)
 
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(stderr="no loudness", stdout="", returncode=0)
+        run.return_value = MagicMock(stderr="no loudness", returncode=0)
         assert eng.measure_loudness(wav) is None
 
 
@@ -436,7 +439,7 @@ _LOUDNORM_JSON_STDERR = """
 
 
 _EBUR128_SUMMARY = (
-    "Summary:\n\n  Integrated loudness:\n    I:         -23.7 LUFS\n"
+    f"{_SUMMARY_LINE}\n\n  Integrated loudness:\n    I:         -23.7 LUFS\n"
     "    Threshold: -34.2 LUFS\n\n"
     "  Loudness range:\n    LRA:        18.9 LU\n\n  True peak:\n    Peak:       -6.5 dBFS\n"
 )
@@ -447,7 +450,7 @@ def test_loudnorm_input_stats_from_ebur128(tmp_path: Path, caplog):
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(stderr=_EBUR128_SUMMARY, stdout="", returncode=0)
+        run.return_value = MagicMock(stderr=_EBUR128_SUMMARY, returncode=0)
         stats = eng.loudnorm_input_stats(wav)
     assert stats == {
         "input_i": -23.7,
@@ -491,7 +494,7 @@ def test_measure_loudness_blocks_warns_when_no_blocks_parse(tmp_path: Path, capl
         patch("podcast_mcp.engines.ffmpeg.run") as run,
         caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
     ):
-        run.return_value = MagicMock(stderr="garbage", stdout="", returncode=0)
+        run.return_value = MagicMock(stderr="garbage", returncode=0)
         assert eng.measure_loudness_blocks(wav) == []
     assert "no momentary blocks" in caplog.text
 
@@ -510,11 +513,11 @@ def test_measure_loudness_full_parses_summary(tmp_path: Path):
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
     summary = (
-        "Summary:\n\n  Integrated loudness:\n    I:         -16.0 LUFS\n\n"
+        f"{_SUMMARY_LINE}\n\n  Integrated loudness:\n    I:         -16.0 LUFS\n\n"
         "  Loudness range:\n    LRA:         7.0 LU\n\n  True peak:\n    Peak:       -1.4 dBFS\n"
     )
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(stderr=summary, stdout="", returncode=0)
+        run.return_value = MagicMock(stderr=summary, returncode=0)
         result = eng.measure_loudness_full(wav)
     assert result == {
         "integrated_lufs": -16.0,
@@ -532,7 +535,7 @@ def test_measure_loudness_full_returns_none_without_integrated(tmp_path: Path):
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(stderr="nothing useful", stdout="", returncode=0)
+        run.return_value = MagicMock(stderr="nothing useful", returncode=0)
         assert eng.measure_loudness_full(wav) is None
 
 
@@ -541,7 +544,7 @@ def test_measure_loudness_full_reports_progress(tmp_path: Path):
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
     summary = (
-        "Summary:\n\n  Integrated loudness:\n    I:         -16.0 LUFS\n\n"
+        f"{_SUMMARY_LINE}\n\n  Integrated loudness:\n    I:         -16.0 LUFS\n\n"
         "  Loudness range:\n    LRA:         7.0 LU\n\n  True peak:\n    Peak:       -1.4 dBFS\n"
     )
     cb = MagicMock()
@@ -638,8 +641,8 @@ def test_master_loudness_two_pass_uses_measured_values(tmp_path: Path):
         patch("podcast_mcp.engines.ffmpeg.run") as run,
     ):
         run.side_effect = [
-            MagicMock(stderr=_EBUR128_SUMMARY, stdout="", returncode=0),
-            MagicMock(stderr=_LOUDNORM_JSON_STDERR, stdout="", returncode=0),
+            MagicMock(stderr=_EBUR128_SUMMARY, returncode=0),
+            MagicMock(stderr=_LOUDNORM_JSON_STDERR, returncode=0),
         ]
         result = eng.master_loudness(src, out, integrated_lufs=-20.0, true_peak_db=-1.5)
     assert run.call_count == 2
@@ -1251,7 +1254,7 @@ def test_measure_loudness_blocks_parses_framelog(tmp_path: Path):
         "[Parsed_ebur128_1 @ 0x1] Summary:\n\n  Integrated loudness:\n    I:         -41.8 LUFS\n"
     )
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(stderr=stderr, stdout="", returncode=0)
+        run.return_value = MagicMock(stderr=stderr, returncode=0)
         got = eng.measure_loudness_blocks(wav, af="highpass=f=80")
         af1 = run.call_args[0][0]
         eng.measure_loudness_blocks(wav, af="anull")

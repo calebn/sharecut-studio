@@ -507,7 +507,7 @@ answers. The analysis decoders map `0:a:0` the same way (#2110): `load_mono_full
 `stream_pcm_f32`, `stream_mono_f32`, `decode_window_f32`, `extract_segment`,
 `measure_loudness_blocks`, `measure_loudness` (`check_loudness`), `measure_astats` (#2131) and the join-continuity click batches read the first audio
 stream, as the render graph's `[i:a]` does, so a file with several audio streams is
-judged on the stream it plays. A graph over 8,000 characters goes to `-/filter_complex <file>` (and
+judged on the stream it plays. `check_loudness`, the `astats` reader and the loudness blocks read only the filter's own stderr lines, so tag text such as a title of `I: -16.0 LUFS` is not taken as a measurement (#2143). A graph over 8,000 characters goes to `-/filter_complex <file>` (and
 `-graph_file <file> -i dummy` for the dry run) so it does not count against the command line.
 A render fails with `render_rate_unresolved` when no rate can be read for a delayed input
 that has no decodable audio, or a WAV whose header reads but FFmpeg cannot decode (a LIST chunk
