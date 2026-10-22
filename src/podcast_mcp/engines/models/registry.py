@@ -134,7 +134,7 @@ def _word_aligner_install(
 
 
 def _speaker_ecapa_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
-    found = speaker_ecapa_problem()
+    found = speaker_ecapa_problem(memoize=memoize)
     if found is None:
         return None
     return ModelProblem(f"{SPEAKER_ECAPA_LABEL} {found}", SPEAKER_ECAPA_BOOTSTRAP)

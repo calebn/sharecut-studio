@@ -302,7 +302,7 @@ def resolve_speaker_backend(
             speaker_ecapa_problem,
         )
 
-        if speaker_ecapa_problem() is None:
+        if speaker_ecapa_problem(memoize=True) is None:
             onnx = OnnxEcapaBackend()
             if speaker_ecapa_override() is None:
                 return onnx  # the pinned file is hash-checked; a user's own file is not
@@ -316,7 +316,9 @@ def resolve_speaker_backend(
                         f"speaker backend unavailable: {name} (override does not load: {exc})"
                     ) from exc
         if name == "ecapa-onnx":
-            raise ImportError(f"speaker backend unavailable: {name} ({speaker_ecapa_problem()})")
+            raise ImportError(
+                f"speaker backend unavailable: {name} ({speaker_ecapa_problem(memoize=True)})"
+            )
     if name in ("speechbrain", "ecapa", "auto"):
         try:
             import torch  # noqa: F401

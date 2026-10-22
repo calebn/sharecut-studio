@@ -204,7 +204,7 @@ def test_gui_bootstrap_accepts_the_component(
 
 
 def test_auto_backend_prefers_onnx_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_problem", lambda: None)
+    monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_problem", lambda **_: None)
     assert speaker_id.resolve_speaker_backend().name() == "ecapa-onnx"
     assert speaker_id.resolve_speaker_backend("ecapa-onnx").name() == "ecapa-onnx"
 
@@ -343,7 +343,7 @@ def _chain_env(monkeypatch: pytest.MonkeyPatch, *, onnx: bool, speechbrain: bool
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.setattr(
-        speaker_ecapa, "speaker_ecapa_problem", lambda: None if onnx else "not downloaded"
+        speaker_ecapa, "speaker_ecapa_problem", lambda **_: None if onnx else "not downloaded"
     )
     if speechbrain:
         monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
@@ -390,3 +390,89 @@ def test_a_user_model_that_does_not_load_falls_through_in_auto(
     assert speaker_id.resolve_speaker_backend("auto").name() == "resemblyzer"
     with pytest.raises(ImportError, match="override does not load"):
         speaker_id.resolve_speaker_backend("ecapa-onnx")
+
+
+def _swap_in_place_keeping_mtime(target: Path, payload: bytes) -> None:
+    st = target.stat()
+    assert len(payload) == st.st_size
+    target.write_bytes(payload)
+    os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+
+def test_bootstrap_skip_check_rehashes_a_file_a_status_poll_remembered(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pin_to(monkeypatch, b"pinned")
+    target = speaker_ecapa.speaker_ecapa_path()
+    target.write_bytes(b"pinned")
+    assert speaker_ecapa.speaker_ecapa_problem(memoize=True) is None
+    _swap_in_place_keeping_mtime(target, b"swappd")
+    assert speaker_ecapa.speaker_ecapa_problem(memoize=True) is None  # stale poll memo
+
+    def fake_download(urls, dest, *, expected_sha256=None, **_):
+        dest.write_bytes(b"pinned")
+        return "cdn"
+
+    monkeypatch.setattr(speaker_ecapa, "download_first_ok", fake_download)
+    result = speaker_ecapa.bootstrap_speaker_ecapa()
+    assert "skipped" not in result
+    assert target.read_bytes() == b"pinned"
+
+
+def test_the_embedder_verifies_the_pin_uncached_before_it_loads(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pin_to(monkeypatch, b"pinned")
+    target = speaker_ecapa.speaker_ecapa_path()
+    target.write_bytes(b"pinned")
+    assert speaker_ecapa.speaker_ecapa_problem(memoize=True) is None
+    _swap_in_place_keeping_mtime(target, b"swappd")
+    with pytest.raises(speaker_ecapa.SpeakerEcapaMissingError, match="pinned download"):
+        speaker_ecapa.EcapaOnnx().embed(_signal())
+
+
+def test_concurrent_first_embeds_build_one_session(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import threading
+    import time
+    import types
+
+    built: list[str] = []
+
+    class SlowSession:
+        def __init__(self, path: str, **_: object) -> None:
+            time.sleep(0.05)
+            built.append(path)
+
+        def run(self, _outputs: object, feed: dict[str, np.ndarray]) -> list[np.ndarray]:
+            return [np.ones((1, 1, 192), dtype=np.float32)]
+
+    fake = types.SimpleNamespace(
+        SessionOptions=lambda: types.SimpleNamespace(), InferenceSession=SlowSession
+    )
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+    model_file = model_dir / "any.onnx"
+    model_file.write_bytes(b"x")
+    embedder = speaker_ecapa.EcapaOnnx(model_file)
+    threads = [threading.Thread(target=embedder.embed, args=(_signal(),)) for _ in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert built == [str(model_file)]
+
+
+def test_status_polls_memoize_and_the_backend_gate_does_not_rehash_twice(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import registry
+
+    seen: list[bool] = []
+    monkeypatch.setattr(
+        registry, "speaker_ecapa_problem", lambda *, memoize=False: seen.append(memoize)
+    )
+    registry._speaker_ecapa_problem(None, True)
+    registry._speaker_ecapa_problem(None, False)
+    assert seen == [True, False]
