@@ -33,7 +33,7 @@ def test_an_enrolled_name_with_no_spans_is_refused_before_any_audio_is_read(
 
     assert raised.value.code == "enrollment_empty"
     assert str(raised.value) == (
-        "Ben has no voice sample. Choose a stretch where only Ben speaks, or leave Ben out."
+        "Ben has no voice sample. Pick a stretch where only Ben is talking, or leave Ben out."
     )
 
 
