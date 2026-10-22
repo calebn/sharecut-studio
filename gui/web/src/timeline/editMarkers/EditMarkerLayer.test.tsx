@@ -592,6 +592,7 @@ describe("EditMarkerLayer with its join editors", () => {
     await user.click(glyph);
     await user.click(glyph);
     glyph.blur();
+    await act(async () => {});
     view.rerender(<Lane zoom={1} />);
     expect(document.body).toHaveFocus();
   });
