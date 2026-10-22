@@ -14,7 +14,18 @@ function borrowSec(left: ClipRow, right: ClipRow): number {
     right.join_crossfade_blocked
   )
     return 0;
-  return Math.max(0, right.join_borrow_sec ?? 0);
+  // The server's number is the one to follow. The caps below only keep a stale or
+  // draft row from reaching before the recording's start or past its end.
+  const room = Math.min(
+    right.join_borrow_sec ?? 0,
+    right.source_start,
+    (left.source_end - left.source_start) * 0.25,
+    (right.source_end - right.source_start) * 0.25,
+    left.source_duration_sec === null
+      ? Number.POSITIVE_INFINITY
+      : left.source_duration_sec - left.source_end,
+  );
+  return Math.max(0, room);
 }
 
 /**

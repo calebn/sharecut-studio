@@ -1053,7 +1053,7 @@ def test_render_crossfade_join_calls_acrossfade(sample_wav: Path, tmp_path: Path
 
     render_cmds = [c for c in commands if "filter_complex" in c]
     assert len(render_cmds) == 1
-    assert "acrossfade=d=0.025:c1=tri:c2=tri" in render_cmds[0]
+    assert "acrossfade=d=0.02:c1=tri:c2=tri" in render_cmds[0]
     assert out.is_file()
 
 
