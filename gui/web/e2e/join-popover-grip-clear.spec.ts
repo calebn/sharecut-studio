@@ -50,9 +50,9 @@ for (const phone of PHONES) {
     try {
       await page.setViewportSize({ width: phone.width, height: phone.height });
       if (phone.width < 720) await openPhoneTimeline(page);
-      const badge = lane.getByRole("button", { name: /join at/ });
-      await badge.scrollIntoViewIfNeeded();
-      await badge.click();
+      const glyph = lane.getByRole("button", { name: /join at/ });
+      await glyph.scrollIntoViewIfNeeded();
+      await glyph.click();
       const popover = page.getByRole("dialog", { name: /join at/ });
       await expect(popover).toBeVisible();
       await popover
@@ -74,15 +74,15 @@ for (const phone of PHONES) {
           const vp = page.viewportSize();
           const p = await popover.boundingBox();
           const g = await grip.boundingBox();
-          const b = await badge.boundingBox();
+          const b = await glyph.boundingBox();
           if (!vp || !p || !g || !b) throw new Error("missing box");
           expect(p.x).toBeGreaterThanOrEqual(0);
           expect(p.y).toBeGreaterThanOrEqual(0);
           expect(p.x + p.width).toBeLessThanOrEqual(vp.width + 0.5);
           expect(p.y + p.height).toBeLessThanOrEqual(vp.height + 0.5);
           expect(overlaps(p, g), "popover overlaps the grip").toBe(false);
-          expect(overlaps(p, b), "popover overlaps the badge").toBe(false);
-          // The badge is centred on the split point, which must stay visible.
+          expect(overlaps(p, b), "popover overlaps the glyph").toBe(false);
+          // The glyph sits at the split point, which must stay visible.
           const seamVisible = await page.evaluate(
             ([px, py]) =>
               document.elementFromPoint(px, py)?.closest("[role=dialog]") ==
@@ -154,7 +154,7 @@ for (const phone of PHONES) {
       if (lengthChanged) await page.keyboard.press("ControlOrMeta+Z");
       if (modeChanged) {
         await page.keyboard.press("ControlOrMeta+Z");
-        await expect(lane.locator(".join-badge--crossfade")).toHaveCount(0);
+        await expect(lane.locator(".edit-mark--crossfade")).toHaveCount(0);
       }
       await page.keyboard.press("ControlOrMeta+Z");
       await expect(clips).toHaveCount(1);
