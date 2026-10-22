@@ -271,6 +271,20 @@ async function keeperBlob(sink: ByteSink, path: string): Promise<Blob | null> {
   return new Blob([copyBuffer(bytes)], { type: "audio/wav" });
 }
 
+/** Copy the room-tone bed into memory, or drop it. Never throws. */
+async function readRoomTone(
+  sink: ByteSink,
+  path: string,
+): Promise<Blob | null> {
+  try {
+    const bed = await keeperBlob(sink, path);
+    if (!bed) return null;
+    return new Blob([await bed.arrayBuffer()], { type: "audio/wav" });
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Keeper reclaim stays paused this long after a recovery download is handed
  * to the browser: the archive references OPFS `File`s that are read lazily
@@ -370,10 +384,12 @@ export async function downloadLocalKeepers(
     // holds it. It is not a recording, so it never counts toward the totals above and its
     // absence (skipped, too loud, or already landed and cleared) is not an error.
     // An unreadable bed is left out: it must never cost the person their recordings.
-    const roomTone = await keeperBlob(
+    // It is copied into memory so neither the CRC pass nor the later download read
+    // touches an OPFS file that can change underneath it.
+    const roomTone = await readRoomTone(
       sink,
       roomToneWavPath(sessionId, participantId),
-    ).catch(() => null);
+    );
     if (roomTone) {
       entries.push({ filename: "room-tone.wav", data: roomTone });
     }
