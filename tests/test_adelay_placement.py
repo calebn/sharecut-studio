@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import errno
+import os
 import subprocess
 import wave
+from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
+from subprocess import CompletedProcess
 from unittest.mock import patch
 
 import numpy as np
@@ -325,3 +330,350 @@ def test_render_places_every_delay_on_ms_times_rate_floor_1000(tmp_path: Path, r
     delays = [*_FLOAT32_SHORT_MS[rate], 10900, 15000]
     expected = sorted({ms * rate // 1000 for ms in delays})
     assert _placed_frames(tmp_path, rate, delays) == expected
+
+
+def _empty_wav(path: Path, rate: int) -> SourceAudio:
+    _write_wav(path, np.zeros(0), rate)
+    return SourceAudio(path, 0.0, 0.1)
+
+
+def _with_child(tmp_path: Path, child: SourceAudio) -> Audio:
+    return MixAudio(At(0.0, _zeros(tmp_path / "head.wav", 48000, 0.2)), (At(0.3, child),))
+
+
+def test_plain_render_accepts_an_empty_wav_child(tmp_path: Path) -> None:
+    out = tmp_path / "out.wav"
+    FFmpegEngine().render_timeline(
+        out, _with_child(tmp_path, _empty_wav(tmp_path / "empty.wav", 48000)), "anull"
+    )
+    rate, samples = _read_wav(out)
+    assert (rate, len(samples)) == (48000, 14400)
+
+
+def test_restore_render_of_empty_wav_keeps_bleed_code(tmp_path: Path) -> None:
+    audio = _with_child(tmp_path, _empty_wav(tmp_path / "empty.wav", 48000))
+    with pytest.raises(CodedValueError) as error:
+        FFmpegEngine().render_timeline(
+            tmp_path / "out.wav", audio, "anull", clock_path=tmp_path / "clock.json"
+        )
+    assert error.value.code == "bleed_restore_clock_invalid"
+
+
+def test_plain_render_unreadable_non_wav_raises_render_rate_unresolved(tmp_path: Path) -> None:
+    child = tmp_path / "silent.aiff"
+    subprocess.run(
+        [
+            FFmpegEngine().ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=16000:cl=mono",
+            "-t",
+            "0",
+            "-c:a",
+            "pcm_s16be",
+            str(child),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    with pytest.raises(CodedValueError) as error:
+        FFmpegEngine().render_timeline(
+            tmp_path / "out.wav",
+            _with_child(tmp_path, SourceAudio(child, 0.0, 0.1)),
+            "anull",
+        )
+    assert error.value.code == "render_rate_unresolved"
+
+
+def _m4a(path: Path, rate: int) -> SourceAudio:
+    subprocess.run(
+        [
+            FFmpegEngine().ffmpeg,
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:sample_rate={rate}:duration=0.5",
+            "-c:a",
+            "aac",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return SourceAudio(path, 0.0, 0.3)
+
+
+def _spawns(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    spawned: list[str] = []
+    real_run = ff.run
+
+    def counting_run(cmd, *args, **kwargs):
+        spawned.append(Path(cmd[0]).name)
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(ff, "run", counting_run)
+    monkeypatch.setattr(render_clock, "run", counting_run)
+    return spawned
+
+
+def test_plain_render_spawn_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    spawned = _spawns(monkeypatch)
+    head = _zeros(tmp_path / "head.wav", 48000, 0.2)
+    wavs = MixAudio(
+        At(0.0, head),
+        tuple(
+            At(0.05 * (k + 1), _impulse_at(tmp_path / f"child_{k}.wav", 48000)) for k in range(20)
+        ),
+    )
+    FFmpegEngine().render_timeline(tmp_path / "wavs.wav", wavs, "anull")
+    assert spawned == ["ffprobe", "ffmpeg"]
+
+    spawned.clear()
+    first, second = _m4a(tmp_path / "a.m4a", 22050), _m4a(tmp_path / "b.m4a", 16000)
+    compressed = MixAudio(At(0.0, head), (At(0.3, first), At(0.6, second)))
+    engine = FFmpegEngine()
+    engine.render_timeline(tmp_path / "first.wav", compressed, "anull")
+    assert len(spawned) == 4
+    spawned.clear()
+    engine.render_timeline(tmp_path / "second.wav", compressed, "anull")
+    assert len(spawned) == 2
+    spawned.clear()
+    stamp = first.path.stat()
+    os.utime(first.path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000_000))
+    engine.render_timeline(tmp_path / "third.wav", compressed, "anull")
+    assert len(spawned) == 3
+
+
+def _failing_run(
+    monkeypatch: pytest.MonkeyPatch, fails: Callable[[list[str]], bool], error: OSError
+) -> None:
+    real_run = ff.run
+
+    def run(cmd, *args, **kwargs):
+        if fails([str(part) for part in cmd]):
+            raise error
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(ff, "run", run)
+    monkeypatch.setattr(render_clock, "run", run)
+
+
+def _is_dry_run(cmd: list[str]) -> bool:
+    return "-dumpgraph" in cmd
+
+
+def _is_render(cmd: list[str]) -> bool:
+    return "-map" in cmd
+
+
+@pytest.mark.parametrize("fails", [_is_dry_run, _is_render], ids=["dry-run", "render"])
+def test_e2big_is_render_command_too_long(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fails: Callable[[list[str]], bool]
+) -> None:
+    refusal = OSError(errno.E2BIG, "Argument list too long")
+    _failing_run(monkeypatch, fails, refusal)
+    with pytest.raises(CodedValueError) as error:
+        FFmpegEngine().render_timeline(tmp_path / "out.wav", _all_delayed(tmp_path), "anull")
+    assert error.value.code == "render_command_too_long"
+    assert error.value.__cause__ is refusal
+
+
+class _WindowsTooLong(FileNotFoundError):
+    winerror = 206
+
+
+def test_winerror_206_is_render_command_too_long(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    too_long = _WindowsTooLong(errno.ENOENT, "The filename or extension is too long")
+    _failing_run(monkeypatch, _is_dry_run, too_long)
+    with pytest.raises(CodedValueError) as error:
+        FFmpegEngine().render_timeline(tmp_path / "out.wav", _all_delayed(tmp_path), "anull")
+    assert error.value.code == "render_command_too_long"
+    assert error.value.__cause__ is too_long
+
+    missing = FileNotFoundError(errno.ENOENT, "No such file or directory")
+    _failing_run(monkeypatch, _is_dry_run, missing)
+    with pytest.raises(FileNotFoundError) as unchanged:
+        FFmpegEngine().render_timeline(tmp_path / "out.wav", _all_delayed(tmp_path), "anull")
+    assert unchanged.value is missing
+
+
+def _slices(tmp_path: Path, count: int) -> Audio:
+    tiny = _zeros(tmp_path / "tiny.wav", 48000, 0.01)
+    return MixAudio(At(0.0, tiny), tuple(At(0.02 * (k + 1), tiny) for k in range(count)))
+
+
+def _render_long_graph(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, render_fails: bool
+) -> tuple[list[list[str]], list[tuple[Path, bytes]]]:
+    real_run = render_clock.run
+    argvs: list[list[str]] = []
+    files: list[tuple[Path, bytes]] = []
+
+    def run(cmd, *args, **kwargs):
+        argv = [str(part) for part in cmd]
+        argvs.append(argv)
+        for option, value in pairwise(argv):
+            if option in ("-/filter_complex", "-graph_file"):
+                files.append((Path(value), Path(value).read_bytes()))
+        if "-map" not in argv:
+            return real_run(cmd, *args, **kwargs)
+        if render_fails:
+            raise RuntimeError("render failed")
+        return CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(ff, "run", run)
+    monkeypatch.setattr(render_clock, "run", run)
+    render = FFmpegEngine().render_timeline
+    if render_fails:
+        with pytest.raises(RuntimeError):
+            render(tmp_path / "out.wav", _slices(tmp_path, 700), "anull")
+    else:
+        render(tmp_path / "out.wav", _slices(tmp_path, 700), "anull")
+    return argvs, files
+
+
+@pytest.mark.parametrize("render_fails", [False, True], ids=["returned", "raised"])
+def test_long_graph_goes_by_file_unit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, render_fails: bool
+) -> None:
+    argvs, files = _render_long_graph(tmp_path, monkeypatch, render_fails=render_fails)
+    dry = next(argv for argv in argvs if "-dumpgraph" in argv)
+    render = next(argv for argv in argvs if "-map" in argv)
+    at = dry.index("-graph_file")
+    assert dry[at + 2 : at + 4] == ["-i", "dummy"]
+    assert "-/filter_complex" in render
+    assert max(len(part) for argv in argvs for part in argv) <= 8000
+    assert len(files) == 2
+    for path, content in files:
+        assert not content.startswith(b"\xef\xbb\xbf")
+        assert not path.parent.exists()
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(300)
+def test_620_delays_render(tmp_path: Path) -> None:
+    out = tmp_path / "out.wav"
+    FFmpegEngine().render_timeline(out, _slices(tmp_path, 620), "anull")
+    assert _read_wav(out)[0] == 48000
+
+
+def test_render_holds_the_dry_run_rate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        ff,
+        "negotiated_rates",
+        lambda ffmpeg, ffprobe, filters, input_paths, names: dict.fromkeys(names, 44100),
+    )
+    out = tmp_path / "out.wav"
+    FFmpegEngine().render_timeline(out, _delayed(tmp_path, 48000, [(48000, 2.5)]), "anull")
+    rate, samples = _read_wav(out)
+    assert rate == 44100
+    assert _peak_near(samples, 2500 * 44100 // 1000) == 2500 * 44100 // 1000
+
+
+@pytest.mark.parametrize(("source_rate", "forced_rate"), [(44100, 48000), (48000, 44100)])
+def test_trailing_pin_holds_rate_after_a_downstream_fixed_rate(
+    tmp_path: Path, source_rate: int, forced_rate: int
+) -> None:
+    graph = (
+        f"[1:a]{_delay_filter(1.0, source_rate)}[d];"
+        "[0:a][d]amix=inputs=2:duration=longest:normalize=0,"
+        f"aformat=sample_rates={forced_rate}[out]"
+    )
+    out = tmp_path / "out.wav"
+    subprocess.run(
+        [
+            FFmpegEngine().ffmpeg,
+            "-y",
+            "-i",
+            str(_zeros(tmp_path / "head.wav", source_rate, 0.2).path),
+            "-i",
+            str(_impulse(tmp_path / "child.wav", source_rate)),
+            "-filter_complex",
+            graph,
+            "-map",
+            "[out]",
+            str(out),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    rate, samples = _read_wav(out)
+    assert rate == forced_rate
+    assert abs(int(np.argmax(np.abs(samples))) - forced_rate) < 64
+
+
+_CLOCK_CASES = {
+    **{name: case[0] for name, case in _TRUNK_RATE_CASES.items()},
+    "seq_44_mix_48": lambda p: _nested(p, "seq_44_mix_48"),
+    "seq_48_mix_44": lambda p: _nested(p, "seq_48_mix_44"),
+    "room-tone": lambda p: _room_tone(p, 16000)[0],
+}
+
+
+@pytest.mark.parametrize("name", list(_CLOCK_CASES))
+def test_clock_suite_file_form(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    audio = _CLOCK_CASES[name](tmp_path)
+    inline_out, inline_clock = tmp_path / "inline.wav", tmp_path / "inline.json"
+    FFmpegEngine().render_timeline(inline_out, audio, "anull", clock_path=inline_clock)
+    monkeypatch.setattr(render_clock, "_INLINE_GRAPH_MAX_CHARS", 0, raising=False)
+    file_out, file_clock = tmp_path / "file.wav", tmp_path / "file.json"
+    FFmpegEngine().render_timeline(file_out, audio, "anull", clock_path=file_clock)
+    assert file_clock.read_bytes() == inline_clock.read_bytes()
+    assert file_out.read_bytes() == inline_out.read_bytes()
+
+
+def test_small_graph_argv_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    audio = _delayed(tmp_path, 48000, [(48000, 1.0), (48000, 2.0), (48000, 3.05)])
+    renders: list[list[str]] = []
+    real_run = ff.run
+
+    def capture_run(cmd, *args, **kwargs):
+        if "-map" in cmd:
+            renders.append([str(part) for part in cmd])
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(ff, "run", capture_run)
+    out = tmp_path / "out.wav"
+    FFmpegEngine().render_timeline(out, audio, "anull")
+    pin = "aformat=sample_rates=48000"
+    delayed = [
+        f"[a{k}]{pin},adelay=delays={frames}S:all=1,asetpts=N/SR/TB,{pin}[node{k - 1}]"
+        for k, frames in ((1, 48000), (2, 96000), (3, 146400))
+    ]
+    graph = ";".join(
+        [
+            "[0:a]anull[src_in0_0]",
+            "[1:a]anull[src_in1_0]",
+            "[2:a]anull[src_in2_0]",
+            "[3:a]anull[src_in3_0]",
+            "[src_in0_0]atrim=start=0.000000:end=4.000000,asetpts=PTS-STARTPTS[src0]",
+            "[src_in1_0]atrim=start=0.000000:end=0.500000,asetpts=PTS-STARTPTS[src1]",
+            "[src_in2_0]atrim=start=0.000000:end=0.500000,asetpts=PTS-STARTPTS[src2]",
+            "[src_in3_0]atrim=start=0.000000:end=0.500000,asetpts=PTS-STARTPTS[src3]",
+            "[src0]anull[a0]",
+            "[src1]anull[a1]",
+            "[src2]anull[a2]",
+            "[src3]anull[a3]",
+            *delayed,
+            "[a0][node0][node1][node2]amix=inputs=4:duration=longest:normalize=0,"
+            "asetpts=N/SR/TB,asetnsamples=n=1024:p=0[node3]",
+            "[node3]anull[out]",
+        ]
+    )
+    sources = [tmp_path / "head.wav", *(tmp_path / f"delayed_48000_{k}.wav" for k in range(3))]
+    inputs = [
+        part
+        for k, path in enumerate(sources)
+        for part in ("-t", "4.000000" if k == 0 else "0.500000", "-i", str(path.resolve()))
+    ]
+    assert renders == [
+        [FFmpegEngine().ffmpeg, "-y", *inputs, "-filter_complex", graph, "-map", "[out]", str(out)]
+    ]
