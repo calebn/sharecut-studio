@@ -17,6 +17,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.jobs.reporter import JobProgressReporter
+from podcast_mcp.util.coded_error import CodedValueError
 
 SCRIPTED = SpeakerAttribution(
     speaker_count=2,
@@ -119,6 +120,20 @@ def test_a_split_that_cannot_run_is_refused_before_a_job_starts(room: Path) -> N
         mgr.start_split_speakers(room, track_id="nobody", speaker_count=2)
     with pytest.raises(ValueError, match="expected 2 speaker names"):
         mgr.start_split_speakers(room, track_id="room", speaker_count=2, names=["Ana"])
+    assert mgr.status()["jobs"] == []
+
+
+def test_an_unusable_enrollment_span_is_refused_before_a_job_starts(room: Path) -> None:
+    mgr = JobManager()
+    with pytest.raises(CodedValueError) as raised:
+        mgr.start_split_speakers(
+            room,
+            track_id="room",
+            speaker_count=2,
+            names=["Ana", "Ben"],
+            enrollment={"Ana": [(5.0, 2.0)]},
+        )
+    assert raised.value.code == "enrollment_span_invalid"
     assert mgr.status()["jobs"] == []
 
 
