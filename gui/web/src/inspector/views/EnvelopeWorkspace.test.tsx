@@ -259,6 +259,44 @@ describe("EnvelopeWorkspace", () => {
       { id: "late", time: 7, value: 0.25 },
     ]);
   });
+  it("keeps a save in flight busy across a remount, so a second Save is not dispatched", async () => {
+    let settle: () => void = () => {};
+    setEnvelope.mockReturnValue(
+      new Promise<void>((resolve) => {
+        settle = resolve;
+      }),
+    );
+    const first = mount();
+    await edit();
+    await level("0.25");
+    await save();
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    first.unmount();
+    mount();
+    expect(screen.getByRole("button", { name: "Save point" })).toBeDisabled();
+    await save();
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      settle();
+    });
+    await waitFor(() =>
+      expect(useDawStore.getState().envelopeSaving).toBeNull(),
+    );
+  });
+  it("clears the in-flight save when the request fails, so the draft can be saved again", async () => {
+    setEnvelope.mockRejectedValueOnce(new Error("offline"));
+    const first = mount();
+    await edit();
+    await level("0.25");
+    await save();
+    await waitFor(() =>
+      expect(useDawStore.getState().envelopeSaving).toBeNull(),
+    );
+    first.unmount();
+    mount();
+    await save();
+    expect(setEnvelope).toHaveBeenCalledTimes(2);
+  });
   it("drops the draft on Cancel, so a remount opens no form", async () => {
     const first = mount();
     await edit();
