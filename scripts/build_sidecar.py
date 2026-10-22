@@ -213,7 +213,6 @@ def require_rustc() -> str:
 def compile_rust_launcher(
     dest: Path, *, variant: str = "sidecar", test: bool = False, optimize: bool = True
 ) -> None:
-    """Compile the launcher or its Rust test harness and require the output file."""
     rustc = require_rustc()
     dest.parent.mkdir(parents=True, exist_ok=True)
     cmd = [rustc, "--edition", "2021"]
