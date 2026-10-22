@@ -33,7 +33,7 @@ class _FakeOpener:
         self.routes = routes
         self.requested: list[str] = []
 
-    def open(self, req, timeout: float | None = None):  # noqa: ANN001
+    def open(self, req, timeout: float | None = None):
         del timeout
         url = req.full_url
         self.requested.append(url)
@@ -200,9 +200,7 @@ def test_bootstrap_rnnoise_cdn_403_falls_back_to_pinned_github(
     forbidden = urllib.error.HTTPError(CDN_URL, 403, "Forbidden", {}, None)  # type: ignore[arg-type]
     opener = _install_opener(monkeypatch, {CDN_URL: forbidden, github: payload})
 
-    with patch.object(
-        model_assets, "asset_entry", return_value=_good_payload_entry(payload)
-    ):
+    with patch.object(model_assets, "asset_entry", return_value=_good_payload_entry(payload)):
         path = model_assets.bootstrap_rnnoise_model()
 
     assert opener.requested == [CDN_URL, github]

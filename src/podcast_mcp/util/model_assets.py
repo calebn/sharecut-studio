@@ -21,6 +21,7 @@ from pathlib import Path
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.util.asset_sources import (
+    AssetSourceError,
     asset_entry,
     bootstrap_cdn_base,
     download_first_ok,
@@ -29,10 +30,6 @@ from podcast_mcp.util.asset_sources import (
 
 logger = logging.getLogger(__name__)
 
-RNNOISE_MODEL_URL = (
-    "https://raw.githubusercontent.com/GregorR/rnnoise-models/"
-    "master/somnolent-hogwash-2018-09-01/sh.rnnn"
-)
 RNNOISE_MODEL_NAME = "somnolent-hogwash.rnnn"
 
 NISQA_MODEL_NAME = "nisqa"
@@ -69,9 +66,23 @@ def bootstrap_rnnoise_model(*, force: bool = False) -> Path:
         urls = [url for url in urls if not (url == base or url.startswith(f"{base}/"))]
         logger.warning("rnnoise CDN skipped: no sha256 pin")
     if not urls:
-        urls = [RNNOISE_MODEL_URL]
+        raise AssetSourceError("rnnoise has no download source in contracts/bootstrap-assets.json")
     download_first_ok(urls, path, expected_sha256=expected)
+    _verify_pinned_size(path, meta.get("size_bytes"))
     return path
+
+
+def _verify_pinned_size(path: Path, size_bytes: object) -> None:
+    """Manifest-consistency tripwire: the sha256 check already implies the size."""
+    if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
+        return
+    got = path.stat().st_size
+    if got != size_bytes:
+        # Unlink, otherwise the is_file() early return would accept the bad file forever.
+        path.unlink(missing_ok=True)
+        raise AssetSourceError(
+            f"size mismatch for {path.name}: expected {size_bytes} bytes, got {got}"
+        )
 
 
 def nisqa_model_path() -> Path:

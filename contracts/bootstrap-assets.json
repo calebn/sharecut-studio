@@ -22,8 +22,10 @@
     },
     "rnnoise": {
       "kind": "http",
-      "url": "https://raw.githubusercontent.com/GregorR/rnnoise-models/master/somnolent-hogwash-2018-09-01/sh.rnnn",
-      "revision_note": "Prefer a commit-pinned raw URL before production mirror",
+      "url": "https://raw.githubusercontent.com/GregorR/rnnoise-models/3eee541a283fd3b8f81b85b1748e3b9ccbefa04d/somnolent-hogwash-2018-09-01/sh.rnnn",
+      "sha256": "70bb6685eb0c2a1d18e2918dca3fbfbd39317010b1802eb1b6ea73a92f3fdec0",
+      "size_bytes": 297646,
+      "revision_note": "Commit-pinned (GregorR/rnnoise-models 3eee541a, same bytes as master at pin time). Change url, sha256 and size_bytes together after re-fetching and hashing.",
       "license": "BSD-style (RNNoise)",
       "cdn_prefix": "models/rnnoise",
       "filename": "somnolent-hogwash.rnnn"

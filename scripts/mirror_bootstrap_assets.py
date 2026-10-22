@@ -26,7 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from podcast_mcp.util.asset_sources import download_first_ok
+from podcast_mcp.util.asset_sources import AssetSourceError, download_first_ok
 from podcast_mcp.util.hashing import sha256_file
 
 
@@ -34,8 +34,10 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _download(url: str, dest: Path, *, timeout: float = 120.0) -> None:
-    download_first_ok([url], dest, timeout=timeout)
+def _download(
+    url: str, dest: Path, *, expected_sha256: str | None = None, timeout: float = 120.0
+) -> None:
+    download_first_ok([url], dest, expected_sha256=expected_sha256, timeout=timeout)
 
 
 def main() -> int:
@@ -57,7 +59,7 @@ def main() -> int:
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     assets = manifest.get("assets") or {}
     out_dir = args.out_dir or (_repo_root() / "build" / "bootstrap-mirror")
-    planned: list[dict[str, str]] = []
+    planned: list[dict[str, object]] = []
 
     for name, meta in assets.items():
         kind = meta.get("kind")
@@ -70,8 +72,25 @@ def main() -> int:
             if args.dry_run:
                 continue
             print(f"fetch {name} → {dest}")
-            _download(url, dest)
+            try:
+                _download(url, dest, expected_sha256=meta.get("sha256") or None)
+            except AssetSourceError as exc:
+                print(f"{name}: {exc}", file=sys.stderr)
+                return 1
+            size = dest.stat().st_size
+            pinned_size = meta.get("size_bytes")
+            if (
+                isinstance(pinned_size, int)
+                and not isinstance(pinned_size, bool)
+                and pinned_size != size
+            ):
+                print(
+                    f"size mismatch for {name}: expected {pinned_size} bytes, got {size}",
+                    file=sys.stderr,
+                )
+                return 1
             planned[-1]["sha256"] = sha256_file(dest)
+            planned[-1]["size_bytes"] = size
         elif kind == "huggingface":
             planned.append(
                 {

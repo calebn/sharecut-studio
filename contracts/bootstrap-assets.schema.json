@@ -21,6 +21,7 @@
           "cdn_prefix": { "type": "string" },
           "filename": { "type": "string" },
           "sha256": { "type": "string" },
+          "size_bytes": { "type": "integer", "minimum": 1 },
           "sha256_by_platform": {
             "type": "object",
             "additionalProperties": { "type": "string" }
