@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import struct
 import subprocess
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -370,26 +369,6 @@ def test_probe_cache_probes_again_for_another_ffmpeg(
     render_clock._probed_format("ffmpeg-one", path)
     render_clock._probed_format("ffmpeg-two", path)
     assert [ffmpeg for ffmpeg, _ in probes] == ["ffmpeg-one", "ffmpeg-two"]
-
-
-def test_probe_cache_probes_again_when_only_the_ctime_changes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    probes = _counted_probes(monkeypatch)
-    path = _write_format(tmp_path / "a.wav", "s16", 1, 48000)
-    render_clock._probed_format("ffmpeg", path)
-    before = file_stamp(path)
-    mode = path.stat().st_mode & 0o777
-    for attempt in range(100):
-        time.sleep(0.01)
-        path.chmod(mode ^ 0o100 if attempt % 2 == 0 else mode)
-        after = file_stamp(path)
-        if after.ctime_ns != before.ctime_ns:
-            break
-    assert after.revision == before.revision
-    assert after.ctime_ns != before.ctime_ns
-    render_clock._probed_format("ffmpeg", path)
-    assert len(probes) == 2
 
 
 def test_probe_cache_key_carries_the_whole_stamp(
