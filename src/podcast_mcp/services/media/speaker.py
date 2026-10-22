@@ -307,7 +307,7 @@ class SpeakerService:
         for name, spans in (enrollment or {}).items():
             if not spans:
                 raise CodedValueError(
-                    f"{name} has no voice sample. Choose a stretch where only {name} speaks, "
+                    f"{name} has no voice sample. Pick a stretch where only {name} is talking, "
                     f"or leave {name} out.",
                     code="enrollment_empty",
                 )
