@@ -5,6 +5,7 @@ import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { setChrome } from "../test/chrome";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { ApiError } from "../utils/apiError";
 import { wordSelection } from "../utils/rangeSelect";
 import { clearRegisteredCommands, execute } from "./execute";
 import {
@@ -102,7 +103,7 @@ describe("shared range action policy and commands", () => {
         "Mix out of date. Ask the host to Refresh before playing this range.",
     });
   });
-  it("exposes the same five actions with host labels", () =>
+  it("exposes the same six actions with host labels", () =>
     expect(
       rangeActionDescriptors(useDawStore.getState(), target).map((d) => [
         d.action,
@@ -113,6 +114,7 @@ describe("shared range action policy and commands", () => {
       ["play", "Play", null],
       ["cut", "Cut", null],
       ["mute", "Mute", null],
+      ["fillRoomTone", "Fill room tone", "No gap between clips in this range"],
       ["comment", "Comment", null],
       ["bounce", "Bounce", null],
     ]));
@@ -122,6 +124,10 @@ describe("shared range action policy and commands", () => {
   ])(
     "a %s guest gets %s / %s and cannot bounce",
     (mode, cutLabel, muteLabel) => {
+      const fill =
+        mode === "edit"
+          ? "No gap between clips in this range"
+          : "Only editors can fill room tone";
       useDawStore.setState({
         projectPath: "share:token",
         guestMode: mode,
@@ -136,6 +142,7 @@ describe("shared range action policy and commands", () => {
         ["Play full mix", null],
         [cutLabel, null],
         [muteLabel, null],
+        ["Fill room tone", fill],
         ["Comment", null],
         ["Bounce", "Only the host can export selected tracks"],
       ]);
@@ -245,5 +252,101 @@ describe("shared range action policy and commands", () => {
       endSec: 1,
     });
     vi.unstubAllGlobals();
+  });
+});
+
+describe("fill range with room tone", () => {
+  const gapProject = minimalProject({
+    ...p,
+    tracks: [sampleTrack({ id: "a", range_media_seal: "a" })],
+    clips: {
+      tracks: {
+        a: [
+          clipRow({
+            id: "left",
+            track_id: "a",
+            source_id: null,
+            source_start: 0,
+            source_end: 5,
+            timeline_start: 0,
+            timeline_end: 5,
+          }),
+          clipRow({
+            id: "right",
+            track_id: "a",
+            source_id: null,
+            source_start: 5,
+            source_end: 10,
+            timeline_start: 8,
+            timeline_end: 13,
+          }),
+        ],
+      },
+      clip_count: 2,
+    },
+  });
+  const gapTarget = makeRangeTarget(gapProject, [{ start: 4, end: 9 }], ["a"])!;
+  const reasonOf = (
+    state: Parameters<typeof rangeActionDescriptors>[0],
+    t = gapTarget,
+  ) =>
+    rangeActionDescriptors(state, t).find((d) => d.action === "fillRoomTone")
+      ?.reason;
+
+  beforeEach(() => {
+    useDawStore.setState({
+      project: gapProject,
+      selection: { kind: "range", target: gapTarget },
+    });
+  });
+
+  it("is offered only where a gap sits between clips", () => {
+    expect(reasonOf(useDawStore.getState())).toBeNull();
+    const clipOnly = makeRangeTarget(
+      gapProject,
+      [{ start: 1, end: 2 }],
+      ["a"],
+    )!;
+    expect(reasonOf(useDawStore.getState(), clipOnly)).toBe(
+      "No gap between clips in this range",
+    );
+  });
+
+  it("is refused for a share that cannot apply edits", () => {
+    useDawStore.setState({
+      projectPath: "share:abc",
+      shareCapabilities: ["suggest"],
+    });
+    expect(reasonOf(useDawStore.getState())).toBe(
+      "Only editors can fill room tone",
+    );
+  });
+
+  it("sends FillRoomTone for the range and tells the user what it filled", async () => {
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
+    expect(await execute("range.fillRoomTone")).toEqual({ status: "ok" });
+    expect(submitDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "FillRoomTone",
+      { track_id: "a", start_sec: 4, end_sec: 9 },
+    );
+    expect(useDawStore.getState().statusAnnouncement).toContain(
+      "Filled 1 gap with room tone",
+    );
+  });
+
+  it("explains a refusal in plain words", async () => {
+    vi.mocked(submitDocumentCommand).mockRejectedValue(
+      new ApiError(
+        "no room tone available (digital_silence)",
+        "no_source",
+        400,
+      ),
+    );
+    const result = await execute("range.fillRoomTone");
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "No usable room tone on this track to fill with",
+    });
   });
 });

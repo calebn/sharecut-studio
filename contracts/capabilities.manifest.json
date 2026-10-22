@@ -3121,12 +3121,16 @@
         "hasProject"
       ],
       "surfaces": {
+        "command": "range.fillRoomTone",
         "mcp": [
           "fill_with_room_tone_tool"
+        ],
+        "gui": [
+          "RangeActions"
         ]
       },
       "omit": {
-        "keyboard_reason": "Range action reached through the MCP tool until the context menu entry lands"
+        "keyboard_reason": "Context action with explicit range selection"
       },
       "tooltip": "Fill the clip-free time in a range with the track's room tone",
       "presence": {

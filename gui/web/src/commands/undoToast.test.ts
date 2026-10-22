@@ -66,6 +66,42 @@ async function rangeToast(action: "cut" | "mute") {
   return toastOf(`range.${action}`);
 }
 
+async function fillRoomToneToast() {
+  const state = useDawStore.getState();
+  const base = state.project!;
+  const withGap = {
+    ...base,
+    clips: {
+      ...base.clips,
+      tracks: {
+        ...base.clips.tracks,
+        host: [
+          ...base.clips.tracks.host!,
+          clipRow({
+            id: "c2",
+            track_id: "host",
+            source_id: null,
+            source_start: 5,
+            source_end: 8,
+            timeline_start: 8,
+            timeline_end: 11,
+          }),
+        ],
+      },
+    },
+  };
+  const target = makeRangeTarget(withGap, [{ start: 4, end: 9 }], ["host"])!;
+  useDawStore.setState({
+    project: withGap,
+    selection: { kind: "range", target },
+  });
+  vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
+    type: "Applied",
+    history_head_id: HEAD,
+  });
+  return toastOf("range.fillRoomTone");
+}
+
 /** Runs a command and returns the toast it raised. */
 async function toastOf(id: string, args: Record<string, unknown> = {}) {
   const result = await execute(id, args, { skipWhen: true });
@@ -112,6 +148,7 @@ const DRIVEN: Record<string, () => Promise<unknown>> = {
   },
   "range.cut": () => rangeToast("cut"),
   "range.mute": () => rangeToast("mute"),
+  "range.fillRoomTone": fillRoomToneToast,
 };
 
 type Proof = { file: string; test: string; shows?: RegExp };

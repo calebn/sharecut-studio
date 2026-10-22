@@ -710,3 +710,119 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
     repeatedProject,
   );
 });
+
+function gapProject(prefix: string) {
+  const copy = createRelocatedE2eProject(prefix);
+  const data = JSON.parse(fs.readFileSync(copy.projectPath, "utf8"));
+  const clip = {
+    track_id: "reference",
+    fade_in_ms: 0,
+    fade_out_ms: 0,
+    join_in_mode: "fade",
+    source_id: null,
+  };
+  data.timeline.clips = [
+    {
+      ...clip,
+      id: "before-gap",
+      source_start: 0,
+      source_end: 5,
+      timeline_start: 0,
+    },
+    {
+      ...clip,
+      id: "after-gap",
+      source_start: 5,
+      source_end: 10,
+      timeline_start: 8,
+    },
+    {
+      ...clip,
+      id: "peer",
+      track_id: "guest",
+      source_start: 0,
+      source_end: 13,
+      timeline_start: 0,
+    },
+  ];
+  data.timeline.duration_sec = 13;
+  data.editorial.edit_decisions = [];
+  data.editorial.edit_log = [];
+  fs.writeFileSync(copy.projectPath, `${JSON.stringify(data, null, 2)}\n`);
+  return copy;
+}
+
+test("host gets a plain reason when a range has no room tone to fill with", async ({
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await openHostShare(page, projectPath);
+      const before = geometry(projectPath);
+      await openTransportMenu(page);
+      await page
+        .getByRole("menuitem", { name: "Select a range", exact: true })
+        .click();
+      const range = page.getByRole("region", { name: "Range actions" });
+      await range
+        .getByRole("spinbutton", { name: "In", exact: true })
+        .fill("5.5");
+      await range
+        .getByRole("spinbutton", { name: "Out", exact: true })
+        .fill("7.5");
+      await range
+        .getByRole("checkbox", { name: "reference", exact: true })
+        .check();
+      await range
+        .getByRole("button", { name: "Select range", exact: true })
+        .click();
+      await expect(range).toContainText("5.50–7.50 s");
+      await rangeAxe(page);
+      await range
+        .getByRole("button", { name: "Fill room tone", exact: true })
+        .click();
+      await expect(
+        page.getByText("No usable room tone on this track to fill with"),
+      ).toBeVisible();
+      expect(geometry(projectPath)).toEqual(before);
+    },
+    undefined,
+    gapProject,
+  );
+});
+
+test("a range on an unbroken clip explains why Fill room tone is off", async ({
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await openHostShare(page, projectPath);
+      await openPhoneTimeline(page);
+      await page
+        .getByRole("button", { name: "Select range", exact: true })
+        .click();
+      const range = page.getByRole("region", { name: "Range actions" });
+      await range
+        .getByRole("spinbutton", { name: "In", exact: true })
+        .fill("1");
+      await range
+        .getByRole("spinbutton", { name: "Out", exact: true })
+        .fill("2");
+      await range
+        .getByRole("checkbox", { name: "reference", exact: true })
+        .check();
+      await range
+        .getByRole("button", { name: "Select range", exact: true })
+        .click();
+      await expect(
+        range.getByRole("button", { name: "Fill room tone", exact: true }),
+      ).toBeDisabled();
+      await expect(range).toContainText("No gap between clips in this range");
+      await rangeAxe(page);
+    },
+    undefined,
+    gapProject,
+  );
+});

@@ -232,6 +232,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["silence"],
     when: "hasProject",
   },
+  "range.fillRoomTone": {
+    id: "range.fillRoomTone",
+    mutates: true,
+    category: "edit",
+    label: "Fill range with room tone",
+    shortLabel: "Fill room tone",
+    keywords: ["silence", "gap", "ambience", "noise floor"],
+    when: "hasProject",
+  },
   "range.moveSpeakerLane": {
     id: "range.moveSpeakerLane",
     mutates: true,
