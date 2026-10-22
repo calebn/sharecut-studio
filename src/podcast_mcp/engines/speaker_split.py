@@ -153,14 +153,11 @@ def _span_centers(start: float, end: float, duration: float, window_sec: float) 
     return np.arange(first, stop, HOP_SEC).tolist() if first < stop else []
 
 
-def _enrollment_centroids(
-    samples: np.ndarray,
-    enrollment: Mapping[int, Sequence[Span]],
-    window_sec: float,
-    backend: SpeakerBackend,
-) -> dict[int, np.ndarray]:
+def _enrollment_centers(
+    samples: np.ndarray, enrollment: Mapping[int, Sequence[Span]], window_sec: float
+) -> dict[int, list[float]]:
     duration = samples.size / RATE
-    centroids = {}
+    by_speaker = {}
     for speaker, spans in enrollment.items():
         centers = [
             c
@@ -175,9 +172,26 @@ def _enrollment_centroids(
                 code="enrollment_past_end",
             )
         if centers:
-            embeddings = _embed(samples, np.array(centers), window_sec, backend)
-            centroids[speaker] = _unit(embeddings.mean(axis=0))
-    return centroids
+            by_speaker[speaker] = centers
+    return by_speaker
+
+
+def _enrollment_centroids(
+    samples: np.ndarray,
+    enrollment: Mapping[int, Sequence[Span]],
+    window_sec: float,
+    backend: SpeakerBackend,
+    after_window: Callable[[], None] | None = None,
+    by_speaker: Mapping[int, Sequence[float]] | None = None,
+) -> dict[int, np.ndarray]:
+    if by_speaker is None:
+        by_speaker = _enrollment_centers(samples, enrollment, window_sec)
+    return {
+        speaker: _unit(
+            _embed(samples, np.array(centers), window_sec, backend, after_window).mean(axis=0)
+        )
+        for speaker, centers in by_speaker.items()
+    }
 
 
 def _kmeans_seeds(
@@ -375,13 +389,18 @@ def attribute_speakers(
                 "too little speech to tell the speakers apart. Pick a recording where each speaker talks.",
                 code="too_little_speech",
             )
-        enrolled = _enrollment_centroids(samples, enrollment or {}, window_sec, backend)
-        task.advance(0, total=centers.size + 2, message=f"Embedding {centers.size} windows")
+        enrollment = enrollment or {}
+        by_speaker = _enrollment_centers(samples, enrollment, window_sec)
+        windows = sum(map(len, by_speaker.values())) + centers.size
+        task.advance(0, total=windows + 2, message=f"Embedding {windows} windows")
 
         def embedded_one() -> None:
             raise_if_cancel_requested(cancel_check)
             task.advance(1)
 
+        enrolled = _enrollment_centroids(
+            samples, enrollment, window_sec, backend, embedded_one, by_speaker
+        )
         embeddings = _embed(samples, centers, window_sec, backend, embedded_one)
         centroids = _cluster(embeddings, speaker_count, enrolled)
         task.advance(1)
