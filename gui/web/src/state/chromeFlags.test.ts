@@ -16,7 +16,7 @@ const FLAGS = [
 ] as const;
 type Flag = (typeof FLAGS)[number];
 
-const SETTERS: Record<Exclude<Flag, "transcriptFindReplaceOpen">, string> = {
+const SETTERS: Record<Flag, string> = {
   commandPaletteOpen: "setCommandPaletteOpen",
   gesturesSheetOpen: "setGesturesSheetOpen",
   bounceDialogOpen: "setBounceDialogOpen",
@@ -25,6 +25,7 @@ const SETTERS: Record<Exclude<Flag, "transcriptFindReplaceOpen">, string> = {
   recordPanelOpen: "setRecordPanelOpen",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
+  transcriptFindReplaceOpen: "setTranscriptFindReplaceOpen",
 };
 
 function read(flag: Flag): boolean {
@@ -142,7 +143,7 @@ describe("dawStore chrome flags", () => {
       for (const f of FLAGS) setFlag(f, true);
     }
 
-    it("keeps the flags it does not own when the project path is unchanged", () => {
+    it("keeps every flag open when the project path is unchanged", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());

@@ -39,7 +39,6 @@ beforeEach(() => {
     playheadSec: 0,
     timelineFocused: true,
     activeTab: "comments",
-
     followingClientId: null,
   });
 });
