@@ -86,17 +86,11 @@ def _prepare(path: Path, room: str) -> Path:
 
 @pytest.fixture
 def trio(episode: Path) -> Path:
-    """Host speaks 0-1, 2-3, 4-5 and 6-7 s over digital silence; Guest is silent.
-
-    Host words pad each burst by 0.2 s, leaving three 0.6 s word gaps (1.2-1.8, 3.2-3.8,
-    5.2-5.8). Clips: host h1 (0-8), h2 (8-20); guest g1 (0-20).
-    """
     return _prepare(episode, "silent")
 
 
 @pytest.fixture
 def breathy(episode: Path) -> Path:
-    """As trio, but the host words end exactly where the tone does, so a gap cut lands on it."""
     _prepare(episode, "silent")
     project = load_project(episode)
     host = next(t for t in project.transcripts if t.track_id == "host")
@@ -112,7 +106,6 @@ def breathy(episode: Path) -> Path:
 
 @pytest.fixture
 def noisy(episode: Path) -> Path:
-    """Same speech over a -55 dBFS room, with host clips a (0-1.5) and b (2-3.5 at 3.0)."""
     _prepare(episode, "noise")
     project = load_project(episode)
     project.timeline.clips = [c for c in project.clips if c.track_id != "host"] + [
