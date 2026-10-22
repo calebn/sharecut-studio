@@ -183,8 +183,8 @@ def read_open_wav_mono_window(
     ``antialias`` low-passes to ``out_rate``'s Nyquist before downsampling, reading a
     margin of frames either side so the filter has no edge. Unfiltered, content above the
     new Nyquist folds into the band (white room tone read about 7 dB hot at 8 kHz), where
-    the whole-file decode filters it (#1542). Level reads ask for it; the correlation and
-    speaker readers keep the plain resample.
+    the whole-file decode filters it (#1542). Level and speaker reads ask for it (#2034); the
+    correlation reader keeps the plain resample.
     """
     start_sec = max(0.0, start_sec)
     duration_sec = max(0.0, duration_sec)
