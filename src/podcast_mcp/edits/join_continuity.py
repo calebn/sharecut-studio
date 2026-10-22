@@ -13,7 +13,6 @@ guarantee - disclaimer on every report.
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 import tempfile
@@ -42,7 +41,7 @@ from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
+from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_RMS,
@@ -748,38 +747,6 @@ def _highrate_click_scorer(
     yield score_seeked
 
 
-def _preferred_audio_stream(path: Path) -> int:
-    """Match FFmpeg's default audio stream choice for a single input."""
-    result = run(
-        [
-            resolve_ffprobe(),
-            "-v",
-            "error",
-            "-select_streams",
-            "a",
-            "-show_entries",
-            "stream=channels:stream_disposition=default",
-            "-of",
-            "json",
-            str(path),
-        ],
-        capture_output=True,
-        check=True,
-    )
-    streams = json.loads(result.stdout).get("streams", [])
-    if not streams:
-        raise CodedValueError(
-            f"no audio stream in {path.name}. Choose a playable audio file.", code="invalid_audio"
-        )
-    return max(
-        range(len(streams)),
-        key=lambda i: (
-            int(streams[i].get("disposition", {}).get("default") or 0),
-            int(streams[i].get("channels") or 0),
-        ),
-    )
-
-
 def _score_highrate_batches(
     path: Path, source_joins: Sequence[SplicePoints], *, side_sec: float
 ) -> dict[SplicePoints, float | None]:
@@ -787,14 +754,6 @@ def _score_highrate_batches(
     scores: dict[SplicePoints, float | None] = {}
     if not source_joins:
         return scores
-    try:
-        stream = _preferred_audio_stream(path)
-    except Exception as exc:
-        _LOG.debug("high-rate click stream probe failed for %s: %s", path, exc)
-        return {
-            join: _score_single_highrate_window(path, join, side_sec=side_sec)
-            for join in source_joins
-        }
     for offset in range(0, len(source_joins), _CLICK_BATCH_SIZE):
         batch = source_joins[offset : offset + _CLICK_BATCH_SIZE]
         try:
@@ -816,7 +775,7 @@ def _score_highrate_batches(
                         command.extend(
                             [
                                 "-map",
-                                f"{k}:a:{stream}",
+                                f"{k}:a:0",
                                 *seeks[k].output_args(max(0.1, side_sec)),
                                 "-ac",
                                 "1",

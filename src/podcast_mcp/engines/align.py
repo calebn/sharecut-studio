@@ -296,6 +296,8 @@ def load_mono_window(
         *seek.input_args(),
         "-i",
         str(path),
+        "-map",
+        "0:a:0",
         *seek.output_args(max(0.1, duration_sec)),
         *ffmpeg_mono_mean_layout(path),
         "-ar",

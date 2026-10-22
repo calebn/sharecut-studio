@@ -36,6 +36,12 @@ def probe_media(path: Path) -> AudioProbe | None:
         return None
 
 
+def has_several_audio_streams(path: Path) -> bool:
+    """True when ``path`` holds more than one audio stream; unprobeable media holds none."""
+    info = probe_media(path)
+    return info is not None and info.audio_stream_count > 1
+
+
 def probe_first_audio_duration_sec(path: Path) -> float | None:
     """Declared first-audio extent, refusing unknown, estimated or multistream media.
 
