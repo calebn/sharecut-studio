@@ -163,6 +163,12 @@ def _enrollment_centroids(
             or [(start + end) / 2]
         ]
         centers = [c for c in centers if _window_samples(samples, c, window_sec) >= MIN_SAMPLES]
+        if not centers and spans:
+            raise CodedValueError(
+                f"The voice sample for speaker {speaker + 1} is past the end of this recording. "
+                "Choose a sample inside the audio.",
+                code="enrollment_past_end",
+            )
         if centers:
             embeddings = _embed(samples, np.array(centers), window_sec, backend)
             centroids[speaker] = _unit(embeddings.mean(axis=0))
