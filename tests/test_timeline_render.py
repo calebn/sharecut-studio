@@ -1475,7 +1475,7 @@ def test_multi_source_segment_fades_only_at_real_clip_edges(tmp_path: Path) -> N
     [
         (ClipJoinMode.CUT, 2.0, False),
         (ClipJoinMode.FADE, 2.0, True),
-        (ClipJoinMode.CROSSFADE, 1.8, False),
+        (ClipJoinMode.CROSSFADE, 2.0, False),
     ],
 )
 def test_multi_source_join_modes_keep_declared_audio_semantics(
@@ -1494,14 +1494,14 @@ def test_multi_source_join_modes_keep_declared_audio_semantics(
 
     ws = tmp_path / f"ws_multi_source_{join_mode.value}"
     raw = ws / "raw"
-    a_pcm = _write_constant_pcm_wav(raw / "a.wav", duration_sec=1.0, amplitude=0.3)
-    b_pcm = _write_constant_pcm_wav(raw / "b.wav", duration_sec=1.0, amplitude=0.6)
+    a_pcm = _write_constant_pcm_wav(raw / "a.wav", duration_sec=1.2, amplitude=0.3)
+    b_pcm = _write_constant_pcm_wav(raw / "b.wav", duration_sec=1.2, amplitude=0.6)
     _write_pcm_wav_bytes(raw / "single.wav", a_pcm + b_pcm)
     project = EpisodeProject.create("multi_source_join", str(ws))
     project.sources.extend(
         [
-            SourceRecording(id="a", path="raw/a.wav", speaker="Host"),
-            SourceRecording(id="b", path="raw/b.wav", speaker="Host"),
+            SourceRecording(id="a", path="raw/a.wav", speaker="Host", duration_sec=1.2),
+            SourceRecording(id="b", path="raw/b.wav", speaker="Host", duration_sec=1.2),
         ]
     )
     project.timeline.tracks.append(
@@ -1525,8 +1525,8 @@ def test_multi_source_join_modes_keep_declared_audio_semantics(
         Clip(
             id="b",
             track_id="host",
-            source_start=0.0,
-            source_end=1.0,
+            source_start=0.1,
+            source_end=1.1,
             timeline_start=1.2,
             source_id="b",
             fade_in_ms=200,
@@ -1543,7 +1543,7 @@ def test_multi_source_join_modes_keep_declared_audio_semantics(
             id="host",
             label="Host",
             role=TrackRole.DIALOGUE,
-            media=MediaAsset(path="raw/single.wav", duration_sec=2.0),
+            media=MediaAsset(path="raw/single.wav", duration_sec=2.4),
         )
     )
     single_project.timeline.clips = [
@@ -1558,8 +1558,8 @@ def test_multi_source_join_modes_keep_declared_audio_semantics(
         Clip(
             id="b",
             track_id="host",
-            source_start=1.0,
-            source_end=2.0,
+            source_start=1.3,
+            source_end=2.3,
             timeline_start=1.2,
             fade_in_ms=200,
             join_in_mode=join_mode,

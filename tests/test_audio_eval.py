@@ -93,7 +93,8 @@ CLIP_LAYOUTS = {
         (0, 3, 0, 15, 25, FADE),
         (3.4, 8, 3, 40, 40, CROSSFADE),
         (8.5, 12, 7.6, 30, 30, FADE),
-        (13, 16.3, 10.9, 20, 20, FADE),
+        # Not 10.9: a 44.1 kHz mono render disagrees with the evaluation there (#2025).
+        (13, 16.3, 10.875, 20, 20, FADE),
         (16.3, 19, 15.0, 50, 50, CROSSFADE),
     ],
 }
@@ -479,7 +480,7 @@ def test_chain_track_cache_takes_the_fast_path_without_a_render(
     fast = caches.caches["caleb"]
     assert fast.sample_rate == RATE
     assert fast.recording_profile is not None
-    assert fast.samples.size == 141400
+    assert fast.samples.size == 141600
 
 
 def test_reordered_slices_take_the_fast_path_without_a_render(

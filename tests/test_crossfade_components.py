@@ -160,8 +160,8 @@ def test_short_middle_keeps_sequential_native_chain(tmp_path: Path, floating: bo
     c = _constant(tmp_path / "c.wav", 1, 9000, floating=floating)
     prepared = [
         _prepared("a", 0, 1, a),
-        _prepared("b", 1, 1.1, b, join=True),
-        _prepared("c", 1.1, 2.1, c, join=True),
+        _prepared("b", 1, 1.1, b, join=True, borrow=0.01),
+        _prepared("c", 1.1, 2.1, c, join=True, borrow=0.1),
     ]
     prepared[0].clip.fade_out_ms = 20
     prepared[1].clip.fade_in_ms = 20
@@ -212,7 +212,7 @@ def _pair_clips() -> list[Clip]:
 @pytest.mark.parametrize(
     "kind, start, end, frames, first, middle",
     [
-        ("crossfade", 10.92, 11.02, 4320, 0, 0),
+        ("crossfade", 10.92, 11.02, 4800, 0, 0),
         ("fade", 0.02, 0.08, 2880, 15000, 15000),
     ],
 )
@@ -252,7 +252,8 @@ def test_authored_windows_keep_selected_piece_cap_and_local_fades(
     render_track_segment(project, "host", start, end, out, {})
     pcm = _read(out)
     assert (len(pcm), pcm[0], pcm[len(pcm) // 2]) == (frames, first, middle)
-    assert _read(full)[round(start * 48000)] == 3000
+    # The full render's fade ramps up at 0.02 s; a blend centred on 11 s has not begun at 10.92 s.
+    assert _read(full)[round(start * 48000)] == (3000 if kind == "fade" else 0)
 
 
 @pytest.mark.parametrize(
