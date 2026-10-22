@@ -25,6 +25,7 @@ from podcast_mcp.models import (
 )
 
 T0 = 1_700_000_000_000_000_000
+SEC = 1_000_000_000
 
 
 def _file(path: Path, data: bytes = b"abc", mtime_ns: int = T0) -> Path:
@@ -52,7 +53,7 @@ def test_decoded_source_key_follows_the_file_and_the_sample_rate(tmp_path: Path)
     _file(path, b"abcd")
     assert _identity(path, 16000) != key
     changed = _identity(path, 16000)
-    _file(path, b"abcd", mtime_ns=T0 + 1)
+    _file(path, b"abcd", mtime_ns=T0 + 2 * SEC)
     assert _identity(path, 16000) != changed
     before = _identity(path, 16000)
     _replace_keeping_size_and_mtime(path)
@@ -74,6 +75,24 @@ def test_alignment_audit_identity_notices_a_replaced_file_and_a_missing_one(
     assert VADWindowRMSCache.file_identity(tmp_path / "missing.wav") is None
 
 
+def test_alignment_audit_identity_moves_with_size_and_with_mtime(tmp_path: Path) -> None:
+    path = _file(tmp_path / "a.wav")
+    key = VADWindowRMSCache.file_identity(path)
+
+    _file(path, b"abcd")
+    resized = VADWindowRMSCache.file_identity(path)
+    _file(path, b"abcd", mtime_ns=T0 + 2 * SEC)
+    touched = VADWindowRMSCache.file_identity(path)
+
+    assert resized is not None
+    assert touched is not None
+    assert key is not None
+    assert resized[4] == 4
+    assert key[4] == 3
+    assert touched[5] == T0 + 2 * SEC
+    assert len({key, resized, touched}) == 3
+
+
 def test_master_source_hash_moves_with_the_premix_size_and_mtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -89,7 +108,7 @@ def test_master_source_hash_moves_with_the_premix_size_and_mtime(
     _file(premix, b"abcd")
     resized = play_audit.master_source_hash(project)
     assert resized != base
-    _file(premix, b"abcd", mtime_ns=T0 + 1)
+    _file(premix, b"abcd", mtime_ns=T0 + 2 * SEC)
     assert play_audit.master_source_hash(project) != resized
     premix.unlink()
     assert play_audit.master_source_hash(project) is None
@@ -127,7 +146,7 @@ def test_gate_fill_applies_only_while_the_media_size_and_mtime_match(tmp_path: P
     payload = gate_fill.gate_fill_payload(project, track)
     assert payload is not None
     assert payload["file"] == [4, T0]
-    _file(media, b"x" * 100, mtime_ns=T0 + 1)
+    _file(media, b"x" * 100, mtime_ns=T0 + 2 * SEC)
     assert gate_fill.current_gate_fill_path(project, track) is None
     _file(media, b"x" * 101, mtime_ns=T0)
     assert gate_fill.current_gate_fill_path(project, track) is None
@@ -140,13 +159,13 @@ def test_gate_fill_payload_file_part_is_the_fill_files_size_and_mtime(tmp_path: 
     fill = tmp_path / "fill.wav"
 
     first = gate_fill.gate_fill_payload(project, track)
-    _file(fill, b"fills", mtime_ns=T0 + 5)
+    _file(fill, b"fills", mtime_ns=T0 + 6 * SEC)
     second = gate_fill.gate_fill_payload(project, track)
 
     assert first is not None
     assert second is not None
     assert first["file"] == [4, T0]
-    assert second["file"] == [5, T0 + 5]
+    assert second["file"] == [5, T0 + 6 * SEC]
 
 
 def test_plan_gate_fill_refuses_when_the_media_changes_while_it_is_read(
@@ -157,7 +176,7 @@ def test_plan_gate_fill_refuses_when_the_media_changes_while_it_is_read(
     monkeypatch.setattr(gate_fill, "detect_gate_holes", lambda _path: holes)
 
     def fill_and_touch(*_args: object) -> SimpleNamespace:
-        _file(media, b"x" * 100, mtime_ns=T0 + 7)
+        _file(media, b"x" * 100, mtime_ns=T0 + 8 * SEC)
         return SimpleNamespace(samples=None, level_db=-60.0, noise_db=None, basis="test")
 
     monkeypatch.setattr(gate_fill, "FILL_SOURCES", [(GateFillSource.COMFORT_NOISE, fill_and_touch)])
