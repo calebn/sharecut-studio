@@ -98,3 +98,29 @@ def test_score_window_embeds_a_filtered_window(tmp_path: Path, sample_wav: Path)
     score_window(project, "host", 0.0, 1.5, cfg, backend)
     assert len(backend.windows) == 1
     _assert_filtered(backend.windows[0])
+
+
+def test_a_16_khz_source_is_read_unfiltered_with_no_margin(tmp_path: Path) -> None:
+    wav = tmp_path / "native.wav"
+    samples = (np.sin(2 * np.pi * 300.0 * np.arange(32000) / 16000) * 8000).astype("<i2")
+    with wave.open(str(wav), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(16000)
+        wf.writeframes(samples.tobytes())
+    reader = _WavWindowReader.open(wav)
+    assert reader is not None
+    reads: list[int] = []
+    original = reader._wf.readframes
+
+    def counted(n: int) -> bytes:
+        reads.append(n)
+        return original(n)
+
+    reader._wf.readframes = counted
+    try:
+        window = reader.window(0.5, 1.0, 16000)
+    finally:
+        reader.close()
+    assert reads == [16000]
+    np.testing.assert_allclose(window, samples[8000:24000] / 32768.0, atol=1e-6)
