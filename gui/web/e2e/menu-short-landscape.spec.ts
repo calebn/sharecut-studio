@@ -27,12 +27,12 @@ for (const { name, width, height } of SHORT_LANDSCAPES) {
           panel.evaluate((el) => {
             const rect = el.getBoundingClientRect();
             return {
-              tall: rect.height >= Math.min(el.scrollHeight, 0.5 * innerHeight),
+              fillsRoom: rect.bottom >= innerHeight - 24,
               inside: rect.top >= 0 && rect.bottom <= innerHeight,
             };
           }),
         )
-        .toEqual({ tall: true, inside: true });
+        .toEqual({ fillsRoom: true, inside: true });
     });
   });
 }
