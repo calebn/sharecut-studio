@@ -46,7 +46,6 @@ _WAV_SAMPLE_FORMATS = {
     (1, 8): "u8",
     (1, 16): "s16",
     (1, 24): "s32",
-    (1, 32): "s32",
     (3, 32): "flt",
     (3, 64): "dbl",
 }
@@ -217,8 +216,9 @@ def _wav_format(path: Path) -> ObservedAudio | None:
 
     ``None`` sends the file to the decode probe: anything but mono or stereo integer or float PCM
     in a well-formed RIFF, and integer PCM that carries an IEC 61937 stream (AC-3 in a WAV has an
-    s16 header and decodes to fltp, which moves the rate the graph negotiates). Zero frames still
-    give the header format, which is what a real run configures from.
+    s16 header and decodes to fltp, which moves the rate the graph negotiates), and any 32-bit tag-1
+    file, which FFmpeg may remap to float. Zero frames still give the header format, which is what
+    a real run configures from.
     """
     try:
         with path.open("rb") as stream:
@@ -240,7 +240,7 @@ def _parse_wav_header(stream: BinaryIO) -> ObservedAudio | None:
         if chunk_id == b"data":
             if fmt is None:
                 return None
-            sample = stream.read(min(size, _SPDIF_SCAN_BYTES))
+            sample = stream.read(_SPDIF_SCAN_BYTES)
             break
         if chunk_id == b"fmt ":
             if fmt is not None or not 16 <= size <= _WAV_MAX_FMT_BYTES:
@@ -256,7 +256,7 @@ def _parse_wav_header(stream: BinaryIO) -> ObservedAudio | None:
         return None
     tag, channels, rate, _, align, bits = struct.unpack_from("<HHIIHH", fmt)
     if tag == _WAV_EXTENSIBLE:
-        if len(fmt) < 40:
+        if len(fmt) < 40 or struct.unpack_from("<H", fmt, 16)[0] < 22:
             return None
         valid_bits, mask = struct.unpack_from("<HI", fmt, 18)
         if valid_bits != bits or mask != _WAV_EXTENSIBLE_MASKS.get(channels):

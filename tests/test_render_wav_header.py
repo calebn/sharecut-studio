@@ -138,6 +138,7 @@ def _spdif_payload(tmp_path: Path) -> bytes:
         *(
             (name, channels, rate, 0)
             for name in _FORMATS
+            if name != "s32"
             for channels in _LAYOUTS
             for rate in _RATES
         ),
@@ -168,6 +169,16 @@ def test_wav_header_matches_decode_probe_for_an_odd_padded_list_chunk(tmp_path: 
     assert _header(path) == _probed(path) == (22050, "s16", "mono")
 
 
+def test_wav_header_matches_decode_probe_for_an_odd_fmt_chunk_with_its_pad_byte(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "oddfmt.wav"
+    fmt = _fmt_chunk(_Wav(rate=22050))[8:] + b"\0"
+    assert len(fmt) == 17
+    path.write_bytes(_riff(_chunk(b"fmt ", fmt), _chunk(b"data", _samples("s16", 1, _FRAMES))))
+    assert _header(path) == _probed(path) == (22050, "s16", "mono")
+
+
 def test_wav_header_matches_decode_probe_for_truncated_data(tmp_path: Path) -> None:
     path = tmp_path / "truncated.wav"
     data = _samples("s16", 2, _FRAMES)
@@ -184,12 +195,36 @@ def test_wav_header_of_an_empty_data_chunk_is_the_header_format(tmp_path: Path) 
     assert _header(path) == (16000, "s16", "mono")
 
 
+def _f16_hack(tmp: Path, *, extensible: bool) -> bytes:
+    spec = _Wav(channels=1, bits=32, extensible=(_PCM_GUID, 32, 0x4) if extensible else None)
+    body = _fmt_chunk(spec)[8:]
+    if extensible:
+        body = body[:16] + struct.pack("<H", 24) + body[18:] + _F16_TAIL
+    else:
+        body = body[:16] + struct.pack("<H", 2) + _F16_TAIL
+    return _riff(_chunk(b"fmt ", body), _chunk(b"data", _samples("f32", 1, 8)))
+
+
+def _extensible_cb(cb_size: int) -> bytes:
+    body = _fmt_chunk(_Wav(extensible=(_PCM_GUID, 16, 0x4)))[8:]
+    return _riff(
+        _chunk(b"fmt ", body[:16] + struct.pack("<H", cb_size) + body[18:]), _chunk(b"data", _PCM)
+    )
+
+
+def _unfinalized_spdif(tmp: Path, declared: int) -> bytes:
+    return _riff(
+        _fmt_chunk(_Wav(channels=2)), b"data" + struct.pack("<I", declared) + _spdif_payload(tmp)
+    )
+
+
 def _plain(spec: _Wav, payload: bytes) -> bytes:
     return _riff(_fmt_chunk(spec), _chunk(b"data", payload))
 
 
 _PCM = _samples("s16", 1, _FRAMES)
 _STEREO = _samples("s16", 2, _FRAMES)
+_F16_TAIL = b"\x01\x00"
 _OTHER_GUID = bytes.fromhex("0600000000001000800000aa00389b71")
 _DEFERRED: dict[str, Callable[[Path], bytes]] = {
     "three channels": lambda _: _plain(_Wav(channels=3), _samples("s16", 3, 8)),
@@ -202,6 +237,18 @@ _DEFERRED: dict[str, Callable[[Path], bytes]] = {
     "ac3 spdif extensible": lambda tmp: _plain(
         _Wav(channels=2, extensible=(_PCM_GUID, 16, 0x3)), _spdif_payload(tmp)
     ),
+    "ac3 spdif, data size 0": lambda tmp: _unfinalized_spdif(tmp, 0),
+    "ac3 spdif, data size 2": lambda tmp: _unfinalized_spdif(tmp, 2),
+    "s32 plain": lambda _: _plain(_Wav(bits=32), _samples("s32", 1, 8)),
+    "s32 extensible": lambda _: _plain(
+        _Wav(bits=32, extensible=(_PCM_GUID, 32, 0x4)), _samples("s32", 1, 8)
+    ),
+    "f16 hack plain": lambda tmp: _f16_hack(tmp, extensible=False),
+    "f16 hack extensible": lambda tmp: _f16_hack(tmp, extensible=True),
+    "extensible cbSize 0": lambda _: _extensible_cb(0),
+    "extensible cbSize 10": lambda _: _extensible_cb(10),
+    "short fmt": lambda _: _riff(_chunk(b"fmt ", bytes(14)), _chunk(b"data", _PCM)),
+    "oversized fmt": lambda _: _riff(_chunk(b"fmt ", bytes(258)), _chunk(b"data", _PCM)),
     "unpadded odd chunk": lambda _: _riff(
         _chunk(b"LIST", b"INFOx", pad=False), _fmt_chunk(_Wav()), _chunk(b"data", _PCM)
     ),
@@ -233,6 +280,19 @@ def test_wav_header_defers_to_probe(tmp_path: Path, name: str) -> None:
     path = tmp_path / "input.wav"
     path.write_bytes(_DEFERRED[name](tmp_path))
     assert _header(path) is None
+
+
+def test_the_f16_hack_decodes_as_float_though_the_header_says_s32(tmp_path: Path) -> None:
+    path = tmp_path / "f16.wav"
+    path.write_bytes(_f16_hack(tmp_path, extensible=False))
+    assert _probed(path)[1] == "flt"
+
+
+def test_graph_file_inline_limit_is_8000_characters(tmp_path: Path) -> None:
+    assert render_clock.graph_file("a" * 8000, tmp_path) is None
+    written = render_clock.graph_file("a" * 8001, tmp_path)
+    assert written is not None
+    assert written.read_text(encoding="utf-8") == "a" * 8001
 
 
 def test_wav_header_of_a_missing_file_defers_to_probe(tmp_path: Path) -> None:
