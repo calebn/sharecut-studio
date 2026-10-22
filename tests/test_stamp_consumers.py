@@ -279,6 +279,8 @@ def test_prosody_stale_on_size_alone_and_mtime_alone(
     touched = pp.load_track_profile(project, "host")
     _file(media, data + b"x", T0)
     resized = pp.load_track_profile(project, "host")
+    _file(media, data, T0 - 2 * SEC)
+    older = pp.load_track_profile(project, "host")
 
     assert touched.status == "stale"
     assert touched.hint is not None
@@ -286,6 +288,9 @@ def test_prosody_stale_on_size_alone_and_mtime_alone(
     assert resized.status == "stale"
     assert resized.hint is not None
     assert "audio changed" in resized.hint
+    assert older.status == "stale"
+    assert older.hint is not None
+    assert "audio changed" in older.hint
 
     def rewrite(size_delta: bytes, mtime_ns: int) -> None:
         def analyze(*_args: object, **_kwargs: object) -> dict[str, Any]:
@@ -301,6 +306,7 @@ def test_prosody_stale_on_size_alone_and_mtime_alone(
 
     rewrite(b"y", T0)
     rewrite(b"", T0 + SEC)
+    rewrite(b"", T0 - SEC)
 
 
 def test_prosody_reads_the_newest_cached_profile(
