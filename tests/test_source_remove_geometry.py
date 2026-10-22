@@ -1649,7 +1649,7 @@ def test_a_witnessed_cut_of_a_source_played_twice_is_refused_and_applies_nothing
         assert project.model_dump(mode="json") == before
 
 
-def _split_with_crossfade(tmp_path):
+def _split_with_crossfade(tmp_path, *, gap=0.0, fade_ms=20, second_end=5.0):
     project = EpisodeProject.create("crossfade split", str(tmp_path))
     project.tracks = [
         Track(
@@ -1671,22 +1671,22 @@ def _split_with_crossfade(tmp_path):
             source_start=0,
             source_end=2.0,
             timeline_start=0,
-            fade_out_ms=20,
+            fade_out_ms=fade_ms,
         ),
         Clip(
             id="b",
             track_id="host",
-            source_start=2.01,
-            source_end=5.0,
+            source_start=2.0 + gap,
+            source_end=second_end,
             timeline_start=2.0,
-            fade_in_ms=20,
+            fade_in_ms=fade_ms,
             join_in_mode=ClipJoinMode.CROSSFADE,
         ),
     ]
     return project, candidate
 
 
-def test_a_crossfade_split_is_a_removal_of_the_gap_not_a_duplicate(tmp_path):
+def test_a_contiguous_crossfade_split_is_not_a_duplicate(tmp_path):
     project, candidate = _split_with_crossfade(tmp_path)
     effects = cut_effects.completed_audio_effects(
         project, candidate, frozenset({"remove"}), defaults={}
@@ -1694,14 +1694,25 @@ def test_a_crossfade_split_is_a_removal_of_the_gap_not_a_duplicate(tmp_path):
     removals = [
         e
         for e in effects
-        if e.join is cut_effects.CutJoin.SPLICE and e.end - e.start > 1e-6 and not e.retained
+        if e.join is cut_effects.CutJoin.SPLICE
+        and e.end - e.start > cut_effects.SOURCE_GEOMETRY_TOLERANCE_SEC
+        and not e.retained
     ]
-    assert [(e.start, e.end) for e in removals] == [pytest.approx((2.0, 2.01))]
-    (removal,) = removals
-    assert removal.before is not None
-    assert removal.timeline_start - removal.start == pytest.approx(
-        removal.before.timeline_start - removal.before.source.src_start
-    )
+    assert removals == []
+
+
+@pytest.mark.parametrize(("gap", "fade_ms"), [(0.01, 20), (0.08, 200)])
+def test_a_gapped_crossfade_split_still_reads_as_a_duplicate(tmp_path, gap, fade_ms):
+    project, candidate = _split_with_crossfade(tmp_path, gap=gap, fade_ms=fade_ms)
+    with pytest.raises(cut_effects.DuplicateSourceOccurrence):
+        cut_effects.completed_audio_effects(project, candidate, frozenset({"remove"}), defaults={})
+
+
+@pytest.mark.parametrize("fade_ms", [0, 20])
+def test_a_source_range_placed_twice_is_still_a_duplicate(tmp_path, fade_ms):
+    project, candidate = _split_with_crossfade(tmp_path, gap=-1.0, fade_ms=fade_ms)
+    with pytest.raises(cut_effects.DuplicateSourceOccurrence):
+        cut_effects.completed_audio_effects(project, candidate, frozenset({"remove"}), defaults={})
 
 
 @pytest.mark.parametrize(

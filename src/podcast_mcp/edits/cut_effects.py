@@ -15,7 +15,7 @@ from podcast_mcp.edits.cut_policy import (
     CutJoin,
 )
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
-from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource
+from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource, SourceAudio
 from podcast_mcp.engines.session_timeline import (
     clip_plays_lane,
 )
@@ -301,14 +301,26 @@ def _before_occurrences(
         if binding is None:
             continue
         if any(
-            other_binding == binding
-            and min(new[i].source.nominal_end, other.source.nominal_end)
-            > max(new[i].source.nominal_start, other.source.nominal_start)
-            + SOURCE_GEOMETRY_TOLERANCE_SEC
+            other_binding == binding and _replays_source(new[i].source, other.source)
             for other, other_binding in zip(new[:i], bindings[:i], strict=True)
         ):
             raise DuplicateSourceOccurrence("duplicated BEFORE source occurrence")
     return bindings
+
+
+def _replays_source(a: SourceAudio, b: SourceAudio) -> bool:
+    """Whether two leaves bound to one old leaf play the same source audio twice.
+
+    Borrowed crossfade audio overlapping is fine inside continuous audio, but not when the
+    clips' own ranges are separated by a removed gap the borrowed tails would replay.
+    """
+
+    tolerance = SOURCE_GEOMETRY_TOLERANCE_SEC
+    gap = max(a.nominal_start, b.nominal_start) - min(a.nominal_end, b.nominal_end)
+    if -gap > tolerance:
+        return True
+    widened = min(a.src_end, b.src_end) - max(a.src_start, b.src_start)
+    return widened > tolerance and gap > tolerance
 
 
 @dataclass(frozen=True)

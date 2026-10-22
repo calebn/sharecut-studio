@@ -77,18 +77,17 @@ class SourceAudio:
     clip_id: str | None = field(default=None, compare=False)
     source_id: str | None = field(default=None, compare=False)
     is_fill: bool = False
-    # How far a blending join widened each side past the clip's own bounds.
     reach_in: float = field(default=0.0, compare=False)
     reach_out: float = field(default=0.0, compare=False)
 
     @property
     def nominal_start(self) -> float:
-        """The clip's own source start, without the audio a blending join borrowed."""
+        """Source start without audio borrowed by a blending join."""
         return self.src_start + self.reach_in
 
     @property
     def nominal_end(self) -> float:
-        """The clip's own source end, without the audio a blending join borrowed."""
+        """Source end without audio borrowed by a blending join."""
         return self.src_end - self.reach_out
 
 
