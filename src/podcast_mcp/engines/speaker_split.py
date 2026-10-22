@@ -152,13 +152,16 @@ def _enrollment_centroids(
     window_sec: float,
     backend: SpeakerBackend,
 ) -> dict[int, np.ndarray]:
+    duration = samples.size / RATE
     centroids = {}
     for speaker, spans in enrollment.items():
         centers = [
             c
             for start, end in spans
             for c in np.arange(
-                start + window_sec / 2, end - window_sec / 2 + 1e-9, HOP_SEC
+                start + window_sec / 2,
+                min(end, duration + window_sec) - window_sec / 2 + 1e-9,
+                HOP_SEC,
             ).tolist()
             or [(start + end) / 2]
         ]
