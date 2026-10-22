@@ -176,7 +176,9 @@ export function inlineSizeCaps(
 
 /**
  * The visual viewport as a placement box, falling back to the layout
- * viewport. `bottomChrome` (a bottom bar or rail) ends the box at its top.
+ * viewport. `bottomChrome` (a bottom bar or rail) ends the box at its top,
+ * unless it is not rendered: a `display: none` bar reads back top 0, which
+ * would end the box at the top of the screen (#2125).
  */
 export function visualViewportBox(
   bottomChrome?: Element | null,
@@ -188,7 +190,7 @@ export function visualViewportBox(
     width: vv?.width ?? window.innerWidth,
     height: vv?.height ?? window.innerHeight,
   };
-  if (bottomChrome) {
+  if (bottomChrome && bottomChrome.getClientRects().length > 0) {
     const chromeTop = bottomChrome.getBoundingClientRect().top;
     box.height = Math.max(0, Math.min(box.height, chromeTop - box.top));
   }
