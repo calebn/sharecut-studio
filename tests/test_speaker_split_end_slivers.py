@@ -14,11 +14,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from podcast_mcp.engines.models.speaker_ecapa import MIN_SAMPLES
 from podcast_mcp.engines.speaker_split import attribute_speakers
 from test_speaker_split import RATE, SpectralBackend, _mix
-
-# The embed refuses fewer samples than this (#2034 pins the bound at 800).
-_NETWORK_MIN_SAMPLES = 800
 
 
 class _StrictBackend(SpectralBackend):
@@ -29,20 +27,20 @@ class _StrictBackend(SpectralBackend):
 
     def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
         self.lengths.append(int(samples.size))
-        if samples.size < _NETWORK_MIN_SAMPLES:
+        if samples.size < MIN_SAMPLES:
             raise RuntimeError("Pad reflect: input too short")
         return super().embed(samples, sample_rate)
 
 
 @pytest.mark.parametrize(
-    ("tail_span", "case"),
+    "tail_span",
     [
-        ((-0.01, 1.0), "sliver_of_160_samples"),
-        ((0.4, 0.7), "empty_slice_past_the_end"),
+        pytest.param((-0.01, 1.0), id="sliver_of_160_samples"),
+        pytest.param((0.4, 0.7), id="empty_slice_past_the_end"),
     ],
 )
 def test_enrollment_span_past_the_end_is_skipped_not_embedded_as_a_sliver(
-    tail_span: tuple[float, float], case: str
+    tail_span: tuple[float, float],
 ) -> None:
     audio, _ = _mix(2, 20.0, seed=3)
     duration = audio.size / RATE
@@ -55,5 +53,5 @@ def test_enrollment_span_past_the_end_is_skipped_not_embedded_as_a_sliver(
         enrollment={0: [(0.5, 4.0)], 1: [(duration + tail_span[0], duration + tail_span[1])]},
     )
 
-    assert attribution.turns, case
-    assert min(backend.lengths) >= _NETWORK_MIN_SAMPLES
+    assert attribution.turns
+    assert min(backend.lengths) >= MIN_SAMPLES
