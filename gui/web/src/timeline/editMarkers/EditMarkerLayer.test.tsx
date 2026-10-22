@@ -66,7 +66,7 @@ describe("EditMarkerLayer glyphs", () => {
         />,
       );
       const glyph = screen.getByRole("button", {
-        name: `${word} join at 0:02.0`,
+        name: new RegExp(`^${word}( \\d+ ms)? join at 0:02\\.0$`),
       });
       expect(glyph).toHaveClass("edit-mark", `edit-mark--${mode}`);
       expect(glyph).toHaveAttribute("data-hit-kind", "join");
@@ -102,7 +102,9 @@ describe("EditMarkerLayer glyphs", () => {
     render(
       <EditMarkerLayer plan={planOf([left, right], 50)} onZoomChip={vi.fn()} />,
     );
-    const glyph = screen.getByRole("button", { name: "Fade join at 0:02.0" });
+    const glyph = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:02.0",
+    });
     expect(glyph).toHaveAttribute("aria-haspopup", "dialog");
     expect(glyph).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(glyph);
@@ -120,7 +122,7 @@ describe("EditMarkerLayer glyphs", () => {
       <EditMarkerLayer plan={planOf([left, right], 50)} onZoomChip={vi.fn()} />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Fade join at 0:02.0" }),
+      screen.getByRole("button", { name: "Fade 10 ms join at 0:02.0" }),
     );
     expect(useDawStore.getState().openJoinId).toBe("a1");
   });
@@ -154,12 +156,12 @@ describe("EditMarkerLayer tiers and labels", () => {
         />,
       );
       expect(
-        screen.getByRole("button", { name: "Crossfade join at 0:02.0" }),
+        screen.getByRole("button", { name: /^Crossfade.* join at 0:02\.0$/ }),
       ).toHaveAttribute("data-tier", tier);
     },
   );
 
-  it("shows 'Crossfade 120 ms' beside a wide glyph, hidden from assistive tech and out of its name", async () => {
+  it("shows 'Crossfade 120 ms' beside a wide glyph, hidden from assistive tech and leading the glyph's name", async () => {
     widthOfLabels(90);
     const { left, right } = pair("a", 2, "crossfade");
     const { container } = render(
@@ -172,7 +174,9 @@ describe("EditMarkerLayer tiers and labels", () => {
     expect(label).toHaveTextContent("Crossfade 120 ms");
     expect(label).toHaveAttribute("aria-hidden", "true");
     expect(
-      screen.getByRole("button", { name: "Crossfade join at 0:02.0" }),
+      screen.getByRole("button", {
+        name: "Crossfade 120 ms join at 0:02.0",
+      }),
     ).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
@@ -307,16 +311,79 @@ describe("EditMarkerLayer chips", () => {
     ).toHaveFocus();
   });
 
-  it("leaves focus alone when a plan changes with no chip pressed", () => {
+  it("leaves focus alone when a plan changes with nothing focused", () => {
     const clips = threeJoins();
     const view = render(
       <EditMarkerLayer plan={planOf(clips, 10)} onZoomChip={vi.fn()} />,
     );
-    screen.getByRole("button", { name: /^3 edits/ }).focus();
     view.rerender(
       <EditMarkerLayer plan={planOf(clips, 300)} onZoomChip={vi.fn()} />,
     );
     expect(document.body).toHaveFocus();
+  });
+
+  it("moves focus to the chip a focused glyph merges into on zoom out", () => {
+    const clips = threeJoins();
+    const view = render(
+      <EditMarkerLayer plan={planOf(clips, 300)} onZoomChip={vi.fn()} />,
+    );
+    const glyph = screen.getByRole("button", { name: "Cut join at 0:01.1" });
+    glyph.focus();
+    view.rerender(
+      <EditMarkerLayer plan={planOf(clips, 10)} onZoomChip={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: /^Cut join/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^3 edits/ })).toHaveFocus();
+  });
+
+  it("moves focus to the nearest remaining mark when a focused chip goes inert", () => {
+    const max = effectiveMaxZoomPxPerSec(600);
+    const near = pair("a", 2, "cut");
+    const pairs = [near.left, near.right];
+    const triple = threeJoins(0.0001).map((clip) => ({
+      ...clip,
+      timeline_start: clip.timeline_start + 100,
+      timeline_end: clip.timeline_end + 100,
+    }));
+    const clips = [...pairs, ...triple];
+    const live = planOf(clips, 20);
+    expect(live.chips.map((chip) => chip.zoomTo == null)).toEqual([false]);
+    const view = render(<EditMarkerLayer plan={live} onZoomChip={vi.fn()} />);
+    screen.getByRole("button", { name: /^3 edits/ }).focus();
+    const inert = planOf(clips, max);
+    expect(inert.chips.map((chip) => chip.zoomTo)).toEqual([null]);
+    view.rerender(<EditMarkerLayer plan={inert} onZoomChip={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /^3 edits/ })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getAllByRole("button", { name: /join at/ })[0],
+    );
+  });
+
+  it("renders glyphs and chips in one time-ordered sequence so Tab follows time", () => {
+    const first = pair("a", 10, "cut");
+    const last = pair("c", 30, "fade");
+    const mid = threeJoins().map((clip) => ({
+      ...clip,
+      timeline_start: clip.timeline_start + 19,
+      timeline_end: clip.timeline_end + 19,
+    }));
+    const { container } = render(
+      <EditMarkerLayer
+        plan={planOf(
+          [first.left, first.right, ...mid, last.left, last.right],
+          10,
+        )}
+        onZoomChip={vi.fn()}
+      />,
+    );
+    const names = [...container.querySelectorAll("button")].map((el) =>
+      el.getAttribute("aria-label"),
+    );
+    expect(names).toEqual([
+      "Cut join at 0:10.0",
+      "3 edits: 2 cuts, 1 crossfade. Zoom in",
+      "Fade 10 ms join at 0:30.0",
+    ]);
   });
 });
 
@@ -365,7 +432,7 @@ describe("EditMarkerLayer with its join editors", () => {
     const user = userEvent.setup();
     render(<Lane />);
     const [glyph] = screen.getAllByRole("button", {
-      name: "Fade join at 0:05.0",
+      name: "Fade 10 ms join at 0:05.0",
     });
     await user.click(glyph);
     expect(glyph).toHaveAttribute("aria-expanded", "true");
@@ -382,7 +449,7 @@ describe("EditMarkerLayer with its join editors", () => {
   it("has no axe violations while open", async () => {
     render(<Lane />);
     fireEvent.click(
-      screen.getByRole("button", { name: "Fade join at 0:05.0" }),
+      screen.getByRole("button", { name: "Fade 10 ms join at 0:05.0" }),
     );
     await expectNoA11yViolations(document.body);
   });
@@ -390,8 +457,12 @@ describe("EditMarkerLayer with its join editors", () => {
   it("keeps one popover open: opening another join by keyboard closes the first", async () => {
     const user = userEvent.setup();
     render(<Lane />);
-    const first = screen.getByRole("button", { name: "Fade join at 0:05.0" });
-    const second = screen.getByRole("button", { name: "Fade join at 0:25.0" });
+    const first = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:05.0",
+    });
+    const second = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:25.0",
+    });
     await user.click(first);
     await waitForDialogFocus();
     second.focus();
@@ -405,7 +476,7 @@ describe("EditMarkerLayer with its join editors", () => {
     const user = userEvent.setup();
     const { unmount } = render(<Lane />);
     await user.click(
-      screen.getByRole("button", { name: "Fade join at 0:05.0" }),
+      screen.getByRole("button", { name: "Fade 10 ms join at 0:05.0" }),
     );
     expect(useDawStore.getState().openJoinId).toBe("a1");
     unmount();
@@ -416,7 +487,9 @@ describe("EditMarkerLayer with its join editors", () => {
     vi.mocked(setClipJoin).mockImplementationOnce(() => new Promise(() => {}));
     const user = userEvent.setup();
     render(<Lane />);
-    const glyph = screen.getByRole("button", { name: "Fade join at 0:05.0" });
+    const glyph = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:05.0",
+    });
     await user.click(glyph);
     await user.click(screen.getByRole("button", { name: "Crossfade" }));
     await user.click(glyph);
@@ -433,8 +506,12 @@ describe("EditMarkerLayer with its join editors", () => {
     );
     const user = userEvent.setup();
     render(<Lane />);
-    const first = screen.getByRole("button", { name: "Fade join at 0:05.0" });
-    const second = screen.getByRole("button", { name: "Fade join at 0:25.0" });
+    const first = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:05.0",
+    });
+    const second = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:25.0",
+    });
     await user.click(first);
     await user.click(screen.getByRole("button", { name: "Crossfade" }));
     second.focus();
