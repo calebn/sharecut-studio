@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 from job_event_helpers import JobEventTap
+from podcast_mcp.engines.stale_audio_streams import StaleStreamFile
 from podcast_mcp.gui.job_events import gui_agent_job_progress_sink
+from podcast_mcp.models import EpisodeProject, ProjectMeta
 from podcast_mcp.services.jobs import (
     AgentJobFanInReporter,
     Job,
@@ -546,14 +548,17 @@ def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
         assert "message" in kinds
 
 
-def _patch_fake_pipeline(monkeypatch, proj: Path, export_qc: dict) -> None:
+def _patch_fake_pipeline(
+    monkeypatch, proj: Path, export_qc: dict, project: EpisodeProject | None = None
+) -> None:
     """Route MCP pipeline_run and the Studio job manager to a fake PipelineService."""
-    from podcast_mcp.models import EpisodeProject
     from podcast_mcp.services.pipeline import PipelineRunResult
+
+    fake_project = project or EpisodeProject.create("fake", str(proj.parent))
 
     class FakeWs:
         path = proj
-        project = EpisodeProject.create("fake", str(proj.parent))
+        project = fake_project
 
         @classmethod
         def open(cls, _path):
@@ -637,6 +642,27 @@ def test_pipeline_run_studio_job_reports_failed_export_qc(tmp_path, monkeypatch)
     assert lines[0] == "Completed through ingest_tracks"
     assert lines[1] == f"Export QC: FAILED (1 issue), 1 warning ({proj.parent / 'export_qc.json'})"
     assert lines[2] == "  - bad thing"
+
+
+def test_pipeline_run_studio_job_appends_stale_notice(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
+
+    proj = tmp_path / "ep.json"
+    proj.write_text("{}")
+    old = EpisodeProject(meta=ProjectMeta(name="old", workspace_dir=str(tmp_path)))
+    _patch_fake_pipeline(monkeypatch, proj, {"ok": True, "issues": [], "warnings": []}, old)
+    monkeypatch.setattr(
+        "podcast_mcp.mcp.tools.pipeline.stale_stream_files",
+        lambda _project: [StaleStreamFile("raw/x.mkv", ("a",), 2, 1)],
+    )
+    shared_job_manager(reset=True)
+    try:
+        out = mcp_pipeline.pipeline_run(str(proj), only_step="ingest_tracks", use_working_set=False)
+    finally:
+        shared_job_manager(reset=True)
+    last = out.splitlines()[-1]
+    assert last.startswith("Stale audio streams")
+    assert "raw/x.mkv" in last
 
 
 def test_pipeline_run_wrap_does_not_create_agent_job() -> None:
