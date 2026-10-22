@@ -93,7 +93,6 @@ export interface HitKindContract {
   surfaceTap?: boolean;
 }
 
-/** Join marks: a 24 px target for a pointer, 44 pt for a finger. */
 const MARK_BOX = { pointer: 24, touch: 44 } as const;
 
 /** Every hit-testable timeline target kind and its input contract. */
@@ -317,7 +316,6 @@ export function needsDirectHit(kind: HitKind): boolean {
   return contract.directOnly === true;
 }
 
-/** A tap on a plain surface within reach of this kind goes to it. */
 export function takesSurfaceTap(kind: HitKind): boolean {
   const contract: HitKindContract = HIT_KINDS[kind];
   return contract.surfaceTap === true;

@@ -6,5 +6,4 @@ export {
   joinPopoverId,
   type LanePlan,
   planLaneMarks,
-  type Tier,
 } from "./plan";

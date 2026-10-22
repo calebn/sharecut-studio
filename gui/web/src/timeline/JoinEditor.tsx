@@ -18,7 +18,7 @@ import { useResizeObserver } from "../ui";
 import { joinKind } from "../utils/editMarkerRegistry";
 import { useStableCallback } from "../utils/useStableCallback";
 import type { MediaRef } from "../waveform/types";
-import { joinPopoverId, type Tier } from "./editMarkers";
+import { joinPopoverId } from "./editMarkers";
 import { useHitRouter } from "./hitRouterContext";
 import { hitTargetProps } from "./hitTargets";
 import { JoinBlend, type JoinWaveSides } from "./JoinBlend";
@@ -37,7 +37,7 @@ interface JoinEditorProps {
   rightRef?: MediaRef;
   role?: string;
   gainDb?: number;
-  tier: Tier;
+  narrow: boolean;
 }
 
 function findJoinGlyph(clipId: string): HTMLElement | null {
@@ -52,7 +52,7 @@ function findJoinGlyph(clipId: string): HTMLElement | null {
 }
 
 function JoinEditorLive(props: JoinEditorProps) {
-  const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs, tier } = props;
+  const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs, narrow } = props;
   const { leftRef, rightRef, role, gainDb } = props;
   const waves = useMemo<JoinWaveSides | undefined>(
     () =>
@@ -232,7 +232,7 @@ function JoinEditorLive(props: JoinEditorProps) {
         right={right}
         waves={projected.join_crossfade_blocked ? undefined : waves}
         zoomPxPerSec={zoomPxPerSec}
-        tier={tier}
+        narrow={narrow}
       />
       {rail}
       {open && leader && rail

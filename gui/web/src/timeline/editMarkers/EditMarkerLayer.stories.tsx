@@ -51,30 +51,27 @@ function chain(specs: JoinSpec[]): ClipRow[] {
 function Lane({
   specs,
   zoomPxPerSec,
-  laneHeightPx = 72,
   onZoomToSpan,
 }: {
   specs: JoinSpec[];
   zoomPxPerSec: number;
-  laneHeightPx?: number;
   onZoomToSpan: (startSec: number, endSec: number) => void;
 }) {
   const clips = chain(specs);
   const plan = planLaneMarks(
     collectJoinMarks(clips, null, () => false),
     zoomPxPerSec,
-    laneHeightPx,
   );
   return (
     <>
-      {plan.symbols.map(({ mark, tier }) => {
+      {plan.symbols.map(({ mark, narrow }) => {
         const right = clips.find((c) => c.id === mark.clipId)!;
         return (
           <JoinBlend
             key={mark.id}
             visual={joinVisual(right, zoomPxPerSec)}
             zoomPxPerSec={zoomPxPerSec}
-            tier={tier}
+            narrow={narrow}
           />
         );
       })}
@@ -113,47 +110,20 @@ export const AllTypes: Story = {
   },
 };
 
-export const NarrowTier: Story = {
+export const NarrowOverlap: Story = {
   args: { specs: [{ sec: 3, mode: "crossfade", ms: 120 }] },
   play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelector(".edit-mark")?.getAttribute("data-tier"),
-    ).toBe("narrow");
     await expect(canvasElement.querySelector(".join-blend")).not.toBeNull();
     await expect(canvasElement.querySelector(".join-blend path")).toBeNull();
   },
 };
 
-export const MiddleTier: Story = {
-  args: { specs: [{ sec: 3, mode: "crossfade", ms: 240 }] },
-  play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelector(".edit-mark")?.getAttribute("data-tier"),
-    ).toBe("middle");
-    await expect(
-      canvasElement.querySelector(".join-blend path"),
-    ).not.toBeNull();
-  },
-};
-
-export const WideTier: Story = {
+export const WideOverlap: Story = {
   args: { specs: [{ sec: 3, mode: "crossfade", ms: 800 }] },
   play: async ({ canvasElement }) => {
     await expect(
-      canvasElement.querySelector(".edit-mark")?.getAttribute("data-tier"),
-    ).toBe("wide");
-  },
-};
-
-export const ShortLane: Story = {
-  args: {
-    specs: [{ sec: 3, mode: "crossfade", ms: 800 }],
-    laneHeightPx: 36,
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelector(".edit-mark")?.getAttribute("data-tier"),
-    ).toBe("middle");
+      canvasElement.querySelector(".join-blend path"),
+    ).not.toBeNull();
   },
 };
 

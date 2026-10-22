@@ -379,7 +379,6 @@ describe("TrackLane join marks", () => {
     const { container } = lane({ zoomPxPerSec: 4, width: 40 });
     const glyph = container.querySelector<HTMLElement>(".edit-mark");
     expect(glyph?.style.left).toBe("20px");
-    expect(glyph?.dataset.tier).toBe("wide");
   });
 
   it("draws no glyph while a neighbour is being moved", () => {
