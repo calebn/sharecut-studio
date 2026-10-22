@@ -175,6 +175,23 @@ describe("JoinEditor coupled length", () => {
     move();
     expect(container.querySelector(".join-blend")).toBeNull();
   });
+  it("captions the drawn overlap, not the dragged length, when render headroom caps it", () => {
+    const { container } = mount();
+    move(1300);
+    expect(screen.getByText(/Draft overlap 2500 ms/)).toBeInTheDocument();
+    expect(screen.queryByText(/Draft overlap 5000/)).toBeNull();
+    expect(container.querySelector(".join-blend")).toHaveStyle({
+      width: "125px",
+    });
+  });
+  it("captions a zero overlap while dragging a join whose left recording is unmeasured", () => {
+    const { container } = mount({
+      left: { ...left, source_duration_sec: null },
+    });
+    move(1300);
+    expect(screen.getByText(/Draft overlap 0 ms/)).toBeInTheDocument();
+    expect(container.querySelector(".join-blend")).toBeNull();
+  });
   it("uses final release coordinates even without a move event", () => {
     mount();
     pointer(grip(), "pointerdown", 1000);
