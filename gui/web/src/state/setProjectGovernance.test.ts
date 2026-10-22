@@ -40,11 +40,6 @@ function outsideCalls(files: Iterable<Source>): Record<string, number> {
 /** Files allowed to call `setProject(` today, and how many calls each makes. */
 const ALLOWLIST: readonly { file: string; calls: number; reason: string }[] = [
   {
-    file: "commands/trackMix.ts",
-    calls: 2,
-    reason: "Track-mix overlay write and its revert while the overlay is live.",
-  },
-  {
     file: "inspector/useNudgeRun.ts",
     calls: 1,
     reason:
@@ -58,8 +53,8 @@ const ALLOWLIST: readonly { file: string; calls: number; reason: string }[] = [
   },
 ];
 
-const ALLOWLIST_FILES = 3;
-const ALLOWLIST_CALLS = 4;
+const ALLOWLIST_FILES = 2;
+const ALLOWLIST_CALLS = 2;
 
 const allowedCalls = Object.fromEntries(
   ALLOWLIST.map(({ file, calls }) => [file, calls]),
@@ -131,13 +126,13 @@ describe("setProject write governance", () => {
 
     it("flags an extra call in an allowlisted file", () => {
       const sabotaged = [...sourceFiles()].map((file) =>
-        file.rel === "commands/trackMix.ts"
+        file.rel === "inspector/useNudgeRun.ts"
           ? { ...file, text: `${file.text}\ns.setProject(extra);` }
           : file,
       );
       expect(outsideCalls(sabotaged)).toEqual({
         ...allowedCalls,
-        "commands/trackMix.ts": 3,
+        "inspector/useNudgeRun.ts": 2,
       });
     });
 

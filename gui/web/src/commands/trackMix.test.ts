@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import { refreshDocumentDisplay } from "../document/applyDocumentUpdate";
+import { documentAuthority } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
-import { SANITY_POLL_MS } from "../state/syncCadence";
 import { deferred } from "../test/deferred";
 import {
   COMMENTER_CAPABILITIES,
@@ -13,7 +14,6 @@ import { clearRegisteredCommands, execute } from "./execute";
 import {
   _resetMixLanesForTests,
   flushPendingMix,
-  QUEUED_SHOWN_MS,
   registerTrackMixCommands,
   SAVED_MUTE_READ_ONLY,
   VOLUME_SAVE_DELAY_MS,
@@ -48,6 +48,10 @@ describe("track mix commands (#386)", () => {
     vi.mocked(api.setTrackFaderCommand).mockResolvedValue({});
     vi.mocked(api.setTrackMuteCommand).mockReset();
     vi.mocked(api.setTrackMuteCommand).mockResolvedValue({});
+    documentAuthority.path = "/tmp/ep";
+    documentAuthority.project = minimalProject({
+      tracks: [sampleTrack({ id: "host", gain_db: -2 })],
+    });
     useDawStore.setState({
       projectPath: "/tmp/ep",
       guestMode: null,
@@ -69,12 +73,13 @@ describe("track mix commands (#386)", () => {
 
   /** Replace the host track as a server snapshot would. */
   function serverSends(fields: Partial<TrackView>): void {
-    const project = useDawStore.getState().project;
+    const project = documentAuthority.project;
     if (project) {
-      useDawStore.getState().setProject({
+      documentAuthority.project = {
         ...project,
         tracks: [{ ...project.tracks[0], ...fields }],
-      });
+      };
+      refreshDocumentDisplay();
     }
   }
 
@@ -142,6 +147,10 @@ describe("track mix commands (#386)", () => {
 
   it("reverts only the failed field to its saved value", async () => {
     vi.mocked(api.setTrackFaderCommand).mockRejectedValue(new Error("nope"));
+    vi.mocked(api.setTrackMuteCommand).mockImplementation(async () => {
+      serverSends({ muted: true });
+      return {};
+    });
     const pending = execute("track.setVolume", { db: -6 });
     await execute("track.muteToggle");
     await vi.advanceTimersByTimeAsync(VOLUME_SAVE_DELAY_MS);
@@ -175,22 +184,11 @@ describe("track mix commands (#386)", () => {
     expect(hostTrack()?.fader_db).toBe(0);
   });
 
-  it("keeps a value the host queued shown until it's sent", async () => {
+  it("keeps showing a value the host queued", async () => {
     vi.mocked(api.setTrackMuteCommand).mockResolvedValue({ queued: true });
     await execute("track.muteToggle");
-    serverSends({ muted: false });
     expect(hostTrack()?.muted).toBe(true);
-    // Still shown just before the next host drain tick.
-    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS - 1);
-    serverSends({ muted: false });
-    expect(hostTrack()?.muted).toBe(true);
-    await vi.advanceTimersByTimeAsync(QUEUED_SHOWN_MS - SANITY_POLL_MS + 2);
-    serverSends({ muted: false });
-    expect(hostTrack()?.muted).toBe(false);
-  });
-
-  it("shows a queued value for longer than one host drain interval", () => {
-    expect(QUEUED_SHOWN_MS).toBeGreaterThan(SANITY_POLL_MS);
+    expect(documentAuthority.project?.tracks[0].muted).toBe(false);
   });
 
   it("marks the premix behind as soon as the mix changes", async () => {

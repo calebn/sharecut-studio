@@ -3,9 +3,12 @@ import { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
 export { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
 
 import { setTrackFaderCommand, setTrackMuteCommand } from "../api";
+import {
+  endPreview,
+  showPreview,
+} from "../document/applyDocumentUpdate";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
-import { SANITY_POLL_MS } from "../state/syncCadence";
 import type { ProjectView, TrackView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { clampFaderDb, trackFaderDb } from "../utils/audio";
@@ -20,21 +23,14 @@ import type { ExecuteResult } from "./types";
  */
 export const VOLUME_SAVE_DELAY_MS = 300;
 
-/**
- * How long a value the host queued behind another command stays shown over
- * server snapshots. The host drain timer in `useHostSync` runs every
- * `SANITY_POLL_MS` (30 s, #662), and the drained command's reply then carries
- * the value; the extra 5 s covers that reply's round trip.
- */
-export const QUEUED_SHOWN_MS = SANITY_POLL_MS + 5_000;
-
 type MixField = "fader_db" | "muted";
 type MixValue = number | boolean;
 
 /**
- * One saved field of one track. Its newest value is shown at once and kept
- * shown over server snapshots until the server has it; only the latest
- * value of a burst is sent.
+ * One saved field of one track. Its newest value is shown at once, as a
+ * preview draft over every server snapshot, until the command carrying it has
+ * its own draft (a value the host queued stays shown through that draft); only
+ * the latest value of a burst is sent.
  */
 interface MixLane {
   projectPath: string;
@@ -47,8 +43,8 @@ interface MixLane {
   latest?: MixValue;
   /** Value being sent. */
   inFlight?: MixValue;
-  /** Value the host queued behind another command, and until when to show it. */
-  queued?: { value: MixValue; until: number };
+  /** Holds this lane's preview draft, so no other lane clears it. */
+  owner: symbol;
   scheduled: boolean;
   timer?: ReturnType<typeof setTimeout>;
   waiters: Array<(result: ExecuteResult) => void>;
@@ -57,8 +53,6 @@ interface MixLane {
 const lanes = new Map<string, MixLane>();
 /** Mix sends go one at a time, so two never overlap on the server. */
 let sendChain: Promise<void> = Promise.resolve();
-let unwatch: (() => void) | null = null;
-let overlaying = false;
 let pageHooked = false;
 
 function readField(
@@ -86,13 +80,7 @@ function pendingValue(lane: MixLane): MixValue | undefined {
   if (lane.latest !== undefined) {
     return lane.latest;
   }
-  if (lane.inFlight !== undefined) {
-    return lane.inFlight;
-  }
-  if (lane.queued && lane.queued.until > Date.now()) {
-    return lane.queued.value;
-  }
-  return undefined;
+  return lane.inFlight;
 }
 
 /** A mix change the server hasn't mixed yet leaves the premix behind. */
@@ -110,57 +98,29 @@ function markPremixBehind(project: ProjectView): ProjectView {
   };
 }
 
-/** Keep every unsaved mix value shown over whatever the server last sent. */
-function overlayPending(): void {
-  if (overlaying) {
-    return;
+/** `project` with the lane's unsaved value laid over it. */
+function withPending(project: ProjectView, lane: MixLane): ProjectView {
+  const value = pendingValue(lane);
+  if (value === undefined) {
+    return project;
   }
-  const s = useDawStore.getState();
-  let project = s.projectEditBasis();
-  if (!project) {
-    return;
+  let shown = project;
+  if (readField(shown, lane.trackId, lane.field) !== value) {
+    shown = patchTrackMix(shown, lane.trackId, fieldsOf(lane.field, value));
   }
-  const start = project;
-  for (const [key, lane] of lanes) {
-    if (lane.projectPath !== s.projectPath) {
-      continue;
-    }
-    const shown = readField(project, lane.trackId, lane.field);
-    const value = pendingValue(lane);
-    if (value === undefined) {
-      settle(key, lane);
-      continue;
-    }
-    if (shown !== value) {
-      project = patchTrackMix(
-        project,
-        lane.trackId,
-        fieldsOf(lane.field, value),
-      );
-    }
-    if (value !== lane.confirmed) {
-      project = markPremixBehind(project);
-    }
-  }
-  if (project !== start) {
-    overlaying = true;
-    try {
-      s.setProject(project);
-    } finally {
-      overlaying = false;
-    }
-  }
+  return value === lane.confirmed ? shown : markPremixBehind(shown);
 }
 
-function watchStore(): void {
-  unwatch ??= useDawStore.subscribe((state, prev) => {
-    if (state.project !== prev.project) {
-      overlayPending();
-    }
-  });
+/** Show the lane's unsaved value over whatever the server last sent. */
+function showPending(key: string, lane: MixLane): void {
+  if (lane.projectPath !== useDawStore.getState().projectPath) {
+    return;
+  }
+  const apply = (project: ProjectView) => withPending(project, lane);
+  showPreview(key, lane.owner, apply, apply, () => true);
 }
 
-/** Drop an idle lane; stop watching the store once none are left. */
+/** Drop an idle lane and its preview; the saved value or a queued command's draft keeps what is shown. */
 function settle(key: string, lane: MixLane): void {
   if (
     pendingValue(lane) !== undefined ||
@@ -171,10 +131,7 @@ function settle(key: string, lane: MixLane): void {
     return;
   }
   lanes.delete(key);
-  if (lanes.size === 0 && unwatch) {
-    unwatch();
-    unwatch = null;
-  }
+  endPreview(key, lane.owner);
 }
 
 function schedule(key: string, lane: MixLane): void {
@@ -196,7 +153,7 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
     if (value === undefined) {
       return;
     }
-    if (value === lane.confirmed && !lane.queued) {
+    if (value === lane.confirmed) {
       // The burst ended where it began: nothing to save.
       return;
     }
@@ -205,11 +162,8 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
       const reply = (await lane.send(lane.projectPath, value)) as {
         queued?: boolean;
       } | null;
-      if (reply?.queued === true) {
-        lane.queued = { value, until: Date.now() + QUEUED_SHOWN_MS };
-      } else {
+      if (reply?.queued !== true) {
         lane.confirmed = value;
-        lane.queued = undefined;
       }
       lane.inFlight = undefined;
     } catch (e) {
@@ -218,28 +172,18 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
       result = { status: "disabled", reason };
       // Put back the saved value, unless a newer change is on its way or
       // someone else's change has replaced ours.
-      const s = useDawStore.getState();
-      const project = s.projectEditBasis();
-      if (
-        lane.latest === undefined &&
-        s.projectPath === lane.projectPath &&
-        project &&
-        readField(project, lane.trackId, lane.field) === value
-      ) {
-        overlaying = true;
-        try {
-          s.setProject(
-            patchTrackMix(
-              project,
-              lane.trackId,
-              fieldsOf(lane.field, lane.confirmed),
-            ),
-          );
-        } finally {
-          overlaying = false;
-        }
+      if (lane.latest === undefined) {
+        endPreview(key, lane.owner, (project) =>
+          readField(project, lane.trackId, lane.field) === value
+            ? patchTrackMix(
+                project,
+                lane.trackId,
+                fieldsOf(lane.field, lane.confirmed),
+              )
+            : project,
+        );
       }
-      s.announceStatus(`Mix change failed: ${reason}`, { tone: "error" });
+      useDawStore.getState().announceStatus(`Mix change failed: ${reason}`, { tone: "error" });
     }
   } finally {
     for (const resolve of waiters) {
@@ -248,8 +192,9 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
     if (lane.latest !== undefined && lane.timer === undefined) {
       schedule(key, lane);
     }
-    // Our own reply replaced `tracks`; show anything newer again.
-    overlayPending();
+    if (lane.latest !== undefined) {
+      showPending(key, lane);
+    }
     settle(key, lane);
   }
 }
@@ -276,18 +221,18 @@ function commitMixField(
       field,
       send,
       confirmed: readField(s.projectEditBasis(), trackId, field) ?? value,
+      owner: Symbol(key),
       scheduled: false,
       waiters: [],
     };
     lanes.set(key, lane);
-    watchStore();
   }
   const current = lane;
   current.latest = value;
   const done = new Promise<ExecuteResult>((resolve) => {
     current.waiters.push(resolve);
   });
-  overlayPending();
+  showPending(key, current);
   if (current.timer !== undefined) {
     clearTimeout(current.timer);
     current.timer = undefined;
@@ -324,14 +269,13 @@ export async function flushPendingMix(): Promise<void> {
 
 /** Tests only: forget every lane and timer. */
 export function _resetMixLanesForTests(): void {
-  for (const lane of lanes.values()) {
+  for (const [key, lane] of lanes) {
     if (lane.timer !== undefined) {
       clearTimeout(lane.timer);
     }
+    endPreview(key, lane.owner);
   }
   lanes.clear();
-  unwatch?.();
-  unwatch = null;
   sendChain = Promise.resolve();
 }
 
