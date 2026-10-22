@@ -152,6 +152,17 @@ export type EnvelopeDraftEntry = {
 };
 
 /**
+ * The envelope save in flight and the target it writes. It lives in the store,
+ * not in the form, so a remount (the phone and tablet shells swapping on
+ * rotation) neither enables a second Save nor loses the busy state.
+ */
+export type EnvelopeSaving = {
+  projectPath: string;
+  projectEpoch: number;
+  trackId: string;
+};
+
+/**
  * Typed but unsaved word-editor fields and the word they belong to. It lives
  * in the store, not in the inspector, so it outlives the shells swapping on
  * rotation; `dawStore` drops it when the selection leaves its word.
@@ -303,6 +314,7 @@ export interface DawState {
   commentMode: boolean;
   commentDraft: CommentDraft | null;
   envelopeDraft: EnvelopeDraftEntry | null;
+  envelopeSaving: EnvelopeSaving | null;
   wordDraft: WordDraftEntry | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
@@ -548,6 +560,7 @@ export interface DawState {
   toggleCommentMode: () => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
   setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
+  setEnvelopeSaving: (saving: EnvelopeSaving | null) => void;
   setWordDraft: (entry: WordDraftEntry | null) => void;
   setToolMode: (mode: ToolMode) => void;
   selectTracks: (trackIds: readonly string[]) => void;

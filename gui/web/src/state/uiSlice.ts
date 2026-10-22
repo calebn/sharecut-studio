@@ -44,6 +44,7 @@ import type {
   DawStore,
   DawTab,
   EnvelopeDraftEntry,
+  EnvelopeSaving,
   FeedbackToast,
   LaneHeightMode,
   LayerVisibility,
@@ -213,6 +214,7 @@ type UiSlice = Pick<
   | "commentMode"
   | "commentDraft"
   | "envelopeDraft"
+  | "envelopeSaving"
   | "wordDraft"
   | "transcriptFollowPlayhead"
   | "transcriptTimingRequest"
@@ -270,6 +272,7 @@ type UiSlice = Pick<
   | "toggleCommentMode"
   | "setCommentDraft"
   | "setEnvelopeDraft"
+  | "setEnvelopeSaving"
   | "setWordDraft"
   | "setToolMode"
   | "setShellBreakpoint"
@@ -316,6 +319,7 @@ type UiSlice = Pick<
 export function uiAlwaysInitial() {
   return {
     envelopeDraft: null as EnvelopeDraftEntry | null,
+    envelopeSaving: null as EnvelopeSaving | null,
     wordDraft: null as WordDraftEntry | null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     ingestBusy: false,
@@ -698,6 +702,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
     setEnvelopeDraft: (envelopeDraft) => set({ envelopeDraft }),
+    setEnvelopeSaving: (envelopeSaving) => set({ envelopeSaving }),
     setWordDraft: (wordDraft) => set({ wordDraft }),
     setToolMode: (toolMode: ToolMode) =>
       set({
