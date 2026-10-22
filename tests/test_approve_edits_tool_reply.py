@@ -139,7 +139,8 @@ def test_held_cut_retired_as_unplayed_is_not_in_the_replied_ids(episode):
     assert reply["approved_count"] == 1
     assert reply["held"][0]["id"] == "s"
     assert reply["held"][0]["reason"] == "its audio was already cut away, so it no longer plays"
-    _assert_ids_match(episode, reply)
+    assert reply["approved_count"] == len(reply["ids"])
+    assert "t" not in _pending_ids(episode)
 
 
 def test_approve_all_replies_only_the_approved_subset(episode):

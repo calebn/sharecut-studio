@@ -10,9 +10,13 @@ from pause_policy_public_helpers import workspace
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.mcp.tools.edits import approve_edits_tool
-from podcast_mcp.models import load_project
+from podcast_mcp.mcp.tools.timeline import ripple_delete_text_tool
+from podcast_mcp.models import TranscriptWord, load_project, save_project
 from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
 from test_approve_guard_blocked_ripple import _blocked_filler
+from test_edit_modes import episode as _episode_fixture
+
+episode = _episode_fixture
 
 
 def _override_record(path):
@@ -34,10 +38,30 @@ def test_host_mcp_approve_all_reports_held_then_override_applies_and_records(tmp
         approve_edits_tool(str(ws.path), all_pending=True, override_audio_checks=True)
     )
     assert done["approved_count"] == 1
+    # approve_edits_tool is a document command with the default role, so its surface is "agent".
     assert _override_record(ws.path) == {
         "kind": "owner_override",
         "actor": "mcp:host",
         "surface": "agent",
+    }
+
+
+def test_host_mcp_ripple_delete_text_override_records_the_host_mcp_surface(episode):
+    project = load_project(episode)
+    host = next(t for t in project.transcripts if t.track_id == "host")
+    host.words.append(TranscriptWord(text="um", start=10.0, end=11.0))
+    save_project(project)
+
+    held = json.loads(ripple_delete_text_tool(str(episode), "um"))
+    assert load_project(episode).editorial.edit_log == []
+    assert held["unchanged"] is True
+
+    ripple_delete_text_tool(str(episode), "um", override_audio_checks=True)
+
+    assert _override_record(episode) == {
+        "kind": "owner_override",
+        "actor": "mcp:host",
+        "surface": "host_mcp",
     }
 
 
