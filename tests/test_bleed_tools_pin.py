@@ -485,6 +485,33 @@ def test_run_audio_edit_does_not_journal_when_the_service_raises():
     journal.assert_not_called()
 
 
+def test_run_audio_edit_journals_exactly_once_on_success():
+    ws = object()
+    with (
+        patch("podcast_mcp.services.jobs.audio_edits.AnalysisService") as service,
+        patch("podcast_mcp.services.document_sync.after_agent_mutation") as journal,
+    ):
+        service.return_value.mute_off_speaker.return_value = {"applied": True}
+        result = run_audio_edit(ws, "mute_off_speaker", {"track_id": "t"}, lock_timeout=2.0)
+    assert result == {"applied": True}
+    service.return_value.mute_off_speaker.assert_called_once_with(
+        track_id="t", apply=True, lock_timeout=2.0
+    )
+    journal.assert_called_once_with(ws)
+
+
+@pytest.mark.parametrize("op", ["apply_plan", "preview_bleed_mute", "__class__", ""])
+def test_run_audio_edit_rejects_any_other_op(op):
+    with (
+        patch("podcast_mcp.services.jobs.audio_edits.AnalysisService") as service,
+        patch("podcast_mcp.services.document_sync.after_agent_mutation") as journal,
+    ):
+        with pytest.raises(ValueError, match="unsupported audio edit op"):
+            run_audio_edit(object(), op, {}, lock_timeout=1.0)  # type: ignore[arg-type]
+    service.assert_not_called()
+    journal.assert_not_called()
+
+
 def _cli(path: Path, *args: str):
     return CliRunner().invoke(app, ["edit", args[0], "--project", str(path), *args[1:]])
 
