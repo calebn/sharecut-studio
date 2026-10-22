@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
@@ -281,11 +282,10 @@ def file_level_profile(
         known = _FILE_PROFILES.get(key)
     if known is not None:
         return known
-    record = (
-        record_dir / f"{short_digest(json.dumps([_RECORD_REV, *map(str, key)]))}.json"
-        if record_dir
-        else None
-    )
+    name_parts = [_RECORD_REV, *map(str, key)]
+    if record_dir and has_several_audio_streams(resolved):
+        name_parts.append("a0")
+    record = record_dir / f"{short_digest(json.dumps(name_parts))}.json" if record_dir else None
     profile = _read_record(record) if record else None
     if profile is None:
         if levels is None:
@@ -301,7 +301,7 @@ def file_level_profile(
 
 
 # Bump when ``profile_from_levels`` or its whole-track framing changes what it returns.
-_RECORD_REV = 3
+_RECORD_REV = 2
 # A record is a few bytes, but every edit to a recording leaves one behind. Eviction goes by
 # write time, so the cap sits well over tracks x sample rates: a long-lived record stays.
 _RECORDS_KEPT = 256

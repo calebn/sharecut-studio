@@ -33,6 +33,7 @@ from typing import Any, Literal
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.timeline_span import timeline_span_dicts
 from podcast_mcp.edits.transcript_reuse import audio_identity
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.prosody import (
     ProsodyParams,
     WordSpan,
@@ -57,8 +58,9 @@ from podcast_mcp.util.workspace_paths import resolve_cache_file
 log = logging.getLogger(__name__)
 
 PROFILE_SCHEMA = "prosody_profile.v1"
-# 6: decodes the first audio stream (#2110)
-ALGORITHM_VERSION = 6
+ALGORITHM_VERSION = (
+    5  # 5: wordless-track segments start at the track's own audibility floor (#1443)
+)
 MAX_WINDOW_SEGMENTS = 6
 # Waiters time out only behind a track tens of hours long at ~0.31s/audio-min (docs/pipeline.md).
 PROSODY_LOCK_TIMEOUT_SEC = 600.0
@@ -157,9 +159,10 @@ class ProsodyProfile:
     engine: dict[str, Any] = field(default_factory=dict)
     segments: list[dict[str, Any]] = field(default_factory=list)
     computed_at: float = 0.0
+    audio_stream: int | None = None
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "schema": self.schema,
             "track_id": self.track_id,
             "audio_sha256": self.audio_sha256,
@@ -172,6 +175,9 @@ class ProsodyProfile:
             "segments": self.segments,
             "computed_at": self.computed_at,
         }
+        if self.audio_stream is not None:
+            data["audio_stream"] = self.audio_stream
+        return data
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> ProsodyProfile:
@@ -187,6 +193,7 @@ class ProsodyProfile:
             engine=dict(data.get("engine") or {}),
             segments=list(data.get("segments") or []),
             computed_at=float(data.get("computed_at") or 0.0),
+            audio_stream=data.get("audio_stream"),
         )
 
 
@@ -258,6 +265,11 @@ def _engine_matches(profile: ProsodyProfile) -> bool:
     return installed is None or profile.engine.get("version") == installed
 
 
+def _stream_matches(profile: ProsodyProfile, path: Path) -> bool:
+    """The profile was read from the first audio stream when ``path`` has several."""
+    return profile.audio_stream == (0 if has_several_audio_streams(path) else None)
+
+
 def _analyze_track(
     project: EpisodeProject,
     track_id: str,
@@ -280,6 +292,7 @@ def _analyze_track(
             and existing.words_fingerprint == words_fp
             and existing.params == params.key()
             and _engine_matches(existing)
+            and _stream_matches(existing, job.audio)
         ):
             existing.audio_size = size
             existing.audio_mtime_ns = mtime_ns
@@ -304,6 +317,7 @@ def _analyze_track(
                 engine=analysis["engine"],
                 segments=analysis["segments"],
                 computed_at=time.time(),
+                audio_stream=0 if has_several_audio_streams(job.audio) else None,
             )
             write_json_atomic(path, profile.to_json())
             outcome = "computed"
@@ -413,9 +427,16 @@ def load_track_profile(
     try:
         from podcast_mcp.util.tracks import track_audio_path
 
-        stamp = file_stamp(track_audio_path(project, track_id))
+        media = track_audio_path(project, track_id)
+        stamp = file_stamp(media)
     except (OSError, ValueError):
         return ProfileLookup(profile, "stale", "Track media is unreadable; re-run analyze_prosody.")
+    if not _stream_matches(profile, media):
+        return ProfileLookup(
+            profile,
+            "stale",
+            "Re-run analyze_prosody: the profile was read from the default audio stream.",
+        )
     if (profile.audio_size, profile.audio_mtime_ns) != stamp.content:
         return ProfileLookup(
             profile,

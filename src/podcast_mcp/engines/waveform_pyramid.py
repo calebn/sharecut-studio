@@ -69,7 +69,7 @@ BIN_BYTES = 6
 INT16_FULL_SCALE = 32767
 TMP_MAX_AGE_SEC = 86_400.0
 PYRAMID_LOCK_TIMEOUT_SEC = 30.0
-_BUILD_REVISION = 3
+_BUILD_REVISION = 2
 # read_pcm_minmax windows are capped at this many contract PCM blocks.
 PCM_WINDOW_MAX_BLOCKS = 4
 
@@ -643,16 +643,19 @@ def read_pcm_minmax(
 # --- Keys and files -------------------------------------------------------------
 
 
-def media_key(rel_posix: str, size: int, mtime_ns: int) -> str:
+def media_key(rel_posix: str, size: int, mtime_ns: int, *, first_stream: bool = False) -> str:
     """20-hex pyramid key for a media file (workspace-relative POSIX path, size, mtime).
 
     Deliberately not ``util.project_state.file_revision``: that includes device
     and inode, which change when a workspace is copied or restored, while this
     key is persisted in ``.wfpk`` file names and must survive both. The format
     version and build revision are hashed in. A decode-policy change can
-    invalidate old results without changing the reader's file format.
+    invalidate old results without changing the reader's file format. ``first_stream`` marks
+    media with several audio streams, whose pyramid is decoded from the first one.
     """
     raw = f"{waveform_format_version()}|{_BUILD_REVISION}|{rel_posix}|{size}|{mtime_ns}"
+    if first_stream:
+        raw += "|a0"
     return short_digest(raw, 20)
 
 

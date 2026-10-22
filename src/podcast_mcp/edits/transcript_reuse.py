@@ -15,6 +15,7 @@ from podcast_mcp.engines.asr_silence import (
     silence_filter_fingerprint,
 )
 from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.models.word_aligner import WordAlignerModel, word_aligner_model
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
@@ -388,8 +389,12 @@ def _refresh_silence_flags(
             bleed_check=bleed_check,
             source_id=job.source_id,
         )
+        first_stream = has_several_audio_streams(job.audio)
         if current is not None and any(
-            current == silence_filter_fingerprint(transcript.words, audio_hash, options, evidence=t)
+            current
+            == silence_filter_fingerprint(
+                transcript.words, audio_hash, options, evidence=t, first_stream=first_stream
+            )
             for t in accepted
         ):
             continue
@@ -409,7 +414,7 @@ def _refresh_silence_flags(
             transcript.silence_filter_fingerprint = None
         else:
             transcript.silence_filter_fingerprint = silence_filter_fingerprint(
-                transcript.words, audio_hash, options, evidence=term
+                transcript.words, audio_hash, options, evidence=term, first_stream=first_stream
             )
     return skipped, refreshed
 

@@ -75,15 +75,20 @@ def silence_filter_fingerprint(
     options: AsrOptions,
     *,
     evidence: str = "own",
+    first_stream: bool = False,
 ) -> str:
     """Identify the media, filter policy, spans, stored flag state and evidence scope.
+
+    ``first_stream`` marks media with several audio streams, which are read from the first.
 
     ``evidence`` is ``SpeechLevels.fingerprint_term(track_id)``. It records the applicable
     scope, relevant gains, settled placement, and selected-media revisions. It only counts
     once a word carries a score.
     """
     digest = sha256()
-    digest.update(f"v4:{audio_sha256}:{options.silence_filter_enabled}:".encode())
+    digest.update(f"v3:{audio_sha256}:{options.silence_filter_enabled}:".encode())
+    if first_stream:
+        digest.update(b"a0:")
     for word in words:
         digest.update(
             f"{word.start.hex()}:{word.end.hex()}:{int(word.suspect_hallucination)};".encode()
