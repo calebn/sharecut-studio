@@ -122,6 +122,8 @@ def test_master_source_hash_moves_with_the_premix_size_and_mtime(
     assert resized != base
     _file(premix, b"abcd", mtime_ns=T0 + 2 * SEC)
     assert play_audit.master_source_hash(project) != resized
+    _file(premix, b"abc")
+    assert play_audit.master_source_hash(project) == base
     premix.unlink()
     assert play_audit.master_source_hash(project) is None
 
@@ -160,6 +162,8 @@ def test_gate_fill_applies_only_while_the_media_size_and_mtime_match(tmp_path: P
     assert payload["file"] == [4, T0]
     _file(media, b"x" * 100, mtime_ns=T0 + 2 * SEC)
     assert gate_fill.current_gate_fill_path(project, track) is None
+    _file(media, b"x" * 100, mtime_ns=T0 - 2 * SEC)
+    assert gate_fill.current_gate_fill_path(project, track) is None
     _file(media, b"x" * 101, mtime_ns=T0)
     assert gate_fill.current_gate_fill_path(project, track) is None
     media.unlink()
@@ -182,7 +186,9 @@ def test_gate_fill_payload_file_part_is_the_fill_files_size_and_mtime(tmp_path: 
 
 @pytest.mark.parametrize("during", ["detection", "fill"])
 @pytest.mark.parametrize(
-    ("data", "mtime_ns"), [(b"x" * 100, T0 + 8 * SEC), (b"x" * 101, T0)], ids=["mtime", "size"]
+    ("data", "mtime_ns"),
+    [(b"x" * 100, T0 + 8 * SEC), (b"x" * 100, T0 - 2 * SEC), (b"x" * 101, T0)],
+    ids=["mtime", "older", "size"],
 )
 def test_plan_gate_fill_refuses_when_the_media_changes_while_it_is_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, during: str, data: bytes, mtime_ns: int
@@ -254,6 +260,10 @@ def test_prosody_reuse_rehashes_only_on_stat_change(
     resized = pp.run_prosody_analysis(project, {})
     assert resized.computed == ["host"]
     assert len(hashes) == 2
+    _file(media, media.read_bytes(), T0 - 2 * SEC)
+    older = pp.run_prosody_analysis(project, {})
+    assert older.reused == ["host"]
+    assert len(hashes) == 3
 
 
 def test_prosody_stale_on_size_alone_and_mtime_alone(
