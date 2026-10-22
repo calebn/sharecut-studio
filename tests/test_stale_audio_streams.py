@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -63,12 +64,7 @@ def test_legacy_pick_unknown_without_disposition(monkeypatch, sample_wav):
         {"format": {}, "streams": [{"codec_type": "audio"}, {"codec_type": "audio"}]}
     )
 
-    class Done:
-        pass
-
-    done = Done()
-    done.stdout = stdout
-    done.stderr = ""
+    done = SimpleNamespace(stdout=stdout, stderr="")
     monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", lambda *a, **k: done)
     assert engine.probe(sample_wav).legacy_default_audio_index is None
 
