@@ -203,7 +203,7 @@ flowchart LR
 | When on mix | `timeline_start` … `timeline_end` |
 | From raw | `source_start` … `source_end` |
 | Fades | `fade_in_ms` / `fade_out_ms` (drawn as ramps over the waveform; handles at the clip's top corners); dialogue capped at 40 ms by default (the cap shown in the inspector refreshes with every fade save); both fades fit in the clip without overlapping (the clip inspector says when it clamped an entry); a click under 3 px on a handle only selects |
-| Join | `join_in_mode` (an edit marker at the top of each join on the timeline, at any zoom: `\|` cut, `╲╱` fade, `✕` crossfade, each in its own hue; joins closer than 24 px fold into an edit group, a count that zooms in on tap; click a marker to change mode and length; a blending crossfade draws a centered X and reveals a connected endpoint grip in a reserved timeline row) |
+| Join | `join_in_mode` (an edit marker at the top of each join on the timeline, at any zoom: `\|` cut, `╲╱` fade, `✕` crossfade, each in its own hue; joins closer than 24 px fold into an edit group, a count that zooms in on tap; click a marker to change mode and length; the marker shrinks to a small tag as a crossfade draws wider, and a label like "Crossfade 120 ms" shows beside it at high zoom when it fits; a blending crossfade draws a centered X and reveals a connected endpoint grip in a reserved timeline row) |
 
 ---
 

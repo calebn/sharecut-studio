@@ -105,8 +105,10 @@ join, a trim preview with its ghost, a fade readout, a read-only clip and a
 store-bound waveform.
 `Templates/EditMarkerLayer` previews the production `EditMarkerLayer` and the
 real-scale `JoinBlend` in the shared lane shell: every join type and a
-blocked crossfade, a narrow (6 px) and a wide (40 px) overlap, and a count
-chip with its phone-width twin. The live `TrackLane` plans the lane's joins (`timeline/editMarkers/plan.ts`) and decides
+blocked crossfade, the narrow (4.8 px), middle (18 px) and wide (48 px)
+tiers of a 120 ms crossfade (the wide one with its "Crossfade 120 ms" label), a
+label-room lane where a cut's label fits and a longer one would not, and a
+count chip with its phone-width twin. The live `TrackLane` plans the lane's joins (`timeline/editMarkers/plan.ts`) and decides
 which draw as glyphs and which fold into a chip.
 `Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
 `Templates/CommentPlaybackBubble` preview the shipped live-timeline overlays
