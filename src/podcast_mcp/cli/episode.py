@@ -68,6 +68,14 @@ def track_set_mute(
     typer.echo(json.dumps(EpisodeService(ws).set_track_mute(id, muted)))
 
 
+@episode_app.command("mark-streams-current")
+def mark_streams_current(
+    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+) -> None:
+    ws = ProjectWorkspace.open(project)
+    typer.echo(json.dumps(EpisodeService(ws).mark_streams_current()))
+
+
 def transcribe_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str | None = typer.Option(None, "--track", help="Single track id"),

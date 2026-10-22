@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from mcp.server import MCPServer
 
+from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
 from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
@@ -11,12 +13,19 @@ from podcast_mcp.services.pipeline import PipelineService, format_export_qc_line
 from podcast_mcp.util.project_state import current_cancel_check
 
 
-def _run_message(last_step: str, job_result: dict[str, Any] | None) -> str:
-    """`Completed through <step>` plus the export QC verdict lines when this run exported."""
+def _run_message(
+    last_step: str, job_result: dict[str, Any] | None, notices: Sequence[str] = ()
+) -> str:
+    """`Completed through <step>`, the export QC verdict lines when this run exported, then notices."""
     qc = job_result or {}
     lines = [f"Completed through {last_step}"]
     lines.extend(format_export_qc_lines(qc.get("export_qc"), qc.get("export_qc_path")))
+    lines.extend(notices)
     return "\n".join(lines)
+
+
+def _stale_notices(ws: ProjectWorkspace) -> list[str]:
+    return stale_stream_lines(ws.project, stale_stream_files(ws.project))
 
 
 def pipeline_run(
@@ -94,7 +103,7 @@ def pipeline_run(
             raise RuntimeError(job.error or job.message or "Pipeline failed")
         if job.status == "cancelled":
             raise RuntimeError(job.message or "Pipeline cancelled")
-        return _run_message(job.result_step or "", job.result)
+        return _run_message(job.result_step or "", job.result, _stale_notices(ws))
 
     result = PipelineService(ws).run(
         from_step=from_step,
@@ -104,7 +113,7 @@ def pipeline_run(
         config=run_config,
         cancel_check=current_cancel_check(),
     )
-    return _run_message(result.last_step, result.job_result())
+    return _run_message(result.last_step, result.job_result(), _stale_notices(ws))
 
 
 def pipeline_get_config_tool(project_path: str) -> str:
