@@ -29,7 +29,7 @@ Codex UI edits have project-local [Impeccable design hooks](docs/setup.md#impecc
 
 ## Maximal install (all extras)
 
-Use this only when you need enrollment speaker ID (`speaker` / `speaker-lite`) and/or neural join QC (`joinqc`). On Linux this pulls **multi‑GB** PyTorch/CUDA wheels (Docker clean-room: ~6 GB `.venv` + plus the models `podcast bootstrap --component all` fetches: about 360 MB for the word aligner, and the ~80 MB speaker model is skipped until its CDN copy ships). Prefer the Quick start above for everyday CLI/MCP/GUI work.
+Use this only when you need enrollment speaker ID (`speaker` / `speaker-lite`) and/or neural join QC (`joinqc`). On Linux this pulls **multi‑GB** PyTorch/CUDA wheels (Docker clean-room: ~6 GB `.venv` + plus the models `podcast bootstrap --component all` fetches: about 360 MB for the word aligner and about 80 MB for the speaker model). Prefer the Quick start above for everyday CLI/MCP/GUI work.
 
 ```bash
 git clone <repo-url> && cd sharecut-studio

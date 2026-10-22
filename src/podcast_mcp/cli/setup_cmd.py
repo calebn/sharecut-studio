@@ -197,10 +197,6 @@ def bootstrap(
             raise typer.Exit(2) from exc
     ok = True
     for spec in wanted:
-        reason = spec.unavailable() if component == "all" else None
-        if reason is not None and not model_status(spec.id)["ok"]:
-            typer.echo(f"[skip] {spec.id}: {reason}")
-            continue
         try:
             result = install_model(spec, whisper_model=whisper_model, force=upgrade)
         except Exception as exc:

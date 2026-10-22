@@ -25,7 +25,6 @@ from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.util.asset_sources import (
     asset_entry,
     download_first_ok,
-    has_download_source,
     ordered_http_urls,
 )
 from podcast_mcp.util.coded_error import CodedValueError
@@ -40,7 +39,6 @@ SPEAKER_ECAPA_LABEL = "Speaker recognition (ECAPA, ONNX)"
 SPEAKER_ECAPA_SIZE = "~80 MB"
 # 0.05 s at 16 kHz; the network's reflect-padded convolutions fail below about 700 samples.
 MIN_SAMPLES = 800
-NO_SOURCE = "no download source in this build"
 SOURCE_REPO = "speechbrain/spkrec-ecapa-voxceleb"
 SOURCE_REVISION = "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
 
@@ -55,14 +53,6 @@ def _pin() -> tuple[str, str]:
     if not sha:
         raise SpeakerEcapaMissingError("speaker-ecapa has no sha256 pin in bootstrap-assets.json")
     return str(meta["filename"]), sha
-
-
-def speaker_ecapa_unavailable() -> str | None:
-    """Why this build cannot download the model (None when it can)."""
-    filename, _ = _pin()
-    if has_download_source(SPEAKER_ECAPA_ASSET, relative_path=filename):
-        return None
-    return NO_SOURCE
 
 
 def speaker_ecapa_override() -> Path | None:
@@ -99,8 +89,6 @@ def bootstrap_speaker_ecapa(*, force: bool = False) -> dict[str, Any]:
     path = speaker_ecapa_path()
     if not force and speaker_ecapa_problem() is None:
         return {"ok": True, "skipped": True, "reason": "cached", "path": str(path)}
-    if (reason := speaker_ecapa_unavailable()) is not None:
-        raise SpeakerEcapaMissingError(reason)
     urls = ordered_http_urls(SPEAKER_ECAPA_ASSET, relative_path=filename)
     source = download_first_ok(urls, path, expected_sha256=expected)
     return {"ok": True, "path": str(path), "source": source}

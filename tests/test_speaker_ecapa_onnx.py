@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
+import urllib.error
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +15,8 @@ from podcast_mcp.engines import speaker_id
 from podcast_mcp.engines.models import speaker_ecapa
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.services.pipeline.bootstrap import component_status, run_bootstrap
+from podcast_mcp.util import asset_sources
+from podcast_mcp.util.asset_sources import AssetSourceError
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -108,12 +112,73 @@ def test_bootstrap_downloads_verifies_and_skips_when_cached(
     assert len(seen) == 2
 
 
-def test_bootstrap_without_a_source_says_so(
+DIRECT_URL = "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
+ASSETS_URL = "https://cdn.sharecut.studio/assets/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
+
+
+class _FakeOpener:
+    def __init__(self, responses: dict[str, bytes | Exception]) -> None:
+        self.responses = responses
+        self.requested: list[str] = []
+
+    def open(self, req, timeout: float = 120.0):
+        del timeout
+        self.requested.append(req.full_url)
+        outcome = self.responses[req.full_url]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return io.BytesIO(outcome)
+
+
+def _serve(monkeypatch: pytest.MonkeyPatch, responses: dict[str, bytes | Exception]):
+    opener = _FakeOpener(responses)
+    monkeypatch.setattr(asset_sources, "_https_opener", lambda: opener)
+    return opener
+
+
+def _forbidden(url: str) -> urllib.error.HTTPError:
+    return urllib.error.HTTPError(url, 403, "Forbidden", None, io.BytesIO(b""))  # type: ignore[arg-type]
+
+
+def test_stock_build_downloads_from_the_direct_url_and_verifies_the_pin(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
-    with pytest.raises(speaker_ecapa.SpeakerEcapaMissingError, match="no download source"):
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    _pin_to(monkeypatch, b"model-bytes")
+    opener = _serve(monkeypatch, {DIRECT_URL: b"model-bytes"})
+    result = speaker_ecapa.bootstrap_speaker_ecapa()
+    assert result["ok"] is True
+    assert opener.requested == [DIRECT_URL]
+    assert speaker_ecapa.speaker_ecapa_path().read_bytes() == b"model-bytes"
+    assert speaker_ecapa.speaker_ecapa_problem() is None
+
+
+def test_production_base_403_falls_through_to_the_direct_url(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", "https://cdn.sharecut.studio/assets")
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    _pin_to(monkeypatch, b"model-bytes")
+    opener = _serve(monkeypatch, {ASSETS_URL: _forbidden(ASSETS_URL), DIRECT_URL: b"model-bytes"})
+    result = speaker_ecapa.bootstrap_speaker_ecapa()
+    assert result["ok"] is True
+    assert opener.requested == [ASSETS_URL, DIRECT_URL]
+    assert speaker_ecapa.speaker_ecapa_path().read_bytes() == b"model-bytes"
+
+
+def test_wrong_bytes_are_rejected_and_leave_no_file(
+    model_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    _pin_to(monkeypatch, b"model-bytes")
+    opener = _serve(monkeypatch, {DIRECT_URL: b"tampered"})
+    with pytest.raises(AssetSourceError, match="sha256 mismatch"):
         speaker_ecapa.bootstrap_speaker_ecapa()
+    assert opener.requested == [DIRECT_URL]
+    assert not speaker_ecapa.speaker_ecapa_path().exists()
+    assert list(model_dir.rglob("*.part")) == []
 
 
 def test_component_status_is_opt_in_and_never_gates_first_run(model_dir: Path) -> None:
@@ -128,9 +193,12 @@ def test_gui_bootstrap_accepts_the_component(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    _pin_to(monkeypatch, b"model-bytes")
+    _serve(monkeypatch, {DIRECT_URL: b"model-bytes"})
     result = run_bootstrap(["speaker-ecapa"])
-    assert result["ok"] is False
-    assert "no download source" in result["results"]["speaker-ecapa"]["error"]
+    assert result["ok"] is True
+    assert speaker_ecapa.speaker_ecapa_path().read_bytes() == b"model-bytes"
     with pytest.raises(CodedValueError):
         run_bootstrap(["not-a-component"])
 
@@ -207,9 +275,10 @@ def test_cli_bootstrap_component_reports_a_failure(
     from podcast_mcp.cli.setup_cmd import setup_app
 
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
+    _serve(monkeypatch, {DIRECT_URL: _forbidden(DIRECT_URL)})
     result = CliRunner().invoke(setup_app, ["bootstrap", "--component", "speaker-ecapa"])
     assert result.exit_code == 1
-    assert "speaker-ecapa" in result.output
+    assert "[fail] speaker-ecapa" in result.output
 
 
 def test_cli_bootstrap_component_skips_when_ready(

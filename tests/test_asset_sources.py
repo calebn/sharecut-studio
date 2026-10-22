@@ -47,7 +47,8 @@ def test_speaker_model_url_under_the_production_base(monkeypatch: pytest.MonkeyP
     speaker = asset_entry("speaker-ecapa")["filename"]
     rnnoise = asset_entry("rnnoise")["filename"]
     assert ordered_http_urls("speaker-ecapa", relative_path=speaker) == [
-        "https://cdn.sharecut.studio/assets/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
+        "https://cdn.sharecut.studio/assets/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx",
+        "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx",
     ]
     assert ordered_http_urls("rnnoise", relative_path=rnnoise)[0] == (
         "https://cdn.sharecut.studio/assets/models/rnnoise/somnolent-hogwash.rnnn"
@@ -168,6 +169,19 @@ def test_cdn_base_env_survives_missing_manifest(monkeypatch: pytest.MonkeyPatch)
 def test_manifest_is_the_contract() -> None:
     contract = Path(__file__).resolve().parents[1] / "contracts" / "bootstrap-assets.json"
     assert load_manifest() == json.loads(contract.read_text(encoding="utf-8"))
+
+
+def test_every_http_asset_names_an_https_url_and_speaker_is_pinned() -> None:
+    assets = load_manifest()["assets"]
+    http_assets = {name: meta for name, meta in assets.items() if meta["kind"] == "http"}
+    assert {"rnnoise", "speaker-ecapa"} <= set(http_assets)
+    for name, meta in http_assets.items():
+        assert str(meta.get("url", "")).startswith("https://"), name
+    speaker = http_assets["speaker-ecapa"]
+    assert re.fullmatch(r"[0-9a-f]{64}", speaker["sha256"])
+    assert speaker["url"] == (
+        "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
+    )
 
 
 def test_load_manifest_returns_isolated_copies() -> None:
