@@ -77,6 +77,14 @@ export type SplitSpeakersDialogViewProps = {
   onGoTo: (sec: number) => void;
   /** Back to the settings after a failure, a cancel or an undo. */
   onRestart: () => void;
+  /** Download state for the speaker model offered when recognition is unavailable. */
+  speakerModel?: {
+    busy: boolean;
+    progress: string | null;
+    error: string | null;
+  };
+  /** Omit where the model cannot be downloaded (catalog previews). */
+  onDownloadSpeakerModel?: () => void;
   /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
   nowSec?: number;
 };
@@ -134,6 +142,8 @@ function SplitSpeakersForm({
   onMarkSample,
   onClearSample,
   onListenSample,
+  speakerModel,
+  onDownloadSpeakerModel,
   countRef,
 }: SplitSpeakersDialogViewProps & {
   countRef: RefObject<HTMLInputElement | null>;
@@ -154,6 +164,30 @@ function SplitSpeakersForm({
           <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#optional-downloads-and-extras">
             Read the speaker setup instructions
           </a>
+          {onDownloadSpeakerModel ? (
+            <>
+              <br />
+              <span>
+                Or download the speaker model (about 80 MB, Apache-2.0, from
+                SpeechBrain). It stays on this computer.
+              </span>{" "}
+              <Button
+                type="button"
+                disabledReason={speakerModel?.busy ? BUSY_REASON : undefined}
+                aria-busy={speakerModel?.busy || undefined}
+                onClick={onDownloadSpeakerModel}
+              >
+                {speakerModel?.busy ? "Downloading…" : "Download speaker model"}
+              </Button>
+              {speakerModel?.busy && speakerModel.progress ? (
+                <span role="status" aria-live="polite">
+                  {" "}
+                  {speakerModel.progress}
+                </span>
+              ) : null}
+              <InlineError message={speakerModel?.error ?? null} />
+            </>
+          ) : null}
         </p>
       ) : null}
       {stage.speakerReadiness === "checking" ? (
