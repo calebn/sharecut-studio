@@ -331,7 +331,7 @@ describe("fill range with room tone", () => {
       { track_id: "a", start_sec: 4, end_sec: 9 },
     );
     expect(useDawStore.getState().statusAnnouncement).toContain(
-      "Filled 1 gap with room tone",
+      "Filled room tone in 1 place",
     );
   });
 
@@ -347,6 +347,28 @@ describe("fill range with room tone", () => {
     expect(result).toEqual({
       status: "disabled",
       reason: "No usable room tone on this track to fill with",
+    });
+  });
+
+  it("sends one command per interval that has a gap and names a stop", async () => {
+    const twoIntervals = makeRangeTarget(
+      gapProject,
+      [
+        { start: 4, end: 9 },
+        { start: 11, end: 12 },
+      ],
+      ["a"],
+    )!;
+    useDawStore.setState({
+      selection: { kind: "range", target: twoIntervals },
+    });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
+    await execute("range.fillRoomTone");
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    vi.mocked(submitDocumentCommand).mockRejectedValue(new Error("offline"));
+    expect(await execute("range.fillRoomTone")).toEqual({
+      status: "disabled",
+      reason: "offline",
     });
   });
 });
