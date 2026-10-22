@@ -117,4 +117,6 @@ def test_agent_skills_stay_out_of_the_wheel_and_sdist(tmp_path: Path) -> None:
     assert not [name for name in sdist_names if name.startswith(".agents/skills")]
     wheel_names = _wheel_names(root, tmp_path / "out")
     assert "podcast_mcp/defaults/pipeline.yaml" in wheel_names
-    assert not [name for name in wheel_names if "skills" in name.split("/")]
+    assert not [
+        name for name in wheel_names if "skills" in name.split("/") or name.endswith("SKILL.md")
+    ]
