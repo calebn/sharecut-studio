@@ -472,7 +472,7 @@ mutes, cuts and pads are not in the media, so they are never holes.
 
 **Fill sources**, tried in order:
 
-1. the track's recorded room-tone bed (`track.room_tone`, registered and audible), tiled;
+1. the track's recorded room-tone bed (`track.room_tone`, registered, audible and clean: a bed with speech in it fails the same level and voice rows as an own-audio sample, against its own floor, and the fill moves on to comfort noise, #1216), tiled;
 2. comfort noise matched to the track's own noise under its speech;
 3. never another track. Bleed is never the main audio (#945). No source reads a peer.
 
