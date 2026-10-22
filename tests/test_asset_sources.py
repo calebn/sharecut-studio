@@ -36,17 +36,19 @@ def test_ordered_http_urls_prefers_cdn(monkeypatch: pytest.MonkeyPatch) -> None:
     assert urls[1].startswith("https://raw.githubusercontent.com/")
 
 
-# The production distribution profile (private overlay) sets this base. If it
-# changes, the objects the app asks for move with it: publish them there first.
+# The production distribution profile (private overlay) sets this base. The test
+# sets it itself and cannot see the overlay, so keep the two in step by hand.
 PRODUCTION_CDN_BASE = "https://cdn.sharecut.studio/assets"
 
 
 def test_speaker_model_url_under_the_production_base(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", PRODUCTION_CDN_BASE)
-    assert ordered_http_urls("speaker-ecapa", relative_path="ecapa-voxceleb-embedding.onnx") == [
+    speaker = asset_entry("speaker-ecapa")["filename"]
+    rnnoise = asset_entry("rnnoise")["filename"]
+    assert ordered_http_urls("speaker-ecapa", relative_path=speaker) == [
         "https://cdn.sharecut.studio/assets/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
     ]
-    assert ordered_http_urls("rnnoise", relative_path="somnolent-hogwash.rnnn")[0] == (
+    assert ordered_http_urls("rnnoise", relative_path=rnnoise)[0] == (
         "https://cdn.sharecut.studio/assets/models/rnnoise/somnolent-hogwash.rnnn"
     )
 
