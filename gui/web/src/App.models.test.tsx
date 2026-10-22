@@ -54,4 +54,13 @@ describe("App models provider", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(calls("/api/bootstrap")).toBe(0);
   });
+
+  it("does not ask a share-key session for host model status", async () => {
+    window.history.pushState({}, "", "/?project=share:some-token");
+    const calls = stubFetch();
+    render(<App />);
+    await waitFor(() => expect(calls("/features")).toBeGreaterThan(0));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls("/api/bootstrap")).toBe(0);
+  });
 });

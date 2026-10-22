@@ -21,6 +21,7 @@ import type { PipelineWorkingSetRecipe } from "../hooks/usePipelineWorkingSet";
 import { usePipelineWorkingSet } from "../hooks/usePipelineWorkingSet";
 import { useSingleFlight } from "../hooks/useSingleFlight";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
+import { useModels } from "../models";
 import { selectAgentPresent } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
 import type {
@@ -285,6 +286,14 @@ export function PipelinePanel() {
   const agentRecent = useDaw(selectAgentPresent);
   const workingSet = usePipelineWorkingSet(projectPath, true);
   const { cfg } = workingSet;
+  const { models } = useModels();
+  const installedModels = models
+    ? models
+        .filter((m) => m.state.kind === "installed")
+        .map((m) => m.id)
+        .join(",")
+    : null;
+  const seenInstalled = useRef<string | null>(null);
   const [whisperPending, setWhisperPending] =
     useState<WhisperDownloadRequest | null>(null);
   const [selectedStep, setSelectedStep] = useState<string>("balance_tracks");
@@ -696,6 +705,18 @@ export function PipelinePanel() {
   const refreshConfig = async () => {
     return workingSet.fetchFresh();
   };
+
+  const refetchOnInstallChange = useEffectEvent(() => {
+    void refreshConfig().catch((e: unknown) => setError(errorMessage(e)));
+  });
+  useEffect(() => {
+    if (installedModels === null) return;
+    const previous = seenInstalled.current;
+    seenInstalled.current = installedModels;
+    if (previous !== null && previous !== installedModels) {
+      refetchOnInstallChange();
+    }
+  }, [installedModels]);
 
   const onWhisperDownloaded = async (modelId: string) => {
     const reason = whisperPending?.reason;

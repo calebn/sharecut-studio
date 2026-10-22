@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   ANOTHER_DOWNLOAD_REASON,
   formatBytes,
@@ -36,6 +36,7 @@ function summary(picked: ModelView[]): string {
 export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
   const { models, tools, ready, busy, loadError, download } = useModels();
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const stuckId = useId();
   const started = useRef(false);
   const [finished, setFinished] = useState(false);
 
@@ -99,11 +100,15 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
     setFinished(outcome.kind === "ok");
   }
 
+  const stuckReason =
+    picked.length === 0 && !ready
+      ? "Nothing is picked to download, and setup cannot finish without the audio tools."
+      : undefined;
+  const continueReason = busy ? BUSY_REASON : stuckReason;
+
   const onContinue = () => {
     if (picked.length === 0) {
-      if (ready) {
-        onReady();
-      }
+      onReady();
       return;
     }
     void run(picked.map((m) => m.id));
@@ -147,11 +152,17 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       <p className="model-summary">
         {busy ? "Download in progress" : summary(picked)}
       </p>
+      {stuckReason ? (
+        <p className="model-note" id={stuckId}>
+          {stuckReason}
+        </p>
+      ) : null}
       <div className="cluster">
         <Button
           variant="primary"
           onClick={onContinue}
-          disabledReason={busy ? BUSY_REASON : undefined}
+          disabledReason={continueReason}
+          aria-describedby={stuckReason ? stuckId : undefined}
         >
           {busy ? "Downloading…" : "Continue"}
         </Button>

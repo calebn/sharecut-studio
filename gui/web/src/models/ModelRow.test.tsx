@@ -118,6 +118,25 @@ describe("ModelRow", () => {
     }
   });
 
+  it("moves focus to Cancel when the clicked Download button gives way to the bar", async () => {
+    const user = userEvent.setup();
+    const missing = view({ kind: "missing" });
+    const action = download({ onCancel: vi.fn() });
+    const { rerender } = renderRow(missing, action);
+    await user.click(screen.getByRole("button", { name: "Download Whisper" }));
+    rerender(
+      <ul>
+        <ModelRow
+          model={view({ kind: "downloading", bytes: 1, total: 2 })}
+          action={action}
+        />
+      </ul>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Cancel Whisper download" }),
+    ).toHaveFocus();
+  });
+
   it("draws a real bar from bytes and total, spoken as 'N MB of M GB'", async () => {
     const { container } = renderRow(
       view({ kind: "downloading", bytes: 420_000_000, total: 1_600_000_000 }),

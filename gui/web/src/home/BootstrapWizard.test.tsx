@@ -105,6 +105,24 @@ describe("BootstrapWizard rows", () => {
     ]);
   });
 
+  it("disables Continue with a reason when nothing is picked and setup cannot finish", () => {
+    const rows = registryRows().map((r) => ({
+      ...r,
+      state: "installed" as const,
+    }));
+    renderWithModels(<BootstrapWizard onReady={vi.fn()} />, {
+      status: modelStatus(rows, {
+        ready: false,
+        tools: {
+          ffmpeg: { state: "missing", source: "not found", hint: null },
+        },
+      }),
+    });
+    const button = screen.getByRole("button", { name: "Continue" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(/Nothing is picked/);
+  });
+
   it("counts models when a size is unknown", async () => {
     const user = userEvent.setup();
     renderWithModels(<BootstrapWizard onReady={vi.fn()} />, {

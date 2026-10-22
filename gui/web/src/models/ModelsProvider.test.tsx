@@ -1,4 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -8,6 +14,7 @@ import type {
 } from "../api";
 import * as api from "../api";
 import { ApiError } from "../utils/apiError";
+import { ModelRow } from "./ModelRow";
 import { ModelsProvider } from "./ModelsProvider";
 import { useModel, useModels } from "./useModels";
 
@@ -356,6 +363,62 @@ describe("ModelsProvider", () => {
     expect(outcome).toEqual({ kind: "failed", failed: ["rnnoise"] });
     expect(result.current.models![1]!.state).toMatchObject({ kind: "failed" });
     expect(result.current.busy).toBe(false);
+  });
+
+  it("shows no environment name or absolute path in a failed row's alert", async () => {
+    run.mockRejectedValue(
+      new Error(
+        "Could not reach PODCAST_BOOTSTRAP_CDN_BASE while writing /home/x/.cache/podcast/models/a.bin and C:\\Users\\x\\models\\a.bin",
+      ),
+    );
+    const { result } = await mounted();
+    await act(async () => {
+      await result.current.download(["rnnoise"]);
+    });
+    render(
+      <ModelRow model={result.current.models![1]!} action={{ kind: "none" }} />,
+    );
+    const alert = screen.getByRole("alert").textContent ?? "";
+    expect(alert).not.toBe("");
+    expect(alert).not.toMatch(/PODCAST_/);
+    expect(alert).not.toMatch(/\/home\/|C:\\/);
+  });
+
+  it("does not reject when cancel fails, and reads status again", async () => {
+    run.mockResolvedValue({ job: job() });
+    cancel.mockRejectedValue(new Error("Failed to fetch"));
+    const { result } = await mounted();
+    act(() => {
+      void result.current.download(["whisper"]);
+    });
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    fetchStatus.mockClear();
+    await act(async () => {
+      await expect(result.current.cancel()).resolves.toBeUndefined();
+    });
+    expect(fetchStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a Whisper failure when another size is chosen", async () => {
+    run.mockResolvedValue({ job: job() });
+    const { result } = await mounted();
+    let outcome: Promise<unknown> = Promise.resolve();
+    act(() => {
+      outcome = result.current.download(["whisper"]);
+    });
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    await act(async () => {
+      waiters[0]!.finish(
+        job({
+          status: "error",
+          result: { results: { whisper: { ok: false, error: "No space." } } },
+        }),
+      );
+      await outcome;
+    });
+    expect(result.current.models![0]!.state.kind).toBe("failed");
+    act(() => result.current.whisper.choose("small.en"));
+    expect(result.current.models![0]!.state.kind).toBe("missing");
   });
 
   it("refetches status for a chosen variant and drops a stale response", async () => {

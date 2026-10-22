@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { Button, InlineError, Pill } from "../ui";
 import { capitalize, failureHint, stateText, tierText } from "./format";
 import { ModelProgress } from "./ModelProgress";
@@ -43,6 +43,8 @@ function downloadLabel(kind: ModelView["state"]["kind"]): string {
  */
 export function ModelRow({ model, variantPicker, action }: Props) {
   const uid = useId();
+  const rowRef = useRef<HTMLLIElement>(null);
+  const keepFocus = useRef(false);
   const nameId = `${uid}-name`;
   const purposeId = `${uid}-purpose`;
   const requiredId = `${uid}-required`;
@@ -84,8 +86,34 @@ export function ModelRow({ model, variantPicker, action }: Props) {
     state.kind === "downloading" &&
     action.onCancel !== undefined;
 
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!keepFocus.current || !row) {
+      return;
+    }
+    const active = document.activeElement;
+    if (active && active !== document.body && !row.contains(active)) {
+      keepFocus.current = false;
+      return;
+    }
+    if (state.kind === "queued") {
+      row.focus();
+      return;
+    }
+    keepFocus.current = false;
+    const button = row.querySelector<HTMLElement>(".model-row-actions button");
+    (button ?? row).focus();
+  }, [state.kind]);
+
+  const act = (run: (() => void) | undefined) => () => {
+    keepFocus.current = true;
+    run?.();
+  };
+
   return (
     <li
+      ref={rowRef}
+      tabIndex={-1}
       className="box stack model-row"
       data-model={model.id}
       data-state={state.kind}
@@ -123,7 +151,7 @@ export function ModelRow({ model, variantPicker, action }: Props) {
             aria-label={`${buttonLabel} ${model.label}`}
             aria-describedby={action.blockedReason ? blockedId : undefined}
             disabledReason={action.blockedReason}
-            onClick={action.onDownload}
+            onClick={act(action.onDownload)}
           >
             {buttonLabel}
           </Button>
@@ -138,7 +166,7 @@ export function ModelRow({ model, variantPicker, action }: Props) {
         <div className="model-row-actions">
           <Button
             aria-label={`Cancel ${model.label} download`}
-            onClick={action.onCancel}
+            onClick={act(action.onCancel)}
           >
             Cancel
           </Button>
