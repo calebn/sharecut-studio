@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import struct
 import subprocess
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,8 +13,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines import render_clock
-from podcast_mcp.engines.audio import At, MixAudio, SourceAudio
+from podcast_mcp.engines.audio import At, MixAudio, ObservedAudio, SourceAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.util.fingerprint import file_stamp
 
 _PCM_GUID = bytes.fromhex("0100000000001000800000aa00389b71")
 _FLOAT_GUID = bytes.fromhex("0300000000001000800000aa00389b71")
@@ -247,8 +249,13 @@ _DEFERRED: dict[str, Callable[[Path], bytes]] = {
     "f16 hack extensible": lambda tmp: _f16_hack(tmp, extensible=True),
     "extensible cbSize 0": lambda _: _extensible_cb(0),
     "extensible cbSize 10": lambda _: _extensible_cb(10),
+    "extensible cbSize 21": lambda _: _extensible_cb(21),
     "short fmt": lambda _: _riff(_chunk(b"fmt ", bytes(14)), _chunk(b"data", _PCM)),
-    "oversized fmt": lambda _: _riff(_chunk(b"fmt ", bytes(258)), _chunk(b"data", _PCM)),
+    "oversized fmt": lambda _: _riff(
+        _chunk(b"fmt ", _fmt_chunk(_Wav(extensible=(_PCM_GUID, 16, 0x4)))[8:].ljust(258, b"\0")),
+        _chunk(b"data", _PCM),
+    ),
+    "ac3 spdif past 4 KiB": lambda tmp: _plain(_Wav(channels=2), bytes(8192) + _spdif_payload(tmp)),
     "unpadded odd chunk": lambda _: _riff(
         _chunk(b"LIST", b"INFOx", pad=False), _fmt_chunk(_Wav()), _chunk(b"data", _PCM)
     ),
@@ -267,6 +274,7 @@ _DEFERRED: dict[str, Callable[[Path], bytes]] = {
     "20 bit": lambda _: _plain(_Wav(bits=20, align=3), _PCM),
     "block align": lambda _: _plain(_Wav(align=4), _PCM),
     "zero rate": lambda _: _plain(_Wav(rate=0), _PCM),
+    "rate 2**31": lambda _: _plain(_Wav(rate=2**31, bits=8), _PCM),
     "float 16 bit": lambda _: _plain(_Wav(tag=3, bits=16), _PCM),
     "m4a named wav": lambda tmp: _encoded(tmp, "aac.wav", "-c:a", "aac", "-f", "ipod").read_bytes(),
     "id3 first": lambda _: b"ID3\x04\0\0\0\0\0\0" + _plain(_Wav(), _PCM),
@@ -280,6 +288,14 @@ def test_wav_header_defers_to_probe(tmp_path: Path, name: str) -> None:
     path = tmp_path / "input.wav"
     path.write_bytes(_DEFERRED[name](tmp_path))
     assert _header(path) is None
+
+
+def test_an_spdif_stream_past_4_kib_decodes_as_float_though_the_header_says_s16(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "late.wav"
+    path.write_bytes(_DEFERRED["ac3 spdif past 4 KiB"](tmp_path))
+    assert _probed(path)[1] == "fltp"
 
 
 def test_the_f16_hack_decodes_as_float_though_the_header_says_s32(tmp_path: Path) -> None:
@@ -318,3 +334,73 @@ def test_header_route_render_bytes_equal_probe_route(
     monkeypatch.setattr(render_clock, "_wav_format", lambda path: None)
     probe_out = FFmpegEngine().render_timeline(tmp_path / "probe.wav", audio, "anull")
     assert header_out.read_bytes() == probe_out.read_bytes()
+
+
+def _counted_probes(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Path]]:
+    probes: list[tuple[str, Path]] = []
+
+    def probe(ffmpeg: str, path: Path) -> ObservedAudio:
+        probes.append((ffmpeg, path))
+        return ObservedAudio(48000, 0, "s16", "mono")
+
+    monkeypatch.setattr(render_clock, "_native_format", probe)
+    return probes
+
+
+def test_probe_cache_shares_one_probe_between_paths_to_one_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probes = _counted_probes(monkeypatch)
+    target = _write_format(tmp_path / "a.wav", "s16", 1, 48000)
+    link = tmp_path / "link.wav"
+    link.symlink_to(target)
+    (tmp_path / "sub").mkdir()
+    monkeypatch.chdir(tmp_path)
+    for path in (target, link, Path("a.wav"), Path("sub/../a.wav")):
+        render_clock._probed_format("ffmpeg", path)
+    assert len(probes) == 1
+
+
+def test_probe_cache_probes_again_for_another_ffmpeg(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probes = _counted_probes(monkeypatch)
+    path = _write_format(tmp_path / "a.wav", "s16", 1, 48000)
+    render_clock._probed_format("ffmpeg-one", path)
+    render_clock._probed_format("ffmpeg-one", path)
+    render_clock._probed_format("ffmpeg-two", path)
+    assert [ffmpeg for ffmpeg, _ in probes] == ["ffmpeg-one", "ffmpeg-two"]
+
+
+def test_probe_cache_probes_again_when_only_the_ctime_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probes = _counted_probes(monkeypatch)
+    path = _write_format(tmp_path / "a.wav", "s16", 1, 48000)
+    render_clock._probed_format("ffmpeg", path)
+    before = file_stamp(path)
+    mode = path.stat().st_mode & 0o777
+    for attempt in range(100):
+        time.sleep(0.01)
+        path.chmod(mode ^ 0o100 if attempt % 2 == 0 else mode)
+        after = file_stamp(path)
+        if after.ctime_ns != before.ctime_ns:
+            break
+    assert after.revision == before.revision
+    assert after.ctime_ns != before.ctime_ns
+    render_clock._probed_format("ffmpeg", path)
+    assert len(probes) == 2
+
+
+def test_probe_cache_key_carries_the_whole_stamp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probes = _counted_probes(monkeypatch)
+    path = _write_format(tmp_path / "a.wav", "s16", 1, 48000)
+    stamp = file_stamp(path)
+    for ctime_ns in (stamp.ctime_ns, stamp.ctime_ns + 1):
+        monkeypatch.setattr(
+            render_clock, "file_stamp", lambda _, c=ctime_ns: stamp._replace(ctime_ns=c)
+        )
+        render_clock._probed_format("ffmpeg", path)
+    assert len(probes) == 2
