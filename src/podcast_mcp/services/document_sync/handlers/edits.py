@@ -145,7 +145,7 @@ def stage_time_range_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
 
 
 def stage_text_match_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    staged = EditService(ws).cut_text_match(
+    EditService(ws).cut_text_match(
         str(p["query"]),
         track_id=p.get("track_id"),
         speaker=p.get("speaker"),
@@ -153,7 +153,7 @@ def stage_text_match_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
         review_required=p.get("review_required") is not False,
         use_inaudible_opt=p.get("use_inaudible_opt"),
     )
-    return {"edits": [e.model_dump() for e in staged]}
+    return {"edits": [e.model_dump() for e in ws.project.edit_decisions[-5:]]}
 
 
 def stage_utterance_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

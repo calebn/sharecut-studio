@@ -118,7 +118,7 @@ def cut_text_match_tool(
     use_inaudible_opt: bool | None = None,
 ) -> str:
     """Stage a pending cut for the first text match, or every match with match_all=True."""
-    submit_host_command_result(
+    result = submit_host_command_result(
         project_path,
         "StageTextMatchCut",
         {
@@ -130,8 +130,7 @@ def cut_text_match_tool(
             "use_inaudible_opt": use_inaudible_opt,
         },
     )
-    ws = ProjectWorkspace.open(project_path)
-    return to_json([e.model_dump() for e in ws.project.edit_decisions[-5:]])
+    return to_json(result["edits"])
 
 
 def cut_utterance_tool(
