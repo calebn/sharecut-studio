@@ -227,6 +227,7 @@ def _plain(spec: _Wav, payload: bytes) -> bytes:
 _PCM = _samples("s16", 1, _FRAMES)
 _STEREO = _samples("s16", 2, _FRAMES)
 _F16_TAIL = b"\x01\x00"
+_EXTENSIBLE_FMT = struct.pack("<HHIIHH", 0xFFFE, 1, 48000, 96000, 2, 16)
 _OTHER_GUID = bytes.fromhex("0600000000001000800000aa00389b71")
 
 
@@ -278,6 +279,12 @@ _DEFERRED: dict[str, Callable[[Path], bytes]] = {
     "extensible cbSize 0": lambda _: _extensible_cb(0),
     "extensible cbSize 10": lambda _: _extensible_cb(10),
     "extensible cbSize 21": lambda _: _extensible_cb(21),
+    "extensible fmt 16 bytes": lambda _: _riff(
+        _chunk(b"fmt ", _EXTENSIBLE_FMT), _chunk(b"data", _PCM)
+    ),
+    "extensible fmt 18 bytes, cbSize 22": lambda _: _riff(
+        _chunk(b"fmt ", _EXTENSIBLE_FMT + struct.pack("<H", 22)), _chunk(b"data", _PCM)
+    ),
     "short fmt": lambda _: _riff(_chunk(b"fmt ", bytes(14)), _chunk(b"data", _PCM)),
     "oversized fmt": lambda _: _riff(
         _chunk(b"fmt ", _fmt_chunk(_Wav(extensible=(_PCM_GUID, 16, 0x4)))[8:].ljust(258, b"\0")),
