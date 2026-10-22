@@ -43,13 +43,15 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
-| `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `override_audio_checks` (boolean), `track_ids` (array[string]) |
+| `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `override_audio_checks` (boolean), `track_ids` (array[string]), `use_inaudible_opt` (boolean \| null) |
 | `DeleteChapter` | `time` (number), `title` (string) | — |
 | `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `override_audio_checks` (boolean), `reason` (string \| null) |
 | `DeleteComment` | `comment_id` (string) | — |
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `EditSelectedRange` | `action` (cut \| mute), `target` (object) | `override_audio_checks` (boolean) |
+| `InsertGap` | `at_time` (number) | `duration_sec` (number) |
+| `MoveByText` | `destination_query` (string), `source_query` (string) | `position` (string) |
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `PasteSegment` | `duration` (number), `insert_at` (number), `mode` (ripple \| gap) | `extracts` (array[object]) |
@@ -93,7 +95,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 61 command types._
+_Generated 63 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

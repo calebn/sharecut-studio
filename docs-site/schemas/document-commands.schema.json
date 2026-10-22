@@ -2076,6 +2076,19 @@
           },
           "title": "Track Ids",
           "type": "array"
+        },
+        "use_inaudible_opt": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ripple only: snap the bounds to the quiet air around the cut. Omitted, the project's default applies; false keeps the bounds as given.",
+          "title": "Use Inaudible Opt"
         }
       },
       "required": [
@@ -2927,6 +2940,237 @@
         "value"
       ],
       "title": "ExpectedEnvelopePoint",
+      "type": "object"
+    },
+    "InsertGapCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/InsertGapPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "InsertGap",
+          "default": "InsertGap",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "InsertGapCommand",
+      "type": "object"
+    },
+    "InsertGapPayload": {
+      "properties": {
+        "at_time": {
+          "title": "At Time",
+          "type": "number"
+        },
+        "duration_sec": {
+          "default": 1.0,
+          "title": "Duration Sec",
+          "type": "number"
+        }
+      },
+      "required": [
+        "at_time"
+      ],
+      "title": "InsertGapPayload",
+      "type": "object"
+    },
+    "MoveByTextCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/MoveByTextPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "MoveByText",
+          "default": "MoveByText",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "MoveByTextCommand",
+      "type": "object"
+    },
+    "MoveByTextPayload": {
+      "properties": {
+        "destination_query": {
+          "title": "Destination Query",
+          "type": "string"
+        },
+        "position": {
+          "default": "after",
+          "title": "Position",
+          "type": "string"
+        },
+        "source_query": {
+          "title": "Source Query",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_query",
+        "destination_query"
+      ],
+      "title": "MoveByTextPayload",
       "type": "object"
     },
     "MoveClipsCommand": {
@@ -8608,6 +8852,8 @@
       "DeleteSocialClip": "#/$defs/DeleteSocialClipCommand",
       "DuplicateSegment": "#/$defs/DuplicateSegmentCommand",
       "EditSelectedRange": "#/$defs/EditSelectedRangeCommand",
+      "InsertGap": "#/$defs/InsertGapCommand",
+      "MoveByText": "#/$defs/MoveByTextCommand",
       "MoveClips": "#/$defs/MoveClipsCommand",
       "MoveSegment": "#/$defs/MoveSegmentCommand",
       "PasteSegment": "#/$defs/PasteSegmentCommand",
@@ -8806,6 +9052,12 @@
     },
     {
       "$ref": "#/$defs/MoveSegmentCommand"
+    },
+    {
+      "$ref": "#/$defs/InsertGapCommand"
+    },
+    {
+      "$ref": "#/$defs/MoveByTextCommand"
     },
     {
       "$ref": "#/$defs/MoveClipsCommand"

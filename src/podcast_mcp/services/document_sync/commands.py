@@ -61,6 +61,8 @@ DocumentCommandType = Literal[
     "DeleteClip",
     "DuplicateSegment",
     "MoveSegment",
+    "InsertGap",
+    "MoveByText",
     "MoveClips",
     "PasteSegment",
     "CutRange",

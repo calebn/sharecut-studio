@@ -593,10 +593,28 @@ class PasteSegmentPayload(BaseModel):
     mode: EditModeField
 
 
+class InsertGapPayload(BaseModel):
+    at_time: float = Field(allow_inf_nan=False)
+    duration_sec: float = Field(default=1.0, allow_inf_nan=False)
+
+
+class MoveByTextPayload(BaseModel):
+    source_query: str
+    destination_query: str
+    position: str = "after"
+
+
 class CutRangePayload(BaseModel):
     start: float = Field(ge=0, allow_inf_nan=False)
     end: float = Field(allow_inf_nan=False)
     mode: EditModeField
+    use_inaudible_opt: bool | None = Field(
+        default=None,
+        description=(
+            "Ripple only: snap the bounds to the quiet air around the cut. Omitted, the "
+            "project's default applies; false keeps the bounds as given."
+        ),
+    )
     track_ids: list[str] = Field(
         default_factory=list,
         description=(
@@ -938,6 +956,16 @@ class PasteSegmentCommand(DocumentCommandEnvelope):
     payload: PasteSegmentPayload
 
 
+class InsertGapCommand(DocumentCommandEnvelope):
+    type: Literal["InsertGap"] = "InsertGap"
+    payload: InsertGapPayload
+
+
+class MoveByTextCommand(DocumentCommandEnvelope):
+    type: Literal["MoveByText"] = "MoveByText"
+    payload: MoveByTextPayload
+
+
 class CutRangeCommand(DocumentCommandEnvelope):
     type: Literal["CutRange"] = "CutRange"
     payload: CutRangePayload
@@ -1030,6 +1058,8 @@ DocumentCommandBody = Annotated[
     | DeleteClipCommand
     | DuplicateSegmentCommand
     | MoveSegmentCommand
+    | InsertGapCommand
+    | MoveByTextCommand
     | MoveClipsCommand
     | PasteSegmentCommand
     | CutRangeCommand
@@ -1149,6 +1179,8 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "DeleteClip": DeleteClipPayload,
     "DuplicateSegment": DuplicateSegmentPayload,
     "MoveSegment": MoveSegmentPayload,
+    "InsertGap": InsertGapPayload,
+    "MoveByText": MoveByTextPayload,
     "MoveClips": MoveClipsPayload,
     "PasteSegment": PasteSegmentPayload,
     "CutRange": CutRangePayload,

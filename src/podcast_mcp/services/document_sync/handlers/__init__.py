@@ -58,6 +58,8 @@ HANDLERS: dict[str, Handler] = {
     "DeleteClip": edits.delete_clip,
     "DuplicateSegment": edits.duplicate_segment,
     "MoveSegment": edits.move_segment,
+    "InsertGap": edits.insert_gap,
+    "MoveByText": edits.move_by_text,
     "MoveClips": edits.move_clips,
     "PasteSegment": edits.paste_segment,
     "CutRange": edits.cut_range,
