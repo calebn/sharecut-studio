@@ -203,6 +203,8 @@ config `components` map is the same record keyed by id. `ok`, `pin_mismatch`, `r
 `opt_in` and the `components`, `default_components`, `optional_components` and `opt_in_components`
 lists are gone. `sharecut setup` prints `update needed` for an `update_needed` model.
 
+**A missing model.** An action that needs a model that is not installed (or is `update_needed`) stops before it starts and says so the same way everywhere, naming the model, its size and the command that installs it: the CLI prints `Error: needs <label> (<size>); run `podcast bootstrap --component <id>` (code model_needed)` and exits 1, a Studio route answers 409 `model_needed` with the model's record so the app can offer the download, and an MCP tool returns the same text with `error_code: "model_needed"`. Nothing is ever downloaded for you; the download is a separate, explicit step.
+
 To check the shipped pins against a clean download (network; bootstrap hashes every
 file uncached and exits 1 on a mismatch):
 

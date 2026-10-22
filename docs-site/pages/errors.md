@@ -19,6 +19,7 @@ Comment / reply body max: **8000** characters.
 |------|------|--------|
 | Guest offline / apply conflict | **409** | May include `conflict: true` in JSON detail |
 | Render / job busy | **409** | Retry after host finishes |
+| An action needs a model that is not installed | **409** | `X-Sharecut-Error-Code: model_needed`. The host body is `{"detail": {"detail": "<message>", "model": {"id", "model", "label", "purpose", "size", "size_bytes", "command", "state"}}}`, where `state` is `missing` or `update_needed`. A share guest gets only a plain sentence asking the host to download the model |
 
 ## Guest MCP tool failures
 

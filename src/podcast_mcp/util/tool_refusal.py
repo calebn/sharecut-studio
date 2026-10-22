@@ -13,6 +13,8 @@ the exception's ``__cause__`` chain:
 Anything else is a crash and returns ``None``: the adapter logs it on the host and the caller
 sees only ``Error executing tool <name>`` (#1178, #1182).
 
+A ``ModelMissing`` also carries its model fields as ``extra`` (the host only).
+
 A share guest is not the host: ``for_guest=True`` uses the refusal's ``guest_message()``,
 which selects fixed copy by code and falls back to one generic line for unknown codes. Host
 diagnostics never become guest copy (#1327).
@@ -25,12 +27,15 @@ the refusal's guest message otherwise.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from filelock import Timeout
 from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp.util.coded_error import coded_cause, guest_message_for_code
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
@@ -41,6 +46,7 @@ class ToolRefusal:
 
     message: str
     code: str
+    extra: Mapping[str, Any] | None = None
 
 
 def lock_timeout_cause(exc: BaseException) -> Timeout | None:
@@ -78,7 +84,10 @@ def tool_refusal(exc: BaseException, *, for_guest: bool = False) -> ToolRefusal 
     refusal = coded_cause(exc)
     if refusal is None:
         return None
-    return ToolRefusal(refusal.guest_message() if for_guest else str(refusal), refusal.code)
+    if for_guest:
+        return ToolRefusal(refusal.guest_message(), refusal.code)
+    extra = {"model": refusal.payload()} if isinstance(refusal, ModelMissing) else None
+    return ToolRefusal(str(refusal), refusal.code, extra)
 
 
 def guest_failure_detail(exc: BaseException) -> str | None:
@@ -91,7 +100,12 @@ def refusal_tool_result(refusal: ToolRefusal) -> CallToolResult:
     """A structured ``is_error`` result: the message as text, plus ``error_code``."""
     return CallToolResult(
         content=[TextContent(type="text", text=refusal.message)],
-        structured_content={"ok": False, "error": refusal.message, "error_code": refusal.code},
+        structured_content={
+            "ok": False,
+            "error": refusal.message,
+            "error_code": refusal.code,
+            **(refusal.extra or {}),
+        },
         is_error=True,
     )
 

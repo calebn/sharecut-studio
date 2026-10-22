@@ -24,6 +24,7 @@ from podcast_mcp.util.coded_error import (
     HostSetupError,
     SignInRequiredError,
 )
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.tool_refusal import tool_refusal
@@ -102,6 +103,14 @@ async def project_busy_exception_handler(request: Request, exc: Exception) -> Re
     )
 
 
+def _is_host(request: Request) -> bool:
+    return authorize_host(
+        peer_host=peer_host(request),
+        token=request.query_params.get("token") or request.headers.get("X-Podcast-Token"),
+        relayed=is_relayed_request(request.headers),
+    ).allowed
+
+
 async def host_setup_exception_handler(request: Request, exc: Exception) -> Response:
     """App-wide fallback: a host file or folder that is not private becomes HTTP 500 with the refusal.
 
@@ -111,15 +120,27 @@ async def host_setup_exception_handler(request: Request, exc: Exception) -> Resp
     reads the refusal's guest message, like every refusal a guest sees (``util/tool_refusal.py``).
     """
     assert isinstance(exc, HostSetupError)
-    host = authorize_host(
-        peer_host=peer_host(request),
-        token=request.query_params.get("token") or request.headers.get("X-Podcast-Token"),
-        relayed=is_relayed_request(request.headers),
-    ).allowed
+    host = _is_host(request)
     refusal = tool_refusal(exc, for_guest=not host)
     assert refusal is not None
     return await http_exception_handler(
         request, coded_http_error(500, refusal.message, code=refusal.code)
+    )
+
+
+async def model_missing_exception_handler(request: Request, exc: Exception) -> Response:
+    """App-wide: an action that needs a model that is not installed becomes 409 ``model_needed``.
+
+    The host reads the model's fields to offer the download; any other caller (a relayed share
+    guest) reads only the guest copy, with no model, command or size.
+    """
+    assert isinstance(exc, ModelMissing)
+    host = _is_host(request)
+    refusal = tool_refusal(exc, for_guest=not host)
+    assert refusal is not None
+    detail = {"detail": refusal.message, **(refusal.extra or {})} if host else refusal.message
+    return await http_exception_handler(
+        request, coded_http_error(409, detail, code=refusal.code, headers=NO_STORE)
     )
 
 

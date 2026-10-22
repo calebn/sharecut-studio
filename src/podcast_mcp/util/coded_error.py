@@ -37,6 +37,7 @@ _GUEST_MESSAGES = {
     "invalid_audio": "This upload is not a playable audio file. Choose a supported audio file and try again.",
     "invalid_lease": "Your recording access is no longer valid. Ask the host to reconnect you.",
     "mix_out_of_date": "The mix is out of date. Ask the host to refresh it before playing this range.",
+    "model_needed": "The host needs to download a model first; ask the host to open ShareCut Studio.",
     "no_mix": "No mix is available yet. Ask the host to refresh it.",
     "pending_edit_changed": "This edit changed since you reviewed it. Review the updated edit before trying again.",
     "pending_preview_unavailable": "This preview isn't available right now. Ask the host to check the project.",

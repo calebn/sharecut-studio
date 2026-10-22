@@ -46,6 +46,7 @@ from podcast_mcp.gui.routes.deps import (
     coded_http_error,
     guard_exception_handler,
     host_setup_exception_handler,
+    model_missing_exception_handler,
     project_busy_exception_handler,
     require_host,
 )
@@ -62,6 +63,7 @@ from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import register_guest_progress_sink, register_progress_sink
 
 __all__ = ["apply_ws_client_message", "apply_ws_viewer_state", "create_app"]
@@ -271,6 +273,7 @@ def create_app(
     app.add_exception_handler(TranscriptContextBusyError, project_busy_exception_handler)
     app.add_exception_handler(GuardRefusal, guard_exception_handler)
     app.add_exception_handler(HostSetupError, host_setup_exception_handler)
+    app.add_exception_handler(ModelMissing, model_missing_exception_handler)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),
