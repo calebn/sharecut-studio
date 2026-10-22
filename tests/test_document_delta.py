@@ -242,6 +242,18 @@ def test_snapshot_rejects_dependencies_changed_during_assembly(minimal_project):
     assert snapshot == {"server_seq": 0, "resync": True}
 
 
+def test_resync_predecessor_recovers_without_logging_a_delta_failure(minimal_project, caplog):
+    svc = DocumentSyncService.open(minimal_project)
+    stale = {"server_seq": 0, "resync": True}
+    with (
+        patch.object(svc, "_before_snapshot", return_value=stale),
+        caplog.at_level("WARNING", logger="podcast_mcp.services.document_sync.service"),
+    ):
+        reply = svc.submit(comment())
+    assert reply["snapshot"] == {"server_seq": 1, "resync": True}
+    assert "Document delta construction failed" not in caplog.text
+
+
 def test_real_large_clip_move_and_word_edit_have_bounded_payload(tmp_path):
     for size in (100, 10_000):
         project = EpisodeProject.create("clips", str(tmp_path / str(size)))
