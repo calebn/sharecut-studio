@@ -517,3 +517,68 @@ describe("a reload keeps the person's Whisper size pick", () => {
     expect(result.current.whisper.variant).toBe("small.en");
   });
 });
+
+describe("every status read is for the picked Whisper size", () => {
+  const byVariant = (variant?: string) => {
+    const picked = variant ?? "large-v3-turbo";
+    return Promise.resolve(
+      status(
+        [
+          row({
+            id: "whisper",
+            tier: "required",
+            model: picked,
+            state: picked === "large-v3-turbo" ? "installed" : "missing",
+          }),
+          MISSING[1]!,
+        ],
+        { whisper_model: picked },
+      ),
+    );
+  };
+
+  it("keeps the picked size not installed when a non-Whisper job ends", async () => {
+    fetchStatus.mockImplementation(byVariant);
+    run.mockResolvedValue({
+      job: job({ id: "j2", components: ["rnnoise"] }),
+    });
+    const { result } = await mounted();
+    act(() => result.current.whisper.choose("small.en"));
+    await waitFor(() =>
+      expect(result.current.models![0]!.state.kind).toBe("missing"),
+    );
+    let outcome: Promise<unknown> = Promise.resolve();
+    act(() => {
+      outcome = result.current.download(["rnnoise"]);
+    });
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    await act(async () => {
+      waiters[0]!.finish(
+        job({ id: "j2", components: ["rnnoise"], status: "ok" }),
+      );
+      await outcome;
+    });
+    expect(fetchStatus).toHaveBeenLastCalledWith("small.en");
+    expect(result.current.whisper.variant).toBe("small.en");
+    expect(result.current.models![0]!.state.kind).toBe("missing");
+  });
+
+  it("keeps the picked size's state when another tab's job of a different size ends", async () => {
+    fetchStatus.mockImplementation(byVariant);
+    fetchJob.mockResolvedValue(job({ id: "other" }));
+    const { result } = await mounted();
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    act(() => result.current.whisper.choose("small.en"));
+    await waitFor(() =>
+      expect(result.current.models![0]!.state.kind).toBe("queued"),
+    );
+    await act(async () => {
+      waiters[0]!.finish(job({ id: "other", status: "ok" }));
+    });
+    await waitFor(() =>
+      expect(result.current.models![0]!.state.kind).toBe("missing"),
+    );
+    expect(fetchStatus).toHaveBeenLastCalledWith("small.en");
+    expect(result.current.whisper.variant).toBe("small.en");
+  });
+});
