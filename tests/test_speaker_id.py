@@ -1250,7 +1250,7 @@ def test_gate_wav_snapshot_matches_bounded_decoder(tmp_path) -> None:
     try:
         for start, duration in [(0.0, 0.02), (0.013, 0.067), (0.11, 0.01)]:
             expected = load_mono_window(
-                path, start_sec=start, duration_sec=duration, sample_rate=8000
+                path, start_sec=start, duration_sec=duration, sample_rate=8000, antialias=True
             )
             np.testing.assert_array_equal(snapshot.window(start, duration, 8000), expected)
     finally:
@@ -1271,6 +1271,7 @@ def test_gate_bleed_index_keeps_first_appended_match() -> None:
 def test_gate_reader_bounds_reads_on_large_sparse_wav(tmp_path) -> None:
     import struct
 
+    from podcast_mcp.engines.align import _antialias_margin
     from podcast_mcp.engines.speaker_id import _WavWindowReader
 
     path = tmp_path / "long.wav"
@@ -1302,7 +1303,7 @@ def test_gate_reader_bounds_reads_on_large_sparse_wav(tmp_path) -> None:
         assert reader.window(1000.0, 0.1, 8000).size == 800
     finally:
         reader.close()
-    assert reads == [1600]
+    assert reads == [1600 + 2 * _antialias_margin(16000, 8000)]
 
 
 def test_score_window_explicit_empty_profiles_does_not_reload(tmp_path, sample_wav) -> None:
