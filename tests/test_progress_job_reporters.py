@@ -147,7 +147,7 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     }
     assert out["results"]["rnnoise"] == {
         "ok": False,
-        "error": "RNNoise noise reduction could not be installed.",
+        "error": "Noise reduction (RNNoise) could not be installed.",
     }
 
     model = tmp_path / "rnnoise.rnnn"

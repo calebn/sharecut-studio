@@ -54,12 +54,32 @@ describe("BootstrapWizard rows", () => {
     const required = screen.getByRole("checkbox", { name: "Whisper" });
     expect(required).toBeDisabled();
     expect(required).toHaveAccessibleDescription(/Required for transcription/);
-    expect(screen.getByRole("checkbox", { name: "RNNoise" })).toBeEnabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Noise reduction (RNNoise)" }),
+    ).toBeEnabled();
     expect(screen.getByText("Download 1.6 GB")).toBeTruthy();
     expect(
       screen.getByText("You can download these later from Models."),
     ).toBeTruthy();
     await expectNoA11yViolations(container);
+  });
+
+  it("says why an unchosen box is locked while another download runs", () => {
+    renderWithModels(<BootstrapWizard onReady={vi.fn()} />, {
+      status: modelStatus(registryRows()),
+      job: {
+        id: "j",
+        kind: "bootstrap",
+        components: ["whisper"],
+        whisper_model: "large-v3-turbo",
+        status: "running",
+      },
+    });
+    const box = screen.getByRole("checkbox", {
+      name: "Noise reduction (RNNoise)",
+    });
+    expect(box).toBeDisabled();
+    expect(box).toHaveAccessibleDescription(/Download in progress/);
   });
 
   it("puts the size picker inside the row that owns the variants", async () => {
@@ -71,6 +91,9 @@ describe("BootstrapWizard rows", () => {
     const whisper = within(rowByName("Whisper"));
     const select = whisper.getByRole("combobox", { name: "Whisper size" });
     expect(select).toHaveValue("large-v3-turbo");
+    expect(
+      within(select).getByRole("option", { name: "Recommended (~1.6 GB)" }),
+    ).toBeTruthy();
     expect(screen.getAllByRole("combobox")).toHaveLength(1);
     await user.selectOptions(select, "small.en");
     expect(models.whisper.choose).toHaveBeenCalledWith("small.en");
@@ -82,10 +105,12 @@ describe("BootstrapWizard rows", () => {
     renderWithModels(<BootstrapWizard onReady={vi.fn()} />, {
       status: modelStatus(rows),
     });
-    expect(screen.queryByRole("checkbox", { name: "RNNoise" })).toBeNull();
-    expect(within(rowByName("RNNoise")).getByRole("status")).toHaveTextContent(
-      "Installed",
-    );
+    expect(
+      screen.queryByRole("checkbox", { name: "Noise reduction (RNNoise)" }),
+    ).toBeNull();
+    expect(
+      within(rowByName("Noise reduction (RNNoise)")).getByRole("status"),
+    ).toHaveTextContent("Installed");
   });
 
   it("sends the checked, not-installed ids on Continue, once", async () => {
@@ -154,12 +179,20 @@ describe("BootstrapWizard rows", () => {
     expect(
       within(rowByName("Whisper")).getByRole("progressbar"),
     ).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
-    expect(within(rowByName("RNNoise")).getByRole("status")).toHaveTextContent(
-      "Waiting",
-    );
+    expect(
+      within(rowByName("Noise reduction (RNNoise)")).getByRole("status"),
+    ).toHaveTextContent("Waiting");
     expect(screen.getByRole("button", { name: "Downloading…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Skip for now" })).toBeDisabled();
     expect(screen.getByText("Download in progress")).toBeTruthy();
+    for (const control of [
+      screen.getByRole("button", { name: "Downloading…" }),
+      screen.getByRole("button", { name: "Skip for now" }),
+    ]) {
+      expect(control).toHaveAccessibleDescription(
+        expect.stringContaining("Download in progress"),
+      );
+    }
     await expectNoA11yViolations(container);
   });
 
@@ -177,11 +210,13 @@ describe("BootstrapWizard rows", () => {
         },
       },
     );
-    const row = within(rowByName("RNNoise"));
+    const row = within(rowByName("Noise reduction (RNNoise)"));
     expect(row.getByRole("alert")).toHaveTextContent(
       "Couldn't reach the download server.",
     );
-    await user.click(row.getByRole("button", { name: "Retry RNNoise" }));
+    await user.click(
+      row.getByRole("button", { name: "Retry Noise reduction (RNNoise)" }),
+    );
     expect(models.download).toHaveBeenCalledWith(["rnnoise"]);
     await expectNoA11yViolations(container);
   });
@@ -204,7 +239,7 @@ describe("BootstrapWizard rows", () => {
     });
     expect(screen.getByText(/Audio tools: unavailable/i)).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "source setup guide" }),
+      screen.getByRole("link", { name: "setup guide for the audio tools" }),
     ).toHaveAttribute(
       "href",
       "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair",
@@ -365,7 +400,9 @@ describe("BootstrapWizard with the provider", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Couldn't reach the download server.");
     expect(onReady).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Retry RNNoise" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Retry Noise reduction (RNNoise)" }),
+    ).toBeTruthy();
   });
 
   it("tells a second tab's running download from an idle wizard", async () => {

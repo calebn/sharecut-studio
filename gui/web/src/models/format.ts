@@ -27,14 +27,15 @@ const HINTS: Record<NonNullable<ModelFailure["kind"]>, string> = {
   http: "Try again in a few minutes.",
   network: "Check your internet connection, then retry.",
   disk: "Free some disk space or fix the folder, then retry.",
-  pin_mismatch: "Retry the download. If it fails again, export diagnostics.",
+  pin_mismatch:
+    "Retry the download. If it fails again, save a problem report from Help, Export diagnostics.",
 };
 
 /** What to do next for a typed failure; untyped text gets the general advice. */
 export function failureHint(failure: ModelFailure): string {
   return failure.kind
     ? HINTS[failure.kind]
-    : "Retry, or export diagnostics from the command palette.";
+    : "Retry, or save a problem report from Help, Export diagnostics.";
 }
 
 export function stateText(state: ModelState): string {

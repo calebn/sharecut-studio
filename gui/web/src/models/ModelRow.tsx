@@ -10,6 +10,8 @@ export type ModelRowAction =
       checked: boolean;
       /** Not changeable: a required model, or a download that has started. */
       locked: boolean;
+      /** Id of a visible note that says why the box is locked (for example a running download). */
+      lockedNoteId?: string;
       onToggle: () => void;
     }
   | {
@@ -63,7 +65,11 @@ export function ModelRow({ model, variantPicker, action }: Props) {
           checked={action.checked}
           disabled={action.locked}
           onChange={action.onToggle}
-          aria-describedby={[purposeId, requiredNote ? requiredId : null]
+          aria-describedby={[
+            purposeId,
+            requiredNote ? requiredId : null,
+            action.locked && action.lockedNoteId ? action.lockedNoteId : null,
+          ]
             .filter(Boolean)
             .join(" ")}
         />

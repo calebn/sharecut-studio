@@ -12,6 +12,8 @@ export type ControllerState = {
   failures: Record<string, ModelFailure>;
   /** The Whisper size the person picked; the server's until they pick. */
   variant: string;
+  /** True once the person (or their download) picked a size; a reload then keeps it. */
+  picked: boolean;
 };
 
 export type ControllerAction =
@@ -28,6 +30,7 @@ export const initialState: ControllerState = {
   job: null,
   failures: {},
   variant: "",
+  picked: false,
 };
 
 function without(
@@ -54,7 +57,7 @@ export function reduce(
         ...state,
         status: action.status,
         loadError: null,
-        variant: action.status.whisper_model,
+        variant: state.picked ? state.variant : action.status.whisper_model,
         failures: without(state.failures, (id) => installed.has(id)),
       };
     }
@@ -79,6 +82,7 @@ export function reduce(
       return {
         ...state,
         variant: action.variant,
+        picked: true,
         failures: without(state.failures, (id) => id === "whisper"),
       };
   }

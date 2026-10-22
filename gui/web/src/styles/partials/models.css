@@ -107,3 +107,11 @@
 .model-row select {
   min-block-size: var(--touch-min);
 }
+
+/* A busy wizard's primary button is the one word saying what is happening: keep it legible. */
+.bootstrap-wizard .ui-control.primary:disabled {
+  opacity: 1;
+  background: var(--color-bg-sunken);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}

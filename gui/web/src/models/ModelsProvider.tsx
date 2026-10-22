@@ -149,6 +149,9 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         return { kind: "busy" };
       }
       running.current = "starting";
+      if (options?.whisperModel && ids.includes("whisper")) {
+        dispatch({ type: "variantChosen", variant: options.whisperModel });
+      }
       dispatch({ type: "downloadStarted", ids });
       const rows = stateRef.current.status?.models ?? [];
       const force = ids.some(

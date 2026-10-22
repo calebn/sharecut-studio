@@ -1,4 +1,9 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  render as baseRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -801,5 +806,13 @@ describe("SplitSpeakersDialog", () => {
     expect(
       await screen.findByRole("button", { name: "Split speakers" }),
     ).toBeTruthy();
+  });
+});
+
+describe("SplitSpeakersDialog without a models provider (share-review guests)", () => {
+  it("renders without throwing (the hook runs before the open check)", () => {
+    useDawStore.setState({ splitSpeakersTrackId: null });
+    const { container } = baseRender(<SplitSpeakersDialog />);
+    expect(container).toBeTruthy();
   });
 });

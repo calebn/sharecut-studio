@@ -170,7 +170,16 @@ export function waitForBootstrapJob(
     >({
       url: bootstrapEventsUrl(jobId),
       recheck: {
-        check: () => fetchBootstrapJob(jobId),
+        check: () =>
+          fetchBootstrapJob(jobId).then((job) => {
+            if (job === null) {
+              // The host no longer knows this job (restart or replaced): nothing will ever finish it.
+              finishErr(
+                new Error("Bootstrap job is no longer known to the host"),
+              );
+            }
+            return job;
+          }),
         onResult: (job) => considerTerminal(job),
       },
       onFrame: (data) => {
@@ -207,7 +216,12 @@ export function waitForBootstrapJob(
             }
           })
           .catch(() => {
-            /* ignore transient */
+            // A closed stream never retries; with status-job failing too, nothing else can settle us.
+            if (!settled && es.readyState === EventSource.CLOSED) {
+              finishErr(
+                new Error("Lost connection while waiting for bootstrap job"),
+              );
+            }
           });
       },
     });

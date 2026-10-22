@@ -171,7 +171,7 @@ def test_a_pin_mismatch_names_the_upgrade_command() -> None:
     with pytest.raises(InstallFailure) as raised:
         _install(_spec_raising(AssetIntegrityError("sha256 mismatch")))
     assert raised.value.plain == (
-        "RNNoise noise reduction downloaded but isn't the expected version. "
+        "Noise reduction (RNNoise) downloaded but isn't the expected version. "
         "Run: podcast bootstrap --component rnnoise --upgrade"
     )
     with pytest.raises(InstallFailure) as raised:
@@ -433,7 +433,7 @@ def test_a_failed_job_carries_the_first_failure_and_its_plain_text(
     monkeypatch.setattr(boot, "component_status", lambda **_k: {})
     job = Job.bootstrap("b1", ["rnnoise"])
     JobManager()._run_bootstrap_job(job)
-    plain = "The download server doesn't have RNNoise noise reduction."
+    plain = "The download server doesn't have Noise reduction (RNNoise)."
     assert (job.status, job.error, job.message) == ("error", plain, plain)
     assert job.failure == {"kind": "http", "status": 404, "plain": plain}
     snap = job.snapshot()
@@ -453,7 +453,7 @@ def test_a_failed_model_reports_its_failure_and_the_next_still_runs(
     monkeypatch.setattr(boot, "model_spec", lambda model_id: specs[model_id])
     monkeypatch.setattr(boot, "component_status", lambda **_k: {})
     out = boot.run_bootstrap(["rnnoise", "word-aligner"])
-    plain = "The download server doesn't have RNNoise noise reduction."
+    plain = "The download server doesn't have Noise reduction (RNNoise)."
     assert out["ok"] is False
     assert out["results"]["rnnoise"]["failure"] == {"kind": "http", "status": 404, "plain": plain}
     assert out["results"]["rnnoise"]["error"] == plain
@@ -481,7 +481,7 @@ def test_an_unexpected_error_never_reaches_the_event_stream(clock: None) -> None
     events = _run_in_job(job, work)
     assert SECRET not in json.dumps(events) and "disk exploded" not in json.dumps(events)
     (failed,) = [e for e in events if e["task_id"] == DOWNLOAD_TASK_ID and e["kind"] == "fail"]
-    assert failed["message"].endswith(": RNNoise noise reduction could not be installed.")
+    assert failed["message"].endswith(": Noise reduction (RNNoise) could not be installed.")
     assert job.error is None
 
 
@@ -492,7 +492,7 @@ def test_a_failed_job_after_an_unexpected_error_carries_only_the_generic_text(
     monkeypatch.setattr(boot, "component_status", lambda **_k: {})
     job = Job.bootstrap("b1", ["rnnoise"])
     JobManager()._run_bootstrap_job(job)
-    plain = "RNNoise noise reduction could not be installed."
+    plain = "Noise reduction (RNNoise) could not be installed."
     assert (job.status, job.error, job.message, job.failure) == ("error", plain, plain, None)
 
 
@@ -879,7 +879,7 @@ def test_cli_failure_off_a_terminal_prints_the_plain_reason(
     assert result.stdout == "[get] rnnoise (~0.3 MB)\n"
     assert (
         result.stderr
-        == "[fail] rnnoise: The download server doesn't have RNNoise noise reduction.\n"
+        == "[fail] rnnoise: The download server doesn't have Noise reduction (RNNoise).\n"
     )
 
 
@@ -954,7 +954,7 @@ def test_cli_unexpected_error_prints_only_the_generic_line(monkeypatch: pytest.M
     monkeypatch.delenv("PODCAST_DEBUG", raising=False)
     result = runner.invoke(app, ["bootstrap", "--component", "rnnoise"])
     assert result.exit_code == 1
-    assert result.stderr == "[fail] rnnoise: RNNoise noise reduction could not be installed.\n"
+    assert result.stderr == "[fail] rnnoise: Noise reduction (RNNoise) could not be installed.\n"
     assert terminal_log.getvalue() == ""
 
 
@@ -1017,7 +1017,9 @@ def test_the_rnnoise_size_pin_failure_is_a_pin_mismatch(tmp_path: Path) -> None:
     with pytest.raises(AssetSourceError) as raised:
         model_assets._verify_pinned_size(model, 297646)
     failure = classify(
-        raised.value, label="RNNoise", fix="podcast bootstrap --component rnnoise --upgrade"
+        raised.value,
+        label="Noise reduction (RNNoise)",
+        fix="podcast bootstrap --component rnnoise --upgrade",
     )
     assert failure is not None
     assert failure.kind == "pin_mismatch"

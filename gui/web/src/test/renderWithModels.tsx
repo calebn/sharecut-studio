@@ -113,7 +113,7 @@ export function registryRows(): Row[] {
     }),
     modelRow({
       id: "rnnoise",
-      label: "RNNoise",
+      label: "Noise reduction (RNNoise)",
       purpose: "noise reduction",
       tier: "recommended",
       size: "~0.3 MB",

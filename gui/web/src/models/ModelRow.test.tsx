@@ -103,7 +103,7 @@ describe("ModelRow", () => {
       }),
       download(),
     );
-    expect(screen.getByText(/export diagnostics/i)).toBeTruthy();
+    expect(screen.getByText(/problem report/i)).toBeTruthy();
   });
 
   it("shows no button for installed, queued or downloading without a cancel", () => {
