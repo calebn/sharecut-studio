@@ -186,11 +186,7 @@ function SplitSpeakersForm({
                   {speakerModel.progress}
                 </span>
               ) : null}
-              <InlineError
-                message={
-                  speakerModel?.error ? plainError(speakerModel.error) : null
-                }
-              />
+              <InlineError message={speakerModelError(speakerModel?.error)} />
             </>
           ) : null}
         </p>
@@ -494,4 +490,13 @@ function SplitSpeakersFooter({
       </div>
     </div>
   );
+}
+
+/** The download failure as a podcaster reads it: a sanitized message names no internal id, so it gets the plain lead. */
+function speakerModelError(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const plain = plainError(raw);
+  return plain === raw
+    ? raw
+    : "Couldn't download the speaker model. Export diagnostics from the command palette and try again.";
 }

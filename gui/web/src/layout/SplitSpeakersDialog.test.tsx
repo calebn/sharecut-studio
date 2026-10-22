@@ -338,10 +338,8 @@ describe("SplitSpeakersDialog", () => {
     await user.click(
       await screen.findByRole("button", { name: "Download speaker model" }),
     );
-    await screen.findByRole("alert");
-    const shown = screen.getByRole("alert").textContent ?? "";
-    expect(shown).not.toMatch(
-      /PODCAST_BOOTSTRAP_CDN_BASE|speaker-ecapa|\/home\//,
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Couldn't download the speaker model. Export diagnostics from the command palette and try again.",
     );
   });
 

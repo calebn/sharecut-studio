@@ -78,3 +78,15 @@ def test_features_accept_a_single_row_or_column_like_a_flat_signal() -> None:
     flat = ecapa_features(x)
     np.testing.assert_array_equal(ecapa_features(x[None, :]), flat)
     np.testing.assert_array_equal(ecapa_features(x[:, None]), flat)
+
+
+def test_embed_boundary_pins_the_production_minimum():
+    from podcast_mcp.engines.models.speaker_ecapa import MIN_SAMPLES, EcapaOnnx
+
+    assert MIN_SAMPLES == 800
+    model = EcapaOnnx(model_path=Path("/nonexistent/model.onnx"))
+    with pytest.raises(ValueError, match="too short"):
+        model.embed(np.zeros(MIN_SAMPLES - 1, dtype=np.float32))
+    with pytest.raises(Exception) as exc:  # reaches the model load, so not "too short"
+        model.embed(np.zeros(MIN_SAMPLES, dtype=np.float32))
+    assert "too short" not in str(exc.value)
