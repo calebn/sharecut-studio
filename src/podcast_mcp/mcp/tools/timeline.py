@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from mcp.server import MCPServer
 
@@ -25,6 +25,7 @@ from podcast_mcp.services.document_sync import (
     submit_host_document_command,
     submit_paste_segment,
 )
+from podcast_mcp.services.jobs import run_audio_edit
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 from podcast_mcp.util.tracks import resolve_track
@@ -1187,11 +1188,15 @@ def mute_off_speaker_tool(
     undoes the whole command. Preview with ``dry_run=true``.
     """
     ws = ProjectWorkspace.open(project_path)
+    if not apply or dry_run:
+        return to_json(
+            AnalysisService(ws).preview_off_speaker_mute(track_id=track_id, speaker=speaker)
+        )
     return to_json(
-        AnalysisService(ws).mute_off_speaker(
-            track_id=track_id,
-            speaker=speaker,
-            apply=apply and not dry_run,
+        run_audio_edit(
+            ws,
+            "mute_off_speaker",
+            {"track_id": track_id, "speaker": speaker},
             lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC,
         )
     )
@@ -1225,17 +1230,18 @@ def apply_transcript_gate_tool(
     respects saved timing choices. Alignment can trigger normal transcript reconciliation.
     """
     ws = ProjectWorkspace.open(project_path)
+    params: dict[str, Any] = {
+        "track_id": track_id,
+        "speaker": speaker,
+        "start_sec": start_sec,
+        "end_sec": end_sec,
+        "align_retained_bleed": align_retained_bleed,
+        "override_placement_lock": override_placement_lock,
+    }
+    if not apply or dry_run:
+        return to_json(AnalysisService(ws).preview_bleed_mute(**params))
     return to_json(
-        AnalysisService(ws).apply_bleed_mute(
-            track_id=track_id,
-            speaker=speaker,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            apply=apply and not dry_run,
-            align_retained_bleed=align_retained_bleed,
-            override_placement_lock=override_placement_lock,
-            lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC,
-        )
+        run_audio_edit(ws, "apply_bleed_mute", params, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC)
     )
 
 
@@ -1253,14 +1259,17 @@ def align_retained_bleed_tool(
     Legacy placement overrides require an explicit timeline window.
     """
     ws = ProjectWorkspace.open(project_path)
+    params: dict[str, Any] = {
+        "track_id": track_id,
+        "start_sec": start_sec,
+        "end_sec": end_sec,
+        "override_placement_lock": override_placement_lock,
+    }
+    if not apply:
+        return to_json(AnalysisService(ws).preview_retained_bleed_alignment(**params))
     return to_json(
-        AnalysisService(ws).align_retained_bleed(
-            track_id=track_id,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            apply=apply,
-            override_placement_lock=override_placement_lock,
-            lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC,
+        run_audio_edit(
+            ws, "align_retained_bleed", params, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
         )
     )
 
@@ -1329,9 +1338,6 @@ def register(mcp: MCPServer) -> None:
         apply_low_audibility_suppression_tool,
         reconcile_transcript_tool,
         apply_bleed_suppression_tool,
-        apply_transcript_gate_tool,
-        mute_off_speaker_tool,
-        align_retained_bleed_tool,
         set_retained_bleed_alignment_mode_tool,
     }
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import typer
 
@@ -27,6 +27,8 @@ from podcast_mcp.services.document import (
     TimelineService,
     TrimBoundaryTarget,
 )
+from podcast_mcp.services.jobs import run_audio_edit
+from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC
 
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
 
@@ -1205,21 +1207,25 @@ def edit_apply_bleed_mute_cmd(
     ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            AnalysisService(ws).apply_bleed_mute(
-                track_id=track,
-                speaker=speaker,
-                start_sec=start,
-                end_sec=end,
-                apply=not dry_run,
-                align_retained_bleed=align_retained_bleed,
-                override_placement_lock=override_placement_lock,
-                progress=get_progress(),
-            ),
-            indent=2,
+    params: dict[str, Any] = {
+        "track_id": track,
+        "speaker": speaker,
+        "start_sec": start,
+        "end_sec": end,
+        "align_retained_bleed": align_retained_bleed,
+        "override_placement_lock": override_placement_lock,
+    }
+    if dry_run:
+        result = AnalysisService(ws).preview_bleed_mute(**params, progress=get_progress())
+    else:
+        result = run_audio_edit(
+            ws,
+            "apply_bleed_mute",
+            params,
+            lock_timeout=RENDER_LOCK_TIMEOUT_SEC,
+            progress=get_progress(),
         )
-    )
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("mute-off-speaker")
@@ -1235,14 +1241,18 @@ def edit_mute_off_speaker_cmd(
 ) -> None:
     """Mute a track wherever another speaker talks and its own speaker does not."""
     ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            AnalysisService(ws).mute_off_speaker(
-                track_id=track, speaker=speaker, apply=not dry_run, progress=get_progress()
-            ),
-            indent=2,
+    params: dict[str, Any] = {"track_id": track, "speaker": speaker}
+    if dry_run:
+        result = AnalysisService(ws).preview_off_speaker_mute(**params, progress=get_progress())
+    else:
+        result = run_audio_edit(
+            ws,
+            "mute_off_speaker",
+            params,
+            lock_timeout=RENDER_LOCK_TIMEOUT_SEC,
+            progress=get_progress(),
         )
-    )
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("overlap-duplicates")
@@ -1275,13 +1285,18 @@ def edit_align_retained_bleed_cmd(
 ) -> None:
     """Align supported complete phrases only where uncertain bleed remains."""
     ws = ProjectWorkspace.open(project)
-    result = AnalysisService(ws).align_retained_bleed(
-        track_id=track,
-        start_sec=start,
-        end_sec=end,
-        apply=not dry_run,
-        override_placement_lock=override_placement_lock,
-    )
+    params: dict[str, Any] = {
+        "track_id": track,
+        "start_sec": start,
+        "end_sec": end,
+        "override_placement_lock": override_placement_lock,
+    }
+    if dry_run:
+        result = AnalysisService(ws).preview_retained_bleed_alignment(**params)
+    else:
+        result = run_audio_edit(
+            ws, "align_retained_bleed", params, lock_timeout=RENDER_LOCK_TIMEOUT_SEC
+        )
     typer.echo(json.dumps(result, indent=2))
 
 

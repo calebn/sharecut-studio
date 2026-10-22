@@ -21,7 +21,6 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
 
 def _seed_project(path: str, sample_wav) -> None:
@@ -361,7 +360,7 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
         svc.list_bleed_words.return_value = [{"text": "bleed"}]
         svc.preview_suppress_bleed.return_value = {"would_suppress": 1}
         svc.overlap_duplicates.return_value = {"pairs": []}
-        svc.apply_bleed_mute.return_value = {"dry_run": True, "candidate_count": 0}
+        svc.preview_bleed_mute.return_value = {"dry_run": True, "candidate_count": 0}
         svc.low_audibility_words.return_value = []
         svc.gate_overreach.return_value = {"clips": []}
         svc.audibility_map.return_value = []
@@ -384,9 +383,7 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
         gate_preview = json.loads(
             mcp_timeline.apply_transcript_gate_tool(path, speaker="Host", dry_run=True)
         )
-        assert (
-            svc.apply_bleed_mute.call_args.kwargs["lock_timeout"] == REQUEST_RENDER_LOCK_TIMEOUT_SEC
-        )
+        svc.preview_bleed_mute.assert_called_once()
         low_aud = json.loads(mcp_timeline.low_audibility_words_tool(path, track_id="host"))
         suppressed_low = json.loads(
             mcp_timeline.apply_low_audibility_suppression_tool(path, track_id="host")
