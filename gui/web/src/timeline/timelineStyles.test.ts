@@ -242,23 +242,23 @@ describe("timeline styles", () => {
     expect(mark).toMatch(/--edit-mark-scale:\s*1;/);
     expect(mark).not.toMatch(/border:\s*1px/);
     expect(rule(css, '.edit-mark[data-tier="middle"]')).toMatch(
-      /--edit-mark-scale:\s*0\.85;[^}]*--edit-mark-weight:\s*1\.5;[^}]*--edit-mark-ink:\s*0\.85;/,
+      /--edit-mark-scale:\s*0\.85;[^}]*--edit-mark-weight:\s*1\.5;/,
     );
     expect(rule(css, '.edit-mark[data-tier="wide"]')).toMatch(
-      /--edit-mark-scale:\s*0\.75;[^}]*--edit-mark-weight:\s*1\.25;[^}]*--edit-mark-ink:\s*0\.75;/,
+      /--edit-mark-scale:\s*0\.75;[^}]*--edit-mark-weight:\s*1\.25;/,
     );
     const face = rule(css, ".edit-mark-face");
     expect(face).toMatch(
       /width:\s*calc\(var\(--clip-inset-top\) \* var\(--edit-mark-scale\)\)/,
     );
-    expect(face).toMatch(/opacity:\s*var\(--edit-mark-ink\)/);
+    expect(face).not.toMatch(/opacity/);
     expect(face).not.toMatch(/transition/);
     expect(rule(css, ".edit-mark-label")).toMatch(/pointer-events:\s*none/);
     expect(css.indexOf(".edit-mark-label {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
     );
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: no-preference\) \{\s*\.edit-mark-face \{\s*transition:\s*width[^}]*height[^}]*opacity[^}]*\}\s*\.edit-mark-glyph \{\s*transition:[^}]*stroke-width[^}]*\}\s*\}/,
+      /@media \(prefers-reduced-motion: no-preference\) \{\s*\.edit-mark-face \{\s*transition:\s*width[^}]*height[^}]*\}\s*\.edit-mark-glyph \{\s*transition:[^}]*stroke-width[^}]*\}\s*\}/,
     );
   });
 
