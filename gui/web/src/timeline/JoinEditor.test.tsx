@@ -22,6 +22,7 @@ const left = clipRow({
   timeline_start: 0,
   timeline_end: 5,
   fade_out_ms: 20,
+  source_duration_sec: 100,
 });
 const right = clipRow({
   id: "right",
@@ -33,6 +34,7 @@ const right = clipRow({
   join_in_mode: "crossfade",
   join_left_clip_id: "left",
   join_crossfade_ms: 20,
+  source_duration_sec: 100,
 });
 const releaseCapture = vi.fn();
 const base = {
@@ -165,6 +167,13 @@ describe("JoinEditor coupled length", () => {
     expect(
       blocked.container.querySelector(".join-blend-waves, .join-blend-seam"),
     ).toBeNull();
+  });
+  it("draws no blend overlap while dragging a join whose left recording is unmeasured", () => {
+    const { container } = mount({
+      left: { ...left, source_duration_sec: null },
+    });
+    move();
+    expect(container.querySelector(".join-blend")).toBeNull();
   });
   it("uses final release coordinates even without a move event", () => {
     mount();

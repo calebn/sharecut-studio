@@ -232,20 +232,20 @@ const MIN_BLEND_SEC = 0.02;
  * The overlap (ms) render settles on for a draft length `ms`: the same room
  * and 5 ms steps as `clips_ops.crossfade_borrow_sec` / `renderClock.borrowSec`
  * (the recordings beyond both edges, a quarter of either clip), 0 when too
- * little room is left to blend.
+ * little room is left to blend or either recording is unmeasured.
  */
 export function joinDraftOverlapMs(
   left: Pick<ClipRow, "source_start" | "source_end" | "source_duration_sec">,
-  right: Pick<ClipRow, "source_start" | "source_end">,
+  right: Pick<ClipRow, "source_start" | "source_end" | "source_duration_sec">,
   ms: number,
 ): number {
+  if (left.source_duration_sec === null || right.source_duration_sec === null)
+    return 0;
   const room = Math.min(
     right.source_start,
     (left.source_end - left.source_start) * 0.25,
     (right.source_end - right.source_start) * 0.25,
-    left.source_duration_sec === null
-      ? Number.POSITIVE_INFINITY
-      : left.source_duration_sec - left.source_end,
+    left.source_duration_sec - left.source_end,
   );
   if (!(ms > 0) || 2 * room < Math.min(ms / 1000, MIN_BLEND_SEC)) return 0;
   const steps = Math.floor(
