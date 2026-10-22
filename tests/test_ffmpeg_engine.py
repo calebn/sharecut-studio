@@ -704,13 +704,13 @@ def test_build_track_filter_arnndn_uses_bootstrapped_model(tmp_path: Path):
     assert filt == f"arnndn=m={model}"
 
 
-def test_build_track_filter_arnndn_resolves_model_when_unset(tmp_path: Path):
+def test_build_track_filter_arnndn_resolves_model_when_unset(tmp_path: Path, monkeypatch):
     model = tmp_path / "resolved.rnnn"
     model.write_bytes(b"fake")
+    monkeypatch.setenv("PODCAST_MCP_RNNOISE_MODEL", str(model))
     eng = FFmpegEngine()
     chain = ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="arnndn", params={})])
-    with patch("podcast_mcp.engines.effect_filters.resolve_rnnoise_model", return_value=model):
-        filt = eng.build_track_filter(chain, None)
+    filt = eng.build_track_filter(chain, None)
     assert filt == f"arnndn=m={model}"
 
 

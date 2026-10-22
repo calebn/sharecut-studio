@@ -14,8 +14,13 @@ from podcast_mcp.effects.presets import (
     set_effect_bypass,
 )
 from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
+from podcast_mcp.engines.models.registry import require_model
 from podcast_mcp.services.document.service_base import WorkspaceService
 from podcast_mcp.util.coded_error import CodedValueError
+
+
+def _needs_rnnoise(effect: str | None, params: dict[str, Any] | None) -> bool:
+    return effect == "arnndn" and not (params or {}).get("model")
 
 
 class EffectsService(WorkspaceService):
@@ -43,6 +48,13 @@ class EffectsService(WorkspaceService):
                 f"unsupported effect {names}; supported effects: {supported}",
                 code="unsupported_effect",
             )
+
+        if specs is not None:
+            needs_model = any(_needs_rnnoise(spec["effect"], spec.get("params")) for spec in specs)
+        else:
+            needs_model = bool(effect) and _needs_rnnoise(effect, params)
+        if needs_model:
+            require_model("rnnoise")
 
         def mutate(p) -> dict:
             if preset and specs is not None:
