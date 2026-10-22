@@ -240,7 +240,7 @@ def test_run_bootstrap_reports_an_unexpected_error_generically(monkeypatch, capl
     out = boot.run_bootstrap(["rnnoise"])
     assert out["results"]["rnnoise"] == {
         "ok": False,
-        "error": "RNNoise noise reduction could not be installed.",
+        "error": "Noise reduction (RNNoise) could not be installed.",
     }
     assert "secret.bin exploded" in caplog.text
 

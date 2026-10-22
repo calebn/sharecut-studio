@@ -32,7 +32,7 @@ const ROWS: ModelRow[] = [
   },
   {
     id: "rnnoise",
-    label: "RNNoise",
+    label: "Noise reduction (RNNoise)",
     purpose: "noise reduction",
     tier: "recommended",
     model: "rnnoise",
@@ -303,7 +303,7 @@ for (const viewport of VIEWPORTS) {
           /Required for transcription/,
         );
         await expect(
-          setup.getByRole("checkbox", { name: "RNNoise" }),
+          setup.getByRole("checkbox", { name: "Noise reduction (RNNoise)" }),
         ).toBeChecked();
         await expect(
           setup.getByRole("checkbox", { name: "Word aligner" }),
@@ -340,9 +340,9 @@ for (const viewport of VIEWPORTS) {
         const bar = row(page, "Whisper").getByRole("progressbar");
         await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
         await expect(bar).toHaveAttribute("value", "420000000");
-        await expect(row(page, "RNNoise").getByRole("status")).toHaveText(
-          "Waiting",
-        );
+        await expect(
+          row(page, "Noise reduction (RNNoise)").getByRole("status"),
+        ).toHaveText("Waiting");
         await expect(
           setup.getByRole("button", { name: "Downloading…" }),
         ).toBeDisabled();
@@ -400,12 +400,12 @@ for (const viewport of VIEWPORTS) {
         await expect(row(dialog, "Whisper").getByRole("status")).toHaveText(
           "Installed",
         );
-        await expect(row(dialog, "RNNoise").getByRole("status")).toHaveText(
-          "Update available",
-        );
         await expect(
-          row(dialog, "RNNoise").getByRole("button", {
-            name: "Update RNNoise",
+          row(dialog, "Noise reduction (RNNoise)").getByRole("status"),
+        ).toHaveText("Update available");
+        await expect(
+          row(dialog, "Noise reduction (RNNoise)").getByRole("button", {
+            name: "Update Noise reduction (RNNoise)",
           }),
         ).toBeEnabled();
         await expect(
@@ -478,7 +478,7 @@ for (const viewport of VIEWPORTS) {
         const bar = row(dialog, "Whisper").getByRole("progressbar");
         await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
         for (const [label, name] of [
-          ["RNNoise", "Download RNNoise"],
+          ["Noise reduction (RNNoise)", "Download Noise reduction (RNNoise)"],
           ["Word aligner", "Download Word aligner"],
           ["Speaker model", "Download Speaker model"],
         ] as const) {

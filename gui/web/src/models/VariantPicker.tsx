@@ -35,7 +35,7 @@ export function VariantPicker({
         >
           {whisper.variants.map((opt) => (
             <option key={opt.id} value={opt.id}>
-              {opt.label} ({opt.id}, {opt.size})
+              {opt.label} ({opt.size})
             </option>
           ))}
         </select>

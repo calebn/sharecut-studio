@@ -47,10 +47,12 @@ describe("ModelsDialog", () => {
     expect(within(row("Whisper")).getByRole("status")).toHaveTextContent(
       "Not downloaded",
     );
-    expect(within(row("RNNoise")).getByRole("status")).toHaveTextContent(
-      "Installed",
-    );
-    expect(within(row("RNNoise")).queryByRole("button")).toBeNull();
+    expect(
+      within(row("Noise reduction (RNNoise)")).getByRole("status"),
+    ).toHaveTextContent("Installed");
+    expect(
+      within(row("Noise reduction (RNNoise)")).queryByRole("button"),
+    ).toBeNull();
     expect(
       within(row("Word aligner")).getByRole("button", {
         name: "Update Word aligner",
@@ -114,7 +116,7 @@ describe("ModelsDialog", () => {
       "420 MB of 1.6 GB",
     );
     for (const [label, name] of [
-      ["RNNoise", "Download RNNoise"],
+      ["Noise reduction (RNNoise)", "Download Noise reduction (RNNoise)"],
       ["Word aligner", "Download Word aligner"],
       ["Speaker model", "Download Speaker model"],
     ] as const) {

@@ -489,9 +489,31 @@ describe("useModel", () => {
 });
 
 describe("useModels outside a provider", () => {
-  it("throws", () => {
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => renderHook(() => useModels())).toThrow(/ModelsProvider/);
-    spy.mockRestore();
+  it("is inert: no rows, not busy, downloads do nothing", async () => {
+    const { result } = renderHook(() => useModels());
+    expect(result.current.models).toBeNull();
+    expect(result.current.busy).toBe(false);
+    expect(await result.current.download(["whisper"])).toEqual({
+      kind: "cancelled",
+    });
+    expect(run).not.toHaveBeenCalled();
+    expect(fetchStatus).not.toHaveBeenCalled();
+  });
+
+  it("gives useModel a null row and a no-op download", async () => {
+    const { result } = renderHook(() => useModel("speaker-ecapa"));
+    expect(result.current.row).toBeNull();
+    expect(await result.current.download()).toEqual({ kind: "cancelled" });
+  });
+});
+
+describe("a reload keeps the person's Whisper size pick", () => {
+  it("does not reset the picker when a load answers with the server's size", async () => {
+    const { result } = await mounted();
+    fetchStatus.mockResolvedValueOnce(status(MISSING));
+    act(() => result.current.whisper.choose("small.en"));
+    await waitFor(() => expect(fetchStatus).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(result.current.whisper.variant).toBe("small.en");
   });
 });

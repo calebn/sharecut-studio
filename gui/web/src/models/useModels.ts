@@ -25,12 +25,23 @@ export type ModelsApi = {
 
 export const ModelsContext = createContext<ModelsApi | null>(null);
 
+/**
+ * What the hooks report with no provider above them: share-review guests mount none, because they
+ * must make no host bootstrap calls. Rows are absent, nothing is busy, and a download does nothing.
+ */
+export const INERT_MODELS: ModelsApi = {
+  models: null,
+  tools: { ffmpeg: "missing", hint: null },
+  ready: false,
+  busy: false,
+  loadError: null,
+  whisper: { variant: "", variants: [], choose: () => undefined },
+  download: () => Promise.resolve({ kind: "cancelled" }),
+  cancel: () => Promise.resolve(),
+};
+
 export function useModels(): ModelsApi {
-  const api = useContext(ModelsContext);
-  if (!api) {
-    throw new Error("useModels needs a ModelsProvider above it");
-  }
-  return api;
+  return useContext(ModelsContext) ?? INERT_MODELS;
 }
 
 export function useModel(id: string): {

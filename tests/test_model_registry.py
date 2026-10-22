@@ -122,3 +122,15 @@ def test_run_bootstrap_installs_every_named_model(monkeypatch: pytest.MonkeyPatc
         ("word-aligner", None, True),
         ("speaker-ecapa", None, True),
     ]
+
+
+def test_a_bad_asset_manifest_degrades_the_rnnoise_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(name: str) -> dict:
+        raise RuntimeError("bad manifest")
+
+    monkeypatch.setattr(registry, "asset_entry", broken)
+    spec = model_spec("rnnoise")
+    assert spec.size_bytes(None) is None
+    assert spec.size_label(None) == spec.size
+    row = boot.model_status("rnnoise")
+    assert row["size_bytes"] is None

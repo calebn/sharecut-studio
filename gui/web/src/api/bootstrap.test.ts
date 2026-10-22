@@ -190,6 +190,36 @@ describe("waitForBootstrapJob", () => {
     await expect(p).rejects.toThrow(/Lost connection/);
   });
 
+  it("rejects when the stream is CLOSED and status-job fails too", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("bad gateway", { status: 502 })),
+    );
+    const p = waitForBootstrapJob("job-502");
+    const es = FakeEventSource.instances[0]!;
+    es.close();
+    es.emitError();
+    await expect(p).rejects.toThrow(/Lost connection/);
+  });
+
+  it("rejects when the slow re-check finds the host no longer knows the job", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(JSON.stringify({ job: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const p = waitForBootstrapJob("job-gone");
+    const assertion = expect(p).rejects.toThrow(/no longer known/);
+    await vi.advanceTimersByTimeAsync(JOB_STREAM_RECHECK_MS);
+    await assertion;
+    expect(FakeEventSource.instances[0]!.closed).toBe(true);
+  });
+
   it("ignores a non-terminal onerror re-check while the stream is still open", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(

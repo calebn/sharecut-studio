@@ -37,6 +37,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
   const { models, tools, ready, busy, loadError, download } = useModels();
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const stuckId = useId();
+  const summaryId = useId();
   const started = useRef(false);
   const [finished, setFinished] = useState(false);
 
@@ -89,6 +90,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       kind: "select",
       checked: checked(m),
       locked: m.tier === "required" || busy,
+      lockedNoteId: busy ? summaryId : undefined,
       onToggle: () => setOverrides((o) => ({ ...o, [m.id]: !checked(m) })),
     };
   };
@@ -134,7 +136,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
         <p>
           Reinstall ShareCut Studio, or follow the{" "}
           <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair">
-            source setup guide
+            setup guide for the audio tools
           </a>
           .
         </p>
@@ -149,7 +151,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
           />
         ))}
       </ul>
-      <p className="model-summary">
+      <p className="model-summary" id={summaryId}>
         {busy ? "Download in progress" : summary(picked)}
       </p>
       {stuckReason ? (
@@ -162,7 +164,9 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
           variant="primary"
           onClick={onContinue}
           disabledReason={continueReason}
-          aria-describedby={stuckReason ? stuckId : undefined}
+          aria-describedby={
+            busy ? summaryId : stuckReason ? stuckId : undefined
+          }
         >
           {busy ? "Downloading…" : "Continue"}
         </Button>
@@ -170,6 +174,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
           <Button
             onClick={onSkip}
             disabledReason={busy ? BUSY_REASON : undefined}
+            aria-describedby={busy ? summaryId : undefined}
             variant="link"
           >
             Skip for now

@@ -165,7 +165,10 @@ def _whisper_sizes(variant: str | None) -> tuple[str | None, int | None]:
 
 
 def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
-    pinned = asset_entry("rnnoise").get("size_bytes")
+    try:
+        pinned = asset_entry("rnnoise").get("size_bytes")
+    except Exception:  # a bad manifest must not break a status read: show the generic size
+        return None, None
     return None, pinned if isinstance(pinned, int) else None
 
 
@@ -185,7 +188,7 @@ MODELS: tuple[ModelSpec, ...] = (
     ),
     ModelSpec(
         id="rnnoise",
-        label="RNNoise noise reduction",
+        label="Noise reduction (RNNoise)",
         purpose="noise reduction",
         size="~0.3 MB",
         setup="recommended",
