@@ -183,10 +183,8 @@ def test_wrong_bytes_are_rejected_and_leave_no_file(
 
 def test_component_status_is_opt_in_and_never_gates_first_run(model_dir: Path) -> None:
     status = component_status()
-    entry = status["components"]["speaker-ecapa"]
-    assert entry["opt_in"] is True and entry["ok"] is False
-    assert "speaker-ecapa" in status["opt_in_components"]
-    assert "speaker-ecapa" not in status["default_components"]
+    entry = next(row for row in status["models"] if row["id"] == "speaker-ecapa")
+    assert entry["tier"] == "offered" and entry["state"] == "missing"
 
 
 def test_gui_bootstrap_accepts_the_component(

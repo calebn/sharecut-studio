@@ -321,11 +321,29 @@ def test_component_status_shape() -> None:
 
     status = component_status()
     assert "ffmpeg" in status
-    assert "ok" in status["ffmpeg"]
-    assert "whisper" in status
-    assert "rnnoise" in status
-    assert "word-aligner" in status
-    assert status["word-aligner"]["opt_in"] is True
+    assert status["ffmpeg"]["state"] in {"installed", "missing"}
+    assert set(status) == {"ffmpeg", "whisper", "rnnoise", "word-aligner"}
+    assert status["word-aligner"]["tier"] == "offered"
+    assert status["whisper"]["tier"] == "required"
+    assert all("ok" not in entry for entry in status.values())
+
+
+def test_component_status_whisper_without_faster_whisper_is_missing(monkeypatch) -> None:
+    import builtins
+
+    from podcast_mcp.services.pipeline.config import component_status
+
+    real_import = builtins.__import__
+
+    def refuse(name, *args, **kwargs):
+        if name == "faster_whisper":
+            raise ImportError("no faster_whisper")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", refuse)
+    whisper = component_status()["whisper"]
+    assert whisper["state"] == "missing"
+    assert "faster-whisper unavailable" in whisper["hint"]
 
 
 def test_pipeline_and_bootstrap_ffmpeg_status_refresh_warmed_admission(
@@ -365,14 +383,14 @@ def test_pipeline_and_bootstrap_ffmpeg_status_refresh_warmed_admission(
         raise FileNotFoundError("mocked version-probe launch failure")
 
     monkeypatch.setattr(binaries, "run", fail_version_probe)
-    assert bootstrap.component_status()["components"]["ffmpeg"]["ok"] is False
-    assert pipeline_config.component_status()["ffmpeg"]["ok"] is False
+    assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "missing"
+    assert pipeline_config.component_status()["ffmpeg"]["state"] == "missing"
     assert len(calls) == 2
 
     calls.clear()
     monkeypatch.setattr(binaries, "run", report_versions)
-    assert bootstrap.component_status()["components"]["ffmpeg"]["ok"] is True
-    assert pipeline_config.component_status()["ffmpeg"]["ok"] is True
+    assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "installed"
+    assert pipeline_config.component_status()["ffmpeg"]["state"] == "installed"
     assert len(version_calls) == 4
 
 
@@ -398,13 +416,13 @@ def test_component_status_whisper_requires_cached_weights(tmp_path, monkeypatch)
     monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
 
     status = pc.component_status(whisper_model="large-v3-turbo")
-    assert status["whisper"]["ok"] is False
+    assert status["whisper"]["state"] == "missing"
     assert status["whisper"]["model"] == "large-v3-turbo"
     assert "not downloaded" in status["whisper"]["hint"]
 
     plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
     status_ok = pc.component_status(whisper_model="large-v3-turbo")
-    assert status_ok["whisper"]["ok"] is True
+    assert status_ok["whisper"]["state"] == "installed"
 
 
 def test_component_status_whisper_pin_mismatch(tmp_path, monkeypatch) -> None:
@@ -418,10 +436,9 @@ def test_component_status_whisper_pin_mismatch(tmp_path, monkeypatch) -> None:
     (snap / "model.bin").write_bytes(b"tampered")
 
     status = pc.component_status(whisper_model="large-v3-turbo")
-    assert status["whisper"]["ok"] is False
+    assert status["whisper"]["state"] == "update_needed"
     assert "does not match" in status["whisper"]["hint"]
     assert "--upgrade" in status["whisper"]["hint"]
-    assert status["whisper"]["pin_mismatch"] is True
     assert status["whisper"]["bootstrap"] == (
         "podcast bootstrap --component whisper --whisper-model large-v3-turbo --upgrade"
     )
@@ -445,7 +462,7 @@ def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> 
     assert isinstance(payload["whisper_models"], list)
     assert any(m["id"] == "small.en" for m in payload["whisper_models"])
     assert all("cached" in m for m in payload["whisper_models"])
-    assert payload["components"]["whisper"]["ok"] is False
+    assert payload["components"]["whisper"]["state"] == "missing"
     assert payload["components"]["whisper"]["model"] == "small.en"
 
 
@@ -752,9 +769,9 @@ def test_component_status_error_branches(monkeypatch) -> None:
     )
     monkeypatch.setattr("podcast_mcp.util.model_assets.rnnoise_model_path", boom_rnnoise)
     status = pc.component_status()
-    assert status["ffmpeg"]["ok"] is False
+    assert status["ffmpeg"]["state"] == "missing"
     assert "no ffmpeg" in status["ffmpeg"]["hint"]
-    assert status["rnnoise"]["ok"] is False
+    assert status["rnnoise"]["state"] == "missing"
     assert status["rnnoise"]["hint"] == "no rnnoise"
     assert status["rnnoise"]["bootstrap"] == "podcast bootstrap --component rnnoise"
 
@@ -1497,7 +1514,7 @@ def test_component_status_checks_executability_for_explicit_pair(monkeypatch, ex
         "resolve_ffmpeg_pair",
         lambda **_kwargs: binaries.FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
     )
-    assert pc.component_status()["ffmpeg"]["ok"] is executable
+    assert pc.component_status()["ffmpeg"]["state"] == ("installed" if executable else "missing")
 
 
 def _pipeline_params_exporter():

@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.engines.models.registry import MODELS
+
 
 @pytest.fixture(autouse=True)
 def _isolate_bootstrap_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -41,24 +43,74 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     status = boot.component_status()
     assert status["ready"] is False
     assert status["cdn_base"] is False
-    assert status["components"]["ffmpeg"]["required_for_first_run"] is True
-    assert status["components"]["whisper"]["required_for_first_run"] is True
-    assert status["components"]["rnnoise"]["required_for_first_run"] is False
-    assert status["components"]["whisper"]["ok"] is False
-    assert status["components"]["whisper"]["bootstrap"] == "podcast bootstrap --component whisper"
-    assert status["default_components"] == ["whisper"]
+    assert status["tools"] == {
+        "ffmpeg": {"state": "missing", "source": "not found", "hint": None},
+    }
+    assert [row["id"] for row in status["models"]] == [spec.id for spec in MODELS]
+    by_id = {row["id"]: row for row in status["models"]}
+    assert [by_id[i]["tier"] for i in by_id] == ["required", "recommended", "offered", "offered"]
+    assert by_id["whisper"]["purpose"] == "transcription"
+    assert by_id["whisper"]["state"] == "missing"
+    assert by_id["whisper"]["model"] == "large-v3-turbo"
+    assert by_id["whisper"]["size"] == "~1.6 GB"
+    assert by_id["whisper"]["size_bytes"] == 1_600_000_000
+    assert by_id["whisper"]["bootstrap"] == "podcast bootstrap --component whisper"
+    assert by_id["rnnoise"]["size_bytes"] == 297646
     assert status["whisper_model"] == "large-v3-turbo"
     assert any(item["id"] == "large-v3-turbo" for item in status["whisper_models"])
 
-    aligner = status["components"]["word-aligner"]
-    assert aligner["ok"] is False
-    assert aligner["opt_in"] is True
-    assert aligner["required_for_first_run"] is False
+    aligner = by_id["word-aligner"]
+    assert aligner["state"] == "missing"
     assert aligner["model"] == "onnx-base"
+    assert aligner["size_bytes"] is None
     assert aligner["bootstrap"] == "podcast bootstrap --component word-aligner"
-    assert status["opt_in_components"] == ["word-aligner", "speaker-ecapa"]
-    assert "word-aligner" not in status["default_components"]
-    assert "word-aligner" not in status["optional_components"]
+    removed = {
+        "components",
+        "default_components",
+        "optional_components",
+        "opt_in_components",
+    }
+    assert removed.isdisjoint(status)
+    assert all(
+        {"ok", "pin_mismatch", "required_for_first_run", "opt_in"}.isdisjoint(row)
+        for row in status["models"]
+    )
+    assert "ffmpeg" not in by_id
+
+
+def test_status_whisper_size_follows_the_requested_variant(monkeypatch) -> None:
+    from podcast_mcp.services.pipeline import bootstrap as boot
+
+    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: None)
+    whisper = boot.component_status(whisper_model="tiny.en")["models"][0]
+    assert (whisper["model"], whisper["size"], whisper["size_bytes"]) == (
+        "tiny.en",
+        "~75 MB",
+        75_000_000,
+    )
+
+
+def test_ready_needs_ffmpeg_and_every_required_model(monkeypatch) -> None:
+    from podcast_mcp.services.pipeline import bootstrap as boot
+
+    pair = type("Pair", (), {"source": "bundled", "is_available": lambda self: True})()
+    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: pair)
+    monkeypatch.setattr(
+        boot,
+        "model_status",
+        lambda model_id, variant=None: {
+            "id": model_id,
+            "tier": "required" if model_id == "whisper" else "offered",
+            "state": "installed" if model_id == "whisper" else "missing",
+        },
+    )
+    assert boot.component_status()["ready"] is True
+    monkeypatch.setattr(
+        boot,
+        "model_status",
+        lambda model_id, variant=None: {"id": model_id, "state": "update_needed"},
+    )
+    assert boot.component_status()["ready"] is False
 
 
 def test_word_aligner_component_ok_has_no_hint(monkeypatch) -> None:
@@ -67,7 +119,7 @@ def test_word_aligner_component_ok_has_no_hint(monkeypatch) -> None:
 
     monkeypatch.setattr(registry, "word_aligner_problem", lambda *a, **k: None)
     component = boot.model_status("word-aligner")
-    assert component["ok"] is True
+    assert component["state"] == "installed"
     assert "hint" not in component
     assert "bootstrap" not in component
 
@@ -81,7 +133,7 @@ def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
 
     monkeypatch.setattr(registry, "word_aligner_problem", raise_runtime_error)
     component = boot.model_status("word-aligner")
-    assert component["ok"] is False
+    assert component["state"] == "missing"
     assert component["hint"] == "boom"
 
 
@@ -94,7 +146,7 @@ def test_whisper_component_reports_unexpected_errors(monkeypatch) -> None:
 
     monkeypatch.setattr(registry, "whisper_model_problem", raise_runtime_error)
     component = boot.model_status("whisper", "small.en")
-    assert component["ok"] is False
+    assert component["state"] == "missing"
     assert component["model"] == "small.en"
     assert component["hint"] == "boom"
     assert component["bootstrap"] == "podcast bootstrap --component whisper"
@@ -109,7 +161,7 @@ def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
         registry, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m)
     )
     component = boot.model_status("whisper", "small.en")
-    assert component["ok"] is False
+    assert component["state"] == "missing"
     assert "pin_mismatch" not in component
     assert component["bootstrap"] == "podcast bootstrap --component whisper"
     assert "is not downloaded" in component["hint"]
@@ -222,9 +274,8 @@ def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
             "results": {"word-aligner": {"ok": True}},
             "ready": True,
             "whisper_model": whisper_model,
-            "components": {},
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "models": [],
+            "tools": {},
         }
 
     monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
@@ -252,12 +303,12 @@ def test_whisper_component_requires_matching_model(tmp_path: Path, monkeypatch) 
     blobs.mkdir(parents=True)
     (blobs / "x").write_text("x")
     monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
-    assert boot.model_status("whisper", "small")["ok"] is False
+    assert boot.model_status("whisper", "small")["state"] == "missing"
 
     (blobs / "model.bin").write_bytes(b"x")
-    assert boot.model_status("whisper", "small")["ok"] is True
-    assert boot.model_status("whisper", "base")["ok"] is False
-    assert boot.model_status("whisper", "medium")["ok"] is False
+    assert boot.model_status("whisper", "small")["state"] == "installed"
+    assert boot.model_status("whisper", "base")["state"] == "missing"
+    assert boot.model_status("whisper", "medium")["state"] == "missing"
 
 
 def test_whisper_component_large_v3_does_not_match_turbo(tmp_path: Path, monkeypatch) -> None:
@@ -268,8 +319,8 @@ def test_whisper_component_large_v3_does_not_match_turbo(tmp_path: Path, monkeyp
     plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
     monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
 
-    assert boot.model_status("whisper", "large-v3-turbo")["ok"] is True
-    assert boot.model_status("whisper", "large-v3")["ok"] is False
+    assert boot.model_status("whisper", "large-v3-turbo")["state"] == "installed"
+    assert boot.model_status("whisper", "large-v3")["state"] == "missing"
 
 
 def test_gui_bootstrap_status_reports_cdn_base(
@@ -293,13 +344,8 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
         return {
             "ready": False,
             "whisper_model": whisper_model,
-            "components": {
-                "ffmpeg": {"ok": False, "required_for_first_run": True},
-                "whisper": {"ok": False, "required_for_first_run": True},
-                "rnnoise": {"ok": False, "required_for_first_run": False},
-            },
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "tools": {"ffmpeg": {"state": "missing", "source": "not found", "hint": None}},
+            "models": [{"id": "whisper", "state": "missing"}],
         }
 
     def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
@@ -312,9 +358,8 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
             "results": {"whisper": {"ok": True}},
             "ready": True,
             "whisper_model": whisper_model,
-            "components": {},
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "models": [],
+            "tools": {},
         }
 
     monkeypatch.setattr("podcast_mcp.gui.routes.bootstrap.component_status", fake_status)
@@ -377,14 +422,13 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
             "results": {},
             "ready": True,
             "whisper_model": whisper_model,
-            "components": {},
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "models": [],
+            "tools": {},
         }
 
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.bootstrap.component_status",
-        lambda whisper_model=None: {"ready": False, "components": {}, "default_components": []},
+        lambda whisper_model=None: {"ready": False, "models": [], "tools": {}},
     )
     monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", slow_run)
     shared_job_manager(reset=True)
@@ -448,14 +492,13 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
             "results": {"whisper": {"ok": True}},
             "ready": True,
             "whisper_model": whisper_model,
-            "components": {},
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "models": [],
+            "tools": {},
         }
 
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.bootstrap.component_status",
-        lambda whisper_model=None: {"ready": False, "components": {}, "default_components": []},
+        lambda whisper_model=None: {"ready": False, "models": [], "tools": {}},
     )
     monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fake_run)
     shared_job_manager(reset=True)
@@ -505,14 +548,13 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
             "results": {"whisper": {"ok": False, "error": "download failed"}},
             "ready": False,
             "whisper_model": whisper_model,
-            "components": {},
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "models": [],
+            "tools": {},
         }
 
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.bootstrap.component_status",
-        lambda whisper_model=None: {"ready": False, "components": {}, "default_components": []},
+        lambda whisper_model=None: {"ready": False, "models": [], "tools": {}},
     )
     monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", fail_run)
     shared_job_manager(reset=True)
@@ -564,13 +606,8 @@ def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
         return {
             "ready": False,
             "whisper_model": whisper_model,
-            "components": {
-                "ffmpeg": {"ok": True, "required_for_first_run": True},
-                "whisper": {"ok": False, "required_for_first_run": True},
-                "rnnoise": {"ok": False, "required_for_first_run": False},
-            },
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "tools": {"ffmpeg": {"state": "installed", "source": "bundled", "hint": None}},
+            "models": [{"id": "whisper", "state": "missing"}],
         }
 
     def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
@@ -585,9 +622,8 @@ def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
             "results": {"whisper": {"ok": True, "model": whisper_model}},
             "ready": True,
             "whisper_model": whisper_model,
-            "components": {},
-            "default_components": ["whisper"],
-            "optional_components": ["rnnoise"],
+            "models": [],
+            "tools": {},
         }
 
     monkeypatch.setattr("podcast_mcp.gui.routes.bootstrap.component_status", fake_status)
@@ -679,15 +715,14 @@ def test_component_status_whisper_pin_mismatch(monkeypatch) -> None:
         lambda m, **k: WhisperPinMismatchError(m, "model.bin sha256 abc does not match the pin"),
     )
     status = boot.component_status(whisper_model="small.en")
-    whisper = status["components"]["whisper"]
+    whisper = status["models"][0]
     assert status["ready"] is False
-    assert whisper["ok"] is False
-    assert whisper["pin_mismatch"] is True
+    assert whisper["state"] == "update_needed"
     assert "does not match its pinned download" in whisper["hint"]
     assert whisper["bootstrap"] == (
         "podcast bootstrap --component whisper --whisper-model small.en --upgrade"
     )
-    assert whisper["required_for_first_run"] is True
+    assert whisper["tier"] == "required"
 
 
 def test_status_components_poll_memoised(monkeypatch) -> None:
@@ -701,8 +736,8 @@ def test_status_components_poll_memoised(monkeypatch) -> None:
 
     monkeypatch.setattr(registry, "whisper_model_problem", fake_problem)
     monkeypatch.setattr(registry, "word_aligner_problem", fake_problem)
-    assert boot.model_status("whisper", "small.en")["ok"] is True
-    assert boot.model_status("word-aligner")["ok"] is True
+    assert boot.model_status("whisper", "small.en")["state"] == "installed"
+    assert boot.model_status("word-aligner")["state"] == "installed"
     assert seen == [True, True]
 
 
@@ -719,8 +754,7 @@ def test_word_aligner_component_flags_a_pin_mismatch(monkeypatch) -> None:
         ),
     )
     component = boot.model_status("word-aligner")
-    assert component["ok"] is False
-    assert component["pin_mismatch"] is True
+    assert component["state"] == "update_needed"
     assert component["bootstrap"] == "podcast bootstrap --component word-aligner --upgrade"
     assert "vocab.json" in component["hint"]
 
@@ -739,4 +773,6 @@ def test_first_run_readiness_checks_bare_and_nonexecutable_explicit_commands(
         "resolve_ffmpeg_pair",
         lambda **_kwargs: FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
     )
-    assert boot.component_status()["components"]["ffmpeg"]["ok"] is executable
+    assert boot.component_status()["tools"]["ffmpeg"]["state"] == (
+        "installed" if executable else "missing"
+    )
