@@ -12,7 +12,11 @@ import {
   type HitRouter,
   isReplayed,
 } from "./hitRouting";
-import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
+import {
+  HIT_SURFACE_PROPS,
+  hitTargetProps,
+  OWN_TAP_HIT_SURFACE_PROPS,
+} from "./hitTargets";
 
 let root: HTMLDivElement;
 let router: HitRouter;
@@ -344,6 +348,25 @@ describe("tap on a surface near an edit mark", () => {
 
     expect(marks("join")).toHaveLength(2);
     expect(seeks()).toEqual([]);
+  });
+
+  it("stays with a pending region or the envelope that owns its tap, even beside a join", () => {
+    const region = surface(OWN_TAP_HIT_SURFACE_PROPS, {
+      left: 0,
+      top: 100,
+      right: 800,
+      bottom: 204,
+    });
+    root.append(region);
+    record("pending", region);
+    mark();
+    tap(region, 228, 104);
+
+    expect(marks("join")).toEqual([]);
+    expect(marks("pending")).toEqual([
+      "pending:pointerdown@228,104",
+      "pending:pointerup@228,104",
+    ]);
   });
 
   it("stays a seek 30 px beside the mark", () => {

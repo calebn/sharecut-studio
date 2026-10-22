@@ -12,7 +12,7 @@ import {
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
 import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
-import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
+import { hitTargetProps, OWN_TAP_HIT_SURFACE_PROPS } from "./hitTargets";
 import { timelineTestIds } from "./selectors";
 
 type EnvelopeDrag = {
@@ -296,7 +296,7 @@ export function EnvelopeOverlayView({
       <div
         className="envelope-hit"
         role="presentation"
-        {...HIT_SURFACE_PROPS}
+        {...OWN_TAP_HIT_SURFACE_PROPS}
         onClick={(e) => {
           e.stopPropagation();
           onSelectTrack();

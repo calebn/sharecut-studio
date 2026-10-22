@@ -65,6 +65,7 @@ import {
   closestHitTarget,
   hitSpanSec,
   hitTimeSec,
+  ownsTap,
   type ResolvedHit,
   resolveHits,
   surfaceTapTarget,
@@ -680,7 +681,7 @@ export function attachHitRouting(
         hits,
         winner,
         tap:
-          !hit && (options.surfaceTaps?.() ?? true)
+          !hit && !ownsTap(event.target) && (options.surfaceTaps?.() ?? true)
             ? (surfaceTapTarget(part, origin) ?? winner)
             : winner,
       };

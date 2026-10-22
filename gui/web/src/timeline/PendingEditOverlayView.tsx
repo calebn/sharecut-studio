@@ -36,7 +36,7 @@ import {
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
-import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
+import { hitTargetProps, OWN_TAP_HIT_SURFACE_PROPS } from "./hitTargets";
 import {
   type PendingActionPlacement,
   placePendingActionbar,
@@ -1169,7 +1169,7 @@ function PendingEditRegion({
                 selected,
                 detail: edit.type,
               })
-            : HIT_SURFACE_PROPS)}
+            : OWN_TAP_HIT_SURFACE_PROPS)}
           aria-label={`Pending ${edit.type} edit, ${regionLabel}`}
           aria-pressed={selected}
           onClick={(event) => {
