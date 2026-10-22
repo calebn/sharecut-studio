@@ -25,6 +25,7 @@ from podcast_mcp.engines.align import (
     read_open_wav_mono_window,
 )
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.project.transcript_context import SpeakerIdConfig, TranscriptContext
 from podcast_mcp.util.coded_error import CodedValueError
@@ -362,11 +363,17 @@ def _stem_path(project: EpisodeProject, track_id: str) -> Path | None:
     return path
 
 
+def _profile_media_key(path: Path) -> str:
+    """``file_revision_key``, marked ``:a0`` for media whose first audio stream is the one read."""
+    key = file_revision_key(path)
+    return f"{key}:a0" if has_several_audio_streams(path) else key
+
+
 def _profile_stem_valid(project: EpisodeProject, profile: SpeakerProfile) -> bool:
     path, _ = _stem_path_and_source(project, profile.track_id)
     if path is None:
         return False
-    return profile.stem_hash == file_revision_key(path)
+    return profile.stem_hash == _profile_media_key(path)
 
 
 def profile_home_track(profile: SpeakerProfile) -> str:
@@ -377,7 +384,7 @@ def profile_cache_path(project: EpisodeProject, identity_id: str, stem_hash: str
     d = project.artifacts_dir() / "speaker_profiles"
     d.mkdir(parents=True, exist_ok=True)
     safe = identity_id.replace("/", "_")
-    return d / f"{safe}_{stem_hash}.json"
+    return d / f"{safe}_{stem_hash.replace(':', '')}.json"
 
 
 def resolve_expected_speaker_count(
@@ -433,7 +440,7 @@ def load_all_profiles(project: EpisodeProject) -> dict[str, SpeakerProfile]:
 def load_profile(project: EpisodeProject, identity_or_track_id: str) -> SpeakerProfile | None:
     path, _ = _stem_path_and_source(project, identity_or_track_id)
     if path is not None:
-        cache = profile_cache_path(project, identity_or_track_id, file_revision_key(path))
+        cache = profile_cache_path(project, identity_or_track_id, _profile_media_key(path))
         if cache.is_file():
             prof = SpeakerProfile.from_dict(json.loads(cache.read_text(encoding="utf-8")))
             if _profile_stem_valid(project, prof):
@@ -551,7 +558,7 @@ def enroll_track(
         return None
 
     mean_emb = np.mean(np.stack(embeddings), axis=0)
-    stem = file_revision_key(path)
+    stem = _profile_media_key(path)
     profile = SpeakerProfile(
         speaker_id=track_id,
         track_id=track_id,
@@ -600,7 +607,7 @@ def enroll_segment(
         antialias=True,
     )
     emb = backend.embed(samples, cfg.sample_rate)
-    stem = file_revision_key(path)
+    stem = _profile_media_key(path)
     profile = SpeakerProfile(
         speaker_id=speaker_id,
         track_id=track_id,

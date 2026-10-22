@@ -9,6 +9,7 @@ from filelock import Timeout
 
 from podcast_mcp.edits.transcript_search import search_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
     premix_path,
@@ -265,7 +266,13 @@ class _PlayStems(_PlayCache):
             media, ext_start, ext_end = timeline_range_to_source(
                 self.project, tid, timeline_start, timeline_end
             )
-            out = self._cache_path(f"raw_{tid}", timeline_start, timeline_end, media)
+            out = self._cache_path(
+                f"raw_{tid}",
+                timeline_start,
+                timeline_end,
+                media,
+                extra="a0" if has_several_audio_streams(media) else "",
+            )
             if not out.is_file():
                 FFmpegEngine().extract_segment(media, out, ext_start, ext_end)
             return out, "raw", ext_start, ext_end, False

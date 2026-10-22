@@ -69,7 +69,7 @@ BIN_BYTES = 6
 INT16_FULL_SCALE = 32767
 TMP_MAX_AGE_SEC = 86_400.0
 PYRAMID_LOCK_TIMEOUT_SEC = 30.0
-_BUILD_REVISION = 2
+_BUILD_REVISION = 3
 # read_pcm_minmax windows are capped at this many contract PCM blocks.
 PCM_WINDOW_MAX_BLOCKS = 4
 
