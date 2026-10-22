@@ -21,19 +21,6 @@ body {
   padding-right: env(safe-area-inset-right);
 }
 
-/* A pan of the visual viewport that nothing explains (Safari's chrome after a
-   rotation, #1761): the body moves down by it and takes the visible band's
-   height, so the shell and every fixed child follow the visible screen. */
-html[data-viewport-pan] body {
-  height: var(--viewport-pan-height);
-  transform: translateY(var(--viewport-pan-top));
-}
-
-html[data-viewport-pan] .daw-shell {
-  height: 100%;
-  max-height: 100%;
-}
-
 /* Native checkboxes, radios, and range thumbs take the brand accent. */
 html {
   accent-color: var(--color-accent-solid);
