@@ -183,8 +183,14 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
       });
     },
   });
+  // Opening a join popover moves focus into the dialog, which clears
+  // `focused`; the open join's mark stands in for it until the popover closes.
+  const popoverMark = useRef<string | null>(null);
+  if (openJoinId != null) {
+    popoverMark.current = `join-${openJoinId}`;
+  }
   useEffect(() => {
-    const id = focused.current;
+    const id = focused.current ?? popoverMark.current;
     if (id == null || document.activeElement !== document.body) {
       return;
     }
@@ -205,6 +211,13 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
       elements.current.get(target)?.focus({ preventScroll: true });
     }
   }, [items]);
+  // After the restore effect above, so a fold that closes the popover in the
+  // same commit still finds its mark.
+  useEffect(() => {
+    if (openJoinId == null) {
+      popoverMark.current = null;
+    }
+  }, [openJoinId]);
   return (
     <>
       {items.map((item) =>
