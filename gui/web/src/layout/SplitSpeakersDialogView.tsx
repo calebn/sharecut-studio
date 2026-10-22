@@ -2,7 +2,6 @@ import { type RefObject, useId, useRef } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, Field, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
-import { plainError } from "../utils/plainError";
 import {
   MAX_SPLIT_SPEAKERS,
   MIN_SPLIT_SPEAKERS,
@@ -186,7 +185,7 @@ function SplitSpeakersForm({
                   {speakerModel.progress}
                 </span>
               ) : null}
-              <InlineError message={speakerModelError(speakerModel?.error)} />
+              <InlineError message={speakerModel?.error ?? null} />
             </>
           ) : null}
         </p>
@@ -490,13 +489,4 @@ function SplitSpeakersFooter({
       </div>
     </div>
   );
-}
-
-/** The download failure as a podcaster reads it: a sanitized message names no internal id, so it gets the plain lead. */
-function speakerModelError(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const plain = plainError(raw);
-  return plain === raw
-    ? raw
-    : "Couldn't download the speaker model. Export diagnostics from the command palette and try again.";
 }

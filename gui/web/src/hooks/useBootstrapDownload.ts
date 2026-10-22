@@ -1,13 +1,16 @@
 import { useCallback, useState } from "react";
 import { runBootstrap, waitForBootstrapJob } from "../api";
 import { errorMessage } from "../utils/apiError";
+import { plainError } from "../utils/plainError";
 import { useSingleFlight } from "./useSingleFlight";
 
 /**
  * One bootstrap download with live progress text. On success `busy` stays
- * true until the caller `reset()`s (a dialog closes first).
+ * true until the caller `reset()`s (a dialog closes first). `error` is safe to
+ * show: a failure that names an internal id, setting or path reads as a plain
+ * sentence naming `subject`.
  */
-export function useBootstrapDownload() {
+export function useBootstrapDownload(subject: string) {
   const { busy: inFlight, run } = useSingleFlight();
   /** Set on success so `busy` holds until `reset()`. */
   const [held, setHeld] = useState(false);
@@ -38,11 +41,16 @@ export function useBootstrapDownload() {
           setHeld(true);
           return true;
         } catch (e: unknown) {
-          setError(errorMessage(e));
+          const raw = errorMessage(e);
+          setError(
+            plainError(raw) === raw
+              ? raw
+              : `Couldn't download ${subject}. Export diagnostics from the command palette and try again.`,
+          );
           return false;
         }
       })) ?? false,
-    [run],
+    [run, subject],
   );
 
   return { busy: inFlight || held, progress, error, download, reset };

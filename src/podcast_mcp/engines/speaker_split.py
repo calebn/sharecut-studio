@@ -35,6 +35,7 @@ from typing import Literal
 
 import numpy as np
 
+from podcast_mcp.engines.models.speaker_ecapa import MIN_SAMPLES
 from podcast_mcp.engines.speaker_hand_overs import frame_levels, settle_hand_overs, voice_runs
 from podcast_mcp.engines.speaker_id import SpeakerBackend
 from podcast_mcp.util.coded_error import CodedValueError
@@ -139,6 +140,12 @@ def _embed(
     return _unit(np.stack(embeddings))
 
 
+def _window_samples(samples: np.ndarray, center: float, window_sec: float) -> int:
+    """Samples ``_embed`` would slice for the window at ``center``, short at the end of the audio."""
+    start = max(round((center - window_sec / 2) * RATE), 0)
+    return max(min(round(window_sec * RATE), samples.size - start), 0)
+
+
 def _enrollment_centroids(
     samples: np.ndarray,
     enrollment: Mapping[int, Sequence[Span]],
@@ -155,6 +162,7 @@ def _enrollment_centroids(
             ).tolist()
             or [(start + end) / 2]
         ]
+        centers = [c for c in centers if _window_samples(samples, c, window_sec) >= MIN_SAMPLES]
         if centers:
             embeddings = _embed(samples, np.array(centers), window_sec, backend)
             centroids[speaker] = _unit(embeddings.mean(axis=0))
