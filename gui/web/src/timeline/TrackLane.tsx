@@ -460,12 +460,10 @@ export function TrackLaneView({
               zoomPxPerSec={zoomPxPerSec}
               trackFadeMaxMs={track.fade_max_ms ?? null}
               rolling={rollPreview != null}
-              waves={{
-                leftRef: clipMediaRef(prev, track, "raw"),
-                rightRef: clipMediaRef(right, track, "raw"),
-                role: track.role,
-                gainDb: trackOutputGainDb(track),
-              }}
+              leftRef={clipMediaRef(prev, track, "raw")}
+              rightRef={clipMediaRef(right, track, "raw")}
+              role={track.role}
+              gainDb={trackOutputGainDb(track)}
             />
           );
         })}

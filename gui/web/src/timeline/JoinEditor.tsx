@@ -4,17 +4,19 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { clampClipFades } from "../edit/fadeLimits";
-import { joinGlyph, joinVisual } from "../edit/joinRender";
+import { joinDraftOverlapMs, joinGlyph, joinVisual } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import { useResizeObserver } from "../ui";
 import { useStableCallback } from "../utils/useStableCallback";
+import type { MediaRef } from "../waveform/types";
 import { useHitRouter } from "./hitRouterContext";
 import { hitTargetProps } from "./hitTargets";
 import { JoinBadgeView } from "./JoinBadge";
@@ -30,10 +32,21 @@ interface JoinEditorProps {
   zoomPxPerSec: number;
   trackFadeMaxMs: number | null;
   rolling?: boolean;
-  waves?: JoinWaveSides;
+  leftRef?: MediaRef;
+  rightRef?: MediaRef;
+  role?: string;
+  gainDb?: number;
 }
 function JoinEditorLive(props: JoinEditorProps) {
   const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs } = props;
+  const { leftRef, rightRef, role, gainDb } = props;
+  const waves = useMemo<JoinWaveSides | undefined>(
+    () =>
+      leftRef && rightRef && role !== undefined && gainDb !== undefined
+        ? { leftRef, rightRef, role, gainDb }
+        : undefined,
+    [leftRef, rightRef, role, gainDb],
+  );
   const anchorRef = useRef<HTMLButtonElement>(null),
     railRef = useRef<HTMLDivElement>(null);
   const gripRef = useRef<HTMLButtonElement>(null);
@@ -58,7 +71,7 @@ function JoinEditorLive(props: JoinEditorProps) {
     draft && joinGlyph(right) === "crossfade"
       ? {
           ...right,
-          join_crossfade_ms: edit.value,
+          join_crossfade_ms: joinDraftOverlapMs(left, right, edit.value),
           join_crossfade_blocked: null,
         }
       : right;
@@ -195,7 +208,7 @@ function JoinEditorLive(props: JoinEditorProps) {
         visual={visual}
         left={left}
         right={right}
-        waves={props.waves}
+        waves={right.join_crossfade_blocked ? undefined : waves}
         zoomPxPerSec={zoomPxPerSec}
       />
       <JoinBadgeView

@@ -14,6 +14,7 @@ import { JoinEditor } from "./JoinEditor";
 import { useTouchPress } from "./useTouchPress";
 
 vi.mock("../api", () => ({ setClipJoin: vi.fn(async () => undefined) }));
+vi.mock("./WaveformLayer", () => ({ WaveformLayer: () => null }));
 const left = clipRow({
   id: "left",
   source_start: 0,
@@ -135,6 +136,35 @@ describe("JoinEditor coupled length", () => {
     });
     await act(async () => {});
     await expectNoA11yViolations(document.body);
+  });
+  it("caps the draft box at the render headroom and draws no waves for a blocked join", () => {
+    const tight = { ...right, source_start: 0.05, source_end: 10 };
+    const { container, unmount } = mount({
+      right: tight,
+      leftRef: "source:a",
+      rightRef: "source:b",
+      role: "dialogue",
+      gainDb: 0,
+    } as Partial<typeof base>);
+    expect(
+      container.querySelector(".join-blend-waves, .join-blend-seam"),
+    ).not.toBeNull();
+    move(1500);
+    expect(container.querySelector(".join-blend")).toHaveStyle({
+      width: "5px",
+    });
+    unmount();
+    const blocked = mount({
+      right: { ...right, join_crossfade_blocked: "no_headroom" },
+      leftRef: "source:a",
+      rightRef: "source:b",
+      role: "dialogue",
+      gainDb: 0,
+    } as Partial<typeof base>);
+    move();
+    expect(
+      blocked.container.querySelector(".join-blend-waves, .join-blend-seam"),
+    ).toBeNull();
   });
   it("uses final release coordinates even without a move event", () => {
     mount();
