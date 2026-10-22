@@ -5,6 +5,7 @@ import re
 import wave
 from dataclasses import dataclass
 from pathlib import Path
+from subprocess import CalledProcessError
 from typing import Any
 
 from podcast_mcp.engines.audio import (
@@ -132,14 +133,9 @@ def _native_format(ffmpeg: str, path: Path) -> ObservedAudio:
     return audio
 
 
-def configure_observers(
-    ffmpeg: str,
-    ffprobe: str,
-    filters: list[str],
-    input_paths: tuple[Path, ...],
-    bindings: dict[str, ClockBinding],
-    names: list[str],
-) -> tuple[dict[str, ObservedAudio], dict[str, str]]:
+def _configured_ports(
+    ffmpeg: str, ffprobe: str, filters: list[str], input_paths: tuple[Path, ...]
+) -> dict[tuple[str, str], _Port]:
     native = {path: _native_format(ffmpeg, path) for path in dict.fromkeys(input_paths)}
     configured = list(filters)
     for i, operation in enumerate(configured):
@@ -177,7 +173,32 @@ def configure_observers(
         text=True,
         check=True,
     )
-    ports = _ascii_ports(result.stderr)
+    return _ascii_ports(result.stderr)
+
+
+def negotiated_rates(
+    ffmpeg: str, ffprobe: str, filters: list[str], input_paths: tuple[Path, ...], names: list[str]
+) -> dict[str, int]:
+    """Sample rate FFmpeg negotiates on the output link of each filter instance in ``names``."""
+    try:
+        ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths)
+        return {name: ports[name, "default"].audio.sample_rate for name in names}
+    except (CalledProcessError, KeyError) as error:
+        raise CodedValueError(
+            "Cannot read the sample rate the render graph negotiates",
+            code="render_rate_unresolved",
+        ) from error
+
+
+def configure_observers(
+    ffmpeg: str,
+    ffprobe: str,
+    filters: list[str],
+    input_paths: tuple[Path, ...],
+    bindings: dict[str, ClockBinding],
+    names: list[str],
+) -> tuple[dict[str, ObservedAudio], dict[str, str]]:
+    ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths)
     formats = {}
     for name in names:
         try:

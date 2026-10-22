@@ -56,6 +56,7 @@ from podcast_mcp.engines.render_clock import (
     clock_error,
     configure_observers,
     format_filter,
+    negotiated_rates,
     observed_clock,
 )
 from podcast_mcp.models import (
@@ -178,8 +179,9 @@ def _sample_frame_expression(offset: int, source_rate: int) -> str:
 def _delay_filter(delay_sec: float, sample_rate: int) -> str:
     """Silence of ``delay_sec`` in front of the audio, with timestamps renumbered by sample.
 
-    Placed on ``ms * rate // 1000`` samples, as the evaluation does (#2025); ``aformat``
-    pins ``sample_rate`` around ``adelay`` so a later rate-forcing filter resamples after it.
+    Placed on ``ms * rate // 1000`` samples, as the evaluation does (#2025). ``sample_rate``
+    is the rate the render graph negotiates at this delay: the leading ``aformat`` resamples
+    the audio to it before ``adelay``, so the pin never moves the rate the mix runs at.
 
     When ``atrim`` has cut the first frame on a seeked input, ``adelay`` emits its lead-in
     frames with no timestamp (``NOPTS``), and a later ``apad`` or ``atrim`` drops them: a
@@ -944,19 +946,7 @@ class FFmpegEngine:
             filters.append(f"{inputs}{operation}{label}")
             return label
 
-        def fallback_probe() -> AudioProbe:
-            return self.probe(source_paths[0]) if source_paths else AudioProbe(0.0, 48000, 2)
-
-        delay_rates: dict[Path, int] = {}
-
-        def delay_rate(child: Audio) -> int:
-            leaves = sources(child)
-            if not leaves:
-                return fallback_probe().sample_rate
-            path = leaves[0].path.resolve()
-            if path not in delay_rates:
-                delay_rates[path] = self.probe(path).sample_rate
-            return delay_rates[path]
+        delays: list[tuple[int, str, float, str, str]] = []
 
         def compile_audio() -> str:
             nonlocal silence_probe
@@ -1026,10 +1016,14 @@ class FFmpegEngine:
                         ):
                             if at.start_sec > 0:
                                 delay_name = f"delay_{node_index}_{child_index}"
+                                inputs, observed = label, observer(delay_name)
                                 label = emit(
-                                    label,
-                                    _delay_filter(at.start_sec, delay_rate(at.audio))
-                                    + observer(delay_name),
+                                    inputs,
+                                    f"adelay@pin_{len(delays)}={delay_milliseconds(at.start_sec)}"
+                                    f":all=1,asetpts=N/SR/TB{observed}",
+                                )
+                                delays.append(
+                                    (len(filters) - 1, inputs, at.start_sec, observed, label)
                                 )
                                 bind(delay_name, label)
                             labels.append(label)
@@ -1045,7 +1039,11 @@ class FFmpegEngine:
                             )
                     case SilenceAudio():
                         if silence_probe is None:
-                            silence_probe = fallback_probe()
+                            silence_probe = (
+                                self.probe(source_paths[0])
+                                if source_paths
+                                else AudioProbe(0.0, 48000, 2)
+                            )
                         probe = silence_probe
                         layout = f"{probe.channels}c"
                         node_labels.append(
@@ -1087,6 +1085,20 @@ class FFmpegEngine:
                 str(output_path),
             ]
         )
+        input_paths = tuple(Path(cmd[i + 1]) for i, option in enumerate(cmd) if option == "-i")
+        if delays:
+            pinned = negotiated_rates(
+                self.ffmpeg,
+                self.ffprobe,
+                filters,
+                input_paths,
+                [f"adelay@pin_{k}" for k in range(len(delays))],
+            )
+            for k, (index, inputs, start_sec, observed, label) in enumerate(delays):
+                filters[index] = (
+                    f"{inputs}{_delay_filter(start_sec, pinned[f'adelay@pin_{k}'])}{observed}{label}"
+                )
+            cmd[cmd.index("-filter_complex") + 1] = ";".join(filters)
         if clock_path is None:
             run(cmd, check=True, capture_output=True)
         else:
@@ -1096,9 +1108,6 @@ class FFmpegEngine:
             ) as directory:
                 raw_graph = Path(directory) / "graph.json"
                 stderr_path = Path(directory) / "stderr.log"
-                input_paths = tuple(
-                    Path(cmd[i + 1]) for i, option in enumerate(cmd) if option == "-i"
-                )
                 formats, consumers = configure_observers(
                     self.ffmpeg,
                     self.ffprobe,
