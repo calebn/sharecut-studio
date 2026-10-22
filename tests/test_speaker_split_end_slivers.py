@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from test_speaker_split import RATE, SpectralBackend, _mix
 
 from podcast_mcp.engines.speaker_split import attribute_speakers
+from test_speaker_split import RATE, SpectralBackend, _mix
 
 # The embed refuses fewer samples than this (#2034 pins the bound at 800).
 _NETWORK_MIN_SAMPLES = 800
