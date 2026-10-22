@@ -21,6 +21,14 @@ html[data-shell] body {
     /* The inset bands match the nav and rail they border. */
     background: var(--color-bg-base);
   }
+
+  /* Safari's post-rotation pan (#1761, from useViewportPan): the fixed shell
+   * takes the visible band, and its fixed children follow it. */
+  html[data-viewport-pan][data-shell="phone"] .daw-shell,
+  html[data-viewport-pan][data-shell="tablet"] .daw-shell {
+    inset-block: var(--viewport-pan-top) auto;
+    block-size: var(--viewport-pan-height);
+  }
 }
 
 /* Named rows: banner rows are always present and `auto` (0 when empty), so a

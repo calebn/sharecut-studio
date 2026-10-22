@@ -3,7 +3,7 @@ import { useEffect } from "react";
 const PAN_EPSILON_PX = 1;
 const ZOOM_EPSILON = 0.01;
 
-function typing(): boolean {
+function fieldFocused(): boolean {
   const focused = document.activeElement;
   return (
     focused instanceof HTMLElement &&
@@ -24,7 +24,7 @@ function publish(viewport: VisualViewport): void {
     viewport.offsetTop <= PAN_EPSILON_PX ||
     viewport.scale > 1 + ZOOM_EPSILON ||
     root.dataset.keyboard === "open" ||
-    typing()
+    fieldFocused()
   ) {
     clear(root);
     return;
@@ -35,13 +35,10 @@ function publish(viewport: VisualViewport): void {
 }
 
 /**
- * After a rotation Safari re-expands its chrome and leaves the visual viewport
- * `offsetTop` below the layout viewport's top for 3 to 10 s, with no page scroll
- * to undo, so the shell's top rows sit off screen (#1761). While that pan has no
- * keyboard, pinch zoom or focused field to explain it, publish it as
- * `--viewport-pan-top` and `--viewport-pan-height` with `data-viewport-pan` on
- * `<html>`; `base.css` then moves `<body>` down by the pan and sizes it to the
- * visible band, so the shell and every fixed child follow the visible screen.
+ * After a rotation Safari leaves the visual viewport `offsetTop` below the layout
+ * top for 3 to 20 s, with no page scroll to undo it, so the fixed shell's top rows
+ * sit off screen (#1761). Publish a pan that no keyboard, pinch zoom or focused
+ * field explains; `layout.css` moves the shell to the visible band.
  */
 export function useViewportPan(): void {
   useEffect(() => {
