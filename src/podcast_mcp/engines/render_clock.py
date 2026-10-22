@@ -223,8 +223,9 @@ def _wav_format(path: Path) -> ObservedAudio | None:
     in a well-formed RIFF, and integer PCM that carries an IEC 61937 stream (AC-3 in a WAV has an
     s16 header and decodes to fltp, which moves the rate the graph negotiates), and any 32-bit tag-1
     file, which FFmpeg may remap to float. Zero frames still give the header format, which is what
-    a real run configures from. A LIST chunk under 4 bytes, an SMV0 or XMA2 chunk and less data than
-    one sample frame go to the probe too, because FFmpeg fails to open or decode them.
+    a real run configures from. A LIST chunk under 4 bytes before the data chunk (``LIST`` or ``list``), an SMV0 chunk, any
+    XMA2 chunk and less data than one sample frame go to the probe too, because FFmpeg fails to
+    open or decode them.
     """
     try:
         with path.open("rb") as stream:
@@ -243,7 +244,7 @@ def _parse_wav_header(stream: BinaryIO) -> ObservedAudio | None:
         if len(chunk) < 8:
             return None
         chunk_id, size = struct.unpack("<4sI", chunk)
-        if (chunk_id == b"LIST" and size < 4) or chunk_id in (b"SMV0", b"XMA2"):
+        if (chunk_id in (b"LIST", b"list") and size < 4) or chunk_id in (b"SMV0", b"XMA2"):
             return None
         if chunk_id == b"data":
             if fmt is None:
