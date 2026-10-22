@@ -79,6 +79,49 @@ describe("useRoomToneCapture", () => {
     expect(result.current.delivery).toBe("host");
   });
 
+  it("keeps saying the bed is on this device until the host acknowledges the file", async () => {
+    const sink = new MemorySink();
+    const base = memoryUploadTransport();
+    const transport = {
+      ...base,
+      put: async (...a: Parameters<typeof base.put>) => ({
+        ...(await base.put(...a)),
+        file_ack: false,
+      }),
+    };
+    const { result } = renderHook(() =>
+      useRoomToneCapture(hookArgs({ sink, transport })),
+    );
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe("recorded");
+    });
+    expect(result.current.delivery).toBe("device");
+  });
+
+  it("goes back to this device when the bed is recorded again", async () => {
+    const sink = new MemorySink();
+    const transport = memoryUploadTransport();
+    const { result } = renderHook(() =>
+      useRoomToneCapture(hookArgs({ sink, transport })),
+    );
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.delivery).toBe("host");
+    });
+    act(() => {
+      result.current.record();
+    });
+    expect(result.current.delivery).toBe("device");
+    await waitFor(() => {
+      expect(result.current.delivery).toBe("host");
+    });
+  });
+
   it("defers upload until canUpload becomes true", async () => {
     const sink = new MemorySink();
     const transport = memoryUploadTransport();
