@@ -1,10 +1,7 @@
-import { mkdirSync } from "node:fs";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
 
-const SHOTS =
-  "/tmp/claude-0/-home-user/723da3a0-b0ef-5305-9a25-88230b9ab762/scratchpad/shots2014";
 const VIEWPORTS = [
   { name: "phone-portrait", width: 390, height: 844 },
   { name: "phone-landscape", width: 844, height: 390 },
@@ -48,25 +45,6 @@ async function centreOn(page: Page, target: Locator, at = 0.3) {
     { centre: b.x + b.width / 2, at },
   );
   await page.waitForTimeout(150);
-}
-async function shoot(page: Page, lane: Locator, name: string) {
-  mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: `${SHOTS}/${name}.png` });
-  const blend = await box(lane.locator(".join-blend"));
-  const laneBox = await box(lane);
-  const vw = page.viewportSize()!.width;
-  const w = Math.min(240, vw);
-  const x = Math.min(Math.max(0, blend.x + blend.width / 2 - w / 2), vw - w);
-  console.log(`SHOT ${name} overlap=${blend.width.toFixed(2)}px`);
-  await page.screenshot({
-    path: `${SHOTS}/${name}-crop.png`,
-    clip: {
-      x,
-      y: Math.max(0, laneBox.y - 24),
-      width: w,
-      height: laneBox.height + 32,
-    },
-  });
 }
 
 test.use({ deviceScaleFactor: 2 });
@@ -135,7 +113,6 @@ for (const vp of VIEWPORTS) {
         expect(await seam.locator("> span").count()).toBe(2);
         expectSameBox(await box(blend), fitBox);
       }
-      await shoot(page, lane, `${vp.name}-fit`);
 
       await position.focus();
       let mid = false;
@@ -145,7 +122,6 @@ for (const vp of VIEWPORTS) {
         if (!mid && w >= 2.5 && w < 6) {
           mid = true;
           await centreOn(page, blend);
-          await shoot(page, lane, `${vp.name}-3px`);
           await position.focus();
         }
       }
@@ -178,7 +154,6 @@ for (const vp of VIEWPORTS) {
           centre,
         ),
       ).toBe(true);
-      await shoot(page, lane, `${vp.name}-6px`);
 
       await badge.click();
       const grip = page.getByRole("button", {
@@ -229,7 +204,6 @@ for (const vp of VIEWPORTS) {
         await page.keyboard.press("+");
       await centreOn(page, blend);
       await expect(tiles).toHaveCount(2);
-      await shoot(page, lane, `${vp.name}-40px`);
     } finally {
       await page.keyboard.press("Escape");
       await page.evaluate(() =>
