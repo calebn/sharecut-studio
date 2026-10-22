@@ -231,13 +231,17 @@ _EXTENSIBLE_FMT = struct.pack("<HHIIHH", 0xFFFE, 1, 48000, 96000, 2, 16)
 _OTHER_GUID = bytes.fromhex("0600000000001000800000aa00389b71")
 
 
-def _list_before_data(size: int) -> bytes:
-    return _riff(_fmt_chunk(_Wav()), _chunk(b"LIST", b"INFO"[:size]), _chunk(b"data", _PCM))
+def _list_before_data(size: int, chunk_id: bytes = b"LIST") -> bytes:
+    return _riff(_fmt_chunk(_Wav()), _chunk(chunk_id, b"INFO"[:size]), _chunk(b"data", _PCM))
 
 
 _UNDECODABLE: dict[str, Callable[[], bytes]] = {
     **{
         f"LIST under 4 bytes, {size}": lambda size=size: _list_before_data(size)
+        for size in range(4)
+    },
+    **{
+        f"lowercase list under 4 bytes, {size}": lambda size=size: _list_before_data(size, b"list")
         for size in range(4)
     },
     "SMV0 chunk": lambda: _riff(
@@ -250,6 +254,9 @@ _UNDECODABLE: dict[str, Callable[[], bytes]] = {
     "mono data 1 byte": lambda: _plain(_Wav(), bytes(1)),
     "data size 0, 1 trailing byte": lambda: _riff(
         _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 0) + bytes(1)
+    ),
+    "declared 4000, 1 byte present": lambda: _riff(
+        _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 4000) + bytes(1)
     ),
 }
 _DEFERRED: dict[str, Callable[[Path], bytes]] = {
@@ -323,6 +330,11 @@ def test_wav_header_defers_to_probe(tmp_path: Path, name: str) -> None:
 
 _NEAR_MISSES: dict[str, Callable[[], bytes]] = {
     "LIST of exactly 4 bytes": lambda: _list_before_data(4),
+    "lowercase list INFO": lambda: _list_before_data(4, b"list"),
+    "mixed-case List size 0": lambda: _list_before_data(0, b"List"),
+    "declared 4000, 2 bytes present": lambda: _riff(
+        _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 4000) + bytes(2)
+    ),
     "LIST INFOx": lambda: _riff(
         _chunk(b"LIST", b"INFOx"), _fmt_chunk(_Wav()), _chunk(b"data", _PCM)
     ),

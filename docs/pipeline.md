@@ -503,7 +503,8 @@ answers. A graph over 8,000 characters goes to `-/filter_complex <file>` (and
 `-graph_file <file> -i dummy` for the dry run) so it does not count against the command line.
 A render fails with `render_rate_unresolved` when no rate can be read for a delayed input
 that has no decodable audio, or a WAV whose header reads but FFmpeg cannot decode (a LIST chunk
-under 4 bytes, an SMV0 or XMA2 chunk, or less data than one sample frame). A WAV with an empty
+under 4 bytes before the data chunk (`LIST` or `list`), an SMV0 chunk or an XMA2 chunk before `fmt `,
+or less data than one sample frame). A WAV with an empty
 data chunk renders at its header format, but a Restore render whose clock observers decode
 every input fails on it with `bleed_restore_clock_invalid`. A render fails with
 `render_command_too_long` when the operating system refuses the command line.
