@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import audio_audit, audio_eval, timeline_render
+from podcast_mcp.engines import audio_audit, audio_eval, track_evidence
 from podcast_mcp.engines.audio import (
     At,
     CrossfadeAudio,
@@ -144,6 +144,16 @@ def _project(tmp_path: Path, layout: str, *, mono_rate: int | None = None) -> Ep
     return project
 
 
+def _evaluate(
+    project: EpisodeProject, track, defaults
+) -> tuple[np.ndarray | None, track_evidence.Declined | str]:
+    """The track's 8 kHz evidence evaluated from its tree, or why the render is needed."""
+    result = track_evidence._evidence(project, track.id, defaults, (RATE,))
+    if isinstance(result, track_evidence.Declined):
+        return None, result
+    return result[RATE], ""
+
+
 def _frame_db(samples: np.ndarray) -> np.ndarray:
     frame = RATE // 10
     frames = samples[: samples.size // frame * frame].reshape(-1, frame)
@@ -160,9 +170,7 @@ def test_evaluation_matches_the_ffmpeg_render(layout: str, tmp_path: Path) -> No
     render_track_from_timeline(project, track, rendered_path, defaults)
     rendered = load_mono_full(rendered_path)
 
-    evaluated, reason = audio_audit.evaluate_track_audio(
-        unfiltered_track_audio(project, track, defaults)
-    )
+    evaluated, reason = _evaluate(project, track, defaults)
 
     assert evaluated is not None, reason
     assert abs(evaluated.size - rendered.size) <= (0 if "8 kHz" in layout else 3)
@@ -387,19 +395,6 @@ def test_unsupported_trees_are_not_evaluated() -> None:
         )
 
 
-@pytest.fixture
-def render_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    calls: list[str] = []
-    real = timeline_render.render_track_from_timeline
-
-    def counting(project, track, output_path, defaults, **kwargs):
-        calls.append(track.id)
-        return real(project, track, output_path, defaults, **kwargs)
-
-    monkeypatch.setattr(timeline_render, "render_track_from_timeline", counting)
-    return calls
-
-
 def _chained(project: EpisodeProject) -> EpisodeProject:
     project.mix.processing_chains = [
         ProcessingChain(track_id="caleb", effects=[ProcessingEffect(effect="highpass", params={})])
@@ -422,9 +417,7 @@ def test_evaluation_matches_the_render_of_a_44100_hz_mono_track(
     render_track_from_timeline(project, track, rendered_path, defaults)
     rendered = load_mono_full(rendered_path)
 
-    evaluated, reason = audio_audit.evaluate_track_audio(
-        unfiltered_track_audio(project, track, defaults)
-    )
+    evaluated, reason = _evaluate(project, track, defaults)
 
     assert evaluated is not None, reason
     assert evaluated.size == rendered.size
@@ -448,21 +441,22 @@ def test_chunk_edges_inside_slices_change_nothing(monkeypatch: pytest.MonkeyPatc
     whole = evaluate_audio(audio, crossfade_curve="tri", load_source=lambda _: source)
     monkeypatch.setattr(audio_eval, "CHUNK_SAMPLES", 777)
 
-    def passthrough(chunks, _from, _to):  # type: ignore[no-untyped-def]
-        return np.concatenate(list(chunks))
+    def passthrough(chunks, _from, rates):  # type: ignore[no-untyped-def]
+        whole = np.concatenate(list(chunks))
+        return dict.fromkeys(rates, whole)
 
     chunked = audio_eval.evaluate_resampled(
         audio,
         crossfade_curve="tri",
         reader=lambda _: audio_eval.ArrayReader(source),
         sample_rate=RATE,
-        target_rate=RATE,
+        target_rates=(RATE,),
         resample=passthrough,
     )
 
     assert whole is not None
     assert chunked is not None
-    np.testing.assert_array_equal(chunked, whole)
+    np.testing.assert_array_equal(chunked[RATE], whole)
 
 
 def test_chain_track_cache_takes_the_fast_path_without_a_render(
@@ -506,7 +500,7 @@ def test_fast_cache_equals_the_rendered_cache(tmp_path: Path, render_calls: list
     rendered = audio_audit.TrackRmsCache.from_timeline_stem(stem)
 
     render_calls.clear()
-    fast = audio_audit._ungated_cache(project, "caleb", with_chain=False, defaults=defaults)
+    fast = track_evidence.rms(project, "caleb", defaults)
 
     assert render_calls == []
     assert fast.samples.size == pytest.approx(rendered.samples.size, abs=3)
@@ -551,7 +545,7 @@ def test_ungated_cache_keeps_the_render_when_the_tree_needs_it(
     project = _project(tmp_path, "fade joins")
     setup(project)
 
-    cache = audio_audit._ungated_cache(project, "caleb", with_chain=False, defaults=load_defaults())
+    cache = track_evidence.rms(project, "caleb", load_defaults())
 
     assert render_calls == ["caleb"]
     assert cache.samples.size > 0
@@ -616,9 +610,7 @@ def _assert_evaluation_matches_render(project: EpisodeProject, tmp_path: Path) -
     render_track_from_timeline(project, track, rendered_path, defaults)
     rendered = load_mono_full(rendered_path)
 
-    evaluated, reason = audio_audit.evaluate_track_audio(
-        unfiltered_track_audio(project, track, defaults)
-    )
+    evaluated, reason = _evaluate(project, track, defaults)
 
     assert evaluated is not None, reason
     assert abs(evaluated.size - rendered.size) <= 3
@@ -673,12 +665,10 @@ def test_sources_at_different_rates_keep_the_render(
     _with_second_source(project, tmp_path / "project", rate=44100)
     defaults = load_defaults()
 
-    evaluated, reason = audio_audit.evaluate_track_audio(
-        unfiltered_track_audio(project, project.track_by_id("caleb"), defaults)
-    )
-    cache = audio_audit._ungated_cache(project, "caleb", with_chain=False, defaults=defaults)
+    evaluated, reason = _evaluate(project, project.track_by_id("caleb"), defaults)
+    cache = track_evidence.rms(project, "caleb", defaults)
 
     assert evaluated is None
-    assert reason == "sources at different sample rates"
+    assert reason is track_evidence.Declined.MIXED_RATE
     assert render_calls == ["caleb"]
     assert cache.samples.size > 0

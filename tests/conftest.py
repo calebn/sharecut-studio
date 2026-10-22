@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.config.defaults import repo_root
+from podcast_mcp.engines import timeline_render
 from podcast_mcp.models import EpisodeProject, Track, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
@@ -538,3 +539,16 @@ def fake_rich_progress() -> Iterator[type[FakeRichProgress]]:
     )
     with patch.dict("sys.modules", {"rich.progress": module}):
         yield FakeRichProgress
+
+
+@pytest.fixture
+def render_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    calls: list[str] = []
+    real = timeline_render.render_track_from_timeline
+
+    def counting(project, track, output_path, defaults, **kwargs):
+        calls.append(track.id)
+        return real(project, track, output_path, defaults, **kwargs)
+
+    monkeypatch.setattr(timeline_render, "render_track_from_timeline", counting)
+    return calls

@@ -25,7 +25,7 @@ WORKER = textwrap.dedent(
     from pathlib import Path
 
     from podcast_mcp.engines.audio import At, CrossfadeAudio, MixAudio, SequenceAudio, SourceAudio
-    from podcast_mcp.engines.audio_audit import evaluate_track_audio
+    from podcast_mcp.engines.track_evidence import Declined, _evaluate
 
     def tree(path, seconds, seed):
         rng = random.Random(seed)
@@ -50,9 +50,9 @@ WORKER = textwrap.dedent(
     baseline = peak_mb()
     sizes = {}
     for name, seconds in json.loads(sys.argv[2]).items():
-        samples, reason = evaluate_track_audio((tree(Path(sys.argv[1]) / name, seconds, 1), "tri"))
-        assert samples is not None, reason
-        sizes[name] = samples.size
+        evidence = _evaluate(tree(Path(sys.argv[1]) / name, seconds, 1), "tri", (8000,))
+        assert not isinstance(evidence, Declined), evidence
+        sizes[name] = evidence[8000].size
     print(json.dumps({"growth_mb": peak_mb() - baseline, "samples": sizes}))
     """
 )

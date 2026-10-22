@@ -406,21 +406,33 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
     from hashlib import sha256
 
     source_hash = sha256((tmp_path / "raw/host.wav").read_bytes()).hexdigest()
-    rendered_paths = []
-    rendered_caches = []
-    from podcast_mcp.engines import timeline_render
+    render_calls = []
+    reference_caches = []
+    from podcast_mcp.edits.audio_cache import decode_track
+    from podcast_mcp.engines import timeline_render, track_evidence
 
     render = timeline_render.render_track_from_timeline
+    heard_evidence = track_evidence.heard
 
-    def record_render(snapshot, track, output, render_defaults):
-        rendered_paths.append(output)
-        assert Path(tempfile.gettempdir()) in output.parents
-        assert snapshot is not project
-        result = render(snapshot, track, output, render_defaults)
-        rendered_caches.append(recording_audio_cache(output))
-        return result
+    def count_render(snapshot, track, output, render_defaults, **kwargs):
+        render_calls.append(track.id)
+        return render(snapshot, track, output, render_defaults, **kwargs)
 
-    monkeypatch.setattr(timeline_render, "render_track_from_timeline", record_render)
+    def check_heard(live, track_id, heard_defaults):
+        cache = heard_evidence(live, track_id, heard_defaults)
+        # The render of the same state, which the evidence stands in for.
+        snapshot = live.model_copy(deep=True)
+        track = snapshot.track_by_id(track_id)
+        track.transcript_gate = False
+        snapshot.processing_chains = []
+        with tempfile.TemporaryDirectory(prefix="heard-reference-") as folder:
+            reference = Path(folder) / "reference.wav"
+            render(snapshot, track, reference, heard_defaults)
+            reference_caches.append(decode_track(reference))
+        return cache
+
+    monkeypatch.setattr(timeline_render, "render_track_from_timeline", count_render)
+    monkeypatch.setattr(track_evidence, "heard", check_heard)
 
     def record_cache(*args, **kwargs):
         measured_caches.append(kwargs["audio_cache"])
@@ -472,12 +484,15 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
     assert heard.waveform.sample_rate == PROFILE_SAMPLE_RATE
     assert heard.jump.profile == source.jump.profile
     assert heard.waveform.profile == source.waveform.profile
-    np.testing.assert_array_equal(heard.window(1.5, 1.51), rendered_caches[-1].window(1.75, 1.76))
+    np.testing.assert_allclose(
+        heard.window(1.5, 1.51), reference_caches[-1].window(1.75, 1.76), atol=1e-3
+    )
     assert accepted != project.model_dump(mode="json")
     assert (archives[0].source_start, archives[0].source_end) == (0.9, 2.1)
     assert (archives[0].timeline_start, archives[0].timeline_end) == (1.15, 2.35)
     assert project.clips[-1].source_start == 1.5
-    assert rendered_paths and all(not path.parent.exists() for path in rendered_paths)
+    assert render_calls == []
+    assert reference_caches
     assert sha256((tmp_path / "raw/host.wav").read_bytes()).hexdigest() == source_hash
 
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
