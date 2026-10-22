@@ -11,7 +11,7 @@ pip install -e ".[speaker]"      # SpeechBrain ECAPA (primary)
 pip install -e ".[speaker-lite]"  # Resemblyzer fallback
 ```
 
-Without either extra, and without the downloaded ONNX model (`podcast bootstrap --component speaker-ecapa`, ~80 MB; the packaged app ships no torch, so this is its route, #1998), every speaker command and the Split speakers dialog report `speaker_backend_unavailable` instead of running: the development mock is never a fallback. A developer or test run opts in with `PODCAST_SPEAKER_BACKEND=mock` or `backend="mock"`; Split speakers still refuses the mock. `podcast speaker doctor` lists the mock only under that opt-in (#1999).
+Without either extra, and without the downloaded ONNX model (`podcast bootstrap --component speaker-ecapa`, ~80 MB; the packaged app ships no torch, so this is its route, #1998), the commands that embed audio (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute` and `split`) and the Split speakers dialog report `speaker_backend_unavailable` instead of running; `doctor`, `profiles`, `set-speaker-count` and `move-lane-span` never load a backend and still run. The development mock is never a fallback. A developer or test run opts in with `PODCAST_SPEAKER_BACKEND=mock` or `backend="mock"`; Split speakers still refuses the mock. `podcast speaker doctor` lists the mock only under that opt-in (#1999).
 
 ## Standalone CLI
 
