@@ -29,31 +29,6 @@ class _StrictBackend(SpectralBackend):
         return super().embed(samples, sample_rate)
 
 
-@pytest.mark.parametrize(
-    "tail_span",
-    [
-        pytest.param((-0.01, 1.0), id="sliver_of_160_samples"),
-        pytest.param((0.4, 0.7), id="empty_slice_past_the_end"),
-    ],
-)
-def test_enrollment_span_past_the_end_is_not_embedded_as_a_sliver(
-    tail_span: tuple[float, float],
-) -> None:
-    audio, _ = _mix(2, 20.0, seed=3)
-    duration = audio.size / RATE
-    backend = _StrictBackend()
-
-    with pytest.raises(CodedValueError):
-        attribute_speakers(
-            audio,
-            speaker_count=2,
-            backend=backend,
-            enrollment={0: [(0.5, 4.0)], 1: [(duration + tail_span[0], duration + tail_span[1])]},
-        )
-
-    assert min(backend.lengths) >= MIN_SAMPLES
-
-
 @pytest.mark.parametrize("tail_span", [(-0.01, 1.0), (0.4, 0.7)])
 def test_speaker_with_only_spans_past_the_end_is_refused_in_plain_words(
     tail_span: tuple[float, float],
@@ -92,16 +67,22 @@ def test_all_past_the_end_speaker_fails_before_any_embedding() -> None:
     assert backend.lengths == []
 
 
-def test_speaker_keeping_one_usable_window_still_enrolls() -> None:
+@pytest.mark.parametrize("tail_span", [(-0.01, 1.0), (0.4, 0.7)])
+def test_speaker_keeping_one_usable_window_still_enrolls(tail_span: tuple[float, float]) -> None:
     audio, _ = _mix(2, 20.0, seed=3)
     duration = audio.size / RATE
+    backend = _StrictBackend()
 
     attribution = attribute_speakers(
         audio,
         speaker_count=2,
-        backend=_StrictBackend(),
-        enrollment={0: [(0.5, 4.0)], 1: [(5.0, 8.0), (duration + 0.4, duration + 0.7)]},
+        backend=backend,
+        enrollment={
+            0: [(0.5, 4.0)],
+            1: [(5.0, 8.0), (duration + tail_span[0], duration + tail_span[1])],
+        },
     )
 
     assert attribution.turns
     assert attribution.method == "enroll"
+    assert min(backend.lengths) >= MIN_SAMPLES
