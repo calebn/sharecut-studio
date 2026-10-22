@@ -388,11 +388,8 @@ jobs:
         with:
           extras: gui
 
-      - name: Use Ubuntu archive fallback
-        run: |
-          grep -Eq '^https://archive\.ubuntu\.com/ubuntu/([[:space:]]|$)' /etc/apt/apt-mirrors.txt
-          sudo sed -i -E '\@^https?://azure\.archive\.ubuntu\.com/ubuntu/([[:space:]]|$)@d' /etc/apt/apt-mirrors.txt
-          cat /etc/apt/apt-mirrors.txt
+      - name: Configure bounded Ubuntu acquisition
+        run: sudo /usr/bin/python3 scripts/ci_apt_method.py configure
 
       - name: Install frontend deps and browser engines
         timeout-minutes: 10

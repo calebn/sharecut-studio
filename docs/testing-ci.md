@@ -58,16 +58,36 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 
 ### Browser installation
 
-Browser matrix jobs remove the Azure Ubuntu entry from the runner's
-`/etc/apt/apt-mirrors.txt` before installing browser dependencies. They require
-and retain the existing canonical HTTPS fallback, including its priority metadata,
-and leave apt's signed metadata and package checksum verification intact.
-This avoids the intermittently slow Azure archive path tracked in
-[runner-images #14823](https://github.com/actions/runner-images/issues/14823).
-The browser installation step has a ten-minute bound. That bound limits a future
-transport stall; mirror selection is the correction for the observed incident.
-The existing matrix-selected Playwright browser and its system dependencies are
-still installed on every job, without a browser cache or install retry.
+Browser matrix jobs install the matrix-selected engine and system dependencies
+through the locked Playwright package with `--with-deps`. They configure
+`scripts/ci_apt_method.py` before installation. The method preserves apt's package
+resolver, Ubuntu signing keys, signature and date checks, and final package hashes.
+It removes the runner's Azure mirror entry and retains Canonical HTTPS as primary.
+
+Apt-authenticated SHA256 objects use a second HTTPS source at
+`mirrors.edge.kernel.org/ubuntu` after a two-second hedge. Only complete bytes
+matching apt's expected size and SHA256 can win. Each object has a 90-second
+acquisition budget. Initial unsigned-by-hash metadata is fetched in order,
+with 15 seconds for Canonical and then 15 seconds for Kernel. Apt authenticates
+the returned metadata. A healthy primary therefore determines metadata freshness;
+a fallback can still carry an older valid signed release that apt accepts.
+A corrupt first metadata response fails apt authentication rather than starting
+a race between signed releases.
+
+Connections have a five-second bound. Transfers below 16 KiB/s for five seconds
+are stopped. Apt update errors fail setup even when cached indexes exist.
+Diagnostics report the source, bytes, elapsed time, budget, HTTP status and remote
+address without printing apt configuration or credentials. An address can identify
+a proxy rather than the serving backend. The method supports the current Ubuntu
+resolute runner archive layout and fails setup for an unsupported layout.
+
+This provides bounded origin fallback for the remaining apt acquisition failure
+class in [#2117](https://github.com/calebn/sharecut-studio/issues/2117).
+It does not identify the historical slow backend or establish independent network
+routes. Mirror lag, shared network failures and older signed fallback metadata
+remain availability risks. Browser and npm downloads retain their own transports.
+The installation step keeps its ten-minute bound and the job its 60-minute bound.
+There is no browser cache or install retry.
 
 ### Storybook browser geometry
 

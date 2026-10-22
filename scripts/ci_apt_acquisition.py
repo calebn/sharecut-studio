@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
+import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True)
@@ -45,6 +50,18 @@ class Attempt:
     process: subprocess.Popen[bytes]
     path: Path
     examined: bool = False
+    http_status: int | None = None
+    remote_ip: str | None = None
+
+    def collect_network_fields(self) -> None:
+        output, _ = self.process.communicate()
+        fields = (output or b"").decode("ascii", errors="replace").split("\t")
+        if len(fields) != 2:
+            return
+        if len(fields[0]) == 3 and fields[0].isdigit():
+            self.http_status = int(fields[0])
+        with suppress(ValueError):
+            self.remote_ip = str(ipaddress.ip_address(fields[1].strip()))
 
 
 @dataclass(frozen=True)
@@ -67,9 +84,45 @@ def digests(path: Path) -> tuple[int, str, str]:
     return size, sha256.hexdigest(), sha512.hexdigest()
 
 
+def report(
+    plan: FetchPlan,
+    source: int,
+    outcome: str,
+    size: int,
+    elapsed: float,
+    budget: float,
+    exit_code: int | None,
+    attempt: Attempt,
+) -> None:
+    uri = urlsplit(plan.urls[source])
+    print(
+        json.dumps(
+            {
+                "host": uri.hostname,
+                "path": uri.path,
+                "source": source,
+                "outcome": outcome,
+                "bytes": size,
+                "elapsed": round(elapsed, 3),
+                "budget": budget,
+                "curl_exit": exit_code,
+                "http_status": attempt.http_status,
+                "remote_ip": attempt.remote_ip,
+                "kind": type(plan.identity).__name__,
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def acquire(plan: FetchPlan, destination: Path) -> Receipt:
     metadata = isinstance(plan.identity, AptSignedMetadata)
-    maximum = plan.identity.maximum_size if metadata else plan.identity.size
+    maximum = (
+        plan.identity.maximum_size
+        if isinstance(plan.identity, AptSignedMetadata)
+        else plan.identity.size
+    )
     budget = plan.budgets.metadata_total if metadata else plan.budgets.object_total
     started = time.monotonic()
     attempts: list[Attempt] = []
@@ -109,9 +162,11 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
                             str(plan.budgets.low_speed_seconds),
                             "--output",
                             str(path),
+                            "--write-out",
+                            "%{http_code}\t%{remote_ip}",
                             plan.urls[index],
                         ],
-                        stdout=subprocess.DEVNULL,
+                        stdout=subprocess.PIPE,
                         stderr=subprocess.DEVNULL,
                     )
                     attempts.append(Attempt(process, path))
@@ -119,7 +174,27 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
                     if attempt.examined or attempt.process.poll() is None:
                         continue
                     attempt.examined = True
+                    attempt.collect_network_fields()
                     if attempt.process.returncode != 0 or not attempt.path.is_file():
+                        outcome = {
+                            6: "dns-failure",
+                            7: "connection-failure",
+                            22: "http-failure",
+                            28: "timeout-or-low-throughput",
+                            60: "tls-failure",
+                            63: "oversize",
+                        }.get(attempt.process.returncode, "transport-failure")
+                        size = attempt.path.stat().st_size if attempt.path.exists() else 0
+                        report(
+                            plan,
+                            index,
+                            outcome,
+                            size,
+                            time.monotonic() - started,
+                            budget,
+                            attempt.process.returncode,
+                            attempt,
+                        )
                         continue
                     size, sha256, sha512 = digests(attempt.path)
                     if isinstance(plan.identity, HashedObject):
@@ -127,8 +202,28 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
                     else:
                         valid = 0 < size <= plan.identity.maximum_size
                     if valid:
+                        report(
+                            plan,
+                            index,
+                            "accepted",
+                            size,
+                            time.monotonic() - started,
+                            budget,
+                            attempt.process.returncode,
+                            attempt,
+                        )
                         os.replace(attempt.path, destination)
                         return Receipt(index, size, sha256, sha512, time.monotonic() - started)
+                    report(
+                        plan,
+                        index,
+                        "size-mismatch" if size != maximum else "hash-mismatch",
+                        size,
+                        time.monotonic() - started,
+                        budget,
+                        attempt.process.returncode,
+                        attempt,
+                    )
                 if len(attempts) == 2 and all(a.process.poll() is not None for a in attempts):
                     break
                 time.sleep(0.01)
@@ -137,9 +232,22 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
             for attempt in attempts:
                 if attempt.process.poll() is None:
                     attempt.process.terminate()
-            for attempt in attempts:
+            for index, attempt in enumerate(attempts):
                 try:
                     attempt.process.wait(timeout=0.25)
                 except subprocess.TimeoutExpired:
                     attempt.process.kill()
                     attempt.process.wait()
+                if not attempt.examined:
+                    attempt.collect_network_fields()
+                    size = attempt.path.stat().st_size if attempt.path.exists() else 0
+                    report(
+                        plan,
+                        index,
+                        "cancelled",
+                        size,
+                        time.monotonic() - started,
+                        budget,
+                        attempt.process.returncode,
+                        attempt,
+                    )
