@@ -275,6 +275,7 @@ describe("proxyMath", () => {
       source_duration_sec: 10,
       join_in_mode: "crossfade" as const,
       join_crossfade_ms: 200,
+      join_borrow_sec: 0.1,
       fade_in_ms: 400,
       fade_out_ms: 400,
     };
@@ -327,6 +328,7 @@ describe("proxyMath", () => {
       source_duration_sec: 10,
       join_in_mode: "crossfade" as const,
       join_crossfade_ms: 200,
+      join_borrow_sec: 0.1,
       fade_in_ms: 400,
       fade_out_ms: 400,
     };

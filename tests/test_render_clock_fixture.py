@@ -180,7 +180,7 @@ def _case_rows(clips: list[Clip], tmp_path: Path) -> list[dict]:
                 "join_in_mode": clip.join_in_mode.value,
                 "fade_in_ms": clip.fade_in_ms,
                 "fade_out_ms": clip.fade_out_ms,
-                **join_render_fields(lane[index - 1] if index else None, clip),
+                **join_render_fields(lane[index - 1] if index else None, clip, project),
             }
     return [{**rows[clip.id], "placed_start": placed[clip.id]} for clip in clips]
 
@@ -270,3 +270,61 @@ def test_the_borrow_shrinks_to_the_room_the_recordings_have(tmp_path: Path) -> N
     assert crossfade_borrow_sec(project, left, short) == pytest.approx(0.05)
     cut = _clip("b", "host", 5, 9, _CUT)
     assert crossfade_borrow_sec(project, left, cut) == 0
+
+
+def _join(project: EpisodeProject, window: tuple[float, float] | None):
+    left = _clip("a", "host", 0, 5, fade_out=200)
+    right = _clip("b", "host", 5, 9, _XFADE, 200, 0)
+    return placed_track_audio(project, project.tracks[0], [left, right], window=window).audio
+
+
+def test_a_window_ending_at_the_seam_keeps_the_edge_fade_off(tmp_path: Path) -> None:
+    audio = _join(_borrow_project(tmp_path), (1.0, 5.0))
+    (leaf,) = sources(audio)
+    assert leaf.clip_id == "a"
+    assert leaf.fade_out_sec == 0.0
+    # The right clip is outside the window, so nothing is borrowed from it.
+    assert leaf.src_end == pytest.approx(_clip("a", "host", 0, 5).source_end)
+
+
+def test_a_window_edge_inside_the_blend_shrinks_it_to_the_piece_it_has(tmp_path: Path) -> None:
+    audio = _join(_borrow_project(tmp_path), (1.0, 5.01))
+    assert isinstance(audio, MixAudio)
+    blend = audio.head.audio
+    assert isinstance(blend, CrossfadeAudio)
+    # The right piece is 10 ms long, so the 200 ms blend shrinks to 20 ms.
+    assert blend.overlap_sec == pytest.approx(0.02)
+    assert all(duration(side) >= blend.overlap_sec for side in (blend.left, blend.right))
+
+
+def test_the_render_hash_follows_what_a_join_borrows(tmp_path: Path) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    project = _borrow_project(tmp_path)
+    project.timeline.clips = [
+        _clip("a", "host", 0, 5, fade_out=200),
+        _clip("b", "host", 5, 9, _XFADE, 200, 0),
+    ]
+    defaults = load_defaults()
+    blending = track_render_hash(project, "host", defaults=defaults)
+    # The recording's length is not in the media identity, but it decides the borrow.
+    project.tracks[0].media.duration_sec = 15.05
+    assert track_render_hash(project, "host", defaults=defaults) != blending
+
+
+def test_a_join_with_no_room_reports_no_headroom_and_borrows_nothing(tmp_path: Path) -> None:
+    project = _borrow_project(tmp_path)
+    left = _clip("a", "host", 0, 5, fade_out=200)
+    roomy = _clip("b", "host", 5, 9, _XFADE, 200, 0)
+    fields = join_render_fields(left, roomy, project)
+    assert fields["join_crossfade_blocked"] is None
+    assert fields["join_borrow_sec"] == pytest.approx(0.1)
+    assert fields["join_crossfade_ms"] == 200
+    cramped = _clip("b", "host", 5, 9, _XFADE, 200, 0, room=0.0)
+    fields = join_render_fields(left, cramped, project)
+    assert fields["join_crossfade_blocked"] == "no_headroom"
+    assert fields["join_crossfade_ms"] == 0
+    assert "join_borrow_sec" not in fields
+    # Without a project the recordings are unknown: the fields are the fade-based ones.
+    assert join_render_fields(left, cramped)["join_crossfade_blocked"] is None

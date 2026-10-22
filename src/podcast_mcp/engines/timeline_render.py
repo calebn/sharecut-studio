@@ -360,17 +360,25 @@ def placed_track_audio(
             )
         )
     # A blending join borrows from both recordings, so the lane keeps its clock.
-    # Only a join whose two clips both play whole at the seam blends in a window.
+    # `blends[i]` is the full render's borrow at the join into clip i; a window edge
+    # does not change whether the join blends, so the edge fades stay off there.
+    # `borrow[i]` is what a window can play: no more than either piece has.
+    blends = [0.0] * len(sorted_clips)
     borrow = [0.0] * len(sorted_clips)
     for index in range(1, len(sorted_clips)):
         left, right = sorted_clips[index - 1], sorted_clips[index]
+        blends[index] = crossfade_borrow_sec(project, left, right)
+        left_span, right_span = spans[index - 1], spans[index]
         if (
-            spans[index - 1][2] is not None
-            and spans[index][2] is not None
-            and spans[index - 1][1] >= left.timeline_end - 1e-4
-            and spans[index][0] <= right.timeline_start + 1e-4
+            blends[index] > 0
+            and left_span[2] is not None
+            and right_span[2] is not None
+            and left_span[1] >= left.timeline_end - 1e-4
+            and right_span[0] <= right.timeline_start + 1e-4
         ):
-            borrow[index] = crossfade_borrow_sec(project, left, right)
+            borrow[index] = min(
+                blends[index], left_span[1] - left_span[0], right_span[1] - right_span[0]
+            )
     for index, clip in enumerate(sorted_clips):
         timeline_start, timeline_end, source_bounds = spans[index]
         if source_bounds is None:
@@ -391,12 +399,14 @@ def placed_track_audio(
             src_start=source_start,
             src_end=source_end,
             fade_in_sec=(
-                _segment_fade_in(prev, clip, first=True, blended=borrow_in > 0)
+                _segment_fade_in(prev, clip, first=True, blended=blends[index] > 0)
                 if timeline_start <= clip.timeline_start + 1e-4
                 else 0.0
             ),
             fade_out_sec=(
-                _segment_fade_out(clip, nxt, last=True, blended=borrow_out > 0)
+                _segment_fade_out(
+                    clip, nxt, last=True, blended=index + 1 < len(blends) and blends[index + 1] > 0
+                )
                 if timeline_end >= clip.timeline_end - 1e-4
                 else 0.0
             ),

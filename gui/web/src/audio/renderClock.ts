@@ -3,8 +3,9 @@ import type { ClipRow } from "../types/project";
 
 /**
  * Seconds each side of a blending join borrows from its recording (half the
- * overlap); `clips_ops.crossfade_borrow_sec`. 0 when the join does not blend or
- * a recording has no room beyond the seam.
+ * overlap); the server resolves it (`clips_ops.crossfade_borrow_sec`) from the
+ * recordings' room and the clips' lengths, so preview and export cannot differ.
+ * 0 when the join does not blend.
  */
 function borrowSec(left: ClipRow, right: ClipRow): number {
   if (
@@ -13,19 +14,7 @@ function borrowSec(left: ClipRow, right: ClipRow): number {
     right.join_crossfade_blocked
   )
     return 0;
-  const ms = right.join_crossfade_ms ?? 0;
-  if (ms <= 0) return 0;
-  const leftTotal = left.source_duration_sec;
-  const rightTotal = right.source_duration_sec;
-  if (leftTotal == null || rightTotal == null) return 0;
-  const room = Math.min(
-    ms / 2000,
-    leftTotal - left.source_end,
-    right.source_start,
-    (left.source_end - left.source_start) * 0.25,
-    (right.source_end - right.source_start) * 0.25,
-  );
-  return room >= 0.0005 ? room : 0;
+  return Math.max(0, right.join_borrow_sec ?? 0);
 }
 
 /**

@@ -9,8 +9,6 @@ from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.engines.clips_ops import (
     abutting_pairs,
     clips_for_track,
-    crossfade_block_reason,
-    crossfade_ms_at_join,
     join_render_fields,
     neighbour_clips,
     previous_clip,
@@ -89,7 +87,7 @@ def set_clip_join_mode(
     summary = change_summary(
         project, operation="set_clip_join_mode", affected_tracks=[clip.track_id]
     )
-    summary.update(join_render_fields(prev, clip))
+    summary.update(join_render_fields(prev, clip, project))
     return summary
 
 
@@ -149,7 +147,8 @@ def set_clip_join(
     right.fade_in_ms, right.fade_out_ms = clamp_clip_fades(
         project, right, in_ms, right.fade_out_ms, defaults
     )
-    blocked = crossfade_block_reason(left, right) if join_mode == ClipJoinMode.CROSSFADE else None
+    fields = join_render_fields(left, right, project)
+    blocked = fields["join_crossfade_blocked"]
     summary = change_summary(project, operation="set_clip_join", affected_tracks=[left.track_id])
     summary.update(
         {
@@ -158,7 +157,7 @@ def set_clip_join(
             "join_in_mode": join_mode.value,
             "left_fade_out_ms": left.fade_out_ms,
             "right_fade_in_ms": right.fade_in_ms,
-            "crossfade_ms": crossfade_ms_at_join(left, right),
+            "crossfade_ms": fields["join_crossfade_ms"],
             "crossfade_blocked": blocked,
         }
     )
