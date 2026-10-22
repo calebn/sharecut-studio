@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
+import pytest
+from fastapi.testclient import TestClient
+
+from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.pipeline import AudioExportResult
 
@@ -266,3 +271,89 @@ def test_cancelling_an_export_mid_encode_keeps_the_previous_export(slow_export) 
     assert job.status == "cancelled"
     assert job.result is None
     assert slow_export.files() == slow_export.previous
+
+
+class _OrderedSlotService:
+    def __init__(self, order: list[str], release: threading.Event) -> None:
+        self._order = order
+        self._release = release
+
+    def render_preview(self, **_kwargs):
+        assert self._release.wait(timeout=10)
+        self._order.append("preview")
+        return {"ok": True}
+
+    def export_audio(self, formats=None, **_kwargs):
+        self._order.append("export")
+        return AudioExportResult([Path("/tmp/demo.wav")], None)
+
+
+def _wire_ordered_slot(monkeypatch, order: list[str], release: threading.Event) -> None:
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open", lambda _p: object()
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.PipelineService",
+        lambda _ws: _OrderedSlotService(order, release),
+    )
+
+
+def test_export_right_after_undo_waits_for_the_mix_rebuild(minimal_project, monkeypatch) -> None:
+    order: list[str] = []
+    release = threading.Event()
+    _wire_ordered_slot(monkeypatch, order, release)
+    client = TestClient(create_app())
+    jobs = client.app.state.jobs
+    preview = jobs.start_render_preview(Path(minimal_project))
+    real_wait = JobManager.wait
+
+    def wait_for_preview(self, job, **kwargs):
+        release.set()
+        return real_wait(self, job, **kwargs)
+
+    monkeypatch.setattr(JobManager, "wait", wait_for_preview)
+
+    res = client.post("/api/export/deliverables", json={"path": str(minimal_project)})
+
+    assert res.status_code == 200, res.text
+    export = jobs.get_job(res.json()["job_id"])
+    jobs.wait(export, timeout=5)
+    assert (preview.status, export.status) == ("ok", "ok")
+    assert order == ["preview", "export"]
+
+
+def test_export_refused_while_the_mix_rebuild_outlasts_the_wait_says_to_retry(
+    minimal_project, monkeypatch
+) -> None:
+    release = threading.Event()
+    _wire_ordered_slot(monkeypatch, [], release)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.EXPORT_PREVIEW_WAIT_S", 0.0)
+    client = TestClient(create_app())
+    jobs = client.app.state.jobs
+    preview = jobs.start_render_preview(Path(minimal_project))
+    try:
+        res = client.post("/api/export/deliverables", json={"path": str(minimal_project)})
+    finally:
+        release.set()
+        jobs.wait(preview, timeout=5)
+
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "job_running"
+    assert "pipeline-slot" not in res.text
+    assert "Try again" in res.text
+
+
+def test_slot_busy_refusal_uses_user_wording(minimal_project) -> None:
+    mgr = JobManager()
+    mgr._job = Job(
+        id="pipe",
+        project_path=str(minimal_project),
+        from_step=None,
+        only_step=None,
+        status="running",
+        started_at=1.0,
+        kind="pipeline",
+    )
+    with pytest.raises(RuntimeError) as raised:
+        mgr.start_export(Path(minimal_project))
+    assert str(raised.value) == "Another job is still running. Try again when it finishes."
