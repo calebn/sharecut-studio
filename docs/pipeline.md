@@ -496,14 +496,16 @@ output at that rate when a filter after the mix forces another one and the dry r
 with the real run. A plain RIFF WAV (mono or stereo, 8/16/24-bit integer or 32/64-bit float
 PCM) gives its format from the header, with no process spawned (#2082); the dry run reads WAV
 headers the same way, and a Restore render's clock observers decode every input. Every other
-input is decoded for one frame by `ffmpeg`, side by side, and the answer is kept in memory by
+input is decoded for one frame by `ffmpeg`, side by side, and the decoded probe maps `0:a:0`,
+the stream the graph's `[i:a]` takes (#2104); the answer is kept in memory by
 path and file stamp until the file changes, or until it is the least recently used of 1,024
 answers. A graph over 8,000 characters goes to `-/filter_complex <file>` (and
 `-graph_file <file> -i dummy` for the dry run) so it does not count against the command line.
 A render fails with `render_rate_unresolved` when no rate can be read for a delayed input
-that has no decodable audio. A WAV with an empty data chunk renders at its header format, but
-a Restore render whose clock observers decode every input fails on it with
-`bleed_restore_clock_invalid`. A render fails with `render_command_too_long` when the operating
+that has no decodable audio, or a WAV whose header reads but FFmpeg cannot decode (a LIST chunk
+under 4 bytes, an SMV0 or XMA2 chunk, or less data than one sample frame). A WAV with an empty
+data chunk renders at its header format, but a Restore render whose clock observers decode
+every input fails on it with `bleed_restore_clock_invalid`. A render fails with `render_command_too_long` when the operating
 system refuses the command line.
 
 It then runs the track FX chain **once** over the fully assembled audio. Besides
