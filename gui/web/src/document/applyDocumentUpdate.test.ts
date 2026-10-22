@@ -3,12 +3,14 @@ import { loadDocumentState } from "../api/project";
 import { useDawStore } from "../state/dawStore";
 import { enqueueInbound, pendingInboundCount } from "../sync/inboundQueue";
 import { minimalProject } from "../test/fixtures";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import { documentClientId } from "../utils/documentClient";
 import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
   applyDocumentResult,
   applyDocumentSnapshot,
   recoverDocument,
+  refreshDocumentDisplay,
 } from "./applyDocumentUpdate";
 import { documentAuthority } from "./authorityState";
 import {
@@ -16,6 +18,7 @@ import {
   pollSnapshotAlreadyApplied,
   resetDocumentSeqForTests,
 } from "./cursor";
+import { beginDocumentDraft, finishDocumentDraft } from "./pendingDrafts";
 
 vi.mock("../api/project", () => ({ loadDocumentState: vi.fn() }));
 
@@ -203,6 +206,33 @@ describe("applyDocumentResult", () => {
     expect(
       pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 2 }),
     ).toBe(true);
+  });
+
+  it("keeps an acknowledged command's draft while recovery drops its snapshot", () => {
+    resetDocumentSeqForTests();
+    const withMute = (muted: boolean) =>
+      minimalProject({ tracks: [{ ...track("host"), muted }] });
+    useDawStore.getState().hydrate("/tmp/p.json", withMute(false));
+    applyDocumentSnapshot({ server_seq: 1, project: withMute(false) });
+    beginDocumentDraft("c1", DocumentCommand.SetTrackMute, {
+      track_id: "host",
+      muted: true,
+    });
+    vi.mocked(loadDocumentState).mockReturnValue(new Promise(() => undefined));
+    void recoverDocument(3);
+    const muted = () => useDawStore.getState().project?.tracks[0]?.muted;
+
+    applyDocumentResult({
+      command: { command_id: "c1", client_id: documentClientId() },
+      snapshot: { server_seq: 2, project: withMute(true) },
+    });
+    finishDocumentDraft("c1");
+    refreshDocumentDisplay();
+    expect(muted()).toBe(true);
+
+    applyDocumentSnapshot({ server_seq: 3, project: withMute(true) });
+    applyDocumentSnapshot({ server_seq: 4, project: withMute(false) });
+    expect(muted()).toBe(false);
   });
 
   it("flushes any queued inbound frame before applying its own result", () => {

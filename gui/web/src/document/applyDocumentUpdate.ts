@@ -19,7 +19,9 @@ import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
 import {
   clearPreviewDraft,
   finishDocumentDraft,
+  holdDocumentDraftUntil,
   overlayDocumentDrafts,
+  releaseHeldDrafts,
   setPreviewDraft,
 } from "./pendingDrafts";
 import { applyProjectionDelta, parseProjectionDelta } from "./projectionDelta";
@@ -261,6 +263,7 @@ export function applyDocumentSnapshot(
   documentAuthority.project = next;
   documentAuthority.phase = { kind: "ready" };
   noteDocumentSeq(seq);
+  releaseHeldDrafts(seq);
   noteDocumentFile(snap);
   const displayed = show(next);
   scheduleTranscriptDetailHydrate(next);
@@ -322,17 +325,30 @@ export function applyDocumentResult(
   if (scope && !isCurrentDocumentScope(scope))
     return useDawStore.getState().project;
   const command = result.command;
-  if (
+  const commandId =
     command &&
     typeof command === "object" &&
     "command_id" in command &&
     typeof command.command_id === "string"
-  )
-    finishDocumentDraft(command.command_id);
+      ? command.command_id
+      : null;
   const snap = snapshotFromResult(result);
-  if (!snap) return useDawStore.getState().project;
-  const next = applyDocumentSnapshot(snap, { scope });
+  const next = snap
+    ? applyDocumentSnapshot(snap, { scope })
+    : useDawStore.getState().project;
+  if (commandId) retireCommandDraft(commandId, snap?.server_seq);
+  if (!snap) return next;
   refreshDocumentDisplay();
   return next;
+}
+/**
+ * Retire an acknowledged command's draft once the authority includes its
+ * snapshot. A snapshot dropped during recovery keeps the draft until a later
+ * one at or past `seq` is adopted, so nothing repaints the stale value.
+ */
+export function retireCommandDraft(commandId: string, seq?: number): void {
+  if (seq !== undefined && currentDocumentSeq() < seq)
+    holdDocumentDraftUntil(commandId, seq);
+  else finishDocumentDraft(commandId);
 }
 export { currentDocumentSeq, noteDocumentSeq };

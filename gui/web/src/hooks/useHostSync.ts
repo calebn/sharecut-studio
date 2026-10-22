@@ -10,13 +10,13 @@ import { loadSessionMeta, loadSessionState, postSessionState } from "../api";
 import {
   applyDocumentSnapshot,
   refreshDocumentDisplay,
+  retireCommandDraft,
 } from "../document/applyDocumentUpdate";
 import {
   activateDocumentScope,
   documentAuthority,
   isCurrentDocumentScope,
 } from "../document/authorityState";
-import { finishDocumentDraft } from "../document/pendingDrafts";
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { applyServerClock } from "../presence/clock";
 import {
@@ -459,10 +459,11 @@ export function useHostSync(
             if (msg.plane !== "document") return;
             const snap = msg.snapshot;
             if (!snap) return;
-            if (msg.command?.command_id)
-              finishDocumentDraft(msg.command.command_id);
             applyDocumentSnapshot(snap, { scope });
-            if (msg.command?.command_id) refreshDocumentDisplay();
+            if (msg.command?.command_id) {
+              retireCommandDraft(msg.command.command_id, snap.server_seq);
+              refreshDocumentDisplay();
+            }
             if (
               msg.type === "Snapshot" &&
               documentAuthority.phase.kind === "ready" &&
