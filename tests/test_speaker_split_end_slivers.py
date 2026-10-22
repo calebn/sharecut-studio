@@ -1,7 +1,8 @@
 """An enrollment span at the end of the audio is skipped, not embedded as a sliver (#2040 item 2).
 
-Padding would invent audio the user never confirmed; a span with no usable window already
-means "not enrolled", so that speaker is clustered like any other.
+Padding would invent audio the user never confirmed. A span that keeps at least one usable
+window still enrolls. A speaker whose spans all lie past the end is refused, because clustering
+them like an unenrolled speaker could put their name on a different voice.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import pytest
 
 from podcast_mcp.engines.models.speaker_ecapa import MIN_SAMPLES
 from podcast_mcp.engines.speaker_split import attribute_speakers
+from podcast_mcp.util.coded_error import CodedValueError
 from test_speaker_split import RATE, SpectralBackend, _mix
 
 
@@ -34,19 +36,56 @@ class _StrictBackend(SpectralBackend):
         pytest.param((0.4, 0.7), id="empty_slice_past_the_end"),
     ],
 )
-def test_enrollment_span_past_the_end_is_skipped_not_embedded_as_a_sliver(
+def test_enrollment_span_past_the_end_is_not_embedded_as_a_sliver(
     tail_span: tuple[float, float],
 ) -> None:
     audio, _ = _mix(2, 20.0, seed=3)
     duration = audio.size / RATE
     backend = _StrictBackend()
 
+    with pytest.raises(CodedValueError):
+        attribute_speakers(
+            audio,
+            speaker_count=2,
+            backend=backend,
+            enrollment={0: [(0.5, 4.0)], 1: [(duration + tail_span[0], duration + tail_span[1])]},
+        )
+
+    assert min(backend.lengths) >= MIN_SAMPLES
+
+
+@pytest.mark.parametrize("tail_span", [(-0.01, 1.0), (0.4, 0.7)])
+def test_speaker_with_only_spans_past_the_end_is_refused_in_plain_words(
+    tail_span: tuple[float, float],
+) -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    duration = audio.size / RATE
+
+    with pytest.raises(CodedValueError) as raised:
+        attribute_speakers(
+            audio,
+            speaker_count=2,
+            backend=_StrictBackend(),
+            enrollment={0: [(0.5, 4.0)], 1: [(duration + tail_span[0], duration + tail_span[1])]},
+        )
+
+    assert raised.value.code == "enrollment_past_end"
+    assert str(raised.value) == (
+        "The voice sample for speaker 2 is past the end of this recording. "
+        "Choose a sample inside the audio."
+    )
+
+
+def test_speaker_keeping_one_usable_window_still_enrolls() -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    duration = audio.size / RATE
+
     attribution = attribute_speakers(
         audio,
         speaker_count=2,
-        backend=backend,
-        enrollment={0: [(0.5, 4.0)], 1: [(duration + tail_span[0], duration + tail_span[1])]},
+        backend=_StrictBackend(),
+        enrollment={0: [(0.5, 4.0)], 1: [(5.0, 8.0), (duration + 0.4, duration + 0.7)]},
     )
 
     assert attribution.turns
-    assert min(backend.lengths) >= MIN_SAMPLES
+    assert attribution.method == "enroll"
