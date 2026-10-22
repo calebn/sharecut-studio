@@ -137,6 +137,30 @@ async def test_refusal_leaves_the_project_unchanged(project) -> None:
 
 
 @pytest.mark.asyncio
+async def test_missing_model_reaches_the_agent_with_its_fields(project, monkeypatch) -> None:
+    from podcast_mcp.engines.models.registry import require_model
+
+    def needs_model(self: Any, comment_id: str) -> Any:
+        require_model("speaker-ecapa")
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(Path(project).parent / "cache"))
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    monkeypatch.setattr("podcast_mcp.services.document.comment.CommentService.get", needs_model)
+    async with Client(mcp_server.mcp) as client:
+        result = await client.call_tool(
+            "get_comment_tool", {"project_path": project, "comment_id": "c1"}
+        )
+
+    text, error_code = _refusal(result)
+    assert error_code == "model_needed"
+    assert text.startswith("needs Speaker recognition (ECAPA, ONNX) (~80 MB); run `podcast")
+    model = result.structured_content["model"]
+    assert model["id"] == "speaker-ecapa"
+    assert model["state"] == "missing"
+    assert model["command"] == "podcast bootstrap --component speaker-ecapa"
+
+
+@pytest.mark.asyncio
 async def test_stdio_refusal_reaches_the_agent(project) -> None:
     """The ``podcast-mcp`` stdio server reports a refusal the same way."""
     params = StdioServerParameters(

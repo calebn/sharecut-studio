@@ -46,6 +46,7 @@ from podcast_mcp.util.model_assets import (
     resolve_rnnoise_model,
     rnnoise_model_path,
 )
+from podcast_mcp.util.model_missing import ModelMissing
 
 SetupTier = Literal["required", "recommended", "offered"]
 
@@ -148,6 +149,10 @@ def _speaker_ecapa_problem(variant: str | None, memoize: bool) -> ModelProblem |
     found = speaker_ecapa_problem(memoize=memoize)
     if found is None:
         return None
+    if speaker_ecapa_path().is_file():
+        return ModelProblem(
+            f"{SPEAKER_ECAPA_LABEL} {found}", f"{SPEAKER_ECAPA_BOOTSTRAP} --upgrade", True
+        )
     return ModelProblem(f"{SPEAKER_ECAPA_LABEL} {found}", SPEAKER_ECAPA_BOOTSTRAP)
 
 
@@ -229,3 +234,45 @@ def model_spec(model_id: str) -> ModelSpec:
 
 def models_for(*tiers: SetupTier) -> tuple[ModelSpec, ...]:
     return tuple(spec for spec in MODELS if spec.setup in tiers)
+
+
+def model_base(model_id: str, variant: str | None = None) -> dict[str, Any]:
+    spec = model_spec(model_id)
+    model = variant or spec.default_variant or spec.id
+    return {
+        "id": spec.id,
+        "model": model,
+        "label": spec.label,
+        "purpose": spec.purpose,
+        "tier": spec.setup,
+        "size": spec.size_label(model),
+        "size_bytes": spec.size_bytes(model),
+    }
+
+
+def model_record(
+    model_id: str, variant: str | None = None, *, memoize: bool = True
+) -> dict[str, Any]:
+    """One model's readiness (no download), from the registry row alone.
+
+    ``state`` is ``installed`` when the row reports no problem. A pin mismatch is
+    ``update_needed`` with an ``--upgrade`` fix as ``bootstrap``; any other problem is
+    ``missing`` with ``hint`` and ``bootstrap``.
+    """
+    base = model_base(model_id, variant)
+    problem = model_spec(model_id).problem(variant, memoize)
+    if problem is None:
+        return {**base, "state": "installed"}
+    return {
+        **base,
+        "state": "update_needed" if problem.pin_mismatch else "missing",
+        "hint": problem.hint,
+        "bootstrap": problem.fix,
+    }
+
+
+def require_model(model_id: str, variant: str | None = None, *, memoize: bool = True) -> None:
+    """Raise ``ModelMissing`` unless the model is installed; never downloads."""
+    rec = model_record(model_id, variant, memoize=memoize)
+    if rec["state"] != "installed":
+        raise ModelMissing.from_record(rec)

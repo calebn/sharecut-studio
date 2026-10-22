@@ -17,8 +17,9 @@ from typing import Any
 
 from podcast_mcp.engines.models.registry import (
     MODELS,
-    ModelProblem,
     ModelSpec,
+    model_base,
+    model_record,
     model_spec,
     models_for,
 )
@@ -63,29 +64,13 @@ def model_status(
     ``missing`` with ``hint`` and ``bootstrap``. An unexpected error is reported, never raised.
     """
     spec = model_spec(model_id)
-    model = variant or spec.default_variant or spec.id
-    base: dict[str, Any] = {
-        "id": spec.id,
-        "model": model,
-        "label": spec.label,
-        "purpose": spec.purpose,
-        "tier": spec.setup,
-        "size": spec.size_label(model),
-        "size_bytes": spec.size_bytes(model),
-    }
+    base = model_base(model_id, variant)
     try:
-        problem = spec.problem(variant, memoize)
-        base["path"] = str(spec.location())
+        record = model_record(model_id, variant, memoize=memoize)
+        path = str(spec.location())
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
-        problem = ModelProblem(str(exc), spec.fix_command)
-    if problem is None:
-        return {**base, "state": "installed"}
-    return {
-        **base,
-        "state": "update_needed" if problem.pin_mismatch else "missing",
-        "hint": problem.hint,
-        "bootstrap": problem.fix,
-    }
+        return {**base, "state": "missing", "hint": str(exc), "bootstrap": spec.fix_command}
+    return {**base, "path": path, **{k: v for k, v in record.items() if k not in base}}
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
