@@ -70,7 +70,14 @@ def frame_rms_db(
     windows = np.lib.stride_tricks.sliding_window_view(samples, frame)[::hop]
     if max_frames is not None:
         windows = windows[:max_frames]
-    rms = np.sqrt(np.mean(np.square(windows, dtype=np.float64), axis=1))
+    count = windows.shape[0]
+    if hop < frame and count > 1:
+        used_samples = (count - 1) * hop + frame
+        squares = np.square(samples[:used_samples], dtype=np.float64)
+        square_windows = np.lib.stride_tricks.sliding_window_view(squares, frame)[::hop]
+    else:
+        square_windows = np.square(windows, dtype=np.float64)
+    rms = np.sqrt(np.mean(square_windows, axis=1))
     out = np.full(rms.shape, floor_db, dtype=np.float64)
     loud = rms >= DIGITAL_SILENCE_RMS
     out[loud] = 20.0 * np.log10(rms[loud])

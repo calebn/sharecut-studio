@@ -822,6 +822,16 @@ metadata from clean jobs.
 
 ## What to test where
 
+`tests/test_dsp.py` compares framed RMS output bits with the original float64
+window-square reduction. It covers input dtypes and strides, frame widths,
+frame caps, silence floors, nonfinite samples, input immutability, and uneven
+stream chunks. Overlapping frames square only their selected sample span,
+then keep the same mean, square root, and dB conversion.
+
+`tests/test_service_boundaries.py` checks real-tree architecture violations and
+exact allowlists from one scan in one test. The scanner stays uncached so the
+synthetic-root test scans its independently patched root.
+
 | Area | Test file |
 |------|-----------|
 | Models / project I/O | `test_models.py` |

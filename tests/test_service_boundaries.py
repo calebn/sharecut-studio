@@ -204,16 +204,12 @@ def _scan_architecture() -> tuple[dict[str, dict[str, set[str]]], list[str]]:
     return found, violations
 
 
-def test_adapters_do_not_grow_new_domain_adapter_or_util_edges() -> None:
-    _, violations = _scan_architecture()
+def test_architecture_edges_are_allowed_and_allowlists_match_the_tree_exactly() -> None:
+    found, violations = _scan_architecture()
     assert not violations, (
         "adapter/domain boundary violations (route through a service or a typed contract, "
         "do not add an allowlist entry):\n" + "\n".join(violations)
     )
-
-
-def test_architecture_allowlists_match_the_tree_exactly() -> None:
-    found, _ = _scan_architecture()
     assert found["domain"] == _ADAPTER_DOMAIN_ALLOWLIST
     assert sum(map(len, _ADAPTER_DOMAIN_ALLOWLIST.values())) == _ADAPTER_DOMAIN_ALLOWLIST_SIZE
     assert found["adapter"] == _ARCHITECTURE_ALLOWED["adapter"]
