@@ -23,6 +23,7 @@ from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.util.asset_sources import (
+    OnProgress,
     asset_entry,
     download_first_ok,
     ordered_http_urls,
@@ -81,7 +82,9 @@ def speaker_ecapa_problem() -> str | None:
     return None
 
 
-def bootstrap_speaker_ecapa(*, force: bool = False) -> dict[str, Any]:
+def bootstrap_speaker_ecapa(
+    *, force: bool = False, on_progress: OnProgress | None = None
+) -> dict[str, Any]:
     """Download and verify the pinned model; skips when it is already ready."""
     if speaker_ecapa_override() is not None:
         raise SpeakerEcapaMissingError(f"{SPEAKER_ECAPA_ENV} is set; unset it to download")
@@ -90,7 +93,7 @@ def bootstrap_speaker_ecapa(*, force: bool = False) -> dict[str, Any]:
     if not force and speaker_ecapa_problem() is None:
         return {"ok": True, "skipped": True, "reason": "cached", "path": str(path)}
     urls = ordered_http_urls(SPEAKER_ECAPA_ASSET, relative_path=filename)
-    source = download_first_ok(urls, path, expected_sha256=expected)
+    source = download_first_ok(urls, path, expected_sha256=expected, on_progress=on_progress)
     return {"ok": True, "path": str(path), "source": source}
 
 

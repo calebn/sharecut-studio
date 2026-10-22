@@ -12,6 +12,7 @@ if TYPE_CHECKING:
         publish_job_event,
     )
     from podcast_mcp.services.jobs.job import (
+        BootstrapSlotBusyError,
         Job,
         JobKind,
         JobSlotBusyError,
@@ -30,6 +31,7 @@ __all__ = [
     "LIVE_JOB_STATUSES",
     "TERMINAL_JOB_STATUSES",
     "AgentJobFanInReporter",
+    "BootstrapSlotBusyError",
     "Job",
     "JobKind",
     "JobManager",
@@ -49,6 +51,7 @@ _MODULE_BY_NAME = {
     "LIVE_JOB_STATUSES": "events",
     "TERMINAL_JOB_STATUSES": "events",
     "AgentJobFanInReporter": "reporter",
+    "BootstrapSlotBusyError": "job",
     "Job": "job",
     "JobKind": "job",
     "JobManager": "manager",

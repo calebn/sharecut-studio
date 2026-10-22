@@ -22,6 +22,7 @@ from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.util.asset_sources import (
     AssetSourceError,
+    OnProgress,
     asset_entry,
     bootstrap_cdn_base,
     download_first_ok,
@@ -51,7 +52,7 @@ def resolve_rnnoise_model() -> Path:
     )
 
 
-def bootstrap_rnnoise_model(*, force: bool = False) -> Path:
+def bootstrap_rnnoise_model(*, force: bool = False, on_progress: OnProgress | None = None) -> Path:
     """Download the RNNoise model into the cache dir, skipping if already present."""
     path = rnnoise_model_path()
     if path.is_file() and not force:
@@ -67,7 +68,7 @@ def bootstrap_rnnoise_model(*, force: bool = False) -> Path:
         logger.warning("rnnoise CDN skipped: no sha256 pin")
     if not urls:
         raise AssetSourceError("rnnoise has no download source in contracts/bootstrap-assets.json")
-    download_first_ok(urls, path, expected_sha256=expected)
+    download_first_ok(urls, path, expected_sha256=expected, on_progress=on_progress)
     _verify_pinned_size(path, meta.get("size_bytes"))
     return path
 

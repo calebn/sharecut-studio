@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -125,7 +126,7 @@ def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
     )
     calls: dict[str, object] = {}
 
-    def fake_bootstrap_word_aligner(model_id, *, force=False):
+    def fake_bootstrap_word_aligner(model_id, *, force=False, on_progress=None):
         calls["force"] = force
         return {"ok": True, "model": model_id, "path": "/x"}
 
@@ -163,12 +164,33 @@ def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
         registry, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
     )
 
-    def raise_error(*a, force=False):
-        raise RuntimeError("network down")
+    def raise_error(*a, force=False, on_progress=None):
+        raise urllib.error.URLError("network down")
 
     monkeypatch.setattr(registry, "bootstrap_word_aligner", raise_error)
     out = boot.run_bootstrap(["word-aligner"])
-    assert out["results"]["word-aligner"] == {"ok": False, "error": "network down"}
+    plain = "Couldn't reach the download server. Check your internet connection and try again."
+    assert out["results"]["word-aligner"] == {
+        "ok": False,
+        "error": plain,
+        "failure": {"kind": "network", "status": None, "plain": plain},
+    }
+
+
+def test_run_bootstrap_reports_an_unexpected_error_generically(monkeypatch, caplog) -> None:
+    from podcast_mcp.engines.models import registry
+    from podcast_mcp.services.pipeline import bootstrap as boot
+
+    def raise_error(*a, force=False, on_progress=None):
+        raise RuntimeError("/srv/secret.bin exploded")
+
+    monkeypatch.setattr(registry, "bootstrap_rnnoise_model", raise_error)
+    out = boot.run_bootstrap(["rnnoise"])
+    assert out["results"]["rnnoise"] == {
+        "ok": False,
+        "error": "RNNoise noise reduction could not be installed.",
+    }
+    assert "secret.bin exploded" in caplog.text
 
 
 def test_run_bootstrap_default_installs_only_the_first_run_set(monkeypatch) -> None:
@@ -178,7 +200,9 @@ def test_run_bootstrap_default_installs_only_the_first_run_set(monkeypatch) -> N
     monkeypatch.setattr(
         boot,
         "install_model",
-        lambda spec, *, whisper_model, force: installed.append(spec.id) or {"ok": True},
+        lambda spec, *, whisper_model, force, cancel_check: (
+            installed.append(spec.id) or {"ok": True}
+        ),
     )
     out = boot.run_bootstrap(None)
     assert installed == ["whisper"]
@@ -189,7 +213,7 @@ def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.services.jobs import shared_job_manager
 
-    def fake_run(components=None, *, whisper_model=None, force=False, progress=None):
+    def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
         if progress is not None:
             progress.start("bootstrap", "Bootstrap assets", total=1)
             progress.end("bootstrap", message="Bootstrap complete")
@@ -278,7 +302,7 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
             "optional_components": ["rnnoise"],
         }
 
-    def fake_run(components=None, *, whisper_model=None, force=False, progress=None):
+    def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
         if progress is not None:
             progress.start("bootstrap", "Bootstrap assets", total=1)
             progress.update("bootstrap", 1, total=1, message="done")
@@ -346,7 +370,7 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
 
     gate = __import__("threading").Event()
 
-    def slow_run(components=None, *, whisper_model=None, force=False, progress=None):
+    def slow_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
         gate.wait(timeout=5)
         return {
             "ok": True,
@@ -370,16 +394,27 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
     assert started.status_code == 200
     job_id = started.json()["job"]["id"]
 
-    conflict = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
+    assert started.json()["adopted"] is False
+    joined = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
+    assert joined.status_code == 200
+    assert joined.json()["adopted"] is True
+    assert joined.json()["job"]["id"] == job_id
+
+    conflict = client.post("/api/bootstrap/run", json={"components": ["whisper", "rnnoise"]})
     assert conflict.status_code == 409
-    assert "whisper" in conflict.json()["detail"]
-    assert "already running" in conflict.json()["detail"]
+    body = conflict.json()["detail"]
+    assert "already running" in body["detail"]
+    assert body["running"] == ["whisper"]
+    assert body["cancelling"] is False
 
     missing = client.post("/api/bootstrap/cancel", json={"job_id": "nope"})
     assert missing.status_code == 404
 
     cancelled = client.post("/api/bootstrap/cancel", json={"job_id": job_id})
     assert cancelled.status_code == 200
+    stopping = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
+    assert stopping.status_code == 409
+    assert stopping.json()["detail"]["cancelling"] is True
     gate.set()
 
     job = None
@@ -402,7 +437,7 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.services.jobs import shared_job_manager
 
-    def fake_run(components=None, *, whisper_model=None, force=False, progress=None):
+    def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
         if progress is not None:
             progress.start("bootstrap", "Bootstrap assets", total=1)
             progress.message("bootstrap", "working")
@@ -464,7 +499,7 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.services.jobs import shared_job_manager
 
-    def fail_run(components=None, *, whisper_model=None, force=False, progress=None):
+    def fail_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
         return {
             "ok": False,
             "results": {"whisper": {"ok": False, "error": "download failed"}},
@@ -502,7 +537,7 @@ def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
 
     seen: dict[str, object] = {}
 
-    def fake_bootstrap(model_size: str, *, force: bool = False):
+    def fake_bootstrap(model_size: str, *, force: bool = False, on_progress=None):
         seen["model"] = model_size
         seen["force"] = force
         return {"ok": True, "model": model_size, "cache": "/tmp", "persist_error": None}
@@ -538,7 +573,7 @@ def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
             "optional_components": ["rnnoise"],
         }
 
-    def fake_run(components=None, *, whisper_model=None, force=False, progress=None):
+    def fake_run(components=None, *, whisper_model=None, force=False, progress=None, **_extra):
         recorded["components"] = list(components or [])
         recorded["whisper_model"] = whisper_model
         if progress is not None:
@@ -589,6 +624,8 @@ def test_run_bootstrap_word_aligner_refetches_a_pin_mismatch_without_force(
     downloads: list[bool] = []
 
     def fake_snapshot_download(repo, **kwargs):
+        if kwargs.get("dry_run"):
+            return []
         if not kwargs.get("local_files_only"):
             downloads.append(kwargs["force_download"])
             if kwargs["force_download"]:
@@ -617,6 +654,8 @@ def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
     downloads: list[bool] = []
 
     def fake_snapshot_download(repo, **kwargs):
+        if kwargs.get("dry_run"):
+            return []
         if not kwargs.get("local_files_only"):
             downloads.append(kwargs["force_download"])
             if kwargs["force_download"]:

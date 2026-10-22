@@ -79,7 +79,7 @@ def test_run_bootstrap_installs_every_named_model(monkeypatch: pytest.MonkeyPatc
     calls: list[tuple[str, str | None, bool]] = []
 
     def stub(spec):
-        def install(variant, force):
+        def install(variant, force, on_progress):
             calls.append((spec.id, variant, force))
             return {"ok": True}
 

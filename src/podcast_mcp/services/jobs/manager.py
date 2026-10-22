@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 import uuid
@@ -9,7 +10,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.engines.models.whisper import resolve_whisper_model
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs.catalog import JobCatalog
@@ -32,8 +32,10 @@ from podcast_mcp.services.media import (
     SpeakerService,
     coerce_enrollment,
 )
-from podcast_mcp.services.pipeline import PipelineService, run_bootstrap
+from podcast_mcp.services.pipeline import BootstrapRequest, PipelineService, run_bootstrap
 from podcast_mcp.util.progress import bind_progress
+
+logger = logging.getLogger(__name__)
 
 
 class JobManager:
@@ -260,23 +262,39 @@ class JobManager:
         components: list[str] | None = None,
         whisper_model: str | None = None,
         force: bool = False,
-    ) -> Job:
-        """First-run model download in the second slot: at most one, independent of ``_spawn``."""
-        model = resolve_whisper_model(requested=whisper_model)
+    ) -> tuple[Job, bool]:
+        """First-run model download in the second slot: at most one, independent of ``_spawn``.
+
+        Returns the job and whether it was already running. A request the live job already
+        covers (see ``BootstrapRequest.covered_by``) joins it. Any other request while one
+        runs, or while it is stopping, raises ``BootstrapSlotBusyError``, and so does a retry
+        of a component the live job already failed: the slot holds one job, so the retry
+        waits for it to end rather than joining a failure.
+        """
+        request = BootstrapRequest.of(components, whisper_model=whisper_model, force=force)
         with self._catalog._lock:
             current = self._catalog._bootstrap_job
             if current is not None and current.status in LIVE_JOB_STATUSES:
-                running = ", ".join(current.components) or "setup"
+                running = list(current.components)
+                live = BootstrapRequest(tuple(running), current.whisper_model, current.force)
+                retries_failed = not set(request.components).isdisjoint(current.failed_components)
+                if not current.cancel_requested and not retries_failed and request.covered_by(live):
+                    return current, True
                 raise BootstrapSlotBusyError(
-                    f"Another download is already running ({running}); try again when it finishes"
+                    "The running download is stopping; try again in a moment"
+                    if current.cancel_requested
+                    else f"Another download is already running ({', '.join(running)}); "
+                    "try again when it finishes",
+                    running=running,
+                    cancelling=current.cancel_requested,
                 )
             if current is not None and current.status in TERMINAL_JOB_STATUSES:
                 self._catalog._bootstrap_finished[current.id] = current
             job = Job.bootstrap(
                 uuid.uuid4().hex[:12],
-                list(components) if components else [],
-                whisper_model=model,
-                force=force,
+                list(request.components),
+                whisper_model=request.whisper_model,
+                force=request.force,
             )
             self._catalog._bootstrap_job = job
 
@@ -287,7 +305,13 @@ class JobManager:
             name=f"bootstrap-job-{job.id}",
         )
         thread.start()
-        return job
+        return job, False
+
+    @staticmethod
+    def _note_result(job: Job, name: str, info: dict[str, Any]) -> None:
+        if not info.get("ok"):
+            with job._lock:
+                job.failed_components.append(name)
 
     def get_bootstrap_job(self, job_id: str | None = None) -> Job | None:
         return self._catalog.get_bootstrap_job(job_id)
@@ -318,6 +342,8 @@ class JobManager:
                 whisper_model=job.whisper_model,
                 force=job.force,
                 progress=reporter,
+                cancel_check=lambda: job.cancel_requested,
+                on_result=lambda name, info: self._note_result(job, name, info),
             )
             with job._lock:
                 if job.cancel_requested:
@@ -325,23 +351,31 @@ class JobManager:
                     job.message = cancelled_copy(job.kind)
                 elif not result.get("ok", False):
                     job.status = "error"
-                    failed = [
-                        f"{name}: {info.get('error')}"
-                        for name, info in (result.get("results") or {}).items()
-                        if isinstance(info, dict) and not info.get("ok", True)
-                    ]
-                    job.error = "; ".join(failed) or "Bootstrap failed"
+                    first = next(
+                        (
+                            info
+                            for info in (result.get("results") or {}).values()
+                            if isinstance(info, dict) and not info.get("ok")
+                        ),
+                        {},
+                    )
+                    job.failure = first.get("failure")
+                    job.error = first.get("error") or "Bootstrap failed"
                     job.message = job.error
                 else:
                     job.status = "ok"
                     job.message = "Bootstrap complete"
                 job.result = result
                 job.finished_at = time.monotonic()
-        except Exception as exc:
+        except Exception:
+            logger.exception("bootstrap job %s failed", job.id)
             with job._lock:
-                job.status = "cancelled" if job.cancel_requested else "error"
-                job.error = str(exc)
-                job.message = str(exc)
+                if job.cancel_requested:
+                    job.status = "cancelled"
+                    job.message = cancelled_copy(job.kind)
+                else:
+                    job.status = "error"
+                    job.error = job.message = "The download could not be completed."
                 job.finished_at = time.monotonic()
         finally:
             reporter.close()

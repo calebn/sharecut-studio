@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
+from podcast_mcp.util.asset_sources import OnProgress
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
     FileManifest,
@@ -230,7 +231,10 @@ def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER, *, memoize: boo
 
 
 def bootstrap_word_aligner(
-    model_id: str = DEFAULT_WORD_ALIGNER, *, force: bool = False
+    model_id: str = DEFAULT_WORD_ALIGNER,
+    *,
+    force: bool = False,
+    on_progress: OnProgress | None = None,
 ) -> dict[str, Any]:
     """Download the pinned snapshot into the word-aligner cache. The only network path.
 
@@ -240,7 +244,9 @@ def bootstrap_word_aligner(
 
     model = word_aligner_model(model_id)
     # Intentional download path: the only word-aligner download (never local_files_only).
-    path, mismatch = download_pinned_snapshot(model.pin, word_aligner_cache_dir(), force=force)
+    path, mismatch = download_pinned_snapshot(
+        model.pin, word_aligner_cache_dir(), force=force, on_progress=on_progress
+    )
     if mismatch is not None:
         raise WordAlignerPinMismatchError(model.id, mismatch)
     return {"ok": True, "model": model.id, "path": str(path)}

@@ -31,6 +31,20 @@ export type BootstrapStatus = {
   opt_in_components?: string[];
 };
 
+export type BootstrapDownload = {
+  component: string;
+  bytes: number;
+  /** Null when the source gives no size (an unpinned Whisper model). */
+  total: number | null;
+};
+
+export type BootstrapFailure = {
+  kind: "http" | "pin_mismatch" | "network" | "disk";
+  status: number | null;
+  /** Plain text safe to show: it names no path, URL or environment variable. */
+  plain: string;
+};
+
 export type BootstrapJobSnapshot = {
   id: string;
   kind: string;
@@ -41,6 +55,8 @@ export type BootstrapJobSnapshot = {
   total?: number | null;
   message?: string | null;
   error?: string | null;
+  download?: BootstrapDownload | null;
+  failure?: BootstrapFailure | null;
   elapsed_sec?: number;
   result?: Record<string, unknown> | null;
 };
@@ -62,7 +78,7 @@ export async function runBootstrap(opts?: {
   components?: string[];
   whisper_model?: string;
   force?: boolean;
-}): Promise<{ job: BootstrapJobSnapshot }> {
+}): Promise<{ job: BootstrapJobSnapshot; adopted?: boolean }> {
   const res = await apiFetch(
     HOST_KEY,
     { host: "/api/bootstrap/run" },
@@ -76,7 +92,7 @@ export async function runBootstrap(opts?: {
       }),
     },
   );
-  return (await res.json()) as { job: BootstrapJobSnapshot };
+  return (await res.json()) as { job: BootstrapJobSnapshot; adopted?: boolean };
 }
 
 export function bootstrapEventsUrl(jobId?: string | null): string {

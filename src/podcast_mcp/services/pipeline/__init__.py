@@ -4,6 +4,7 @@ from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
     from podcast_mcp.services.pipeline.bootstrap import (
+        BootstrapRequest,
         component_status,
         install_model,
         model_status,
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
         suggest_pipeline_tuning,
         transcribe_run_config,
     )
+    from podcast_mcp.services.pipeline.install_failure import InstallFailure, unexpected_text
     from podcast_mcp.services.pipeline.models import (
         DEFAULT_WHISPER_MODEL,
         MODELS,
@@ -49,6 +51,8 @@ __all__ = [
     "MODELS",
     "WHISPER_MODEL_IDS",
     "AudioExportResult",
+    "BootstrapRequest",
+    "InstallFailure",
     "PipelineRunResult",
     "PipelineService",
     "WhisperWeightsMissingError",
@@ -77,6 +81,7 @@ __all__ = [
     "skip_steps_from_enabled",
     "suggest_pipeline_tuning",
     "transcribe_run_config",
+    "unexpected_text",
     "validate_whisper_model",
 ]
 
@@ -84,6 +89,9 @@ _MODULE_BY_NAME = {
     "DEFAULT_WHISPER_MODEL": "models",
     "MODELS": "models",
     "models_for": "models",
+    "BootstrapRequest": "bootstrap",
+    "InstallFailure": "install_failure",
+    "unexpected_text": "install_failure",
     "install_model": "bootstrap",
     "model_status": "bootstrap",
     "WHISPER_MODEL_IDS": "models",

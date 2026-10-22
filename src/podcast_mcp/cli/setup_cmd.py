@@ -1,24 +1,32 @@
 from __future__ import annotations
 
+import logging
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import typer
 
+from podcast_mcp.cli.busy import _debug_enabled
 from podcast_mcp.config.defaults import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
 from podcast_mcp.services.pipeline import (
     DEFAULT_WHISPER_MODEL,
     MODELS,
     WHISPER_MODEL_IDS,
+    InstallFailure,
     install_model,
     model_status,
     models_for,
     persist_whisper_model,
     resolve_whisper_model,
+    unexpected_text,
     validate_whisper_model,
 )
 from podcast_mcp.util.binaries import FFmpegPairResolutionError
+
+logger = logging.getLogger(__name__)
 
 setup_app = typer.Typer(help="Install and verify Podcast MCP.")
 
@@ -147,6 +155,25 @@ def doctor(
     typer.echo("All checks passed.")
 
 
+@contextmanager
+def _cause_stays_in_the_log() -> Iterator[None]:
+    """Keep a logged failure cause off the terminal.
+
+    The CLI configures no logging, so Python's last-resort handler would print each logged
+    cause with its traceback under the plain ``[fail]`` line. ``PODCAST_DEBUG=1`` keeps that.
+    """
+    if _debug_enabled():
+        yield
+        return
+    package = logging.getLogger("podcast_mcp")
+    quiet = logging.NullHandler()
+    package.addHandler(quiet)
+    try:
+        yield
+    finally:
+        package.removeHandler(quiet)
+
+
 @setup_app.command("bootstrap")
 def bootstrap(
     component: str | None = typer.Option(
@@ -197,12 +224,21 @@ def bootstrap(
             raise typer.Exit(2) from exc
     ok = True
     for spec in wanted:
-        try:
-            result = install_model(spec, whisper_model=whisper_model, force=upgrade)
-        except Exception as exc:
-            typer.echo(f"[fail] {spec.id}: {exc}", err=True)
-            ok = False
-            continue
+        variant = whisper_model if spec.id == "whisper" else None
+        if not sys.stderr.isatty() and (upgrade or not model_status(spec.id, variant)["ok"]):
+            typer.echo(f"[get] {spec.id} ({spec.size})")
+        with _cause_stays_in_the_log():
+            try:
+                result = install_model(spec, whisper_model=whisper_model, force=upgrade)
+            except InstallFailure as failure:
+                typer.echo(f"[fail] {spec.id}: {failure.plain}", err=True)
+                ok = False
+                continue
+            except Exception:
+                logger.exception("bootstrap of %s failed", spec.id)
+                typer.echo(f"[fail] {spec.id}: {unexpected_text(spec.label)}", err=True)
+                ok = False
+                continue
         verb = "[skip]" if result.get("skipped") else "[ok]"
         detail = str(result.get("path") or result.get("reason", ""))
         if model := result.get("model"):
