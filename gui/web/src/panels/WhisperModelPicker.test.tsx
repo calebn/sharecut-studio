@@ -41,4 +41,41 @@ describe("WhisperDownloadDialog", () => {
       "Couldn't download the Whisper model. Export diagnostics from the command palette and try again.",
     );
   });
+
+  it("shows no raw progress text next to the alert after a failed job", async () => {
+    const user = userEvent.setup();
+    const raw = "whisper: model small not found";
+    runBootstrap.mockResolvedValue({
+      job: { id: "job1", status: "running", message: "Starting…" },
+    });
+    waitForBootstrapJob.mockImplementation(
+      async (
+        _id: string,
+        opts?: { onUpdate?: (job: { message: string }) => void },
+      ) => {
+        opts?.onUpdate?.({ message: raw });
+        throw new Error(raw);
+      },
+    );
+    render(
+      <WhisperDownloadDialog
+        pending={{ modelId: "small", reason: "select" }}
+        models={[
+          {
+            id: "small",
+            label: "Small",
+            size: "~460 MB",
+            cached: false,
+          } as never,
+        ]}
+        onDefer={vi.fn()}
+        onCancel={vi.fn()}
+        onDownloaded={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    await screen.findByRole("alert");
+    expect(screen.queryByText(raw)).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
 });

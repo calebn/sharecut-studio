@@ -76,6 +76,22 @@ def test_speaker_with_only_spans_past_the_end_is_refused_in_plain_words(
     )
 
 
+def test_all_past_the_end_speaker_fails_before_any_embedding() -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    duration = audio.size / RATE
+    backend = _StrictBackend()
+
+    with pytest.raises(CodedValueError):
+        attribute_speakers(
+            audio,
+            speaker_count=2,
+            backend=backend,
+            enrollment={1: [(duration + 0.4, duration + 0.7)]},
+        )
+
+    assert backend.lengths == []
+
+
 def test_speaker_keeping_one_usable_window_still_enrolls() -> None:
     audio, _ = _mix(2, 20.0, seed=3)
     duration = audio.size / RATE
