@@ -364,7 +364,6 @@ export interface DawState {
   /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
   drawnLaneHeightPx: number | null;
   chrome: ChromeFlags;
-  setTranscriptFindReplaceOpen: (on: boolean) => void;
   bounceRangeTarget: import("../types/project").ExactRangeTarget | null;
   setBounceRangeTarget: (
     target: import("../types/project").ExactRangeTarget | null,
@@ -573,6 +572,7 @@ export interface DawState {
   setGesturesSheetOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;
   setBounceDialogOpen: (on: boolean) => void;
+  setTranscriptFindReplaceOpen: (on: boolean) => void;
   setExportDialogOpen: (on: boolean) => void;
   setSplitSpeakersTrackId: (trackId: string | null) => void;
   setShareDialogOpen: (on: boolean) => void;

@@ -77,7 +77,7 @@ use `Button variant="link"`, including the shortcut/gesture cross-links.
 | Bottom-tabs resize (ArrowUp/Down) | [`layout/BottomTabsSplitterView.tsx`](../src/layout/BottomTabsSplitterView.tsx) — allowlisted separator widget (live adapter `BottomTabsSplitter`) |
 | Pointer → same actions as keys | **Command bridge** (`CommandButton`, `CommandMenuItem`) → `execute` |
 
-Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`chrome.commandPaletteOpen` / `chrome.bounceDialogOpen` / `chrome.shareDialogOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
+Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`commandPaletteOpen` / `bounceDialogOpen` / `shareDialogOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
 
 ## Command bridge (SOLID / DRY)
 

@@ -147,6 +147,8 @@ describe("dawStore chrome flags", () => {
       openEverything();
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       expect(read("transcriptFindReplaceOpen")).toBe(true);
+      expect(read("bounceDialogOpen")).toBe(true);
+      expect(read("exportDialogOpen")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
