@@ -1333,3 +1333,50 @@ def test_saved_and_rendered_lane_keeps_the_unresolved_continuous_quiet_speaker(
     interior = slice(round(1.22 * RATE), round(5.98 * RATE))
     assert np.max(np.abs(lanes["room"][interior])) == 0.0
     assert lanes["room_ben"][interior] == pytest.approx(original[interior], abs=1e-5)
+
+
+class CountingBackend(SpectralBackend):
+    def __init__(self) -> None:
+        self.embeds = 0
+
+    def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        self.embeds += 1
+        return super().embed(samples, sample_rate)
+
+
+def test_a_cancel_during_enrollment_stops_before_the_rest_of_the_embeds() -> None:
+    from podcast_mcp.util.progress import CancelledProgress
+
+    audio, _ = _scripted_mix(REPLY_PLAN, 16.0)
+    backend = CountingBackend()
+    with pytest.raises(CancelledProgress):
+        attribute_speakers(
+            audio,
+            speaker_count=2,
+            backend=backend,
+            enrollment={0: [(0.5, 3.0)]},
+            cancel_check=lambda: backend.embeds >= 1,
+        )
+    assert backend.embeds == 1
+
+
+def test_enrollment_windows_count_in_the_split_progress_total() -> None:
+    from podcast_mcp.engines.speaker_split import _span_centers
+    from podcast_mcp.util.progress import RecordingProgress
+
+    audio, _ = _scripted_mix(REPLY_PLAN, 16.0)
+
+    def first_total(enrollment) -> int:
+        recorder = RecordingProgress()
+        attribute_speakers(
+            audio,
+            speaker_count=2,
+            backend=SpectralBackend(),
+            enrollment=enrollment,
+            progress=recorder,
+        )
+        return next(e.total for e in recorder.events if e.kind == "update" and e.total)
+
+    enrolled_windows = len(_span_centers(0.5, 3.0, audio.size / RATE, WINDOW_SEC))
+    assert enrolled_windows > 1
+    assert first_total({0: [(0.5, 3.0)]}) - first_total(None) == enrolled_windows
