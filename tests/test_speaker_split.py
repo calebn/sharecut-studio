@@ -989,6 +989,38 @@ def test_a_split_that_cannot_run_is_refused_before_any_audio_is_read(
         service.check_split("room", speaker_count=2, names=["Ana", "Ana"])
 
 
+def test_an_enrolled_name_with_no_spans_is_refused_before_any_audio_is_read(
+    mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_audio(*_args, **_kwargs):
+        raise AssertionError("read audio")
+
+    monkeypatch.setattr("podcast_mcp.services.media.speaker.load_mono_full", no_audio)
+
+    with pytest.raises(CodedValueError) as raised:
+        SpeakerService(mixed_ws).split_speakers(
+            "room",
+            speaker_count=2,
+            names=["Ana", "Ben"],
+            enrollment={"Ana": [(0.5, 4.0)], "Ben": []},
+        )
+
+    assert raised.value.code == "enrollment_empty"
+    assert str(raised.value) == (
+        "Ben has no voice sample. Pick a stretch where only Ben is talking, or leave Ben out."
+    )
+
+
+def test_the_preflight_refuses_an_enrolled_name_with_no_spans(mixed_ws: ProjectWorkspace) -> None:
+    with pytest.raises(CodedValueError) as raised:
+        SpeakerService(mixed_ws).check_split(
+            "room", speaker_count=2, names=["Ana", "Ben"], enrollment={"Ana": []}
+        )
+
+    assert raised.value.code == "enrollment_empty"
+    assert "Ana has no voice sample" in str(raised.value)
+
+
 @pytest.mark.parametrize("attributes_first", [False, True])
 def test_a_cancelled_split_changes_nothing(
     mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch, attributes_first: bool
