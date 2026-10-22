@@ -12,6 +12,12 @@
   --stack-space: var(--space-3);
 }
 
+/* A select cannot wrap its option text, and touch devices keep fields at 1rem, so a phone-width row
+   gives the control the width instead: "Recommended (~1.6 GB)" must fit. */
+.box.model-row {
+  padding-inline: var(--space-4);
+}
+
 .model-row-head {
   gap: var(--space-3) var(--space-4);
 }
@@ -60,6 +66,27 @@
   accent-color: var(--color-accent-strong);
 }
 
+/* A calm track from the theme's own surfaces, not the browser's near-white one. */
+.model-row-progress progress {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-sunken);
+  overflow: hidden;
+}
+
+.model-row-progress progress::-webkit-progress-bar {
+  background: var(--color-bg-sunken);
+}
+
+.model-row-progress progress::-webkit-progress-value {
+  background: var(--color-accent-strong);
+}
+
+.model-row-progress progress::-moz-progress-bar {
+  background: var(--color-accent-strong);
+}
+
 .model-row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -106,12 +133,20 @@
 
 .model-row select {
   min-block-size: var(--touch-min);
+  min-inline-size: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  padding-inline: var(--space-3) var(--space-1);
+  text-overflow: ellipsis;
 }
 
 /* A busy wizard's primary button is the one word saying what is happening: keep it legible. */
 .bootstrap-wizard .ui-control.primary:disabled {
   opacity: 1;
   background: var(--color-bg-sunken);
-  border-color: var(--color-border-strong);
-  color: var(--color-text-primary);
+  border: 1px dashed var(--color-border-strong);
+  color: var(--color-text-secondary);
+  font-style: italic;
+  box-shadow: none;
+  cursor: not-allowed;
 }
