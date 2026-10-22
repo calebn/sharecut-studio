@@ -21,6 +21,28 @@ def test_setup_command(tmp_path, monkeypatch):
     assert ".agents/mcp.json" in result.stdout
 
 
+def test_setup_prints_each_models_readiness_and_fix(tmp_path, monkeypatch):
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setattr(
+        "podcast_mcp.engines.models.registry.whisper_model_problem",
+        lambda model, memoize=False: None,
+    )
+    result = runner.invoke(setup_app, ["setup"])
+    assert result.exit_code == 0
+    assert "  whisper: ready (transcription)" in result.stdout
+    assert (
+        "  rnnoise: missing (noise reduction, ~0.3 MB). Fix: podcast bootstrap --component rnnoise"
+    ) in result.stdout
+    assert (
+        "  word-aligner: missing (precise word boundaries, ~360 MB). "
+        "Fix: podcast bootstrap --component word-aligner"
+    ) in result.stdout
+    assert (
+        "  speaker-ecapa: missing (speaker recognition and split, ~80 MB). "
+        "Fix: podcast bootstrap --component speaker-ecapa"
+    ) in result.stdout
+
+
 def test_setup_ffmpeg_missing(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     with patch(

@@ -29,7 +29,7 @@ Codex UI edits have project-local [Impeccable design hooks](docs/setup.md#impecc
 
 ## Maximal install (all extras)
 
-Use this only when you need enrollment speaker ID (`speaker` / `speaker-lite`) and/or neural join QC (`joinqc`). On Linux this pulls **multi‑GB** PyTorch/CUDA wheels (Docker clean-room: ~6 GB `.venv` + ~0.5 GB bootstrap cache). Prefer the Quick start above for everyday CLI/MCP/GUI work.
+Use this only when you need enrollment speaker ID (`speaker` / `speaker-lite`) and/or neural join QC (`joinqc`). On Linux this pulls **multi‑GB** PyTorch/CUDA wheels (Docker clean-room: ~6 GB `.venv` + plus the models `podcast bootstrap --component all` fetches: about 360 MB for the word aligner, and the ~80 MB speaker model is skipped until its CDN copy ships). Prefer the Quick start above for everyday CLI/MCP/GUI work.
 
 ```bash
 git clone <repo-url> && cd sharecut-studio
@@ -45,8 +45,8 @@ Notes (verified in a disposable Linux Docker image):
 
 - `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `relay`, `object-store`, `speaker`, `speaker-lite`, `joinqc`).
 - Expect CUDA-flavored `torch` on Linux even without a GPU; plan for several GB of free disk.
-- `podcast bootstrap --component nisqa` is **opt-in** (not part of `--component all`). The default release URL may 404 — set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights directory if you need neural NISQA.
-- `podcast bootstrap --component word-aligner` is **opt-in** (not part of `--component all`); once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
+- `podcast bootstrap` does not download NISQA weights; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights directory if you need neural NISQA.
+- A bare `podcast bootstrap` installs Whisper and RNNoise; `--component all` also installs the word aligner and the speaker model. `podcast bootstrap --component word-aligner` installs just the aligner; once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
 - Without `uv`: `python3 -m venv .venv && .venv/bin/pip install -e ".[all]"` then the same bootstrap/doctor steps.
 
 Detail: [docs/setup.md § Maximal install](docs/setup.md#maximal-install-all-extras).

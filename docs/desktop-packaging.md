@@ -156,9 +156,9 @@ only by Rust for the confirmation dialog. Do not widen
 
 Pinned bootstrap assets, when a distributor elects to mirror them, are described
 by [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json). The
-manifest lists only assets a consumer build requires; opt-in components
-(`nisqa`, `word-aligner`) are intentionally absent and download from their
-upstream pins via `podcast bootstrap --component …`; Studio's Pipeline tab
+manifest lists only assets a consumer build requires; the offered word
+aligner is intentionally absent and downloads from its upstream pin via
+`podcast bootstrap --component word-aligner`; Studio's Pipeline tab
 also downloads `word-aligner` through `/api/bootstrap/run`.
 
 ## Platforms

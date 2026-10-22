@@ -7,7 +7,6 @@ import { openJobStream } from "./jobStream";
 export type BootstrapComponentStatus = PipelineComponentStatus & {
   required_for_first_run?: boolean;
   source?: string;
-  cache?: string;
   note?: string;
 };
 

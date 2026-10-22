@@ -185,26 +185,6 @@ def test_load_window_exception() -> None:
         assert join_neural._load_window(project, "h", 0.0, 1.0) is None
 
 
-def test_bootstrap_nisqa_extract(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import tarfile
-
-    monkeypatch.setattr(model_assets, "models_dir", lambda: tmp_path)
-    monkeypatch.delenv("PODCAST_MCP_NISQA_MODEL", raising=False)
-    archive_src = tmp_path / "src.tar.gz"
-    payload = tmp_path / "payload"
-    payload.mkdir()
-    (payload / "w.bin").write_bytes(b"x")
-    with tarfile.open(archive_src, "w:gz") as tf:
-        tf.add(payload / "w.bin", arcname="w.bin")
-
-    def fake_download(url: str, dest: Path, *, timeout: float = 60.0) -> None:
-        dest.write_bytes(archive_src.read_bytes())
-
-    monkeypatch.setattr(model_assets, "_download", fake_download)
-    out = model_assets.bootstrap_nisqa_model(force=True)
-    assert out.exists()
-
-
 def test_join_cost_pad_and_short() -> None:
     from podcast_mcp.edits.join_cost_spectral import _pad_frame, lpc_burg, score_spectral_join
 
@@ -275,21 +255,6 @@ def test_ranker_feature_vector_and_defaults(tmp_path: Path) -> None:
     save_ranker(tiny, path)
     same = apply_ranker_to_report(rep, model_path=path)
     assert same.verdict == "pass"
-
-
-def test_bootstrap_nisqa_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from typer.testing import CliRunner
-
-    from podcast_mcp.cli.main import app
-
-    monkeypatch.setattr(
-        "podcast_mcp.cli.setup_cmd.bootstrap_nisqa_model",
-        lambda force=False: tmp_path / "nisqa",
-    )
-    (tmp_path / "nisqa").mkdir()
-    r = CliRunner().invoke(app, ["bootstrap", "--component", "nisqa"])
-    assert r.exit_code == 0
-    assert "nisqa" in r.stdout.lower() or "ok" in r.stdout.lower()
 
 
 def test_maybe_ranker_applies(tmp_path: Path, minimal_project: Path, sample_wav: Path) -> None:
@@ -488,15 +453,6 @@ def test_model_assets_nisqa_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         model_assets.resolve_nisqa_model()
     p.mkdir()
     assert model_assets.resolve_nisqa_model() == p
-
-
-def test_bootstrap_nisqa_skips_when_present(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    dest = tmp_path / "nisqa"
-    dest.mkdir()
-    monkeypatch.setenv("PODCAST_MCP_NISQA_MODEL", str(dest))
-    assert model_assets.bootstrap_nisqa_model() == dest
 
 
 def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> None:

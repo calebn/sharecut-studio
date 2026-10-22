@@ -1,11 +1,12 @@
 """Resolve and (optionally) bootstrap small downloadable model assets.
 
-Currently just the RNNoise `.rnnn` model used by FFmpeg's `arnndn` filter
-(the `noise_reduction_rnnoise` preset). Silero VAD needs no entry here: its
-ONNX model already ships inside `faster-whisper` (a core dependency), so
-there is nothing to download -- see `podcast_mcp.engines.vad_silero`. The
-opt-in forced word aligner lives in `podcast_mcp.engines.models.word_aligner` (a
-pinned Hugging Face snapshot, like the Whisper tiers).
+The RNNoise `.rnnn` model used by FFmpeg's `arnndn` filter (the
+`noise_reduction_rnnoise` preset), plus the path of user-supplied NISQA weights.
+Silero VAD needs no entry here: its ONNX model already ships inside
+`faster-whisper` (a core dependency), so there is nothing to download -- see
+`podcast_mcp.engines.vad_silero`. The opt-in forced word aligner lives in
+`podcast_mcp.engines.models.word_aligner` (a pinned Hugging Face snapshot, like
+the Whisper tiers).
 
 Like `util/binaries.py`, nothing here downloads anything on import; only the
 explicit `bootstrap_*` functions (wired to `podcast bootstrap`) touch the
@@ -15,9 +16,6 @@ network.
 from __future__ import annotations
 
 import logging
-import shutil
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 from podcast_mcp import settings
@@ -28,7 +26,6 @@ from podcast_mcp.util.asset_sources import (
     download_first_ok,
     ordered_http_urls,
 )
-from podcast_mcp.util.atomic_file import atomic_write
 
 logger = logging.getLogger(__name__)
 
@@ -38,23 +35,7 @@ RNNOISE_MODEL_URL = (
 )
 RNNOISE_MODEL_NAME = "somnolent-hogwash.rnnn"
 
-# NISQA (FOSS speech quality) - weights tarball placeholder URL (operators may
-# override with PODCAST_MCP_NISQA_MODEL pointing at an unpacked weights dir).
-NISQA_MODEL_URL = "https://github.com/gabrielmittag/NISQA/releases/download/v1.0/nisqa.tar.gz"
 NISQA_MODEL_NAME = "nisqa"
-
-
-def _download(url: str, dest: Path, *, timeout: float = 60.0) -> None:
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError(f"refusing non-http(s) download URL: {url!r}")
-
-    def write(handle) -> None:
-        req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
-            shutil.copyfileobj(resp, handle)
-
-    atomic_write(dest, write, creation_mode=0o666)
 
 
 def rnnoise_model_path() -> Path:
@@ -105,22 +86,6 @@ def resolve_nisqa_model() -> Path:
     if path.exists():
         return path
     raise FileNotFoundError(
-        f"NISQA model not found at {path}. Run `podcast bootstrap --component nisqa` "
-        "or set PODCAST_MCP_NISQA_MODEL (optional joinqc extra)."
+        f"NISQA model not found at {path}. Set PODCAST_MCP_NISQA_MODEL to an unpacked "
+        "weights directory (optional joinqc extra)."
     )
-
-
-def bootstrap_nisqa_model(*, force: bool = False) -> Path:
-    """Download NISQA weights archive into the models cache (best-effort)."""
-    import tarfile
-
-    path = nisqa_model_path()
-    if path.exists() and not force:
-        return path
-    archive = models_dir() / "nisqa.tar.gz"
-    _download(NISQA_MODEL_URL, archive, timeout=180.0)
-    path.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive, "r:gz") as tf:
-        # filter="data" blocks path traversal / special files (PEP 706).
-        tf.extractall(path, filter="data")
-    return path

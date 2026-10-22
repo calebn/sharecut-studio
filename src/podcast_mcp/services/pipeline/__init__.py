@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
-    from podcast_mcp.services.pipeline.bootstrap import component_status, run_bootstrap
+    from podcast_mcp.services.pipeline.bootstrap import (
+        component_status,
+        install_model,
+        model_status,
+        run_bootstrap,
+    )
     from podcast_mcp.services.pipeline.config import (
         analyze_working_set,
         asr_options_for,
@@ -23,16 +28,13 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.pipeline.models import (
         DEFAULT_WHISPER_MODEL,
-        DEFAULT_WORD_ALIGNER,
+        MODELS,
         WHISPER_MODEL_IDS,
         WhisperWeightsMissingError,
-        bootstrap_speaker_ecapa,
-        bootstrap_whisper_model,
-        bootstrap_word_aligner,
+        models_for,
         persist_whisper_model,
         resolve_whisper_model,
         validate_whisper_model,
-        word_aligner_is_cached,
     )
     from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
     from podcast_mcp.services.pipeline.service import (
@@ -44,7 +46,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DEFAULT_WHISPER_MODEL",
-    "DEFAULT_WORD_ALIGNER",
+    "MODELS",
     "WHISPER_MODEL_IDS",
     "AudioExportResult",
     "PipelineRunResult",
@@ -52,9 +54,6 @@ __all__ = [
     "WhisperWeightsMissingError",
     "analyze_working_set",
     "asr_options_for",
-    "bootstrap_speaker_ecapa",
-    "bootstrap_whisper_model",
-    "bootstrap_word_aligner",
     "build_config_payload",
     "component_status",
     "config_assignment_paths",
@@ -62,7 +61,10 @@ __all__ = [
     "config_store",
     "ensure_whisper_cached_for_run",
     "format_export_qc_lines",
+    "install_model",
     "merge_pipeline_config",
+    "model_status",
+    "models_for",
     "parse_config_assignments",
     "persist_whisper_model",
     "pipeline_step_states",
@@ -76,21 +78,19 @@ __all__ = [
     "suggest_pipeline_tuning",
     "transcribe_run_config",
     "validate_whisper_model",
-    "word_aligner_is_cached",
 ]
 
 _MODULE_BY_NAME = {
     "DEFAULT_WHISPER_MODEL": "models",
-    "DEFAULT_WORD_ALIGNER": "models",
+    "MODELS": "models",
+    "models_for": "models",
+    "install_model": "bootstrap",
+    "model_status": "bootstrap",
     "WHISPER_MODEL_IDS": "models",
     "WhisperWeightsMissingError": "models",
-    "bootstrap_speaker_ecapa": "models",
-    "bootstrap_whisper_model": "models",
-    "bootstrap_word_aligner": "models",
     "persist_whisper_model": "models",
     "resolve_whisper_model": "models",
     "validate_whisper_model": "models",
-    "word_aligner_is_cached": "models",
     "AudioExportResult": "service",
     "PipelineRunResult": "service",
     "PipelineService": "service",

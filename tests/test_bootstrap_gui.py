@@ -17,6 +17,7 @@ def _isolate_bootstrap_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None:
     from podcast_mcp.config import defaults as config
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
@@ -24,12 +25,14 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: None)
     from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 
-    monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
+    monkeypatch.setattr(
+        registry, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m)
+    )
     from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
 
-    monkeypatch.setattr(boot, "_rnnoise_ready", lambda: False)
+    monkeypatch.setattr(registry, "rnnoise_model_path", lambda: tmp_path / "missing.rnnn")
     monkeypatch.setattr(
-        boot,
+        registry,
         "word_aligner_problem",
         lambda *a, **k: WordAlignerMissingError("onnx-base"),
     )
@@ -58,83 +61,90 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
 
 
 def test_word_aligner_component_ok_has_no_hint(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.services.pipeline import bootstrap as boot
 
-    monkeypatch.setattr(boot, "word_aligner_problem", lambda *a, **k: None)
-    component = boot.word_aligner_component()
+    monkeypatch.setattr(registry, "word_aligner_problem", lambda *a, **k: None)
+    component = boot.model_status("word-aligner")
     assert component["ok"] is True
     assert "hint" not in component
     assert "bootstrap" not in component
 
 
 def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     def raise_runtime_error(*a, **k):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(boot, "word_aligner_problem", raise_runtime_error)
-    component = boot.word_aligner_component()
+    monkeypatch.setattr(registry, "word_aligner_problem", raise_runtime_error)
+    component = boot.model_status("word-aligner")
     assert component["ok"] is False
     assert component["hint"] == "boom"
 
 
 def test_whisper_component_reports_unexpected_errors(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     def raise_runtime_error(*a, **k):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(boot, "whisper_model_problem", raise_runtime_error)
-    assert boot.whisper_component("small.en") == {
-        "ok": False,
-        "model": "small.en",
-        "hint": "boom",
-        "bootstrap": boot.WHISPER_BOOTSTRAP,
-    }
+    monkeypatch.setattr(registry, "whisper_model_problem", raise_runtime_error)
+    component = boot.model_status("whisper", "small.en")
+    assert component["ok"] is False
+    assert component["model"] == "small.en"
+    assert component["hint"] == "boom"
+    assert component["bootstrap"] == "podcast bootstrap --component whisper"
 
 
 def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.services.pipeline import bootstrap as boot
 
-    monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
-    component = boot.whisper_component("small.en")
+    monkeypatch.setattr(
+        registry, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m)
+    )
+    component = boot.model_status("whisper", "small.en")
     assert component["ok"] is False
     assert "pin_mismatch" not in component
-    assert component["bootstrap"] == boot.WHISPER_BOOTSTRAP
+    assert component["bootstrap"] == "podcast bootstrap --component whisper"
     assert "is not downloaded" in component["hint"]
     assert "--whisper-model small.en" in component["hint"]
 
 
 def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(
-        boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
+        registry, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
     )
     calls: dict[str, object] = {}
 
-    def fake_bootstrap_word_aligner(*, force=False):
+    def fake_bootstrap_word_aligner(model_id, *, force=False):
         calls["force"] = force
-        return {"ok": True, "model": "onnx-base", "path": "/x"}
+        return {"ok": True, "model": model_id, "path": "/x"}
 
-    monkeypatch.setattr(boot, "bootstrap_word_aligner", fake_bootstrap_word_aligner)
+    monkeypatch.setattr(registry, "bootstrap_word_aligner", fake_bootstrap_word_aligner)
     out = boot.run_bootstrap(["word-aligner"])
     assert out["results"]["word-aligner"]["ok"] is True
     assert calls["force"] is False
 
 
 def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.services.pipeline import bootstrap as boot
 
-    monkeypatch.setattr(boot, "word_aligner_problem", lambda *a, **k: None)
+    monkeypatch.setattr(registry, "word_aligner_problem", lambda *a, **k: None)
 
-    def fail_if_called(*, force=False):
+    def fail_if_called(*a, **k):
         raise AssertionError("bootstrap_word_aligner should not run when cached")
 
-    monkeypatch.setattr(boot, "bootstrap_word_aligner", fail_if_called)
+    monkeypatch.setattr(registry, "bootstrap_word_aligner", fail_if_called)
     out = boot.run_bootstrap(["word-aligner"])
     assert out["results"]["word-aligner"] == {
         "ok": True,
@@ -145,32 +155,34 @@ def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
 
 
 def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(
-        boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
+        registry, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
     )
 
-    def raise_error(*, force=False):
+    def raise_error(*a, force=False):
         raise RuntimeError("network down")
 
-    monkeypatch.setattr(boot, "bootstrap_word_aligner", raise_error)
+    monkeypatch.setattr(registry, "bootstrap_word_aligner", raise_error)
     out = boot.run_bootstrap(["word-aligner"])
     assert out["results"]["word-aligner"] == {"ok": False, "error": "network down"}
 
 
-def test_run_bootstrap_default_never_pulls_word_aligner(monkeypatch) -> None:
+def test_run_bootstrap_default_installs_only_the_first_run_set(monkeypatch) -> None:
     from podcast_mcp.services.pipeline import bootstrap as boot
 
-    monkeypatch.setattr(boot, "_run_whisper", lambda model, *, force=False: {"ok": True})
-
-    def fail_if_called(*, force=False):
-        raise AssertionError("word aligner must not be a first-run default")
-
-    monkeypatch.setattr(boot, "bootstrap_word_aligner", fail_if_called)
+    installed: list[str] = []
+    monkeypatch.setattr(
+        boot,
+        "install_model",
+        lambda spec, *, whisper_model, force: installed.append(spec.id) or {"ok": True},
+    )
     out = boot.run_bootstrap(None)
-    assert "word-aligner" not in out["results"]
+    assert installed == ["whisper"]
+    assert list(out["results"]) == ["whisper"]
 
 
 def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
@@ -216,12 +228,12 @@ def test_whisper_component_requires_matching_model(tmp_path: Path, monkeypatch) 
     blobs.mkdir(parents=True)
     (blobs / "x").write_text("x")
     monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
-    assert boot.whisper_component("small")["ok"] is False
+    assert boot.model_status("whisper", "small")["ok"] is False
 
     (blobs / "model.bin").write_bytes(b"x")
-    assert boot.whisper_component("small")["ok"] is True
-    assert boot.whisper_component("base")["ok"] is False
-    assert boot.whisper_component("medium")["ok"] is False
+    assert boot.model_status("whisper", "small")["ok"] is True
+    assert boot.model_status("whisper", "base")["ok"] is False
+    assert boot.model_status("whisper", "medium")["ok"] is False
 
 
 def test_whisper_component_large_v3_does_not_match_turbo(tmp_path: Path, monkeypatch) -> None:
@@ -232,8 +244,8 @@ def test_whisper_component_large_v3_does_not_match_turbo(tmp_path: Path, monkeyp
     plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
     monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: cache)
 
-    assert boot.whisper_component("large-v3-turbo")["ok"] is True
-    assert boot.whisper_component("large-v3")["ok"] is False
+    assert boot.model_status("whisper", "large-v3-turbo")["ok"] is True
+    assert boot.model_status("whisper", "large-v3")["ok"] is False
 
 
 def test_gui_bootstrap_status_reports_cdn_base(
@@ -485,6 +497,7 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
 
 
 def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     seen: dict[str, object] = {}
@@ -494,9 +507,8 @@ def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
         seen["force"] = force
         return {"ok": True, "model": model_size, "cache": "/tmp", "persist_error": None}
 
-    monkeypatch.setattr(boot, "bootstrap_whisper_model", fake_bootstrap)
-    monkeypatch.setattr(boot, "_rnnoise_ready", lambda: True)
-    monkeypatch.setattr(boot, "whisper_model_problem", lambda *a, **k: None)
+    monkeypatch.setattr(registry, "bootstrap_whisper_model", fake_bootstrap)
+    monkeypatch.setattr(registry, "whisper_model_problem", lambda *a, **k: None)
     out = boot.run_bootstrap(["whisper"], whisper_model="small.en")
     assert out["ok"] is True
     assert seen["model"] == "small.en"
@@ -618,11 +630,12 @@ def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
 
 
 def test_component_status_whisper_pin_mismatch(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.engines.models.whisper import WhisperPinMismatchError
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(
-        boot,
+        registry,
         "whisper_model_problem",
         lambda m, **k: WhisperPinMismatchError(m, "model.bin sha256 abc does not match the pin"),
     )
@@ -639,6 +652,7 @@ def test_component_status_whisper_pin_mismatch(monkeypatch) -> None:
 
 
 def test_status_components_poll_memoised(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     seen: list[bool] = []
@@ -646,25 +660,26 @@ def test_status_components_poll_memoised(monkeypatch) -> None:
     def fake_problem(*a, memoize: bool = False):
         seen.append(memoize)
 
-    monkeypatch.setattr(boot, "whisper_model_problem", fake_problem)
-    monkeypatch.setattr(boot, "word_aligner_problem", fake_problem)
-    assert boot.whisper_component("small.en") == {"ok": True, "model": "small.en"}
-    assert boot.word_aligner_component()["ok"] is True
+    monkeypatch.setattr(registry, "whisper_model_problem", fake_problem)
+    monkeypatch.setattr(registry, "word_aligner_problem", fake_problem)
+    assert boot.model_status("whisper", "small.en")["ok"] is True
+    assert boot.model_status("word-aligner")["ok"] is True
     assert seen == [True, True]
 
 
 def test_word_aligner_component_flags_a_pin_mismatch(monkeypatch) -> None:
+    from podcast_mcp.engines.models import registry
     from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
     from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(
-        boot,
+        registry,
         "word_aligner_problem",
         lambda *a, **k: WordAlignerPinMismatchError(
             "onnx-base", "vocab.json sha256 abc does not match the pin"
         ),
     )
-    component = boot.word_aligner_component()
+    component = boot.model_status("word-aligner")
     assert component["ok"] is False
     assert component["pin_mismatch"] is True
     assert component["bootstrap"] == "podcast bootstrap --component word-aligner --upgrade"

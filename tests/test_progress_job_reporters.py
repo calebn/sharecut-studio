@@ -127,46 +127,29 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     )
     assert boot.component_status()["components"]["ffmpeg"]["ok"] is True
 
+    from podcast_mcp.engines.models import registry
+
     monkeypatch.setattr(
-        boot,
+        registry,
         "bootstrap_whisper_model",
         lambda _m, **_k: (_ for _ in ()).throw(ImportError("no whisper")),
     )
-    assert boot._run_whisper("base")["ok"] is False
-
     monkeypatch.setattr(
-        boot,
-        "bootstrap_whisper_model",
-        lambda _m, **_k: (_ for _ in ()).throw(RuntimeError("dl fail")),
-    )
-    assert boot._run_whisper("base")["ok"] is False
-
-    monkeypatch.setattr(
-        boot,
+        registry,
         "bootstrap_rnnoise_model",
         lambda **_k: (_ for _ in ()).throw(RuntimeError("rn")),
     )
-    assert boot._run_rnnoise(force=True)["ok"] is False
+    out = boot.run_bootstrap(["whisper", "rnnoise"], force=True)
+    assert out["ok"] is False
+    assert out["results"]["whisper"] == {"ok": False, "error": "no whisper"}
+    assert out["results"]["rnnoise"] == {"ok": False, "error": "rn"}
 
     model = tmp_path / "rnnoise.rnnn"
     model.write_text("x")
-    monkeypatch.setattr(boot, "bootstrap_rnnoise_model", lambda **_k: model)
-    assert boot._run_rnnoise(force=False)["ok"] is True
-
-    # Cover run_bootstrap rnnoise branch
-    monkeypatch.setattr(boot, "_run_whisper", lambda _m, **_k: {"ok": True})
-    monkeypatch.setattr(boot, "_run_rnnoise", lambda **_k: {"ok": True})
-    monkeypatch.setattr(
-        boot,
-        "component_status",
-        lambda **_k: {
-            "ffmpeg": {"ready": True},
-            "whisper": {"ready": True},
-            "rnnoise": {"ready": True},
-        },
-    )
-    out = boot.run_bootstrap(["whisper", "rnnoise"])
+    monkeypatch.setattr(registry, "bootstrap_rnnoise_model", lambda **_k: model)
+    out = boot.run_bootstrap(["rnnoise"])
     assert out["ok"] is True
+    assert out["results"]["rnnoise"] == {"ok": True, "path": str(model)}
 
 
 def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:

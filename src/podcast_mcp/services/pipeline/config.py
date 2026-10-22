@@ -286,7 +286,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     toggle follows ``build_config_payload()["forced_alignment"]`` for its effective state.
     """
     from podcast_mcp.engines.models.whisper import resolve_whisper_model
-    from podcast_mcp.services.pipeline.bootstrap import whisper_component, word_aligner_component
+    from podcast_mcp.services.pipeline.bootstrap import model_status
 
     out: dict[str, Any] = {}
     try:
@@ -312,28 +312,18 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     try:
         import faster_whisper  # noqa: F401
 
-        out["whisper"] = whisper_component(resolve_whisper_model(requested=whisper_model))
+        out["whisper"] = model_status("whisper", resolve_whisper_model(requested=whisper_model))
     except Exception as exc:
         out["whisper"] = {
             "ok": False,
             "hint": f"faster-whisper unavailable: {exc}",
         }
 
-    try:
-        from podcast_mcp.util.model_assets import resolve_rnnoise_model
-
-        rnnoise_path = resolve_rnnoise_model()
-        out["rnnoise"] = {"ok": True, "path": str(rnnoise_path)}
-    except Exception as exc:
-        out["rnnoise"] = {
-            "ok": False,
-            "hint": str(exc),
-            "bootstrap": "podcast bootstrap --component rnnoise",
-        }
+    out["rnnoise"] = model_status("rnnoise")
 
     # Opt-in download: the Pipeline tab lists it as missing only when forced alignment is
     # explicitly on without it (`forced_alignment.blocked`).
-    out["word-aligner"] = word_aligner_component()
+    out["word-aligner"] = model_status("word-aligner")
     return out
 
 

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import io
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -80,31 +79,6 @@ def test_bootstrap_rnnoise_model_skips_when_already_present() -> None:
     mock_dl.assert_not_called()
     assert result == path
     assert result.read_bytes() == b"already here"
-
-
-def test_download_writes_response_body_to_dest(tmp_path: Path) -> None:
-    dest = tmp_path / "downloaded.rnnn"
-    fake_response = io.BytesIO(b"model contents")
-    mock_urlopen = MagicMock()
-    mock_urlopen.return_value.__enter__.return_value = fake_response
-
-    with patch.object(model_assets.urllib.request, "urlopen", mock_urlopen):
-        model_assets._download("https://example.invalid/model.rnnn", dest)
-
-    assert dest.read_bytes() == b"model contents"
-    assert not dest.with_name(dest.name + ".part").exists()
-
-
-def test_download_cleans_up_partial_file_on_failure(tmp_path: Path) -> None:
-    dest = tmp_path / "downloaded.rnnn"
-    with (
-        patch.object(model_assets.urllib.request, "urlopen", side_effect=OSError("network down")),
-        pytest.raises(OSError, match="network down"),
-    ):
-        model_assets._download("https://example.invalid/model.rnnn", dest)
-
-    assert not dest.exists()
-    assert not dest.with_name(dest.name + ".part").exists()
 
 
 def test_bootstrap_rnnoise_model_force_redownloads() -> None:
