@@ -29,6 +29,7 @@ import numpy as np
 
 from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import run
 
@@ -108,15 +109,7 @@ def _spool_directory() -> Path:
 
 
 def _identity(path: Path, sample_rate: int) -> tuple[object, ...]:
-    stat = path.stat()
-    return (
-        str(path.resolve()),
-        stat.st_dev,
-        stat.st_ino,
-        stat.st_size,
-        stat.st_mtime_ns,
-        sample_rate,
-    )
+    return (str(path.resolve()), *file_stamp(path).revision, sample_rate)
 
 
 def _decode(path: Path, sample_rate: int, target: Path) -> int:

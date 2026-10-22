@@ -16,6 +16,7 @@ from podcast_mcp.engines.transcript_align import (
 )
 from podcast_mcp.util.binaries import FFmpegPair
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.process import CalledProcessError
 
 
@@ -49,18 +50,10 @@ class VADWindowRMSCache:
     def file_identity(path: Path) -> tuple[object, ...] | None:
         absolute = path.absolute()
         try:
-            stat = absolute.stat()
+            stamp = file_stamp(absolute)
         except OSError:
             return None
-        return (
-            str(absolute),
-            str(absolute.resolve()),
-            stat.st_dev,
-            stat.st_ino,
-            stat.st_size,
-            stat.st_mtime_ns,
-            stat.st_ctime_ns,
-        )
+        return (str(absolute), str(absolute.resolve()), *stamp)
 
 
 _BLOCK_SEC = 30.0

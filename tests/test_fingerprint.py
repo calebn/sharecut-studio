@@ -13,6 +13,8 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 
 # Modules whose cache keys come from a stamp.
 STAMPED = {
+    "podcast_mcp/engines/alignment_audit.py",
+    "podcast_mcp/engines/decoded_source.py",
     "podcast_mcp/project/store.py",
     "podcast_mcp/services/collaboration/review_versions.py",
     "podcast_mcp/services/document/boundary.py",
@@ -32,8 +34,6 @@ STAMPED = {
 OWN_STAT = {
     "podcast_mcp/edits/prosody_profile.py",
     "podcast_mcp/edits/transcript_reuse.py",
-    "podcast_mcp/engines/alignment_audit.py",
-    "podcast_mcp/engines/decoded_source.py",
     "podcast_mcp/engines/gate_fill.py",
     "podcast_mcp/engines/play_audit.py",
     "podcast_mcp/engines/transcribe.py",
