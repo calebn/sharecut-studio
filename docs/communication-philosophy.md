@@ -97,6 +97,8 @@ to UX partners; for UI copy, this table wins.
 | Tighten hit | One candidate tightening decision | — |
 | Likely laugh | The label on a Tighten hit whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
 | Possible missed word | The label on a Tighten hit that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. It is a hint, and its suggested action is Leave, so Apply suggested actions keeps the audio and dismisses the hit (#1434) | "Missed word detected", "Rejected", "filler:acoustic:possible_word" |
+| Edit marker | The in-lane symbol for one join at any zoom: `|` cut, `╲╱` fade, `✕` crossfade, each in its own hue. Tapping one opens the join's popover. Named like "Fade join at 0:05.0" | "badge", "join badge" |
+| Edit group | The count chip that stands in for joins closer than 24 px. Named like "3 edits: 2 cuts, 1 crossfade. Zoom in"; tapping it zooms until they separate | "cluster", "stack" |
 | Apply suggested actions | The Tighten panel's one primary action: give every listed sound its own suggested action, with the count, `Apply suggested actions (3)`. One undo reverts it. Each row's own Apply and Skip decide one hit | "Apply all", "Accept all", "Apply eligible" |
 | Suggested action | What the app proposes for a sound: cut, shorten, lower or leave, picked from one table per kind of sound. The label under each hit says which | "Auto-fix", "Safe", "Eligible" |
 | Hold a word, then drag | The touch way to make a word range in Select mode: press and hold a word until it arms, then drag across more words. One finger moving before the hold scrolls and selects nothing. The Select hint names it instead of Mod+X | "long-press select", "drag to select" |
@@ -567,6 +569,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
+- 2026-10-22 — Added "Edit marker" and "Edit group" (#2076): joins show as a typed symbol at any zoom, and joins that crowd each other fold into a count that zooms in on tap.
 - 2026-09-21 — Initial draft from the 6-surface interaction audit.
 - 2026-10-06 — Landed as canon (#1025). Reconciled with the UI philosophy,
   aligned with non-expiring share links, and scheduled oxlint `no-alert`

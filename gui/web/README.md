@@ -103,10 +103,12 @@ join, a trim preview with its ghost, a fade readout, a read-only clip and a
 360px clip with its track name. The live `ClipBlock` (memo over
 `ClipBlockLive`) owns the gestures and commits; the catalog omits the
 store-bound waveform.
-`Templates/JoinBadge` previews the production `JoinBadgeView` in the shared
-lane shell: cut, fade, crossfade and a blocked crossfade, one story each plus
-all four side by side, so the glyphs can be compared at lane scale. The live
-`TrackLane` decides which joins draw one.
+`Templates/EditMarkerLayer` previews the production `EditMarkerLayer` and the
+real-scale `JoinBlend` in the shared lane shell: every join type and a
+blocked crossfade, one story per tier (a 6, 12 and 40 px overlap), a 36 px lane
+that caps the tier, and a count chip with its phone-width twin. The live
+`TrackLane` plans the lane's joins (`timeline/editMarkers/plan.ts`) and decides
+which draw as glyphs and which fold into a chip.
 `Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
 `Templates/CommentPlaybackBubble` preview the shipped live-timeline overlays
 as props-only views (`EnvelopeOverlayView`, `PresenceOverlayView`,

@@ -42,6 +42,8 @@ for opening track details. To reset it, tap the track's initials, then choose
 **Clear clip light** in the track inspector. With reduced motion enabled, the
 meter bar stays still while clip detection continues.
 
+Joins stay visible at any zoom as a small marker at the top of the lane: `|` cut, `╲╱` fade, `✕` crossfade. On a phone held upright most joins sit closer than 24 px, so they fold into a count; tap it to zoom until they separate, then tap a marker to edit its join. Applied edits stay thin, untappable ticks.
+
 Pending edit regions fill their lane. Select one to reveal its label and review
 actions above or below the lane; they stay clear of the edge controls, and a
 narrow region does not make the timeline wider. In a dense set of cuts, point
