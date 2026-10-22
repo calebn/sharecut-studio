@@ -90,8 +90,6 @@ def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effe
             "mute_regions": mute_regions_payload(c.mute_regions),
             **nonempty_off_speaker_regions_payload(c),
         }
-        # What a blending join borrows from the recordings; it depends on their lengths,
-        # which the media identity above does not carry.
         borrow = crossfade_borrow_sec(project, previous, c, mutes) if previous is not None else 0.0
         if borrow > 0:
             clip_payload["join_borrow_sec"] = borrow

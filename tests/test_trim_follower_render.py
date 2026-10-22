@@ -247,8 +247,6 @@ def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
 
     with wave.open(str(output), "rb") as rendered:
         actual_frames = rendered.getnframes()
-        # The follower mutes its last seconds, up to the seam `later` would borrow from, so
-        # the join plays its fades instead of blending in muted audio (no 17_500 midpoint).
         sample_positions = (10.5, 11.0, 11.5, 12.5, 14.5, 21.5)
         actual_samples = []
         for second in sample_positions:

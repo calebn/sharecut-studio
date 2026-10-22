@@ -1,12 +1,6 @@
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 
-/**
- * Seconds each side of a blending join borrows from its recording (half the
- * overlap); the server resolves it (`clips_ops.crossfade_borrow_sec`) from the
- * recordings' room and the clips' lengths, so preview and export cannot differ.
- * 0 when the join does not blend.
- */
 function borrowSec(left: ClipRow, right: ClipRow): number {
   if (
     right.join_in_mode !== "crossfade" ||
@@ -14,8 +8,6 @@ function borrowSec(left: ClipRow, right: ClipRow): number {
     right.join_crossfade_blocked
   )
     return 0;
-  // The server's number is the one to follow. The caps below only keep a stale or
-  // draft row from reaching before the recording's start or past its end.
   const room = Math.min(
     right.join_borrow_sec ?? 0,
     right.source_start,
@@ -58,9 +50,6 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
     if (lane) lane.push(clip);
     else byTrack.set(clip.track_id, [clip]);
   }
-  // `timeline_render._place_clips`: a clip's start is its authored start less
-  // the clock shift so far (snapped to the frontier inside the join
-  // tolerance); a blending join starts it `2 * borrow` before the left body ends.
   for (const lane of byTrack.values()) {
     const ordered = [...lane].sort(
       (a, b) => a.timeline_start - b.timeline_start,
@@ -107,7 +96,6 @@ export function placeLikeRender(clips: readonly ClipRow[]): {
       authoredFrontier = Math.max(authoredFrontier, clip.timeline_end);
       clockShift = authoredFrontier - frontier;
       shiftAfter.set(clip.id, clockShift);
-      // The left body ran on past its end until this clip blended in.
       if (prev && hIn > 0) shiftAfter.set(prev.id, clockShift);
       prev = clip;
     }

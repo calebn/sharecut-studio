@@ -443,7 +443,6 @@ CrossfadeBlocked = Literal["not_abutting", "no_fade_out", "no_fade_in", "no_head
 
 
 def _authored_block_reason(left: Clip, right: Clip) -> CrossfadeBlocked | None:
-    """Why a crossfade-mode join cannot blend from the clips alone (no recording lengths)."""
     if not clips_abut(left, right):
         return "not_abutting"
     if left.fade_out_ms <= 0:
@@ -468,10 +467,6 @@ def crossfade_block_reason(
 
 
 def uses_crossfade_join(prev: Clip, clip: Clip) -> bool:
-    """True when the authored join blends ``prev`` into ``clip`` (ignores recording room).
-
-    Whether render really blends also needs room to borrow: see ``crossfade_block_reason``.
-    """
     return (
         clip.join_in_mode == ClipJoinMode.CROSSFADE and _authored_block_reason(prev, clip) is None
     )
@@ -486,13 +481,6 @@ def crossfade_ms_at_join(left: Clip, right: Clip) -> int:
 
 
 class MuteIndex:
-    """Mute and ignored-word spans per recording, sorted for the borrow's nearby lookups.
-
-    A join borrows audio from the recording just past ``left`` and just before
-    ``right``. Mute regions belong to one clip and ignored words to the transcript,
-    so a neighbour's mute does not cover what a join borrows. Build one index per
-    pass over a project's joins and hand it to ``crossfade_borrow_sec``.
-    """
 
     def __init__(self, project: EpisodeProject) -> None:
         from podcast_mcp.engines.mute_regions import IgnoredWordRegions
@@ -539,7 +527,6 @@ class MuteIndex:
         return groups
 
     def room_after(self, clip: Clip, reach: float) -> float:
-        """Seconds past ``clip``'s end before muted audio (``inf`` beyond ``reach``)."""
         edge = clip.source_end
         room = math.inf
         for starts, spans, longest in self._group(clip.track_id, clip.source_id):
@@ -548,8 +535,6 @@ class MuteIndex:
                 if start > edge + reach:
                     break
                 if owner == clip.id:
-                    # Render mutes a clip's own span over its widened window, but a span
-                    # ending at the clip's edge may be a longer mute cut short there.
                     if abs(end - edge) <= _EDGE_TOUCH_SEC:
                         room = 0.0
                 elif end > edge:
@@ -557,7 +542,6 @@ class MuteIndex:
         return room
 
     def room_before(self, clip: Clip, reach: float) -> float:
-        """Seconds before ``clip``'s start before muted audio (``inf`` beyond ``reach``)."""
         edge = clip.source_start
         room = math.inf
         for starts, spans, longest in self._group(clip.track_id, clip.source_id):
@@ -596,7 +580,7 @@ def crossfade_borrow_sec(
         left_total = source_duration_sec(project, left)
         right_total = source_duration_sec(project, right)
     except CodedValueError:
-        return 0.0  # a clip naming a missing recording has nothing to borrow from
+        return 0.0
     if left_total is None or right_total is None:
         return 0.0
     room = min(
@@ -608,12 +592,8 @@ def crossfade_borrow_sec(
     index = index or MuteIndex(project)
     reach = max(ms / 2000.0, _BORROW_STEP_SEC)
     room = min(room, index.room_after(left, reach), index.room_before(right, reach))
-    # Less room than a short blend (the requested overlap, at most 20 ms) is a fade join.
     if 2 * room < min(ms / 1000.0, _MIN_BLEND_SEC):
         return 0.0
-    # 5 ms steps put both halves on whole samples at the common rates, so a chain of
-    # joins neither gains nor loses samples against the lane.
-    # A request under one step still gets that step (the shortest blend there is).
     steps = math.floor(min(max(ms / 2000.0, _BORROW_STEP_SEC), room) / _BORROW_STEP_SEC + 1e-9)
     return round(steps * _BORROW_STEP_SEC, 6) if steps >= 1 else 0.0
 
@@ -649,7 +629,6 @@ def join_render_fields(
         ),
         "join_crossfade_ms": overlap_ms if blocked is None else 0,
         "join_crossfade_blocked": blocked,
-        # Only while a join borrows, so rows of joins that do not blend stay as they were.
         **({"join_borrow_sec": borrow} if borrow > 0 else {}),
     }
 

@@ -260,7 +260,6 @@ class _ClipContent:
 class _PreparedClip:
     clip: Clip
     content: _ClipContent | None
-    # Half the blend at the incoming join: the body already starts this far early.
     borrow_in: float = 0.0
 
 
@@ -360,10 +359,6 @@ def placed_track_audio(
                 else (clip.source_start, clip.source_end),
             )
         )
-    # A blending join borrows from both recordings, so the lane keeps its clock.
-    # `blends[i]` is the full render's borrow at the join into clip i; a window edge
-    # does not change whether the join blends, so the edge fades stay off there.
-    # `borrow[i]` is what a window can play: no more than either piece has.
     blends = [0.0] * len(sorted_clips)
     borrow = [0.0] * len(sorted_clips)
     mutes = MuteIndex(project)
