@@ -296,6 +296,29 @@ describe("EnvelopeWorkspace", () => {
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     expect(useDawStore.getState().envelopeSaving).toEqual([]);
   });
+  it("is busy only for a save on its own track and project epoch", async () => {
+    const { projectPath, projectEpoch } = useDawStore.getState();
+    const other = { projectPath, projectEpoch, trackId: "guest" };
+    const stale = {
+      projectPath,
+      projectEpoch: projectEpoch + 1,
+      trackId: "host",
+    };
+    act(() => {
+      useDawStore.getState().beginEnvelopeSave(other);
+      useDawStore.getState().beginEnvelopeSave(stale);
+    });
+    mount();
+    await edit();
+    expect(screen.getByRole("button", { name: "Save point" })).toBeEnabled();
+    await level("0.25");
+    await save();
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    act(() => {
+      useDawStore.getState().endEnvelopeSave(other);
+      useDawStore.getState().endEnvelopeSave(stale);
+    });
+  });
   it("clears the in-flight save when the request fails, so the draft can be saved again", async () => {
     setEnvelope.mockRejectedValueOnce(new Error("offline"));
     const first = mount();
