@@ -259,7 +259,6 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
             "waveform_png": "wave.png",
         }
         svc.recommend_fades.return_value = [{"clip_id": "c1", "recommended_fade_in_ms": 15}]
-        svc.apply_fade_recommendations.return_value = {"applied_fade_updates": 1}
 
         strip = json.loads(
             mcp_timeline.strip_silence_tool(
@@ -277,12 +276,16 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
             mcp_timeline.audio_diagnostics_tool(path, track_id="host", start_sec=1.0, end_sec=2.0)
         )
         recs = json.loads(mcp_timeline.recommend_fades_tool(path, track_id="host"))
-        applied = json.loads(
-            mcp_timeline.apply_fade_recommendations_tool(
-                path,
-                [{"clip_id": "c1", "recommended_fade_in_ms": 20}],
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            return_value={"applied_fade_updates": 1},
+        ) as submit:
+            applied = json.loads(
+                mcp_timeline.apply_fade_recommendations_tool(
+                    path,
+                    [{"clip_id": "c1", "recommended_fade_in_ms": 20}],
+                )
             )
-        )
 
     split = json.loads(mcp_timeline.split_clip_tool(path, 1.5, track_id="host"))
 
@@ -305,7 +308,11 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         min_duration_sec=0.4,
         use_inaudible_opt=None,
     )
-    svc.apply_fade_recommendations.assert_called_once()
+    submit.assert_called_once_with(
+        path,
+        "ApplyFadeRecommendationList",
+        {"recommendations": [{"clip_id": "c1", "recommended_fade_in_ms": 20}]},
+    )
 
 
 def test_mcp_timeline_clip_and_edit_tools(tmp_path, sample_wav):
@@ -512,7 +519,6 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone"}
         svc.analyze_cleanup.return_value = {"tracks": ["host"]}
         svc.recommend_fades.return_value = []
-        svc.apply_fade_recommendations.return_value = {"applied_fade_updates": 0}
 
         json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
         json.loads(
@@ -521,8 +527,10 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         json.loads(mcp_timeline.remove_effect_tool(path, speaker="Host"))
         json.loads(mcp_timeline.analyze_cleanup_tool(path, track_id="host"))
         json.loads(mcp_timeline.recommend_fades_tool(path, speaker="Host"))
-        json.loads(mcp_timeline.apply_fade_recommendations_tool(path, []))
 
+    assert json.loads(mcp_timeline.apply_fade_recommendations_tool(path, [])) == {
+        "applied_fade_updates": 0
+    }
     svc.fill_room_tone.assert_called_once_with(track_id="host", speaker=None)
 
 

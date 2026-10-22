@@ -35,6 +35,7 @@ HANDLERS: dict[str, Handler] = {
     "SetJoinMode": edits.set_join_mode,
     "SetClipJoin": edits.set_clip_join,
     "ApplyFadeRecommendations": edits.apply_fade_recommendations,
+    "ApplyFadeRecommendationList": edits.apply_fade_recommendation_list,
     "SetEffectBypass": edits.set_effect_bypass,
     "AddEffect": edits.add_effect,
     "ReconcileTranscript": edits.reconcile_transcript,

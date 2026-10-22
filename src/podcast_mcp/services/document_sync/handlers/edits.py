@@ -131,6 +131,10 @@ def apply_fade_recommendations(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[
     )
 
 
+def apply_fade_recommendation_list(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return AnalysisService(ws).apply_fade_recommendations(p["recommendations"])
+
+
 def stage_time_range_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     kwargs = {"reason": p["reason"]} if p.get("reason") is not None else {}
     EditService(ws).cut_time_range(

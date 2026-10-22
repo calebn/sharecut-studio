@@ -31,6 +31,7 @@ DocumentCommandType = Literal[
     "SetJoinMode",
     "SetClipJoin",
     "ApplyFadeRecommendations",
+    "ApplyFadeRecommendationList",
     "SetEffectBypass",
     "AddEffect",
     "ReconcileTranscript",
