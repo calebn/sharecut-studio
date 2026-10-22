@@ -55,14 +55,30 @@ function remoteSelectionPatch(
   };
 }
 
+/** Session state tied to one project; `hydrate` clears it when the project path changes. */
+export function presenceProjectInitial() {
+  return {
+    sessionClients: EMPTY_ROSTER,
+    sessionRosterVersion: 0,
+    localClientId: null as string | null,
+    followingClientId: null as string | null,
+    followDegraded: {} as DawState["followDegraded"],
+    transcriptViewAnchor: null as string | null,
+    transcriptScrollRequest: null as string | null,
+    playbackRate: 1,
+    lastAppliedRevision: 0,
+    lastAppliedCommandId: null as string | null,
+    lastAppliedAgentSelectionSeq: 0,
+  };
+}
+
 export const createPresenceSlice: StateCreator<
   DawStore,
   [],
   [],
   PresenceSlice
 > = (set, get) => ({
-  sessionClients: EMPTY_ROSTER,
-  sessionRosterVersion: 0,
+  ...presenceProjectInitial(),
   setSessionClients: (clients, rosterVersion) =>
     set((s) => ({
       sessionClients: rosterFromList(clients, s.sessionClients),
@@ -85,18 +101,12 @@ export const createPresenceSlice: StateCreator<
     }
     return result.outcome === "resync";
   },
-  localClientId: null as string | null,
   setLocalClientId: (localClientId) => set({ localClientId }),
-  followingClientId: null as string | null,
-  followDegraded: {} as DawState["followDegraded"],
   setFollowDegraded: (followDegraded) => set({ followDegraded }),
-  transcriptViewAnchor: null as string | null,
   setTranscriptViewAnchor: (transcriptViewAnchor) =>
     set({ transcriptViewAnchor }),
-  transcriptScrollRequest: null as string | null,
   setTranscriptScrollRequest: (transcriptScrollRequest) =>
     set({ transcriptScrollRequest }),
-  playbackRate: 1,
   setPlaybackRate: (playbackRate) => {
     if (get().playbackRate !== playbackRate) {
       set({ playbackRate });
@@ -121,9 +131,6 @@ export const createPresenceSlice: StateCreator<
     }
   },
   // --- session publish ---
-  lastAppliedRevision: 0,
-  lastAppliedCommandId: null as string | null,
-  lastAppliedAgentSelectionSeq: 0,
   suppressPublish: false,
   pendingWireSelection: null,
   remoteSelectionRevision: 0,

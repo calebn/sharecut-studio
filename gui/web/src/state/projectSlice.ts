@@ -7,16 +7,18 @@ import { overlayDocumentDrafts } from "../document/pendingDrafts";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { trimDraft } from "../edit/ripplePreview";
 import { resetServerClock } from "../presence/clock";
-import { EMPTY_ROSTER } from "../presence/roster";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ProjectView } from "../types/project";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
+import { presenceProjectInitial } from "./presenceSlice";
 import { NO_SELECTION } from "./selectionSlice";
 import { zoomReclampPatch } from "./storeMath";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
+import { transportProjectInitial } from "./transportSlice";
 import type { DawStore } from "./types";
+import { chromeInitial, uiAlwaysInitial, uiProjectInitial } from "./uiSlice";
 
 type TrimTarget = {
   trackId: string;
@@ -259,6 +261,8 @@ export const createProjectSlice: StateCreator<
     shareAuthor = null,
   ) => {
     const samePath = get().projectPath === projectPath;
+    const { bounceDialogOpen, exportDialogOpen, transcriptFindReplaceOpen } =
+      chromeInitial();
     if (!samePath) {
       timelineViewportRegistry.setVisualPan(null);
       timelineViewportRegistry.setLayoutProjection(null);
@@ -269,71 +273,26 @@ export const createProjectSlice: StateCreator<
       projectPath,
       projectEpoch: samePath ? get().projectEpoch : get().projectEpoch + 1,
       project: initialProject,
-      envelopeDraft: null,
-      wordDraft: null,
       heldTrim: null,
       guestMode,
       shareCapabilities,
       shareAuthor,
-      sessionClients: samePath ? get().sessionClients : EMPTY_ROSTER,
-      sessionRosterVersion: samePath ? get().sessionRosterVersion : 0,
-      followingClientId: samePath ? get().followingClientId : null,
-      localClientId: samePath ? get().localClientId : null,
-      followDegraded: samePath ? get().followDegraded : {},
-      transcriptTimingRequest: samePath ? get().transcriptTimingRequest : null,
-      transcriptInlineEditRequest: null,
-      transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
-      transcriptReviewCursor: samePath ? get().transcriptReviewCursor : null,
-      transcriptViewAnchor: samePath ? get().transcriptViewAnchor : null,
-      playbackRate: samePath ? get().playbackRate : 1,
-      ingestBusy: false,
-      ingestDropTrackId: null,
+      ...uiAlwaysInitial(),
       // Preserve transport on a same-project shell refresh. A project switch
       // starts a new session and discards the previous project's status (#78).
       ...(samePath
         ? {}
         : {
-            sourcePreview: null,
-            sourcePreviewPositionSec: null,
-            sourcePreviewError: null,
-            audioError: null,
-            isPlaying: false,
-            playheadSec: 0,
-            playStartSec: null,
-            viewerMute: {},
-            soloTracks: {},
-            sessionRegion: null,
-            lastAgentQuery: null,
-            lastAppliedRevision: 0,
-            lastAppliedCommandId: null,
-            lastAppliedAgentSelectionSeq: 0,
-            playUntilSec: null,
-            highlightStaleRender: false,
-            renderPreviewBusy: false,
-            chapterAddPending: false,
-            // A SetClipJoin that never settled must not block every join badge on the next project.
-            openJoinId: null,
-            joinMutationInFlight: false,
-            rippleTrim: null,
-            rangeArmed: false,
-            rangeScopeTrackIds: null,
-            rangeBusy: false,
-            bounceRangeTarget: null,
+            ...presenceProjectInitial(),
+            ...transportProjectInitial(),
+            ...uiProjectInitial(),
+            ...NO_SELECTION,
             chrome: {
               ...get().chrome,
-              bounceDialogOpen: false,
-              exportDialogOpen: false,
-              transcriptFindReplaceOpen: false,
+              bounceDialogOpen,
+              exportDialogOpen,
+              transcriptFindReplaceOpen,
             },
-            splitSpeakersReview: null,
-            splitSpeakersTrackId: null,
-            ...NO_SELECTION,
-            // Job-result announcement bookkeeping (#704) is per project: a
-            // stale id must not hush a headline on the next project.
-            pendingJobResults: {},
-            spokenJobResultIds: [],
-            // A toast's Undo targets this project's history; never carry it over.
-            feedbackToast: null,
             ...waveformViewState(projectPath),
             // Commenting is the job of a Commenter or Editor link, so its
             // guest opens on the Comments tab and its comment field.
