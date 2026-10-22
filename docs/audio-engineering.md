@@ -280,7 +280,9 @@ A track whose loudness can't be measured (ffmpeg error, no momentary blocks), or
 after every track is measured, so a cancel changes nothing. `gain_db` reflects the FX chain
 at measurement time. The track stores a `balance_basis` record with the measured LUFS,
 whether speech gating succeeded, and a digest of the media file revision, ordered FX chain,
-exact kept speech intervals, and measurement semantics revision. Render status reports the
+exact kept speech intervals, and measurement semantics revision. For media with several
+audio streams the digest also carries a first-audio-stream term (#2110), so a gain measured
+on the default stream reads as stale; single-stream digests are unchanged. Render status reports the
 flag as unknown before the first successful measurement, false when the basis still matches,
 and true when it differs. Re-run `balance_tracks` after changing those inputs. The flag does
 not compare the requested LUFS target because a target supplied only for one run is not
@@ -461,6 +463,12 @@ track is gated at once the mix falls to dead air. Where one gate dips mid-phrase
 voice seems to cut in and out. Editors fill those holes with matched room tone so the
 noise floor stays continuous. The `fill_gate_holes` pipeline step does that
 (`engines/gate_fill.py`, #1111).
+
+**First audio stream (#2110).** Holes and noise are read from the first audio stream, the
+one the render plays. A fill records `audio_stream: 0` when its media has several audio
+streams. Render and the stem hash ignore a fill that lacks it on such media, so a fill
+measured on the default stream is not heard; the next `fill_gate_holes` run replaces it.
+On single-stream media the field stays unset and the fill stays in force.
 
 **Holes come from the media, not from our edits.** A hole is a run, on every channel, of
 samples below half a 16-bit step (−96 dBFS). It is at least 20 ms long, holds an exact
@@ -1099,6 +1107,7 @@ evidence:
 - #1052 lab, unaligned run: judging words at the 140 ms copy lag moved 9 of Audra's words off Caleb's track and gave 8 of his back; without a timbre check 12 of his crosstalk words would have gone to her; 0 s of his words turned down; the 1656.4 s passage stays at −1.2 dB because the own-voice check, not a transcript word, keeps that copy
 - #1131: the gate read 200 ms ahead before every opening of the peer's track, so own laughs in the peer's gaps lost up to 45.5%; the copy's expected level now reads ahead of each opening only as far as the lane sounds up to it, while where the copy can be keeps the full 200 ms, and synthetic laughs and breaths over the copy keep all but a burst on a loud word (at most 5.6%, against up to 45.5%)
 - #1477: when half or more of a peer's gate openings arrive late on their own track, the lane reads the peer's level 90 ms further past each such opening when judging copy, so foreign syllables before the gate opens attenuate instead of reading as own sound; generality caps and `test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy` (BLEED_GATE_REV 18, same change set as #1131)
+- #2110: every analysis decode read FFmpeg's default audio stream (default-flagged, else most channels) while the probe, the layout and the render read the first, so on a file with several audio streams the gate judged one stream and the render played another; the decodes now map `0:a:0` (BLEED_GATE_REV 20), and single-stream media decodes the same samples as before
 - #1130 rejected: deciding per copy from the lane's level in the raised frames is circular, since own laughs sit in those frames; a host laughing four to six times brought main's trimming back
 - #1131 rejected: re-reading the coupling at the measured lead cut a breath 4 dB over the copy whole and five of six laughs beside a late-opening peer; the late-opening copy it would remove (2.5 s on a synthetic peer) stays
 - #1134 rejected: one lead per episode (95th percentile, skipping sound louder before an opening than after it) threw out real copy onsets and ignored late openings rarer than 5%; with 2–7 of 74 words late it left up to twice the copy at full level in twice the pieces

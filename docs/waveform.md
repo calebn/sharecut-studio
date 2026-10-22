@@ -195,7 +195,8 @@ only the ffmpeg path).
   `sha256("{format_version}|{build_revision}|{rel}|{size}|{mtime_ns}")[:20]`, where `rel` is
   the workspace-relative POSIX path. A change to any keyed attribute gives a
   new key. Build revision 2 invalidates earlier pyramids
-  that could contain a short decode while keeping `.wfpk` format version 1.
+  that could contain a short decode; revision 3 (#2110) invalidates those decoded from the
+  default audio stream of media with several streams. Both keep `.wfpk` format version 1.
   Device and inode (`file_revision`) are left out
   on purpose, so the key survives a copied or restored workspace.
 - **File:** `pyramid_path(peaks_dir, slug, key)` is

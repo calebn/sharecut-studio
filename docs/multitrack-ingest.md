@@ -12,6 +12,8 @@ CLI and MCP ingest commands call `IngestService` through the public
 
 **Agent workflow:** `.agents/skills/podcast-align-audio/SKILL.md` (pipeline `align_tracks` + gate, or pre-pipeline suggest → verify → listen). Session-clock background: `.agents/skills/podcast-ingest-align/SKILL.md`.
 
+Alignment windows and consolidated WAVs read the **first audio stream** of a source file, the stream the render plays (#2110); re-run ingest and align on a project made before that with a multi-stream source.
+
 `ingest consolidate` extracts **one WAV per listed source file** under each speaker (extras are kept as whole-file clips with `source_id`, not ignored). It does not mix multiple mics into one stem.
 
 ## Pipeline conversation align

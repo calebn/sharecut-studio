@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Upgrade notes
+
+* **Files with several audio streams (#2110).** Analysis now reads the first audio stream, the one the render plays, where it used to read FFmpeg's default pick (the default-flagged stream, else the one with most channels). Gate and level caches, room-tone pools, waveform pyramids, prosody profiles, speaker profiles, forced-alignment sidecars and gate fills for such files are recomputed on their next use. Single-stream files are unchanged. State already written from the default stream is not rewritten: the consolidated ingest WAVs, accepted alignments and placements, word times in the transcripts, staged cuts, and a `gain_db` that balance staged before (it shows as stale). On a project with a multi-stream source, re-run ingest, align, "Re-time words" and balance.
+
 ## [0.1.1](https://github.com/calebn/sharecut-studio/compare/v0.1.0...v0.1.1) (2026-10-18)
 
 
