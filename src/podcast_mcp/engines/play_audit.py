@@ -288,6 +288,7 @@ def proxy_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effec
         "transcript_gate": bool(track.transcript_gate) if track else False,
         "chain": chain.model_dump() if chain else None,
         "suppressed": suppressed,
+        "stream": "0:a:0",
     }
     if track is not None and track.transcript_gate:
         from podcast_mcp.engines.bleed_gate import bleed_gate_payload

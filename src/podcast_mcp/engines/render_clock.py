@@ -187,6 +187,8 @@ def _native_format(ffmpeg: str, path: Path) -> ObservedAudio:
             "info",
             "-i",
             str(path),
+            "-map",
+            "0:a:0",
             "-af",
             "ashowinfo@restore_descriptor",
             "-frames:a",

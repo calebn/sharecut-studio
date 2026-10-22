@@ -312,7 +312,10 @@ def _decode_clock(engine: FFmpegEngine, source: Path, directory: Path) -> ProxyO
     native = native_format(engine.ffmpeg, source)
     return _execute(
         engine,
-        ["-v", "info", "-i", str(source), "-af", "ashowinfo@restore_native", "-f", "null", "-"],
+        [
+            *("-v", "info", "-i", str(source), "-map", "0:a:0"),
+            *("-af", "ashowinfo@restore_native", "-f", "null", "-"),
+        ],
         directory,
         "native",
         {"native": native},
@@ -804,7 +807,7 @@ class SourceProxyInputs:
                     ):
                         row.pop(key, None)
         payload = {
-            "revision": "source-proxy-inputs-v1",
+            "revision": "source-proxy-inputs-v2",
             "clock_policy": "packed-source-proxy-v1",
             "restore_revision": RESTORE_RENDER_REV,
             "baseline_encoding": "pcm_s16le",

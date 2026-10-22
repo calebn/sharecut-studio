@@ -53,7 +53,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 19
+RENDER_SEMANTICS_REV = 20
 
 
 def resolve_clip_audio_path(
@@ -749,7 +749,7 @@ def render_source_with_chain(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fill = gate_fill_paths(project, track, [src])[0] if processing is None else processing.fill
     if fill is None:
-        inputs = ["-i", str(src), "-af", af if af else "anull"]
+        inputs = ["-i", str(src), "-map", "0:a:0", "-af", af if af else "anull"]
     else:
         graph = f"{source_fill_mix_filter(eng, src, '[0:a]', '[1:a]')},{af or 'anull'}"
         inputs = ["-i", str(src), "-i", str(fill), "-filter_complex", graph]
