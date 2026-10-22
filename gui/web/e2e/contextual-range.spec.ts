@@ -783,7 +783,9 @@ test("host gets a plain reason when a range has no room tone to fill with", asyn
         .getByRole("button", { name: "Fill room tone", exact: true })
         .click();
       await expect(
-        page.getByText("No usable room tone on this track to fill with"),
+        page
+          .getByText("No usable room tone on this track to fill with")
+          .first(),
       ).toBeVisible();
       expect(geometry(projectPath)).toEqual(before);
     },
