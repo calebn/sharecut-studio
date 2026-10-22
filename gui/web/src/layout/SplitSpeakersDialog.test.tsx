@@ -320,6 +320,29 @@ describe("SplitSpeakersDialog", () => {
     expect(getSpeakerDoctor).toHaveBeenCalledTimes(1);
   });
 
+  it("hides the environment variable and path in a speaker model download failure", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSpeakerDoctor)
+      .mockReset()
+      .mockResolvedValue({ available_backends: [], recommended: null });
+    vi.mocked(runBootstrap)
+      .mockReset()
+      .mockRejectedValue(
+        new Error(
+          "speaker-ecapa: no download source: set PODCAST_BOOTSTRAP_CDN_BASE or place the file at /home/me/.cache/podcast/models/speaker-ecapa/model.onnx",
+        ),
+      );
+    render(<SplitSpeakersDialog />);
+    openFor("room");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Download speaker model" }),
+    );
+    await screen.findByRole("alert");
+    const shown = screen.getByRole("alert").textContent ?? "";
+    expect(shown).not.toMatch(/PODCAST_BOOTSTRAP_CDN_BASE|speaker-ecapa|\/home\//);
+  });
+
   it("grows the name fields with the count and refuses a count out of range", async () => {
     const user = userEvent.setup();
     render(<SplitSpeakersDialog />);
