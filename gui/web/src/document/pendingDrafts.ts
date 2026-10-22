@@ -34,10 +34,13 @@ type Draft =
   | { kind: "envelope"; track: string; points: AutomationPoint[] };
 type Pending = { commandId: string; draft: Draft };
 const drafts = new Map<string, Pending>();
+/** Acknowledged commands whose snapshot the authority has not adopted yet, with the seq that carries them. */
+const heldAcks = new Map<string, number>();
 let generation = -1;
 function current(): Map<string, Pending> {
   if (generation !== documentAuthority.generation) {
     drafts.clear();
+    heldAcks.clear();
     generation = documentAuthority.generation;
   }
   return drafts;
@@ -53,6 +56,7 @@ export function beginDocumentDraft(
   payload: Record<string, unknown>,
   replaying = false,
 ): void {
+  heldAcks.delete(commandId);
   const entries: [string, Draft][] = [];
   const track = payload.track_id;
   if (type === DocumentCommand.MoveClips && Array.isArray(payload.clips)) {
@@ -203,8 +207,23 @@ export function clearPreviewDraft(key: string, owner: symbol): boolean {
   return current().delete(id);
 }
 export function finishDocumentDraft(commandId: string): void {
+  if (heldAcks.has(commandId)) return;
   for (const [key, value] of current())
     if (value.commandId === commandId) drafts.delete(key);
+}
+/** Keep an acknowledged command's draft until the authority adopts a snapshot at `seq`. */
+export function holdDocumentDraftUntil(commandId: string, seq: number): void {
+  current();
+  heldAcks.set(commandId, seq);
+}
+/** Retire the held drafts whose command the authority now includes. */
+export function releaseHeldDrafts(adoptedSeq: number): void {
+  current();
+  for (const [commandId, seq] of heldAcks) {
+    if (seq > adoptedSeq) continue;
+    heldAcks.delete(commandId);
+    finishDocumentDraft(commandId);
+  }
 }
 /** Previews go last: a preview that keeps its place in the table must still sit over a newer command draft. */
 export function overlayDocumentDrafts(
