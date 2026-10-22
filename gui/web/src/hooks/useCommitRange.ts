@@ -30,7 +30,8 @@ export interface CommitRange {
  * Commit-on-release range slider: the thumb moves locally while dragging and
  * each native `change` (pointer release, or an arrow-key step) commits once,
  * skipping a value equal to `saved`. It follows `saved` (undo, a collaborator)
- * unless mid-drag. The listener follows the element, so a slider that mounts
+ * unless mid-drag. A drag cancelled or blurred before a change event returns the
+ * thumb to `saved`. The listener follows the element, so a slider that mounts
  * later still commits.
  */
 export function useCommitRange({
@@ -43,6 +44,18 @@ export function useCommitRange({
   const [value, setValue] = useState(saved);
   const [input, setInput] = useState<HTMLInputElement | null>(null);
   const draggingRef = useRef(false);
+  const uncommittedRef = useRef(false);
+  const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+
+  const cancelRevert = () => {
+    if (revertTimerRef.current !== null) {
+      clearTimeout(revertTimerRef.current);
+      revertTimerRef.current = null;
+    }
+  };
+  useEffect(() => cancelRevert, []);
 
   useEffect(() => {
     if (!draggingRef.current) {
@@ -51,7 +64,9 @@ export function useCommitRange({
   }, [saved]);
 
   const commit = (next: number) => {
+    cancelRevert();
     draggingRef.current = false;
+    uncommittedRef.current = false;
     if (next !== saved) {
       onCommit(next);
     }
@@ -72,6 +87,22 @@ export function useCommitRange({
   const endDrag = () => {
     draggingRef.current = false;
   };
+  // A pointer release can report cancel or blur just before its change event, so
+  // the revert waits a task for a change to claim the drag.
+  const abandonDrag = () => {
+    draggingRef.current = false;
+    if (!uncommittedRef.current) {
+      return;
+    }
+    cancelRevert();
+    revertTimerRef.current = setTimeout(() => {
+      revertTimerRef.current = null;
+      if (uncommittedRef.current) {
+        uncommittedRef.current = false;
+        setValue(savedRef.current);
+      }
+    }, 0);
+  };
 
   return {
     value,
@@ -84,12 +115,14 @@ export function useCommitRange({
       ref: setInput,
       value,
       onChange: (e) => {
+        cancelRevert();
         draggingRef.current = true;
+        uncommittedRef.current = true;
         setValue(Number(e.currentTarget.value));
       },
       onPointerUp: endDrag,
-      onPointerCancel: endDrag,
-      onBlur: endDrag,
+      onPointerCancel: abandonDrag,
+      onBlur: abandonDrag,
     },
   };
 }
