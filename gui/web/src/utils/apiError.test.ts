@@ -134,6 +134,16 @@ describe("isAbortError", () => {
 });
 
 describe("refusalReason", () => {
+  it("is what errorMessage gives for the gate's refusal, so toasts carry no commands", () => {
+    const gate = new ApiError(
+      "Run `podcast transcript refine-waive --reason ...`",
+      TRANSCRIPT_REFINE_REQUIRED_CODE,
+      409,
+    );
+    expect(errorMessage(gate)).toBe(refusalReason(gate));
+    expect(errorMessage(gate)).not.toMatch(/podcast/);
+  });
+
   it("keeps a refusal's own message", () => {
     expect(
       refusalReason(new ApiError("Clip is gone", "document_conflict", 409)),

@@ -21,6 +21,7 @@ export class ApiError extends Error {
 
 /** User-facing message for any thrown value, with an optional non-Error fallback. */
 export function errorMessage(error: unknown, fallback?: string): string {
+  if (error instanceof ApiError) return refusalReason(error);
   return error instanceof Error ? error.message : (fallback ?? String(error));
 }
 
