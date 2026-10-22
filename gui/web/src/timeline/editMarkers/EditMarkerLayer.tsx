@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type FocusEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { capabilityTooltip } from "../../capabilities/copy";
 import { joinSeamLabel } from "../../edit/joinRender";
 import { useDawStore } from "../../state/dawStore";
@@ -20,6 +27,11 @@ interface EditMarkerLayerProps {
 
 const chipCount = (chip: PlacedChip) =>
   chip.marks.length > 99 ? "99+" : chip.marks.length;
+
+type Track = (id: string) => {
+  onFocus: () => void;
+  onBlur: (event: FocusEvent<HTMLElement>) => void;
+};
 
 type Register = (key: string) => (el: HTMLElement | null) => void;
 
@@ -68,11 +80,13 @@ function Glyph({
   open,
   onClick,
   register,
+  track,
 }: {
   symbol: PlacedSymbol;
   open: boolean;
   onClick: () => void;
   register: Register;
+  track: Track;
 }) {
   const { mark, xPx, tier } = symbol;
   const { type } = EDIT_MARKERS[mark.kind];
@@ -88,8 +102,9 @@ function Glyph({
           selected: open,
           detail: type,
         })}
+        {...track(mark.id)}
         style={{ left: xPx }}
-        aria-label={`${joinSeamLabel(mark.kind, mark.sec)}${blocked ? ", will not blend" : ""}`}
+        aria-label={`${joinSeamLabel(mark.kind, mark.sec, symbol.labelAllowed ? symbol.label : undefined)}${blocked ? ", will not blend" : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? joinPopoverId(mark.clipId) : undefined}
@@ -133,59 +148,109 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
       elements.current.delete(key);
     }
   };
-  // A zoom that splits a chip unmounts the focused button: focus moves to
-  // the first member's glyph, or the chip still holding it.
-  const refocus = useRef<string | null>(null);
+  const items = useMemo(
+    () =>
+      [
+        ...plan.symbols.map((symbol) => ({
+          xPx: symbol.xPx,
+          key: symbol.mark.id,
+          ids: [symbol.mark.id],
+          symbol,
+          chip: null,
+        })),
+        ...plan.chips.map((chip) => ({
+          xPx: chip.xPx,
+          key: chip.marks[0].id,
+          ids: chip.marks.map((m) => m.id),
+          symbol: null,
+          chip,
+        })),
+      ].sort((a, b) => a.xPx - b.xPx),
+    [plan],
+  );
+  // A plan change can unmount the focused mark (a zoom merging it into a
+  // chip, splitting its chip, or a chip going inert): focus moves to whatever
+  // now holds its id, else the nearest button.
+  const focused = useRef<string | null>(null);
+  const track = (id: string) => ({
+    onFocus: () => {
+      focused.current = id;
+    },
+    onBlur: (event: FocusEvent<HTMLElement>) => {
+      const el = event.currentTarget;
+      queueMicrotask(() => {
+        if (el.isConnected && document.activeElement !== el) {
+          focused.current = null;
+        }
+      });
+    },
+  });
   useEffect(() => {
-    const id = refocus.current;
-    refocus.current = null;
-    if (id == null) {
+    const id = focused.current;
+    if (id == null || document.activeElement !== document.body) {
       return;
     }
-    const chip = plan.chips.find(({ marks }) => marks.some((m) => m.id === id));
-    elements.current
-      .get(chip ? chip.marks[0].id : id)
-      ?.focus({ preventScroll: true });
-  }, [plan]);
+    const holder = items.find((item) => item.ids.includes(id));
+    if (holder == null) {
+      return;
+    }
+    const target = elements.current.has(holder.key)
+      ? holder.key
+      : items
+          .filter((item) => elements.current.has(item.key))
+          .sort(
+            (a, b) =>
+              Math.abs(a.xPx - holder.xPx) - Math.abs(b.xPx - holder.xPx),
+          )[0]?.key;
+    if (target != null) {
+      elements.current.get(target)?.focus({ preventScroll: true });
+    }
+  }, [items]);
   return (
     <>
-      {plan.symbols.map((symbol) => (
-        <Glyph
-          key={symbol.mark.id}
-          symbol={symbol}
-          open={openJoinId === symbol.mark.clipId}
-          onClick={() => toggle(symbol.mark.clipId)}
-          register={register}
-        />
-      ))}
-      {plan.chips.map((chip) =>
-        chip.zoomTo == null ? (
+      {items.map((item) =>
+        item.symbol ? (
+          <Glyph
+            key={item.symbol.mark.id}
+            symbol={item.symbol}
+            open={openJoinId === item.symbol.mark.clipId}
+            onClick={() => toggle(item.symbol.mark.clipId)}
+            register={register}
+            track={track}
+          />
+        ) : item.chip.zoomTo == null ? (
           <span
-            key={chip.marks[0].id}
+            key={item.chip.marks[0].id}
             className="edit-chip edit-chip--static"
             role="img"
-            style={{ left: chip.xPx }}
-            aria-label={chipLabel(chip)}
+            style={{ left: item.chip.xPx }}
+            aria-label={chipLabel(item.chip)}
           >
-            {chipCount(chip)}
+            {chipCount(item.chip)}
           </span>
         ) : (
           <button
-            key={chip.marks[0].id}
-            ref={register(chip.marks[0].id)}
+            key={item.chip.marks[0].id}
+            ref={register(item.chip.marks[0].id)}
             type="button"
             className="edit-chip"
-            {...hitTargetProps("edit-chip", chip.marks[0].id, chip.startSec, {
-              spanSec: chip.endSec - chip.startSec,
-            })}
-            style={{ left: chip.xPx }}
-            aria-label={chipLabel(chip)}
+            {...hitTargetProps(
+              "edit-chip",
+              item.chip.marks[0].id,
+              item.chip.startSec,
+              {
+                spanSec: item.chip.endSec - item.chip.startSec,
+              },
+            )}
+            {...track(item.chip.marks[0].id)}
+            style={{ left: item.chip.xPx }}
+            aria-label={chipLabel(item.chip)}
             onClick={() => {
-              refocus.current = chip.marks[0].id;
-              onZoomChip(chip);
+              focused.current = item.chip.marks[0].id;
+              onZoomChip(item.chip);
             }}
           >
-            {chipCount(chip)}
+            {chipCount(item.chip)}
           </button>
         ),
       )}
