@@ -434,7 +434,7 @@ test("phone pipeline hands focus to a missing Whisper model dialog and back", as
       ...config.components,
       whisper: {
         ...config.components.whisper,
-        ok: true,
+        state: "installed",
         model: currentModel.id,
       },
     },

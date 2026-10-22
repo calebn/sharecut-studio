@@ -20,6 +20,23 @@ const catalog = [
   },
 ];
 
+function rowOf(
+  id: string,
+  tier: "required" | "recommended" | "offered",
+  state: "installed" | "missing",
+) {
+  return {
+    id,
+    label: id,
+    purpose: "purpose",
+    tier,
+    model: id,
+    size: "~1 MB",
+    size_bytes: 1_000_000,
+    state,
+  };
+}
+
 vi.mock("../api", () => ({
   waitForBootstrapJob: vi.fn(async (id: string) => ({
     id,
@@ -33,13 +50,11 @@ vi.mock("../api", () => ({
     ready: false,
     whisper_model: "large-v3-turbo",
     whisper_models: catalog,
-    components: {
-      ffmpeg: { ok: false, required_for_first_run: true },
-      whisper: { ok: false, required_for_first_run: true },
-      rnnoise: { ok: false, required_for_first_run: false },
-    },
-    default_components: ["whisper"],
-    optional_components: ["rnnoise"],
+    tools: { ffmpeg: { state: "missing", source: "not found", hint: null } },
+    models: [
+      rowOf("whisper", "required", "missing"),
+      rowOf("rnnoise", "recommended", "missing"),
+    ],
     cdn_base: false,
   })),
   runBootstrap: vi.fn(),
@@ -102,6 +117,33 @@ describe("BootstrapWizard", () => {
     });
   });
 
+  it("shows the job's error when the download ends in a failure", async () => {
+    const user = userEvent.setup();
+    const { waitForBootstrapJob } = await import("../api");
+    vi.mocked(waitForBootstrapJob).mockResolvedValueOnce({
+      id: "job1",
+      kind: "bootstrap",
+      components: ["whisper"],
+      whisper_model: "large-v3-turbo",
+      status: "error",
+      error: "The download server doesn't have Whisper.",
+    });
+    runMock.mockResolvedValue({
+      job: {
+        id: "job1",
+        kind: "bootstrap",
+        components: ["whisper"],
+        whisper_model: "large-v3-turbo",
+        status: "queued",
+      },
+    });
+    render(<BootstrapWizard onReady={vi.fn()} onSkip={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The download server doesn't have Whisper.",
+    );
+  });
+
   it("calls onReady when a model-scoped refresh reports ready", async () => {
     const user = userEvent.setup();
     const onReady = vi.fn();
@@ -109,13 +151,15 @@ describe("BootstrapWizard", () => {
       ready: model === "small.en",
       whisper_model: model ?? "large-v3-turbo",
       whisper_models: catalog,
-      components: {
-        ffmpeg: { ok: true, required_for_first_run: true },
-        whisper: { ok: model === "small.en", required_for_first_run: true },
-        rnnoise: { ok: false, required_for_first_run: false },
-      },
-      default_components: ["whisper"],
-      optional_components: ["rnnoise"],
+      tools: { ffmpeg: { state: "installed", source: "bundled", hint: null } },
+      models: [
+        rowOf(
+          "whisper",
+          "required",
+          model === "small.en" ? "installed" : "missing",
+        ),
+        rowOf("rnnoise", "recommended", "missing"),
+      ],
       cdn_base: false,
     }));
     render(<BootstrapWizard onReady={onReady} onSkip={vi.fn()} />);

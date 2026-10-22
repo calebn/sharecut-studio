@@ -82,7 +82,9 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
   const start = async () => {
     setBusy(true);
     setError(null);
-    const components = [...(status?.default_components ?? ["whisper"])];
+    const components = (status?.models ?? [])
+      .filter((m) => m.tier === "required")
+      .map((m) => m.id);
     if (includeRnnoise) {
       components.push("rnnoise");
     }
@@ -97,6 +99,12 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       });
       setJob(finished);
       setBusy(false);
+      if (finished.status !== "ok") {
+        setError(
+          finished.error || finished.message || `Bootstrap ${finished.status}`,
+        );
+        return;
+      }
       void refresh(whisperModel);
     } catch (e: unknown) {
       setBusy(false);
@@ -116,8 +124,9 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
     return null;
   }
 
-  const ffmpegOk = status?.components.ffmpeg?.ok;
-  const whisperOk = status?.components.whisper?.ok;
+  const ffmpegOk = status?.tools.ffmpeg.state === "installed";
+  const whisperOk =
+    status?.models.find((m) => m.id === "whisper")?.state === "installed";
   const selected = models.find((m) => m.id === whisperModel);
 
   return (

@@ -33,13 +33,20 @@ export function useBootstrapDownload(subject: string) {
         try {
           const started = await runBootstrap(opts);
           setProgress(started.job.message ?? "Downloading…");
-          await waitForBootstrapJob(started.job.id, {
+          const finished = await waitForBootstrapJob(started.job.id, {
             onUpdate: (next) => {
               if (next.message) {
                 setProgress(next.message);
               }
             },
           });
+          if (finished.status !== "ok") {
+            throw new Error(
+              finished.error ||
+                finished.message ||
+                `Bootstrap ${finished.status}`,
+            );
+          }
           setHeld(true);
           return true;
         } catch (e: unknown) {

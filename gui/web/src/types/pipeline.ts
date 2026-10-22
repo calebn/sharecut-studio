@@ -106,18 +106,18 @@ export interface PipelineParamField {
   affects: string[];
 }
 
-/** One component's readiness; shared by GET /api/pipeline/config and /api/bootstrap/status (BootstrapComponentStatus extends it). */
+export type ModelInstallState = "installed" | "missing" | "update_needed";
+
+/** One component's readiness, as GET /api/pipeline/config lists it; the bootstrap `ModelStatus` is the same record. */
 export interface PipelineComponentStatus {
-  ok: boolean;
+  state: ModelInstallState;
+  tier?: "required" | "recommended" | "offered";
+  label?: string;
+  size?: string;
+  model?: string;
   path?: string;
   hint?: string;
   bootstrap?: string;
-  opt_in?: boolean;
-  model?: string;
-  label?: string;
-  size?: string;
-  /** True when a pinned model snapshot is present but fails its sha256 manifest (#728). */
-  pin_mismatch?: boolean;
 }
 
 export interface WhisperModelCatalogRow {

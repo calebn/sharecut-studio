@@ -88,6 +88,7 @@ const LAYER_TABLE: readonly {
       "home",
       "inspector",
       "layout",
+      "models",
       "panels",
       "record",
       "timeline",

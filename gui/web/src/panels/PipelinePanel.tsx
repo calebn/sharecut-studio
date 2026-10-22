@@ -783,7 +783,9 @@ export function PipelinePanel() {
 
   const blockedComponents = cfg
     ? Object.entries(cfg.components).filter(
-        ([, c]) => !c.ok && (!c.opt_in || cfg.forced_alignment.blocked),
+        ([, c]) =>
+          c.state !== "installed" &&
+          (c.tier !== "offered" || cfg.forced_alignment.blocked),
       )
     : [];
 
@@ -1127,7 +1129,10 @@ export function PipelinePanel() {
               {steps.map((s) => {
                 const enabled = cfg?.enabled_steps.includes(s.id) ?? false;
                 const missing = s.requires_components.some(
-                  (c) => cfg && cfg.components[c] && !cfg.components[c]!.ok,
+                  (c) =>
+                    cfg &&
+                    cfg.components[c] &&
+                    cfg.components[c]!.state !== "installed",
                 );
                 return (
                   <div

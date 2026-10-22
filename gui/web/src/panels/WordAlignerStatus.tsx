@@ -13,10 +13,10 @@ function readinessMessage(
   status: PipelineComponentStatus | undefined,
   size: string,
 ): string {
-  if (status?.ok === true) {
+  if (status?.state === "installed") {
     return `Word aligner is downloaded (${size}).`;
   }
-  if (status?.pin_mismatch === true) {
+  if (status?.state === "update_needed") {
     return `Word aligner does not match its pinned download (${size}). Download it again; words keep Whisper's times until then.`;
   }
   return `Word aligner needs download (${size}). Words keep Whisper's times until it is downloaded.`;
@@ -51,7 +51,7 @@ export function WordAlignerStatus({
   const { busy, progress, error, download, reset } =
     useBootstrapDownload("the word aligner");
   const size = status?.size ?? "~360 MB";
-  const ok = status?.ok === true;
+  const ok = status?.state === "installed";
   const canRetime = ok && (alignment?.enabled ?? true);
 
   const onDownload = async () => {

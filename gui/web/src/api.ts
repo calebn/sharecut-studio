@@ -1,21 +1,27 @@
 export type {
-  BootstrapComponentStatus,
+  BootstrapDownload,
+  BootstrapFailure,
   BootstrapJobSnapshot,
   BootstrapStatus,
-  DiagnosticsBundleResult,
-  DistributionMetadata,
+  ModelStatus,
   WhisperModelChoice,
-} from "./api/bootstrapDiagnostics";
+} from "./api/bootstrap";
 export {
-  bootstrapEventsUrl,
-  createDiagnosticsBundle,
+  cancelBootstrap,
   fetchBootstrapJob,
   fetchBootstrapStatus,
+  runBootstrap,
+  waitForBootstrapJob,
+} from "./api/bootstrap";
+export type {
+  DiagnosticsBundleResult,
+  DistributionMetadata,
+} from "./api/bootstrapDiagnostics";
+export {
+  createDiagnosticsBundle,
   fetchDiagnosticsMeta,
   fetchDiagnosticsReportStatus,
-  runBootstrap,
   submitDiagnosticsReport,
-  waitForBootstrapJob,
 } from "./api/bootstrapDiagnostics";
 export type {
   BoundaryAudioWindow,

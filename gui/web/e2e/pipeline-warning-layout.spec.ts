@@ -15,7 +15,7 @@ test.describe("Pipeline bootstrap warning layout", () => {
     const config = (await response.json()) as {
       components: Record<
         string,
-        { ok: boolean; hint?: string; bootstrap?: string }
+        { state: string; hint?: string; bootstrap?: string }
       >;
     };
     const warningConfig = {
@@ -24,7 +24,7 @@ test.describe("Pipeline bootstrap warning layout", () => {
         ...config.components,
         rnnoise: {
           ...config.components.rnnoise,
-          ok: false,
+          state: "missing",
           hint: missingModelPath,
           bootstrap: bootstrapCommand,
         },

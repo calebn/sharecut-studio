@@ -276,7 +276,7 @@ describe("SplitSpeakersDialog", () => {
       } as never);
     vi.mocked(waitForBootstrapJob)
       .mockReset()
-      .mockResolvedValue({} as never);
+      .mockResolvedValue({ id: "boot-1", status: "ok" } as never);
     render(<SplitSpeakersDialog />);
     openFor("room");
 
