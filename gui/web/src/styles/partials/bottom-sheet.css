@@ -322,8 +322,10 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 
 /* A phone held sideways (636x390) at large text leaves the strip a slot under
    20rem tall, with no room for a title line of its own beside its four actions;
-   let the title shrink so they share a row (#1762). A taller slot, as in
-   portrait, keeps the 8rem title line. */
+   let the title shrink so they share a row (#1762). This holds at the strip,
+   half and full sizes in any slot under 20rem: a small portrait phone at large
+   text, or a slot the keyboard has shrunk. A taller slot keeps the 8rem title
+   line. */
 @container sheet-slot (max-height: 20rem) {
   .bottom-sheet--compact .bottom-sheet-title {
     flex-basis: 4rem;
