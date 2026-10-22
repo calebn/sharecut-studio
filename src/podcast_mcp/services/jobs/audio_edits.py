@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import AnalysisService
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter
 
 AudioEditOp = Literal["apply_bleed_mute", "align_retained_bleed", "mute_off_speaker"]
@@ -21,8 +22,9 @@ def run_audio_edit(
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     if op not in AUDIO_EDIT_OPS:
-        raise ValueError(
-            f"unsupported audio edit op {op!r}; expected one of {sorted(AUDIO_EDIT_OPS)}"
+        raise CodedValueError(
+            f"unsupported audio edit op {op!r}; expected one of {sorted(AUDIO_EDIT_OPS)}",
+            code="unsupported_audio_edit_op",
         )
     # Imported here because document_sync's marker handlers import the jobs package.
     from podcast_mcp.services.document_sync import after_agent_mutation
