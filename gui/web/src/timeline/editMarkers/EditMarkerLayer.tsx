@@ -18,6 +18,9 @@ interface EditMarkerLayerProps {
   onZoomChip: (chip: PlacedChip) => void;
 }
 
+const chipCount = (chip: PlacedChip) =>
+  chip.marks.length > 99 ? "99+" : chip.marks.length;
+
 type Register = (key: string) => (el: HTMLElement | null) => void;
 
 function Glyph({
@@ -116,7 +119,7 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
             style={{ left: chip.xPx }}
             aria-label={chipLabel(chip)}
           >
-            {chip.marks.length}
+            {chipCount(chip)}
           </span>
         ) : (
           <button
@@ -134,7 +137,7 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
               onZoomChip(chip);
             }}
           >
-            {chip.marks.length}
+            {chipCount(chip)}
           </button>
         ),
       )}

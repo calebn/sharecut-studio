@@ -232,7 +232,7 @@ accent in each theme. Waveforms take their tints from each clip's own fill
 A blending crossfade join draws two waveforms across its overlap, tinted from
 `--color-join-wave-left` (white, fixed tier) and `--color-join-wave-right`
 (the accent, per theme); `--color-join-seam-left` / `-right` colour the
-hairline drawn below 1 CSS px. Edit markers take one hue per type from `--color-mark-cut` (the danger role), `-fade` (a blue), `-crossfade` (a teal), `-mute` (the accent) and `-split` (the warning role), declared once per theme block beside `--color-applied-edit`. Color is the type and treatment is the state: a join glyph strokes in its hue, a pending region borders in it with a stripe or wash fill, and an applied tick keeps its warning body and takes the hue on its cap only for a mute. The empty-session stage
+hairline drawn below 1 CSS px. Edit markers take one hue per type from `--color-mark-cut` (the danger role), `-fade` (a blue), `-crossfade` (a teal), `-mute` (the accent) and `-split` (the warning role), declared once per theme block beside `--color-applied-edit`. A marker's box is `--edit-mark-size` (1.75 `--clip-inset-top`, 14 px, a 12 px shape inside a 1 px border), so it fills the gutter and overlaps the clip's top edge. Color is the type and treatment is the state: a join glyph strokes in its hue, a pending region borders in it with a stripe or wash fill, and an applied tick keeps its warning body and takes the hue on its cap only for a mute. The empty-session stage
 keeps a decorative grid; lanes do not, because a grid that ignores the ruler
 reads as false time divisions. The lane floor falls off toward the well's
 inline edges (#387): two 1.5rem `.timeline-edge` strips

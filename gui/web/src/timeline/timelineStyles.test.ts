@@ -194,8 +194,8 @@ describe("timeline styles", () => {
     const mark = rule(css, ".edit-mark");
     expect(mark).toMatch(/top:\s*0/);
     expect(mark).toMatch(/translate:\s*-50%\s+0;/);
-    expect(mark).toMatch(/height:\s*var\(--clip-inset-top\)/);
-    expect(mark).toMatch(/width:\s*1rem/);
+    expect(mark).toMatch(/height:\s*var\(--edit-mark-size\)/);
+    expect(mark).toMatch(/width:\s*var\(--edit-mark-size\)/);
     expect(mark).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(mark).toMatch(/pointer-events:\s*auto/);
     const clip = rule(css, ".clip-block");
@@ -204,11 +204,16 @@ describe("timeline styles", () => {
       /height:\s*calc\(var\(--lane-height\) - 2 \* var\(--clip-inset-top\)\)/,
     );
     expect(rule(css, ".edit-mark-glyph")).toMatch(
-      /height:\s*calc\(var\(--clip-inset-top\) - 1px - 1px\)/,
+      /height:\s*calc\(var\(--edit-mark-size\) - 1px - 1px\)/,
     );
-    expect(
-      readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
-    ).toMatch(/--clip-inset-top:\s*8px;/);
+    const tokens = readFileSync(
+      join(here, "../styles/theme/tokens.css"),
+      "utf8",
+    );
+    expect(tokens).toMatch(/--clip-inset-top:\s*8px;/);
+    expect(tokens).toMatch(
+      /--edit-mark-size:\s*calc\(1\.75 \* var\(--clip-inset-top\)\);/,
+    );
     expect(rule(css, ".edit-mark--blocked")).toMatch(
       /border-color:\s*var\(--color-warning\)/,
     );
@@ -216,7 +221,7 @@ describe("timeline styles", () => {
     expect(css.indexOf(".edit-mark {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
     );
-    // A --join-hit-min (24 px, px canvas) wide hit area inside the gutter (WCAG 2.5.8), never taller than the mark.
+    // A --join-hit-min (24 px, px canvas) wide hit area (WCAG 2.5.8), never taller than the mark.
     // Source text only: the negative inset (100% minus the target) is what grows it. e2e/join-popover.spec.ts
     // (expectHitAreaReaches24px, at the default and a 12px root) is the test that checks the geometry.
     const hit = rule(css, ".edit-mark::before");
@@ -228,7 +233,8 @@ describe("timeline styles", () => {
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
     ).toMatch(/--join-hit-min:\s*calc\(3 \* var\(--clip-inset-top\)\);/);
     const chip = rule(css, ".edit-chip");
-    expect(chip).toMatch(/min-inline-size:\s*var\(--join-hit-min\)/);
+    expect(chip).toMatch(/min-inline-size:\s*var\(--edit-mark-size\)/);
+    expect(chip).toMatch(/height:\s*var\(--edit-mark-size\)/);
     expect(chip).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(css.indexOf(".edit-chip {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),

@@ -79,11 +79,12 @@ export interface HitKindContract {
    */
   reach?: "row";
   /**
-   * A finger's tap on a plain surface (a lane, a non-movable clip) goes to
-   * this target when it lands within `reachPx` beside its painted box, from
-   * its top down `heightPx`, and no other kind is near the finger. The reach
-   * never leaves the target's own lane (it starts at the target's top), so a
-   * seek in the lane above and any tap lower in the lane stay seeks.
+   * A finger's tap that lands on no target, only a plain surface (a lane, a
+   * non-movable clip), goes to this target when it is within `reachPx` beside
+   * its painted box and from its top down `heightPx`. A tap on any target,
+   * a handle or a clip body included, is ranked as before. The reach starts
+   * at the target's top, so it never enters the lane above, and a tap lower
+   * in the lane stays a seek.
    */
   surfaceTap?: { reachPx: number; heightPx: number };
 }
