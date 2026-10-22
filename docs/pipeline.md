@@ -505,8 +505,8 @@ A render fails with `render_rate_unresolved` when no rate can be read for a dela
 that has no decodable audio, or a WAV whose header reads but FFmpeg cannot decode (a LIST chunk
 under 4 bytes, an SMV0 or XMA2 chunk, or less data than one sample frame). A WAV with an empty
 data chunk renders at its header format, but a Restore render whose clock observers decode
-every input fails on it with `bleed_restore_clock_invalid`. A render fails with `render_command_too_long` when the operating
-system refuses the command line.
+every input fails on it with `bleed_restore_clock_invalid`. A render fails with
+`render_command_too_long` when the operating system refuses the command line.
 
 It then runs the track FX chain **once** over the fully assembled audio. Besides
 collapsing N+1 subprocess spawns into one, this keeps stateful filters

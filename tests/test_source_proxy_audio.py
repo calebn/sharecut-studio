@@ -650,11 +650,6 @@ def test_fill_eligibility_is_sealed_before_capture(tmp_path, monkeypatch):
     assert target.read_bytes() == b"old complete artifact"
 
 
-def _swap_source(tmp_path, clip, name):
-    shutil.copy(media.multistream(tmp_path, name), tmp_path / "source.wav")
-    clip.bleed_restore.source_sha256 = sha256_file(tmp_path / "source.wav")
-
-
 def test_proxy_decode_clock_reads_the_first_audio_stream(tmp_path):
     source = media.multistream(tmp_path, "kid.ogg")
     (tmp_path / "work").mkdir()
@@ -680,7 +675,8 @@ def test_source_chain_render_takes_the_first_audio_stream(tmp_path):
 @pytest.mark.parametrize("name", ["st.mkv", "kid.ogg"])
 def test_restore_proxy_of_a_multistream_source_uses_the_first_stream(tmp_path, monkeypatch, name):
     p, _, clip, _ = _project(tmp_path, monkeypatch)
-    _swap_source(tmp_path, clip, name)
+    shutil.copy(media.multistream(tmp_path, name), tmp_path / "source.wav")
+    clip.bleed_restore.source_sha256 = sha256_file(tmp_path / "source.wav")
     target = tmp_path / "variant.wav"
     proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     rate, frames = _read(target)
