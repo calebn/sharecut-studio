@@ -7,6 +7,9 @@ from podcast_mcp.services.document import AnalysisService
 from podcast_mcp.util.progress import ProgressReporter
 
 AudioEditOp = Literal["apply_bleed_mute", "align_retained_bleed", "mute_off_speaker"]
+AUDIO_EDIT_OPS: frozenset[str] = frozenset(
+    {"apply_bleed_mute", "align_retained_bleed", "mute_off_speaker"}
+)
 
 
 def run_audio_edit(
@@ -17,12 +20,23 @@ def run_audio_edit(
     lock_timeout: float,
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
+    if op not in AUDIO_EDIT_OPS:
+        raise ValueError(
+            f"unsupported audio edit op {op!r}; expected one of {sorted(AUDIO_EDIT_OPS)}"
+        )
     # Imported here because document_sync's marker handlers import the jobs package.
     from podcast_mcp.services.document_sync import after_agent_mutation
 
     kwargs = {**params, "apply": True, "lock_timeout": lock_timeout}
     if progress is not None:
         kwargs["progress"] = progress
-    result: dict[str, Any] = getattr(AnalysisService(ws), op)(**kwargs)
+    service = AnalysisService(ws)
+    result: dict[str, Any]
+    if op == "apply_bleed_mute":
+        result = service.apply_bleed_mute(**kwargs)
+    elif op == "align_retained_bleed":
+        result = service.align_retained_bleed(**kwargs)
+    else:
+        result = service.mute_off_speaker(**kwargs)
     after_agent_mutation(ws)
     return result

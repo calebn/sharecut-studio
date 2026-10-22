@@ -115,3 +115,34 @@ def test_mcp_tools_call_edit_service_only_for_reads_and_pending_mutations() -> N
 def test_direct_mutation_allowlist_only_shrinks() -> None:
     assert len(_DIRECT_MUTATIONS) == _DIRECT_MUTATIONS_SIZE
     assert not _READ_ONLY & _DIRECT_MUTATIONS
+
+
+_AUDIO_EDIT_METHODS = frozenset({"apply_bleed_mute", "align_retained_bleed", "mute_off_speaker"})
+_SRC = _MCP.parent.parent
+_AUDIO_EDIT_BODY = "podcast_mcp/services/jobs/audio_edits.py"
+
+
+def _applying_audio_edit_calls(source: str) -> int:
+    """Count calls of the three apply paths whose ``apply`` is not a literal False."""
+    count = 0
+    for node in ast.walk(ast.parse(source)):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _AUDIO_EDIT_METHODS
+        ):
+            continue
+        apply = next((kw.value for kw in node.keywords if kw.arg == "apply"), None)
+        if not (isinstance(apply, ast.Constant) and apply.value is False):
+            count += 1
+    return count
+
+
+def test_only_the_shared_audio_edit_body_applies_bleed_edits_outside_the_cli() -> None:
+    callers = {
+        path.relative_to(_SRC).as_posix()
+        for path in _SRC.rglob("*.py")
+        if "cli" not in path.relative_to(_SRC).parts
+        and _applying_audio_edit_calls(path.read_text(encoding="utf-8"))
+    }
+    assert callers == {_AUDIO_EDIT_BODY}
