@@ -528,7 +528,7 @@ class MuteIndex:
                         (r.start_s, r.end_s, None)
                         for r in self._ignored.raw_for_source(track_id, source_id)
                     ]
-                spans.sort()
+                spans.sort(key=lambda span: (span[0], span[1]))
                 built = (
                     [sp[0] for sp in spans],
                     spans,

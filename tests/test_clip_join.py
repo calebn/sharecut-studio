@@ -239,3 +239,20 @@ def test_the_mute_index_keeps_a_long_crossfade_lane_fast():
     for prev, c in pairwise(clips):
         assert crossfade_borrow_sec(p, prev, c, index) > 0
     assert time.perf_counter() - started < 2.0
+
+
+def test_a_mute_equal_to_an_ignored_word_span_does_not_break_the_index():
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    p = _project()
+    left = _clip("a", 1, 2, fade_out_ms=40)
+    right = _clip("b", 2, 3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
+    right.mute_regions = [ClipMuteRegion(start_s=2.2, end_s=2.4)]
+    p.clips = [left, right]
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="x", start=2.2, end=2.4, confidence=0.9, ignored=True)],
+        )
+    ]
+    assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.02)
