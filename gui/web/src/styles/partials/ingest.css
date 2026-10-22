@@ -10,26 +10,6 @@
   color: var(--color-text-secondary);
 }
 
-.bootstrap-wizard-list {
-  margin: 0;
-  padding-inline-start: var(--s1);
-  color: var(--color-text-primary);
-}
-
-.bootstrap-wizard-optional {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-emphasis);
-}
-
-.bootstrap-wizard-progress {
-  margin: 0;
-  color: var(--color-text-secondary);
-}
-
 .track-add-row {
   display: block;
   width: 100%;

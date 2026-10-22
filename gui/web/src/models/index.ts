@@ -1,3 +1,4 @@
+export { ModelRow, type ModelRowAction } from "./ModelRow";
 export { ModelsProvider } from "./ModelsProvider";
 export type {
   DownloadOptions,
