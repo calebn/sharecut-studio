@@ -254,3 +254,16 @@ export function joinDraftOverlapMs(
   );
   return steps >= 1 ? Math.round(steps * BORROW_STEP_SEC * 2000) : 0;
 }
+
+export function projectJoinDraft(
+  left: Pick<ClipRow, "source_start" | "source_end" | "source_duration_sec">,
+  right: ClipRow,
+  ms: number,
+): ClipRow {
+  if (joinGlyph(right) !== "crossfade") return right;
+  return {
+    ...right,
+    join_crossfade_ms: joinDraftOverlapMs(left, right, ms),
+    join_crossfade_blocked: null,
+  };
+}

@@ -24,6 +24,7 @@ import {
   joinWaveSpans,
   MIN_JOIN_CLIP_PX,
   MIN_JOIN_WAVE_CSS_PX,
+  projectJoinDraft,
 } from "./joinRender";
 
 const clip: ClipRow = {
@@ -401,5 +402,46 @@ describe("joinDraftOverlapMs", () => {
     expect(
       joinDraftOverlapMs(left, { ...right, source_duration_sec: null }, 400),
     ).toBe(0);
+  });
+});
+
+describe("projectJoinDraft", () => {
+  const left = { source_start: 0, source_end: 5, source_duration_sec: 100 };
+  const crossfade = clipRow({
+    source_start: 5,
+    source_end: 10,
+    source_duration_sec: 100,
+    fade_in_ms: 20,
+    fade_out_ms: 30,
+    join_in_mode: "crossfade",
+    join_left_clip_id: "left",
+    join_crossfade_ms: 20,
+    join_crossfade_blocked: "no_fade_in",
+  });
+  it("projects a crossfade row to the capped draft overlap and clears the block", () => {
+    const out = projectJoinDraft(left, crossfade, 9000);
+    expect(out.join_crossfade_ms).toBe(2500);
+    expect(out.join_crossfade_blocked).toBeNull();
+  });
+  it("keeps every other field of the row", () => {
+    const out = projectJoinDraft(left, crossfade, 400);
+    expect(out).toEqual({
+      ...crossfade,
+      join_crossfade_ms: 400,
+      join_crossfade_blocked: null,
+    });
+    expect(out).not.toBe(crossfade);
+  });
+  it("projects an unmeasured left recording to a zero overlap", () => {
+    const out = projectJoinDraft(
+      { ...left, source_duration_sec: null },
+      crossfade,
+      400,
+    );
+    expect(out.join_crossfade_ms).toBe(0);
+  });
+  it.each(["cut", "fade"])("returns a %s row as is", (mode) => {
+    const row = { ...crossfade, join_in_mode: mode } as ClipRow;
+    expect(projectJoinDraft(left, row, 9000)).toBe(row);
   });
 });

@@ -10,7 +10,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { clampClipFades } from "../edit/fadeLimits";
-import { joinDraftOverlapMs, joinGlyph, joinVisual } from "../edit/joinRender";
+import {
+  joinDraftOverlapMs,
+  joinGlyph,
+  joinVisual,
+  projectJoinDraft,
+} from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
@@ -68,14 +73,7 @@ function JoinEditorLive(props: JoinEditorProps) {
     (edit.state.kind === "pointer" && edit.state.moved) ||
     edit.state.kind === "range";
   const draftOverlapMs = joinDraftOverlapMs(left, right, edit.value);
-  const projected =
-    draft && joinGlyph(right) === "crossfade"
-      ? {
-          ...right,
-          join_crossfade_ms: draftOverlapMs,
-          join_crossfade_blocked: null,
-        }
-      : right;
+  const projected = draft ? projectJoinDraft(left, right, edit.value) : right;
   const visual = joinVisual(projected, zoomPxPerSec);
   const [leader, setLeader] = useState<{
     x: number;
@@ -248,7 +246,7 @@ function JoinEditorLive(props: JoinEditorProps) {
         <JoinPopover
           id={id}
           left={left}
-          right={right}
+          right={projected}
           seamSec={seamSec}
           trackFadeMaxMs={trackFadeMaxMs}
           anchorRef={anchorRef}
