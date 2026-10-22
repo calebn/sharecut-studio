@@ -16,7 +16,8 @@ import type { ClipRow, ProjectView } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 import { ClipBlockView } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
-import { attachHitRouting } from "./hitRouting";
+import { HitRouterProvider } from "./hitRouterContext";
+import { attachHitRouting, type HitRouter } from "./hitRouting";
 
 type LayerProps = {
   mediaRef: string;
@@ -1520,11 +1521,14 @@ describe("ClipBlock waveform", () => {
   describe("touch move (#1051 round 4b)", () => {
     /** The clip under the touch grammar's router, its body 100 px wide. */
     const touchClip = (row: ClipRow, extra: Record<string, unknown> = {}) => {
-      const view = render(
-        <div>
-          <ClipBlock {...base} canMove {...extra} clip={row} />
-        </div>,
+      const tree = (router: HitRouter | null) => (
+        <HitRouterProvider value={router}>
+          <div>
+            <ClipBlock {...base} canMove {...extra} clip={row} />
+          </div>
+        </HitRouterProvider>
       );
+      const view = render(tree(null));
       const root = view.container.firstElementChild as HTMLElement;
       const hit = root.querySelector(".clip-hit") as HTMLElement;
       place(hit, { left: 0, top: 0, right: 100, bottom: 100 });
@@ -1536,6 +1540,7 @@ describe("ClipBlock waveform", () => {
         },
         true,
       );
+      view.rerender(tree(router));
       return { ...view, hit, router };
     };
     const later = { ...clip, timeline_start: 4, timeline_end: 6 };
@@ -1631,12 +1636,14 @@ describe("ClipBlock waveform", () => {
             fireEvent.keyDown(document.body, { key: "Escape" });
           else unmount();
         });
+        const armedAfter = hit.hasAttribute("data-hit-armed");
         press(hit, "pointermove", 95, 50);
         press(hit, "pointerup", 95, 50);
         router.dispose();
 
         expect(onMoveCancel).toHaveBeenCalledWith("c1");
         expect(onMoveCommit).not.toHaveBeenCalled();
+        expect(armedAfter).toBe(false);
       },
     );
   });
