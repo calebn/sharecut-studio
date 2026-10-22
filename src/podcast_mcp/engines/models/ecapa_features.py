@@ -50,7 +50,11 @@ _WINDOW = (0.54 - 0.46 * np.cos(2.0 * np.pi * np.arange(WIN_LENGTH) / WIN_LENGTH
 
 def ecapa_features(samples: np.ndarray) -> np.ndarray:
     """(frames, 80) float32 features for mono 16 kHz ``samples``, ready for the ONNX model."""
-    x = np.asarray(samples, dtype=np.float32).reshape(-1)
+    x = np.asarray(samples, dtype=np.float32)
+    if x.ndim > 1:
+        if sorted(x.shape)[-2] > 1:
+            raise ValueError("expected mono audio; mix the channels down first")
+        x = x.reshape(-1)
     padded = np.pad(x, (N_FFT // 2, N_FFT // 2))  # center=True, constant (zero) padding
     frames = 1 + x.size // HOP_LENGTH
     index = np.arange(N_FFT)[None, :] + HOP_LENGTH * np.arange(frames)[:, None]

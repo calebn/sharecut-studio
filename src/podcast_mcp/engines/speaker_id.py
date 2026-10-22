@@ -211,6 +211,9 @@ class OnnxEcapaBackend:
         return self._model.embed(samples)
 
 
+# Shortest span worth embedding: below it the pinned networks cannot pad the input.
+_MIN_EMBED_SEC = 0.05
+
 _WEBRTCVAD_IMPORT_FAILURES = frozenset({"webrtcvad", "pkg_resources"})
 
 
@@ -503,7 +506,7 @@ def enroll_track(
         if conf < cfg.min_enrollment_confidence:
             continue
         dur = w.end - w.start
-        if dur < 0.05:
+        if dur < _MIN_EMBED_SEC:
             continue
         windows.append((w.start, w.end))
 
@@ -515,7 +518,7 @@ def enroll_track(
     reader = _WavWindowReader.open(path)
     try:
         for start, end in windows:
-            if total >= cfg.min_enrollment_sec:
+            if cfg.min_enrollment_sec - total < _MIN_EMBED_SEC:
                 break
             dur = min(end - start, cfg.min_enrollment_sec - total)
             samples = _read_window(path, start, dur, cfg.sample_rate, reader)

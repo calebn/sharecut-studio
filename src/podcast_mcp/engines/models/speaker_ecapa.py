@@ -32,6 +32,8 @@ SPEAKER_ECAPA_ENV = "PODCAST_MCP_SPEAKER_ECAPA_MODEL"
 SPEAKER_ECAPA_BOOTSTRAP = "podcast bootstrap --component speaker-ecapa"
 SPEAKER_ECAPA_LABEL = "Speaker recognition (ECAPA, ONNX)"
 SPEAKER_ECAPA_SIZE = "~80 MB"
+# 0.05 s at 16 kHz; the network's reflect-padded convolutions fail below about 700 samples.
+MIN_SAMPLES = 800
 SPEAKER_ECAPA_LICENSE = "apache-2.0"
 SOURCE_REPO = "speechbrain/spkrec-ecapa-voxceleb"
 SOURCE_REVISION = "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
@@ -116,6 +118,10 @@ class EcapaOnnx:
         return self._session
 
     def embed(self, samples: np.ndarray) -> np.ndarray:
+        if np.size(samples) < MIN_SAMPLES:
+            raise ValueError(
+                f"audio too short to embed: {np.size(samples)} samples, need {MIN_SAMPLES}"
+            )
         session = self._load()
         feats = ecapa_features(samples)[None]
         out = session.run(None, {"features": feats})[0]
