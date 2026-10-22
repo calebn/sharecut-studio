@@ -580,6 +580,14 @@ button.join-seam:focus-visible {
   pointer-events: none;
 }
 
+.edit-mark-probe {
+  position: absolute;
+  width: var(--font-size-micro);
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .edit-mark-label:not([data-measured]) {
   visibility: hidden;
 }

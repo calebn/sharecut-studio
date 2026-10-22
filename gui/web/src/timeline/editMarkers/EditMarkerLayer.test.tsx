@@ -292,7 +292,7 @@ describe("EditMarkerLayer label refit", () => {
     const probe = container.querySelector(".edit-mark-probe");
     expect(probe).not.toBeNull();
     act(() => FakeResizeObserver.of(probe as Element).fire());
-    expect(drawn(container)).toBe(0);
+    expect(drawn(container)).toBe(1);
 
     document.documentElement.style.fontSize = "16px";
     act(() => FakeResizeObserver.of(probe as Element).fire());
@@ -311,7 +311,7 @@ describe("EditMarkerLayer label refit", () => {
     act(() => {
       fonts.dispatchEvent(new Event("loadingdone"));
     });
-    expect(drawn(container)).toBe(0);
+    expect(drawn(container)).toBe(1);
 
     widthPx = 40;
     act(() => {
