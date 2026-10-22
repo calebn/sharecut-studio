@@ -1,8 +1,4 @@
-import type {
-  BootstrapJobSnapshot,
-  BootstrapStatus,
-  ModelStatus,
-} from "../api";
+import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
 import type { ModelInstallState } from "../types/pipeline";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import type { ModelFailure, ModelState, ModelView } from "./types";
@@ -84,10 +80,6 @@ export function reduce(
   }
 }
 
-function baseState(row: ModelStatus): ModelState {
-  return { kind: row.state };
-}
-
 /** The server's rows with the live job and the session's failures laid over them. */
 export function overlay(
   status: BootstrapStatus,
@@ -96,7 +88,7 @@ export function overlay(
 ): ModelView[] {
   const live = job && !isTerminalJobStatus(job.status) ? job : null;
   return status.models.map((row) => {
-    let state: ModelState = baseState(row);
+    let state: ModelState = { kind: row.state };
     if (live?.components.includes(row.id)) {
       state =
         live.download?.component === row.id
