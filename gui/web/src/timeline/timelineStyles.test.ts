@@ -194,8 +194,8 @@ describe("timeline styles", () => {
     const mark = rule(css, ".edit-mark");
     expect(mark).toMatch(/top:\s*0/);
     expect(mark).toMatch(/translate:\s*-50%\s+0;/);
-    expect(mark).toMatch(/height:\s*var\(--edit-mark-size\)/);
-    expect(mark).toMatch(/width:\s*var\(--edit-mark-size\)/);
+    expect(mark).toMatch(/height:\s*var\(--clip-inset-top\)/);
+    expect(mark).toMatch(/width:\s*var\(--clip-inset-top\)/);
     expect(mark).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(mark).toMatch(/pointer-events:\s*auto/);
     const clip = rule(css, ".clip-block");
@@ -204,16 +204,11 @@ describe("timeline styles", () => {
       /height:\s*calc\(var\(--lane-height\) - 2 \* var\(--clip-inset-top\)\)/,
     );
     expect(rule(css, ".edit-mark-glyph")).toMatch(
-      /height:\s*calc\(var\(--edit-mark-size\) - 1px - 1px\)/,
+      /height:\s*calc\(var\(--clip-inset-top\) - 1px - 1px\)/,
     );
-    const tokens = readFileSync(
-      join(here, "../styles/theme/tokens.css"),
-      "utf8",
-    );
-    expect(tokens).toMatch(/--clip-inset-top:\s*8px;/);
-    expect(tokens).toMatch(
-      /--edit-mark-size:\s*calc\(1\.75 \* var\(--clip-inset-top\)\);/,
-    );
+    expect(
+      readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
+    ).toMatch(/--clip-inset-top:\s*12px;/);
     expect(rule(css, ".edit-mark--blocked")).toMatch(
       /border-color:\s*var\(--color-warning\)/,
     );
@@ -231,10 +226,10 @@ describe("timeline styles", () => {
     );
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
-    ).toMatch(/--join-hit-min:\s*calc\(3 \* var\(--clip-inset-top\)\);/);
+    ).toMatch(/--join-hit-min:\s*calc\(2 \* var\(--clip-inset-top\)\);/);
     const chip = rule(css, ".edit-chip");
-    expect(chip).toMatch(/min-inline-size:\s*var\(--edit-mark-size\)/);
-    expect(chip).toMatch(/height:\s*var\(--edit-mark-size\)/);
+    expect(chip).toMatch(/min-inline-size:\s*var\(--clip-inset-top\)/);
+    expect(chip).toMatch(/height:\s*var\(--clip-inset-top\)/);
     expect(chip).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(css.indexOf(".edit-chip {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
