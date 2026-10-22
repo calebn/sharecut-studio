@@ -10,6 +10,7 @@ from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import (
     PipelineService,
+    ensure_whisper_cached_for_run,
     format_export_qc_lines,
     stale_stream_notices,
 )
@@ -93,6 +94,9 @@ def pipeline_run(
 
     jobs = studio_job_manager()
     if jobs is not None:
+        ensure_whisper_cached_for_run(
+            config=run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+        )
         job = jobs.start(
             ws.path,
             from_step=from_step,

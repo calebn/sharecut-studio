@@ -23,7 +23,6 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.pipeline import STEP_NAMES
 from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.pipeline import (
-    WhisperWeightsMissingError,
     build_config_payload,
     config_store,
     ensure_whisper_cached_for_run,
@@ -172,16 +171,13 @@ def pipeline_run(
             unattended=unattended,
         )
 
-    try:
-        ensure_whisper_cached_for_run(
-            config=run_config,
-            from_step=req.from_step,
-            only_step=req.only_step,
-            skip_steps=skip_steps,
-            memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
-        )
-    except WhisperWeightsMissingError as exc:
-        raise coded_exception_error(409, exc, code="whisper_weights_missing") from exc
+    ensure_whisper_cached_for_run(
+        config=run_config,
+        from_step=req.from_step,
+        only_step=req.only_step,
+        skip_steps=skip_steps,
+        memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
+    )
 
     try:
         job = jobs.start(

@@ -295,19 +295,19 @@ def test_pipeline_refusals(
         _check(client.post(url, json=body), 409, "pipeline_busy")
 
 
-def test_pipeline_whisper_weights_missing(
+def test_pipeline_model_needed(
     minimal_project: Path, client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
+    from podcast_mcp.engines.models.registry import require_model
     from podcast_mcp.gui.routes import pipeline
 
     monkeypatch.setattr(
-        pipeline, "ensure_whisper_cached_for_run", _raiser(WhisperWeightsMissingError("no weights"))
+        pipeline, "ensure_whisper_cached_for_run", lambda **_k: require_model("rnnoise")
     )
     _check(
         client.post("/api/pipeline/run", json={"path": str(minimal_project)}),
         409,
-        "whisper_weights_missing",
+        "model_needed",
     )
 
 

@@ -11,6 +11,11 @@ from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 
 
+@pytest.fixture(autouse=True)
+def _whisper_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("podcast_mcp.services.document.transcript.require_model", lambda *a: None)
+
+
 def test_transcript_cache_keeps_short_file_hash(minimal_project, tmp_path):
     project = load_project(minimal_project)
     audio = tmp_path / "recording.wav"

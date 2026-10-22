@@ -102,8 +102,10 @@ def test_mcp_pipeline_run_only_step(tmp_path, sample_wav):
     assert "ingest_tracks" in result
 
 
-def test_mcp_pipeline_run_reports_export_qc_verdict(tmp_path):
+def test_mcp_pipeline_run_reports_export_qc_verdict(tmp_path, monkeypatch):
     from podcast_mcp.services.pipeline import PipelineRunResult
+
+    monkeypatch.setattr(mcp_pipeline, "ensure_whisper_cached_for_run", lambda **_k: None)
 
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     fake = PipelineRunResult(

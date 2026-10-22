@@ -36,6 +36,7 @@ from podcast_mcp.edits.transcript_timing import (
     word_timing_context,
 )
 from podcast_mcp.engines import TranscriptionEngine
+from podcast_mcp.engines.models.registry import require_model
 from podcast_mcp.engines.models.whisper import resolve_whisper_model
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.transcript import CaptionLimits, write_combined_transcript_markdown
@@ -81,6 +82,7 @@ class TranscriptService(WorkspaceService):
 
         # Same transcribe.* settings as pipeline_run (staged working set, else defaults).
         self._engine.options = asr_options_for(self.ws.path)
+        require_model("whisper", self._engine.model_size)
         defaults = run_defaults_for(self.ws.path)
         # Same fail-fast as transcribe_tracks: forced alignment explicitly on needs a model
         # that verifies and loads, before any transcript changes.

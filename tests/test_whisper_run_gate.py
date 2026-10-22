@@ -36,18 +36,21 @@ def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
 def test_ensure_whisper_cached_for_run_raises_when_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
+    from podcast_mcp.util.model_missing import ModelMissing
 
     monkeypatch.setattr(
         "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
-    with pytest.raises(WhisperWeightsMissingError, match=r"small\.en"):
+    with pytest.raises(ModelMissing) as caught:
         ensure_whisper_cached_for_run(
             only_step="transcribe_tracks",
             config={"transcribe": {"model": "small.en"}},
         )
+    assert caught.value.id == "whisper"
+    assert caught.value.model == "small.en"
+    assert caught.value.state == "missing"
 
 
 def test_ensure_whisper_cached_for_run_ok_when_cached(
@@ -67,16 +70,16 @@ def test_ensure_whisper_cached_for_run_ok_when_cached(
 def test_pipeline_service_run_fails_fast_without_weights(
     minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.pipeline import PipelineService
+    from podcast_mcp.util.model_missing import ModelMissing
 
     monkeypatch.setattr(
         "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
     ws = ProjectWorkspace.open(minimal_project)
-    with pytest.raises(WhisperWeightsMissingError):
+    with pytest.raises(ModelMissing):
         PipelineService(ws).run(
             only_step="transcribe_tracks",
             config={"transcribe": {"model": "small.en"}},
@@ -137,7 +140,12 @@ def test_gui_pipeline_run_409_when_weights_missing(
         json={"path": path, "use_working_set": True},
     )
     assert res.status_code == 409
-    assert "not downloaded" in res.json()["detail"]
+    assert res.headers["X-Sharecut-Error-Code"] == "model_needed"
+    detail = res.json()["detail"]
+    assert detail["model"]["id"] == "whisper"
+    assert detail["model"]["model"] == "small.en"
+    assert detail["model"]["state"] == "missing"
+    assert detail["model"]["command"] == "podcast bootstrap --component whisper"
     assert started["called"] is False
     status = client.get("/api/pipeline/status")
     assert status.status_code == 200
@@ -171,7 +179,10 @@ def test_gui_pipeline_run_409_on_pin_mismatch(
         json={"path": path, "use_working_set": True},
     )
     assert res.status_code == 409
-    assert "--upgrade" in res.json()["detail"]
+    assert res.headers["X-Sharecut-Error-Code"] == "model_needed"
+    model = res.json()["detail"]["model"]
+    assert model["state"] == "update_needed"
+    assert "--upgrade" in model["command"]
 
 
 def test_transcription_engine_uses_local_files_only(
@@ -270,11 +281,10 @@ def test_ensure_whisper_cached_for_run_forwards_memoize(monkeypatch) -> None:
 
     seen: list[bool] = []
 
-    def fake(model: str, *, memoize: bool = False) -> str:
+    def fake(model_id: str, variant: str | None = None, *, memoize: bool = True) -> None:
         seen.append(memoize)
-        return model
 
-    monkeypatch.setattr("podcast_mcp.engines.models.whisper.ensure_whisper_model_cached", fake)
+    monkeypatch.setattr("podcast_mcp.engines.models.registry.require_model", fake)
     ensure_whisper_cached_for_run(only_step="transcribe_tracks")
     ensure_whisper_cached_for_run(only_step="transcribe_tracks", memoize=True)
     assert seen == [False, True]
