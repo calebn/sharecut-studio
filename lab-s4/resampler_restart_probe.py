@@ -12,7 +12,8 @@ PASS: some W <= 4096 input samples gives array_equal in ALL trials for 48k->8k a
 """
 import subprocess, sys
 import numpy as np
-from podcast_mcp.engines.ungated_audio import resample_streams, resolve_ffmpeg_pair
+from podcast_mcp.engines.ungated_audio import resample_streams
+from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 
 SECONDS = int(sys.argv[1]) if len(sys.argv) > 1 else 120
 TRIALS = int(sys.argv[2]) if len(sys.argv) > 2 else 30
