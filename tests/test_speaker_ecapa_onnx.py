@@ -239,3 +239,28 @@ def test_pin_and_override_misuse_are_reported(
     monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(tmp_path / "mine.onnx"))
     with pytest.raises(speaker_ecapa.SpeakerEcapaMissingError, match="unset it"):
         speaker_ecapa.bootstrap_speaker_ecapa()
+
+
+def _compare_script():
+    import importlib.util
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "compare_speaker_backends", root / "scripts" / "compare_speaker_backends.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_compare_script_windows_fit_word_length_regions_after_merging() -> None:
+    script = _compare_script()
+    words = [(0.0, 1.0), (1.2, 2.1), (2.3, 3.4), (10.0, 10.5)]
+    merged = script._merge(words)
+    assert merged == [(0.0, 3.4), (10.0, 10.5)]
+    # unmerged word-length regions never hold a 3 s window; the merged speech does
+    assert script._windows(words, 40) == []
+    assert script._windows(merged, 40) == [(0.0, 3.0)]
+    many = [(float(i) * 10, float(i) * 10 + 9.0) for i in range(30)]
+    assert len(script._windows(many, 5)) == 5

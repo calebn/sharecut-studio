@@ -24,6 +24,20 @@ import numpy as np
 WINDOW_SEC = 3.0
 MIN_COSINE = 0.999
 MAX_SCORE_DELTA = 0.01
+MERGE_GAP_SEC = 0.6
+
+
+def _merge(
+    regions: list[tuple[float, float]], gap: float = MERGE_GAP_SEC
+) -> list[tuple[float, float]]:
+    """Join word-length regions separated by less than ``gap`` into stretches of speech."""
+    merged: list[tuple[float, float]] = []
+    for start, end in sorted(regions):
+        if merged and start - merged[-1][1] < gap:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
 
 
 def _windows(regions: list[tuple[float, float]], limit: int) -> list[tuple[float, float]]:
@@ -65,12 +79,19 @@ def main() -> int:
     )
 
     rows = []
+    skipped = 0
     for track_id in dialogue_track_ids(project):
         path = speaker_id._stem_path(project, track_id)
         if path is None:
             continue
-        for start, end in _windows(speaker_id._speech_regions(project, track_id), args.windows):
-            samples = speaker_id._decode_window_samples(path, start, end, cfg, None)
+        for start, end in _windows(
+            _merge(speaker_id._speech_regions(project, track_id)), args.windows
+        ):
+            try:
+                samples = speaker_id._decode_window_samples(path, start, end, cfg, None)
+            except Exception:  # a window past the end of the stem
+                skipped += 1
+                continue
             a = torch_backend.embed(samples, cfg.sample_rate)
             b = onnx_backend.embed(samples, cfg.sample_rate)
             cosine = float(a @ b / np.linalg.norm(a) / np.linalg.norm(b))
@@ -98,6 +119,7 @@ def main() -> int:
         return 2
     summary = {
         "windows": len(rows),
+        "skipped_undecodable": skipped,
         "min_cosine": min(r["cosine"] for r in rows),
         "max_score_delta": max(r["max_score_delta"] for r in rows),
         "max_margin_delta": max(r["margin_delta"] for r in rows),
