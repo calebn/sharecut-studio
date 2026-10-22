@@ -40,7 +40,6 @@ from podcast_mcp.util.process import CalledProcessError
 from test_audio_eval import (
     CLIP_LAYOUTS,
     FRAME_DB_TOLERANCE,
-    LIVE_FLOOR_DB,
     SAMPLE_TOLERANCE,
     _chained,
     _ffmpeg_or_skip,
@@ -64,6 +63,10 @@ def _render_reference(project: EpisodeProject, tmp_path: Path) -> dict[int, np.n
     return {rate: load_mono_full(path, sample_rate=rate) for rate in (JUMP, WAVEFORM)}
 
 
+# Below this the sample bar binds: a 2e-4 sample step is 0.08 dB of a -55 dB frame.
+FRAME_DB_FLOOR = -50.0
+
+
 def _frame_db(samples: np.ndarray, rate: int) -> np.ndarray:
     frame = rate // 10
     frames = samples[: samples.size // frame * frame].reshape(-1, frame)
@@ -79,7 +82,7 @@ def _assert_equals_render(
         common = min(evaluated.size, rendered.size)
         assert np.abs(evaluated[:common] - rendered[:common]).max() < SAMPLE_TOLERANCE
         expected, actual = _frame_db(rendered[:common], rate), _frame_db(evaluated[:common], rate)
-        live = expected > LIVE_FLOOR_DB
+        live = expected > FRAME_DB_FLOOR
         assert live.sum() > 10
         assert np.abs(expected - actual)[live].max() < FRAME_DB_TOLERANCE
 
@@ -431,7 +434,12 @@ def _audio_node_types() -> list[type]:
     ]
 
 
-UNREAD_FIELDS = {("SourceAudio", "clip_id"), ("SourceAudio", "source_id")}
+UNREAD_FIELDS = {
+    ("SourceAudio", "clip_id"),
+    ("SourceAudio", "source_id"),
+    ("SourceAudio", "reach_in"),
+    ("SourceAudio", "reach_out"),
+}
 
 
 def test_the_key_covers_every_field_the_evaluator_reads() -> None:
