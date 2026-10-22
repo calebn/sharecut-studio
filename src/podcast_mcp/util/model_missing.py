@@ -1,15 +1,14 @@
 """A model the action needs is not installed: one refusal every surface words the same way.
 
-Raised by ``engines.models.registry.require_model`` at the entry of an action. The message
-names the model, its size and the command that installs it, and is built only from those
-fields, never from a hint, so it carries no host path. This is a leaf module (no registry
-import) so the engines can raise and catch it.
+Raised by ``engines.models.registry.require_model`` at the entry of an action. The message is
+built from the model's label, size and install command only, never a hint, so it carries no
+host path. A leaf module (no registry import) so the engines can raise and catch it.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Self
 
 from podcast_mcp.util.coded_error import CodedError
 
@@ -42,7 +41,7 @@ class ModelMissing(CodedError, RuntimeError):
         super().__init__(f"needs {label} ({size}); run `{command}`")
 
     @classmethod
-    def from_record(cls, rec: Mapping[str, Any]) -> ModelMissing:
+    def from_record(cls, rec: Mapping[str, Any]) -> Self:
         return cls(
             id=rec["id"],
             model=rec["model"],

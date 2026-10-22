@@ -157,17 +157,7 @@ class SpeakerModelMissing(ModelMissing, SpeakerBackendUnavailable):
 def _speaker_model_missing() -> SpeakerModelMissing:
     from podcast_mcp.engines.models.registry import model_record
 
-    rec = model_record("speaker-ecapa")
-    return SpeakerModelMissing(
-        id=rec["id"],
-        model=rec["model"],
-        label=rec["label"],
-        purpose=rec["purpose"],
-        size=rec["size"],
-        size_bytes=rec["size_bytes"],
-        command=rec["bootstrap"],
-        state=rec["state"],
-    )
+    return SpeakerModelMissing.from_record(model_record("speaker-ecapa"))
 
 
 class MockSpeakerBackend:

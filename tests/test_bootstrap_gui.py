@@ -54,7 +54,10 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     assert by_id["whisper"]["model"] == "large-v3-turbo"
     assert by_id["whisper"]["size"] == "~1.6 GB"
     assert by_id["whisper"]["size_bytes"] == 1_600_000_000
-    assert by_id["whisper"]["bootstrap"] == "podcast bootstrap --component whisper"
+    assert (
+        by_id["whisper"]["bootstrap"]
+        == "podcast bootstrap --component whisper --whisper-model large-v3-turbo"
+    )
     assert by_id["rnnoise"]["size_bytes"] == 297646
     assert status["whisper_model"] == "large-v3-turbo"
     assert any(item["id"] == "large-v3-turbo" for item in status["whisper_models"])
@@ -163,7 +166,9 @@ def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
     component = boot.model_status("whisper", "small.en")
     assert component["state"] == "missing"
     assert "pin_mismatch" not in component
-    assert component["bootstrap"] == "podcast bootstrap --component whisper"
+    assert (
+        component["bootstrap"] == "podcast bootstrap --component whisper --whisper-model small.en"
+    )
     assert "is not downloaded" in component["hint"]
     assert "--whisper-model small.en" in component["hint"]
 
