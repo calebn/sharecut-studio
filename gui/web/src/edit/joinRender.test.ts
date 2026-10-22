@@ -184,14 +184,24 @@ describe("drawn joins", () => {
     ).toBe(20);
     expect(
       joinLengthMs(
-        { fade_out_ms: 10 },
+        { fade_out_ms: 25 },
         {
           fade_in_ms: 25,
           join_in_mode: "crossfade",
-          join_crossfade_ms: 25,
+          join_crossfade_ms: 20,
         },
       ),
     ).toBe(25);
+    expect(
+      joinLengthMs(
+        { fade_out_ms: 10 },
+        {
+          fade_in_ms: 60,
+          join_in_mode: "crossfade",
+          join_crossfade_ms: 30,
+        },
+      ),
+    ).toBe(30);
     expect(
       joinLengthMs(
         { fade_out_ms: 10 },

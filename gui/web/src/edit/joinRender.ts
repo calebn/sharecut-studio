@@ -117,15 +117,20 @@ export function joinSeamLabel(glyph: JoinGlyph, seamSec: number): string {
 }
 
 /**
- * The join's current length (ms) for the popover slider: render's overlap for an
- * unblocked crossfade (`join_crossfade_ms`), else the longer of the two edge fades.
+ * The join's current length (ms) for the popover slider: the overlap the two edge
+ * fades ask for (`clips_ops.crossfade_ms_at_join`) while the crossfade blends,
+ * else the longer of the two edge fades. It is the authored length, not the
+ * overlap render settles on (`join_crossfade_ms`), so a short room or the 5 ms
+ * steps never shrink the stored fades when the popover saves.
  */
 export function joinLengthMs(
   left: Pick<ClipRow, "fade_out_ms">,
   right: Pick<ClipRow, "fade_in_ms" | "join_in_mode" | "join_crossfade_ms">,
 ): number {
   if (isCrossfadeJoin(right) && (right.join_crossfade_ms ?? 0) > 0) {
-    return right.join_crossfade_ms as number;
+    const shorter = Math.min(left.fade_out_ms, right.fade_in_ms);
+    const longer = Math.max(left.fade_out_ms, right.fade_in_ms);
+    return Math.max(shorter, Math.floor(longer / 2));
   }
   return Math.max(left.fade_out_ms, right.fade_in_ms);
 }

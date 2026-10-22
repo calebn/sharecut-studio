@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import math
 import uuid
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import Any, Literal
@@ -547,8 +547,12 @@ class MuteIndex:
                 start, end, owner = spans[i]
                 if start > edge + reach:
                     break
-                # A clip's own mutes cover its widened window in render.
-                if end > edge and owner != clip.id:
+                if owner == clip.id:
+                    # Render mutes a clip's own span over its widened window, but a span
+                    # ending at the clip's edge may be a longer mute cut short there.
+                    if abs(end - edge) <= _EDGE_TOUCH_SEC:
+                        room = 0.0
+                elif end > edge:
                     room = min(room, 0.0 if start <= edge else start - edge)
         return room
 
@@ -557,13 +561,18 @@ class MuteIndex:
         edge = clip.source_start
         room = math.inf
         for starts, spans, longest in self._group(clip.track_id, clip.source_id):
-            for i in range(bisect_left(starts, edge - reach - longest), bisect_left(starts, edge)):
-                _start, end, owner = spans[i]
-                if end >= edge - reach and owner != clip.id:
+            lo = bisect_left(starts, edge - reach - longest)
+            for i in range(lo, bisect_right(starts, edge + _EDGE_TOUCH_SEC)):
+                start, end, owner = spans[i]
+                if owner == clip.id:
+                    if abs(start - edge) <= _EDGE_TOUCH_SEC:
+                        room = 0.0
+                elif start < edge and end >= edge - reach:
                     room = min(room, 0.0 if end >= edge else edge - end)
         return room
 
 
+_EDGE_TOUCH_SEC = 0.001
 _BORROW_STEP_SEC = 0.005
 _MIN_BLEND_SEC = 0.020
 
