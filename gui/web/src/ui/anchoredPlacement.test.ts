@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type AnchorRect,
+  inlineSizeCaps,
   placeAnchored,
   placeAnchoredClear,
   unionRect,
@@ -195,5 +196,51 @@ describe("placeAnchoredClear", () => {
       clearOptions,
     );
     expect(placed).toEqual(old);
+  });
+});
+
+describe("inlineSizeCaps", () => {
+  const clearOptions = { ...options, align: "center" as const, minWidth: 100 };
+
+  it("sets no inline size when the panel fits above or below", () => {
+    const anchor = anchorAt(180, 400);
+    const placed = placeAnchoredClear(
+      anchor,
+      panel,
+      viewport,
+      null,
+      unionRect(anchor, anchorAt(180, 440)),
+      clearOptions,
+    );
+    expect(["above", "below"]).toContain(placed.side);
+    expect(inlineSizeCaps(placed, panel)).toBeNull();
+  });
+
+  it("caps a beside-the-column placement", () => {
+    const short = { left: 0, top: 0, width: 400, height: 150 };
+    const anchor = anchorAt(10, 60, 20, 20);
+    const tall = { width: 120, height: 400 };
+    const placed = placeAnchoredClear(
+      anchor,
+      tall,
+      short,
+      null,
+      unionRect(anchor, anchorAt(10, 85, 20, 20)),
+      clearOptions,
+    );
+    expect(placed.side).toBe("right");
+    expect(inlineSizeCaps(placed, tall)).toEqual({
+      maxHeight: placed.maxHeight,
+      maxWidth: placed.maxWidth,
+    });
+  });
+
+  it("caps a vertical placement taller than its room", () => {
+    const big = { width: 100, height: 900 };
+    const placed = placeAnchored(anchorAt(10, 60), big, viewport, {
+      ...options,
+      align: "center",
+    });
+    expect(inlineSizeCaps(placed, big)).not.toBeNull();
   });
 });

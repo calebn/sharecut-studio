@@ -82,6 +82,14 @@ for (const phone of PHONES) {
           expect(p.y + p.height).toBeLessThanOrEqual(vp.height + 0.5);
           expect(overlaps(p, g), "popover overlaps the grip").toBe(false);
           expect(overlaps(p, b), "popover overlaps the badge").toBe(false);
+          // The badge is centred on the split point, which must stay visible.
+          const seamVisible = await page.evaluate(
+            ([px, py]) =>
+              document.elementFromPoint(px, py)?.closest("[role=dialog]") ==
+              null,
+            [b.x + b.width / 2, b.y + b.height / 2] as const,
+          );
+          expect(seamVisible, "popover covers the split point").toBe(true);
 
           // Nothing but the grip answers at its centre or just inside corners.
           const inset = 2;
