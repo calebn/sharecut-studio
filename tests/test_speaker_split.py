@@ -1375,7 +1375,9 @@ def test_enrollment_windows_count_in_the_split_progress_total() -> None:
             enrollment=enrollment,
             progress=recorder,
         )
-        return next(e.total for e in recorder.events if e.kind == "update" and e.total)
+        updates = [e for e in recorder.events if e.kind == "update" and e.total]
+        assert updates[-1].current == updates[-1].total
+        return updates[0].total
 
     enrolled_windows = len(_span_centers(0.5, 3.0, audio.size / RATE, WINDOW_SEC))
     assert enrolled_windows > 1
