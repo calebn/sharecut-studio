@@ -175,7 +175,7 @@ class JobManager:
                 track_id,
                 speaker_count=speaker_count,
                 names=names,
-                enrolled=list(enrollment or {}),
+                enrollment=enrollment,
             )
 
         return self._spawn(

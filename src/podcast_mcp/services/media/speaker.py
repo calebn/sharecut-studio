@@ -285,7 +285,7 @@ class SpeakerService:
         *,
         speaker_count: int | None = None,
         names: Sequence[str] | None = None,
-        enrolled: Sequence[str] = (),
+        enrollment: Mapping[str, Sequence[tuple[float, float]]] | None = None,
     ) -> tuple[list[str], SpeakerBackend]:
         """The speaker names and embedding backend a split of ``track_id`` would use.
 
@@ -304,7 +304,14 @@ class SpeakerService:
                 "a speaker split needs the speaker count: pass it, or set it with set-speaker-count",
                 code="speaker_split_count_required",
             )
-        speakers = _speaker_names(count, names, list(enrolled))
+        for name, spans in (enrollment or {}).items():
+            if not spans:
+                raise CodedValueError(
+                    f"{name} has no voice sample. Choose a stretch where only {name} speaks, "
+                    f"or leave {name} out.",
+                    code="enrollment_empty",
+                )
+        speakers = _speaker_names(count, names, list(enrollment or {}))
         backend = resolve_speaker_backend()
         if backend.name() == "mock":
             raise CodedValueError(
@@ -341,7 +348,7 @@ class SpeakerService:
             track_id,
             speaker_count=speaker_count,
             names=names,
-            enrolled=list(enrollment or {}),
+            enrollment=enrollment,
         )
         count = len(speakers)
         source_track = project.track_by_id(track_id)
