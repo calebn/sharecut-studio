@@ -102,6 +102,16 @@ describe.each([
     failure: new ApiError("bad", null, 400),
   };
 
+  const refineGate = {
+    ok: false,
+    status: 409,
+    failure: new ApiError(
+      "Transcript refine is required. Run `podcast transcript refine-waive`.",
+      "transcript_refine_required",
+      409,
+    ),
+  };
+
   type Expected = {
     kind: string | null;
     remove: boolean | undefined;
@@ -187,6 +197,24 @@ describe.each([
         ],
       ],
       [
+        "refine gate 409",
+        false,
+        () => post.mockResolvedValue(refineGate),
+        [
+          { kind: null, remove: true, end: "throws" },
+          { kind: null, remove: true, end: "throws" },
+        ],
+      ],
+      [
+        "refine gate 409",
+        true,
+        () => post.mockResolvedValue(refineGate),
+        [
+          { kind: "refused", remove: true, end: "throws" },
+          { kind: "refused", remove: true, end: "throws" },
+        ],
+      ],
+      [
         "transport error, nothing persisted",
         false,
         () => {
@@ -202,6 +230,15 @@ describe.each([
         ],
       ],
     ];
+
+  it("tells a replayed refine-gate refusal in plain words, without commands", async () => {
+    post.mockResolvedValue(refineGate);
+    await run(true);
+    const outcome = settle.mock.calls[0]?.[2];
+    expect(outcome?.reason).toBe(
+      "Approving is blocked until transcript refinement is done. Review the transcript or waive it with a reason.",
+    );
+  });
 
   it.each(cases)(
     "%s (replaying=%s)",

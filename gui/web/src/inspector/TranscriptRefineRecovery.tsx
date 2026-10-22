@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { waiveTranscriptRefine } from "../api";
 import { Button, Field } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -28,6 +28,13 @@ export function TranscriptRefineRecovery({
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const gated = errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE;
+
+  // A sheet that scrolls its body must not hide the form the refusal just opened.
+  useEffect(() => {
+    if (gated) sectionRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [gated]);
 
   if (errorCode !== TRANSCRIPT_REFINE_REQUIRED_CODE) {
     return recovered && !error ? (
@@ -59,13 +66,10 @@ export function TranscriptRefineRecovery({
 
   return (
     <section
+      ref={sectionRef}
       className="transcript-refine-recovery"
       aria-label="Transcript refine recovery"
     >
-      <p className="inspector-body">
-        Approving is blocked until transcript refinement is done. If you have
-        reviewed the transcript, record why it is safe to waive this gate.
-      </p>
       <Field
         label="Waiver reason"
         hint="This reason is saved with the transcript-refine status."

@@ -1,5 +1,8 @@
 export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
 
+const TRANSCRIPT_REFINE_REFUSAL =
+  "Approving is blocked until transcript refinement is done. Review the transcript or waive it with a reason.";
+
 export class ApiError extends Error {
   readonly code: string | null;
   readonly status: number | null;
@@ -19,6 +22,16 @@ export class ApiError extends Error {
 /** User-facing message for any thrown value, with an optional non-Error fallback. */
 export function errorMessage(error: unknown, fallback?: string): string {
   return error instanceof Error ? error.message : (fallback ?? String(error));
+}
+
+/**
+ * What a refused command tells the host. The transcript-refine gate's server text names
+ * command-line steps a phone host cannot run, so it reads as the one action the app offers.
+ */
+export function refusalReason(failure: ApiError): string {
+  return failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE
+    ? TRANSCRIPT_REFINE_REFUSAL
+    : failure.message;
 }
 
 /** An abort from an AbortSignal: a DOMException or any Error named "AbortError". */

@@ -37,7 +37,12 @@ import {
 } from "../state/documentSendOrder";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { parseHistoryEntryId } from "../types/project";
-import { ApiError, isRetryLater } from "../utils/apiError";
+import {
+  ApiError,
+  isRetryLater,
+  refusalReason,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../utils/apiError";
 import {
   documentClientId,
   newCommandId,
@@ -787,10 +792,16 @@ async function submitThroughQueue(
       if (staysQueued) return queuedResult(command_id, client_seq);
       throw failure;
     }
+    // A live approval blocked by the transcript-refine gate is answered where the host
+    // tapped it (the Waive form), so it is not a Needs attention item too.
+    const answeredInline =
+      failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE && !opts.replaying;
     await settleCommandOutcome(
       projectPath,
       cmd,
-      commandOutcome(cmd, "refused", failure.message),
+      answeredInline
+        ? null
+        : commandOutcome(cmd, "refused", refusalReason(failure)),
       side.ownsQueueRow || admitted.persisted,
     );
     throw failure;
