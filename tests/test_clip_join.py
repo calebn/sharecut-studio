@@ -13,6 +13,7 @@ from podcast_mcp.engines.clips_ops import (
     crossfade_block_reason,
     crossfade_borrow_sec,
     crossfade_ms_at_join,
+    is_splice,
     join_render_fields,
     neighbour_clips,
     previous_clip,
@@ -420,3 +421,134 @@ def test_the_mute_index_does_not_depend_on_which_source_is_asked_first(right_fir
         after = index.room_after(left, 0.02)
         before = index.room_before(right, 0.02)
     assert (after, before) == (0.0, 0.0)
+
+
+def _cut_pair(gap_ms: float, xf_ms: int, *, left_len: float = 3.0, **right_kw):
+    gap = gap_ms / 1000.0
+    x = ClipJoinMode.CROSSFADE
+    left = _clip("a", 1.0, 1.0 + left_len, fade_out_ms=xf_ms)
+    start = left.source_end + gap
+    right = _clip("b", start, start + 3.0, fade_in_ms=xf_ms, join_in_mode=x, **right_kw)
+    right.timeline_start = left.timeline_end
+    return left, right
+
+
+@pytest.mark.parametrize(
+    ("gap_ms", "xf_ms", "expected"),
+    [
+        (10, 20, 0.0),
+        (20, 20, 0.01),
+        (20, 40, 0.01),
+        (30, 60, 0.015),
+        (80, 200, 0.04),
+        (200, 400, 0.1),
+        (300, 400, 0.15),
+        (400, 400, 0.2),
+    ],
+)
+def test_a_cut_gap_caps_the_borrow_at_half_the_gap(gap_ms: int, xf_ms: int, expected: float):
+    left, right = _cut_pair(gap_ms, xf_ms)
+    p = _project(left, right)
+    assert crossfade_borrow_sec(p, left, right) == pytest.approx(expected)
+    room = gap_ms / 2000.0
+    if 2 * room + 1e-9 < min(xf_ms / 1000.0, 0.02):
+        want = 0.0
+    else:
+        want = int(min(xf_ms / 2000.0, room) / 0.005 + 1e-9) * 0.005
+    assert expected == pytest.approx(want)
+
+
+def test_a_gap_under_the_minimum_blend_reports_no_headroom():
+    left, right = _cut_pair(10, 20)
+    p = _project(left, right)
+    fields = join_render_fields(left, right, p)
+    assert fields["join_crossfade_blocked"] == "no_headroom"
+    assert "join_borrow_sec" not in fields
+
+
+def test_the_float_gap_of_twenty_ms_still_blends():
+    left = _clip("a", 1.0, 4.28, fade_out_ms=40)
+    right = _clip("b", 4.3, 7.3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
+    assert 4.3 - 4.28 < 0.02
+    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.01)
+
+
+@pytest.mark.parametrize("gap", [0.0, 5e-5, -5e-5])
+def test_a_contiguous_source_join_borrows_the_full_half(gap: float):
+    left, right = _cut_pair(gap * 1000, 400)
+    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.2)
+
+
+def test_a_raw_gap_just_under_the_splice_eps_is_contiguous_like_is_splice():
+    left, right = _cut_pair(9.9999999997e-5 * 1000, 400)
+    assert right.source_start - left.source_end < 1e-4
+    assert not is_splice(left, right)
+    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.2)
+
+
+def test_a_gap_just_over_the_splice_eps_is_capped():
+    left, right = _cut_pair(1.0e-4 * 1000 + 1e-5, 400)
+    assert right.source_start - left.source_end >= 1e-4
+    assert is_splice(left, right)
+    assert crossfade_borrow_sec(_project(left, right), left, right) == 0.0
+
+
+@pytest.mark.parametrize("gap_ms", [-100, -1000, -3000])
+def test_a_negative_source_gap_is_not_capped(gap_ms: int):
+    left, right = _cut_pair(gap_ms, 400)
+    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.2)
+
+
+def test_clips_of_different_recordings_have_no_source_gap_to_cap():
+    from podcast_mcp.models.episode import SourceRecording
+
+    left, right = _cut_pair(300, 400)
+    left.source_id, right.source_id = "s1", "s2"
+    p = _project(left, right)
+    p.sources = [
+        SourceRecording(id="s1", path="one.wav", duration_sec=10),
+        SourceRecording(id="s2", path="two.wav", duration_sec=10),
+    ]
+    assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.2)
+
+
+def test_other_tracks_of_the_same_source_id_are_not_one_recording():
+    left, right = _cut_pair(300, 400)
+    right.track_id = "guest"
+    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.2)
+
+
+def test_aliased_source_ids_of_one_file_are_one_recording():
+    from podcast_mcp.models.episode import SourceRecording
+
+    left, right = _cut_pair(300, 400)
+    left.source_id, right.source_id = "s1", "s2"
+    p = _project(left, right)
+    p.sources = [
+        SourceRecording(id="s1", path="h.wav", duration_sec=10),
+        SourceRecording(id="s2", path="h.wav", duration_sec=10),
+    ]
+    assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.15)
+
+
+def test_the_quarter_clip_cap_still_wins_over_the_gap_cap():
+    left, right = _cut_pair(300, 400, left_len=0.4)
+    assert crossfade_borrow_sec(_project(left, right), left, right) == pytest.approx(0.1)
+
+
+def test_a_mute_nearer_than_half_the_gap_still_wins_over_the_gap_cap():
+    left, right = _cut_pair(300, 400)
+    near = _clip("c", 8, 9)
+    near.mute_regions = [ClipMuteRegion(start_s=4.04, end_s=4.1)]
+    p = _project(left, right, near)
+    assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.04)
+
+
+def test_borrowed_spans_never_overlap_inside_a_cut():
+    rng = random.Random(2094)
+    for _ in range(300):
+        gap = rng.choice([rng.uniform(1e-4, 0.05), rng.uniform(0.05, 1.0)])
+        ms = rng.choice([20, 40, 100, 200, 400, 1000])
+        left, right = _cut_pair(gap * 1000, ms)
+        h = crossfade_borrow_sec(_project(left, right), left, right)
+        assert left.source_end + h <= right.source_start - h + 1e-9, (gap, ms, h)

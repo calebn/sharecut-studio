@@ -293,7 +293,7 @@ describe("joinWaveSpans pinned to the render clock", () => {
   const pairs = cases.flatMap((c) => {
     const rows = c.clips.map(
       ({ placed_start: _p, ...row }) =>
-        ({ ...row, source_id: null, recording_key: null }) as ClipRow,
+        ({ source_id: null, recording_key: null, ...row }) as ClipRow,
     );
     const { borrowIn } = placeLikeRender(rows);
     return rows.flatMap((right, i) => {
@@ -402,6 +402,103 @@ describe("joinDraftOverlapMs", () => {
     expect(
       joinDraftOverlapMs(left, { ...right, source_duration_sec: null }, 400),
     ).toBe(0);
+  });
+});
+
+describe("joinDraftOverlapMs caps the borrow at half the source gap", () => {
+  const KEY = "rec-fixture-a";
+  const left = {
+    source_start: 1,
+    source_end: 4,
+    source_duration_sec: 10,
+    recording_key: KEY,
+  };
+  const at = (gapMs: number, key: string | null = KEY) => ({
+    source_start: 4 + gapMs / 1000,
+    source_end: 7 + gapMs / 1000,
+    source_duration_sec: 10,
+    recording_key: key,
+  });
+
+  // [gap ms, requested overlap ms, overlap ms drawn]: same table as
+  // test_a_cut_gap_caps_the_borrow_at_half_the_gap in tests/test_clip_join.py.
+  it.each([
+    [10, 20, 0],
+    [20, 20, 20],
+    [20, 40, 20],
+    [30, 60, 30],
+    [80, 200, 80],
+    [200, 400, 200],
+    [300, 400, 300],
+    [400, 400, 400],
+  ])("a %i ms gap with a %i ms blend overlaps %i ms", (gap, ms, want) => {
+    expect(joinDraftOverlapMs(left, at(gap), ms)).toBe(want);
+  });
+
+  it("does not let the float gap 0.3 - 0.28 fail the 20 ms minimum", () => {
+    const right = { ...at(0), source_start: 4.3, source_end: 7.3 };
+    const l = { ...left, source_end: 4.28 };
+    expect(joinDraftOverlapMs(l, right, 40)).toBe(20);
+  });
+
+  it.each([0, 0.05, -0.05])(
+    "leaves a contiguous join (%f ms) uncapped",
+    (g) => {
+      expect(joinDraftOverlapMs(left, at(g), 400)).toBe(400);
+    },
+  );
+
+  it("leaves a raw gap just under 1e-4 uncapped, as is_splice sees it", () => {
+    const right = { ...at(0), source_start: 4 + 9.9999999997e-5 };
+    expect(right.source_start - left.source_end).toBeLessThan(1e-4);
+    expect(joinDraftOverlapMs(left, right, 400)).toBe(400);
+  });
+
+  it("caps a gap of 1e-4 plus a tiny amount", () => {
+    const right = { ...at(0), source_start: 4 + 1.0e-4 + 1e-8 };
+    expect(right.source_start - left.source_end).toBeGreaterThanOrEqual(1e-4);
+    expect(joinDraftOverlapMs(left, right, 400)).toBe(0);
+  });
+
+  it.each([-100, -1000, -3000])("leaves a %i ms negative gap uncapped", (g) => {
+    expect(joinDraftOverlapMs(left, at(g), 400)).toBe(400);
+  });
+
+  it("leaves clips of different recordings uncapped", () => {
+    expect(joinDraftOverlapMs(left, at(300, "rec_other"), 400)).toBe(400);
+    expect(
+      joinDraftOverlapMs({ ...left, recording_key: null }, at(300), 400),
+    ).toBe(400);
+    expect(joinDraftOverlapMs(left, at(300, null), 400)).toBe(400);
+  });
+
+  it("keeps the quarter-clip cap when it is smaller than the gap cap", () => {
+    const short = { ...left, source_start: 3.6 };
+    expect(joinDraftOverlapMs(short, at(300), 400)).toBe(200);
+  });
+
+  it("agrees with the server's join_crossfade_ms in the cut-gap fixture cases", () => {
+    const cases = (
+      JSON.parse(
+        readFileSync(
+          `${process.cwd()}/../../tests/fixtures/render_clock/cases.json`,
+          "utf8",
+        ),
+      ) as { cases: { name: string; clips: Record<string, unknown>[] }[] }
+    ).cases.filter((c) => c.clips.some((r) => r.recording_key));
+    expect(cases.length).toBeGreaterThanOrEqual(3);
+    for (const c of cases) {
+      const rows = c.clips as unknown as ClipRow[];
+      const right = rows[1];
+      const xf = Math.max(
+        Math.min(rows[0].fade_out_ms, right.fade_in_ms),
+        Math.floor(Math.max(rows[0].fade_out_ms, right.fade_in_ms) / 2),
+      );
+      expect([c.name, joinDraftOverlapMs(rows[0], right, xf)]).toEqual([
+        c.name,
+        right.join_crossfade_ms,
+      ]);
+    }
   });
 });
 
