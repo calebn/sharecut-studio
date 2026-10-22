@@ -124,12 +124,12 @@ describe("placeAnchoredClear", () => {
   function check(
     vp: { left: number; top: number; width: number; height: number },
     chromeTop: number,
-    badge: AnchorRect,
+    glyph: AnchorRect,
     grip: AnchorRect,
   ) {
-    const clear = unionRect(badge, grip);
+    const clear = unionRect(glyph, grip);
     const placed = placeAnchoredClear(
-      badge,
+      glyph,
       joinPanel,
       vp,
       chromeTop,
@@ -150,7 +150,7 @@ describe("placeAnchoredClear", () => {
     expect(rect.top).toBeGreaterThanOrEqual(vp.top + EDGE);
     expect(rect.bottom).toBeLessThanOrEqual(vp.top + vp.height - EDGE);
     expect(overlap(rect, grip)).toBe(false);
-    expect(overlap(rect, badge)).toBe(false);
+    expect(overlap(rect, glyph)).toBe(false);
   }
 
   it("sits right of the grip column at 844x390", () => {
@@ -173,7 +173,7 @@ describe("placeAnchoredClear", () => {
 
   it("keeps today's placement when the panel fits whole above the rail", () => {
     const tall = { left: 0, top: 0, width: 390, height: 844 };
-    const badge = { left: 120, top: 500, right: 144, bottom: 524 };
+    const glyph = { left: 120, top: 500, right: 144, bottom: 524 };
     const grip = { left: 94.4, top: 677, right: 142.4, bottom: 725 };
     const clear = {
       left: 94.4,
@@ -182,7 +182,7 @@ describe("placeAnchoredClear", () => {
       bottom: 725,
     };
     const placed = placeAnchoredClear(
-      badge,
+      glyph,
       joinPanel,
       tall,
       grip.top,
@@ -190,7 +190,7 @@ describe("placeAnchoredClear", () => {
       clearOptions,
     );
     const old = placeAnchored(
-      badge,
+      glyph,
       joinPanel,
       { ...tall, height: grip.top },
       clearOptions,
