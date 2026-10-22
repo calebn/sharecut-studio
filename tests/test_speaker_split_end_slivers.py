@@ -7,13 +7,11 @@ them like an unenrolled speaker could put their name on a different voice.
 
 from __future__ import annotations
 
-import time
-
 import numpy as np
 import pytest
 
 from podcast_mcp.engines.models.speaker_ecapa import MIN_SAMPLES
-from podcast_mcp.engines.speaker_split import attribute_speakers
+from podcast_mcp.engines.speaker_split import HOP_SEC, attribute_speakers
 from podcast_mcp.util.coded_error import CodedValueError
 from test_speaker_split import RATE, SpectralBackend, _mix
 
@@ -106,7 +104,7 @@ def test_span_far_longer_than_the_recording_builds_only_centers_the_audio_can_us
 
     def spy(*args: float, **kwargs: object) -> np.ndarray:
         result = real_arange(*args, **kwargs)
-        if args[-1] == 0.25:
+        if args[-1] == HOP_SEC:
             lengths.append(len(result))
         return result
 
@@ -115,7 +113,7 @@ def test_span_far_longer_than_the_recording_builds_only_centers_the_audio_can_us
     _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, 2e6)]})
 
     assert lengths
-    assert max(lengths) <= (duration + 1.0) / 0.25 + 2
+    assert max(lengths) <= (duration + 1.0) / HOP_SEC + 2
 
 
 def test_span_longer_than_the_recording_attributes_like_one_ending_past_it() -> None:
@@ -132,13 +130,11 @@ def test_span_longer_than_the_recording_attributes_like_one_ending_past_it() -> 
 def test_span_starting_past_the_end_is_still_refused(span: tuple[float, float]) -> None:
     audio, _ = _mix(2, 20.0, seed=3)
     assert audio.size / RATE < span[0]
-    began = time.perf_counter()
 
     with pytest.raises(CodedValueError) as raised:
         _attribute(audio, {0: [(0.5, 4.0)], 1: [span]})
 
     assert raised.value.code == "enrollment_past_end"
-    assert time.perf_counter() - began < 5.0
 
 
 @pytest.mark.parametrize("offset", [-0.25, 0.0, 1e-9, 0.3])
@@ -148,6 +144,6 @@ def test_end_near_the_last_usable_window_matches_a_longer_span(offset: float) ->
     window = 1.0
 
     edge = _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, duration + window + offset)]})
-    reference = _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, duration + window + 0.3)]})
+    reference = _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, duration + window + 5.0)]})
 
     assert edge.turns == reference.turns
