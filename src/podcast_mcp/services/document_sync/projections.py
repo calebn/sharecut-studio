@@ -31,7 +31,6 @@ CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
         "ApplyFadeRecommendationList",
         "FadeJoins",
         "CrossfadeJoins",
-        "FillRoomTone",
     }
 )
 
