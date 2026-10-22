@@ -124,7 +124,8 @@ vi.mock("./quietWash", async (importOriginal) => {
 const { WaveformLayer } = await import("./WaveformLayer");
 
 const drawImage = vi.fn();
-const baseProps = WAVEFORM_LAYER_PROPS;
+const baseProps: typeof WAVEFORM_LAYER_PROPS & { minWidthCss?: number } =
+  WAVEFORM_LAYER_PROPS;
 
 function mount(props: Partial<typeof baseProps> = {}) {
   const onRender = vi.fn();
@@ -176,6 +177,17 @@ describe("WaveformLayer", () => {
   it("draws nothing under the minimum clip width", () => {
     const { container } = mount({ clipWidthCss: 5 });
     expect(container.querySelector(".clip-waveform")).toBeNull();
+  });
+
+  it("draws nothing under MIN_CLIP_CSS_PX unless a narrower minWidthCss is given", () => {
+    const narrow = mount({ clipWidthCss: 3 });
+    expect(narrow.container.querySelector(".clip-waveform")).toBeNull();
+    narrow.unmount();
+    const joined = mount({ clipWidthCss: 3, minWidthCss: 1 });
+    expect(joined.tiles()).toHaveLength(1);
+    expect(joined.tiles()[0]!.style.width).toBe("3px");
+    joined.update({ clipWidthCss: 0.5, minWidthCss: 1 });
+    expect(joined.container.querySelector(".clip-waveform")).toBeNull();
   });
 
   it("mounts the visible tiles (plus overscan) and rasterizes them from bins", () => {

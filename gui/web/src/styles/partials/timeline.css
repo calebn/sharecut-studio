@@ -1890,3 +1890,33 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   margin-block: var(--space-1);
   background: var(--color-border-subtle);
 }
+
+.lane-inner > .join-blend-waves,
+.lane-inner > .join-blend-seam {
+  position: absolute;
+  top: var(--clip-inset-top);
+  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
+  z-index: var(--z-join);
+  pointer-events: none;
+}
+
+.join-blend-waves {
+  overflow: hidden;
+}
+
+.join-blend-wave {
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+}
+
+.join-blend-waves .clip-waveform {
+  left: 0;
+  right: 0;
+}
+
+.join-blend-seam > span {
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+}
