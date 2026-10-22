@@ -696,7 +696,7 @@ class CutRangePayload(BaseModel):
 
 
 class RippleDeleteTextPayload(BaseModel):
-    query: str = Field(min_length=1)
+    query: str
     use_inaudible_opt: bool | None = None
     override_audio_checks: bool = Field(
         default=False,
