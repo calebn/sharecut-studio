@@ -1270,6 +1270,17 @@ async def test_tunnel_close_cancels_blocked_http_without_retaining_request(monke
 async def test_guest_ws_identity_survives_relay_reconnect(monkeypatch):
     """A guest's client_id and name reach the GUI through relay + tunnel on every reconnect."""
     from podcast_mcp.services.collaboration.tunnel import RelayConfig, TunnelClient
+    from podcast_mcp.services.collaboration.tunnel_status import TunnelPhase, TunnelStatus
+
+    tunnel_registered = asyncio.Event()
+
+    class RegistrationListener:
+        def on_transition(self, status: TunnelStatus) -> None:
+            if status.phase is TunnelPhase.CONNECTED and status.share_count == 1:
+                tunnel_registered.set()
+
+        def on_heartbeat(self, status: TunnelStatus) -> None:
+            pass
 
     gui = FastAPI()
 
@@ -1279,12 +1290,9 @@ async def test_guest_ws_identity_survives_relay_reconnect(monkeypatch):
         await websocket.send_text(json.dumps(dict(websocket.query_params)))
         await websocket.close()
 
-    def _guest_hello(url: str) -> dict | None:
-        try:
-            with ws_connect(url, open_timeout=5, close_timeout=5) as guest:
-                return json.loads(guest.recv(timeout=5))
-        except Exception:
-            return None
+    def _guest_hello(url: str) -> dict:
+        with ws_connect(url, open_timeout=5, close_timeout=5) as guest:
+            return json.loads(guest.recv(timeout=5))
 
     with _live_relay(monkeypatch, app=gui) as gui_base:
         with _live_relay(monkeypatch) as relay_base:
@@ -1294,7 +1302,8 @@ async def test_guest_ws_identity_survives_relay_reconnect(monkeypatch):
                     host_id="host-identity",
                     relay_url=f"{relay_base}/tunnel",
                     local_gui_url=gui_base.replace("ws://", "http://", 1),
-                )
+                ),
+                listeners=[RegistrationListener()],
             )
             monkeypatch.setattr(
                 client,
@@ -1307,14 +1316,12 @@ async def test_guest_ws_identity_survives_relay_reconnect(monkeypatch):
             )
             run = asyncio.create_task(client._run_once())
             try:
+                await asyncio.wait_for(tunnel_registered.wait(), timeout=5)
                 url = f"{relay_base}/api/review/idtok/daw/ws?client_id=viewer-abc&name=Ada+L"
-                frames: list[dict | None] = []
-                for _ in range(50):
-                    frames = [await asyncio.to_thread(_guest_hello, url)]
-                    if frames[0] is not None:
-                        break
-                    await asyncio.sleep(0.1)
-                frames.append(await asyncio.to_thread(_guest_hello, url))
+                frames = [
+                    await asyncio.to_thread(_guest_hello, url),
+                    await asyncio.to_thread(_guest_hello, url),
+                ]
             finally:
                 run.cancel()
                 await asyncio.gather(run, return_exceptions=True)
