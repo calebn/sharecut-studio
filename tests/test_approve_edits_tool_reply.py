@@ -1,4 +1,4 @@
-"""Regression tests for #2026."""
+"""Regression tests for #2026 and #2067."""
 
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def test_cut_waiting_beside_the_asked_one_is_not_in_the_replied_ids(episode):
     _assert_ids_match(episode, reply)
 
 
-def test_cut_rejected_while_the_call_runs_is_not_in_the_replied_ids(episode, monkeypatch):
+def test_cut_rejected_just_before_the_apply_is_not_in_the_replied_ids(episode, monkeypatch):
     _set_decisions(
         episode,
         _remove("a", 2.0, 2.5, scope="track"),
@@ -153,6 +153,43 @@ def test_approve_all_replies_only_the_approved_subset(episode):
     assert reply["approved_count"] == 1
     assert [h["id"] for h in reply["held"]] == ["a"]
     _assert_ids_match(episode, reply)
+
+
+def test_duplicate_requested_ids_are_replied_once(episode):
+    _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
+
+    reply = json.loads(approve_edits_tool(str(episode), ["a", "a"]))
+
+    assert reply["ids"] == ["a"]
+    assert reply["approved_count"] == 1
+    assert reply["held"] == []
+    assert _pending_ids(episode) == []
+    _assert_ids_match(episode, reply)
+
+
+def test_unknown_requested_id_is_not_in_the_replied_ids(episode):
+    _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
+
+    reply = json.loads(approve_edits_tool(str(episode), ["a", "nope"]))
+
+    assert reply["ids"] == ["a"]
+    assert reply["approved_count"] == 1
+    assert _pending_ids(episode) == []
+    _assert_ids_match(episode, reply)
+
+
+def test_approve_all_with_nothing_pending_replies_no_ids(episode):
+    applied = _remove("done", 2.0, 2.5, scope="track")
+    applied.applied = True
+    unreviewed = _remove("auto", 5.0, 5.5, scope="track")
+    unreviewed.review_required = False
+    _set_decisions(episode, applied, unreviewed)
+
+    reply = json.loads(approve_edits_tool(str(episode), all_pending=True))
+
+    assert reply["ids"] == []
+    assert reply["approved_count"] == 0
+    assert reply["held"] == []
 
 
 def test_unchanged_confirmation_is_replied_verbatim(episode, monkeypatch):
