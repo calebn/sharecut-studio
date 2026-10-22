@@ -652,3 +652,8 @@ retaining the first window in scan order when several overlap a word.
 ### Acoustic follow-up when speakers overlap
 
 Keep both speakers when the off-mic capture cannot be removed safely. The bleed-gate workflow attempts supported local alignment and preserves unresolved audio. Inspect alignment proposals and `skipped` reasons before judging the mix. Saved manual or declined timing choices remain authoritative after reopening. See [retained bleed during overlapping speech](audio-engineering.md#retained-bleed-during-overlapping-speech) for tools and limits.
+
+Pipeline Run, MCP `pipeline_run` and `transcribe_track`, and CLI `podcast transcribe`
+check the Whisper model before they change anything. When it is not downloaded (or does
+not match its pin) they refuse with `model_needed`, naming the model, its size and
+`podcast bootstrap --component whisper`; the Run route answers 409 with the same fields.

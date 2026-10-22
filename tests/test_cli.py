@@ -169,8 +169,10 @@ def test_transcribe_command_warns_when_nothing_transcribed(tmp_path):
     assert "no tracks were transcribed" in result.stderr
 
 
-def test_transcribe_command_empty_project_reports_zero(tmp_path):
+def test_transcribe_command_empty_project_reports_zero(tmp_path, monkeypatch):
     from podcast_mcp.services.app import ProjectWorkspace
+
+    monkeypatch.setattr("podcast_mcp.services.document.transcript.require_model", lambda *a: None)
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])

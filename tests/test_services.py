@@ -30,6 +30,11 @@ from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrec
 from podcast_mcp.services.pipeline import PipelineService
 
 
+@pytest.fixture(autouse=True)
+def _whisper_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("podcast_mcp.services.document.transcript.require_model", lambda *a: None)
+
+
 def test_edit_service_list_applied_and_render_status(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     svc = EditService(ws)
