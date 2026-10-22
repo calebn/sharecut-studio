@@ -260,7 +260,6 @@ def test_contaminated_bed_is_reported_and_left_untouched(tmp_path: Path) -> None
     assert isinstance(selected, OwnQuietSample)
     assert selected.bed_failure == "contaminated_bed"
     assert selected.bed_rejected_checks == ("above_floor",)
-    assert selected.bed_rejected_checks == ("above_floor",)
     assert (bed_file.read_bytes(), project.model_dump_json()) == before
 
 
@@ -268,6 +267,30 @@ def test_short_burst_in_a_long_bed_is_not_averaged_away(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     bed = _noise(-62.0, seed=7)
     _add_voice(bed, 3.0, 3.6, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+
+    assert isinstance(selected, OwnQuietSample)
+    assert selected.bed_failure == "contaminated_bed"
+
+
+def test_gated_bed_with_clean_room_noise_is_accepted(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = np.zeros(4 * SR)
+    bed[:SR] = _noise(-62.0, seed=7)[:SR]
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+
+    assert isinstance(selected, RecordedBedSample)
+
+
+def test_speech_in_a_gated_bed_is_still_rejected(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = np.zeros(4 * SR)
+    bed[: 2 * SR] = _noise(-62.0, seed=7)[: 2 * SR]
+    _add_voice(bed, 0.5, 1.5, VOICE_DB)
     _add_bed(project, tmp_path, bed)
 
     selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
