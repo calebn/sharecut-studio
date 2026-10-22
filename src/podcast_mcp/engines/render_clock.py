@@ -25,7 +25,10 @@ from podcast_mcp.engines.audio import (
     postorder,
 )
 from podcast_mcp.engines.media_seek import MediaSeek
+from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.fingerprint import FileStamp, file_stamp
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import run
 from podcast_mcp.util.wav import open_wav
 
@@ -51,6 +54,7 @@ _WAV_SUBFORMATS = {
     bytes.fromhex("0100000000001000800000aa00389b71"): 1,
     bytes.fromhex("0300000000001000800000aa00389b71"): 3,
 }
+_NATIVE_FORMATS: BoundedCache[tuple[str, Path, FileStamp], ObservedAudio] = BoundedCache(1024)
 _WAV_EXTENSIBLE = 0xFFFE
 _WAV_MAX_CHUNKS = 64
 _WAV_MAX_FMT_BYTES = 256
@@ -251,9 +255,29 @@ def _parse_wav_header(stream: BinaryIO) -> ObservedAudio | None:
     return ObservedAudio(rate, 0, sample_fmt, layout)
 
 
-def _input_format(ffmpeg: str, path: Path, *, header: bool) -> ObservedAudio:
-    audio = _wav_format(path) if header else None
-    return audio if audio is not None else _native_format(ffmpeg, path)
+def _probed_format(ffmpeg: str, path: Path) -> ObservedAudio:
+    try:
+        key = ffmpeg, path.resolve(), file_stamp(path)
+    except OSError:
+        return _native_format(ffmpeg, path)
+    audio = _NATIVE_FORMATS.get(key)
+    if audio is None:
+        audio = _native_format(ffmpeg, path)
+        _NATIVE_FORMATS.put(key, audio)
+    return audio
+
+
+def _input_formats(ffmpeg: str, paths: list[Path], *, header: bool) -> dict[Path, ObservedAudio]:
+    formats = {}
+    misses = []
+    for path in paths:
+        audio = _wav_format(path) if header else None
+        if audio is None:
+            misses.append(path)
+        else:
+            formats[path] = audio
+    probed = run_parallel(misses, lambda path: _probed_format(ffmpeg, path))
+    return {**formats, **dict(zip(misses, probed, strict=True))}
 
 
 def _configured_ports(
@@ -264,9 +288,7 @@ def _configured_ports(
     *,
     header: bool,
 ) -> dict[tuple[str, str], _Port]:
-    native = {
-        path: _input_format(ffmpeg, path, header=header) for path in dict.fromkeys(input_paths)
-    }
+    native = _input_formats(ffmpeg, list(dict.fromkeys(input_paths)), header=header)
     configured = list(filters)
     for i, operation in enumerate(configured):
         match = re.match(r"\[(\d+):a\]", operation)

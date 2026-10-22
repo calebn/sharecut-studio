@@ -35,6 +35,9 @@ ISOLATED: dict[str, str] = {
     "podcast_mcp.engines.media_probe:_cached_media_probe": (
         "Tests mock the probe result for a path another test may probe for real."
     ),
+    "podcast_mcp.engines.render_clock:_NATIVE_FORMATS": (
+        "Tests count the probe spawns of a render and expect the first one to probe."
+    ),
 }
 
 SHARED: dict[str, str] = {
