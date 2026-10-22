@@ -48,7 +48,8 @@ export function WordAlignerStatus({
   onDownloaded: () => void;
   onRetime: () => void;
 }) {
-  const { busy, progress, error, download, reset } = useBootstrapDownload();
+  const { busy, progress, error, download, reset } =
+    useBootstrapDownload("the word aligner");
   const size = status?.size ?? "~360 MB";
   const ok = status?.ok === true;
   const canRetime = ok && (alignment?.enabled ?? true);

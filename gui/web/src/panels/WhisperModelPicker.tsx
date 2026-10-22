@@ -122,7 +122,8 @@ export function WhisperDownloadDialog({
   onDownloaded,
 }: DialogProps) {
   const downloadBtnRef = useRef<HTMLButtonElement>(null);
-  const { busy, progress, error, download, reset } = useBootstrapDownload();
+  const { busy, progress, error, download, reset } =
+    useBootstrapDownload("the Whisper model");
   const dialogOpen = pending != null;
   const pendingModel =
     pending != null

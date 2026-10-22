@@ -96,7 +96,7 @@ export function SplitSpeakersDialog() {
   const [speakerReadiness, setSpeakerReadiness] =
     useState<SpeakerReadiness>("checking");
   const [readinessCheck, setReadinessCheck] = useState(0);
-  const speakerModel = useBootstrapDownload();
+  const speakerModel = useBootstrapDownload("the speaker model");
   const open = trackId != null && project != null;
   useEffect(() => {
     if (!open) return;
