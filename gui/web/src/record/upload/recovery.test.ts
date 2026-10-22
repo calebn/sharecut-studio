@@ -296,6 +296,16 @@ describe("downloadLocalKeepers", () => {
       expect(text).not.toContain("room-tone.wav");
     });
 
+    it("drops a room-tone bed that reads as zero bytes", async () => {
+      const { text } = await archiveWithBed({
+        stream: failingStream,
+        arrayBuffer: async () => new ArrayBuffer(0),
+      });
+
+      expect(text).toContain("full-quality-take-1-segment-1-partial.wav");
+      expect(text).not.toContain("room-tone.wav");
+    });
+
     it("keeps a bed that reads once, and never reads it again", async () => {
       const { bed, text } = await archiveWithBed({
         stream: failingStream,

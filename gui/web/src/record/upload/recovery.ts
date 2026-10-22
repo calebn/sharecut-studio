@@ -279,7 +279,9 @@ async function readRoomTone(
   try {
     const bed = await keeperBlob(sink, path);
     if (!bed) return null;
-    return new Blob([await bed.arrayBuffer()], { type: "audio/wav" });
+    const bytes = await bed.arrayBuffer();
+    if (bytes.byteLength === 0) return null;
+    return new Blob([bytes], { type: "audio/wav" });
   } catch {
     return null;
   }
