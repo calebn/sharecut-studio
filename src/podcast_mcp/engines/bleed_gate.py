@@ -60,7 +60,7 @@ from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_fill import BleedFill
 
-BLEED_GATE_REV = 19
+BLEED_GATE_REV = 20
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
