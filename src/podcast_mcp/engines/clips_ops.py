@@ -441,29 +441,38 @@ def trim_edge_limits(
 CrossfadeBlocked = Literal["not_abutting", "no_fade_out", "no_fade_in", "no_headroom"]
 
 
-def crossfade_block_reason(
-    left: Clip, right: Clip, project: EpisodeProject | None = None
-) -> CrossfadeBlocked | None:
-    """Why a crossfade-mode join renders as a plain fade/cut, or ``None`` when it blends.
-
-    With ``project`` it also reports ``no_headroom``: the recordings have no room to
-    borrow from at the seam (or a length is unmeasured), so render plays the fades.
-    """
+def _authored_block_reason(left: Clip, right: Clip) -> CrossfadeBlocked | None:
+    """Why a crossfade-mode join cannot blend from the clips alone (no recording lengths)."""
     if not clips_abut(left, right):
         return "not_abutting"
     if left.fade_out_ms <= 0:
         return "no_fade_out"
     if right.fade_in_ms <= 0:
         return "no_fade_in"
-    if project is not None and crossfade_borrow_sec(project, left, right) <= 0:
-        return "no_headroom"
     return None
 
 
+def crossfade_block_reason(
+    left: Clip, right: Clip, project: EpisodeProject
+) -> CrossfadeBlocked | None:
+    """Why a crossfade-mode join renders as a plain fade/cut, or ``None`` when it blends.
+
+    ``no_headroom`` means the recordings have no room to borrow from at the seam
+    (or a length is unmeasured), so render plays the fades.
+    """
+    reason = _authored_block_reason(left, right)
+    if reason is None and crossfade_borrow_sec(project, left, right) <= 0:
+        return "no_headroom"
+    return reason
+
+
 def uses_crossfade_join(prev: Clip, clip: Clip) -> bool:
-    """True when render blends ``prev`` into ``clip`` with an overlapping crossfade."""
+    """True when the authored join blends ``prev`` into ``clip`` (ignores recording room).
+
+    Whether render really blends also needs room to borrow: see ``crossfade_block_reason``.
+    """
     return (
-        clip.join_in_mode == ClipJoinMode.CROSSFADE and crossfade_block_reason(prev, clip) is None
+        clip.join_in_mode == ClipJoinMode.CROSSFADE and _authored_block_reason(prev, clip) is None
     )
 
 
@@ -473,6 +482,10 @@ def crossfade_ms_at_join(left: Clip, right: Clip) -> int:
         return 0
     vals = [left.fade_out_ms, right.fade_in_ms]
     return max(min(vals), max(vals) // 2)
+
+
+_BORROW_STEP_SEC = 0.005
+_MIN_BLEND_SEC = 0.020
 
 
 def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> float:
@@ -488,26 +501,32 @@ def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> fl
     ms = crossfade_ms_at_join(left, right)
     if ms <= 0:
         return 0.0
-    left_total = source_duration_sec(project, left)
-    right_total = source_duration_sec(project, right)
+    try:
+        left_total = source_duration_sec(project, left)
+        right_total = source_duration_sec(project, right)
+    except CodedValueError:
+        return 0.0  # a clip naming a missing recording has nothing to borrow from
     if left_total is None or right_total is None:
         return 0.0
     room = min(
-        ms / 2000.0,
         left_total - left.source_end,
         right.source_start,
         (left.source_end - left.source_start) * 0.25,
         (right.source_end - right.source_start) * 0.25,
     )
-    return room if room >= 0.0005 else 0.0
+    # Less room than a short blend (the requested overlap, at most 20 ms) is a fade join.
+    if 2 * room < min(ms / 1000.0, _MIN_BLEND_SEC):
+        return 0.0
+    # 5 ms steps put both halves on whole samples at the common rates, so a chain of
+    # joins neither gains nor loses samples against the lane.
+    steps = math.floor(min(ms / 2000.0, room) / _BORROW_STEP_SEC + 1e-9)
+    return round(steps * _BORROW_STEP_SEC, 6) if steps >= 1 else 0.0
 
 
-def join_render_fields(
-    prev: Clip | None, clip: Clip, project: EpisodeProject | None = None
-) -> dict[str, Any]:
+def join_render_fields(prev: Clip | None, clip: Clip, project: EpisodeProject) -> dict[str, Any]:
     """Effective render of the join into ``clip`` (flat fields for ``list_clips`` rows).
 
-    With ``project`` the fields are what render does given the recordings' lengths:
+    The fields are what render does given the recordings' lengths:
     ``join_borrow_sec`` (present only while the join blends) is the seconds each
     side borrows and ``join_crossfade_ms`` the overlap that gives (twice it).
     """
@@ -518,17 +537,12 @@ def join_render_fields(
             "join_crossfade_ms": 0,
             "join_crossfade_blocked": None,
         }
-    blocked = (
-        crossfade_block_reason(prev, clip, project)
-        if clip.join_in_mode == ClipJoinMode.CROSSFADE
-        else None
-    )
-    borrow = (
-        crossfade_borrow_sec(project, prev, clip)
-        if project is not None and clip.join_in_mode == ClipJoinMode.CROSSFADE and blocked is None
-        else 0.0
-    )
-    overlap_ms = round(borrow * 2000) if project is not None else crossfade_ms_at_join(prev, clip)
+    blends = clip.join_in_mode == ClipJoinMode.CROSSFADE
+    borrow = crossfade_borrow_sec(project, prev, clip) if blends else 0.0
+    blocked = _authored_block_reason(prev, clip) if blends else None
+    if blends and blocked is None and borrow <= 0:
+        blocked = "no_headroom"
+    overlap_ms = round(borrow * 2000)
     return {
         "join_left_clip_id": prev.id,
         "join_render_mode": (

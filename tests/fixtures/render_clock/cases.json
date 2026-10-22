@@ -279,7 +279,7 @@
           "join_render_mode": "crossfade",
           "join_crossfade_ms": 50,
           "join_crossfade_blocked": null,
-          "join_borrow_sec": 0.02499999999999991,
+          "join_borrow_sec": 0.025,
           "placed_start": 5.000000000000002
         },
         {

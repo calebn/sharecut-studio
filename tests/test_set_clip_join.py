@@ -71,7 +71,7 @@ def test_crossfade_sets_both_fades_to_default():
     assert (c1.fade_out_ms, c2.fade_in_ms) == (25, 25)
     assert c2.join_in_mode == ClipJoinMode.CROSSFADE
     assert out["operation"] == "set_clip_join"
-    assert out["crossfade_ms"] == 25
+    assert out["crossfade_ms"] == 20  # the effective overlap: 5 ms steps per side
     assert out["crossfade_blocked"] is None
     assert crossfade_ms_at_join(c1, c2) == 25
 
@@ -218,7 +218,7 @@ def test_document_command_applies_and_undoes(minimal_project):
     row = svc.document_snapshot(projection="clips")["patch"]["clips"]["tracks"]["host"][1]
     assert row["join_in_mode"] == "crossfade"
     assert row["fade_in_ms"] == 25
-    assert row["join_crossfade_ms"] == 25
+    assert row["join_crossfade_ms"] == 20
     undone = svc.submit(
         DocumentCommand(
             type="UndoHistory",

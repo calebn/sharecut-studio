@@ -326,5 +326,3 @@ def test_a_join_with_no_room_reports_no_headroom_and_borrows_nothing(tmp_path: P
     assert fields["join_crossfade_blocked"] == "no_headroom"
     assert fields["join_crossfade_ms"] == 0
     assert "join_borrow_sec" not in fields
-    # Without a project the recordings are unknown: the fields are the fade-based ones.
-    assert join_render_fields(left, cramped)["join_crossfade_blocked"] is None
