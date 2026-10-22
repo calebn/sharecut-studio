@@ -14,9 +14,10 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import audio, audio_audit, audio_eval, timeline_render, track_evidence
+from podcast_mcp.engines import audio, audio_eval, timeline_render, track_evidence
 from podcast_mcp.engines.audio import (
     At,
+    Audio,
     CrossfadeAudio,
     MaskAudio,
     MixAudio,
@@ -24,7 +25,7 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
 )
 from podcast_mcp.engines.track_evidence import Declined
-from podcast_mcp.engines.ungated_audio import load_mono_full, resample_stream, resample_streams
+from podcast_mcp.engines.ungated_audio import load_mono_full, resample_streams
 from podcast_mcp.models import (
     ClipBleedRestore,
     ClipMuteRegion,
@@ -34,6 +35,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import SourceSpan
 from podcast_mcp.util import batch_scope as scope_module
 from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.process import CalledProcessError
 from test_audio_eval import (
     CLIP_LAYOUTS,
     FRAME_DB_TOLERANCE,
@@ -202,9 +204,11 @@ def test_one_chunk_stream_feeds_every_rate_as_a_resample_of_its_own(
 
     together = resample_streams(iter(pieces), 44100, (JUMP, WAVEFORM, 44100))
 
-    np.testing.assert_array_equal(together[JUMP], resample_stream(iter(pieces), 44100, JUMP))
     np.testing.assert_array_equal(
-        together[WAVEFORM], resample_stream(iter(pieces), 44100, WAVEFORM)
+        together[JUMP], resample_streams(iter(pieces), 44100, (JUMP,))[JUMP]
+    )
+    np.testing.assert_array_equal(
+        together[WAVEFORM], resample_streams(iter(pieces), 44100, (WAVEFORM,))[WAVEFORM]
     )
     np.testing.assert_array_equal(together[44100], source)
 
@@ -222,7 +226,7 @@ def test_no_render_runs_when_an_effect_overlaps_an_accepted_mute(
 
 
 def _declines(project: EpisodeProject) -> Declined | tuple:
-    return track_evidence._plan(project, "caleb", load_defaults(), (JUMP,))
+    return track_evidence._plan(project, "caleb", load_defaults())
 
 
 def _with_bleed_restore(project: EpisodeProject, workspace: Path) -> None:
@@ -266,24 +270,25 @@ def test_a_non_triangular_curve_declines_to_the_render(tmp_path: Path) -> None:
     project = _project(tmp_path, "crossfade joins")
     defaults = copy.deepcopy(load_defaults())
     defaults["render"]["crossfade_curve"] = "qsin"
-    planned = track_evidence._plan(project, "caleb", defaults, (JUMP,))
+    planned = track_evidence._plan(project, "caleb", defaults)
     assert not isinstance(planned, Declined)
 
-    assert track_evidence._evaluate(planned[1], "qsin", (JUMP,)) is Declined.EVALUATOR
+    assert track_evidence._evaluate(planned[1], "qsin") is Declined.EVALUATOR
 
 
 def test_masks_and_mixed_rates_decline_to_the_render(tmp_path: Path) -> None:
     _ffmpeg_or_skip()
-    leaf = SourceAudio(Path("a"), 0.0, 0.5)
-    assert track_evidence._evaluate(MaskAudio(leaf, 0.0, ((0.1, 0.2),)), "tri", (JUMP,)) is (
-        Declined.MASK
-    )
+    project = _project(tmp_path / "mask", "fade joins")
+    plain = track_evidence._plan(project, "caleb", load_defaults())
+    assert not isinstance(plain, Declined)
+    masked = MaskAudio(plain[1], 0.0, ((0.1, 0.2),))
+    assert track_evidence._evaluate(masked, "tri") is Declined.EVALUATOR
     project = _project(tmp_path, "mixed joins and pads")
     _with_second_source(project, tmp_path / "project", rate=44100)
-    planned = track_evidence._plan(project, "caleb", load_defaults(), (JUMP,))
+    planned = track_evidence._plan(project, "caleb", load_defaults())
     assert not isinstance(planned, Declined)
 
-    assert track_evidence._evaluate(planned[1], "tri", (JUMP,)) is Declined.MIXED_RATE
+    assert track_evidence._evaluate(planned[1], "tri") is Declined.MIXED_RATE
 
 
 @pytest.mark.parametrize("which", ["heard", "rms"])
@@ -321,13 +326,13 @@ def test_a_render_fallback_leaves_no_entry_under_its_temp_path(
     assert not [key for key in keys if track_evidence.RENDER_PREFIX in key]
 
 
-def _count_evaluations(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, ...]]:
-    calls: list[tuple[int, ...]] = []
+def _count_evaluations(monkeypatch: pytest.MonkeyPatch) -> list[Audio]:
+    calls: list[Audio] = []
     real = track_evidence._evaluate
 
-    def counting(tree, curve, rates):  # type: ignore[no-untyped-def]
-        calls.append(tuple(rates))
-        return real(tree, curve, rates)
+    def counting(tree, curve):  # type: ignore[no-untyped-def]
+        calls.append(tree)
+        return real(tree, curve)
 
     monkeypatch.setattr(track_evidence, "_evaluate", counting)
     return calls
@@ -348,7 +353,7 @@ def test_a_held_cut_builds_its_evidence_once(
         copied = track_evidence.heard(project.model_copy(deep=True), "caleb", defaults)
         track_evidence.rms(project, "caleb", defaults)
 
-    assert calls == [(JUMP, WAVEFORM)]
+    assert len(calls) == 1
     np.testing.assert_array_equal(first.jump.samples, again.jump.samples)
     np.testing.assert_array_equal(first.waveform.samples, copied.waveform.samples)
 
@@ -363,7 +368,7 @@ def test_evidence_is_built_afresh_outside_a_batch(
     track_evidence.rms(project, "caleb", load_defaults())
     track_evidence.rms(project, "caleb", load_defaults())
 
-    assert calls == [(JUMP,), (JUMP,)]
+    assert len(calls) == 2
 
 
 def test_a_changed_track_misses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -402,7 +407,7 @@ def test_the_store_holds_to_its_byte_cap(tmp_path: Path, monkeypatch: pytest.Mon
     defaults = load_defaults()
     one = _project(tmp_path / "one", "fade joins")
     two = _project(tmp_path / "two", "crossfade joins")
-    size = track_evidence.rms(one, "caleb", defaults).samples.nbytes
+    size = 3 * track_evidence.rms(one, "caleb", defaults).samples.nbytes  # 8 kHz and 16 kHz
     calls = _count_evaluations(monkeypatch)
 
     monkeypatch.setattr(track_evidence, "EVIDENCE_CACHE_BYTES", int(size * 1.5))
@@ -449,13 +454,12 @@ def test_the_key_covers_every_field_the_evaluator_reads() -> None:
     assert {f.name for f in dataclasses.fields(track_evidence.EvidenceKey)} == {
         "tree",
         "curve",
-        "rates",
         "revisions",
     }
 
 
-def _key(project: EpisodeProject, defaults=None, rates=(JUMP,)):  # type: ignore[no-untyped-def]
-    planned = track_evidence._plan(project, "caleb", defaults or load_defaults(), rates)
+def _key(project: EpisodeProject, defaults=None):  # type: ignore[no-untyped-def]
+    planned = track_evidence._plan(project, "caleb", defaults or load_defaults())
     assert not isinstance(planned, Declined), planned
     return planned[0]
 
@@ -469,7 +473,6 @@ def test_the_key_moves_with_every_input_of_the_tree(tmp_path: Path) -> None:
     clips = [c for c in project.clips if c.track_id == "caleb"]
 
     moved: dict[str, object] = {}
-    moved["rates"] = _key(project, rates=(JUMP, WAVEFORM))
     curved = copy.deepcopy(load_defaults())
     curved["render"]["crossfade_curve"] = "qsin"
     moved["curve"] = _key(project, curved)
@@ -522,7 +525,7 @@ def test_verify_mode_recomputes_every_hit(tmp_path: Path, monkeypatch: pytest.Mo
     _ffmpeg_or_skip()
     project = _project(tmp_path, "fade joins")
     defaults = load_defaults()
-    monkeypatch.setenv("SHARECUT_EVIDENCE_VERIFY", "1")
+    monkeypatch.setenv("PODCAST_EVIDENCE_VERIFY", "1")
     calls = _count_evaluations(monkeypatch)
 
     with batch_scope():
@@ -540,75 +543,170 @@ def test_verify_mode_recomputes_every_hit(tmp_path: Path, monkeypatch: pytest.Mo
             track_evidence.rms(project, "caleb", defaults)
 
 
-def test_a_lazy_set_builds_a_track_when_it_is_first_read() -> None:
-    built: list[str] = []
-    sentinel = {"host": object(), "guest": object()}
-
-    def build(track_id: str):  # type: ignore[no-untyped-def]
-        built.append(track_id)
-        return None if track_id == "gone" else sentinel[track_id]
-
-    lazy = track_evidence.LazyRmsSet(build, ("host", "guest", "gone"))
-
-    assert built == []
-    assert lazy.get("host") is sentinel["host"]
-    assert lazy.get("host") is sentinel["host"]
-    assert built == ["host"]
-    assert lazy.get("gone") is None
-    assert lazy.get("absent") is None
-    assert sorted(lazy.caches) == ["guest", "host"]
-    assert built == ["host", "gone", "guest"]
-    assert lazy.caches["guest"] is sentinel["guest"]
-
-
 def test_the_tree_is_hashable_for_every_plain_shape(tmp_path: Path) -> None:
     leaf = SourceAudio(Path("a"), 0.0, 1.0)
     tree = MixAudio(At(0.0, SequenceAudio(leaf, (CrossfadeAudio(leaf, leaf, 0.1),))), ())
     assert hash(tree) == hash(copy.deepcopy(tree))
 
 
-def test_from_samples_measures_no_profile_until_it_is_read(
-    monkeypatch: pytest.MonkeyPatch,
+def test_rms_then_heard_evaluates_the_tree_once_and_keeps_one_8khz_array(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    measured: list[int] = []
-    real = audio_audit.track_profile
-
-    def counting(samples, rate):  # type: ignore[no-untyped-def]
-        measured.append(rate)
-        return real(samples, rate)
-
-    monkeypatch.setattr(audio_audit, "track_profile", counting)
-    cache = audio_audit.TrackRmsCache.from_samples(np.zeros(JUMP, dtype=np.float32))
-
-    assert measured == []
-    cache.profile  # noqa: B018
-    cache.profile  # noqa: B018
-    assert measured == [JUMP]
-
-
-def test_an_entry_keeps_the_tree_it_was_built_from(tmp_path: Path) -> None:
     _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    defaults = load_defaults()
+    calls = _count_evaluations(monkeypatch)
+
+    with batch_scope():
+        rms = track_evidence.rms(project, "caleb", defaults)
+        heard = track_evidence.heard(project, "caleb", defaults)
+        store = next(v for v in scope_module._scope.get().values() if hasattr(v, "get_or_build"))
+
+    assert len(calls) == 1
+    assert heard.jump.samples is rms.samples
+    assert len(store._entries) == 1
+
+
+def test_heard_reuses_the_profiles_the_store_measured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "fade joins")
+    defaults = load_defaults()
+    measured: list[int] = []
+    real = track_evidence.track_profile
+    monkeypatch.setattr(
+        track_evidence,
+        "track_profile",
+        lambda samples, rate: measured.append(rate) or real(samples, rate),
+    )
+
+    with batch_scope():
+        first = track_evidence.heard(project, "caleb", defaults)
+        again = track_evidence.heard(project, "caleb", defaults)
+        track_evidence.rms(project, "caleb", defaults)
+
+    assert sorted(measured) == [JUMP, WAVEFORM]
+    assert first.waveform.profile is again.waveform.profile
+    assert first.jump.recording_profile is not None
+
+
+def test_a_decline_is_remembered_and_leaves_no_build_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    _with_second_source(project, tmp_path / "project", rate=44100)
+    planned = track_evidence._plan(project, "caleb", load_defaults())
+    assert not isinstance(planned, Declined)
+    calls = _count_evaluations(monkeypatch)
+
+    with batch_scope():
+        store = track_evidence._store()
+        for _ in range(3):
+            got = store.get_or_build(
+                planned[0], lambda: track_evidence._evaluate(planned[1], planned[0].curve)
+            )
+            assert got is Declined.MIXED_RATE
+        assert store._building == {}
+    assert len(calls) == 1
+
+
+def test_a_failed_build_leaves_no_build_lock(tmp_path: Path) -> None:
     project = _project(tmp_path, "fade joins")
     key = _key(project)
 
+    def fail():  # type: ignore[no-untyped-def]
+        raise OSError("decode failed")
+
+    with batch_scope():
+        store = track_evidence._store()
+        with pytest.raises(OSError):
+            store.get_or_build(key, fail)
+        assert store._building == {}
+
+
+def test_threads_that_meet_in_a_batch_share_one_store(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from podcast_mcp.util.batch_scope import carried, snapshot
+
+    real = track_evidence._Store.__init__
+
+    def slow(self):  # type: ignore[no-untyped-def]
+        time.sleep(0.05)
+        real(self)
+
+    monkeypatch.setattr(track_evidence._Store, "__init__", slow)
+    barrier = threading.Barrier(6)
+
+    def get(state):  # type: ignore[no-untyped-def]
+        with carried(state):
+            barrier.wait()
+            return track_evidence._store()
+
+    with batch_scope(), ThreadPoolExecutor(6) as pool:
+        state = snapshot()
+        stores = list(pool.map(get, [state] * 6))
+
+    assert all(store is stores[0] for store in stores)
+
+
+def test_a_failing_resample_raises_what_the_old_path_did() -> None:
+    _ffmpeg_or_skip()
+    with pytest.raises(CalledProcessError):
+        resample_streams(iter([np.zeros(100, dtype=np.float32)]), -1, (JUMP,))
+
+
+def test_the_render_fallback_still_sees_the_batch_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "fade joins")
+    _with_envelope(project)
+    seen: list[bool] = []
+    real = timeline_render.render_track_from_timeline
+
+    def watching(*args, **kwargs):  # type: ignore[no-untyped-def]
+        seen.append(scope_module._scope.get() is not None)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(timeline_render, "render_track_from_timeline", watching)
+
     with batch_scope():
         track_evidence.rms(project, "caleb", load_defaults())
-        store = next(v for v in scope_module._scope.get().values() if hasattr(v, "get_or_build"))
-        entry = store._entries[key]
 
-    assert entry.tree == key.tree
+    assert seen == [True]
 
 
-@pytest.mark.skip(reason="PR-B")
-def test_a_resampler_restarted_mid_stream_matches_a_continuous_run() -> None:
+def test_a_chained_track_reads_from_a_pool_worker_while_the_project_lock_is_held(
+    tmp_path: Path,
+) -> None:
+    """A tighten pool worker reads proofs while the thread in ``mutate`` holds the lock (#1471)."""
+    import threading
+
+    from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
+    from podcast_mcp.util.batch_scope import carried, frozen_state, snapshot
+    from podcast_mcp.util.project_state import project_state_lock
+
     _ffmpeg_or_skip()
-    rng = np.random.default_rng(11)
-    source = (rng.standard_normal(48000 * 6) * 0.1).astype(np.float32)
-    middle = 48000 * 3 + 17
-    continuous = resample_streams(iter([source]), 48000, (JUMP, WAVEFORM))
+    project = _chained(_project(tmp_path, "fade joins"))
+    read: list[object] = []
 
-    first = resample_streams(iter([source[:middle]]), 48000, (JUMP, WAVEFORM))
-    rest = resample_streams(iter([source[middle:]]), 48000, (JUMP, WAVEFORM))
+    with batch_scope(), frozen_state(), project_state_lock(project):
+        caches = shared_timeline_rms_caches(project, defaults=load_defaults())
+        state = snapshot()
 
-    for rate in (JUMP, WAVEFORM):
-        np.testing.assert_array_equal(np.concatenate([first[rate], rest[rate]]), continuous[rate])
+        def worker() -> None:
+            with carried(state):
+                read.append(caches.get("caleb"))
+
+        # A daemon thread, so a worker stuck on the lock fails the test, not the run.
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "the pool worker waits on the project lock"
+
+    assert read and read[0] is not None and read[0].samples.size > 0  # type: ignore[attr-defined]
