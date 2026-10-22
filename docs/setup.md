@@ -139,7 +139,7 @@ CI places pytest, browser, and extras temporary work in [private disk temporary 
 
 `./install.sh` installs `dev` + `gui` + `relay` + `prosody`. It deliberately skips `speaker` / `joinqc` / `all`.
 
-Without `speaker` or `speaker-lite` (an `install.sh` checkout and the packaged app) the embedding speaker commands (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute`, `split`), the Split speakers dialog and the pipeline's speaker pass report `speaker_backend_unavailable` / "speaker extra not installed" rather than running on the development mock; `audition_context` leaves `speaker_roles` out. Set `PODCAST_SPEAKER_BACKEND=mock` only to develop against the mock; Split speakers still refuses it (#1999).
+Without `speaker` or `speaker-lite` (an `install.sh` checkout and the packaged app) the embedding speaker commands (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute`, `split`), the Split speakers dialog report `speaker_backend_unavailable` rather than running on the development mock, while the pipeline's speaker pass skips with "speaker extra not installed"; `audition_context` leaves `speaker_roles` out. Set `PODCAST_SPEAKER_BACKEND=mock` only to develop against the mock; Split speakers still refuses it (#1999).
 
 **Clean-install check.** `pip install "podcast-mcp[extra]"` ignores `uv.lock`, so an extra can break on a newer transitive release while a locked `uv sync` still works (#1168). `tests/test_extras_import.py` builds a fresh unlocked venv per extra, installs the project with it, and imports the modules the code uses. It is opt-in because it downloads wheels. The path-filtered, weekly `extras-import` workflow runs it; run one extra locally with:
 

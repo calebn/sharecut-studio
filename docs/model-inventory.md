@@ -20,7 +20,7 @@ Which features use a downloaded model or an optional runtime, where setup covers
 
 1. **NISQA is not a ready integration.** `NISQA_MODEL_URL` is documented as a placeholder and the join scorer falls back to a spectral proxy. Offering the weights would be misleading, so the catalog should list it as unavailable (deferred) until real inference is separately scoped.
 2. **Speaker backends were the real gap.** Neither torch backend can run in the packaged app; the ONNX ECAPA component (#1998, option A below) fixes that once its file is published. Whatever the fix is, it needs a runtime decision first (see below), then catalog entries, readiness checks and tests.
-3. **(Fixed by #1999.) `resolve_speaker_backend()` with no argument fell back to `MockSpeakerBackend`** when neither real backend imports, so a packaged app silently scored speakers with the development mock. The default now raises `speaker_backend_unavailable` unless `PODCAST_SPEAKER_BACKEND=mock` is set, so the embedding commands report the missing backend instead of scoring.
+3. **(Fixed by #1999.) `resolve_speaker_backend()` with no argument fell back to `MockSpeakerBackend`** when neither real backend imports, so a packaged app silently scored speakers with the development mock. The default now raises `speaker_backend_unavailable` unless `PODCAST_SPEAKER_BACKEND=mock` is set, so the embedding commands report the missing backend instead of scoring. Setup must not present that as a working backend, and the status payload should say the speaker feature is unavailable rather than ready.
 4. **Lazy, unpinned downloads.** ECAPA downloads at first use with no revision pin and no offline story; WavLM pins a revision but also downloads at first use. Both bypass the consent, progress, cancel and retry flow the catalog components get.
 5. **The RNNoise fallback URL is unpinned.** When the CDN manifest has no sha256, the download uses a GitHub raw URL and is not verified.
 
@@ -37,6 +37,6 @@ Recommendation: the ONNX route, with the unavailable state (third option) as the
 ## Planned slices
 
 1. This inventory, plus the catalog reporting NISQA as deferred and the speaker features as unavailable in packaged installs (status only, no new downloads).
-2. Replace the silent mock fallback in the app path with an explicit unavailable state.
+2. (Done by #1999.) Replace the silent mock fallback in the app path with an explicit unavailable state.
 3. Speaker backend component once the runtime decision is made.
 4. WavLM component, if a torch-free route exists; otherwise documented as source-only.
