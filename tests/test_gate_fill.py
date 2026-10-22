@@ -480,6 +480,24 @@ def test_recorded_room_tone_bed_comes_before_comfort_noise(tmp_path: Path) -> No
     assert _rms_db(hole) == pytest.approx(-60.0, abs=1.5)
 
 
+def test_contaminated_room_tone_bed_falls_back_to_comfort_noise(tmp_path: Path) -> None:
+    project = _project(tmp_path, _gated_track())
+    t = np.arange(SR) / SR
+    bed = 10 ** (-60 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * t)
+    bed[SR // 4 : SR // 2] += 10 ** (-20 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 140 * t[: SR // 4])
+    _write_wav(tmp_path / "raw" / "room-tone" / "guest.wav", bed)
+    track = project.track_by_id("guest")
+    track.room_tone = MediaAsset(path="raw/room-tone/guest.wav", duration_sec=1.0)
+    project.sources.append(
+        SourceRecording(id=room_tone_source_id("guest"), path="raw/room-tone/guest.wav")
+    )
+
+    fill_gate_holes(project, _defaults())
+
+    assert track.gate_fill is not None
+    assert track.gate_fill.source is GateFillSource.COMFORT_NOISE
+
+
 def test_fill_never_carries_another_tracks_bleed(tmp_path: Path) -> None:
     alone = _project(tmp_path / "alone", _gated_track())
     with_peer = _project(tmp_path / "peer", _gated_track(), peer=_peer_track())

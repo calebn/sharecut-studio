@@ -18,7 +18,13 @@ from podcast_mcp.edits.timeline_ops import (
     insert_room_tone_pad,
     mute_room_tone_fill,
 )
-from podcast_mcp.engines.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
+from podcast_mcp.engines.room_tone import (
+    OwnQuietSample,
+    RecordedBedSample,
+    SampleAbsent,
+    room_tone_bed_digest,
+    room_tone_span,
+)
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -211,14 +217,21 @@ def test_short_bed_is_tiled_across_a_ripple_pad(tmp_path: Path) -> None:
     assert [(c.fade_in_ms, c.fade_out_ms) for c in pads] == [(10, 0), (0, 0), (0, 10)]
 
 
+def _speech_bed() -> np.ndarray:
+    bed = _noise(-62.0, seed=7)[: 2 * SR]
+    _add_voice(bed, 0.5, 1.5, VOICE_DB)
+    return bed
+
+
 @pytest.mark.parametrize(
     ("bed", "register", "write"),
     [
         (np.zeros(2 * SR), True, True),
+        (_speech_bed(), True, True),
         (_noise(-62.0, seed=7)[: 2 * SR], False, True),
         (_noise(-62.0, seed=7)[: 2 * SR], True, False),
     ],
-    ids=["digitally-silent-bed", "bed-without-source", "bed-file-missing"],
+    ids=["digitally-silent-bed", "speech-in-bed", "bed-without-source", "bed-file-missing"],
 )
 def test_unusable_bed_falls_back_to_track_air(
     tmp_path: Path, bed: np.ndarray, register: bool, write: bool
@@ -234,6 +247,61 @@ def test_unusable_bed_falls_back_to_track_air(
         pytest.approx(5.65),
         None,
     )
+
+
+def test_contaminated_bed_is_reported_and_left_untouched(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _speech_bed())
+    bed_file = tmp_path / "raw" / "room-tone" / "host.wav"
+    before = (bed_file.read_bytes(), project.model_dump_json())
+
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+
+    assert isinstance(selected, OwnQuietSample)
+    assert selected.bed_failure == "contaminated_bed"
+    assert selected.bed_rejected_checks == ("above_floor",)
+    assert selected.bed_rejected_checks == ("above_floor",)
+    assert (bed_file.read_bytes(), project.model_dump_json()) == before
+
+
+def test_short_burst_in_a_long_bed_is_not_averaged_away(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _noise(-62.0, seed=7)
+    _add_voice(bed, 3.0, 3.6, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+
+    assert isinstance(selected, OwnQuietSample)
+    assert selected.bed_failure == "contaminated_bed"
+
+
+def test_contaminated_bed_changes_the_pending_preview_key(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
+    clean = room_tone_bed_digest(project)
+
+    _add_bed(project, tmp_path, _speech_bed(), register=False)
+
+    assert room_tone_bed_digest(project) != clean
+
+
+def test_clean_bed_passes_without_a_voice_detector(tmp_path: Path, no_voice_detector: None) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
+
+    assert isinstance(
+        room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5), RecordedBedSample
+    )
+
+
+def test_clean_bed_has_no_bed_failure(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
+
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+
+    assert isinstance(selected, RecordedBedSample)
 
 
 def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:

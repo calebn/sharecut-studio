@@ -19,7 +19,11 @@ from podcast_mcp.edits.pending_preview import (
     resolve_pending_preview,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.room_tone import record_room_tone_pool, room_tone_pool_digest
+from podcast_mcp.engines.room_tone import (
+    record_room_tone_pool,
+    room_tone_bed_digest,
+    room_tone_pool_digest,
+)
 from podcast_mcp.engines.timeline_render import render_track_segment
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.batch_scope import batch_scope
@@ -211,6 +215,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 ).hexdigest(),
                 "defaults": self._defaults,
                 "room_tone_pool": room_tone_pool_digest(self.project),
+                "room_tone_bed": room_tone_bed_digest(self.project),
             },
             sort_keys=True,
         )
