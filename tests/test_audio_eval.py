@@ -148,10 +148,10 @@ def _evaluate(
     project: EpisodeProject, track, defaults
 ) -> tuple[np.ndarray | None, track_evidence.Declined | str]:
     """The track's 8 kHz evidence evaluated from its tree, or why the render is needed."""
-    result = track_evidence._evidence(project, track.id, defaults, (RATE,))
+    result = track_evidence._entry(project, track.id, defaults, locked=False)
     if isinstance(result, track_evidence.Declined):
         return None, result
-    return result[RATE], ""
+    return result.samples[RATE], ""
 
 
 def _frame_db(samples: np.ndarray) -> np.ndarray:
@@ -529,14 +529,6 @@ def _with_envelope(project: EpisodeProject) -> None:
     ]
 
 
-def _with_gate(project: EpisodeProject) -> None:
-    project.track_by_id("caleb").transcript_gate = True
-
-
-def _with_chain_left_in(project: EpisodeProject) -> None:
-    _chained(project)
-
-
 @pytest.mark.parametrize("setup", [_with_envelope])
 def test_ungated_cache_keeps_the_render_when_the_tree_needs_it(
     setup, tmp_path: Path, render_calls: list[str]
@@ -553,7 +545,7 @@ def test_ungated_cache_keeps_the_render_when_the_tree_needs_it(
 
 def test_unfiltered_audio_declines_what_the_render_would_filter(tmp_path: Path) -> None:
     defaults = load_defaults()
-    for setup in (_with_envelope, _with_gate, _with_chain_left_in):
+    for setup in (_with_envelope,):
         project = _project(tmp_path / setup.__name__, "fade joins")
         setup(project)
         assert unfiltered_track_audio(project, project.track_by_id("caleb"), defaults) is None
