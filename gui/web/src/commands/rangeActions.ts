@@ -177,6 +177,7 @@ export async function runRangeAction(
         state.project,
         target,
         epoch,
+        selection,
       );
     if (action === "cut" || action === "mute") {
       const result = await submitDocumentCommand(
@@ -281,6 +282,7 @@ async function fillRoomToneInRange(
   project: NonNullable<DawState["project"]>,
   target: ExactRangeTarget,
   epoch: number,
+  selection: DawState["selection"],
 ): Promise<ExecuteResult> {
   const sends = new Map(
     roomToneGaps(project, target).map((g) => [
@@ -292,6 +294,7 @@ async function fillRoomToneInRange(
   let head: ReturnType<typeof replyHistoryHead> = null;
   const skipped = new Set<string>();
   let stopped: string | null = null;
+  let queued = 0;
   for (const { track_id, interval } of sends.values()) {
     if (useDawStore.getState().projectEpoch !== epoch) return { status: "ok" };
     const { start, end } = target.intervals[interval]!;
@@ -302,10 +305,8 @@ async function fillRoomToneInRange(
         { track_id, start_sec: start, end_sec: end },
       );
       if (result.queued === true) {
-        useDawStore
-          .getState()
-          .announceStatus("Fill queued. Reconnect to send it.");
-        return { status: "ok" };
+        queued += 1;
+        continue;
       }
       filled += 1;
       head = replyHistoryHead(result) ?? head;
@@ -322,6 +323,10 @@ async function fillRoomToneInRange(
   }
   const live = useDawStore.getState();
   if (live.projectEpoch !== epoch) return { status: "ok" };
+  if (filled === 0 && queued > 0) {
+    live.announceStatus("Room tone fill queued. Reconnect to send it.");
+    return { status: "ok" };
+  }
   if (filled === 0) {
     const reason = stopped ?? [...skipped][0] ?? NO_GAP_REASON;
     live.announceStatus(reason, { tone: "error" });
@@ -332,7 +337,10 @@ async function fillRoomToneInRange(
     ? `Then it stopped: ${stopped}`
     : skipped.size
       ? `Not everywhere: ${[...skipped].join("; ")}`
-      : null;
+      : queued > 0
+        ? `${queued} more queued until you reconnect`
+        : null;
+  if (live.selection === selection) live.setSelection(null);
   const undo =
     filled === 1 ? "Use Undo to restore it." : "Undo restores the last one.";
   live.announceStatus(`${done}. ${note ? `${note}. ` : ""}${undo}`, {
