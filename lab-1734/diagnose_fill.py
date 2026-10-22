@@ -16,7 +16,7 @@ import json
 import numpy as np
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import bleed_fill
+from podcast_mcp.engines import bleed_fill
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import track_profile
