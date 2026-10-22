@@ -458,8 +458,11 @@ def crossfade_block_reason(
     """Why a crossfade-mode join renders as a plain fade/cut, or ``None`` when it blends.
 
     ``no_headroom`` means the recordings have no room to borrow from at the seam
-    (or a length is unmeasured), so render plays the fades.
+    (or a length is unmeasured), so render plays the fades. ``None`` for a join
+    that is not in crossfade mode.
     """
+    if right.join_in_mode != ClipJoinMode.CROSSFADE:
+        return None
     reason = _authored_block_reason(left, right)
     if reason is None and crossfade_borrow_sec(project, left, right) <= 0:
         return "no_headroom"
@@ -510,16 +513,14 @@ class MuteIndex:
             built = self._sorted.get((track_id, sid))
             if built is None:
                 spans = list(self._spans.get((track_id, sid), ()))
-                if sid == source_id:
-                    spans += [
-                        (r.start_s, r.end_s, None)
-                        for r in self._ignored.raw_for_source(track_id, source_id)
-                    ]
+                spans += [
+                    (r.start_s, r.end_s, None) for r in self._ignored.raw_for_source(track_id, sid)
+                ]
                 spans.sort(key=lambda span: (span[0], span[1]))
                 built = (
                     [sp[0] for sp in spans],
                     spans,
-                    max((sp[1] - sp[0] for sp in spans), default=0.0),
+                    max((sp[1] - sp[0] for sp in spans), default=0.0) + 2 * _EDGE_TOUCH_SEC,
                 )
                 self._sorted[(track_id, sid)] = built
             groups.append(built)
@@ -533,9 +534,8 @@ class MuteIndex:
                 start, end, owner = spans[i]
                 if start > edge + reach:
                     break
-                if owner == clip.id:
-                    if abs(end - edge) <= _EDGE_TOUCH_SEC:
-                        room = 0.0
+                if owner == clip.id and abs(end - edge) <= _EDGE_TOUCH_SEC:
+                    room = 0.0
                 elif end > edge:
                     room = min(room, 0.0 if start <= edge else start - edge)
         return room
@@ -547,9 +547,8 @@ class MuteIndex:
             lo = bisect_left(starts, edge - reach - longest)
             for i in range(lo, bisect_right(starts, edge + _EDGE_TOUCH_SEC)):
                 start, end, owner = spans[i]
-                if owner == clip.id:
-                    if abs(start - edge) <= _EDGE_TOUCH_SEC:
-                        room = 0.0
+                if owner == clip.id and abs(start - edge) <= _EDGE_TOUCH_SEC:
+                    room = 0.0
                 elif start < edge and end >= edge - reach:
                     room = min(room, 0.0 if end >= edge else edge - end)
         return room

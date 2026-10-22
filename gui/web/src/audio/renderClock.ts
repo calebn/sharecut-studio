@@ -8,14 +8,14 @@ function borrowSec(left: ClipRow, right: ClipRow): number {
     right.join_crossfade_blocked
   )
     return 0;
+  if (left.source_duration_sec === null || right.source_duration_sec === null)
+    return 0;
   const room = Math.min(
     right.join_borrow_sec ?? 0,
     right.source_start,
     (left.source_end - left.source_start) * 0.25,
     (right.source_end - right.source_start) * 0.25,
-    left.source_duration_sec === null
-      ? Number.POSITIVE_INFINITY
-      : left.source_duration_sec - left.source_end,
+    left.source_duration_sec - left.source_end,
   );
   return Math.max(0, room);
 }
