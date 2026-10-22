@@ -47,6 +47,7 @@ from podcast_mcp.edits.tighten_reasons import (
 from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.engines.mute_regions import muted_source_spans
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -300,7 +301,7 @@ def _flag_possible_words(
             {t.track_id: t.language for t in project.transcripts},
             skip_counts,
         )
-    except WhisperWeightsMissingError:
+    except (WhisperWeightsMissingError, ModelMissing):
         skip_counts["word_probe:unavailable"] = acoustic
 
 

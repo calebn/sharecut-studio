@@ -65,3 +65,12 @@ def plant_pinned_whisper(cache: Path, model: str, monkeypatch: pytest.MonkeyPatc
         whisper_models.WHISPER_PINS, model, dataclasses.replace(pin, file_sha256=manifest)
     )
     return snap
+
+
+def isolate_model_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Point every model cache at ``tmp_path`` and drop the model env vars, so no test reads the host."""
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "model-cache"))
+    monkeypatch.setenv("HF_HOME", str(tmp_path / "hf-home"))
+    monkeypatch.setenv("PODCAST_MCP_RNNOISE_MODEL", str(tmp_path / "model-cache" / "x.rnnn"))
+    for name in ("PODCAST_WHISPER_MODEL", "PODCAST_MCP_SPEAKER_ECAPA_MODEL"):
+        monkeypatch.delenv(name, raising=False)

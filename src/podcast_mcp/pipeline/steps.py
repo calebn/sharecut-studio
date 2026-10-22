@@ -131,8 +131,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     pol = AnalysisPolicy.from_defaults(defaults)
     overwrite = bool(cfg.get("overwrite", False))
     options = AsrOptions.from_defaults(defaults)
-    # Explicitly on without the model: fail before any transcript changes (WordAlignerMissingError
-    # with the download command); an unset flag resolved to off is reported, not raised.
+    # Explicitly on without the model fails here, before any transcript changes (ModelMissing);
+    # an unset flag resolved to off is reported, not raised.
     options.forced_alignment.require()
     jobs = dialogue_transcribe_jobs(project)
     plan = plan_transcription(

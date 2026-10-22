@@ -36,10 +36,14 @@ def with_download_hint(refusal: ToolRefusal) -> ToolRefusal:
     extra = refusal.extra
     if refusal.code != "model_needed" or extra is None:
         return refusal
-    hint = f'Ask the user first; then call model_download(component="{extra["model"]["id"]}")'
-    return ToolRefusal(
-        f"{refusal.message}\n{hint}", refusal.code, {**extra, "download_tool": "model_download"}
-    )
+    model = extra["model"]
+    args = f'component="{model["id"]}"'
+    added = {"download_tool": "model_download"}
+    if model["id"] == "whisper":
+        args += f', whisper_model="{model["model"]}"'
+        added["whisper_model"] = model["model"]
+    hint = f"Ask the user first; then call model_download({args})"
+    return ToolRefusal(f"{refusal.message}\n{hint}", refusal.code, {**extra, **added})
 
 
 def install_tool_errors(server: Any) -> None:

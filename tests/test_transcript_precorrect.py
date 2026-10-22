@@ -922,6 +922,37 @@ def test_precorrect_speaker_import_error(tmp_path) -> None:
     assert result.report["speaker_attribution"]["skipped_reason"] == "speaker extra not installed"
 
 
+def test_precorrect_speaker_model_missing_names_the_model_not_the_extra(tmp_path) -> None:
+    from podcast_mcp.util.model_missing import ModelMissing
+
+    p = EpisodeProject.create("precorrect", str(tmp_path))
+    p.ensure_dirs()
+    p.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.5)])
+    ]
+    ctx = _ctx(speaker_id=SpeakerIdConfig(mode="always"))
+
+    class _Missing(ModelMissing, ImportError):
+        pass
+
+    gone = _Missing(
+        id="speaker-ecapa",
+        model="speaker-ecapa",
+        label="Speaker recognition",
+        purpose="speaker recognition and split",
+        size="~80 MB",
+        size_bytes=None,
+        command="podcast bootstrap --component speaker-ecapa",
+        state="missing",
+    )
+    with patch("podcast_mcp.engines.speaker_id.run_speaker_attribution", side_effect=gone):
+        result = run_precorrect_transcript(p, dry_run=True, context=ctx, defaults=load_defaults())
+
+    assert result.speaker_ran is False
+    assert result.speaker_skipped_reason == "speaker model not downloaded"
+    assert result.report["speaker_attribution"]["skipped_reason"] == "speaker model not downloaded"
+
+
 def test_precorrect_runs_speaker_attribution_when_available(tmp_path) -> None:
     p = EpisodeProject.create("precorrect", str(tmp_path))
     p.ensure_dirs()
