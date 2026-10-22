@@ -822,23 +822,13 @@ metadata from clean jobs.
 
 ## What to test where
 
-`tests/test_dsp.py` compares framed RMS output bits with the original float64
-window-square reduction. It covers input dtypes and strides, frame widths,
-frame caps, silence floors, nonfinite samples, input immutability, and uneven
-stream chunks. Overlapping frames square only their selected sample span,
-then keep the same mean, square root, and dB conversion.
-
-`tests/test_service_boundaries.py` checks real-tree architecture violations and
-exact allowlists from one scan in one test. The scanner stays uncached so the
-synthetic-root test scans its independently patched root.
-
 | Area | Test file |
 |------|-----------|
 | Models / project I/O | `test_models.py` |
 | Filler / tighten edits | `test_edits.py`, `test_tighten.py` |
 | Golden-ear A/B harness | `test_golden_ear_harness.py` (`scripts/golden_ear_harness.py`, `make golden-ear ARGS=…`; rollups require valid preference and leftover-consonant responses) |
-| FFmpeg engine | `test_ffmpeg_engine.py` (requires `ffmpeg` on PATH) |
-| Media service facade and context boundaries | `test_media_facade.py`, `test_service_boundaries.py`; focused behavior in `test_bounce.py`, `test_services_ingest.py`, `test_media_store.py`, `test_proxy_media.py`, `test_review_media_object_store.py`, `test_services.py`, and `test_waveform_service.py` |
+| FFmpeg engine and DSP | `test_ffmpeg_engine.py` (requires `ffmpeg` on PATH); `test_dsp.py` checks exact framed RMS parity with the original float64 reduction across dtypes, strides, frame widths and caps, silence floors, nonfinite samples, input immutability, and uneven stream chunks |
+| Architecture, media facade and context boundaries | `test_media_facade.py`, `test_service_boundaries.py` (adapter/domain violations and exact allowlists use one uncached real-tree scan; a separate patched-root scan checks isolation); focused behavior in `test_bounce.py`, `test_services_ingest.py`, `test_media_store.py`, `test_proxy_media.py`, `test_review_media_object_store.py`, `test_services.py`, and `test_waveform_service.py` |
 | Audition context / audio reasoning eval | `test_audition_context.py`, `test_audition_context_eval.py` (defect injection; `scripts/eval_audition_context.py`) |
 | Transcript merge | `test_transcribe.py` |
 | Pipeline steps / runner | `test_pipeline.py`, `test_pipeline_steps.py`, `test_runner.py` |
