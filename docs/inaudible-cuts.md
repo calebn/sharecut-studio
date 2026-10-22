@@ -41,7 +41,7 @@ Each clip stores `join_in_mode` for how it meets the previous clip on the same t
 | Mode | `join_in_mode` | Render | Timeline cost |
 |------|----------------|--------|---------------|
 | Fade (default dialogue) | `fade` | Hard concat; per-segment `afade` declick | 0 |
-| Crossfade (opt-in overlap) | `crossfade` | FFmpeg `acrossfade` blend | Consumes overlap |
+| Crossfade (opt-in overlap) | `crossfade` | FFmpeg `acrossfade` blend centred on the seam | Borrows half the overlap from each recording; no time lost |
 | Hard cut | `cut` | Plain concat; the fades at this join (left clip's fade-out, this clip's fade-in) are ignored (a track's first clip has no join, so a leftover cut mode there changes nothing) | 0 |
 
 Normal dialogue **ripple** cuts from tighten, NL, and focus set `join_in_mode=fade`. Mute-in-place (`tighten.edit_mode: mute`) does not split clips or change joins — it writes `Clip.mute_regions` and fades the clip out into each region and back in after it with the padded cut's fades (`filler_pre_pad_fade_out_ms`, then `recommend_post_pad_fade_in_ms`), over room tone (the default `filler_pad_mode: room_tone`) or, with `filler_pad_mode: silence`, silence (see [filler-cut-quality.md](filler-cut-quality.md) § Mute vs cut).

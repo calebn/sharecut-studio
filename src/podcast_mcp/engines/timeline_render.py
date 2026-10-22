@@ -31,8 +31,7 @@ from podcast_mcp.engines.bleed_restore import RestoreSupport, active_restore_reg
 from podcast_mcp.engines.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     clips_for_track,
-    crossfade_ms_at_join,
-    uses_crossfade_join,
+    crossfade_borrow_sec,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.gate_fill import current_gate_fill_path
@@ -53,7 +52,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 16
+RENDER_SEMANTICS_REV = 17
 
 
 def resolve_clip_audio_path(
@@ -141,21 +140,21 @@ def timeline_duration_sec(project: EpisodeProject) -> float:
     return end
 
 
-def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool) -> float:
+def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool, blended: bool) -> float:
     # A cut is per join: a track's first clip has no join, so a leftover cut
     # mode (e.g. after its left neighbour was deleted) keeps its fade-in.
     if not first or (prev is not None and clip.join_in_mode == ClipJoinMode.CUT):
         return 0.0
-    if prev is not None and uses_crossfade_join(prev, clip):
+    if blended:
         return 0.0
     return clip.fade_in_ms / 1000.0
 
 
-def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool) -> float:
+def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool, blended: bool) -> float:
     # A cut is per join: the next clip's cut drops this clip's fade-out.
     if not last or (nxt is not None and nxt.join_in_mode == ClipJoinMode.CUT):
         return 0.0
-    if nxt is not None and uses_crossfade_join(clip, nxt):
+    if blended:
         return 0.0
     return clip.fade_out_ms / 1000.0
 
@@ -260,6 +259,8 @@ class _ClipContent:
 class _PreparedClip:
     clip: Clip
     content: _ClipContent | None
+    # Half the blend at the incoming join: the body already starts this far early.
+    borrow_in: float = 0.0
 
 
 @dataclass
@@ -285,18 +286,16 @@ def _place_clips(
     authored_frontier = 0.0
     clock_shift = 0.0
     frontier = 0.0
-    for index, item in enumerate(prepared):
+    for item in prepared:
         content = item.content
         if content is None:
             previous_component = None
             continue
         body = content.body
         body_duration = duration(body)
-        prev = prepared[index - 1].clip if index else None
-        crossfade = crossfade_ms_at_join(prev, item.clip) / 1000.0 if prev else 0.0
-        if crossfade > 0 and previous_component is not None:
+        if item.borrow_in > 0 and previous_component is not None:
             left = components[previous_component]
-            overlap = max(0.001, min(crossfade, duration(content.body) * 0.5))
+            overlap = 2 * item.borrow_in
             left.audio = CrossfadeAudio(left.audio, body, overlap)
             left.end += body_duration - overlap
         else:
@@ -347,18 +346,41 @@ def placed_track_audio(
     prepared: list[_PreparedClip] = []
     ignored_lookup = IgnoredWordRegions(project)
     clock_origin = window[0] if window else 0.0
-    for index, clip in enumerate(sorted_clips):
+    spans: list[tuple[float, float, tuple[float, float] | None]] = []
+    for clip in sorted_clips:
         timeline_start = max(window[0], clip.timeline_start) if window else clip.timeline_start
         timeline_end = min(window[1], clip.timeline_end) if window else clip.timeline_end
-        source_bounds = (
-            clip_timeline_overlap_to_source(clip, timeline_start, timeline_end)
-            if window
-            else (clip.source_start, clip.source_end)
+        spans.append(
+            (
+                timeline_start,
+                timeline_end,
+                clip_timeline_overlap_to_source(clip, timeline_start, timeline_end)
+                if window
+                else (clip.source_start, clip.source_end),
+            )
         )
+    # A blending join borrows from both recordings, so the lane keeps its clock.
+    # Only a join whose two clips both play whole at the seam blends in a window.
+    borrow = [0.0] * len(sorted_clips)
+    for index in range(1, len(sorted_clips)):
+        left, right = sorted_clips[index - 1], sorted_clips[index]
+        if (
+            spans[index - 1][2] is not None
+            and spans[index][2] is not None
+            and spans[index - 1][1] >= left.timeline_end - 1e-4
+            and spans[index][0] <= right.timeline_start + 1e-4
+        ):
+            borrow[index] = crossfade_borrow_sec(project, left, right)
+    for index, clip in enumerate(sorted_clips):
+        timeline_start, timeline_end, source_bounds = spans[index]
         if source_bounds is None:
             prepared.append(_PreparedClip(clip, None))
             continue
+        borrow_in = borrow[index]
+        borrow_out = borrow[index + 1] if index + 1 < len(sorted_clips) else 0.0
         source_start, source_end = source_bounds
+        source_start -= borrow_in
+        source_end += borrow_out
         src = resolve_clip_audio_path(project, track, clip)
         fill = gate_fill_paths(project, track, [src])[0]
         ignored = ignored_lookup.for_clip(clip)
@@ -369,12 +391,12 @@ def placed_track_audio(
             src_start=source_start,
             src_end=source_end,
             fade_in_sec=(
-                _segment_fade_in(prev, clip, first=True)
+                _segment_fade_in(prev, clip, first=True, blended=borrow_in > 0)
                 if timeline_start <= clip.timeline_start + 1e-4
                 else 0.0
             ),
             fade_out_sec=(
-                _segment_fade_out(clip, nxt, last=True)
+                _segment_fade_out(clip, nxt, last=True, blended=borrow_out > 0)
                 if timeline_end >= clip.timeline_end - 1e-4
                 else 0.0
             ),
@@ -416,6 +438,7 @@ def placed_track_audio(
                     timeline_end - clock_origin,
                     body,
                 ),
+                borrow_in,
             )
         )
     return _place_clips(prepared, window_length=window[1] - window[0] if window else None)
