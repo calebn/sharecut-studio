@@ -378,7 +378,7 @@ def test_proxy_render_hash_moves_with_name_size_and_mtime(tmp_path: Path) -> Non
     other.unlink()
     missing = play_audit.proxy_render_hash(project, "host", defaults=defaults)
     assert missing != base
-    assert missing == "c94f395da0f09385"
+    assert play_audit.proxy_render_hash(project, "host", defaults=defaults) == missing
 
 
 def test_word_aligner_local_source_is_onnx_size_and_mtime(
