@@ -223,9 +223,9 @@ def _wav_format(path: Path) -> ObservedAudio | None:
     in a well-formed RIFF, and integer PCM that carries an IEC 61937 stream (AC-3 in a WAV has an
     s16 header and decodes to fltp, which moves the rate the graph negotiates), and any 32-bit tag-1
     file, which FFmpeg may remap to float. Zero frames still give the header format, which is what
-    a real run configures from. A LIST chunk under 4 bytes before the data chunk (``LIST`` or ``list``), an SMV0 chunk, any
-    XMA2 chunk and less data than one sample frame go to the probe too, because FFmpeg fails to
-    open or decode them.
+    a real run configures from. A LIST chunk under 4 bytes before the data chunk (``LIST`` or
+    ``list``), an SMV0 or XMA2 chunk before the data chunk and less data than one sample frame go
+    to the probe too, because FFmpeg fails to open or decode them.
     """
     try:
         with path.open("rb") as stream:
