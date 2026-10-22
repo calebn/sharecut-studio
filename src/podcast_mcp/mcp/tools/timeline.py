@@ -139,14 +139,17 @@ def ripple_delete_text_tool(
     The automatic audio checks hold a harsh or other-speaker cut and name the finding;
     ``override_audio_checks=true`` applies it anyway and records the override.
     """
-    ws = ProjectWorkspace.open(project_path)
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        return to_json(
-            EditService(ws).ripple_delete_text(
-                query,
-                use_inaudible_opt=False if override_audio_checks else use_inaudible_opt,
-            )
-        )
+    result = submit_host_command_result(
+        project_path,
+        "RippleDeleteText",
+        {
+            "query": query,
+            "use_inaudible_opt": False if override_audio_checks else use_inaudible_opt,
+            "override_audio_checks": override_audio_checks,
+        },
+        client_id="mcp:host",
+    )
+    return to_json(result)
 
 
 def move_segment_tool(
@@ -1336,6 +1339,7 @@ def register(mcp: MCPServer) -> None:
     mutating.discard(fade_joins_tool)
     mutating.discard(crossfade_joins_tool)
     mutating.discard(apply_fade_recommendations_tool)
+    mutating.discard(ripple_delete_text_tool)
     for fn in (
         inspect_clip_bleed_tool,
         restore_clip_bleed_tool,

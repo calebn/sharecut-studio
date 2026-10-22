@@ -45,7 +45,7 @@ def test_host_mcp_approve_all_reports_held_then_override_applies_and_records(tmp
     }
 
 
-def test_host_mcp_ripple_delete_text_override_records_the_host_mcp_surface(episode):
+def test_host_mcp_ripple_delete_text_override_records_the_agent_surface(episode):
     project = load_project(episode)
     host = next(t for t in project.transcripts if t.track_id == "host")
     host.words.append(TranscriptWord(text="um", start=10.0, end=11.0))
@@ -60,7 +60,7 @@ def test_host_mcp_ripple_delete_text_override_records_the_host_mcp_surface(episo
     assert _override_record(episode) == {
         "kind": "owner_override",
         "actor": "mcp:host",
-        "surface": "host_mcp",
+        "surface": "agent",
     }
 
 

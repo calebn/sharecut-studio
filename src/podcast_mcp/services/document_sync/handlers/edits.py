@@ -361,6 +361,13 @@ def cut_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def ripple_delete_text(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    """Ripple-delete the first transcript match for a query. Apply-only."""
+    return EditService(ws).ripple_delete_text(
+        p["query"], use_inaudible_opt=p.get("use_inaudible_opt")
+    )
+
+
 def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     from podcast_mcp.models.episode import ExactRangeTarget
 

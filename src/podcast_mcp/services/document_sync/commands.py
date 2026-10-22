@@ -72,6 +72,7 @@ DocumentCommandType = Literal[
     "MoveClips",
     "PasteSegment",
     "CutRange",
+    "RippleDeleteText",
     "AddTrack",
     "SetTrackMedia",
     "SetTrackMeta",

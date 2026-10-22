@@ -695,6 +695,15 @@ class CutRangePayload(BaseModel):
         return self
 
 
+class RippleDeleteTextPayload(BaseModel):
+    query: str = Field(min_length=1)
+    use_inaudible_opt: bool | None = None
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
+    )
+
+
 class AddTrackPayload(BaseModel):
     track_id: str | None = None
     label: str | None = None
@@ -1060,6 +1069,11 @@ class CutRangeCommand(DocumentCommandEnvelope):
     payload: CutRangePayload
 
 
+class RippleDeleteTextCommand(DocumentCommandEnvelope):
+    type: Literal["RippleDeleteText"] = "RippleDeleteText"
+    payload: RippleDeleteTextPayload
+
+
 class AddTrackCommand(DocumentCommandEnvelope):
     type: Literal["AddTrack"] = "AddTrack"
     payload: AddTrackPayload = Field(default_factory=AddTrackPayload)
@@ -1158,6 +1172,7 @@ DocumentCommandBody = Annotated[
     | MoveClipsCommand
     | PasteSegmentCommand
     | CutRangeCommand
+    | RippleDeleteTextCommand
     | AddTrackCommand
     | SetTrackMediaCommand
     | SetTrackMetaCommand
@@ -1285,6 +1300,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "MoveClips": MoveClipsPayload,
     "PasteSegment": PasteSegmentPayload,
     "CutRange": CutRangePayload,
+    "RippleDeleteText": RippleDeleteTextPayload,
     "AddTrack": AddTrackPayload,
     "SetTrackMedia": SetTrackMediaPayload,
     "SetTrackMeta": SetTrackMetaPayload,
