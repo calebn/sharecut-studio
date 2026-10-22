@@ -114,7 +114,6 @@ describe("useCommitRange", () => {
     fireEvent.pointerCancel(input);
     act(() => {
       input.dispatchEvent(new Event("change"));
-      vi.runAllTimers();
     });
     expect(screen.getByTestId("value")).toHaveTextContent("10");
     expect(onCommit).not.toHaveBeenCalled();
@@ -158,13 +157,17 @@ describe("useCommitRange", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  it("returns the thumb to saved on pagehide mid-drag", () => {
+  it("returns the thumb to saved on pagehide mid-drag and ignores its change", () => {
     const onCommit = vi.fn();
     render(<Harness saved={10} onCommit={onCommit} />);
     const input = screen.getByRole("slider", { name: "Len" });
     fireEvent.input(input, { target: { value: "40" } });
     fireEvent(window, new Event("pagehide"));
     expect(screen.getByTestId("value")).toHaveTextContent("10");
+    act(() => {
+      input.dispatchEvent(new Event("change"));
+    });
+    expect(onCommit).not.toHaveBeenCalled();
   });
 
   it("commits a release whose blur arrives just before its change", () => {
