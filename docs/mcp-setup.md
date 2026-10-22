@@ -274,7 +274,8 @@ When an action needs a model that is not installed, its tool refuses with
 `error_code: "model_needed"`. The `structuredContent.model` object names the model
 (`id`, `label`, `size`, `command`, `state`), and the text ends with the next step.
 Ask the user before downloading: models are large (Whisper up to about 3 GB), and the
-download is never started for you.
+download is never started for you. For Whisper the refusal also carries `whisper_model`, the size that
+was picked; pass it to `model_download` so that size is the one downloaded.
 
 - `model_download(component, whisper_model=None, upgrade=False)` downloads one model, only
   after the user agrees. With ShareCut Studio running it starts a download job and returns

@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.client import Client
 
-from model_pin_helpers import plant_pinned_word_aligner
+from model_pin_helpers import isolate_model_env, plant_pinned_word_aligner
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
@@ -30,7 +30,8 @@ def _options(value: object) -> AsrOptions:
 
 
 @pytest.fixture(autouse=True)
-def _whisper_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+def _whisper_installed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    isolate_model_env(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_k: None
     )
