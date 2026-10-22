@@ -205,6 +205,22 @@ def test_speaker_split_refusals(
         _raiser(CodedValueError("x", code="speaker_backend_unavailable")),
     )
     _check(client.post("/api/speaker/split", json=body), 409, "speaker_backend_unavailable")
+    from podcast_mcp.engines.speaker_id import SpeakerModelMissing
+    from podcast_mcp.util.model_missing import ModelMissing
+
+    needed = SpeakerModelMissing(
+        id="speaker-ecapa",
+        model="ecapa",
+        label="speaker model",
+        purpose="speaker recognition and split",
+        size="20 MB",
+        size_bytes=20_000_000,
+        command="podcast bootstrap --component speaker-ecapa",
+        state="missing",
+    )
+    assert isinstance(needed, ModelMissing)
+    monkeypatch.setattr(jobs, "start_split_speakers", _raiser(needed))
+    _check(client.post("/api/speaker/split", json=body), 409, "model_needed")
     monkeypatch.setattr(jobs, "start_split_speakers", _raiser(RuntimeError("busy")))
     _check(client.post("/api/speaker/split", json=body), 409, "speaker_split_unavailable")
     monkeypatch.setattr(jobs, "start_split_speakers", _raiser(FileNotFoundError("gone")))
