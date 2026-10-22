@@ -21,6 +21,7 @@ _STREAMS = {
     "kid.ogg": (_STEREO, "0:a", "flac", ()),
     "none.mkv": (_STEREO, "0:a", "pcm_s16le", _NO_DEFAULT),
     "first_default.mkv": (_STEREO, "0:a", "pcm_s16le", _FIRST_DEFAULT),
+    "tie.mkv": (f"[0:a]pan=stereo|c0=c0|c1=c0[a];{_STEREO}", "[a]", "pcm_s16le", _NO_DEFAULT),
     "two_b.mkv": (_FIVE_ONE, "0:a", "pcm_s16le", _SECOND_DEFAULT),
 }
 

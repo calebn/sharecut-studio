@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -13,8 +14,16 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.cli.pipeline import _echo_run_report
 from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
+from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
 from podcast_mcp.mcp.tools.pipeline import _run_message
-from podcast_mcp.models import EpisodeProject, MediaAsset, ProjectMeta, Track, TrackRole
+from podcast_mcp.models import (
+    EpisodeProject,
+    MediaAsset,
+    ProjectMeta,
+    SourceRecording,
+    Track,
+    TrackRole,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import PipelineRunResult
 
@@ -47,7 +56,7 @@ def _boom(path: Path) -> AudioProbe:
 
 @pytest.mark.parametrize(
     ("name", "expected"),
-    [("st.mkv", 1), ("two_b.mkv", 1), ("none.mkv", 1), ("first_default.mkv", 0)],
+    [("st.mkv", 1), ("two_b.mkv", 1), ("none.mkv", 1), ("tie.mkv", 0), ("first_default.mkv", 0)],
 )
 def test_legacy_pick_follows_ffmpeg_auto_select(tmp_path, name, expected):
     path = media.multistream(tmp_path, name)
@@ -83,6 +92,24 @@ def test_finder_flags_when_prediction_is_unknown(tmp_path):
     unknown.legacy_default_audio_index = None
     found = stale_stream_files(ws.project, probe=lambda path: unknown)
     assert [f.old_pick for f in found] == [None]
+
+
+def test_finder_flags_source_only_file_and_skips_missing(tmp_path, sample_wav):
+    ws = _workspace(tmp_path, sample_wav)
+    shutil.copy(media.multistream(tmp_path, "st.mkv"), ws.path.parent / "raw" / "st.mkv")
+    with ws.transaction() as project:
+        project.sources.extend(
+            [
+                SourceRecording(id="s1", path="raw/st.mkv"),
+                SourceRecording(id="s2", path="raw/gone.mkv"),
+                SourceRecording(id="s3", path="../outside.mkv"),
+            ]
+        )
+        ws.save()
+    found = stale_stream_files(ws.project)
+    assert [(f.path, f.track_ids, f.audio_streams, f.old_pick) for f in found] == [
+        ("raw/st.mkv", (), 2, 1)
+    ]
 
 
 def test_finder_ignores_first_default_file(tmp_path):
@@ -122,6 +149,9 @@ def test_lines_name_files_and_steps(tmp_path):
     assert ws.project.tracks[0].media.path in text
     assert "align_tracks" in text
     assert "--retime-words" in text
+    assert "--realign" in text and "analyze_prosody" in text and "fill_gate_holes" in text
+    assert "speaker enroll" in text
+    assert "added since" in text
     assert "mark-streams-current" in text
     assert stale_stream_lines(ws.project, []) == []
 
@@ -172,3 +202,21 @@ def test_mcp_run_message_appends_notices():
         "n1",
         "n2",
     ]
+
+
+def test_cli_pipeline_run_prints_stale_notice(tmp_path):
+    ws = _workspace(tmp_path, media.multistream(tmp_path, "st.mkv"))
+    done = PipelineRunResult(last_step="ingest_tracks", steps=[])
+    with patch("podcast_mcp.cli.pipeline.PipelineService.run", return_value=done):
+        result = runner.invoke(app, ["pipeline", "run", "--project", str(ws.path), "--no-strict"])
+    lines = result.stdout.splitlines()
+    assert lines[-1] == "Pipeline complete. Last step: ingest_tracks"
+    assert lines[-2].startswith("Stale audio streams")
+
+
+def test_mcp_pipeline_run_direct_appends_stale_notice(tmp_path):
+    ws = _workspace(tmp_path, media.multistream(tmp_path, "st.mkv"))
+    done = PipelineRunResult(last_step="ingest_tracks", steps=[])
+    with patch("podcast_mcp.mcp.tools.pipeline.PipelineService.run", return_value=done):
+        out = mcp_pipeline.pipeline_run(str(ws.path), use_working_set=False)
+    assert out.splitlines()[-1].startswith("Stale audio streams")

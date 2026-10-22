@@ -12,9 +12,10 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 RERUN_STEPS = (
-    "align_tracks, Re-time words (podcast pipeline run --retime-words), balance_tracks "
-    "and the proposal steps (analyze_focus_cuts, tighten_from_transcript), then the pipeline "
-    "through reconcile_transcript"
+    "`podcast pipeline run --from transcribe_tracks --retime-words --realign` (re-times words, "
+    "then re-runs align_tracks, reconcile_transcript, analyze_prosody, the proposal steps, "
+    "fill_gate_holes and balance_tracks in pipeline order), and re-enroll speaker profiles "
+    "enrolled from the raw file (`podcast speaker enroll`)"
 )
 
 
@@ -70,6 +71,7 @@ def stale_stream_lines(project: EpisodeProject, found: list[StaleStreamFile]) ->
     names = ", ".join(f.path for f in found)
     return [
         f"Stale audio streams (several audio streams, analyzed from another stream than "
-        f"the first): {names}. To fix, re-run {RERUN_STEPS}; then run "
+        f"the first): {names}. A file added since this fix was read correctly; if every listed file was added "
+        f"since, just run mark-streams-current. To fix, run {RERUN_STEPS}; then run "
         f"`podcast episode mark-streams-current --project {project.workspace_path() / 'episode.project.json'}`."
     ]
