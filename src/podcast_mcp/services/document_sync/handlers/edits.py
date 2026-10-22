@@ -299,6 +299,18 @@ def insert_gap(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).insert_gap(float(p["at_time"]), float(p.get("duration_sec", 1.0)))
 
 
+def fade_joins(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return TimelineService(ws).fade_joins(
+        track_id=p.get("track_id"), speaker=p.get("speaker"), fade_ms=p.get("fade_ms")
+    )
+
+
+def crossfade_joins(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return TimelineService(ws).crossfade_joins(
+        track_id=p.get("track_id"), speaker=p.get("speaker"), fade_ms=p.get("fade_ms")
+    )
+
+
 def move_by_text(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).move_by_text(
         str(p["source_query"]), str(p["destination_query"]), str(p.get("position", "after"))

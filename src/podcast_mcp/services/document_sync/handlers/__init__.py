@@ -60,6 +60,8 @@ HANDLERS: dict[str, Handler] = {
     "DuplicateSegment": edits.duplicate_segment,
     "MoveSegment": edits.move_segment,
     "InsertGap": edits.insert_gap,
+    "FadeJoins": edits.fade_joins,
+    "CrossfadeJoins": edits.crossfade_joins,
     "MoveByText": edits.move_by_text,
     "MoveClips": edits.move_clips,
     "PasteSegment": edits.paste_segment,

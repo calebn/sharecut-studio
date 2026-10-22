@@ -44,6 +44,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
+| `CrossfadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `override_audio_checks` (boolean), `track_ids` (array[string]), `use_inaudible_opt` (boolean \| null) |
 | `DeleteChapter` | `time` (number), `title` (string) | — |
 | `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `override_audio_checks` (boolean), `reason` (string \| null) |
@@ -51,6 +52,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `EditSelectedRange` | `action` (cut \| mute), `target` (object) | `override_audio_checks` (boolean) |
+| `FadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `InsertGap` | `at_time` (number) | `duration_sec` (number) |
 | `MoveByText` | `destination_query` (string), `source_query` (string) | `position` (string) |
 | `MoveClips` | `clips` (array[object]) | — |
@@ -98,7 +100,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 66 command types._
+_Generated 68 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`
