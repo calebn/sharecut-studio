@@ -278,6 +278,11 @@ describe("EditMarkerLayer label refit", () => {
   }
   const drawn = (root: HTMLElement) =>
     root.querySelectorAll(".edit-mark-label").length;
+  const fireEveryResize = () => {
+    for (const observer of FakeResizeObserver.all) {
+      observer.fire();
+    }
+  };
   const rootPx = () =>
     parseFloat(document.documentElement.style.fontSize || "16");
 
@@ -289,13 +294,11 @@ describe("EditMarkerLayer label refit", () => {
     expect(drawn(container)).toBe(2);
 
     document.documentElement.style.fontSize = "32px";
-    const probe = container.querySelector(".edit-mark-probe");
-    expect(probe).not.toBeNull();
-    act(() => FakeResizeObserver.of(probe as Element).fire());
+    act(() => fireEveryResize());
     expect(drawn(container)).toBe(1);
 
     document.documentElement.style.fontSize = "16px";
-    act(() => FakeResizeObserver.of(probe as Element).fire());
+    act(() => fireEveryResize());
     expect(drawn(container)).toBe(2);
   });
 
@@ -318,6 +321,20 @@ describe("EditMarkerLayer label refit", () => {
       fonts.dispatchEvent(new Event("loadingdone"));
     });
     expect(drawn(container)).toBe(2);
+  });
+
+  it("refits once at mount when fonts are still loading, so an early load is not missed", () => {
+    Object.defineProperty(fonts, "status", {
+      value: "loading",
+      configurable: true,
+    });
+    let reads = 0;
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
+      () => (++reads <= 2 ? 40 : 80),
+    );
+    const { container } = renderTwoCuts();
+    expect(drawn(container)).toBe(1);
+    Reflect.deleteProperty(fonts, "status");
   });
 });
 
