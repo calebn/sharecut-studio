@@ -1702,10 +1702,11 @@ def test_a_contiguous_crossfade_split_is_not_a_duplicate(tmp_path):
 
 
 @pytest.mark.parametrize(("gap", "fade_ms"), [(0.01, 20), (0.08, 200)])
-def test_a_gapped_crossfade_split_still_reads_as_a_duplicate(tmp_path, gap, fade_ms):
+def test_a_gapped_crossfade_split_borrows_at_most_half_the_gap_so_it_is_no_duplicate(
+    tmp_path, gap, fade_ms
+):
     project, candidate = _split_with_crossfade(tmp_path, gap=gap, fade_ms=fade_ms)
-    with pytest.raises(cut_effects.DuplicateSourceOccurrence):
-        cut_effects.completed_audio_effects(project, candidate, frozenset({"remove"}), defaults={})
+    cut_effects.completed_audio_effects(project, candidate, frozenset({"remove"}), defaults={})
 
 
 @pytest.mark.parametrize("fade_ms", [0, 20])
@@ -1797,11 +1798,15 @@ def test_a_replay_inside_a_crossfades_borrowed_zone_is_a_duplicate(tmp_path, aft
         _run_duplicate_check(project, candidate)
 
 
-@pytest.mark.parametrize("gap", [1e-3, -1e-3])
-def test_partners_must_have_contiguous_nominal_ends(tmp_path, gap):
-    project, candidate = _split_with_crossfade(tmp_path, gap=gap, fade_ms=200)
+def test_partners_with_overlapping_nominal_ends_are_a_duplicate(tmp_path):
+    project, candidate = _split_with_crossfade(tmp_path, gap=-1e-3, fade_ms=200)
     with pytest.raises(cut_effects.DuplicateSourceOccurrence):
         _run_duplicate_check(project, candidate)
+
+
+def test_partners_with_a_source_gap_borrow_only_into_it(tmp_path):
+    project, candidate = _split_with_crossfade(tmp_path, gap=1e-3, fade_ms=200)
+    _run_duplicate_check(project, candidate)
 
 
 def _placed(start, end, at, *, reach_in=0.0, reach_out=0.0):
