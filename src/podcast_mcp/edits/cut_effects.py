@@ -211,12 +211,12 @@ def completed_audio_effects(
                     )
         for index, leaf in enumerate(old):
             surviving = [
-                (n.source.src_start, n.source.src_end)
+                (n.source.nominal_start, n.source.nominal_end)
                 for n, binding in zip(new, bindings, strict=True)
                 if binding == index
             ]
             for start, end in subtract_intervals(
-                [(leaf.source.src_start, leaf.source.src_end)], surviving
+                [(leaf.source.nominal_start, leaf.source.nominal_end)], surviving
             ):
                 append(leaf, start, end, CutJoin.SPLICE, before_leaf=leaf)
     return tuple(effects)
@@ -247,8 +247,8 @@ def _before_occurrences(
         containing = [
             i
             for i in qualified
-            if old[i].source.src_start <= source.src_start + SOURCE_GEOMETRY_TOLERANCE_SEC
-            and old[i].source.src_end >= source.src_end - SOURCE_GEOMETRY_TOLERANCE_SEC
+            if old[i].source.nominal_start <= source.nominal_start + SOURCE_GEOMETRY_TOLERANCE_SEC
+            and old[i].source.nominal_end >= source.nominal_end - SOURCE_GEOMETRY_TOLERANCE_SEC
         ]
         if not containing and not source.is_fill:
             # A trim that extends a clip's edge keeps all of the clip's old audio inside the new
@@ -257,8 +257,9 @@ def _before_occurrences(
                 i
                 for i in qualified
                 if old[i].source.clip_id == source.clip_id
-                and source.src_start <= old[i].source.src_start + SOURCE_GEOMETRY_TOLERANCE_SEC
-                and source.src_end >= old[i].source.src_end - SOURCE_GEOMETRY_TOLERANCE_SEC
+                and source.nominal_start
+                <= old[i].source.nominal_start + SOURCE_GEOMETRY_TOLERANCE_SEC
+                and source.nominal_end >= old[i].source.nominal_end - SOURCE_GEOMETRY_TOLERANCE_SEC
             ]
         matches = (
             [i for i in containing if old[i].source.clip_id == origin]
@@ -301,8 +302,9 @@ def _before_occurrences(
             continue
         if any(
             other_binding == binding
-            and min(new[i].source.src_end, other.source.src_end)
-            > max(new[i].source.src_start, other.source.src_start) + SOURCE_GEOMETRY_TOLERANCE_SEC
+            and min(new[i].source.nominal_end, other.source.nominal_end)
+            > max(new[i].source.nominal_start, other.source.nominal_start)
+            + SOURCE_GEOMETRY_TOLERANCE_SEC
             for other, other_binding in zip(new[:i], bindings[:i], strict=True)
         ):
             raise DuplicateSourceOccurrence("duplicated BEFORE source occurrence")

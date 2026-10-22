@@ -411,6 +411,8 @@ def placed_track_audio(
             fill_path=fill,
             clip_id=clip.id,
             source_id=clip.source_id,
+            reach_in=borrow_in,
+            reach_out=borrow_out,
         )
         tiles = _room_tone_under_mutes(project, track, clip, source_start, source_end)
         body: Audio = MixAudio(At(0.0, leaf), tuple(tiles)) if tiles else leaf
