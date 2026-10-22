@@ -366,7 +366,8 @@ def approve_edits_tool(
 
     ``all_pending=true`` approves every pending proposal; ``ids`` approves those. Either way
     the edits that pass the automatic audio-quality and cut-position checks apply, and
-    ``held`` lists the ones stopped (each with its finding) and left pending. When the user says to approve a held cut anyway, repeat with
+    ``held`` lists the ones stopped (each with its finding) and left pending, and ``ids`` lists the
+    edits this call approved. When the user says to approve a held cut anyway, repeat with
     ``override_audio_checks=true``: it skips those checks for this call and records the
     override (actor and surface) in History and the edit log.
     """
@@ -397,7 +398,7 @@ def approve_edits_tool(
     result: dict[str, Any] = {
         "operation": "approve_edits",
         "approved_count": outcome["count"],
-        "ids": edit_ids,
+        "ids": outcome["approved_ids"],
         "held": outcome.get("held", []),
     }
     if "needs_confirmation" in outcome:

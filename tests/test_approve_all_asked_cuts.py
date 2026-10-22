@@ -36,9 +36,17 @@ def test_approve_all_applies_the_plain_cut_and_asks_only_for_the_speech_cut(tmp_
     reply = approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
 
     assert reply["count"] == 1
+    assert reply["approved_ids"] == ["plain"]
     assert [row["id"] for row in reply["held"]] == [asked.id]
     assert "Guest is speaking" in reply["held"][0]["reason"]
     assert [e.id for e in load_project(ws.path).edit_decisions] == [asked.id]
+
+
+def test_without_hold_blocked_the_reply_is_only_the_count(tmp_path, monkeypatch):
+    result, _asked = _with_plain_cut(tmp_path, monkeypatch)
+    ws = workspace(result)
+
+    assert approve_edits(ws, {"ids": ["plain"]}) == {"count": 1}
 
 
 def test_cut_anyway_then_runs_only_the_asked_cut(tmp_path, monkeypatch):
