@@ -15,7 +15,6 @@ _FIVE_ONE = "[1:a]pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0[b]"
 _NO_DEFAULT = ("-disposition:a:0", "0", "-disposition:a:1", "0")
 _SECOND_DEFAULT = ("-disposition:a:0", "0", "-disposition:a:1", "default")
 
-# name: (filter graph, first map, codec, dispositions); the second stream is always 48000 Hz
 _STREAMS = {
     "st.mkv": (f"[0:a]pan=stereo|c0=c0|c1=c0[a];{_STEREO}", "[a]", "pcm_s16le", _SECOND_DEFAULT),
     "kid.ogg": (_STEREO, "0:a", "flac", ()),
@@ -37,10 +36,6 @@ def _sine(rate: int, hz: int) -> list[str]:
 
 
 def multistream(directory: Path, name: str) -> Path:
-    """A two-audio-stream file whose default pick is not its first audio stream, except ``st.mkv``.
-
-    Stream 0 is 22050 Hz, mono except in ``st.mkv``, which has two stereo streams.
-    """
     graph, first, codec, dispositions = _STREAMS[name]
     path = directory / name
     _ffmpeg(
@@ -60,7 +55,6 @@ def first_stream_only(source: Path, directory: Path) -> Path:
 
 
 def first_stream_format(path: Path) -> tuple[int, str, str]:
-    """(rate, sample format, layout) of the stream ``[0:a]`` takes in a filter graph."""
     result = subprocess.run(
         [
             FFmpegEngine().ffmpeg,
