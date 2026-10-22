@@ -9,6 +9,7 @@ vi.mock("../api", () => ({
   waitForBootstrapJob: (...args: unknown[]) => waitForBootstrapJob(...args),
 }));
 
+import { ApiError } from "../utils/apiError";
 import { useBootstrapDownload } from "./useBootstrapDownload";
 
 describe("useBootstrapDownload", () => {
@@ -179,18 +180,36 @@ describe("useBootstrapDownload", () => {
     expect(result.current.error).toBe(SAFE);
   });
 
-  it.each([
-    "network down",
-    "Another download is already running (whisper). Wait for it to finish.",
-    "Bootstrap failed",
-  ])("passes a clean message through: %s", async (raw) => {
-    runBootstrap.mockRejectedValue(new Error(raw));
+  it.each(["network down", "Bootstrap failed"])(
+    "passes a clean message through: %s",
+    async (raw) => {
+      runBootstrap.mockRejectedValue(new Error(raw));
+      const { result } = renderHook(() =>
+        useBootstrapDownload("the word aligner"),
+      );
+      await act(async () => {
+        await result.current.download({ components: ["word-aligner"] });
+      });
+      expect(result.current.error).toBe(raw);
+    },
+  );
+
+  it("shows one sentence without a component id when another download is running", async () => {
+    runBootstrap.mockRejectedValue(
+      new ApiError(
+        "Another download is already running (whisper); try again when it finishes",
+        "bootstrap_job_running",
+        409,
+      ),
+    );
     const { result } = renderHook(() =>
       useBootstrapDownload("the word aligner"),
     );
     await act(async () => {
       await result.current.download({ components: ["word-aligner"] });
     });
-    expect(result.current.error).toBe(raw);
+    expect(result.current.error).toBe(
+      "Another download is already running. Try again when it finishes.",
+    );
   });
 });

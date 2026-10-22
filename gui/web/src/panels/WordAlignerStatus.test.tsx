@@ -12,6 +12,7 @@ vi.mock("../api", () => ({
 }));
 
 import { BUSY_REASON } from "../ui/disabledReason";
+import { ApiError } from "../utils/apiError";
 import { WordAlignerStatus } from "./WordAlignerStatus";
 
 describe("WordAlignerStatus", () => {
@@ -136,11 +137,13 @@ describe("WordAlignerStatus", () => {
     );
   });
 
-  it("shows the server's busy message when another download holds the slot", async () => {
+  it("shows a plain busy sentence when another download holds the slot", async () => {
     const user = userEvent.setup();
     runBootstrap.mockRejectedValue(
-      new Error(
+      new ApiError(
         "Another download is already running (whisper); try again when it finishes",
+        "bootstrap_job_running",
+        409,
       ),
     );
 
@@ -155,11 +158,10 @@ describe("WordAlignerStatus", () => {
     await user.click(
       screen.getByRole("button", { name: "Download word aligner" }),
     );
-    expect(
-      await screen.findByText(
-        /Another download is already running \(whisper\)/,
-      ),
-    ).toBeInTheDocument();
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Another download is already running. Try again when it finishes.",
+    );
+    expect(screen.queryByText(/\(whisper\)/)).toBeNull();
     expect(
       screen.getByRole("button", { name: "Download word aligner" }),
     ).toBeEnabled();
