@@ -325,6 +325,19 @@ def test_negotiated_rates_refuses_a_missing_port(tmp_path: Path) -> None:
     assert error.value.code == "render_rate_unresolved"
 
 
+def test_negotiated_rates_refuses_a_missing_input(tmp_path: Path) -> None:
+    engine = FFmpegEngine()
+    with pytest.raises(CodedValueError) as error:
+        render_clock.negotiated_rates(
+            engine.ffmpeg,
+            engine.ffprobe,
+            ["[0:a]adelay@pin_0=1000:all=1[out]"],
+            (tmp_path / "missing.m4a",),
+            ["adelay@pin_0"],
+        )
+    assert error.value.code == "render_rate_unresolved"
+
+
 @pytest.mark.parametrize("rate", [8000, 22050, 44100, 48000])
 def test_render_places_every_delay_on_ms_times_rate_floor_1000(tmp_path: Path, rate: int) -> None:
     delays = [*_FLOAT32_SHORT_MS[rate], 10900, 15000]
