@@ -10,7 +10,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `get_transcript` | `format=json` or `format=timestamps` |
 | `search_transcript_tool` | Find spans by text |
 | `cut_time_range_tool` | Remove a time range |
-| `cut_text_match_tool` | Remove matching transcript |
+| `cut_text_match_tool` | Remove matching transcript; returns the last five pending decisions as that command saw them, so another writer's edits that land afterwards never replace its own |
 | `cut_utterance_tool` | Remove combined utterance by index |
 | `cut_words_tool` | Remove word index range on a track |
 | `apply_edit_plan_tool` | Bulk edit plan (`edits`: a list of cut objects) |
