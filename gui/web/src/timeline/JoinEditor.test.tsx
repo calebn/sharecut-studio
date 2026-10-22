@@ -8,6 +8,11 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { place } from "../test/hitDom";
+import {
+  collectJoinMarks,
+  EditMarkerLayer,
+  planLaneMarks,
+} from "./editMarkers";
 import { HitRouterProvider } from "./hitRouterContext";
 import { attachHitRouting, type HitRouter } from "./hitRouting";
 import { JoinEditor } from "./JoinEditor";
@@ -44,6 +49,19 @@ const base = {
   zoomPxPerSec: 50,
   trackFadeMaxMs: null as number | null,
 };
+function JoinWithGlyph(props: typeof base) {
+  const plan = planLaneMarks(
+    collectJoinMarks([props.left, props.right], null, () => false),
+    props.zoomPxPerSec,
+    72,
+  );
+  return (
+    <>
+      <JoinEditor {...props} tier="wide" />
+      <EditMarkerLayer plan={plan} onZoomToSpan={vi.fn()} />
+    </>
+  );
+}
 /** The timeline's lanes with their one hit router, as `TimelineView` mounts it. */
 function RoutedLanes({ children }: { children: ReactNode }) {
   const [router, setRouter] = useState<HitRouter | null>(null);
@@ -77,7 +95,7 @@ function mount(overrides: Partial<typeof base> = {}) {
   );
   const view = render(
     <RoutedLanes>
-      <JoinEditor {...props} />
+      <JoinWithGlyph {...props} />
     </RoutedLanes>,
   );
   fireEvent.click(screen.getByRole("button", { name: /join at/ }));
@@ -409,7 +427,7 @@ describe("JoinEditor coupled length", () => {
       view.rerender(
         <main className="timeline-area">
           <div className="lane-row">
-            <JoinEditor {...base} rolling />
+            <JoinEditor {...base} tier="wide" rolling />
           </div>
         </main>,
       );

@@ -70,7 +70,7 @@ const STARTS: Record<string, (page: Page) => Promise<Point | null>> = {
     centerOf(page, `${lane} circle[aria-label^="Envelope point 3 "]`),
   "crowded envelope point": (page) =>
     centerOf(page, `${lane} circle[aria-label^="Envelope point 2 "]`),
-  "join badge": (page) => centerOf(page, `${lane} .join-badge >> nth=-1`),
+  "join badge": (page) => centerOf(page, `${lane} .edit-mark >> nth=-1`),
   "pending region": (page) =>
     centerOf(page, `${lane} .pending-overlay .pending-hit`),
   "fade corner": (page) => centerOf(page, `${lane} .fade-corner.in`),

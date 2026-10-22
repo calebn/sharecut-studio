@@ -229,7 +229,7 @@ test.describe("Timeline fade curves", () => {
     await page.keyboard.press("ControlOrMeta+K");
     await expect(clips).toHaveCount(2);
     try {
-      const badge = lane.locator(".join-badge");
+      const badge = lane.locator(".edit-mark");
       await expect(badge).toHaveCount(1);
 
       const expectBadgeClear = async () => {
@@ -264,7 +264,7 @@ test.describe("Timeline fade curves", () => {
         // order), and the badge's own box would otherwise be stale.
         const glyphBadgeBox = await badge.boundingBox();
         if (!glyphBadgeBox) throw new Error("join badge has no box");
-        const glyphBox = await badge.locator(".join-badge-glyph").boundingBox();
+        const glyphBox = await badge.locator(".edit-mark-glyph").boundingBox();
         if (!glyphBox) throw new Error("join badge glyph has no box");
         const eps = 0.01;
         expect(glyphBox.x).toBeGreaterThanOrEqual(glyphBadgeBox.x - eps);
@@ -286,7 +286,7 @@ test.describe("Timeline fade curves", () => {
 
       // Two clips with a drawn join badge and the seam clip's revealed zero fade corners.
       await expectPageAxeClean(page, ".lane-row .clip-block");
-      await expectPageAxeClean(page, ".lane-row .join-badge");
+      await expectPageAxeClean(page, ".lane-row .edit-mark");
     } finally {
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "";

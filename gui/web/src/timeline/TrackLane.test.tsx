@@ -267,7 +267,7 @@ describe("TrackLane waveform status hint", () => {
   });
 });
 
-describe("TrackLane join badges", () => {
+describe("TrackLane join marks", () => {
   const left: ClipRow = {
     ...clip,
     id: "c0",
@@ -310,26 +310,26 @@ describe("TrackLane join badges", () => {
     useDawStore.setState({ project: null, projectPath: "" });
   });
 
-  it("draws one badge at the seam", () => {
+  it("draws one glyph at the seam", () => {
     const { container } = lane();
-    const badges = container.querySelectorAll(".join-badge");
+    const badges = container.querySelectorAll(".edit-mark");
     expect(badges).toHaveLength(1);
     const badge = screen.getByRole("button", { name: "Fade join at 0:05.0" });
     expect((badge as HTMLElement).style.left).toBe("500px");
   });
 
-  it("draws no badge for a single clip", () => {
+  it("draws no glyph for a single clip", () => {
     const { container } = render(
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
-    expect(container.querySelector(".join-badge")).toBeNull();
+    expect(container.querySelector(".edit-mark")).toBeNull();
   });
 
-  it("classes a cut and a blocked crossfade", () => {
+  it("types a cut and a blocked crossfade", () => {
     const { container, rerender } = lane({
       clips: [left, { ...right, join_in_mode: "cut" }],
     });
-    expect(container.querySelector(".join-badge--cut")).toBeTruthy();
+    expect(container.querySelector(".edit-mark--cut")).toBeTruthy();
     rerender(
       <TrackLane
         {...baseProps}
@@ -346,22 +346,22 @@ describe("TrackLane join badges", () => {
       />,
     );
     expect(
-      container.querySelector(".join-badge--crossfade.join-badge--blocked"),
+      container.querySelector(".edit-mark--crossfade.edit-mark--blocked"),
     ).toBeTruthy();
   });
 
-  it("draws no badge for a mismatched join id", () => {
+  it("draws no glyph for a mismatched join id", () => {
     const { container } = lane({
       clips: [left, { ...right, join_left_clip_id: "cx" }],
     });
-    expect(container.querySelector(".join-badge")).toBeNull();
+    expect(container.querySelector(".edit-mark")).toBeNull();
   });
 
-  it("draws no badge across a gap", () => {
+  it("draws no glyph across a gap", () => {
     const { container } = lane({
       clips: [left, { ...right, timeline_start: 6, timeline_end: 11 }],
     });
-    expect(container.querySelector(".join-badge")).toBeNull();
+    expect(container.querySelector(".edit-mark")).toBeNull();
   });
 
   it("offers no roll across a gap: the seam is drawn only where clips abut", () => {
@@ -375,24 +375,26 @@ describe("TrackLane join badges", () => {
     }).toEqual({ seams: 0, rolls: 0 });
   });
 
-  it("draws no badge when the clips are too narrow on screen", () => {
-    const { container } = lane({ zoomPxPerSec: 4 });
-    expect(container.querySelector(".join-badge")).toBeNull();
+  it("draws the glyph at a zoom where the clips are a few pixels wide", () => {
+    const { container } = lane({ zoomPxPerSec: 4, width: 40 });
+    const glyph = container.querySelector<HTMLElement>(".edit-mark");
+    expect(glyph?.style.left).toBe("20px");
+    expect(glyph?.dataset.tier).toBe("wide");
   });
 
-  it("draws no badge while a neighbour is being moved", () => {
+  it("draws no glyph while a neighbour is being moved", () => {
     const { container: previewContainer } = lane({
       previewStartById: { c1: 7 },
     });
-    expect(previewContainer.querySelector(".join-badge")).toBeNull();
+    expect(previewContainer.querySelector(".edit-mark")).toBeNull();
 
     const { container: hiddenContainer } = lane({
       hideClipIds: new Set(["c0"]),
     });
-    expect(hiddenContainer.querySelector(".join-badge")).toBeNull();
+    expect(hiddenContainer.querySelector(".edit-mark")).toBeNull();
   });
 
-  it("draws two badges for three abutting clips", () => {
+  it("draws two glyphs for three abutting clips", () => {
     const c2: ClipRow = {
       ...clip,
       id: "c2",
@@ -403,7 +405,7 @@ describe("TrackLane join badges", () => {
       join_left_clip_id: "c1",
     };
     const { container } = lane({ clips: [left, right, c2], width: 1500 });
-    const badges = Array.from(container.querySelectorAll(".join-badge"));
+    const badges = Array.from(container.querySelectorAll(".edit-mark"));
     expect(badges).toHaveLength(2);
     expect(badges.map((b) => (b as HTMLElement).style.left)).toEqual([
       "500px",
@@ -411,47 +413,55 @@ describe("TrackLane join badges", () => {
     ]);
   });
 
-  it("keeps the join seam alongside the badge", () => {
+  it("keeps the join seam alongside the glyph", () => {
     const { container } = lane();
     expect(container.querySelector(".join-seam")).toBeTruthy();
-    expect(container.querySelector(".join-badge")).toBeTruthy();
+    expect(container.querySelector(".edit-mark")).toBeTruthy();
   });
 
-  it("moves the badge with a live roll of its join", () => {
+  it("moves the glyph with a live roll of its join", () => {
     const { container } = lane();
     const seam = container.querySelector<HTMLElement>("button.join-seam")!;
     // 50 px at 100 px/s rolls the c0 | c1 join 0.5 s right.
     fireEvent.pointerDown(seam, { clientX: 100, pointerId: 7 });
     fireEvent.pointerMove(seam, { clientX: 150, pointerId: 7 });
-    const badge = container.querySelector<HTMLElement>(".join-badge")!;
+    const badge = container.querySelector<HTMLElement>(".edit-mark")!;
     expect(badge.style.left).toBe("550px");
   });
 
-  it("hides badges whose clip a live roll shrinks below the minimum width", () => {
-    const c2: ClipRow = {
-      ...clip,
-      id: "c2",
-      source_start: 10,
-      source_end: 15,
-      timeline_start: 10,
-      timeline_end: 15,
-      join_left_clip_id: "c1",
-    };
+  it("folds joins closer than 24 px into one count chip", () => {
+    const clips: ClipRow[] = [left];
+    for (let i = 1; i <= 3; i += 1) {
+      clips.push({
+        ...clip,
+        id: `n${i}`,
+        source_start: i * 0.1,
+        source_end: i * 0.1 + 0.1,
+        timeline_start: i * 0.1,
+        timeline_end: i * 0.1 + 0.1,
+        join_left_clip_id: i === 1 ? "c0" : `n${i - 1}`,
+        join_in_mode: i === 2 ? "cut" : "fade",
+      });
+    }
     const { container } = lane({
-      track: { ...track, duration_sec: 15 },
-      clips: [left, right, c2],
+      clips: [
+        { ...left, source_end: 0.1, timeline_end: 0.1 },
+        ...clips.slice(1),
+      ],
       zoomPxPerSec: 10,
-      width: 150,
+      width: 100,
     });
-    expect(container.querySelectorAll(".join-badge")).toHaveLength(2);
-    const seams = container.querySelectorAll<HTMLElement>("button.join-seam");
-    const seam = seams[seams.length - 1]!;
-    fireEvent.pointerDown(seam, { clientX: 100, pointerId: 8 });
-    fireEvent.pointerMove(seam, { clientX: 73, pointerId: 8 });
-    expect(container.querySelectorAll(".join-badge")).toHaveLength(0);
+    expect(container.querySelectorAll(".edit-mark")).toHaveLength(0);
+    const chip = container.querySelector<HTMLElement>(".edit-chip");
+    expect(chip?.getAttribute("aria-label")).toBe(
+      "3 edits: 1 cut, 2 fades. Zoom in",
+    );
+    expect(
+      container.querySelectorAll('[data-hit-kind="edit-chip"]'),
+    ).toHaveLength(1);
   });
 
-  it("opens the join popover from the badge", () => {
+  it("opens the join popover from the glyph", () => {
     lane();
     const badge = screen.getByRole("button", { name: "Fade join at 0:05.0" });
     fireEvent.click(badge);
