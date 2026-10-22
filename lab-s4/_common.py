@@ -63,3 +63,10 @@ def open_clone(path):
 
 def pending_ids(project, n):
     return [e.id for e in project.edit_decisions if not e.applied][:n]
+
+
+def ids_from_file(path, project):
+    """Pending edit ids named in ``path`` (one per line), in file order, that still exist and are pending."""
+    wanted = [line.strip() for line in Path(path).read_text().splitlines() if line.strip()]
+    pending = {e.id for e in project.edit_decisions if not e.applied}
+    return [i for i in wanted if i in pending]

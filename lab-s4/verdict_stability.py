@@ -1,4 +1,4 @@
-"""usage: nice -n 10 python verdict_stability.py <clone.project.json> [N=102] [APPLY=10]   (PYTHONPATH=src, venv)
+"""usage: nice -n 10 python verdict_stability.py <clone.project.json> [N=102] [APPLY=10] [IDS_FILE]   (PYTHONPATH=src, venv)
 
 Does applying a few cuts change the safety verdicts of the others?  Computes the verdict
 (assess_offer: list of CutScopeHold) of each of N pending edits against the saved project, applies
@@ -9,7 +9,7 @@ on the same track).  Read-only: in-memory copy of a clone; one heavy job, RSS wa
 """
 import sys, time
 sys.path.insert(0, __import__("os").path.dirname(__file__))
-from _common import count_ffmpeg, open_clone, pending_ids, start_watchdog
+from _common import count_ffmpeg, ids_from_file, open_clone, pending_ids, start_watchdog
 
 n = int(sys.argv[2]) if len(sys.argv) > 2 else 102
 k = int(sys.argv[3]) if len(sys.argv) > 3 else 10
@@ -18,7 +18,7 @@ ff = count_ffmpeg()
 ws, project, defaults = open_clone(sys.argv[1])
 from podcast_mcp.edits.cut_application import approve_edits, assess_offer
 
-ids = pending_ids(project, n)
+ids = ids_from_file(sys.argv[4], project)[:n] if len(sys.argv) > 4 else pending_ids(project, n)
 
 
 def verdicts(proj, which):
