@@ -180,27 +180,30 @@ def native_format(ffmpeg: str, path: Path) -> ObservedAudio:
 
 
 def _native_format(ffmpeg: str, path: Path) -> ObservedAudio:
-    result = run(
-        [
-            ffmpeg,
-            "-v",
-            "info",
-            "-i",
-            str(path),
-            "-map",
-            "0:a:0",
-            "-af",
-            "ashowinfo@restore_descriptor",
-            "-frames:a",
-            "1",
-            "-f",
-            "null",
-            "-",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    try:
+        result = run(
+            [
+                ffmpeg,
+                "-v",
+                "info",
+                "-i",
+                str(path),
+                "-map",
+                "0:a:0",
+                "-af",
+                "ashowinfo@restore_descriptor",
+                "-frames:a",
+                "1",
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except CalledProcessError as error:
+        raise _NoDecodedFrame(path) from error
     formats = {
         ObservedAudio(int(match["rate"]), 0, match["fmt"], match["layout"])
         for match in _EVENT.finditer(result.stderr)
@@ -220,7 +223,8 @@ def _wav_format(path: Path) -> ObservedAudio | None:
     in a well-formed RIFF, and integer PCM that carries an IEC 61937 stream (AC-3 in a WAV has an
     s16 header and decodes to fltp, which moves the rate the graph negotiates), and any 32-bit tag-1
     file, which FFmpeg may remap to float. Zero frames still give the header format, which is what
-    a real run configures from.
+    a real run configures from. A LIST chunk under 4 bytes, an SMV0 or XMA2 chunk and less data than
+    one sample frame go to the probe too, because FFmpeg fails to open or decode them.
     """
     try:
         with path.open("rb") as stream:
@@ -239,9 +243,12 @@ def _parse_wav_header(stream: BinaryIO) -> ObservedAudio | None:
         if len(chunk) < 8:
             return None
         chunk_id, size = struct.unpack("<4sI", chunk)
+        if (chunk_id == b"LIST" and size < 4) or chunk_id in (b"SMV0", b"XMA2"):
+            return None
         if chunk_id == b"data":
             if fmt is None:
                 return None
+            data_size = size
             sample = stream.read(_SPDIF_SCAN_BYTES)
             break
         if chunk_id == b"fmt ":
@@ -271,6 +278,7 @@ def _parse_wav_header(stream: BinaryIO) -> ObservedAudio | None:
         or layout is None
         or align != channels * bits // 8
         or not 0 < rate < 2**31
+        or 0 < min(data_size or len(sample), len(sample)) < align
         or (tag == 1 and _SPDIF_SYNC in sample)
     ):
         return None
