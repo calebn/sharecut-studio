@@ -160,11 +160,11 @@ def speaker_split_tool(
     """Split a one-track recording of several speakers into a lane per speaker (dry_run by default).
 
     Needs the speaker count (or one set with speaker_set_count_tool). ``enrollment`` maps
-    a speaker's name to [start, end] source-second spans of only that speaker, for some or
-    all speakers; the rest are clustered. Every lane plays the same media, muted where the
-    others talk. Flagged crosstalk plays on the likeliest speaker's lane (``owner``), on
-    every talking speaker's lane (``both``, twice in the mix) or on a shared lane
-    (``lane``). One undo step.
+    a speaker's name to [start, end] source-second spans of only that speaker (finite, 0 <=
+    start < end), for some or all speakers; the rest are clustered. Every lane plays the
+    same media, muted where the others talk. Flagged crosstalk plays on the likeliest
+    speaker's lane (``owner``), on every talking speaker's lane (``both``, twice in the
+    mix) or on a shared lane (``lane``). One undo step.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
