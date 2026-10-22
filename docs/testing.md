@@ -828,7 +828,7 @@ metadata from clean jobs.
 | Filler / tighten edits | `test_edits.py`, `test_tighten.py` |
 | Golden-ear A/B harness | `test_golden_ear_harness.py` (`scripts/golden_ear_harness.py`, `make golden-ear ARGS=…`; rollups require valid preference and leftover-consonant responses) |
 | FFmpeg engine | `test_ffmpeg_engine.py` (requires `ffmpeg` on PATH) |
-| Media service facade and context boundaries | `test_media_facade.py`, `test_service_boundaries.py`; focused behavior in `test_bounce.py`, `test_services_ingest.py`, `test_media_store.py`, `test_proxy_media.py`, `test_review_media_object_store.py`, `test_services.py`, and `test_waveform_service.py` |
+| Architecture, media facade and context boundaries | `test_media_facade.py`, `test_service_boundaries.py` (all five architecture assertions use one uncached real-tree scan; an independent patched-root scan checks isolation); focused behavior in `test_bounce.py`, `test_services_ingest.py`, `test_media_store.py`, `test_proxy_media.py`, `test_review_media_object_store.py`, `test_services.py`, and `test_waveform_service.py` |
 | Audition context / audio reasoning eval | `test_audition_context.py`, `test_audition_context_eval.py` (defect injection; `scripts/eval_audition_context.py`) |
 | Transcript merge | `test_transcribe.py` |
 | Pipeline steps / runner | `test_pipeline.py`, `test_pipeline_steps.py`, `test_runner.py` |
@@ -1014,7 +1014,7 @@ unavailable.
 
 The same file guards the adapter seam. `cli/`, `mcp/` and `gui/` may import
 `edits/`, `engines/` and `pipeline/` only through the pairs in
-`_ADAPTER_DOMAIN_ALLOWLIST` (49 entries; `if TYPE_CHECKING:` imports are
+`_ADAPTER_DOMAIN_ALLOWLIST` (37 entries; `if TYPE_CHECKING:` imports are
 typed-only and exempt), adapters may not import each other beyond the two
 deletion entries and the launcher wiring, and `util/` may not import an
 adapter. Inline imports count. A new edge fails the test; the fix is a service
