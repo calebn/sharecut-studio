@@ -1019,7 +1019,11 @@ test.describe("record lobby", () => {
         await guest.getByRole("button", { name: "Allow microphone" }).click();
         await expect(guest.getByLabel("Level")).toBeVisible();
         await guest.getByRole("button", { name: "Record room tone" }).click();
-        await expect(guest.getByText("Room tone saved")).toBeVisible({
+        await expect(
+          guest.getByText(
+            /^Room tone (sent to the host|saved on this device)$/,
+          ),
+        ).toBeVisible({
           timeout: 15_000,
         });
         await expect

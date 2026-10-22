@@ -4,7 +4,7 @@ import { ConsentGate } from "./ConsentGate";
 import { DeviceCheck } from "./DeviceCheck";
 import type { MicPermissionStatus } from "./micPermission";
 import { RoomToneCapture } from "./RoomToneCapture";
-import type { RoomToneStatus } from "./roomTone";
+import type { RoomToneDelivery, RoomToneStatus } from "./roomTone";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import { LOCAL_KEEPER_PENDING_COPY, ROOM_TONE_GATE_COPY } from "./types";
 
@@ -30,6 +30,7 @@ type Props = {
   onAllowMic: () => void;
   onRetryMic: () => void;
   roomToneStatus?: RoomToneStatus;
+  roomToneDelivery?: RoomToneDelivery;
   roomToneError?: string | null;
   onRecordRoomTone?: () => void;
   onSkipRoomTone?: () => void;
@@ -66,6 +67,7 @@ export function Lobby({
   onAllowMic,
   onRetryMic,
   roomToneStatus = "idle",
+  roomToneDelivery = "device",
   roomToneError = null,
   onRecordRoomTone = () => undefined,
   onSkipRoomTone = () => undefined,
@@ -158,6 +160,7 @@ export function Lobby({
                 <>
                   <RoomToneCapture
                     status={roomToneStatus}
+                    delivery={roomToneDelivery}
                     error={roomToneError}
                     micReady={micReady}
                     captureReady={roomToneCaptureReady}

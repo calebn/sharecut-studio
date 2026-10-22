@@ -435,6 +435,7 @@ export function RecordPanel({
         (snapshot.state === "lobby" || snapshot.state === "stopped") ? (
           <RoomToneCapture
             status={roomTone.status}
+            delivery={roomTone.delivery}
             error={roomTone.error}
             micReady={!!stream}
             captureReady={sink !== null && roomTone.captureReady}

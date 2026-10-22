@@ -928,7 +928,8 @@ stateDiagram-v2
 | Mic required for consent | "Allow the microphone before you accept recording." |
 | Room tone | "Record 3 seconds of room tone" |
 | Room tone too loud | "Too loud: is something playing?" |
-| Room tone saved | "Room tone saved" |
+| Room tone saved on this device (not yet acknowledged by the host) | "Room tone saved on this device" |
+| Room tone acknowledged by the host (it joins the project when the session lands) | "Room tone sent to the host" |
 | Consent | "This session will be recorded in full quality on your device. After you Accept, your full-quality recording stays in this browser until it finishes saving to the host's project. Producers/listeners may be present and are shown in the roster. [Accept] [Decline]" |
 | Recording on device | "Recording in full quality on this device." |
 | REC | "REC" persistent indicator + start notification |

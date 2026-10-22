@@ -60,6 +60,9 @@ export const TooLoud: Story = {
   },
 };
 export const Recorded: Story = { args: { status: "recorded" } };
+export const SentToHost: Story = {
+  args: { status: "recorded", delivery: "host" },
+};
 export const Skipped: Story = { args: { status: "skipped" } };
 export const CaptureFailed: Story = {
   args: { status: "error", error: "Local storage is unavailable." },

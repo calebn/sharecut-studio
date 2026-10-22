@@ -447,6 +447,7 @@ export function RecordApp({ token }: { token: string }) {
                   snapshot?.state === "paused"
                 }
                 roomToneStatus={roomTone.status}
+                roomToneDelivery={roomTone.delivery}
                 roomToneError={roomTone.error}
                 onRecordRoomTone={roomTone.record}
                 onSkipRoomTone={roomTone.skip}

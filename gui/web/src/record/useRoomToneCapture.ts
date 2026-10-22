@@ -4,6 +4,7 @@ import { encodeRoomToneWav } from "./encodeRoomTone";
 import type { ByteSink } from "./keeper/store";
 import { removeBestEffort, roomToneWavPath } from "./keeper/store";
 import {
+  type RoomToneDelivery,
   type RoomToneStatus,
   roomToneReady,
   roomToneTooLoud,
@@ -22,6 +23,7 @@ export function useRoomToneCapture(args: {
   transport: RecordUploadTransport | null;
 }): {
   status: RoomToneStatus;
+  delivery: RoomToneDelivery;
   error: string | null;
   ready: boolean;
   captureReady: boolean;
@@ -30,6 +32,7 @@ export function useRoomToneCapture(args: {
   retry: () => void;
 } {
   const [status, setStatus] = useState<RoomToneStatus>("idle");
+  const [delivery, setDelivery] = useState<RoomToneDelivery>("device");
   const [error, setError] = useState<string | null>(null);
   const inflight = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -95,6 +98,7 @@ export function useRoomToneCapture(args: {
       });
       controller.signal.throwIfAborted();
       uploaded.current = true;
+      setDelivery("host");
     },
     [args.canUpload, args.transport],
   );
@@ -158,6 +162,7 @@ export function useRoomToneCapture(args: {
     abortRef.current = controller;
     setStatus("capturing");
     setError(null);
+    setDelivery("device");
     uploaded.current = false;
     pendingWav.current = null;
     const stream = args.stream;
@@ -242,6 +247,7 @@ export function useRoomToneCapture(args: {
 
   return {
     status,
+    delivery,
     error,
     ready: roomToneReady(status),
     captureReady,

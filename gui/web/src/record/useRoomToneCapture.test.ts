@@ -76,6 +76,7 @@ describe("useRoomToneCapture", () => {
       await sink.read("Sharecut Recordings/room1/room-tone/p_a.wav"),
     ).toEqual(new Uint8Array(44 + 8));
     expect(transport.puts).toBe(1);
+    expect(result.current.delivery).toBe("host");
   });
 
   it("defers upload until canUpload becomes true", async () => {
@@ -95,9 +96,13 @@ describe("useRoomToneCapture", () => {
       expect(result.current.status).toBe("recorded");
     });
     expect(transport.puts).toBe(0);
+    expect(result.current.delivery).toBe("device");
     rerender({ canUpload: true });
     await waitFor(() => {
       expect(transport.puts).toBe(1);
+    });
+    await waitFor(() => {
+      expect(result.current.delivery).toBe("host");
     });
   });
 
