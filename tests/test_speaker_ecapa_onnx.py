@@ -492,3 +492,19 @@ def test_backend_routing_memoizes_the_pin_check(
     monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_override", lambda: None)
     speaker_id.resolve_speaker_backend("ecapa-onnx")
     assert seen == [True]
+
+
+def test_backend_routing_reports_the_polled_problem_without_a_second_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[bool] = []
+
+    def problem(*, memoize: bool = False) -> str:
+        seen.append(memoize)
+        return "not downloaded"
+
+    monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_problem", problem)
+    monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_override", lambda: None)
+    with pytest.raises(ImportError, match="not downloaded"):
+        speaker_id.resolve_speaker_backend("ecapa-onnx")
+    assert seen == [True]
