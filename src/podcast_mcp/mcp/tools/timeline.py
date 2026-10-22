@@ -4,7 +4,6 @@ from typing import Literal
 
 from mcp.server import MCPServer
 
-from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
@@ -71,13 +70,17 @@ def strip_silence_tool(
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored.
     """
-    ws = ProjectWorkspace.open(project_path)
-    result = AnalysisService(ws).strip_silence(
-        track_id=track_id,
-        speaker=speaker,
-        over_voice_floor_db=over_voice_floor_db,
-        min_duration_sec=min_duration_sec,
-        use_inaudible_opt=use_inaudible_opt,
+    result = submit_host_command_result(
+        project_path,
+        "StripSilence",
+        {
+            "track_id": track_id,
+            "speaker": speaker,
+            "over_voice_floor_db": over_voice_floor_db,
+            "min_duration_sec": min_duration_sec,
+            "use_inaudible_opt": use_inaudible_opt,
+        },
+        client_id="mcp:host",
     )
     return to_json(result)
 
@@ -434,14 +437,17 @@ def shorten_gaps_tool(
     pause needs confirmation. A ripple that cuts another track's speech stays unchanged
     until you repeat with ``override_audio_checks=true`` (recorded).
     """
-    ws = ProjectWorkspace.open(project_path)
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        return to_json(
-            TimelineService(ws).shorten_word_gaps(
-                max_gap_sec,
-                use_inaudible_opt=use_inaudible_opt,
-            )
-        )
+    result = submit_host_command_result(
+        project_path,
+        "ShortenWordGaps",
+        {
+            "max_gap_sec": max_gap_sec,
+            "use_inaudible_opt": use_inaudible_opt,
+            "override_audio_checks": override_audio_checks,
+        },
+        client_id="mcp:host",
+    )
+    return to_json(result)
 
 
 def split_clip_tool(
@@ -589,8 +595,13 @@ def fill_with_room_tone_tool(
     speaker: str | None = None,
 ) -> str:
     """Fill a track's silences with its own room tone."""
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(TimelineService(ws).fill_room_tone(track_id=track_id, speaker=speaker))
+    result = submit_host_command_result(
+        project_path,
+        "FillRoomTone",
+        {"track_id": track_id, "speaker": speaker},
+        client_id="mcp:host",
+    )
+    return to_json(result)
 
 
 def add_chapter_tool(project_path: str, at_time: float, title: str) -> str:
@@ -1340,6 +1351,9 @@ def register(mcp: MCPServer) -> None:
     mutating.discard(crossfade_joins_tool)
     mutating.discard(apply_fade_recommendations_tool)
     mutating.discard(ripple_delete_text_tool)
+    mutating.discard(strip_silence_tool)
+    mutating.discard(shorten_gaps_tool)
+    mutating.discard(fill_with_room_tone_tool)
     for fn in (
         inspect_clip_bleed_tool,
         restore_clip_bleed_tool,

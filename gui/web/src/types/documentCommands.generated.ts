@@ -24,6 +24,7 @@ export type DocumentCommandType =
   | "DuplicateSegment"
   | "EditSelectedRange"
   | "FadeJoins"
+  | "FillRoomTone"
   | "InsertGap"
   | "MoveByText"
   | "MoveClips"
@@ -56,11 +57,13 @@ export type DocumentCommandType =
   | "SetTranscriptWordSuppressed"
   | "SetTranscriptWordTiming"
   | "SetTranscriptWordsIgnored"
+  | "ShortenWordGaps"
   | "SplitAtTime"
   | "StageTextMatchCut"
   | "StageTimeRangeCut"
   | "StageUtteranceCut"
   | "StageWordsCut"
+  | "StripSilence"
   | "SuggestPendingEdit"
   | "SuppressBleed"
   | "SuppressLowAudibility"
@@ -97,6 +100,7 @@ export const DocumentCommand = {
   DuplicateSegment: "DuplicateSegment",
   EditSelectedRange: "EditSelectedRange",
   FadeJoins: "FadeJoins",
+  FillRoomTone: "FillRoomTone",
   InsertGap: "InsertGap",
   MoveByText: "MoveByText",
   MoveClips: "MoveClips",
@@ -129,11 +133,13 @@ export const DocumentCommand = {
   SetTranscriptWordSuppressed: "SetTranscriptWordSuppressed",
   SetTranscriptWordTiming: "SetTranscriptWordTiming",
   SetTranscriptWordsIgnored: "SetTranscriptWordsIgnored",
+  ShortenWordGaps: "ShortenWordGaps",
   SplitAtTime: "SplitAtTime",
   StageTextMatchCut: "StageTextMatchCut",
   StageTimeRangeCut: "StageTimeRangeCut",
   StageUtteranceCut: "StageUtteranceCut",
   StageWordsCut: "StageWordsCut",
+  StripSilence: "StripSilence",
   SuggestPendingEdit: "SuggestPendingEdit",
   SuppressBleed: "SuppressBleed",
   SuppressLowAudibility: "SuppressLowAudibility",

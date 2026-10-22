@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -248,9 +248,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
-        svc.strip_silence.return_value = {"operation": "strip_silence", "removed_sec": 0.3}
         svc.split_clip.return_value = {"operation": "split_clip", "clip_id": "c1"}
-        svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone", "filled_sec": 0.2}
         svc.check_loudness.return_value = {"integrated_lufs": -16.0}
         svc.analyze_cleanup.return_value = {"tracks": ["host"], "issues": []}
         svc.audio_diagnostics.return_value = {
@@ -260,12 +258,19 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         }
         svc.recommend_fades.return_value = [{"clip_id": "c1", "recommended_fade_in_ms": 15}]
 
-        strip = json.loads(
-            mcp_timeline.strip_silence_tool(
-                path, track_id="host", over_voice_floor_db=3.0, min_duration_sec=0.4
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            side_effect=[
+                {"operation": "strip_silence", "removed_sec": 0.3},
+                {"operation": "fill_with_room_tone", "filled_sec": 0.2},
+            ],
+        ) as audio_submit:
+            strip = json.loads(
+                mcp_timeline.strip_silence_tool(
+                    path, track_id="host", over_voice_floor_db=3.0, min_duration_sec=0.4
+                )
             )
-        )
-        fill = json.loads(mcp_timeline.fill_with_room_tone_tool(path, speaker="Host"))
+            fill = json.loads(mcp_timeline.fill_with_room_tone_tool(path, speaker="Host"))
         loud = json.loads(mcp_timeline.check_loudness_tool(path))
         verified = json.loads(
             mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 0, "text": "hi"}])
@@ -301,13 +306,26 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     assert recs[0]["clip_id"] == "c1"
     assert applied["applied_fade_updates"] == 1
 
-    svc.strip_silence.assert_called_once_with(
-        track_id="host",
-        speaker=None,
-        over_voice_floor_db=3.0,
-        min_duration_sec=0.4,
-        use_inaudible_opt=None,
-    )
+    assert audio_submit.call_args_list == [
+        call(
+            path,
+            "StripSilence",
+            {
+                "track_id": "host",
+                "speaker": None,
+                "over_voice_floor_db": 3.0,
+                "min_duration_sec": 0.4,
+                "use_inaudible_opt": None,
+            },
+            client_id="mcp:host",
+        ),
+        call(
+            path,
+            "FillRoomTone",
+            {"track_id": None, "speaker": "Host"},
+            client_id="mcp:host",
+        ),
+    ]
     submit.assert_called_once_with(
         path,
         "ApplyFadeRecommendationList",
@@ -427,20 +445,23 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
-        svc.strip_silence.return_value = {"operation": "strip_silence"}
         svc.split_clip.return_value = {"operation": "split_clip"}
         svc.check_loudness.return_value = {"integrated_lufs": -14.0}
         svc.cut_range.return_value = {"operation": "ripple_delete"}
-        svc.shorten_word_gaps.return_value = {"operation": "shorten_word_gaps"}
         svc.preview_suppress_bleed.return_value = {"suppressed": 0}
 
-        json.loads(
-            mcp_timeline.strip_silence_tool(
-                path,
-                speaker="Host",
-                use_inaudible_opt=True,
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            side_effect=[{"operation": "strip_silence"}, {"operation": "shorten_word_gaps"}],
+        ) as audio_submit:
+            json.loads(
+                mcp_timeline.strip_silence_tool(
+                    path,
+                    speaker="Host",
+                    use_inaudible_opt=True,
+                )
             )
-        )
+            json.loads(mcp_timeline.shorten_gaps_tool(path, use_inaudible_opt=True))
         json.loads(mcp_timeline.check_loudness_tool(path, audio_path="/tmp/mix.wav"))
         json.loads(
             mcp_timeline.add_effect_tool(
@@ -451,7 +472,6 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
             )
         )
         json.loads(mcp_timeline.ripple_delete_tool(path, 1.0, 2.0, use_inaudible_opt=False))
-        json.loads(mcp_timeline.shorten_gaps_tool(path, use_inaudible_opt=True))
         json.loads(
             mcp_timeline.reconcile_transcript_tool(
                 path,
@@ -494,13 +514,26 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
     split = json.loads(mcp_timeline.split_clip_tool(path, 2.0, speaker="Host"))
     assert split["operation"] == "split_clips_at"
 
-    svc.strip_silence.assert_called_once_with(
-        track_id=None,
-        speaker="Host",
-        over_voice_floor_db=0.0,
-        min_duration_sec=0.5,
-        use_inaudible_opt=True,
-    )
+    assert audio_submit.call_args_list == [
+        call(
+            path,
+            "StripSilence",
+            {
+                "track_id": None,
+                "speaker": "Host",
+                "over_voice_floor_db": 0.0,
+                "min_duration_sec": 0.5,
+                "use_inaudible_opt": True,
+            },
+            client_id="mcp:host",
+        ),
+        call(
+            path,
+            "ShortenWordGaps",
+            {"max_gap_sec": 0.35, "use_inaudible_opt": True, "override_audio_checks": False},
+            client_id="mcp:host",
+        ),
+    ]
     svc.check_loudness.assert_called_once_with("/tmp/mix.wav")
     assert batch["track_id"] == "host"
 
@@ -516,11 +549,14 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
-        svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone"}
         svc.analyze_cleanup.return_value = {"tracks": ["host"]}
         svc.recommend_fades.return_value = []
 
-        json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            return_value={"operation": "fill_with_room_tone"},
+        ) as fill_submit:
+            json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
         json.loads(
             mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "text": "there"}])
         )
@@ -531,7 +567,12 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
     assert json.loads(mcp_timeline.apply_fade_recommendations_tool(path, [])) == {
         "applied_fade_updates": 0
     }
-    svc.fill_room_tone.assert_called_once_with(track_id="host", speaker=None)
+    fill_submit.assert_called_once_with(
+        path,
+        "FillRoomTone",
+        {"track_id": "host", "speaker": None},
+        client_id="mcp:host",
+    )
 
 
 def test_transcript_word_tools_journal_through_the_document_plane(tmp_path, sample_wav):

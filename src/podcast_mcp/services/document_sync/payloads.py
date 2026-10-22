@@ -704,6 +704,28 @@ class RippleDeleteTextPayload(BaseModel):
     )
 
 
+class StripSilencePayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+    over_voice_floor_db: float = 0.0
+    min_duration_sec: float = 0.5
+    use_inaudible_opt: bool | None = None
+
+
+class ShortenWordGapsPayload(BaseModel):
+    max_gap_sec: float = 0.35
+    use_inaudible_opt: bool | None = None
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
+    )
+
+
+class FillRoomTonePayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+
+
 class AddTrackPayload(BaseModel):
     track_id: str | None = None
     label: str | None = None
@@ -1074,6 +1096,21 @@ class RippleDeleteTextCommand(DocumentCommandEnvelope):
     payload: RippleDeleteTextPayload
 
 
+class StripSilenceCommand(DocumentCommandEnvelope):
+    type: Literal["StripSilence"] = "StripSilence"
+    payload: StripSilencePayload = Field(default_factory=StripSilencePayload)
+
+
+class ShortenWordGapsCommand(DocumentCommandEnvelope):
+    type: Literal["ShortenWordGaps"] = "ShortenWordGaps"
+    payload: ShortenWordGapsPayload = Field(default_factory=ShortenWordGapsPayload)
+
+
+class FillRoomToneCommand(DocumentCommandEnvelope):
+    type: Literal["FillRoomTone"] = "FillRoomTone"
+    payload: FillRoomTonePayload = Field(default_factory=FillRoomTonePayload)
+
+
 class AddTrackCommand(DocumentCommandEnvelope):
     type: Literal["AddTrack"] = "AddTrack"
     payload: AddTrackPayload = Field(default_factory=AddTrackPayload)
@@ -1173,6 +1210,9 @@ DocumentCommandBody = Annotated[
     | PasteSegmentCommand
     | CutRangeCommand
     | RippleDeleteTextCommand
+    | StripSilenceCommand
+    | ShortenWordGapsCommand
+    | FillRoomToneCommand
     | AddTrackCommand
     | SetTrackMediaCommand
     | SetTrackMetaCommand
@@ -1301,6 +1341,9 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "PasteSegment": PasteSegmentPayload,
     "CutRange": CutRangePayload,
     "RippleDeleteText": RippleDeleteTextPayload,
+    "StripSilence": StripSilencePayload,
+    "ShortenWordGaps": ShortenWordGapsPayload,
+    "FillRoomTone": FillRoomTonePayload,
     "AddTrack": AddTrackPayload,
     "SetTrackMedia": SetTrackMediaPayload,
     "SetTrackMeta": SetTrackMetaPayload,

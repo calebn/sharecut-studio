@@ -3419,6 +3419,123 @@
         "title": "FadeJoinsPayload",
         "type": "object"
       },
+      "FillRoomToneCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/FillRoomTonePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "FillRoomTone",
+            "default": "FillRoomTone",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "FillRoomToneCommand",
+        "type": "object"
+      },
+      "FillRoomTonePayload": {
+        "properties": {
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          }
+        },
+        "title": "FillRoomTonePayload",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -7566,6 +7683,123 @@
         "title": "ShareReplyRequest",
         "type": "object"
       },
+      "ShortenWordGapsCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ShortenWordGapsPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ShortenWordGaps",
+            "default": "ShortenWordGaps",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "ShortenWordGapsCommand",
+        "type": "object"
+      },
+      "ShortenWordGapsPayload": {
+        "properties": {
+          "max_gap_sec": {
+            "default": 0.35,
+            "title": "Max Gap Sec",
+            "type": "number"
+          },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
+          },
+          "use_inaudible_opt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Inaudible Opt"
+          }
+        },
+        "title": "ShortenWordGapsPayload",
+        "type": "object"
+      },
       "SourceSpan": {
         "description": "``[start_s, end_s)`` in source-media seconds.",
         "properties": {
@@ -8256,6 +8490,144 @@
           "end_word_index"
         ],
         "title": "StageWordsCutPayload",
+        "type": "object"
+      },
+      "StripSilenceCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/StripSilencePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "StripSilence",
+            "default": "StripSilence",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "StripSilenceCommand",
+        "type": "object"
+      },
+      "StripSilencePayload": {
+        "properties": {
+          "min_duration_sec": {
+            "default": 0.5,
+            "title": "Min Duration Sec",
+            "type": "number"
+          },
+          "over_voice_floor_db": {
+            "default": 0.0,
+            "title": "Over Voice Floor Db",
+            "type": "number"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          },
+          "use_inaudible_opt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Inaudible Opt"
+          }
+        },
+        "title": "StripSilencePayload",
         "type": "object"
       },
       "SuggestPendingEditCommand": {
@@ -10657,6 +11029,7 @@
                     "DuplicateSegment": "#/components/schemas/DuplicateSegmentCommand",
                     "EditSelectedRange": "#/components/schemas/EditSelectedRangeCommand",
                     "FadeJoins": "#/components/schemas/FadeJoinsCommand",
+                    "FillRoomTone": "#/components/schemas/FillRoomToneCommand",
                     "InsertGap": "#/components/schemas/InsertGapCommand",
                     "MoveByText": "#/components/schemas/MoveByTextCommand",
                     "MoveClips": "#/components/schemas/MoveClipsCommand",
@@ -10689,11 +11062,13 @@
                     "SetTranscriptWordSuppressed": "#/components/schemas/SetTranscriptWordSuppressedCommand",
                     "SetTranscriptWordTiming": "#/components/schemas/SetTranscriptWordTimingCommand",
                     "SetTranscriptWordsIgnored": "#/components/schemas/SetTranscriptWordsIgnoredCommand",
+                    "ShortenWordGaps": "#/components/schemas/ShortenWordGapsCommand",
                     "SplitAtTime": "#/components/schemas/SplitAtTimeCommand",
                     "StageTextMatchCut": "#/components/schemas/StageTextMatchCutCommand",
                     "StageTimeRangeCut": "#/components/schemas/StageTimeRangeCutCommand",
                     "StageUtteranceCut": "#/components/schemas/StageUtteranceCutCommand",
                     "StageWordsCut": "#/components/schemas/StageWordsCutCommand",
+                    "StripSilence": "#/components/schemas/StripSilenceCommand",
                     "SuggestPendingEdit": "#/components/schemas/SuggestPendingEditCommand",
                     "SuppressBleed": "#/components/schemas/SuppressBleedCommand",
                     "SuppressLowAudibility": "#/components/schemas/SuppressLowAudibilityCommand",
@@ -10896,6 +11271,15 @@
                   },
                   {
                     "$ref": "#/components/schemas/RippleDeleteTextCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StripSilenceCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ShortenWordGapsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FillRoomToneCommand"
                   },
                   {
                     "$ref": "#/components/schemas/AddTrackCommand"
