@@ -40,7 +40,10 @@ gated at once. The step reads each track's media once for its holes and once for
 noise. It writes `artifacts/gate_fill/{track}_{digest}.flac` (the fill inside each hole,
 digital silence elsewhere, on the media's clock) and sets `timeline.tracks[].gate_fill`.
 Render sums that file under the track's own media, so own audio stays byte-identical, and
-our mutes, cuts and pads apply to the fill as they apply to the media.
+our mutes, cuts and pads apply to the fill as they apply to the media. On media with
+several audio streams the fill is measured on the first one and records `audio_stream: 0`;
+a fill without it, measured before #2110, is ignored for such media until the step runs
+again. On single-stream media nothing is recorded and an older fill stays in force.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -82,7 +85,7 @@ Skills: **podcast-pipeline-run**, **podcast-edit-natural-language** (content-cut
 
 **Segmentation:** word gaps at or under `prosody.segment_gap_sec` (1.0s default) merge into one segment; a run longer than `prosody.max_segment_sec` (30s) is split. With no transcript yet, segments come from energy runs (`util.dsp.bool_runs` over a floor-dB mask) instead, so the step still produces a coarse profile.
 
-**Bounded memory (#727):** the step streams each track once through `FFmpegEngine.stream_mono_f32` — 16 kHz mono float32, identical samples to `engines.audio_audit.load_mono_full` — instead of decoding the whole track into memory. It analyses each segment in its own Praat `Sound` built over that segment padded by 0.5s on each side, served by `util.pcm_stream.SequentialWindowReader`: resident audio is about one window plus one decode chunk, whatever the track length, instead of holding the whole float32 decode plus its float64 copy plus Praat's own copy for a multi-hour track. With no transcript, a first streamed pass finds segments from a frame-RMS energy envelope, so the file decodes twice. Segment ends past the media end are clamped once the reader reaches EOF; a segment that clamps to `end <= start` is dropped. Because Praat's pitch and harmonicity silence/voicing thresholds are relative to the peak of the *analysed* `Sound`, a quiet segment is now judged on its own peak rather than the loudest moment elsewhere in the track (gain-invariant F0/HNR) — a behaviour change from whole-file analysis, hence `ALGORITHM_VERSION` 4. Version 5 (#1443): a track with no transcript starts its energy segments at the track's own audibility floor, not a fixed -40 dBFS. `analyze_prosody` (the in-memory array entry point, used by tests and other in-process callers) keeps the same per-segment-window behaviour, backed by a single-chunk reader; `analyze_prosody_file` is the bounded-memory entry point the pipeline step calls.
+**Bounded memory (#727):** the step streams each track once through `FFmpegEngine.stream_mono_f32` — 16 kHz mono float32, identical samples to `engines.audio_audit.load_mono_full` — instead of decoding the whole track into memory. It analyses each segment in its own Praat `Sound` built over that segment padded by 0.5s on each side, served by `util.pcm_stream.SequentialWindowReader`: resident audio is about one window plus one decode chunk, whatever the track length, instead of holding the whole float32 decode plus its float64 copy plus Praat's own copy for a multi-hour track. With no transcript, a first streamed pass finds segments from a frame-RMS energy envelope, so the file decodes twice. Segment ends past the media end are clamped once the reader reaches EOF; a segment that clamps to `end <= start` is dropped. Because Praat's pitch and harmonicity silence/voicing thresholds are relative to the peak of the *analysed* `Sound`, a quiet segment is now judged on its own peak rather than the loudest moment elsewhere in the track (gain-invariant F0/HNR) — a behaviour change from whole-file analysis, hence `ALGORITHM_VERSION` 4. Version 5 (#1443): a track with no transcript starts its energy segments at the track's own audibility floor, not a fixed -40 dBFS. Version 6 (#2110): the decode reads the first audio stream, so profiles of media with several audio streams are recomputed. `analyze_prosody` (the in-memory array entry point, used by tests and other in-process callers) keeps the same per-segment-window behaviour, backed by a single-chunk reader; `analyze_prosody_file` is the bounded-memory entry point the pipeline step calls.
 
 **Per segment:**
 
@@ -499,7 +502,12 @@ headers the same way, and a Restore render's clock observers decode every input.
 input is decoded for one frame by `ffmpeg`, side by side, and the decoded probe maps `0:a:0`,
 the stream the graph's `[i:a]` takes (#2104); the answer is kept in memory by
 path and file stamp until the file changes, or until it is the least recently used of 1,024
-answers. A graph over 8,000 characters goes to `-/filter_complex <file>` (and
+answers. The analysis decoders map `0:a:0` the same way (#2110): `load_mono_full`,
+`load_channels_full`, the decoded-source spool, the `load_mono_window` fallback,
+`stream_pcm_f32`, `stream_mono_f32`, `decode_window_f32`, `extract_segment`,
+`measure_loudness_blocks` and the join-continuity click batches read the first audio
+stream, as the render graph's `[i:a]` does, so a file with several audio streams is
+judged on the stream it plays. A graph over 8,000 characters goes to `-/filter_complex <file>` (and
 `-graph_file <file> -i dummy` for the dry run) so it does not count against the command line.
 A render fails with `render_rate_unresolved` when no rate can be read for a delayed input
 that has no decodable audio, or a WAV whose header reads but FFmpeg cannot decode (a LIST chunk

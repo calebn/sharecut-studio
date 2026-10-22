@@ -256,7 +256,7 @@ The project join sweep reuses each track's decoded waveform, natural-join
 calibration, and high-rate source reader across its joins. PCM WAV checks seek
 bounded windows through one open reader. Other containers use FFmpeg to seek
 independent short source windows, two per join (one per splice side), in
-batches of at most 16 joins; temporary PCM output is discarded after each
+batches of at most 16 joins, each mapping `k:a:0` (the first audio stream, #2110); temporary PCM output is discarded after each
 batch, so a long source is never decoded wholesale for click checks. If a batch
 fails, each affected join is retried with the individual short-window decoder.
 Individual join scoring reads only a short window around its join.
