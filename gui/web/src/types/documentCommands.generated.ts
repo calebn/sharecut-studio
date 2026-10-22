@@ -20,6 +20,8 @@ export type DocumentCommandType =
   | "DeleteSocialClip"
   | "DuplicateSegment"
   | "EditSelectedRange"
+  | "InsertGap"
+  | "MoveByText"
   | "MoveClips"
   | "MoveSegment"
   | "PasteSegment"
@@ -84,6 +86,8 @@ export const DocumentCommand = {
   DeleteSocialClip: "DeleteSocialClip",
   DuplicateSegment: "DuplicateSegment",
   EditSelectedRange: "EditSelectedRange",
+  InsertGap: "InsertGap",
+  MoveByText: "MoveByText",
   MoveClips: "MoveClips",
   MoveSegment: "MoveSegment",
   PasteSegment: "PasteSegment",

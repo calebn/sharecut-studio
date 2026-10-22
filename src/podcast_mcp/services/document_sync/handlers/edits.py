@@ -285,6 +285,16 @@ def move_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def insert_gap(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return TimelineService(ws).insert_gap(float(p["at_time"]), float(p.get("duration_sec", 1.0)))
+
+
+def move_by_text(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return TimelineService(ws).move_by_text(
+        str(p["source_query"]), str(p["destination_query"]), str(p.get("position", "after"))
+    )
+
+
 def move_clips(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     raw = p.get("clips") or []
     if not isinstance(raw, list):
@@ -312,6 +322,7 @@ def cut_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         float(p["end"]),
         mode=EditMode(p["mode"]),
         track_ids=[str(t) for t in p.get("track_ids") or []],
+        use_inaudible_opt=p.get("use_inaudible_opt"),
         application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
 

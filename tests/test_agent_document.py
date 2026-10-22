@@ -110,6 +110,12 @@ def _clip_starts(path: str) -> dict[str, float]:
     return {c.id: c.timeline_start for c in load_project(Path(path)).clips}
 
 
+def _seed_transcribed(path: str, sample_wav) -> None:
+    from test_mcp_timeline_extended import _seed_project
+
+    _seed_project(path, sample_wav)
+
+
 def _journal_types(path: str) -> list[str]:
     return [r["type"] for r in DocumentSyncService.open(path).store.commands_after(0)]
 
@@ -314,6 +320,38 @@ def test_timeline_edit_tools_journal_through_the_document_plane(tmp_path, ten_se
         "SuppressLowAudibility",
     ]
     assert [c.title for c in load_project(Path(path)).chapters] == ["Intro"]
+
+
+def test_ripple_delete_and_insert_gap_journal_through_the_document_plane(
+    tmp_path, ten_second_silence_wav
+):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, ten_second_silence_wav)
+    gap = json.loads(mcp_timeline.insert_gap_tool(path, 1.0, 0.5))
+    cut = json.loads(mcp_timeline.ripple_delete_tool(path, 3.0, 4.0, use_inaudible_opt=False))
+    assert gap["operation"] == "insert_gap"
+    assert cut["operation"] == "ripple_delete"
+    assert _journal_types(path) == ["InsertGap", "CutRange"]
+
+
+def test_move_by_text_journals_through_the_document_plane(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_transcribed(path, sample_wav)
+    moved = json.loads(mcp_timeline.move_by_text_tool(path, "hello", "world", position="before"))
+    assert moved["operation"] == "move_segment"
+    assert _journal_types(path) == ["MoveByText"]
+
+
+def test_ripple_delete_keeps_its_coded_errors(tmp_path, ten_second_silence_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, ten_second_silence_wav)
+    with pytest.raises(ValueError) as caught:
+        mcp_timeline.ripple_delete_tool(path, 2.0, 1.0)
+    assert caught.value.code == "range_end_before_start"
+    with pytest.raises(ValueError) as nan_caught:
+        mcp_timeline.ripple_delete_tool(path, float("nan"), 1.0)
+    assert nan_caught.value.code == "range_end_before_start"
+    assert _journal_types(path) == []
 
 
 @pytest.mark.parametrize(

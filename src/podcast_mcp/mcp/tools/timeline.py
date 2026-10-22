@@ -105,17 +105,25 @@ def ripple_delete_tool(
     position themselves), repeat with ``override_audio_checks=true``; it keeps the bounds as
     given and records who overrode in History and the edit log.
     """
-    ws = ProjectWorkspace.open(project_path)
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        return to_json(
-            EditService(ws).cut_range(
-                start,
-                end,
-                mode=EditMode.RIPPLE,
-                track_ids=track_ids or [],
-                use_inaudible_opt=False if override_audio_checks else use_inaudible_opt,
-            )
+    if not end > start:
+        raise CodedValueError(
+            "timeline_end must be after timeline_start. Pick a timeline_end later than timeline_start.",
+            code="range_end_before_start",
         )
+    result = submit_host_command_result(
+        project_path,
+        "CutRange",
+        {
+            "start": start,
+            "end": end,
+            "mode": EditMode.RIPPLE.value,
+            "track_ids": track_ids or [],
+            "use_inaudible_opt": False if override_audio_checks else use_inaudible_opt,
+            "override_audio_checks": override_audio_checks,
+        },
+        client_id="mcp:host",
+    )
+    return to_json(result)
 
 
 def ripple_delete_text_tool(
@@ -177,8 +185,16 @@ def move_by_text_tool(
     position: str = "after",
 ) -> str:
     """Move a transcript-matched segment before or after another transcript match."""
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(TimelineService(ws).move_by_text(source_query, destination_query, position))
+    result = submit_host_command_result(
+        project_path,
+        "MoveByText",
+        {
+            "source_query": source_query,
+            "destination_query": destination_query,
+            "position": position,
+        },
+    )
+    return to_json(result)
 
 
 def insert_gap_tool(
@@ -191,8 +207,10 @@ def insert_gap_tool(
     Do not use to fake a beat after a tight handoff unless the user asks —
     prefer keeping existing room tone via ``suggest_handoff_cut_tool`` bounds.
     """
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(TimelineService(ws).insert_gap(at_time, duration_sec))
+    result = submit_host_command_result(
+        project_path, "InsertGap", {"at_time": at_time, "duration_sec": duration_sec}
+    )
+    return to_json(result)
 
 
 def fade_joins_tool(
