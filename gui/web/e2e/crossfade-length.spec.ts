@@ -54,7 +54,7 @@ for (const width of [1280, 390]) {
           .getByRole("button", { name: "Timeline", exact: true })
           .click();
       }
-      const badge = lane.locator(".join-badge");
+      const badge = lane.locator(".edit-mark");
       await badge.click();
       const panel = page.getByRole("dialog", { name: /join at/ });
       await panel

@@ -54,7 +54,7 @@ test.describe("Join badge popover", () => {
         for (const dx of [-11, 11]) {
           const hit = await page.evaluate(
             ([x, y]) =>
-              document.elementFromPoint(x, y)?.closest(".join-badge") != null,
+              document.elementFromPoint(x, y)?.closest(".edit-mark") != null,
             [box.x + box.width / 2 + dx, box.y + box.height / 2] as const,
           );
           expect(hit).toBe(true);
@@ -79,7 +79,7 @@ test.describe("Join badge popover", () => {
       await popover
         .getByRole("button", { name: "Crossfade", exact: true })
         .click();
-      await expect(lane.locator(".join-badge--crossfade")).toHaveCount(1);
+      await expect(lane.locator(".edit-mark--crossfade")).toHaveCount(1);
       modeChanged = true;
       await expect(
         popover.getByRole("button", { name: "Crossfade", exact: true }),
@@ -106,7 +106,7 @@ test.describe("Join badge popover", () => {
       await page.keyboard.press("Escape");
       if (modeChanged) {
         await page.keyboard.press("ControlOrMeta+Z");
-        await expect(lane.locator(".join-badge--crossfade")).toHaveCount(0);
+        await expect(lane.locator(".edit-mark--crossfade")).toHaveCount(0);
       }
       await page.keyboard.press("ControlOrMeta+Z");
       await expect(clips).toHaveCount(1);
@@ -148,7 +148,7 @@ test.describe("Join badge popover", () => {
       // Cut drops the Length row (the panel shrinks) while the window is
       // still full size, so this alone proves nothing about re-placement.
       await popover.getByRole("button", { name: "Cut", exact: true }).click();
-      await expect(lane.locator(".join-badge--cut")).toHaveCount(1);
+      await expect(lane.locator(".edit-mark--cut")).toHaveCount(1);
       modeChanges += 1;
       await expect(popover.getByRole("slider", { name: "Length" })).toHaveCount(
         0,
@@ -167,7 +167,7 @@ test.describe("Join badge popover", () => {
       // already small: only the panel's own ResizeObserver — not a window
       // resize — can catch this and re-place, which is what this pins.
       await popover.getByRole("button", { name: "Fade", exact: true }).click();
-      await expect(lane.locator(".join-badge--fade")).toHaveCount(1);
+      await expect(lane.locator(".edit-mark--fade")).toHaveCount(1);
       modeChanges += 1;
       await expect(
         popover.getByRole("slider", { name: "Length" }),
@@ -179,7 +179,7 @@ test.describe("Join badge popover", () => {
       for (let i = 0; i < modeChanges; i += 1) {
         await page.keyboard.press("ControlOrMeta+Z");
       }
-      await expect(lane.locator(".join-badge--cut")).toHaveCount(0);
+      await expect(lane.locator(".edit-mark--cut")).toHaveCount(0);
       await page.keyboard.press("ControlOrMeta+Z");
       await expect(clips).toHaveCount(1);
     }

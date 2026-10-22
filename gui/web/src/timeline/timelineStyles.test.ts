@@ -189,38 +189,38 @@ describe("timeline styles", () => {
     }
   });
 
-  it("draws join badges at the top of the seam, a button above the clips", () => {
+  it("draws edit marks at the top of the seam, a button above the clips", () => {
     const css = partial("timeline.css");
-    const badge = rule(css, ".join-badge");
-    expect(badge).toMatch(/top:\s*0/);
-    expect(badge).toMatch(/translate:\s*-50%\s+0;/);
-    expect(badge).toMatch(/height:\s*var\(--clip-inset-top\)/);
-    expect(badge).toMatch(/width:\s*1rem/);
-    expect(badge).toMatch(/z-index:\s*var\(--z-join\)/);
-    expect(badge).toMatch(/pointer-events:\s*auto/);
-    // One px token sizes the clip's top inset, the badge and its glyph, so they line up at any root font size.
+    const mark = rule(css, ".edit-mark");
+    expect(mark).toMatch(/top:\s*0/);
+    expect(mark).toMatch(/translate:\s*-50%\s+0;/);
+    expect(mark).toMatch(/height:\s*var\(--clip-inset-top\)/);
+    expect(mark).toMatch(/width:\s*1rem/);
+    expect(mark).toMatch(/z-index:\s*var\(--z-join\)/);
+    expect(mark).toMatch(/pointer-events:\s*auto/);
+    // One px token sizes the clip's top inset, the mark and its glyph, so they line up at any root font size.
     const clip = rule(css, ".clip-block");
     expect(clip).toMatch(/top:\s*var\(--clip-inset-top\)/);
     expect(clip).toMatch(
       /height:\s*calc\(var\(--lane-height\) - 2 \* var\(--clip-inset-top\)\)/,
     );
-    expect(rule(css, ".join-badge-glyph")).toMatch(
+    expect(rule(css, ".edit-mark-glyph")).toMatch(
       /height:\s*calc\(var\(--clip-inset-top\) - 1px - 1px\)/,
     );
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
     ).toMatch(/--clip-inset-top:\s*8px;/);
-    expect(rule(css, ".join-badge--blocked")).toMatch(
+    expect(rule(css, ".edit-mark--blocked")).toMatch(
       /border-color:\s*var\(--color-warning\)/,
     );
     // Declared after `.lane-inner > *` (pointer-events: auto) so it wins at equal specificity.
-    expect(css.indexOf(".join-badge {")).toBeGreaterThan(
+    expect(css.indexOf(".edit-mark {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
     );
-    // A --join-hit-min (24 px, px canvas) wide hit area inside the gutter (WCAG 2.5.8), never taller than the badge.
+    // A --join-hit-min (24 px, px canvas) wide hit area inside the gutter (WCAG 2.5.8), never taller than the mark.
     // Source text only: the negative inset (100% minus the target) is what grows it. e2e/join-popover.spec.ts
     // (expectHitAreaReaches24px, at the default and a 12px root) is the test that checks the geometry.
-    const hit = rule(css, ".join-badge::before");
+    const hit = rule(css, ".edit-mark::before");
     expect(hit).toMatch(/inset-block:\s*0/);
     expect(hit).toMatch(
       /inset-inline:\s*calc\(\(100% - var\(--join-hit-min\)\) \/ 2\)/,
@@ -228,6 +228,12 @@ describe("timeline styles", () => {
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
     ).toMatch(/--join-hit-min:\s*calc\(3 \* var\(--clip-inset-top\)\);/);
+    const chip = rule(css, ".edit-chip");
+    expect(chip).toMatch(/min-inline-size:\s*var\(--join-hit-min\)/);
+    expect(chip).toMatch(/z-index:\s*var\(--z-join\)/);
+    expect(css.indexOf(".edit-chip {")).toBeGreaterThan(
+      css.indexOf(".lane-inner > * {"),
+    );
   });
 
   it("keeps the join editor's anchored dialog fixed at the menu layer", () => {

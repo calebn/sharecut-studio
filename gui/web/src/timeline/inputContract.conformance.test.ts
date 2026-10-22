@@ -89,6 +89,7 @@ const project = minimalProject({
 const TARGET: Record<HitKind, { id: string; sec: number }> = {
   "bleed-attenuation": { id: "region-key", sec: 20 },
   join: { id: "c2", sec: 10 },
+  "edit-chip": { id: "join-c2", sec: 10 },
   "envelope-point": { id: "e1", sec: 16 },
   "envelope-line": { id: "level", sec: 0 },
   "pending-start": { id: "p1", sec: 20 },
@@ -301,7 +302,10 @@ describe("touch paths", () => {
     });
   });
   it("finds the timeline's press owners", () => {
-    expect(PRESS_OWNERS.length).toBeGreaterThan(HIT_KIND_NAMES.length);
+    const dragKinds = HIT_KIND_NAMES.filter(
+      (kind) => HIT_KINDS[kind].axis !== "none",
+    );
+    expect(PRESS_OWNERS.length).toBeGreaterThan(dragKinds.length);
   });
 
   it("starts no drag on a plain surface, where a long-press opens the create menu", () => {

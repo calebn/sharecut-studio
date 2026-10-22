@@ -52,6 +52,37 @@ describe("AppliedEditOverlay", () => {
     expect(tick).toHaveClass("selected");
   });
 
+  it("colors a mute record's ticks by type, apart from a cut's", () => {
+    const { container } = render(
+      <AppliedEditOverlay
+        records={[
+          appliedEditRecord({
+            id: "mute",
+            operation: "approve_edits",
+            source_start: 0.5,
+            source_end: 1,
+            params: { mute: true },
+          }),
+          appliedEditRecord({
+            id: "ripple",
+            operation: "ripple_delete",
+            timeline_start: 40,
+            timeline_end: 50,
+            source_start: null,
+            source_end: null,
+            params: { per_track_source: { "mira-voice": [2, 3] } },
+          }),
+        ]}
+        clips={clips}
+        trackId="mira-voice"
+        zoomPxPerSec={20}
+        selectedId={null}
+      />,
+    );
+    expect(container.querySelectorAll(".applied-tick--mute")).toHaveLength(2);
+    expect(container.querySelectorAll(".applied-tick--seam")).toHaveLength(1);
+  });
+
   it("filters other tracks and unmapped records, and renders no layer when empty", () => {
     const { container } = render(
       <AppliedEditOverlay

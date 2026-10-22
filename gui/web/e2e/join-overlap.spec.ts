@@ -88,7 +88,7 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       if (vp.width < 600) await openPhoneTimeline(page);
       if (vp.name === "phone-landscape")
         await page.getByRole("button", { name: "Maximize timeline" }).click();
-      const badge = lane.locator(".join-badge");
+      const badge = lane.locator(".edit-mark");
       await badge.click();
       const panel = page.getByRole("dialog", { name: /join at/ });
       await panel
@@ -165,7 +165,7 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       expect(
         await page.evaluate(
           ({ x, y }) =>
-            document.elementFromPoint(x, y)?.closest(".join-badge") != null,
+            document.elementFromPoint(x, y)?.closest(".edit-mark") != null,
           centre,
         ),
       ).toBe(true);

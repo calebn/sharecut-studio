@@ -276,14 +276,14 @@ export async function pickState(page: Page) {
         ?.getAttribute("data-hit-id") ?? null,
     openJoinId:
       document
-        .querySelector('.join-badge[aria-expanded="true"]')
+        .querySelector('.edit-mark[aria-expanded="true"]')
         ?.getAttribute("data-hit-id") ?? null,
     selectedClips: [...document.querySelectorAll(".clip-block.selected")].map(
       (el) => el.getAttribute("data-clip-id"),
     ),
     openJoin:
       document
-        .querySelector('.join-badge[aria-expanded="true"]')
+        .querySelector('.edit-mark[aria-expanded="true"]')
         ?.getAttribute("aria-label") ?? null,
     focused: document.activeElement?.getAttribute("aria-label") ?? null,
     sheet: document.querySelector(".bottom-sheet-root") != null,

@@ -48,6 +48,28 @@ describe("JoinBlend overlap waveforms", () => {
     layers.calls = [];
   });
 
+  it.each([
+    ["narrow", 0],
+    ["middle", 1],
+    ["wide", 1],
+  ] as const)("draws the X in the %s tier: %i path", (tier, paths) => {
+    const row = right(200);
+    const { container } = render(
+      <JoinBlend
+        visual={joinVisual(row, 100)}
+        left={left}
+        right={row}
+        zoomPxPerSec={100}
+        tier={tier}
+      />,
+    );
+    expect(container.querySelector(".join-blend")).toHaveStyle({
+      left: "490px",
+      width: "20px",
+    });
+    expect(container.querySelectorAll(".join-blend path")).toHaveLength(paths);
+  });
+
   it("draws the left tail and right head across exactly the overlap box", () => {
     const { container } = mount();
     expect(container.querySelector(".join-blend-waves")).toHaveStyle({

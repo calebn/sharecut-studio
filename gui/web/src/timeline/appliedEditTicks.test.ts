@@ -434,6 +434,27 @@ describe("appliedEditTicks", () => {
     const ticks = appliedEditTicks([mute], TRACK, clips);
     expect(ticks.map((t) => t.sec)).toEqual([22, 23]);
     expect(ticks.every((t) => t.kind === "edge")).toBe(true);
+    expect(ticks.every((t) => t.mute)).toBe(true);
+  });
+
+  it("flags only a mute record's ticks as mute", () => {
+    const clips = [
+      clipRow({
+        id: "c",
+        source_start: 0,
+        source_end: 10,
+        timeline_start: 20,
+        timeline_end: 30,
+      }),
+    ];
+    const roll = appliedEditRecord({
+      id: "roll",
+      operation: "roll_clip_join",
+      params: { clips: [{ clip_id: "c", track_id: TRACK }] },
+    });
+    expect(appliedEditTicks([roll], TRACK, clips).some((t) => t.mute)).toBe(
+      false,
+    );
   });
 
   it("gives a tick at the moved clip's timeline_start for move_clips", () => {

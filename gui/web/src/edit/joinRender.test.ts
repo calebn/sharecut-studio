@@ -4,25 +4,21 @@ import { placeLikeRender } from "../audio/renderClock";
 import { clipRow } from "../test/fixtures";
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
+import { JOIN_MODE_OPTIONS } from "../utils/editMarkerRegistry";
 import {
   clipIdsBeforeCut,
   clipsAbut,
   cutFadeHint,
   isCrossfadeJoin,
   isCutJoin,
-  isDrawnJoin,
-  JOIN_GLYPHS,
-  JOIN_MODE_OPTIONS,
-  JOIN_MODE_SHORT,
+  isJoin,
   joinDraftOverlapMs,
-  joinGlyph,
   joinLengthMs,
   joinModeLabel,
   joinRenderNote,
   joinSeamLabel,
   joinVisual,
   joinWaveSpans,
-  MIN_JOIN_CLIP_PX,
   MIN_JOIN_WAVE_CSS_PX,
   projectJoinDraft,
 } from "./joinRender";
@@ -124,9 +120,8 @@ describe("drawn joins", () => {
     join_left_clip_id: null,
   };
 
-  it("exposes the gap tolerance and minimum on-screen width", () => {
+  it("exposes the gap tolerance", () => {
     expect(JOIN_GAP_TOLERANCE_SEC).toBe(0.05);
-    expect(MIN_JOIN_CLIP_PX).toBe(24);
   });
 
   it("treats an abutment within tolerance (or an overlap) as touching", () => {
@@ -137,48 +132,24 @@ describe("drawn joins", () => {
     );
   });
 
-  it("draws a join only for abutting neighbours wide enough on screen", () => {
-    expect(isDrawnJoin(null, clip, 50)).toBe(false);
-    expect(isDrawnJoin(undefined, clip, 50)).toBe(false);
-    expect(isDrawnJoin(left, clip, 50)).toBe(true);
-    expect(isDrawnJoin(left, { ...clip, join_left_clip_id: "cx" }, 50)).toBe(
-      false,
-    );
-    expect(isDrawnJoin(left, { ...clip, join_left_clip_id: null }, 50)).toBe(
-      false,
-    );
+  it("draws a join for any abutting neighbours at any zoom", () => {
+    expect(isJoin(null, clip)).toBe(false);
+    expect(isJoin(undefined, clip)).toBe(false);
+    expect(isJoin(left, clip)).toBe(true);
+    expect(isJoin(left, { ...clip, join_left_clip_id: "cx" })).toBe(false);
+    expect(isJoin(left, { ...clip, join_left_clip_id: null })).toBe(false);
     const { join_left_clip_id: _drop, ...older } = clip;
-    expect(isDrawnJoin(left, older, 50)).toBe(true);
-    expect(
-      isDrawnJoin(left, { ...clip, timeline_start: 3, timeline_end: 5 }, 50),
-    ).toBe(false);
-    const narrowRight = { ...clip, source_end: 0.4 };
-    expect(isDrawnJoin(left, narrowRight, 50)).toBe(false);
-    expect(isDrawnJoin(left, narrowRight, 60)).toBe(true);
-  });
-
-  it("picks the glyph from the join mode, defaulting to fade", () => {
-    expect(joinGlyph({ join_in_mode: "cut" })).toBe("cut");
-    expect(joinGlyph({ join_in_mode: "fade" })).toBe("fade");
-    expect(joinGlyph({ join_in_mode: "crossfade" })).toBe("crossfade");
-    expect(joinGlyph({ join_in_mode: "weird" })).toBe("fade");
-  });
-
-  it("has a short word for each glyph", () => {
-    expect(JOIN_MODE_SHORT).toEqual({
-      cut: "Cut",
-      fade: "Fade",
-      crossfade: "Crossfade",
-    });
-  });
-
-  it("orders the popover's glyphs cut, fade, crossfade", () => {
-    expect(JOIN_GLYPHS).toEqual(["cut", "fade", "crossfade"]);
+    expect(isJoin(left, older)).toBe(true);
+    expect(isJoin(left, { ...clip, timeline_start: 3, timeline_end: 5 })).toBe(
+      false,
+    );
+    const sliver = { ...clip, source_end: 0.001 };
+    expect(isJoin(left, sliver)).toBe(true);
   });
 
   it("names the seam by mode and time", () => {
-    expect(joinSeamLabel("fade", 5)).toBe("Fade join at 0:05.0");
-    expect(joinSeamLabel("crossfade", 0)).toBe("Crossfade join at 0:00.0");
+    expect(joinSeamLabel("join-fade", 5)).toBe("Fade join at 0:05.0");
+    expect(joinSeamLabel("join-crossfade", 0)).toBe("Crossfade join at 0:00.0");
   });
 
   it("reads the join's current length for the popover slider", () => {

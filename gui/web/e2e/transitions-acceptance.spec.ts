@@ -299,7 +299,7 @@ test("crossfade endpoint saves block competing pointer fades until acknowledged"
   await page.keyboard.press("Shift+ArrowRight");
   await page.keyboard.press("ControlOrMeta+K");
   await expect(lane.locator(".clip-block")).toHaveCount(2);
-  await lane.locator(".join-badge").click();
+  await lane.locator(".edit-mark").click();
   const panel = page.getByRole("dialog", { name: /join at/ });
   await panel.getByRole("button", { name: "Crossfade", exact: true }).click();
   const length = panel.getByRole("slider", { name: /Length/ });
