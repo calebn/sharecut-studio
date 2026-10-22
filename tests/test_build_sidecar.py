@@ -226,6 +226,46 @@ def test_launcher_compile_error_is_not_reported_as_missing_rustc(
     assert "required" not in str(exc.value)
 
 
+@pytest.mark.parametrize("variant", ["sidecar", "podcast", "podcast_mcp"])
+def test_launcher_compile_contract(monkeypatch, tmp_path: Path, variant: str) -> None:
+    mod = _load_build_sidecar()
+    dest = tmp_path / "nested" / "launcher.exe"
+    commands: list[list[str]] = []
+    monkeypatch.setattr(mod, "require_rustc", lambda: "rustc")
+
+    def compile_output(command: list[str]) -> None:
+        commands.append(command)
+        assert dest.parent.is_dir()
+        dest.touch()
+
+    monkeypatch.setattr(mod.subprocess, "check_call", compile_output)
+    mod.compile_rust_launcher(dest, variant=variant)
+
+    expected = [
+        "rustc",
+        "--edition",
+        "2021",
+        "-C",
+        "opt-level=s",
+        "-o",
+        str(dest),
+        str(mod.LAUNCHER_RS),
+    ]
+    if variant != "sidecar":
+        expected.extend(["--cfg", f"{variant}_cli"])
+    assert commands == [expected]
+    assert dest.is_file()
+
+
+def test_launcher_compile_requires_output(monkeypatch, tmp_path: Path) -> None:
+    mod = _load_build_sidecar()
+    monkeypatch.setattr(mod, "require_rustc", lambda: "rustc")
+    monkeypatch.setattr(mod.subprocess, "check_call", lambda _command: None)
+
+    with pytest.raises(SystemExit, match="rustc did not produce"):
+        mod.compile_rust_launcher(tmp_path / "launcher")
+
+
 def test_compile_launchers_selects_three_modes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
