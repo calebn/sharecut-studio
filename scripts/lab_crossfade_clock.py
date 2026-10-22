@@ -16,6 +16,7 @@ import json
 import statistics
 import sys
 import wave
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +56,7 @@ def main() -> None:
         target = out / f"{track.id}.wav"
         render_track_from_timeline(project, track, target, defaults, engine=eng)
         samples, rate = _pcm(target)
-        joins = list(zip(clips, clips[1:], strict=False))
+        joins = list(pairwise(clips))
         closed = sum(
             max(0.0, b.timeline_start - a.timeline_end)
             for a, b in joins
