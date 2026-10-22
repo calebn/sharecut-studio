@@ -91,14 +91,17 @@ export function useRoomToneCapture(args: {
       if (!args.canUpload || !args.transport) {
         return;
       }
-      await uploadRoomToneWav({
+      const ack = await uploadRoomToneWav({
         wav,
         transport: args.transport,
         signal: controller.signal,
       });
       controller.signal.throwIfAborted();
+      // Parts were sent, so a revoke still applies; "sent" waits for the host's file ack.
       uploaded.current = true;
-      setDelivery("host");
+      if (ack.fileAck) {
+        setDelivery("host");
+      }
     },
     [args.canUpload, args.transport],
   );
