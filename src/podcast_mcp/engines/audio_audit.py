@@ -319,12 +319,6 @@ class TrackRmsCache:
         return speech_level_profile(self.samples, int(self.sample_rate))
 
     @classmethod
-    def from_samples(
-        cls, samples: np.ndarray, *, sample_rate: int = _RMS_SAMPLE_RATE
-    ) -> TrackRmsCache:
-        return cls(samples=samples, sample_rate=sample_rate)
-
-    @classmethod
     def from_timeline_stem(
         cls, path: Path, *, sample_rate: int = _RMS_SAMPLE_RATE
     ) -> TrackRmsCache:

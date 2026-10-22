@@ -22,7 +22,7 @@ from podcast_mcp.util.batch_scope import scoped_by_file
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.util.process import popen, run
+from podcast_mcp.util.process import CalledProcessError, popen, run
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.wav import open_wav
 
@@ -62,53 +62,44 @@ def _decode_f32_uncached(
     return samples
 
 
-def resample_stream(chunks: Iterator[np.ndarray], from_rate: int, to_rate: int) -> np.ndarray:
-    """Mono ``chunks`` converted by ffmpeg exactly as decoding a wav of them at ``to_rate`` would.
-
-    The chunks stream through one ffmpeg process, so the converter's state carries across
-    chunk edges as it does across a file, and only the converted result is held.
-    """
-    return resample_streams(chunks, from_rate, (to_rate,))[to_rate]
-
-
 def resample_streams(
     chunks: Iterator[np.ndarray], from_rate: int, to_rates: Iterable[int]
 ) -> dict[int, np.ndarray]:
-    """:func:`resample_stream` at each of ``to_rates`` from one pass over ``chunks``.
+    """Mono ``chunks`` converted by ffmpeg exactly as decoding a wav of them at each of ``to_rates`` would.
 
-    Each rate has a converter process of its own, fed the same chunks, so every result is
-    the one a stream converted to that rate alone would be; a rate equal to ``from_rate``
-    is the chunks themselves.
+    The chunks stream through one ffmpeg process per rate, so each converter's state carries
+    across chunk edges as it does across a file, and only the converted results are held.
+    A rate equal to ``from_rate`` is the chunks themselves. A failed conversion raises
+    ``CalledProcessError``, as a failed decode does.
     """
     rates = tuple(dict.fromkeys(to_rates))
     converting = [rate for rate in rates if rate != from_rate]
     if not converting:
         return dict.fromkeys(rates, np.concatenate(list(chunks)))
-    processes = {
-        rate: popen(
-            [
-                resolve_ffmpeg_pair().ffmpeg,
-                "-v",
-                "error",
-                "-f",
-                "f32le",
-                "-ar",
-                str(from_rate),
-                "-ac",
-                "1",
-                "-i",
-                "pipe:0",
-                "-ar",
-                str(rate),
-                "-f",
-                "f32le",
-                "pipe:1",
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+    commands = {
+        rate: [
+            resolve_ffmpeg_pair().ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "f32le",
+            "-ar",
+            str(from_rate),
+            "-ac",
+            "1",
+            "-i",
+            "pipe:0",
+            "-ar",
+            str(rate),
+            "-f",
+            "f32le",
+            "pipe:1",
+        ]
         for rate in converting
+    }
+    processes = {
+        rate: popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for rate, command in commands.items()
     }
     kept: list[np.ndarray] = []
     failure: list[BaseException] = []
@@ -155,8 +146,7 @@ def resample_streams(
         raise failure[0]
     for rate, code in codes.items():
         if code != 0:
-            error = converted[rate][1]
-            raise RuntimeError(f"ffmpeg resample failed: {error.decode(errors='replace')[-500:]}")
+            raise CalledProcessError(code, commands[rate], stderr=converted[rate][1])
     results = {rate: np.frombuffer(converted[rate][0], dtype="<f4") for rate in converting}
     if from_rate in rates:
         results[from_rate] = np.concatenate(kept)

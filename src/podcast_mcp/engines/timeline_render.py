@@ -236,37 +236,29 @@ def render_track_from_timeline(
     )
 
 
-def unfiltered_audio_decline(
-    project: EpisodeProject, track: Track, *, bare: bool = False
-) -> str | None:
+def unfiltered_audio_decline(project: EpisodeProject, track: Track) -> str | None:
     """Why the track's render adds a step after its tree, else None.
 
-    ``bare`` reads the track as its evidence copies do: transcript gate off and the effects
-    chain left out.
+    The track is read as the evidence copies do: transcript gate off and the effects chain
+    left out, so neither is a step here.
     """
     if not track.media or not clips_for_track(project, track.id):
         return "empty"
-    if track.transcript_gate and not bare:
-        return "gated"
     envelope = project.volume_envelope_for(track.id)
     if envelope and envelope.points:
         return "envelope"
-    if not bare and any(
-        chain.track_id == track.id and any(not fx.bypass for fx in chain.effects)
-        for chain in project.processing_chains
-    ):
-        return "chain"
-    if restore_applies(project, track, gated=False if bare else None):
+    if restore_applies(project, track, gated=False):
         return "bleed_restore"
     return None
 
 
 def unfiltered_track_audio(
-    project: EpisodeProject, track: Track, defaults: EffectiveConfig, *, bare: bool = False
+    project: EpisodeProject, track: Track, defaults: EffectiveConfig
 ) -> tuple[Audio, str] | None:
     """The tree ``render_track_from_timeline`` renders and its crossfade curve, when that
-    render adds no filter, gate or restore step after the tree; else None."""
-    if unfiltered_audio_decline(project, track, bare=bare) is not None:
+    render with the gate off and the chain left out adds no filter or restore step after
+    the tree; else None."""
+    if unfiltered_audio_decline(project, track) is not None:
         return None
     curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
     return placed_track_audio(project, track, clips_for_track(project, track.id)).audio, curve
