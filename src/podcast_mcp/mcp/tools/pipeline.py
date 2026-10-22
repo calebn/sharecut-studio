@@ -5,11 +5,14 @@ from typing import Any
 
 from mcp.server import MCPServer
 
-from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
 from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.pipeline import PipelineService, format_export_qc_lines
+from podcast_mcp.services.pipeline import (
+    PipelineService,
+    format_export_qc_lines,
+    stale_stream_notices,
+)
 from podcast_mcp.util.project_state import current_cancel_check
 
 
@@ -25,7 +28,7 @@ def _run_message(
 
 
 def _stale_notices(ws: ProjectWorkspace) -> list[str]:
-    return stale_stream_lines(ws.project, stale_stream_files(ws.project))
+    return stale_stream_notices(ws.project)
 
 
 def pipeline_run(

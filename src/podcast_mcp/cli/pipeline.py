@@ -10,7 +10,7 @@ import typer
 from podcast_mcp.cli.cancel import CANCELLED_EXIT_CODE, sigint_cancel
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService
+from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService, stale_stream_notices
 from podcast_mcp.util.progress import CancelledProgress
 
 pipeline_app = typer.Typer(help="Run processing pipeline.")
@@ -71,7 +71,6 @@ def pipeline_run(
     ),
     assignments: list[str] | None = typer.Option(None, "--set", help=_SET_HELP),
 ) -> None:
-    from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
     from podcast_mcp.pipeline.meta import set_by_path
     from podcast_mcp.services.pipeline import transcribe_run_config
 
@@ -92,8 +91,7 @@ def pipeline_run(
         unattended=unattended,
         config=config,
     )
-    notices = stale_stream_lines(ws.project, stale_stream_files(ws.project))
-    _echo_run_report(result, notices)
+    _echo_run_report(result, stale_stream_notices(ws.project))
     if strict and not result.ok:
         typer.echo("Export QC is not ok; exiting 1 (pass --no-strict to exit 0).", err=True)
         raise typer.Exit(1)

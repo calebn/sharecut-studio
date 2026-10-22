@@ -652,7 +652,7 @@ def test_pipeline_run_studio_job_appends_stale_notice(tmp_path, monkeypatch) -> 
     old = EpisodeProject(meta=ProjectMeta(name="old", workspace_dir=str(tmp_path)))
     _patch_fake_pipeline(monkeypatch, proj, {"ok": True, "issues": [], "warnings": []}, old)
     monkeypatch.setattr(
-        "podcast_mcp.mcp.tools.pipeline.stale_stream_files",
+        "podcast_mcp.services.pipeline.service.stale_stream_files",
         lambda _project: [StaleStreamFile("raw/x.mkv", ("a",), 2, 1)],
     )
     shared_job_manager(reset=True)
