@@ -10,12 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { clampClipFades } from "../edit/fadeLimits";
-import {
-  joinDraftOverlapMs,
-  joinGlyph,
-  joinVisual,
-  projectJoinDraft,
-} from "../edit/joinRender";
+import { joinGlyph, joinVisual, projectJoinDraft } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
@@ -72,7 +67,6 @@ function JoinEditorLive(props: JoinEditorProps) {
   const draft =
     (edit.state.kind === "pointer" && edit.state.moved) ||
     edit.state.kind === "range";
-  const draftOverlapMs = joinDraftOverlapMs(left, right, edit.value);
   const projected = draft ? projectJoinDraft(left, right, edit.value) : right;
   const visual = joinVisual(projected, zoomPxPerSec);
   const [leader, setLeader] = useState<{
@@ -166,12 +160,14 @@ function JoinEditorLive(props: JoinEditorProps) {
             {...railPress}
           >
             <span className="join-edit-caption">
-              Join at {seamSec}s · {draft ? "Draft" : "Effective"} overlap{" "}
-              {draft
-                ? draftOverlapMs
-                : right.join_crossfade_blocked
-                  ? 0
-                  : (right.join_crossfade_ms ?? 0)}{" "}
+              Join at {seamSec}s ·{" "}
+              {draft && !projected.join_crossfade_blocked
+                ? "Draft"
+                : "Effective"}{" "}
+              overlap{" "}
+              {projected.join_crossfade_blocked
+                ? 0
+                : (projected.join_crossfade_ms ?? 0)}{" "}
               ms
             </span>
             <div className="join-edit-track">
@@ -207,7 +203,7 @@ function JoinEditorLive(props: JoinEditorProps) {
         visual={visual}
         left={left}
         right={right}
-        waves={right.join_crossfade_blocked ? undefined : waves}
+        waves={projected.join_crossfade_blocked ? undefined : waves}
         zoomPxPerSec={zoomPxPerSec}
       />
       <JoinBadgeView

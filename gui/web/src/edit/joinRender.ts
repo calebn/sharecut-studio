@@ -261,6 +261,14 @@ export function projectJoinDraft(
   ms: number,
 ): ClipRow {
   if (joinGlyph(right) !== "crossfade") return right;
+  // The browser cannot see mutes, so a saved no_headroom is kept for the drag.
+  // It is length-curable only for a mute 5-10 ms past the edge (needs a ~20 ms
+  // or shorter drag); release re-reads the server row.
+  if (
+    right.join_crossfade_blocked === "no_headroom" ||
+    right.join_crossfade_blocked === "not_abutting"
+  )
+    return right;
   return {
     ...right,
     join_crossfade_ms: joinDraftOverlapMs(left, right, ms),

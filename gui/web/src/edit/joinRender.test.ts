@@ -444,4 +444,30 @@ describe("projectJoinDraft", () => {
     const row = { ...crossfade, join_in_mode: mode } as ClipRow;
     expect(projectJoinDraft(left, row, 9000)).toBe(row);
   });
+  it.each(["no_headroom", "not_abutting"] as const)(
+    "returns a saved %s row unchanged however much clip room there is",
+    (reason) => {
+      const row = {
+        ...crossfade,
+        join_crossfade_ms: 0,
+        join_crossfade_blocked: reason,
+      };
+      const out = projectJoinDraft(left, row, 400);
+      expect(out).toEqual(row);
+    },
+  );
+  it.each(["no_fade_in", "no_fade_out"] as const)(
+    "still projects a saved %s row (a drag sets the fades)",
+    (reason) => {
+      const row = {
+        ...crossfade,
+        join_crossfade_ms: 0,
+        join_crossfade_blocked: reason,
+      };
+      const out = projectJoinDraft(left, row, 400);
+      expect(out.join_crossfade_blocked).toBeNull();
+      expect(out.join_crossfade_ms).toBe(joinDraftOverlapMs(left, row, 400));
+      expect(out.join_crossfade_ms).toBe(400);
+    },
+  );
 });
