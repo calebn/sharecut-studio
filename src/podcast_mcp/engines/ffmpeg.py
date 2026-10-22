@@ -58,6 +58,7 @@ from podcast_mcp.engines.render_clock import (
     format_filter,
     negotiated_rates,
     observed_clock,
+    spawn_or_too_long,
 )
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -1100,7 +1101,7 @@ class FFmpegEngine:
                 )
             cmd[cmd.index("-filter_complex") + 1] = ";".join(filters)
         if clock_path is None:
-            run(cmd, check=True, capture_output=True)
+            spawn_or_too_long(run, cmd, check=True, capture_output=True)
         else:
             clock_path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(
@@ -1168,7 +1169,7 @@ class FFmpegEngine:
                     *cmd[1:],
                 ]
                 with stderr_path.open("wb") as stderr:
-                    result = run(observed_cmd, stdout=DEVNULL, stderr=stderr)
+                    result = spawn_or_too_long(run, observed_cmd, stdout=DEVNULL, stderr=stderr)
                 if result.returncode:
                     with stderr_path.open("rb") as error_stream:
                         error_stream.seek(0, 2)
@@ -1796,7 +1797,7 @@ class FFmpegEngine:
             cmd.extend(extra_args)
         cmd.append(str(output_path))
         if cancel_check is None:
-            run(cmd, check=True, capture_output=True)
+            spawn_or_too_long(run, cmd, check=True, capture_output=True)
         else:
             _run_cancellable(cmd, cancel_check)
         return output_path

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import errno
 import json
 import re
 import wave
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from subprocess import CalledProcessError
+from subprocess import CalledProcessError, CompletedProcess
 from typing import Any
 
 from podcast_mcp.engines.audio import (
@@ -40,6 +42,25 @@ def clock_error() -> CodedValueError:
     return CodedValueError(
         "Cannot validate bleed Restore render clock", code="bleed_restore_clock_invalid"
     )
+
+
+def spawn_or_too_long(
+    spawn: Callable[..., CompletedProcess[Any]], cmd: list[str], **kwargs: Any
+) -> CompletedProcess[Any]:
+    """Run ``cmd`` through ``spawn``; an argument list the OS refuses is ``render_command_too_long``.
+
+    Windows reports ``ERROR_FILENAME_EXCED_RANGE`` (206) as ``FileNotFoundError``, so the code
+    is checked before anything reads that as a missing ffmpeg.
+    """
+    try:
+        return spawn(cmd, **kwargs)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 206 or error.errno == errno.E2BIG:
+            raise CodedValueError(
+                "This mix has too many inputs for one render command",
+                code="render_command_too_long",
+            ) from error
+        raise
 
 
 def validate_format(audio: ObservedAudio) -> None:
@@ -154,7 +175,8 @@ def _configured_ports(
             f"[descriptor_{i}]atrim@input_trim_{i}[input_{i}]"
         )
     configured.append("[config_output]aformat=sample_fmts=s16[out]")
-    result = run(
+    result = spawn_or_too_long(
+        run,
         [
             ffprobe,
             "-v",
