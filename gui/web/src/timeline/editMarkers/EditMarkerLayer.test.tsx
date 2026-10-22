@@ -531,8 +531,8 @@ describe("EditMarkerLayer with its join editors", () => {
     vi.mocked(setClipJoin).mockClear();
   });
 
-  function Lane() {
-    const plan = planOf([a.left, a.right, b.left, b.right], 50);
+  function Lane({ zoom = 50 }: { zoom?: number }) {
+    const plan = planOf([a.left, a.right, b.left, b.right], zoom);
     return (
       <main className="timeline-area">
         {plan.symbols.map(({ mark }) => {
@@ -569,6 +569,18 @@ describe("EditMarkerLayer with its join editors", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(glyph).toHaveFocus();
+  });
+
+  it("moves focus to the chip a join folds into while its popover holds focus", async () => {
+    const user = userEvent.setup();
+    const view = render(<Lane />);
+    await user.click(
+      screen.getByRole("button", { name: "Fade 10 ms join at 0:05.0" }),
+    );
+    await waitForDialogFocus();
+    view.rerender(<Lane zoom={1} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: /^2 edits/ })).toHaveFocus();
   });
 
   it("has no axe violations while open", async () => {
