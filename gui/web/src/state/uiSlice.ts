@@ -312,6 +312,40 @@ type UiSlice = Pick<
   | "measureTimelineViewport"
 >;
 
+/** UI state `hydrate` clears on every call. */
+export function uiAlwaysInitial() {
+  return {
+    envelopeDraft: null as EnvelopeDraftEntry | null,
+    wordDraft: null as WordDraftEntry | null,
+    transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
+    ingestBusy: false,
+    ingestDropTrackId: null as string | null,
+  };
+}
+
+/** UI state tied to one project; `hydrate` clears it when the project path changes. */
+export function uiProjectInitial() {
+  return {
+    transcriptTimingRequest: null,
+    transcriptReviewCursor: null as TranscriptReviewCursor | null,
+    highlightStaleRender: false,
+    renderPreviewBusy: false,
+    chapterAddPending: false,
+    openJoinId: null,
+    joinMutationInFlight: false,
+    rippleTrim: null,
+    rangeArmed: false,
+    rangeScopeTrackIds: null as readonly string[] | null,
+    rangeBusy: false,
+    bounceRangeTarget: null,
+    splitSpeakersReview: null,
+    splitSpeakersTrackId: null,
+    feedbackToast: null,
+    pendingJobResults: {},
+    spokenJobResultIds: [] as readonly string[],
+  };
+}
+
 export function chromeInitial(): ChromeFlags {
   return {
     commandPaletteOpen: false,
@@ -332,15 +366,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
 ) => {
   const lanePref = readLaneHeightPref();
   return {
-    highlightStaleRender: false,
-    renderPreviewBusy: false,
-    ingestBusy: false,
-    ingestDropTrackId: null as string | null,
+    ...uiAlwaysInitial(),
+    ...uiProjectInitial(),
     statusAnnouncement: "",
     statusAnnouncementSeq: 0,
-    feedbackToast: null,
-    pendingJobResults: {},
-    spokenJobResultIds: [] as readonly string[],
     setHighlightStaleRender: (highlightStaleRender) =>
       set({ highlightStaleRender }),
     setRenderPreviewBusy: (renderPreviewBusy) => set({ renderPreviewBusy }),
@@ -462,9 +491,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       get().setTimelineViewportWidth(
         estimateTimelineViewportWidth(get().shellBreakpoint),
       ),
-    rangeArmed: false,
-    rangeScopeTrackIds: null as readonly string[] | null,
-    rangeBusy: false,
     setRangeArmed: (rangeArmed) =>
       set({ rangeArmed, rangeScopeTrackIds: null }),
     setRangeScopeTrackIds: (rangeScopeTrackIds) => set({ rangeScopeTrackIds }),
@@ -482,15 +508,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     } satisfies LayerVisibility,
     commentMode: false,
     commentDraft: null as CommentDraft | null,
-    envelopeDraft: null as EnvelopeDraftEntry | null,
-    wordDraft: null as WordDraftEntry | null,
     transcriptFollowPlayhead: true,
-    transcriptTimingRequest: null,
-    transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     transcriptInlineCommitPending: false,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
-    transcriptReviewCursor: null as TranscriptReviewCursor | null,
-    chapterAddPending: false,
     transcriptAnnotate: false,
     transcriptCorrecting: false,
     showCutAwayUtterances: false,
@@ -809,7 +829,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           ...(!s.chrome.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
         },
       })),
-    bounceRangeTarget: null,
     setBounceRangeTarget: (bounceRangeTarget) => set({ bounceRangeTarget }),
     setBounceDialogOpen: (on) =>
       set((s) => ({
@@ -818,10 +837,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       })),
     setExportDialogOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, exportDialogOpen: on } })),
-    splitSpeakersReview: null,
     setSplitSpeakersReview: (splitSpeakersReview) =>
       set({ splitSpeakersReview }),
-    splitSpeakersTrackId: null,
     setSplitSpeakersTrackId: (splitSpeakersTrackId) =>
       set({ splitSpeakersTrackId }),
     setShareDialogOpen: (on) =>
@@ -834,12 +851,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set((s) => ({ chrome: { ...s.chrome, hostMcpDialogOpen: on } })),
     setHelpDialogOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, helpDialogOpen: on } })),
-    openJoinId: null,
     setOpenJoinId: (openJoinId) => set({ openJoinId }),
-    joinMutationInFlight: false,
     setJoinMutationInFlight: (joinMutationInFlight) =>
       set({ joinMutationInFlight }),
-    rippleTrim: null,
     setRippleTrim: (rippleTrim) => set({ rippleTrim }),
     fitToWindow: (viewportWidth) => {
       const duration = sessionSecOf(get());

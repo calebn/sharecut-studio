@@ -70,16 +70,32 @@ export function stopTargetSec(
   );
 }
 
+/** Transport state tied to one project; `hydrate` clears it when the project path changes. */
+export function transportProjectInitial() {
+  return {
+    sourcePreview: null,
+    sourcePreviewPositionSec: null,
+    sourcePreviewError: null,
+    playheadSec: 0,
+    isPlaying: false,
+    playStartSec: null as number | null,
+    viewerMute: {},
+    soloTracks: {},
+    sessionRegion: null as SessionRegion | null,
+    lastAgentQuery: null as string | null,
+    playUntilSec: null as number | null,
+    audioError: null as string | null,
+  };
+}
+
 export const createTransportSlice: StateCreator<
   DawStore,
   [],
   [],
   TransportSlice
 > = (set) => ({
+  ...transportProjectInitial(),
   sourcePreviewGeneration: 0,
-  sourcePreview: null,
-  sourcePreviewPositionSec: null,
-  sourcePreviewError: null,
   beginSourcePreview: (request) =>
     set((s) => ({
       sourcePreview: {
@@ -124,17 +140,8 @@ export const createTransportSlice: StateCreator<
           }
         : {},
     ),
-  playheadSec: 0,
   playheadSeekRevision: 0,
-  isPlaying: false,
-  playStartSec: null as number | null,
   auditionMode: "mix" as AuditionMode,
-  viewerMute: {},
-  soloTracks: {},
-  sessionRegion: null as SessionRegion | null,
-  lastAgentQuery: null as string | null,
-  playUntilSec: null as number | null,
-  audioError: null as string | null,
   setPlayheadSec: (playheadSec, origin = "seek") =>
     set((s) => ({
       sourcePreview: null,
