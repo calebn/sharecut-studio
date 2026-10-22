@@ -132,16 +132,15 @@ def _spdif_payload(tmp_path: Path) -> bytes:
     return _encoded(tmp_path, "ac3.spdif", "-ac", "2", "-c:a", "ac3", "-f", "spdif").read_bytes()
 
 
-def _cases() -> list[tuple[str, int, int, int]]:
-    return [
-        (name, channels, rate, 0) for name in _FORMATS for channels in _LAYOUTS for rate in _RATES
-    ]
-
-
 @pytest.mark.parametrize(
     ("name", "channels", "rate", "extensible"),
     [
-        *_cases(),
+        *(
+            (name, channels, rate, 0)
+            for name in _FORMATS
+            for channels in _LAYOUTS
+            for rate in _RATES
+        ),
         ("s16", 1, 44100, 0x4),
         ("s16", 2, 44100, 0x3),
         ("s24", 2, 48000, 0x3),
@@ -256,6 +255,6 @@ def test_header_route_render_bytes_equal_probe_route(
     child = _write_format(tmp_path / "child.wav", name, channels, rate, frames=rate // 2)
     audio = MixAudio(At(0.0, SourceAudio(head, 0.0, 1.0)), (At(0.5, SourceAudio(child, 0.0, 0.5)),))
     header_out = FFmpegEngine().render_timeline(tmp_path / "header.wav", audio, "anull")
-    monkeypatch.setattr(render_clock, "_wav_format", lambda path: None, raising=False)
+    monkeypatch.setattr(render_clock, "_wav_format", lambda path: None)
     probe_out = FFmpegEngine().render_timeline(tmp_path / "probe.wav", audio, "anull")
     assert header_out.read_bytes() == probe_out.read_bytes()

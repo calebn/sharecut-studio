@@ -643,7 +643,7 @@ def test_clock_suite_file_form(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, 
     audio = _CLOCK_CASES[name](tmp_path)
     inline_out, inline_clock = tmp_path / "inline.wav", tmp_path / "inline.json"
     FFmpegEngine().render_timeline(inline_out, audio, "anull", clock_path=inline_clock)
-    monkeypatch.setattr(render_clock, "_INLINE_GRAPH_MAX_CHARS", 0, raising=False)
+    monkeypatch.setattr(render_clock, "_INLINE_GRAPH_MAX_CHARS", 0)
     file_out, file_clock = tmp_path / "file.wav", tmp_path / "file.json"
     FFmpegEngine().render_timeline(file_out, audio, "anull", clock_path=file_clock)
     assert file_clock.read_bytes() == inline_clock.read_bytes()
