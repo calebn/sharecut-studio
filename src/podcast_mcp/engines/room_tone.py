@@ -642,7 +642,11 @@ def room_tone_bed(project: EpisodeProject, track_id: str) -> RecordedBedSample |
         return BedUnavailable("unreadable_file")
     if rms_db(audio, floor_db=DIGITAL_SILENCE_DB) <= DIGITAL_SILENCE_DB:
         return BedUnavailable("digital_silence")
-    rejected = _bed_rejection(path, file_revision(path), audio)
+    try:
+        rejected = _bed_rejection(path, file_revision(path), audio)
+    except Exception as exc:
+        log.warning("room tone bed %s could not be measured: %s", source_id, exc)
+        return BedUnavailable("unreadable_file")
     if rejected:
         return BedUnavailable("contaminated_bed", rejected)
     return RecordedBedSample(0.0, bed_sec, source_id, path)
