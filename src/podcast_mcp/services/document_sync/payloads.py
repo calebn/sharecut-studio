@@ -634,6 +634,24 @@ class InsertGapPayload(BaseModel):
     duration_sec: float = Field(default=1.0, allow_inf_nan=False)
 
 
+class FadeJoinsPayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+    fade_ms: int | None = None
+    dry_run: Literal[False] | None = Field(
+        default=None, description="A preview is not a command: only false or omitted."
+    )
+
+
+class CrossfadeJoinsPayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+    fade_ms: int | None = None
+    dry_run: Literal[False] | None = Field(
+        default=None, description="A preview is not a command: only false or omitted."
+    )
+
+
 class MoveByTextPayload(BaseModel):
     source_query: str
     destination_query: str
@@ -1012,6 +1030,16 @@ class InsertGapCommand(DocumentCommandEnvelope):
     payload: InsertGapPayload
 
 
+class FadeJoinsCommand(DocumentCommandEnvelope):
+    type: Literal["FadeJoins"] = "FadeJoins"
+    payload: FadeJoinsPayload
+
+
+class CrossfadeJoinsCommand(DocumentCommandEnvelope):
+    type: Literal["CrossfadeJoins"] = "CrossfadeJoins"
+    payload: CrossfadeJoinsPayload
+
+
 class MoveByTextCommand(DocumentCommandEnvelope):
     type: Literal["MoveByText"] = "MoveByText"
     payload: MoveByTextPayload
@@ -1113,6 +1141,8 @@ DocumentCommandBody = Annotated[
     | DuplicateSegmentCommand
     | MoveSegmentCommand
     | InsertGapCommand
+    | FadeJoinsCommand
+    | CrossfadeJoinsCommand
     | MoveByTextCommand
     | MoveClipsCommand
     | PasteSegmentCommand
@@ -1237,6 +1267,8 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "DuplicateSegment": DuplicateSegmentPayload,
     "MoveSegment": MoveSegmentPayload,
     "InsertGap": InsertGapPayload,
+    "FadeJoins": FadeJoinsPayload,
+    "CrossfadeJoins": CrossfadeJoinsPayload,
     "MoveByText": MoveByTextPayload,
     "MoveClips": MoveClipsPayload,
     "PasteSegment": PasteSegmentPayload,

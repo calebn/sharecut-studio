@@ -221,13 +221,18 @@ def fade_joins_tool(
     dry_run: bool = False,
 ) -> str:
     """Add fades at edit joins on a track; dry_run previews without applying."""
-    ws = ProjectWorkspace.open(project_path)
+    if dry_run:
+        ws = ProjectWorkspace.open(project_path)
+        return to_json(
+            TimelineService(ws).preview_fade_joins(
+                track_id=track_id, speaker=speaker, fade_ms=fade_ms
+            )
+        )
     return to_json(
-        TimelineService(ws).fade_joins(
-            track_id=track_id,
-            speaker=speaker,
-            fade_ms=fade_ms,
-            dry_run=dry_run,
+        submit_host_command_result(
+            project_path,
+            "FadeJoins",
+            {"track_id": track_id, "speaker": speaker, "fade_ms": fade_ms},
         )
     )
 
@@ -240,13 +245,18 @@ def crossfade_joins_tool(
     dry_run: bool = False,
 ) -> str:
     """Add crossfades at edit joins on a track; dry_run previews without applying."""
-    ws = ProjectWorkspace.open(project_path)
+    if dry_run:
+        ws = ProjectWorkspace.open(project_path)
+        return to_json(
+            TimelineService(ws).preview_crossfade_joins(
+                track_id=track_id, speaker=speaker, fade_ms=fade_ms
+            )
+        )
     return to_json(
-        TimelineService(ws).crossfade_joins(
-            track_id=track_id,
-            speaker=speaker,
-            fade_ms=fade_ms,
-            dry_run=dry_run,
+        submit_host_command_result(
+            project_path,
+            "CrossfadeJoins",
+            {"track_id": track_id, "speaker": speaker, "fade_ms": fade_ms},
         )
     )
 

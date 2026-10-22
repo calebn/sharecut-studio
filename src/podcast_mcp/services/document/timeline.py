@@ -244,6 +244,22 @@ class TimelineService(CutMutatingService):
             params={"at_time": at_time, "duration_sec": duration_sec},
         )
 
+    def preview_fade_joins(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        fade_ms: int | None = None,
+    ) -> dict:
+        return fade_joins(
+            self.ws.project,
+            track_id=track_id,
+            speaker=speaker,
+            fade_ms=fade_ms,
+            dry_run=True,
+            defaults=self.ws.effective_config(),
+        )
+
     def fade_joins(
         self,
         *,
@@ -253,14 +269,7 @@ class TimelineService(CutMutatingService):
         dry_run: bool = False,
     ) -> dict:
         if dry_run:
-            return fade_joins(
-                self.ws.project,
-                track_id=track_id,
-                speaker=speaker,
-                fade_ms=fade_ms,
-                dry_run=True,
-                defaults=self.ws.effective_config(),
-            )
+            return self.preview_fade_joins(track_id=track_id, speaker=speaker, fade_ms=fade_ms)
         return self.ws.mutate(
             "before fade joins",
             "after fade joins",
@@ -279,6 +288,22 @@ class TimelineService(CutMutatingService):
             },
         )
 
+    def preview_crossfade_joins(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        fade_ms: int | None = None,
+    ) -> dict:
+        return crossfade_joins(
+            self.ws.project,
+            track_id=track_id,
+            speaker=speaker,
+            fade_ms=fade_ms,
+            dry_run=True,
+            defaults=self.ws.effective_config(),
+        )
+
     def crossfade_joins(
         self,
         *,
@@ -288,14 +313,7 @@ class TimelineService(CutMutatingService):
         dry_run: bool = False,
     ) -> dict:
         if dry_run:
-            return crossfade_joins(
-                self.ws.project,
-                track_id=track_id,
-                speaker=speaker,
-                fade_ms=fade_ms,
-                dry_run=True,
-                defaults=self.ws.effective_config(),
-            )
+            return self.preview_crossfade_joins(track_id=track_id, speaker=speaker, fade_ms=fade_ms)
         return self.ws.mutate(
             "before crossfade joins",
             "after crossfade joins",

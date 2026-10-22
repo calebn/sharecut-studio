@@ -14,6 +14,7 @@ export type DocumentCommandType =
   | "ApproveEdits"
   | "CorrectTranscriptPhrase"
   | "CorrectTranscriptWord"
+  | "CrossfadeJoins"
   | "CutRange"
   | "DeleteChapter"
   | "DeleteClip"
@@ -21,6 +22,7 @@ export type DocumentCommandType =
   | "DeleteSocialClip"
   | "DuplicateSegment"
   | "EditSelectedRange"
+  | "FadeJoins"
   | "InsertGap"
   | "MoveByText"
   | "MoveClips"
@@ -83,6 +85,7 @@ export const DocumentCommand = {
   ApproveEdits: "ApproveEdits",
   CorrectTranscriptPhrase: "CorrectTranscriptPhrase",
   CorrectTranscriptWord: "CorrectTranscriptWord",
+  CrossfadeJoins: "CrossfadeJoins",
   CutRange: "CutRange",
   DeleteChapter: "DeleteChapter",
   DeleteClip: "DeleteClip",
@@ -90,6 +93,7 @@ export const DocumentCommand = {
   DeleteSocialClip: "DeleteSocialClip",
   DuplicateSegment: "DuplicateSegment",
   EditSelectedRange: "EditSelectedRange",
+  FadeJoins: "FadeJoins",
   InsertGap: "InsertGap",
   MoveByText: "MoveByText",
   MoveClips: "MoveClips",
