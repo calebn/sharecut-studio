@@ -56,6 +56,7 @@ const RESET_ON_SWITCH: Reset = {
   selection: null,
   pendingJobResults: {},
   spokenJobResultIds: [],
+  envelopeSaving: [],
   feedbackToast: null,
 };
 

@@ -152,9 +152,9 @@ export type EnvelopeDraftEntry = {
 };
 
 /**
- * The envelope save in flight and the target it writes. It lives in the store,
- * not in the form, so a remount (the phone and tablet shells swapping on
- * rotation) neither enables a second Save nor loses the busy state.
+ * An envelope save in flight and the target it writes. The saves live in the
+ * store, not in the form, so a remount (the phone and tablet shells swapping
+ * on rotation) neither enables a second Save nor loses the busy state.
  */
 export type EnvelopeSaving = {
   projectPath: string;
@@ -314,7 +314,7 @@ export interface DawState {
   commentMode: boolean;
   commentDraft: CommentDraft | null;
   envelopeDraft: EnvelopeDraftEntry | null;
-  envelopeSaving: EnvelopeSaving | null;
+  envelopeSaving: EnvelopeSaving[];
   wordDraft: WordDraftEntry | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
@@ -560,7 +560,8 @@ export interface DawState {
   toggleCommentMode: () => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
   setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
-  setEnvelopeSaving: (saving: EnvelopeSaving | null) => void;
+  beginEnvelopeSave: (target: EnvelopeSaving) => void;
+  endEnvelopeSave: (target: EnvelopeSaving) => void;
   setWordDraft: (entry: WordDraftEntry | null) => void;
   setToolMode: (mode: ToolMode) => void;
   selectTracks: (trackIds: readonly string[]) => void;
