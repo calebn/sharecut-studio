@@ -8,25 +8,37 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import bleed_gate
+from podcast_mcp.util import dsp
 from test_bleed_gate_regression import RATE, _episode, _read_pcm, _write_pcm
 
 pytestmark = pytest.mark.usefixtures("one_phrase_copy_evidence")
 
 
 def test_owner_activity_analysis_bounds_each_rms_allocation(monkeypatch):
-    shapes = []
+    allocation_bytes = []
+    frame_counts = []
     original = np.square
+    original_rms = dsp.frame_rms_db
 
     def measured(values, *args, **kwargs):
-        if values.ndim == 2:
-            shapes.append(values.shape)
-        return original(values, *args, **kwargs)
+        result = original(values, *args, **kwargs)
+        allocation_bytes.append(result.nbytes)
+        return result
+
+    def measured_rms(*args, **kwargs):
+        result = original_rms(*args, **kwargs)
+        frame_counts.append(result.size)
+        return result
 
     monkeypatch.setattr(np, "square", measured)
+    monkeypatch.setattr(dsp, "frame_rms_db", measured_rms)
     samples = np.ones(60 * bleed_gate.EVIDENCE_RATE, dtype=np.float32) * 0.01
     bleed_gate._owner_protection(samples, [(1, 2)], [])
-    assert shapes
-    assert max(rows for rows, _ in shapes) <= 1000
+    assert allocation_bytes
+    assert frame_counts
+    assert max(frame_counts) <= 1000
+    owner_frame = round(bleed_gate._OWNER_FRAME_SEC * bleed_gate.EVIDENCE_RATE)
+    assert max(allocation_bytes) <= 1000 * owner_frame * np.dtype(np.float64).itemsize
 
 
 def test_repeated_audition_planning_reuses_evidence_until_media_changes(tmp_path, monkeypatch):
