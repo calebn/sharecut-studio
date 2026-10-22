@@ -365,9 +365,9 @@ def approve_edits_tool(
     ``apply_suggested_actions_tool``.
 
     ``all_pending=true`` approves every pending proposal; ``ids`` approves those. Either way
-    the edits that pass the automatic audio-quality and cut-position checks apply, and
-    ``held`` lists the ones stopped (each with its finding) and left pending, and ``ids`` lists the
-    edits this call approved. When the user says to approve a held cut anyway, repeat with
+    the edits that pass the automatic audio-quality and cut-position checks apply. ``ids`` lists
+    the edits this call approved, and ``held`` lists the ones stopped (each with its finding) and
+    left pending. When the user says to approve a held cut anyway, repeat with
     ``override_audio_checks=true``: it skips those checks for this call and records the
     override (actor and surface) in History and the edit log.
     """

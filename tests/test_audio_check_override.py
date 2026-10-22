@@ -38,7 +38,6 @@ def test_host_mcp_approve_all_reports_held_then_override_applies_and_records(tmp
         approve_edits_tool(str(ws.path), all_pending=True, override_audio_checks=True)
     )
     assert done["approved_count"] == 1
-    # approve_edits_tool is a document command with the default role, so its surface is "agent".
     assert _override_record(ws.path) == {
         "kind": "owner_override",
         "actor": "mcp:host",
@@ -52,9 +51,9 @@ def test_host_mcp_ripple_delete_text_override_records_the_host_mcp_surface(episo
     host.words.append(TranscriptWord(text="um", start=10.0, end=11.0))
     save_project(project)
 
-    held = json.loads(ripple_delete_text_tool(str(episode), "um"))
+    first = json.loads(ripple_delete_text_tool(str(episode), "um"))
     assert load_project(episode).editorial.edit_log == []
-    assert held["unchanged"] is True
+    assert first["unchanged"] is True
 
     ripple_delete_text_tool(str(episode), "um", override_audio_checks=True)
 

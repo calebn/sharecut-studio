@@ -39,10 +39,11 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
         result["confirm_ids"] = list(asked[0].edit_ids)
     # The history commit retires unplayed pending cuts, so a held stale cut can vanish unapplied.
-    kept = {h.edit_id for h in held} | {i for a in asked for i in a.edit_ids}
+    held_or_asked = {h.edit_id for h in held} | {i for a in asked for i in a.edit_ids}
     after = {e.id for e in ws.project.edit_decisions}
+    # dict.fromkeys dedupes the requested ids and keeps their order.
     result["approved_ids"] = [
-        i for i in dict.fromkeys(ids) if i in before and i not in after and i not in kept
+        i for i in dict.fromkeys(ids) if i in before and i not in after and i not in held_or_asked
     ]
     return result
 

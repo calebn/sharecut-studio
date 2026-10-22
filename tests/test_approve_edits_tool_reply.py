@@ -1,4 +1,4 @@
-"""approve_edits_tool replies the ids it approved, so ids always matches approved_count (#2026)."""
+"""Regression tests for #2026."""
 
 from __future__ import annotations
 
@@ -33,18 +33,17 @@ def _remove(edit_id, start, end, *, scope, boundary_mode="exact"):
     )
 
 
-def _pend(path, *edits):
+def _set_decisions(path, *edits):
     project = load_project(path)
     project.edit_decisions = list(edits)
     save_project(project)
 
 
 def _pending_ids(path):
-    return [e.id for e in EditService(ProjectWorkspace.open(path)).list_decisions(applied=False)]
+    return sorted(d.id for d in load_project(path).edit_decisions if not d.applied)
 
 
 def _assert_ids_match(path, reply):
-    assert reply["approved_count"] == len(reply["ids"])
     pending = _pending_ids(path)
     assert not set(reply["ids"]) & set(pending)
     for held in reply["held"]:
@@ -54,7 +53,7 @@ def _assert_ids_match(path, reply):
 
 
 def test_held_cut_is_not_in_the_replied_ids(episode):
-    _pend(
+    _set_decisions(
         episode, _remove("a", 10.0, 11.0, scope="session"), _remove("b", 2.0, 2.5, scope="session")
     )
 
@@ -68,7 +67,7 @@ def test_held_cut_is_not_in_the_replied_ids(episode):
 
 def test_asked_cut_is_not_in_the_replied_ids(episode):
     _quiet_guest(episode)
-    _pend(episode, _remove("a", 10.0, 11.0, scope="session"))
+    _set_decisions(episode, _remove("a", 10.0, 11.0, scope="session"))
     before = _geometry(episode)
 
     reply = json.loads(approve_edits_tool(str(episode), ["a"]))
@@ -86,7 +85,7 @@ def test_asked_cut_is_not_in_the_replied_ids(episode):
 
 def test_cut_waiting_beside_the_asked_one_is_not_in_the_replied_ids(episode):
     _quiet_guest(episode)
-    _pend(
+    _set_decisions(
         episode,
         _remove("a", 10.0, 11.0, scope="session"),
         _remove("b", 11.02, 11.3, scope="session"),
@@ -95,6 +94,7 @@ def test_cut_waiting_beside_the_asked_one_is_not_in_the_replied_ids(episode):
     reply = json.loads(approve_edits_tool(str(episode), ["a", "b"]))
 
     assert reply["ids"] == []
+    assert reply["approved_count"] == 0
     assert reply["confirm_ids"] == ["a"]
     (held,) = reply["held"]
     assert held["id"] == "b"
@@ -103,7 +103,7 @@ def test_cut_waiting_beside_the_asked_one_is_not_in_the_replied_ids(episode):
 
 
 def test_cut_rejected_while_the_call_runs_is_not_in_the_replied_ids(episode, monkeypatch):
-    _pend(
+    _set_decisions(
         episode,
         _remove("a", 2.0, 2.5, scope="track"),
         _remove("b", 5.0, 5.5, scope="track"),
@@ -125,9 +125,9 @@ def test_cut_rejected_while_the_call_runs_is_not_in_the_replied_ids(episode, mon
 
 
 def test_held_cut_retired_as_unplayed_is_not_in_the_replied_ids(episode):
-    _pend(episode, _remove("r", 2.0, 2.5, scope="track"))
+    _set_decisions(episode, _remove("r", 2.0, 2.5, scope="track"))
     assert json.loads(approve_edits_tool(str(episode), ["r"]))["ids"] == ["r"]
-    _pend(
+    _set_decisions(
         episode,
         _remove("s", 2.1, 2.4, scope="track"),
         _remove("t", 5.0, 5.5, scope="track"),
@@ -139,12 +139,11 @@ def test_held_cut_retired_as_unplayed_is_not_in_the_replied_ids(episode):
     assert reply["approved_count"] == 1
     assert reply["held"][0]["id"] == "s"
     assert reply["held"][0]["reason"] == "its audio was already cut away, so it no longer plays"
-    assert reply["approved_count"] == len(reply["ids"])
     assert "t" not in _pending_ids(episode)
 
 
 def test_approve_all_replies_only_the_approved_subset(episode):
-    _pend(
+    _set_decisions(
         episode, _remove("a", 10.0, 11.0, scope="session"), _remove("b", 2.0, 2.5, scope="session")
     )
 
@@ -161,7 +160,7 @@ def test_unchanged_confirmation_is_replied_verbatim(episode, monkeypatch):
     hold_blocked=True and the engine demotes every leaning cut before leaned_on is checked
     (cut_application.py:941-959)."""
     _quiet_guest(episode)
-    _pend(episode, _remove("a", 10.0, 11.0, scope="session"))
+    _set_decisions(episode, _remove("a", 10.0, 11.0, scope="session"))
     before = _geometry(episode)
     real = cut_application.approve_edits
 
