@@ -112,6 +112,7 @@ describe("useCommitRange", () => {
     const input = screen.getByRole("slider", { name: "Len" });
     fireEvent.input(input, { target: { value: "40" } });
     fireEvent.pointerCancel(input);
+    (input as HTMLInputElement).value = "40";
     act(() => {
       input.dispatchEvent(new Event("change"));
     });
@@ -129,6 +130,7 @@ describe("useCommitRange", () => {
       .mockReturnValue("hidden");
     fireEvent(document, new Event("visibilitychange"));
     visibility.mockRestore();
+    (input as HTMLInputElement).value = "40";
     act(() => {
       input.dispatchEvent(new Event("change"));
     });
@@ -139,6 +141,19 @@ describe("useCommitRange", () => {
       input.dispatchEvent(new Event("change"));
     });
     expect(onCommit).toHaveBeenCalledExactlyOnceWith(70);
+  });
+
+  it("keeps the drag when the page becomes visible mid-drag", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent(document, new Event("visibilitychange"));
+    expect(screen.getByTestId("value")).toHaveTextContent("40");
+    act(() => {
+      input.dispatchEvent(new Event("change"));
+    });
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(40);
   });
 
   it("ignores a change that arrives while the page is already hidden", () => {
@@ -164,6 +179,7 @@ describe("useCommitRange", () => {
     fireEvent.input(input, { target: { value: "40" } });
     fireEvent(window, new Event("pagehide"));
     expect(screen.getByTestId("value")).toHaveTextContent("10");
+    (input as HTMLInputElement).value = "40";
     act(() => {
       input.dispatchEvent(new Event("change"));
     });

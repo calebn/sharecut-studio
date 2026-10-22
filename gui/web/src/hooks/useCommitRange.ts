@@ -65,6 +65,19 @@ export function useCommitRange({
     }
   }, [saved]);
 
+  // A cancel or the page backgrounding ends a drag without a user release; on
+  // iOS the interrupted touch still fires a change event, which must not commit
+  // the half-dragged value.
+  const interruptDrag = () => {
+    if (!uncommittedRef.current) {
+      return;
+    }
+    cancelRevert();
+    draggingRef.current = false;
+    uncommittedRef.current = false;
+    interruptedRef.current = true;
+    setValue(savedRef.current);
+  };
   const commit = (next: number) => {
     cancelRevert();
     draggingRef.current = false;
@@ -112,19 +125,6 @@ export function useCommitRange({
     }, 0);
   };
 
-  // A cancel or the page backgrounding ends a drag without a user release; on
-  // iOS the interrupted touch still fires a change event, which must not commit
-  // the half-dragged value.
-  const interruptDrag = () => {
-    if (!uncommittedRef.current) {
-      return;
-    }
-    cancelRevert();
-    draggingRef.current = false;
-    uncommittedRef.current = false;
-    interruptedRef.current = true;
-    setValue(savedRef.current);
-  };
   const onInterrupt = useEffectEvent(interruptDrag);
   useEffect(() => {
     const onVisibility = () => {
