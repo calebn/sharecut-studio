@@ -67,6 +67,6 @@
     "tests/test_tunnel_run.py": 0,
     "tests/test_tunnel_status_lifecycle.py": 0,
     "tests/test_word_aligner_models.py": 0,
-    "tests/test_ws_delivery.py": 6
+    "tests/test_ws_delivery.py": 0
   }
 }

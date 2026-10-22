@@ -30,8 +30,15 @@ async def test_transport_disconnect_completes_writer_without_another_close():
     await writer.send("first")
     closing = asyncio.create_task(writer.send("closing"))
     await entered.wait()
-    queued = asyncio.create_task(writer.send("queued"))
-    await asyncio.sleep(0)
+    queued_entered = asyncio.Event()
+
+    async def send_queued():
+        queued_entered.set()
+        await writer.send("queued")
+
+    queued = asyncio.create_task(send_queued())
+    await queued_entered.wait()
+    assert not queued.done()
     release.set()
     await asyncio.wait_for(asyncio.gather(closing, queued), 0.2)
     await asyncio.wait_for(writer.wait_closed(), 0.2)
@@ -75,9 +82,15 @@ async def test_send_disconnect_does_not_complete_an_in_progress_close():
     await write_entered.wait()
     closing = asyncio.create_task(writer.close(4403, "revoked"))
     await close_entered.wait()
-    waiter = asyncio.create_task(writer.wait_closed())
+    waiter_entered = asyncio.Event()
+
+    async def wait_for_close():
+        waiter_entered.set()
+        await writer.wait_closed()
+
+    waiter = asyncio.create_task(wait_for_close())
+    await waiter_entered.wait()
     await asyncio.wait_for(writing, 0.2)
-    await asyncio.sleep(0)
     assert not closing.done()
     assert not waiter.done()
     release_close.set()
@@ -132,8 +145,15 @@ async def test_serializes_writes_and_preserves_order():
     writer = SerializedWsWriter(write, close)
     first = asyncio.create_task(writer.send("first"))
     await entered.wait()
-    second = asyncio.create_task(writer.send("second"))
-    await asyncio.sleep(0)
+    second_entered = asyncio.Event()
+
+    async def send_second():
+        second_entered.set()
+        await writer.send("second")
+
+    second = asyncio.create_task(send_second())
+    await second_entered.wait()
+    assert not second.done()
     assert sent == []
     release.set()
     await asyncio.gather(first, second)
@@ -304,8 +324,15 @@ async def test_queue_close_delivers_ordered_frames_and_wakes_waiter():
         queue.put_nowait("late")
 
     waiting_queue = WsFrameQueue(len, maxsize=1, max_bytes=10)
-    waiting = asyncio.create_task(waiting_queue.get())
-    await asyncio.sleep(0)
+    get_entered = asyncio.Event()
+
+    async def get_waiting_frame():
+        get_entered.set()
+        return await waiting_queue.get()
+
+    waiting = asyncio.create_task(get_waiting_frame())
+    await get_entered.wait()
+    assert not waiting.done()
     waiting_queue.close(discard=True)
     assert await asyncio.wait_for(waiting, 0.2) is None
 
@@ -355,10 +382,22 @@ async def test_concurrent_close_waits_for_one_delivery():
     writer = SerializedWsWriter(write, close)
     first = asyncio.create_task(writer.close(4403, "revoked"))
     await entered.wait()
-    second = asyncio.create_task(writer.close(1011, "pump failed"))
-    completed = asyncio.create_task(writer.wait_closed())
+    second_entered = asyncio.Event()
+    completed_entered = asyncio.Event()
+
+    async def close_again():
+        second_entered.set()
+        await writer.close(1011, "pump failed")
+
+    async def wait_for_completion():
+        completed_entered.set()
+        await writer.wait_closed()
+
+    second = asyncio.create_task(close_again())
+    completed = asyncio.create_task(wait_for_completion())
+    await second_entered.wait()
+    await completed_entered.wait()
     await writer.send("late")
-    await asyncio.sleep(0)
     assert writer.closed
     assert not second.done()
     assert not completed.done()
@@ -418,8 +457,15 @@ async def test_cancelled_close_waiter_does_not_cancel_delivery():
     writer = SerializedWsWriter(write, close)
     closing = asyncio.create_task(writer.close(4403, "revoked"))
     await entered.wait()
-    waiter = asyncio.create_task(writer.close(1000, "later"))
-    await asyncio.sleep(0)
+    waiter_entered = asyncio.Event()
+
+    async def close_again():
+        waiter_entered.set()
+        await writer.close(1000, "later")
+
+    waiter = asyncio.create_task(close_again())
+    await waiter_entered.wait()
+    assert not waiter.done()
     waiter.cancel()
     with pytest.raises(asyncio.CancelledError):
         await waiter
