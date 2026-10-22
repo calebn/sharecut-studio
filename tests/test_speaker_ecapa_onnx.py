@@ -436,15 +436,17 @@ def test_concurrent_first_embeds_build_one_session(
 ) -> None:
     import sys
     import threading
-    import time
     import types
 
     built: list[str] = []
+    second_build = threading.Event()
 
     class SlowSession:
         def __init__(self, path: str, **_: object) -> None:
-            time.sleep(0.05)
+            if built:
+                second_build.set()
             built.append(path)
+            second_build.wait(timeout=0.5)
 
         def run(self, _outputs: object, feed: dict[str, np.ndarray]) -> list[np.ndarray]:
             return [np.ones((1, 1, 192), dtype=np.float32)]
