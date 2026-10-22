@@ -46,6 +46,8 @@ def _decode_f32_uncached(
             "error",
             "-i",
             str(path),
+            "-map",
+            "0:a:0",
             *layout,
             "-ar",
             str(sample_rate),
