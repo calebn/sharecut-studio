@@ -56,6 +56,19 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 
 `expectPageAxeClean(page, selector)` can also check a focused surface; the open transport-menu test scopes its axe check to the menu while unrelated track-header and loading-timeline ARIA names are tracked in #114. Do not disable additional axe rules to hide failures.
 
+### Browser installation
+
+Browser matrix jobs remove the Azure Ubuntu entry from the runner's
+`/etc/apt/apt-mirrors.txt` before installing browser dependencies. They require
+and retain the existing canonical HTTPS fallback, including its priority metadata,
+and leave apt's signed metadata and package checksum verification intact.
+This avoids the intermittently slow Azure archive path tracked in
+[runner-images #14823](https://github.com/actions/runner-images/issues/14823).
+The browser installation step has a ten-minute bound. That bound limits a future
+transport stall; mirror selection is the correction for the observed incident.
+The existing matrix-selected Playwright browser and its system dependencies are
+still installed on every job, without a browser cache or install retry.
+
 ### Storybook browser geometry
 
 `npm run test:e2e:storybook` in `gui/web` builds the static Storybook catalog,
