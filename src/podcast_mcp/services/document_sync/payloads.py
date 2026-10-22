@@ -54,6 +54,7 @@ class ExpectedEnvelopePoint(EnvelopePoint):
 
 # Bounds the O(n) baseline comparison that runs inside the document transaction.
 ENVELOPE_POINTS_MAX = 10_000
+FADE_RECOMMENDATIONS_MAX = 10_000
 
 
 class PasteExtract(BaseModel):
@@ -270,7 +271,7 @@ class ApplyFadeRecommendationsPayload(BaseModel):
 
 
 class ApplyFadeRecommendationListPayload(BaseModel):
-    recommendations: list[dict[str, Any]]
+    recommendations: list[dict[str, Any]] = Field(max_length=FADE_RECOMMENDATIONS_MAX)
 
 
 class SetEffectBypassPayload(BaseModel):

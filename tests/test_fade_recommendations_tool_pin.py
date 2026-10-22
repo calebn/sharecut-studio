@@ -183,3 +183,17 @@ def test_the_payload_requires_the_list():
     validate_payload("ApplyFadeRecommendationList", {"recommendations": []})
     with pytest.raises(ValueError):
         validate_payload("ApplyFadeRecommendationList", {})
+
+
+def test_recommendation_list_is_bounded():
+    import pytest
+    from pydantic import ValidationError
+
+    from podcast_mcp.services.document_sync.payloads import (
+        FADE_RECOMMENDATIONS_MAX,
+        ApplyFadeRecommendationListPayload,
+    )
+
+    ApplyFadeRecommendationListPayload(recommendations=[{}] * FADE_RECOMMENDATIONS_MAX)
+    with pytest.raises(ValidationError):
+        ApplyFadeRecommendationListPayload(recommendations=[{}] * (FADE_RECOMMENDATIONS_MAX + 1))
