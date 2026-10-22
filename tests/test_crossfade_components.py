@@ -92,7 +92,7 @@ def _read(path: Path) -> tuple[int, ...]:
         return struct.unpack(f"<{frames}h", source.readframes(frames))
 
 
-def _prepared(name: str, start: float, end: float, source: SourceAudio, *, join=False):
+def _prepared(name: str, start: float, end: float, source: SourceAudio, *, join=False, borrow=0.05):
     clip = Clip(
         id=name,
         track_id="host",
@@ -103,7 +103,7 @@ def _prepared(name: str, start: float, end: float, source: SourceAudio, *, join=
         fade_out_ms=100,
         join_in_mode=ClipJoinMode.CROSSFADE if join else ClipJoinMode.CUT,
     )
-    return _PreparedClip(clip, _ClipContent(start, end, source))
+    return _PreparedClip(clip, _ClipContent(start, end, source), borrow if join else 0.0)
 
 
 def test_plan_names_saved_partner_and_preserves_enclosing_actor(tmp_path: Path):
@@ -356,7 +356,7 @@ def test_component_frontier_retires_a_shrunk_maximum(tmp_path: Path):
         [
             _prepared("b", 5, 25.00075, independent),
             _prepared("a", 24, 25.001, predecessor),
-            _prepared("c", 25.001, 25.0015, right, join=True),
+            _prepared("c", 25.001, 25.0015, right, join=True, borrow=0.0005),
         ],
         window_length=26,
     )

@@ -878,7 +878,8 @@ def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_p
     """A CROSSFADE join with a 30 ms gap renders as a crossfade; the gap is not kept.
 
     Same rule as FADE joins: gaps within JOIN_GAP_TOLERANCE_SEC close up, so the
-    stem is shorter than the timeline by the gap plus the crossfade overlap.
+    stem is shorter than the timeline by the gap; the crossfade borrows from the recordings
+    and costs no time (#1888).
     """
     eng = FFmpegEngine()
     if not eng.check_available()[0]:
@@ -911,8 +912,8 @@ def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_p
     assert len(render_cmds) == 1
     assert "acrossfade=d=0.02:c1=tri:c2=tri" in render_cmds[0]
     assert "apad" not in render_cmds[0]
-    # 0.4 s + 0.4 s - 0.02 s crossfade overlap; the 30 ms gap is absorbed.
-    assert eng.probe(out).duration_sec == pytest.approx(0.78, abs=0.01)
+    # 0.4 s + 0.4 s: the blend borrows 10 ms from each recording and the 30 ms gap is absorbed.
+    assert eng.probe(out).duration_sec == pytest.approx(0.80, abs=0.01)
 
 
 def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tmp_path: Path):

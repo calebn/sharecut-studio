@@ -1,7 +1,7 @@
 """Where the render places each clip on its lane's clock, pinned to a fixture.
 
 ``gui/web/src/audio/renderClock.test.ts`` reads the same file, so the browser's
-render clock and ``timeline_render._place_clips`` cannot drift apart (#1888).
+render clock and ``timeline_render.placed_track_audio`` cannot drift apart (#1888).
 Regenerate after an intended change with ``REGEN_RENDER_CLOCK=1 pytest`` on this file.
 """
 
@@ -20,10 +20,11 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SourceAudio,
     duration,
+    sources,
 )
-from podcast_mcp.engines.clips_ops import join_render_fields
-from podcast_mcp.engines.timeline_render import _ClipContent, _place_clips, _PreparedClip
-from podcast_mcp.models import Clip, ClipJoinMode
+from podcast_mcp.engines.clips_ops import crossfade_borrow_sec, join_render_fields
+from podcast_mcp.engines.timeline_render import placed_track_audio
+from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, MediaAsset, Track, TrackRole
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "render_clock" / "cases.json"
 
@@ -40,12 +41,14 @@ def _clip(
     mode: ClipJoinMode = _CUT,
     fade_in: int = 0,
     fade_out: int = 0,
+    room: float = 10.0,
 ) -> Clip:
+    """A clip playing ``room`` seconds into its recording, so a blend can borrow before it."""
     return Clip(
         id=clip_id,
         track_id=track,
-        source_start=0.0,
-        source_end=end - start,
+        source_start=room,
+        source_end=room + end - start,
         timeline_start=start,
         fade_in_ms=fade_in,
         fade_out_ms=fade_out,
@@ -53,18 +56,20 @@ def _clip(
     )
 
 
+_RECORDING_SEC = 100.0
+
 _CASES: dict[str, list[Clip]] = {
     "no_crossfade_is_identity": [
         _clip("a", "host", 0, 5),
         _clip("b", "host", 5, 9, _FADE, 100, 100),
         _clip("c", "host", 12, 14),
     ],
-    "one_blending_join_pulls_the_rest_earlier": [
+    "one_blending_join_moves_nothing": [
         _clip("a", "host", 0, 5, fade_out=200),
         _clip("b", "host", 5, 9, _XFADE, 200, 0),
         _clip("c", "host", 9, 12),
     ],
-    "overlaps_add_up_across_a_chain_and_a_gap": [
+    "a_chain_of_blends_moves_nothing_and_a_gap_stays": [
         _clip("a", "host", 0, 4, fade_out=300),
         _clip("b", "host", 4, 8, _XFADE, 300, 400),
         _clip("c", "host", 8, 11, _XFADE, 400, 0),
@@ -75,22 +80,32 @@ _CASES: dict[str, list[Clip]] = {
         _clip("b", "host", 5, 9, _XFADE, 200, 0),
         _clip("c", "host", 9, 12),
     ],
-    "overlap_is_capped_at_half_the_right_clip": [
+    "a_short_clip_borrows_at_most_a_quarter_of_its_length": [
         _clip("a", "host", 0, 5, fade_out=400),
         _clip("b", "host", 5, 5.1, _XFADE, 400, 0),
         _clip("c", "host", 5.1, 8),
+    ],
+    "no_room_before_the_right_clip_joins_without_a_blend": [
+        _clip("a", "host", 0, 5, fade_out=200),
+        _clip("b", "host", 5, 9, _XFADE, 200, 0, room=0.0),
+        _clip("c", "host", 9, 12),
+    ],
+    "a_gap_inside_the_tolerance_closes_up_and_shifts_the_rest": [
+        _clip("a", "host", 0, 4, fade_out=250),
+        _clip("b", "host", 4.03, 8, _XFADE, 250, 0),
+        _clip("c", "host", 8.03, 10),
     ],
     "a_start_within_tolerance_of_the_frontier_snaps_to_it": [
         _clip("a", "host", 0, 4, fade_out=250),
         _clip("b", "host", 4, 8, _XFADE, 250, 0),
         _clip("c", "host", 8.0005, 10),
     ],
-    "a_crossfaded_clip_under_a_millisecond_can_shorten_the_frontier": [
+    "a_clip_too_short_to_borrow_joins_without_a_blend": [
         _clip("a", "host", 0, 5, fade_out=200),
         _clip("b", "host", 5, 5.0005, _XFADE, 200, 0),
         _clip("c", "host", 5.0005, 9),
     ],
-    "lanes_shift_independently": [
+    "a_blending_lane_stays_in_step_with_a_plain_one": [
         _clip("h1", "host", 0, 5, fade_out=200),
         _clip("h2", "host", 5, 9, _XFADE, 200, 0),
         _clip("h3", "host", 9, 12),
@@ -105,10 +120,11 @@ _CASES: dict[str, list[Clip]] = {
 }
 
 
-def _leaf_starts(audio: object, base: float, out: dict[str, float]) -> None:
+def _leaf_starts(audio: object, base: float, out: dict[str, tuple[float, float]]) -> None:
+    """Render-clock start and first source second of each clip's leaf."""
     match audio:
         case SourceAudio():
-            out[audio.path.name] = base
+            out[str(audio.clip_id)] = (base, audio.src_start)
         case SequenceAudio():
             at = base
             for part in (audio.head, *audio.tail):
@@ -125,35 +141,40 @@ def _leaf_starts(audio: object, base: float, out: dict[str, float]) -> None:
             raise AssertionError(type(audio))
 
 
-def _case_rows(clips: list[Clip]) -> list[dict]:
+def _case_rows(clips: list[Clip], tmp_path: Path) -> list[dict]:
     """Clip rows as the project view reports them, plus where the render places each."""
     lanes: dict[str, list[Clip]] = {}
     for clip in clips:
         lanes.setdefault(clip.track_id, []).append(clip)
+    project = EpisodeProject.create("render_clock", str(tmp_path))
+    (tmp_path / "raw").mkdir(parents=True, exist_ok=True)
+    project.timeline.tracks = []
+    for track_id in lanes:
+        (tmp_path / "raw" / f"{track_id}.wav").write_bytes(b"")
+        project.timeline.tracks.append(
+            Track(
+                id=track_id,
+                label=track_id,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{track_id}.wav", duration_sec=_RECORDING_SEC),
+            )
+        )
     placed: dict[str, float] = {}
     rows: dict[str, dict] = {}
-    for lane in lanes.values():
+    for track_id, lane in lanes.items():
         lane.sort(key=lambda c: c.timeline_start)
-        prepared = [
-            _PreparedClip(
-                clip,
-                _ClipContent(
-                    clip.timeline_start,
-                    clip.timeline_end,
-                    SourceAudio(Path(clip.id), clip.source_start, clip.source_end),
-                ),
-            )
-            for clip in lane
-        ]
-        starts: dict[str, float] = {}
-        _leaf_starts(_place_clips(prepared).audio, 0.0, starts)
-        placed.update(starts)
+        starts: dict[str, tuple[float, float]] = {}
+        track = next(t for t in project.tracks if t.id == track_id)
+        _leaf_starts(placed_track_audio(project, track, lane).audio, 0.0, starts)
         for index, clip in enumerate(lane):
+            base, src_start = starts[clip.id]
+            placed[clip.id] = base + clip.source_start - src_start
             rows[clip.id] = {
                 "id": clip.id,
                 "track_id": clip.track_id,
                 "source_start": clip.source_start,
                 "source_end": clip.source_end,
+                "source_duration_sec": _RECORDING_SEC,
                 "timeline_start": clip.timeline_start,
                 "timeline_end": clip.timeline_end,
                 "join_in_mode": clip.join_in_mode.value,
@@ -164,14 +185,17 @@ def _case_rows(clips: list[Clip]) -> list[dict]:
     return [{**rows[clip.id], "placed_start": placed[clip.id]} for clip in clips]
 
 
-def _build() -> dict:
+def _build(tmp_path: Path) -> dict:
     return {
-        "cases": [{"name": name, "clips": _case_rows(clips)} for name, clips in _CASES.items()],
+        "cases": [
+            {"name": name, "clips": _case_rows(clips, tmp_path / name)}
+            for name, clips in _CASES.items()
+        ],
     }
 
 
-def test_fixture_matches_the_render() -> None:
-    built = _build()
+def test_fixture_matches_the_render(tmp_path: Path) -> None:
+    built = _build(tmp_path)
     if os.environ.get("REGEN_RENDER_CLOCK"):
         _FIXTURE.write_text(json.dumps(built, indent=2) + "\n")
     stored = json.loads(_FIXTURE.read_text())
@@ -186,12 +210,63 @@ def test_fixture_matches_the_render() -> None:
             assert a == pytest.approx(b), (want["name"], a["id"])
 
 
-def test_cases_cover_a_shifted_and_an_unshifted_lane() -> None:
+def test_a_blend_moves_no_clip_and_a_closed_gap_still_does(tmp_path: Path) -> None:
     moved = {
         row["id"]
-        for case in _build()["cases"]
+        for case in _build(tmp_path)["cases"]
         for row in case["clips"]
         if abs(row["placed_start"] - row["timeline_start"]) > 1e-9
     }
-    assert {"b", "c", "d", "h2", "h3", "later"} <= moved
-    assert not moved & {"g1", "g2"}
+    assert {"b", "c"} & moved
+    for case in _build(tmp_path / "again")["cases"]:
+        if case["name"] in {
+            "one_blending_join_moves_nothing",
+            "a_chain_of_blends_moves_nothing_and_a_gap_stays",
+            "a_blending_lane_stays_in_step_with_a_plain_one",
+        }:
+            for row in case["clips"]:
+                if row["id"] != "d":
+                    assert row["placed_start"] == pytest.approx(row["timeline_start"], abs=1e-9)
+
+
+def _borrow_project(tmp_path: Path) -> EpisodeProject:
+    project = EpisodeProject.create("borrow", str(tmp_path))
+    (tmp_path / "raw").mkdir(parents=True)
+    (tmp_path / "raw" / "host.wav").write_bytes(b"")
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=_RECORDING_SEC),
+        )
+    ]
+    return project
+
+
+def test_a_blend_borrows_half_the_overlap_from_each_recording(tmp_path: Path) -> None:
+    project = _borrow_project(tmp_path)
+    left = _clip("a", "host", 0, 5, fade_out=200)
+    right = _clip("b", "host", 5, 9, _XFADE, 200, 0)
+    assert crossfade_borrow_sec(project, left, right) == pytest.approx(0.1)
+    audio = placed_track_audio(project, project.tracks[0], [left, right]).audio
+    leaves = {s.clip_id: s for s in sources(audio)}
+    assert leaves["a"].src_end == pytest.approx(left.source_end + 0.1)
+    assert leaves["b"].src_start == pytest.approx(right.source_start - 0.1)
+    assert duration(audio) == pytest.approx(9.0)
+
+
+def test_the_borrow_shrinks_to_the_room_the_recordings_have(tmp_path: Path) -> None:
+    project = _borrow_project(tmp_path)
+    left = _clip("a", "host", 0, 5, fade_out=200)
+    assert crossfade_borrow_sec(project, left, _clip("b", "host", 5, 9, _XFADE, 200, 0)) > 0
+    # Nothing before the right clip's start, nothing after the left clip's end.
+    assert (
+        crossfade_borrow_sec(project, left, _clip("b", "host", 5, 9, _XFADE, 200, 0, room=0)) == 0
+    )
+    tail = _clip("a", "host", 0, 5, fade_out=200, room=_RECORDING_SEC - 5)
+    assert crossfade_borrow_sec(project, tail, _clip("b", "host", 5, 9, _XFADE, 200, 0)) == 0
+    short = _clip("b", "host", 5, 5.2, _XFADE, 400, 0)
+    assert crossfade_borrow_sec(project, left, short) == pytest.approx(0.05)
+    cut = _clip("b", "host", 5, 9, _CUT)
+    assert crossfade_borrow_sec(project, left, cut) == 0

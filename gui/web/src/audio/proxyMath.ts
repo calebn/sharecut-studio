@@ -338,9 +338,24 @@ export function buildSchedule(
     placed: clips,
     overlapIn,
     overlapOut,
+    borrowIn,
+    borrowOut,
   } = placeLikeRender(authoredClips);
   const beforeCut = clipIdsBeforeCut([...clips]);
-  for (const clip of clips) {
+  for (const placedClip of clips) {
+    // A blending join plays `borrow` seconds of the recording beyond each edge.
+    const lead = borrowIn.get(placedClip.id) ?? 0;
+    const tail = borrowOut.get(placedClip.id) ?? 0;
+    const clip =
+      lead > 0 || tail > 0
+        ? {
+            ...placedClip,
+            source_start: placedClip.source_start - lead,
+            source_end: placedClip.source_end + tail,
+            timeline_start: placedClip.timeline_start - lead,
+            timeline_end: placedClip.timeline_end + tail,
+          }
+        : placedClip;
     const overlapInSec = overlapIn.get(clip.id) ?? 0;
     const overlapAfter = overlapOut.get(clip.id) ?? 0;
     if (

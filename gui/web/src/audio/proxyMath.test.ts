@@ -270,8 +270,9 @@ describe("proxyMath", () => {
     expect(slices[0].envelope.gainCurve).toBe("equalPower");
   });
 
-  it("overlaps a blending crossfade join and pulls later clips earlier, as render does", () => {
+  it("blends a crossfade join around the seam and leaves later clips where they are, as render does", () => {
     const join = {
+      source_duration_sec: 10,
       join_in_mode: "crossfade" as const,
       join_crossfade_ms: 200,
       fade_in_ms: 400,
@@ -285,6 +286,7 @@ describe("proxyMath", () => {
           source_end: 2,
           timeline_start: 0,
           timeline_end: 2,
+          source_duration_sec: 10,
           fade_out_ms: 400,
         }),
         clip({
@@ -311,21 +313,32 @@ describe("proxyMath", () => {
     const [a, b, c] = slices;
     expect(a.whenTimelineSec).toBe(0);
     expect(a.envelope.fadeOutSec).toBeCloseTo(0.2, 9);
-    expect(b.whenTimelineSec).toBeCloseTo(1.8, 9);
-    expect(b.envelope.timelineStartSec).toBeCloseTo(1.8, 9);
+    // Each side borrows half the 0.2 s blend from its recording past the seam.
+    expect(a.envelope.timelineEndSec).toBeCloseTo(2.1, 9);
+    expect(b.whenTimelineSec).toBeCloseTo(1.9, 9);
+    expect(b.envelope.timelineStartSec).toBeCloseTo(1.9, 9);
+    expect(b.envelope.sourceStartSec).toBeCloseTo(1.9, 9);
     expect(b.envelope.fadeInSec).toBeCloseTo(0.2, 9);
-    expect(c.whenTimelineSec).toBeCloseTo(4.3, 9);
+    expect(c.whenTimelineSec).toBeCloseTo(4.5, 9);
   });
 
   it("places a crossfaded clip and the clock shift from the render's frontier, not from authored starts", () => {
     const join = {
+      source_duration_sec: 10,
       join_in_mode: "crossfade" as const,
       join_crossfade_ms: 200,
       fade_in_ms: 400,
       fade_out_ms: 400,
     };
     const rows = (bStart: number) => [
-      clip({ id: "a", timeline_start: 0, timeline_end: 2, fade_out_ms: 400 }),
+      clip({
+        id: "a",
+        timeline_start: 0,
+        timeline_end: 2,
+        source_end: 2,
+        source_duration_sec: 10,
+        fade_out_ms: 400,
+      }),
       clip({
         id: "b",
         source_start: 2,
@@ -343,16 +356,17 @@ describe("proxyMath", () => {
         timeline_end: 6.5,
       }),
     ];
-    // b authored 0.1 s early: render puts b at 1.8, then c at 4.5 - (3.9 - 3.8).
+    // b authored 0.1 s early: the blend still starts at the seam less the borrow,
+    // and c moves 0.1 s later with the frontier.
     const early = buildSchedule(rows(1.9), 0, 20, manifest());
     expect(early.map((s) => s.whenTimelineSec)).toEqual([
       0,
-      expect.closeTo(1.8, 9),
-      expect.closeTo(4.4, 9),
+      expect.closeTo(1.9, 9),
+      expect.closeTo(4.6, 9),
     ]);
-    // b authored 0.04 s late (inside the join tolerance) still starts at 1.8.
+    // b authored 0.04 s late (inside the join tolerance) still starts at 1.9.
     const late = buildSchedule(rows(2.04), 0, 20, manifest());
-    expect(late[1].whenTimelineSec).toBeCloseTo(1.8, 9);
+    expect(late[1].whenTimelineSec).toBeCloseTo(1.9, 9);
   });
 
   it("closes a plain join gap inside the tolerance and carries it as render does", () => {

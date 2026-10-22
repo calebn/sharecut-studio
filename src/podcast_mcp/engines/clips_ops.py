@@ -467,6 +467,33 @@ def crossfade_ms_at_join(left: Clip, right: Clip) -> int:
     return max(min(vals), max(vals) // 2)
 
 
+def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> float:
+    """Seconds each side of a blending join borrows from its recording (half the overlap).
+
+    The blend is centred on the seam: ``left`` plays on past its end and ``right``
+    starts before its start, each by this much, so the join adds and removes no
+    time on the lane. The borrow shrinks to the room the recordings have beyond
+    the two edges (an unmeasured recording has none) and to a quarter of either
+    clip, so the two joins of a short clip never meet. ``0`` when the join does
+    not blend.
+    """
+    ms = crossfade_ms_at_join(left, right)
+    if ms <= 0:
+        return 0.0
+    left_total = source_duration_sec(project, left)
+    right_total = source_duration_sec(project, right)
+    if left_total is None or right_total is None:
+        return 0.0
+    room = min(
+        ms / 2000.0,
+        left_total - left.source_end,
+        right.source_start,
+        (left.source_end - left.source_start) * 0.25,
+        (right.source_end - right.source_start) * 0.25,
+    )
+    return room if room >= 0.0005 else 0.0
+
+
 def join_render_fields(prev: Clip | None, clip: Clip) -> dict[str, Any]:
     """Effective render of the join into ``clip`` (flat fields for ``list_clips`` rows)."""
     if prev is None:
