@@ -421,3 +421,26 @@ def test_control_characters_and_encoded_message_bounds(api, message):
     _, method = api
     with pytest.raises(ValueError):
         method.read_message(io.StringIO(message))
+
+
+def test_healthy_metadata_never_starts_the_secondary(api, endpoint, tmp_path, monkeypatch):
+    transport, _ = api
+    base, state = endpoint
+    launched = []
+    popen = transport.subprocess.Popen
+
+    def start(*args, **kwargs):
+        process = popen(*args, **kwargs)
+        launched.append(process)
+        return process
+
+    monkeypatch.setattr(transport.subprocess, "Popen", start)
+    monkeypatch.setattr(transport.time, "sleep", lambda _seconds: launched[0].wait())
+    plan = transport.FetchPlan(
+        transport.AptSignedMetadata(1024),
+        (base + "/primary", base + "/secondary"),
+        budgets(transport),
+    )
+    assert transport.acquire(plan, tmp_path / "InRelease").source == 0
+    assert len(launched) == 1
+    assert state["requests"] == ["primary"]
