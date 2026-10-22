@@ -229,7 +229,9 @@ flowchart TD
    blocked users to the supported browser recording path.
 3. Optional **Record 3 seconds of room tone** (skip allowed). Too-loud beds warn
    if RMS is above −35 dBFS and stay off the host. The bed stays on your
-   device; nothing is sent to the host until Accept. Producers never see this step.
+   device; nothing is sent to the host until Accept, and the lobby says
+   "Room tone saved on this device" until the host acknowledges the upload
+   ("Room tone sent to the host"). Producers never see this step.
 4. Separate **recording consent** step. The recorder is armed on Accept and
    writes **no full-quality recording audio** until host Start. The room-tone
    upload waits for Accept (lobby capture on your device is allowed;
