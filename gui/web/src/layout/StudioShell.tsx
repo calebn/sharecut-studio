@@ -10,9 +10,9 @@ import { runPointerCommand } from "../commands/pointer";
 import { isRangeSelection } from "../edit/rangeSelection";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
-import { useRealignViewport } from "../hooks/useRealignViewport";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../hooks/useViewportClass";
+import { useViewportPan } from "../hooks/useViewportPan";
 import {
   audioFilesFromDrop,
   dismissIngestCoach,
@@ -94,7 +94,7 @@ function StudioShellAdapter({
   }));
 
   const shell = useViewportClass();
-  useRealignViewport();
+  useViewportPan();
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const loadingSession = project == null;
   const emptySession = !loadingSession && (project?.tracks.length ?? 0) === 0;
