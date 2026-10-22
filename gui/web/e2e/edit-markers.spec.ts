@@ -118,7 +118,7 @@ test("a tap on the chip zooms in and splits it into its joins", async ({
 test.describe("coarse pointer", () => {
   test.use({ isMobile: true });
 
-  test("a touch 2 px outside a glyph still opens its join", async ({
+  test("a touch 20 px beside a glyph still opens its join", async ({
     page,
   }) => {
     await openFit(page, "phone", "dark");
@@ -128,10 +128,7 @@ test.describe("coarse pointer", () => {
     );
     const box = await glyph.boundingBox();
     if (!box) throw new Error("glyph has no box");
-    await page.touchscreen.tap(
-      box.x + box.width / 2 + 10,
-      box.y + box.height / 2,
-    );
+    await page.touchscreen.tap(box.x + box.width + 20, box.y + box.height / 2);
     await expect(glyph).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("dialog", { name: /join at/ })).toBeVisible();
   });

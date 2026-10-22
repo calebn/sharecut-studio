@@ -4,6 +4,7 @@ import {
   type HitTarget,
   hitRadiusPx,
   rankHitTargets,
+  reachRect,
 } from "./hitCandidates";
 
 // Clip B starts at x = 200 in a lane whose top is y = 100 and whose clips sit
@@ -410,5 +411,45 @@ describe("hitRadiusPx", () => {
     expect(hitRadiusPx("touch")).toBe(22);
     expect(hitRadiusPx("mouse")).toBe(0);
     expect(hitRadiusPx("pen")).toBe(0);
+  });
+});
+
+describe("reachRect", () => {
+  const glyph = { left: 192, top: 100, right: 208, bottom: 108 };
+
+  it("grows a join glyph about its centre to 24 px for a pointer and 44 px for a finger", () => {
+    expect(reachRect(glyph, "join", "mouse")).toEqual({
+      left: 188,
+      top: 92,
+      right: 212,
+      bottom: 116,
+    });
+    expect(reachRect(glyph, "join", "touch")).toEqual({
+      left: 178,
+      top: 82,
+      right: 222,
+      bottom: 126,
+    });
+  });
+
+  it("leaves a kind with no minimum box, and a box already larger, as painted", () => {
+    expect(reachRect(glyph, "fade-in", "touch")).toEqual(glyph);
+    const wide = { left: 0, top: 0, right: 60, bottom: 50 };
+    expect(reachRect(wide, "join", "touch")).toEqual(wide);
+  });
+
+  it("reaches a finger 20 px beside the glyph's painted box", () => {
+    const target: HitTarget = {
+      kind: "join",
+      id: "clip-b",
+      rect: reachRect(glyph, "join", "touch"),
+      selected: false,
+    };
+    const beside = { x: glyph.right + 20, y: 104 };
+    expect(
+      rankHitTargets([target], beside, hitRadiusPx("touch")).map(
+        ({ candidate }) => candidate.id,
+      ),
+    ).toEqual(["clip-b"]);
   });
 });

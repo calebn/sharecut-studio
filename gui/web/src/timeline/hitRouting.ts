@@ -75,6 +75,7 @@ import {
   isHitKind,
   longPressAction,
   needsDirectHit,
+  takesSurfaceTap,
 } from "./inputContract";
 
 const replayed = new WeakSet<Event>();
@@ -655,10 +656,13 @@ export function attachHitRouting(
     const hits = resolveHits(part, origin, event.pointerType, hit);
     const directKind = targetOf(hit)?.kind;
     // A target with no box yet is ranked nowhere, so the press stays its own.
+    const surfaceTarget = hit
+      ? undefined
+      : hits.find(({ candidate }) => takesSurfaceTap(candidate.kind));
     const winner =
       hit && !isBody(hit) && !(directKind && needsDirectHit(directKind))
         ? (hits[0]?.element ?? hit)
-        : (hit ?? event.target);
+        : (surfaceTarget?.element ?? hit ?? event.target);
     const touch = event.pointerType === "touch";
     // One finger moving never edits: every touch, on a selected target too,
     // waits for the press layer, which arms only on a long press. An armed

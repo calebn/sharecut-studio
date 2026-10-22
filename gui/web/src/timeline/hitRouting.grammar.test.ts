@@ -296,6 +296,46 @@ describe("clip body", () => {
   });
 });
 
+describe("tap on a surface beside a join glyph", () => {
+  function glyph(): HTMLButtonElement {
+    const join = button(hitTargetProps("join", "clip-b", 2), {
+      left: 192,
+      top: 100,
+      right: 208,
+      bottom: 108,
+    });
+    root.append(join);
+    record("join", join);
+    return join;
+  }
+
+  it("goes to the glyph when a finger lands 20 px beside it", () => {
+    const el = lane();
+    glyph();
+    press(el, "pointerdown", 228, 104);
+    press(el, "pointerup", 228, 104);
+
+    expect(log.filter((entry) => entry.startsWith("join:"))).toEqual([
+      "join:pointerdown@228,104",
+      "join:pointerup@228,104",
+    ]);
+    expect(log.some((entry) => entry.startsWith("lane:"))).toBe(false);
+  });
+
+  it("stays a seek on the lane when the finger is out of the glyph's reach", () => {
+    const el = lane();
+    glyph();
+    press(el, "pointerdown", 260, 104);
+    press(el, "pointerup", 260, 104);
+
+    expect(log.some((entry) => entry.startsWith("join:"))).toBe(false);
+    expect(log.filter((entry) => entry.startsWith("lane:"))).toEqual([
+      "lane:pointerdown@260,104",
+      "lane:pointerup@260,104",
+    ]);
+  });
+});
+
 describe("create menu", () => {
   it("opens on a long press over empty space; a lift leaves it open", () => {
     const el = lane();
