@@ -119,17 +119,18 @@ def report(
 
 
 @contextmanager
-def defer_cancellation() -> Iterator[None]:
+def defer_cancellation() -> Iterator[list[int]]:
     previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
     pending: list[int] = []
 
     def defer(number: int, _frame: object) -> None:
-        pending.append(number)
+        if not pending:
+            pending.append(number)
 
     try:
         for number in previous:
             signal.signal(number, defer)
-        yield
+        yield pending
     finally:
         for number, handler in previous.items():
             signal.signal(number, handler)
@@ -147,9 +148,14 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
     budget = plan.budgets.metadata_total if metadata else plan.budgets.object_total
     started = time.monotonic()
     attempts: list[Attempt] = []
-    with tempfile.TemporaryDirectory(prefix=".sharecut-apt-", dir=destination.parent) as directory:
+    with (
+        defer_cancellation() as pending,
+        tempfile.TemporaryDirectory(prefix=".sharecut-apt-", dir=destination.parent) as directory,
+    ):
         try:
             while (elapsed := time.monotonic() - started) < budget:
+                if pending:
+                    raise InterruptedError("Ubuntu acquisition cancelled")
                 ready = (
                     not attempts or attempts[-1].examined
                     if metadata
@@ -162,36 +168,35 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
                         budget - elapsed,
                         plan.budgets.metadata_attempt if metadata else budget,
                     )
-                    with defer_cancellation():
-                        process = subprocess.Popen(
-                            [
-                                "curl",
-                                "--disable",
-                                "--silent",
-                                "--show-error",
-                                "--fail",
-                                "--proto",
-                                "=https",
-                                "--connect-timeout",
-                                str(plan.budgets.connect),
-                                "--max-time",
-                                str(max(0.001, timeout)),
-                                "--max-filesize",
-                                str(max(1, maximum)),
-                                "--speed-limit",
-                                str(plan.budgets.low_speed),
-                                "--speed-time",
-                                str(plan.budgets.low_speed_seconds),
-                                "--output",
-                                str(path),
-                                "--write-out",
-                                "%{http_code}\t%{remote_ip}",
-                                plan.urls[index],
-                            ],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL,
-                        )
-                        attempts.append(Attempt(process, path))
+                    process = subprocess.Popen(
+                        [
+                            "curl",
+                            "--disable",
+                            "--silent",
+                            "--show-error",
+                            "--fail",
+                            "--proto",
+                            "=https",
+                            "--connect-timeout",
+                            str(plan.budgets.connect),
+                            "--max-time",
+                            str(max(0.001, timeout)),
+                            "--max-filesize",
+                            str(max(1, maximum)),
+                            "--speed-limit",
+                            str(plan.budgets.low_speed),
+                            "--speed-time",
+                            str(plan.budgets.low_speed_seconds),
+                            "--output",
+                            str(path),
+                            "--write-out",
+                            "%{http_code}\t%{remote_ip}",
+                            plan.urls[index],
+                        ],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    attempts.append(Attempt(process, path))
                 for index, attempt in enumerate(attempts):
                     if attempt.examined or attempt.process.poll() is None:
                         continue
@@ -224,6 +229,8 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
                     else:
                         valid = 0 < size <= plan.identity.maximum_size
                     if valid:
+                        if pending:
+                            raise InterruptedError("Ubuntu acquisition cancelled")
                         report(
                             plan,
                             index,
