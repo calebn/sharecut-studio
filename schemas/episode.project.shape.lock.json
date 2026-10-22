@@ -984,6 +984,18 @@
         },
         "GateFill": {
           "properties": {
+            "audio_stream": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "fade_ms": {
               "minimum": 0,
               "type": "integer"
@@ -4036,6 +4048,18 @@
         },
         "GateFill": {
           "properties": {
+            "audio_stream": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "fade_ms": {
               "minimum": 0,
               "type": "integer"

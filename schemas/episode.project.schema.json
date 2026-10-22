@@ -385,7 +385,12 @@
           "type": ["number", "null"],
           "description": "The track's own noise under its speech, as measured; null for a recorded bed."
         },
-        "fade_ms": { "type": "integer", "minimum": 0 }
+        "fade_ms": { "type": "integer", "minimum": 0 },
+        "audio_stream": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "0 when measured on the first audio stream of media that has several; null when measured before that, or on media with one stream."
+        }
       }
     },
     "MediaAsset": {
