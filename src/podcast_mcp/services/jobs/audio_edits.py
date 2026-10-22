@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, Literal
 
 from podcast_mcp.services.app import ProjectWorkspace
@@ -16,13 +15,12 @@ def run_audio_edit(
     params: dict[str, Any],
     *,
     lock_timeout: float,
-    cancel_check: Callable[[], bool] | None = None,
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     # Imported here because document_sync's marker handlers import the jobs package.
     from podcast_mcp.services.document_sync import after_agent_mutation
 
-    kwargs = {**params, "apply": True, "lock_timeout": lock_timeout, "cancel_check": cancel_check}
+    kwargs = {**params, "apply": True, "lock_timeout": lock_timeout}
     if progress is not None:
         kwargs["progress"] = progress
     result: dict[str, Any] = getattr(AnalysisService(ws), op)(**kwargs)
