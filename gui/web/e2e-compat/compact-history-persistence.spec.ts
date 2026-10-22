@@ -343,6 +343,8 @@ async function undoStaysReachable(
   }
   // Leave the open body scrolled as far as it goes: collapsing must show the
   // strip's top again, not the end of the scroll the taller size had (#1762).
+  // Portrait at the default root size is the one cell whose full-size sheet
+  // fits its content, so it has nothing to scroll and the check below pins that.
   const sheetBody = page.locator(".bottom-sheet--compact .bottom-sheet-body");
   const scrolled = await sheetBody.evaluate((body) => {
     body.scrollTop = body.scrollHeight;
