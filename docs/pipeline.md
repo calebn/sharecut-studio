@@ -44,7 +44,7 @@ our mutes, cuts and pads apply to the fill as they apply to the media.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `gate_fill.mode` | `auto` | `auto` fills every dialogue track that has source-gate holes: its recorded room-tone bed first, else comfort noise matched to its own noise under its speech. A track whose noise is not a floor (within 30 dB of its speech) or cannot be measured stays silent. `off` clears every fill. |
+| `gate_fill.mode` | `auto` | `auto` fills every dialogue track that has source-gate holes: its recorded room-tone bed first, else comfort noise matched to its own noise under its speech. A track whose noise is not a floor (within 30 dB of its speech) or cannot be measured stays silent. A bleed-gate mute also takes the lane's own room tone ([Bleed mute fill](audio-engineering.md#bleed-mute-fill)). `off` clears every fill, bleed-mute fills included. |
 | `gate_fill.fade_ms` | `10` | Raised-cosine fade in and out inside each hole (half the hole when it is shorter), so the gate's edges keep every sample. |
 
 The step is idempotent: the same media and settings write the same file, which is reused.
