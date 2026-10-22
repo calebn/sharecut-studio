@@ -16,6 +16,7 @@ from podcast_mcp.engines import speaker_split
 from podcast_mcp.engines.models.speaker_ecapa import MIN_SAMPLES
 from podcast_mcp.engines.speaker_split import (
     HOP_SEC,
+    _enrollment_centers,
     _enrollment_centroids,
     _window_samples,
     attribute_speakers,
@@ -190,6 +191,7 @@ def test_embedded_centers_are_exactly_the_unclamped_usable_grid(
         if _window_samples(audio, c, window) >= MIN_SAMPLES
     ]
 
-    _enrollment_centroids(audio, {0: [span]}, window, SpectralBackend())
+    by_speaker = _enrollment_centers(audio, {0: [span]}, window)
+    _enrollment_centroids(audio, by_speaker, window, SpectralBackend())
 
     assert embedded == [expected]
