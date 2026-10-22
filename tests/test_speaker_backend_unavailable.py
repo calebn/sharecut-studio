@@ -50,6 +50,7 @@ def test_auto_without_a_real_backend_is_unavailable(no_real_backend: None) -> No
 
 @pytest.fixture
 def no_model_no_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.setattr(speaker_ecapa, "models_dir", lambda: tmp_path / "models")

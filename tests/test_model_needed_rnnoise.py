@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
+from model_pin_helpers import isolate_model_env
 from podcast_mcp.engines.effect_filters import require_rnnoise_model
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.gui.server import create_app
@@ -26,6 +27,11 @@ from podcast_mcp.services.document import AnalysisService
 from podcast_mcp.util.model_missing import ModelMissing
 
 COMMAND = "podcast bootstrap --component rnnoise"
+
+
+@pytest.fixture(autouse=True)
+def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_model_env(monkeypatch, tmp_path)
 
 
 @pytest.fixture

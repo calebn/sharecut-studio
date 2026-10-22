@@ -278,7 +278,7 @@ options boundary (`engines/asr_options.ForcedAlignment`, from `word_aligner_inst
 presence check that does not hash the snapshot): unset follows the installed model (on when
 the snapshot is downloaded, otherwise unavailable), `false` always keeps Whisper's times, and
 `true` requires the model. `transcribe_tracks` and `podcast transcribe` raise
-`WordAlignerMissingError` with the download command before changing any transcript when the
+`ModelMissing` (`model_needed`, with the download command) before changing any transcript when the
 flag is `true` and the model is missing; they never fall back silently. The resolved state and
 its reason go to `transcript_timing.json` → `forced_alignment` (`enabled`, `requested`,
 `installed`, `blocked`, `reason`) and, when off, to the step summary ("forced alignment
