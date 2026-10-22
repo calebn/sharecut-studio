@@ -367,7 +367,7 @@ describe("joinWaveSpans pinned to the render clock", () => {
 
 describe("joinDraftOverlapMs", () => {
   const left = { source_start: 0, source_end: 5, source_duration_sec: 100 };
-  const right = { source_start: 5, source_end: 10 };
+  const right = { source_start: 5, source_end: 10, source_duration_sec: 100 };
 
   it("keeps a length the recordings can hold, in 10 ms overlap steps", () => {
     expect(joinDraftOverlapMs(left, right, 420)).toBe(420);
@@ -377,7 +377,7 @@ describe("joinDraftOverlapMs", () => {
   it("caps at twice the room: a quarter of either clip and the recording ends", () => {
     expect(joinDraftOverlapMs(left, right, 9000)).toBe(2500);
     expect(
-      joinDraftOverlapMs(left, { source_start: 0.05, source_end: 10 }, 400),
+      joinDraftOverlapMs(left, { ...right, source_start: 0.05 }, 400),
     ).toBe(100);
     expect(
       joinDraftOverlapMs({ ...left, source_duration_sec: 5.03 }, right, 400),
@@ -386,8 +386,20 @@ describe("joinDraftOverlapMs", () => {
 
   it("is 0 when there is too little room to blend", () => {
     expect(
-      joinDraftOverlapMs(left, { source_start: 0.005, source_end: 10 }, 400),
+      joinDraftOverlapMs(left, { ...right, source_start: 0.005 }, 400),
     ).toBe(0);
     expect(joinDraftOverlapMs(left, right, 0)).toBe(0);
+  });
+
+  it("is 0 when the left recording's length is unmeasured, as render blocks the join", () => {
+    expect(
+      joinDraftOverlapMs({ ...left, source_duration_sec: null }, right, 400),
+    ).toBe(0);
+  });
+
+  it("is 0 when the right recording's length is unmeasured, as render blocks the join", () => {
+    expect(
+      joinDraftOverlapMs(left, { ...right, source_duration_sec: null }, 400),
+    ).toBe(0);
   });
 });
