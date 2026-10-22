@@ -1626,6 +1626,7 @@ describe("ClipBlock waveform", () => {
         act(() => {
           press(hit, "pointermove", 90, 50);
         });
+        const armedBefore = hit.hasAttribute("data-hit-armed");
         act(() => {
           if (interruption === "pointercancel")
             press(hit, "pointercancel", 90, 50);
@@ -1643,6 +1644,7 @@ describe("ClipBlock waveform", () => {
 
         expect(onMoveCancel).toHaveBeenCalledWith("c1");
         expect(onMoveCommit).not.toHaveBeenCalled();
+        expect(armedBefore).toBe(true);
         expect(armedAfter).toBe(false);
       },
     );
