@@ -313,7 +313,7 @@ class SpeakerService:
                     code="enrollment_empty",
                 )
             for start, end in spans:
-                if not (math.isfinite(start) and math.isfinite(end) and 0 <= start < end):
+                if not (math.isfinite(end) and 0 <= start < end):
                     raise _span_invalid(name, f"{start:g} to {end:g}")
         speakers = _speaker_names(count, names, list(enrollment or {}))
         backend = resolve_speaker_backend()
