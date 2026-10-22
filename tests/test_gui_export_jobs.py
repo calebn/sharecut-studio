@@ -356,3 +356,24 @@ def test_slot_busy_refusal_uses_user_wording(minimal_project) -> None:
     with pytest.raises(RuntimeError) as raised:
         mgr.start_export(Path(minimal_project))
     assert str(raised.value) == "Another job is still running. Try again when it finishes."
+
+
+def test_export_does_not_wait_for_another_projects_mix_rebuild(
+    minimal_project, tmp_path, monkeypatch
+) -> None:
+    release = threading.Event()
+    _wire_ordered_slot(monkeypatch, [], release)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.EXPORT_PREVIEW_WAIT_S", 0.0)
+    client = TestClient(create_app())
+    jobs = client.app.state.jobs
+    other = tmp_path / "other"
+    other.mkdir()
+    preview = jobs.start_render_preview(other)
+    try:
+        res = client.post("/api/export/deliverables", json={"path": str(minimal_project)})
+    finally:
+        release.set()
+        jobs.wait(preview, timeout=5)
+
+    assert res.status_code == 409
+    assert "Another job is still running" in res.text
