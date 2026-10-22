@@ -41,6 +41,7 @@ import {
   type ClipHitHandlers,
 } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
+import { useHitRouter } from "./hitRouterContext";
 import { HIT_KINDS } from "./inputContract";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
@@ -170,6 +171,9 @@ export function ClipBlockLive({
   const pointerHandledRef = useRef(false);
   const bodyCallbacks = useRef({ onMoveCancel, onBodyEnd, onRangeGesture });
   bodyCallbacks.current = { onMoveCancel, onBodyEnd, onRangeGesture };
+  const router = useHitRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   /** A move is pressed against the session start, a clip's hard limit. */
   const bodyAtLimit = useRef(false);
   const [bodyBumped, setBodyBumped] = useState(false);
@@ -190,6 +194,7 @@ export function ClipBlockLive({
     drag.stopListening();
     if (drag.target.hasPointerCapture?.(drag.pointerId))
       drag.target.releasePointerCapture(drag.pointerId);
+    routerRef.current?.disarm(drag.target);
     if (drag.rangeCandidate) {
       if (drag.started)
         bodyCallbacks.current.onRangeGesture?.(

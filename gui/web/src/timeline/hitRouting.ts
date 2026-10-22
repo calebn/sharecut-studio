@@ -270,6 +270,8 @@ export interface HitRouter {
   openCreate: (origin: HitPoint, surface: Element) => boolean;
   /** Closes the chooser or the create menu with no change. */
   close: () => void;
+  /** Drops the armed drag on `element`, whose owner already cancelled it. */
+  disarm: (element: Element) => void;
   /**
    * Routes the presses inside `part` too: a part of the timeline mounted
    * outside the root (a portaled rail). Its fingers count with the rest for
@@ -1140,6 +1142,9 @@ export function attachHitRouting(
       // A tap outside closes on its press; its click must not reach whatever
       // the chooser or menu was covering.
       suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+    },
+    disarm(element) {
+      if (phase.kind === "grabbed" && phase.element === element) setPhase(IDLE);
     },
   };
   return router;
