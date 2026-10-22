@@ -597,6 +597,7 @@ def enroll_segment(
         start_sec=start_sec,
         duration_sec=dur,
         sample_rate=cfg.sample_rate,
+        antialias=True,
     )
     emb = backend.embed(samples, cfg.sample_rate)
     stem = file_revision_key(path)
@@ -670,7 +671,11 @@ class _WavWindowReader:
 
     def window(self, start_sec: float, duration_sec: float, out_rate: int) -> np.ndarray:
         samples, _bytes_read = read_open_wav_mono_window(
-            self._wf, start_sec=start_sec, duration_sec=duration_sec, out_rate=out_rate
+            self._wf,
+            start_sec=start_sec,
+            duration_sec=duration_sec,
+            out_rate=out_rate,
+            antialias=True,
         )
         return np.asarray(samples, dtype=np.float32)
 
@@ -682,7 +687,9 @@ def _read_window(
         samples = reader.window(start, duration, rate)
         if samples.size:
             return samples
-    return load_mono_window(path, start_sec=start, duration_sec=duration, sample_rate=rate)
+    return load_mono_window(
+        path, start_sec=start, duration_sec=duration, sample_rate=rate, antialias=True
+    )
 
 
 def _decode_window_samples(
