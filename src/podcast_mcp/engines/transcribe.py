@@ -573,8 +573,7 @@ class TranscriptionEngine:
     ) -> Path:
         """Alignment cache beside the ASR cache: same audio/inputs key + aligner + Whisper's words.
 
-        Several audio streams in ``audio`` add a first-stream term, so a cache measured on the
-        default stream is not read back.
+        Keyed on the first stream when ``audio`` has several.
         """
         key_fields: dict[str, object] = {
             "aligner": aligner.cache_identity(),
