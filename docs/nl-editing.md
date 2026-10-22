@@ -199,6 +199,8 @@ On a long raw session, cut content before tightening:
 Per-track-only tools (`strip_silence_tool`, track-local punch) do **not** ripple other tracks — use those when intentional single-track trimming is desired.
 
 
+**Fill a range with room tone** (#1136). `fill_with_room_tone_tool` with `track_id`, `start_sec` and `end_sec` fills only the gaps between clips inside that range; clips are untouched. It refuses with `nothing_to_fill`, `no_source` or `range_incomplete`; see [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from.
+
 ## Restore an applied edit
 
 `revert_applied_edit_tool` supports ordinary source MUTE archives. Cuts and exact ranges return `local_restore_requires_history` before mutation. Use `history_status`, then `history_undo` with the current `expected_head_id` to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first. Archive clocks remain cut-edge display data and never identify removed recordings.
