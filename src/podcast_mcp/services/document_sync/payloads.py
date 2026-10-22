@@ -287,6 +287,20 @@ class RemoveEffectPayload(BaseModel):
     effect: str | None = None
 
 
+class ReconcileTranscriptPayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+    start_sec: float | None = Field(default=None, allow_inf_nan=False)
+    end_sec: float | None = Field(default=None, allow_inf_nan=False)
+    dry_run: Literal[False] | None = Field(
+        default=None,
+        description=(
+            "Omitted, the project's transcript mode decides what is applied. A preview is not "
+            "a command: it never journals."
+        ),
+    )
+
+
 class SuppressBleedPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
@@ -833,6 +847,11 @@ class RemoveEffectCommand(DocumentCommandEnvelope):
     payload: RemoveEffectPayload
 
 
+class ReconcileTranscriptCommand(DocumentCommandEnvelope):
+    type: Literal["ReconcileTranscript"] = "ReconcileTranscript"
+    payload: ReconcileTranscriptPayload
+
+
 class SuppressBleedCommand(DocumentCommandEnvelope):
     type: Literal["SuppressBleed"] = "SuppressBleed"
     payload: SuppressBleedPayload
@@ -1062,6 +1081,7 @@ DocumentCommandBody = Annotated[
     | ApplyFadeRecommendationsCommand
     | SetEffectBypassCommand
     | AddEffectCommand
+    | ReconcileTranscriptCommand
     | SuppressBleedCommand
     | SuppressLowAudibilityCommand
     | SetBleedAlignmentModeCommand
@@ -1185,6 +1205,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "ApplyFadeRecommendations": ApplyFadeRecommendationsPayload,
     "SetEffectBypass": SetEffectBypassPayload,
     "AddEffect": AddEffectPayload,
+    "ReconcileTranscript": ReconcileTranscriptPayload,
     "SuppressBleed": SuppressBleedPayload,
     "SuppressLowAudibility": SuppressLowAudibilityPayload,
     "SetBleedAlignmentMode": SetBleedAlignmentModePayload,

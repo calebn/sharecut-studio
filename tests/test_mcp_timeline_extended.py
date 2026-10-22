@@ -350,7 +350,7 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
     ):
         svc = svc_cls.return_value
         svc.reconciliation_status.return_value = {"stale": False}
-        svc.reconcile_transcript.return_value = {"changed": 0, "dry_run": True}
+        svc.preview_reconcile_transcript.return_value = {"changed": 0, "dry_run": True}
         svc.list_bleed_words.return_value = [{"text": "bleed"}]
         svc.preview_suppress_bleed.return_value = {"would_suppress": 1}
         svc.overlap_duplicates.return_value = {"pairs": []}
@@ -425,7 +425,6 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         svc.check_loudness.return_value = {"integrated_lufs": -14.0}
         svc.cut_range.return_value = {"operation": "ripple_delete"}
         svc.shorten_word_gaps.return_value = {"operation": "shorten_word_gaps"}
-        svc.reconcile_transcript.return_value = {"changed": 0}
         svc.preview_suppress_bleed.return_value = {"suppressed": 0}
 
         json.loads(

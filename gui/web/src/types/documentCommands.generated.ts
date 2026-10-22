@@ -26,6 +26,7 @@ export type DocumentCommandType =
   | "MoveClips"
   | "MoveSegment"
   | "PasteSegment"
+  | "ReconcileTranscript"
   | "RedoHistory"
   | "RejectEdits"
   | "RemoveEffect"
@@ -94,6 +95,7 @@ export const DocumentCommand = {
   MoveClips: "MoveClips",
   MoveSegment: "MoveSegment",
   PasteSegment: "PasteSegment",
+  ReconcileTranscript: "ReconcileTranscript",
   RedoHistory: "RedoHistory",
   RejectEdits: "RejectEdits",
   RemoveEffect: "RemoveEffect",

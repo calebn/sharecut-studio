@@ -186,6 +186,16 @@ def add_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def reconcile_transcript(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return AnalysisService(ws).reconcile_transcript(
+        track_id=p.get("track_id"),
+        speaker=p.get("speaker"),
+        dry_run=p.get("dry_run"),
+        start_sec=p.get("start_sec"),
+        end_sec=p.get("end_sec"),
+    )
+
+
 def suppress_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return AnalysisService(ws).suppress_bleed(
         track_id=p.get("track_id"),

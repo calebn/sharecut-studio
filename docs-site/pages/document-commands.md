@@ -56,6 +56,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `PasteSegment` | `duration` (number), `insert_at` (number), `mode` (ripple \| gap) | `extracts` (array[object]) |
+| `ReconcileTranscript` | — | `dry_run` (boolean \| null), `end_sec` (number \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null) |
 | `RedoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
 | `RejectEdits` | `ids` (array[string]) | — |
 | `RemoveEffect` | `track_id` (string) | `effect` (string \| null) |
@@ -97,7 +98,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 65 command types._
+_Generated 66 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`
