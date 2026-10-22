@@ -2,6 +2,7 @@ import { type JoinVisual, joinWaveSpans } from "../edit/joinRender";
 import { useDevicePixelRatio } from "../hooks/useDevicePixelRatio";
 import type { ClipRow } from "../types/project";
 import type { MediaRef } from "../waveform/types";
+import type { Tier } from "./editMarkers";
 import { WaveformLayer } from "./WaveformLayer";
 
 export type JoinWaveSides = {
@@ -86,12 +87,14 @@ export function JoinBlend({
   right,
   waves,
   zoomPxPerSec,
+  tier,
 }: {
   visual: JoinVisual;
   left?: Pick<ClipRow, "source_end">;
   right?: Pick<ClipRow, "source_start">;
   waves?: JoinWaveSides;
   zoomPxPerSec: number;
+  tier?: Tier;
 }) {
   if (visual.kind !== "blend") return null;
   return (
@@ -113,7 +116,7 @@ export function JoinBlend({
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
-        <path d="M0 0L100 100M100 0L0 100" />
+        {tier === "narrow" ? null : <path d="M0 0L100 100M100 0L0 100" />}
       </svg>
     </>
   );

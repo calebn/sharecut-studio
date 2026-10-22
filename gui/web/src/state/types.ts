@@ -547,6 +547,8 @@ export interface DawState {
    * centers on the playhead instead, and every zoom stays within the session.
    */
   applyAnchoredZoom: (nextZoom: number, clientX?: number) => void;
+  /** Clamp zoom and scroll so the span's midpoint is centered in the time viewport. */
+  zoomToSpan: (startSec: number, endSec: number, nextZoom: number) => void;
   setWaveformAmpZoom: (amp: number) => void;
   nudgeWaveformAmp: (direction: "in" | "out") => void;
   setWaveformScale: (mode: WaveformScaleMode) => void;

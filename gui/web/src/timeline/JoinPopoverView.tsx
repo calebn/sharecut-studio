@@ -1,17 +1,16 @@
 import type { Ref } from "react";
 import { useId } from "react";
 import { joinLengthMaxMs } from "../edit/fadeLimits";
-import {
-  JOIN_GLYPHS,
-  JOIN_MODE_SHORT,
-  type JoinGlyph,
-  joinGlyph,
-  joinModeLabel,
-  joinRenderNote,
-} from "../edit/joinRender";
-import type { ClipRow } from "../types/project";
+import { joinModeLabel, joinRenderNote } from "../edit/joinRender";
+import type { ClipRow, JoinMode } from "../types/project";
 import { InlineError, SegmentedControl, ToggleButton } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
+import {
+  JOIN_MODE_OPTIONS,
+  joinKindOfMode,
+  joinModeOf,
+  markerLabel,
+} from "../utils/editMarkerRegistry";
 
 export interface JoinPopoverViewProps {
   /** Committed rows either side of the seam (left may be rolled by a live roll). */
@@ -22,7 +21,7 @@ export interface JoinPopoverViewProps {
   editable: boolean;
   busy: boolean;
   error: string | null;
-  onModeChange: (mode: JoinGlyph) => void;
+  onModeChange: (mode: JoinMode) => void;
   lengthControl: {
     value: number;
     inputProps: React.InputHTMLAttributes<HTMLInputElement> & {
@@ -43,8 +42,8 @@ export function JoinPopoverView({
   lengthControl,
 }: JoinPopoverViewProps) {
   const lengthId = useId();
-  const glyph = joinGlyph(right);
-  const minMs = glyph === "crossfade" ? 1 : 0;
+  const mode = joinModeOf(right);
+  const minMs = mode === "crossfade" ? 1 : 0;
   const maxMs = joinLengthMaxMs(
     {
       durationSec: left.source_end - left.source_start,
@@ -60,11 +59,11 @@ export function JoinPopoverView({
     <>
       {editable ? (
         <SegmentedControl label="Join mode" className="join-popover-modes">
-          {JOIN_GLYPHS.map((m) => (
+          {JOIN_MODE_OPTIONS.map(({ value: m }) => (
             <ToggleButton
               key={m}
               quiet
-              pressed={glyph === m}
+              pressed={mode === m}
               disabledReason={
                 busy
                   ? BUSY_REASON
@@ -74,19 +73,19 @@ export function JoinPopoverView({
               }
               title={joinModeLabel(m)}
               onClick={() => {
-                if (m !== glyph) {
+                if (m !== mode) {
                   onModeChange(m);
                 }
               }}
             >
-              {JOIN_MODE_SHORT[m]}
+              {markerLabel(joinKindOfMode(m))}
             </ToggleButton>
           ))}
         </SegmentedControl>
       ) : (
         <p className="join-popover-mode">{joinModeLabel(right.join_in_mode)}</p>
       )}
-      {editable && glyph !== "cut" && maxMs >= minMs ? (
+      {editable && mode !== "cut" && maxMs >= minMs ? (
         <div className="join-popover-length">
           <label htmlFor={lengthId}>Length</label>
           <input
@@ -104,7 +103,7 @@ export function JoinPopoverView({
           </output>
         </div>
       ) : null}
-      {glyph === "crossfade" && left.fade_out_ms !== right.fade_in_ms ? (
+      {mode === "crossfade" && left.fade_out_ms !== right.fade_in_ms ? (
         <p className="ui-field-hint">
           Stored fades {left.fade_out_ms} ms out / {right.fade_in_ms} ms in.
           Length editing sets both fades equally.

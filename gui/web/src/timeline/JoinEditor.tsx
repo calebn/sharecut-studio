@@ -1,8 +1,8 @@
 import {
   memo,
+  type RefObject,
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -10,16 +10,17 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { clampClipFades } from "../edit/fadeLimits";
-import { joinGlyph, joinVisual, projectJoinDraft } from "../edit/joinRender";
+import { joinVisual, projectJoinDraft } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import { useResizeObserver } from "../ui";
+import { joinKind } from "../utils/editMarkerRegistry";
 import { useStableCallback } from "../utils/useStableCallback";
 import type { MediaRef } from "../waveform/types";
+import { joinPopoverId, type Tier } from "./editMarkers";
 import { useHitRouter } from "./hitRouterContext";
 import { hitTargetProps } from "./hitTargets";
-import { JoinBadgeView } from "./JoinBadge";
 import { JoinBlend, type JoinWaveSides } from "./JoinBlend";
 import { JoinPopover } from "./JoinPopover";
 import { useJoinEdit } from "./useJoinEdit";
@@ -36,9 +37,22 @@ interface JoinEditorProps {
   rightRef?: MediaRef;
   role?: string;
   gainDb?: number;
+  tier: Tier;
 }
+
+function findJoinGlyph(clipId: string): HTMLElement | null {
+  for (const el of document.querySelectorAll<HTMLElement>(
+    '[data-hit-kind="join"]',
+  )) {
+    if (el.getAttribute("data-hit-id") === clipId) {
+      return el;
+    }
+  }
+  return null;
+}
+
 function JoinEditorLive(props: JoinEditorProps) {
-  const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs } = props;
+  const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs, tier } = props;
   const { leftRef, rightRef, role, gainDb } = props;
   const waves = useMemo<JoinWaveSides | undefined>(
     () =>
@@ -47,10 +61,17 @@ function JoinEditorLive(props: JoinEditorProps) {
         : undefined,
     [leftRef, rightRef, role, gainDb],
   );
-  const anchorRef = useRef<HTMLButtonElement>(null),
-    railRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useMemo<RefObject<HTMLElement | null>>(
+    () => ({
+      get current() {
+        return findJoinGlyph(right.id);
+      },
+    }),
+    [right.id],
+  );
+  const railRef = useRef<HTMLDivElement>(null);
   const gripRef = useRef<HTMLButtonElement>(null);
-  const id = useId();
+  const id = joinPopoverId(right.id);
   const { open, setOpenJoinId } = useDaw((s) => ({
     open: s.openJoinId === right.id,
     setOpenJoinId: s.setOpenJoinId,
@@ -60,10 +81,16 @@ function JoinEditorLive(props: JoinEditorProps) {
     if (useDawStore.getState().openJoinId === right.id) setOpenJoinId(null);
   }, [right.id, setOpenJoinId]);
   useEffect(() => close, [close]);
+  const cancelEdit = edit.cancel;
+  useEffect(() => {
+    if (!open) cancelEdit();
+  }, [open, cancelEdit]);
   const [host, setHost] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    setHost(anchorRef.current?.closest<HTMLElement>(".timeline-area") ?? null);
-  }, [open]);
+    setHost(
+      findJoinGlyph(right.id)?.closest<HTMLElement>(".timeline-area") ?? null,
+    );
+  }, [open, right.id]);
   const draft =
     (edit.state.kind === "pointer" && edit.state.moved) ||
     edit.state.kind === "range";
@@ -149,7 +176,7 @@ function JoinEditorLive(props: JoinEditorProps) {
     trackFadeMaxMs,
   ).outMs;
   const rail =
-    open && edit.editable && joinGlyph(right) === "crossfade" && host
+    open && edit.editable && joinKind(right) === "join-crossfade" && host
       ? createPortal(
           <div
             ref={railRootRef}
@@ -205,23 +232,7 @@ function JoinEditorLive(props: JoinEditorProps) {
         right={right}
         waves={projected.join_crossfade_blocked ? undefined : waves}
         zoomPxPerSec={zoomPxPerSec}
-      />
-      <JoinBadgeView
-        ref={anchorRef}
-        clipId={right.id}
-        glyph={joinGlyph(right)}
-        blocked={visual.kind === "blocked"}
-        seamSec={seamSec}
-        zoomPxPerSec={zoomPxPerSec}
-        expanded={open}
-        popoverId={id}
-        onClick={() => {
-          if (useDawStore.getState().joinMutationInFlight) return;
-          if (open) {
-            edit.cancel();
-            close();
-          } else setOpenJoinId(right.id);
-        }}
+        tier={tier}
       />
       {rail}
       {open && leader && rail

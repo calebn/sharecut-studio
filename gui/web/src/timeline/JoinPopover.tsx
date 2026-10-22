@@ -1,12 +1,9 @@
 import { type RefObject, useCallback } from "react";
-import {
-  JOIN_AUDITION_PAD_SEC,
-  joinGlyph,
-  joinSeamLabel,
-} from "../edit/joinRender";
+import { JOIN_AUDITION_PAD_SEC, joinSeamLabel } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { Dialog, InspectorSeekFooter } from "../ui";
+import { joinKind } from "../utils/editMarkerRegistry";
 import { JoinPopoverView } from "./JoinPopoverView";
 import type { JoinEdit } from "./useJoinEdit";
 
@@ -38,7 +35,7 @@ export function JoinPopover({
 }: JoinPopoverProps) {
   // Dismissing mid-request would unmount the popover and drop a failure
   // silently, so Escape, Close, an outside click and opening another join
-  // badge (JoinBadge.tsx) all wait for SetClipJoin to settle.
+  // glyph (EditMarkerLayer.tsx) all wait for SetClipJoin to settle.
   const dismiss = useCallback(() => {
     if (!useDawStore.getState().joinMutationInFlight) {
       edit.cancel();
@@ -50,7 +47,7 @@ export function JoinPopover({
     <Dialog
       open
       onClose={dismiss}
-      title={joinSeamLabel(joinGlyph(right), seamSec)}
+      title={joinSeamLabel(joinKind(right), seamSec)}
       panelId={id}
       anchor={{
         reason:

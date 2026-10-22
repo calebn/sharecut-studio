@@ -11,7 +11,6 @@ import {
   cutFadeHint,
   isCutJoin,
   JOIN_AUDITION_PAD_SEC,
-  JOIN_MODE_OPTIONS,
   joinModeLabel,
   joinRenderNote,
 } from "../../edit/joinRender";
@@ -32,6 +31,7 @@ import {
 } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
+import { JOIN_MODE_OPTIONS } from "../../utils/editMarkerRegistry";
 import { ModifierInspector } from "../ModifierInspector";
 import { useNudgeRun } from "../useNudgeRun";
 import { ClipPlacementControls } from "./ClipPlacementControls";
