@@ -12,7 +12,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from podcast_mcp.engines.track_evidence import Declined
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import audio, audio_audit, audio_eval, timeline_render, track_evidence
@@ -24,14 +23,15 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SourceAudio,
 )
+from podcast_mcp.engines.track_evidence import Declined
 from podcast_mcp.engines.ungated_audio import load_mono_full, resample_stream, resample_streams
 from podcast_mcp.models import (
     ClipBleedRestore,
     ClipMuteRegion,
     ClipOffSpeakerMuteRegion,
     EpisodeProject,
-    SourceSpan,
 )
+from podcast_mcp.models.episode import SourceSpan
 from podcast_mcp.util import batch_scope as scope_module
 from podcast_mcp.util.batch_scope import batch_scope
 from test_audio_eval import (

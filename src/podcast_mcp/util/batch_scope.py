@@ -36,6 +36,19 @@ def batch_scope() -> Iterator[None]:
         _scope.reset(token)
 
 
+@contextmanager
+def unscoped() -> Iterator[None]:
+    """Run without the batch scope, so nothing made inside is kept past the block.
+
+    For work on a temporary file: an entry keyed by its path would outlive the file.
+    """
+    token = _scope.set(None)
+    try:
+        yield
+    finally:
+        _scope.reset(token)
+
+
 def scoped(key: Hashable, make: Callable[[], T]) -> T:
     """``make()``, or the scope's earlier result for ``key``. Outside a scope, ``make()``."""
     scope = _scope.get()

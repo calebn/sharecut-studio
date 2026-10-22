@@ -160,14 +160,23 @@ def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool, blended: bool
     return clip.fade_out_ms / 1000.0
 
 
-def _restore_dependencies(project: EpisodeProject, track: Track, *, defaults: EffectiveConfig):
-    if any(
+def restore_applies(project: EpisodeProject, track: Track, *, gated: bool | None = None) -> bool:
+    """Whether the render adds a bleed-restore step after the track's tree.
+
+    ``gated`` overrides the track's transcript gate (False: the gate is left off).
+    """
+    gated = track.transcript_gate if gated is None else gated
+    return any(
         clip.track_id == track.id
-        and (track.transcript_gate or clip.off_speaker_mute_regions)
+        and (gated or clip.off_speaker_mute_regions)
         and clip.bleed_restore
         and clip.bleed_restore.regions
         for clip in project.clips
-    ):
+    )
+
+
+def _restore_dependencies(project: EpisodeProject, track: Track, *, defaults: EffectiveConfig):
+    if restore_applies(project, track):
         from podcast_mcp.engines.play_audit import RenderDependencies
 
         return RenderDependencies.capture(project, track.id, defaults=defaults)
@@ -227,26 +236,40 @@ def render_track_from_timeline(
     )
 
 
+def unfiltered_audio_decline(
+    project: EpisodeProject, track: Track, *, bare: bool = False
+) -> str | None:
+    """Why the track's render adds a step after its tree, else None.
+
+    ``bare`` reads the track as its evidence copies do: transcript gate off and the effects
+    chain left out.
+    """
+    if not track.media or not clips_for_track(project, track.id):
+        return "empty"
+    if track.transcript_gate and not bare:
+        return "gated"
+    envelope = project.volume_envelope_for(track.id)
+    if envelope and envelope.points:
+        return "envelope"
+    if not bare and any(
+        chain.track_id == track.id and any(not fx.bypass for fx in chain.effects)
+        for chain in project.processing_chains
+    ):
+        return "chain"
+    if restore_applies(project, track, gated=False if bare else None):
+        return "bleed_restore"
+    return None
+
+
 def unfiltered_track_audio(
-    project: EpisodeProject, track: Track, defaults: EffectiveConfig
+    project: EpisodeProject, track: Track, defaults: EffectiveConfig, *, bare: bool = False
 ) -> tuple[Audio, str] | None:
     """The tree ``render_track_from_timeline`` renders and its crossfade curve, when that
     render adds no filter, gate or restore step after the tree; else None."""
-    clips = clips_for_track(project, track.id)
-    envelope = project.volume_envelope_for(track.id)
-    if (
-        not track.media
-        or not clips
-        or track.transcript_gate
-        or (envelope and envelope.points)
-        or any(
-            chain.track_id == track.id and any(not fx.bypass for fx in chain.effects)
-            for chain in project.processing_chains
-        )
-    ):
+    if unfiltered_audio_decline(project, track, bare=bare) is not None:
         return None
     curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
-    return placed_track_audio(project, track, clips).audio, curve
+    return placed_track_audio(project, track, clips_for_track(project, track.id)).audio, curve
 
 
 @dataclass(frozen=True)

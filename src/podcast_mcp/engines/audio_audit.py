@@ -23,10 +23,7 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_WORD_SPAN_END_SLACK_SEC,
     word_duration_is_anomalous,
 )
-from podcast_mcp.engines.audio import Audio
-from podcast_mcp.engines.audio_eval import common_rate, evaluate_resampled, single_layout
 from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, confirmed_likeness, copy_similarity
-from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.envelope_lag import (
     COPY_FRAME_SEC,
     COPY_HOP_SEC,
@@ -54,7 +51,6 @@ from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import (
     load_mono_full,
     raw_samples_on_timeline,
-    resample_stream,
 )
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -326,11 +322,7 @@ class TrackRmsCache:
     def from_samples(
         cls, samples: np.ndarray, *, sample_rate: int = _RMS_SAMPLE_RATE
     ) -> TrackRmsCache:
-        return cls(
-            samples=samples,
-            sample_rate=sample_rate,
-            recording_profile=track_profile(samples, sample_rate),
-        )
+        return cls(samples=samples, sample_rate=sample_rate)
 
     @classmethod
     def from_timeline_stem(
@@ -600,35 +592,6 @@ def build_reconciliation_caches(
     return build_track_rms_caches(project, unprocessed=True, defaults=defaults)
 
 
-def evaluate_track_audio(plain: tuple[Audio, str] | None) -> tuple[np.ndarray | None, str]:
-    """Evidence samples (8 kHz mono) for a track's unfiltered audio, or why the render is needed.
-
-    The tree is evaluated at the sources' own rate, in chunks, and converted once to 8 kHz as
-    decoding the render's wav is: slices start between 8 kHz samples, and slicing an 8 kHz
-    decode instead would shift every cut by a fraction of a sample.
-    """
-    if plain is None:
-        return None, "unfiltered audio unavailable"
-    audio, curve = plain
-    if not single_layout(audio):
-        return None, "mixed channel layouts"
-    rate = common_rate(audio)
-    if rate is None:
-        return None, "sources at different sample rates"
-    with decoded_sources(rate) as reader:
-        samples = evaluate_resampled(
-            audio,
-            crossfade_curve=curve,
-            reader=reader,
-            sample_rate=rate,
-            target_rate=_RMS_SAMPLE_RATE,
-            resample=resample_stream,
-        )
-    if samples is None or not samples.size:
-        return None, "evaluator declined"
-    return samples, ""
-
-
 def build_track_rms_caches(
     project: EpisodeProject,
     *,
@@ -644,6 +607,7 @@ def build_track_rms_caches(
     left out, never from the stem: a compressor's threshold is an absolute dBFS level, so
     the processed audio does not move with the recording's gain (#1495).
     """
+    from podcast_mcp.engines import track_evidence
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
     caches: dict[str, TrackRmsCache] = {}
@@ -653,9 +617,8 @@ def build_track_rms_caches(
     for tid in dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids):
         track = project.track_by_id(tid)
         if unprocessed and track is not None and _has_active_chain(project, tid):
-            snapshot = project.model_copy(deep=True) if private_copy else _snapshot(project)
             try:
-                caches[tid] = _ungated_cache(snapshot, tid, with_chain=False, defaults=defaults)
+                caches[tid] = track_evidence.rms(project, tid, defaults, private=private_copy)
                 continue
             except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
                 # No unprocessed render: the track's evidence stays as before, processed.
@@ -729,16 +692,10 @@ def _pre_transcript_gate_cache(
 
 
 def _ungated_cache(
-    snapshot: EpisodeProject, track_id: str, *, with_chain: bool = True, defaults: EffectiveConfig
+    snapshot: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
 ) -> TrackRmsCache:
-    """``track_id`` rendered with its transcript gate off, from a private copy it may change.
-
-    ``with_chain=False`` also leaves the track's effects chain out of the render.
-    """
-    from podcast_mcp.engines.timeline_render import (
-        render_track_from_timeline,
-        unfiltered_track_audio,
-    )
+    """``track_id`` rendered with its transcript gate off, from a private copy it may change."""
+    from podcast_mcp.engines.timeline_render import render_track_from_timeline
 
     track = snapshot.track_by_id(track_id)
     if track is None:
@@ -747,16 +704,6 @@ def _ungated_cache(
             code="track_has_no_media",
         )
     track.transcript_gate = False
-    if not with_chain:
-        snapshot.processing_chains = [
-            chain for chain in snapshot.processing_chains if chain.track_id != track_id
-        ]
-        plain = unfiltered_track_audio(snapshot, track, defaults)
-        samples, reason = evaluate_track_audio(plain)
-        if samples is not None:
-            _LOG.debug("track %s evidence: in-memory evaluation", track_id)
-            return TrackRmsCache.from_samples(samples)
-        _LOG.info("track %s evidence: ffmpeg render (%s)", track_id, reason)
     with tempfile.TemporaryDirectory(prefix="podcast-ungated-evidence-") as directory:
         path = Path(directory) / "evidence.wav"
         render_track_from_timeline(snapshot, track, path, defaults)

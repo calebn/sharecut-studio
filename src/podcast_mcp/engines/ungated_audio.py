@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import subprocess
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 import numpy as np
@@ -68,58 +68,99 @@ def resample_stream(chunks: Iterator[np.ndarray], from_rate: int, to_rate: int) 
     The chunks stream through one ffmpeg process, so the converter's state carries across
     chunk edges as it does across a file, and only the converted result is held.
     """
-    if from_rate == to_rate:
-        return np.concatenate(list(chunks))
-    process = popen(
-        [
-            resolve_ffmpeg_pair().ffmpeg,
-            "-v",
-            "error",
-            "-f",
-            "f32le",
-            "-ar",
-            str(from_rate),
-            "-ac",
-            "1",
-            "-i",
-            "pipe:0",
-            "-ar",
-            str(to_rate),
-            "-f",
-            "f32le",
-            "pipe:1",
-        ],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    return resample_streams(chunks, from_rate, (to_rate,))[to_rate]
+
+
+def resample_streams(
+    chunks: Iterator[np.ndarray], from_rate: int, to_rates: Iterable[int]
+) -> dict[int, np.ndarray]:
+    """:func:`resample_stream` at each of ``to_rates`` from one pass over ``chunks``.
+
+    Each rate has a converter process of its own, fed the same chunks, so every result is
+    the one a stream converted to that rate alone would be; a rate equal to ``from_rate``
+    is the chunks themselves.
+    """
+    rates = tuple(dict.fromkeys(to_rates))
+    converting = [rate for rate in rates if rate != from_rate]
+    if not converting:
+        return dict.fromkeys(rates, np.concatenate(list(chunks)))
+    processes = {
+        rate: popen(
+            [
+                resolve_ffmpeg_pair().ffmpeg,
+                "-v",
+                "error",
+                "-f",
+                "f32le",
+                "-ar",
+                str(from_rate),
+                "-ac",
+                "1",
+                "-i",
+                "pipe:0",
+                "-ar",
+                str(rate),
+                "-f",
+                "f32le",
+                "pipe:1",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        for rate in converting
+    }
+    kept: list[np.ndarray] = []
     failure: list[BaseException] = []
 
     def feed() -> None:
-        assert process.stdin is not None
+        open_pipes = {rate: process.stdin for rate, process in processes.items()}
         try:
             for chunk in chunks:
-                process.stdin.write(np.ascontiguousarray(chunk, dtype="<f4").tobytes())
-        except BrokenPipeError:
-            pass
+                data = np.ascontiguousarray(chunk, dtype="<f4")
+                if from_rate in rates:
+                    kept.append(data)
+                payload = data.tobytes()
+                for rate, pipe in list(open_pipes.items()):
+                    assert pipe is not None
+                    try:
+                        pipe.write(payload)
+                    except BrokenPipeError:
+                        del open_pipes[rate]
         except BaseException as exc:
             failure.append(exc)
         finally:
-            with contextlib.suppress(BrokenPipeError):
-                process.stdin.close()
+            for pipe in open_pipes.values():
+                with contextlib.suppress(BrokenPipeError):
+                    assert pipe is not None
+                    pipe.close()
 
+    converted: dict[int, tuple[bytes, bytes]] = {}
+
+    def collect(rate: int) -> None:
+        process = processes[rate]
+        assert process.stdout is not None and process.stderr is not None
+        converted[rate] = (process.stdout.read(), process.stderr.read())
+
+    collectors = [
+        threading.Thread(target=collect, args=(rate,), daemon=True) for rate in converting
+    ]
     feeder = threading.Thread(target=feed, daemon=True)
-    feeder.start()
-    assert process.stdout is not None and process.stderr is not None
-    converted = process.stdout.read()
-    error = process.stderr.read()
-    feeder.join()
-    code = process.wait()
+    for thread in (*collectors, feeder):
+        thread.start()
+    for thread in (feeder, *collectors):
+        thread.join()
+    codes = {rate: process.wait() for rate, process in processes.items()}
     if failure:
         raise failure[0]
-    if code != 0:
-        raise RuntimeError(f"ffmpeg resample failed: {error.decode(errors='replace')[-500:]}")
-    return np.frombuffer(converted, dtype="<f4")
+    for rate, code in codes.items():
+        if code != 0:
+            error = converted[rate][1]
+            raise RuntimeError(f"ffmpeg resample failed: {error.decode(errors='replace')[-500:]}")
+    results = {rate: np.frombuffer(converted[rate][0], dtype="<f4") for rate in converting}
+    if from_rate in rates:
+        results[from_rate] = np.concatenate(kept)
+    return {rate: results[rate] for rate in rates}
 
 
 def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:
