@@ -1595,8 +1595,8 @@ neither live projects nor PCM. Initial evidence still decodes selected sources.
 Owner phrases and unresolved activity retain full gain.
 
 `engines/media_probe.py` shares successful `AudioProbe` metadata by resolved path
-and file revision in a bounded process-local cache. Rendered-media audit retains
-its container-duration policy. Reviewed bleed discovery requires a known, finite,
+and file revision in a bounded process-local cache. Rendered-media audit uses
+`AudioProbe.duration_sec`, the first audio stream's extent. Reviewed bleed discovery requires a known, finite,
 unestimated first-audio-stream extent and memoizes unavailable extents within each
 receiving-lane discovery call. Declared extent is not proof of decodable PCM or
 owner absence.

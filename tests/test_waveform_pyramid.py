@@ -711,7 +711,7 @@ def test_estimated_vbr_mp3_remains_buildable(tmp_path):
     )
     probe = eng.probe(audio)
     assert probe.duration_estimated is True
-    assert probe.duration_sec > 5
+    assert 3.9 < probe.duration_sec < 4.2
     key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
     out = pyramid_path(tmp_path, "track-estimated", key)
     build_pyramid("track:estimated", key, audio, out)
@@ -747,7 +747,7 @@ def test_audio_shorter_than_video_uses_audio_duration_for_decode_check(tmp_path)
         timeout=60,
     )
     probe = eng.probe(audio)
-    assert probe.duration_sec > 7.9
+    assert 3.9 < probe.duration_sec < 4.2
     assert probe.audio_duration_sec is not None
     assert 3.9 < probe.audio_duration_sec < 4.2
     key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
@@ -895,7 +895,7 @@ def test_audio_start_offset_without_stream_duration_is_accepted(tmp_path):
         timeout=60,
     )
     probe = eng.probe(audio)
-    assert probe.duration_sec > 6.9
+    assert 3.9 < probe.duration_sec < 4.2
     assert probe.audio_duration_sec is None
     key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
     out = pyramid_path(tmp_path, "track-offset", key)

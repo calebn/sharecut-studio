@@ -673,7 +673,7 @@ explicit release.
 
 Generated unequal-audio-stream M4A and video-with-short-audio MOV files exercise receiving and peer selected-stream bounds. M4A multiple-stream extents refuse conservatively, while a known MOV audio interior remains eligible. Unknown and estimated audio extents refuse.
 
-`tests/test_media_probe.py` verifies distinct container and first-audio duration policies over shared successful probe metadata, revision invalidation, copied results and failed-probe retries. Discovery separately verifies failed-probe memoization per receiving lane and retry on the next call. Full recording auditions supplement these regressions. Short reviewed excerpts are checked in under `tests/fixtures/lab_bleed/`; neither the excerpts nor the auditions prove automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
+`tests/test_media_probe.py` verifies the first-audio extent and the stream-level duration over shared successful probe metadata, revision invalidation, copied results and failed-probe retries. Discovery separately verifies failed-probe memoization per receiving lane and retry on the next call. Full recording auditions supplement these regressions. Short reviewed excerpts are checked in under `tests/fixtures/lab_bleed/`; neither the excerpts nor the auditions prove automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
 
 The focused `registry-backup-windows` CI job acquires and verifies the pinned
 prebuilt FFmpeg pair for its audio fixtures and runs real NTFS backup, cancellation,

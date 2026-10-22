@@ -481,8 +481,8 @@ def probe_wav_duration_sec(path: Path) -> float | None:
     master, the ingest WAVs in ``conversation_align``, the gate temp in
     ``transcript_bleed_mute``) must write a new file or change its size or mtime: an
     in-place rewrite that keeps both (possible with coarse filesystem timestamps) is
-    unsupported and keeps the old duration. The container-preferred duration policy
-    here remains distinct from strict first-audio extent checks.
+    unsupported and keeps the old duration. ``duration_sec`` is the first audio
+    stream's extent; strict first-audio checks also require it known and unestimated.
     """
     info = probe_media(path)
     return float(info.duration_sec) if info is not None else None

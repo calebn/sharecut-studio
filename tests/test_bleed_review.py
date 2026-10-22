@@ -736,7 +736,7 @@ def test_review_requires_selected_audio_extent_with_other_longer_streams(
         timeout=30,
     )
     probe = engine.probe(selected)
-    assert probe.duration_sec > 2.9
+    assert 0.65 < probe.duration_sec < 0.8
     assert probe.audio_duration_sec is not None
     assert 0.65 < probe.audio_duration_sec < 0.8
     assert probe.duration_estimated is (container == "m4a")

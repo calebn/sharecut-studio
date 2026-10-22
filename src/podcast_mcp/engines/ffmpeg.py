@@ -95,6 +95,11 @@ CANCEL_POLL_SEC = 0.1
 ENCODE_CANCELLED = "Encoding cancelled"
 # Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
 _UNTRUSTED_PROTOCOLS = "file,crypto,data"
+_PACKET_SCAN_TIMEOUT_SEC = 120.0
+_MAX_SCAN_EXTENT_SEC = 7 * 24 * 3600.0
+# Audio starting this much after the container start is a leading gap, not codec priming. Over-
+# counting a start offset is harmless; under-counting makes the render clip real audio.
+_AUDIO_START_GAP_SEC = 0.02
 
 
 log = logging.getLogger(__name__)
@@ -398,6 +403,28 @@ def _legacy_audio_pick(audio_streams: list[dict[str, Any]]) -> int | None:
     return max(range(len(scores)), key=lambda k: (scores[k], -k), default=0)
 
 
+def _seconds(value: Any) -> float | None:
+    """A finite float from an ffprobe field, or None for "N/A", empty or non-finite."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return None
+    return seconds if math.isfinite(seconds) else None
+
+
+def _stream_duration_unreliable(probe_json: dict[str, Any]) -> bool:
+    """MPEG-TS, or Matroska/WebM with a real video track: per-stream durations can clip audio."""
+    names = str(probe_json.get("format", {}).get("format_name", ""))
+    if "mpegts" in names:
+        return True
+    if "matroska" not in names and "webm" not in names:
+        return False
+    return any(
+        s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")
+        for s in probe_json.get("streams", [])
+    )
+
+
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
     """Read *size* bytes, looping on short pipe reads; shorter only at EOF."""
     buf = bytearray()
@@ -501,24 +528,76 @@ class FFmpegEngine:
         audio_streams = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
         stream: dict[str, Any] = audio_streams[0] if audio_streams else {}
         fmt = data.get("format", {})
-        duration = float(fmt.get("duration") or stream.get("duration") or 0)
+        container = _seconds(fmt.get("duration"))
+        duration = container or float(stream.get("duration") or 0)
         try:
             audio_duration = float(stream["duration"])
         except (KeyError, TypeError, ValueError):
             audio_duration = None
+        bitrate_estimated = "estimating duration from bitrate" in (r.stderr or "").lower()
+        scan_failed = False
+        if audio_streams:
+            # The renderer trims in container time: the stored extent is where a:0 ends there. A
+            # longer video track must not stretch it, and a late audio start counts.
+            container_start = _seconds(fmt.get("start_time")) or 0.0
+            if (
+                not (audio_duration and audio_duration > 0)
+                or bitrate_estimated
+                or _stream_duration_unreliable(data)
+            ):
+                end = self._scan_audio_extent(path, untrusted=untrusted)
+                extent = None if end is None else end - container_start
+                # Container headers can be stale or short, so they never bound the scan; only an
+                # impossible value (a forged pts) fails it.
+                if extent is None or not 0 < extent <= _MAX_SCAN_EXTENT_SEC:
+                    scan_failed = True
+                else:
+                    duration = extent
+            else:
+                gap = (_seconds(stream.get("start_time")) or 0.0) - container_start
+                duration = audio_duration + (gap if gap > _AUDIO_START_GAP_SEC else 0.0)
         return AudioProbe(
             duration_sec=duration,
             sample_rate=int(stream.get("sample_rate") or 48000),
             channels=int(stream.get("channels") or 1),
-            duration_estimated=(
-                "estimating duration from bitrate" in (r.stderr or "").lower()
-                or len(audio_streams) != 1
-            ),
+            duration_estimated=bitrate_estimated or len(audio_streams) != 1 or scan_failed,
             audio_duration_sec=audio_duration,
             sample_fmt=stream.get("sample_fmt") or None,
             audio_stream_count=len(audio_streams),
             legacy_default_audio_index=_legacy_audio_pick(audio_streams),
         )
+
+    def _scan_audio_extent(self, path: Path, *, untrusted: bool) -> float | None:
+        """End of a:0's last packet (pts + duration), or None when the scan fails."""
+        cmd = [
+            self.ffprobe,
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "packet=pts_time,duration_time",
+            "-of",
+            "csv=p=0",
+        ]
+        if untrusted:
+            cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
+        cmd.append(str(path))
+        try:
+            r = run(
+                cmd, capture_output=True, text=True, check=True, timeout=_PACKET_SCAN_TIMEOUT_SEC
+            )
+        except (CalledProcessError, TimeoutExpired, OSError):
+            return None
+        end = 0.0
+        for line in r.stdout.splitlines():
+            fields = line.split(",")
+            pts = _seconds(fields[0])
+            if pts is None:
+                continue
+            dur = _seconds(fields[1]) if len(fields) > 1 else None
+            end = max(end, pts + (dur or 0.0))
+        return end or None
 
     def stream_pcm_f32(
         self, path: Path, *, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES

@@ -398,7 +398,7 @@ The stem duration check (`probe_wav_duration_sec`, used by `stem_is_fresh`,
 `engines.media_probe` cache. It stores successful `AudioProbe` metadata per resolved
 path and `file_revision`, up to 1024 file revisions per process across every open
 project. Returned metadata is copied so callers cannot change cached values.
-Rendered-media checks retain their container-preferred duration policy. Reviewed
+Rendered-media checks use `AudioProbe.duration_sec`, where the first audio stream ends on the container timeline. MPEG-TS, Matroska/WebM with video, and streams without a trustworthy duration use a packet scan; the container duration is kept only for files with no audio or, flagged `duration_estimated`, when the scan fails. Reviewed
 bleed discovery uses the same metadata with a separate strict first-audio-stream
 duration policy that refuses unknown, nonfinite, estimated or multiple-audio-stream
 extents. Every document snapshot that carries
