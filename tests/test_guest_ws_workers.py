@@ -185,7 +185,7 @@ def test_guest_record_workers_preserve_join_barrier_and_command_order(
 
 
 @pytest.mark.asyncio
-async def test_frame_validation_waits_for_inflight_revocation_without_blocking_loop():
+async def test_frame_validation_waits_for_inflight_revocation_without_blocking_loop(monkeypatch):
     blocked = BlockedCall()
     decisions = []
 
@@ -197,8 +197,18 @@ async def test_frame_validation_waits_for_inflight_revocation_without_blocking_l
     guard = common.GuestWsGuard(AsyncMock(), valid, on_frame=0)
     first = asyncio.create_task(guard.share_ok_on_frame())
     assert await asyncio.to_thread(blocked.entered.wait, 3)
+    lock = guard._validation_lock
+    acquire = lock.acquire
+    waiting = asyncio.Event()
+
+    async def observed_acquire():
+        assert lock.locked()
+        waiting.set()
+        return await acquire()
+
+    monkeypatch.setattr(lock, "acquire", observed_acquire)
     second = asyncio.create_task(guard.share_ok_on_frame())
-    await asyncio.sleep(0)
+    await waiting.wait()
     assert not second.done()
     await blocked.heartbeat()
     assert await first is False
