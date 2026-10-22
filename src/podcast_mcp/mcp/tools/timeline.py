@@ -1074,14 +1074,24 @@ def reconcile_transcript_tool(
     end_sec: float | None = None,
 ) -> str:
     """Re-run transcript/timeline reconciliation; dry_run previews without applying."""
-    ws = ProjectWorkspace.open(project_path)
+    if dry_run is True:
+        ws = ProjectWorkspace.open(project_path)
+        return to_json(
+            AnalysisService(ws).preview_reconcile_transcript(
+                track_id=track_id, speaker=speaker, start_sec=start_sec, end_sec=end_sec
+            )
+        )
     return to_json(
-        AnalysisService(ws).reconcile_transcript(
-            track_id=track_id,
-            speaker=speaker,
-            dry_run=dry_run,
-            start_sec=start_sec,
-            end_sec=end_sec,
+        submit_host_command_result(
+            project_path,
+            "ReconcileTranscript",
+            {
+                "track_id": track_id,
+                "speaker": speaker,
+                "dry_run": dry_run,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+            },
         )
     )
 

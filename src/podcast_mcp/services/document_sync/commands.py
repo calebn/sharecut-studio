@@ -33,6 +33,7 @@ DocumentCommandType = Literal[
     "ApplyFadeRecommendations",
     "SetEffectBypass",
     "AddEffect",
+    "ReconcileTranscript",
     "SuppressBleed",
     "SuppressLowAudibility",
     "SetBleedAlignmentMode",

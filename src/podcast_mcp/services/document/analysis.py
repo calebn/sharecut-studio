@@ -813,6 +813,29 @@ class AnalysisService(WorkspaceService):
     def reconciliation_status(self) -> dict:
         return reconciliation_status_report(self.ws.project, defaults=self.ws.effective_config())
 
+    def preview_reconcile_transcript(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict:
+        """What ``reconcile_transcript`` would change, without changing the project."""
+        tid: str | None = None
+        if track_id or speaker:
+            tid = self._resolve(track_id, speaker)
+        return run_reconciliation(
+            self.ws.project,
+            dry_run=True,
+            track_id=tid,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            progress=progress,
+            defaults=self.ws.effective_config(),
+        )
+
     def reconcile_transcript(
         self,
         *,
@@ -823,6 +846,14 @@ class AnalysisService(WorkspaceService):
         end_sec: float | None = None,
         progress: ProgressReporter | None = None,
     ) -> dict:
+        if dry_run is True:
+            return self.preview_reconcile_transcript(
+                track_id=track_id,
+                speaker=speaker,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                progress=progress,
+            )
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)

@@ -37,6 +37,7 @@ HANDLERS: dict[str, Handler] = {
     "ApplyFadeRecommendations": edits.apply_fade_recommendations,
     "SetEffectBypass": edits.set_effect_bypass,
     "AddEffect": edits.add_effect,
+    "ReconcileTranscript": edits.reconcile_transcript,
     "SuppressBleed": edits.suppress_bleed,
     "SuppressLowAudibility": edits.suppress_low_audibility,
     "SetBleedAlignmentMode": edits.set_bleed_alignment_mode,
