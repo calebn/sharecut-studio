@@ -86,8 +86,7 @@ def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, mon
         mgr.start_bounce(Path(minimal_project))
         raise AssertionError("bounce should take the pipeline lock")
     except RuntimeError as exc:
-        assert "already running" in str(exc)
-        assert "pipeline-slot" in str(exc)
+        assert str(exc) == "Another job is still running. Try again when it finishes."
     agent = mgr.adopt_agent_job(tool_id="align_tracks", label="align", claim="c1")
     st = mgr.status()
     assert st["running_count"] == 2
@@ -256,7 +255,7 @@ def test_start_analyze_runs_working_set_and_takes_slot(minimal_project, monkeypa
         mgr.start_analyze(Path(minimal_project), apply=True)
         raise AssertionError("analyze should take the pipeline lock")
     except RuntimeError as exc:
-        assert "already running" in str(exc)
+        assert "still running" in str(exc)
 
 
 def test_cancelling_an_export_mid_encode_keeps_the_previous_export(slow_export) -> None:

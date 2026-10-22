@@ -168,7 +168,7 @@ def test_agent_job_coexists_with_pipeline_job() -> None:
         mgr.start(Path("/tmp/p.json"))
         raise AssertionError("pipeline lock should still apply")
     except RuntimeError as exc:
-        assert "already running" in str(exc)
+        assert "still running" in str(exc)
     sink.end("tighten_from_transcript")
     assert agent.status == "ok"
     assert pipeline.status == "running"
@@ -605,7 +605,7 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
         kind="pipeline",
     )
     mgr._job = busy
-    with pytest.raises(RuntimeError, match="already running"):
+    with pytest.raises(RuntimeError, match="still running"):
         mcp_pipeline.pipeline_run(str(proj), only_step="ingest_tracks", use_working_set=False)
 
     mgr._job = None

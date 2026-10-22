@@ -37,6 +37,10 @@ from podcast_mcp.util.progress import CancelledProgress, bind_progress
 
 logger = logging.getLogger(__name__)
 
+EXPORT_PREVIEW_WAIT_S = 300.0
+SLOT_BUSY = "Another job is still running. Try again when it finishes."
+MIX_STILL_UPDATING = "The mix is still updating. Try again when it finishes."
+
 
 class JobManager:
     """Start and wait on jobs while the catalog owns their shared state."""
@@ -235,13 +239,39 @@ class JobManager:
         *,
         formats: list[dict[str, Any]] | None = None,
     ) -> Job:
-        """Mastered deliverables via ``PipelineService.export_audio``."""
+        """Mastered deliverables via ``PipelineService.export_audio``.
+
+        A mix rebuild of the same project (the automatic refresh after an edit, Undo or Redo)
+        holds the slot only briefly, so the export queues behind it instead of refusing.
+        """
+        self._wait_out_mix_rebuild(project_path)
         return self._spawn(
             project_path,
             kind="export",
             label="Export deliverables",
             config={"formats": formats},
         )
+
+    def _wait_out_mix_rebuild(self, project_path: Path) -> None:
+        deadline = time.monotonic() + EXPORT_PREVIEW_WAIT_S
+        scope = str(project_path.resolve())
+        while (rebuild := self._live_mix_rebuild(scope)) is not None:
+            try:
+                self.wait(rebuild, timeout=max(0.0, deadline - time.monotonic()))
+            except TimeoutError:
+                raise JobSlotBusyError(MIX_STILL_UPDATING) from None
+
+    def _live_mix_rebuild(self, scope: str) -> Job | None:
+        with self._catalog._lock:
+            job = self._catalog._job
+        if (
+            job is not None
+            and job.kind == "render_preview"
+            and job.project_path == scope
+            and job.status in LIVE_JOB_STATUSES
+        ):
+            return job
+        return None
 
     def cancel(self, job_id: str | None = None) -> Job | None:
         with self._catalog._lock:
@@ -399,12 +429,12 @@ class JobManager:
     ) -> Job:
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
-                raise JobSlotBusyError("A pipeline-slot job is already running")
+                raise JobSlotBusyError(SLOT_BUSY)
         if validate is not None:
             validate()
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
-                raise JobSlotBusyError("A pipeline-slot job is already running")
+                raise JobSlotBusyError(SLOT_BUSY)
             current = self._catalog._job
             if current is not None and current.status in TERMINAL_JOB_STATUSES:
                 self._catalog._archive_job(current)

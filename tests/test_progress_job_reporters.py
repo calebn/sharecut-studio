@@ -258,7 +258,7 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
         busy.start(proj)
         raise AssertionError("expected busy error")
     except RuntimeError as exc:
-        assert "already running" in str(exc)
+        assert "still running" in str(exc)
 
     # Successful run that was cancel-requested mid-flight
     job3 = Job(
