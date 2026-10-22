@@ -20,6 +20,7 @@ export interface JoinPopoverProps {
   onClose: () => void;
   edit: JoinEdit;
   railRef: RefObject<HTMLElement | null>;
+  gripRef?: RefObject<HTMLElement | null>;
 }
 
 /** The join editor: an anchored `Dialog`, so the seam it edits stays in view. */
@@ -33,6 +34,7 @@ export function JoinPopover({
   onClose,
   edit,
   railRef,
+  gripRef,
 }: JoinPopoverProps) {
   // Dismissing mid-request would unmount the popover and drop a failure
   // silently, so Escape, Close, an outside click and opening another join
@@ -55,7 +57,8 @@ export function JoinPopover({
           "the join under the timeline stays in view while its mode and fades are edited, so a sheet would cover the seam being heard",
         ref: anchorRef,
         avoidRef: railRef,
-        moves: `${seamSec}|${right.join_in_mode}`,
+        clearRef: gripRef,
+        moves: `${seamSec}|${right.join_in_mode}|${edit.value}`,
       }}
       footer={
         <InspectorSeekFooter

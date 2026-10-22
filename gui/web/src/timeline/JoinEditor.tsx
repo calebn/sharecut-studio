@@ -251,6 +251,7 @@ function JoinEditorLive(props: JoinEditorProps) {
           trackFadeMaxMs={trackFadeMaxMs}
           anchorRef={anchorRef}
           railRef={railRef}
+          gripRef={gripRef}
           edit={edit}
           onClose={close}
         />

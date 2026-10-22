@@ -75,6 +75,80 @@ export function placeAnchored(
   return { left, top, maxHeight, maxWidth, side };
 }
 
+/** The smallest box holding both `a` and `b`. */
+export function unionRect(a: AnchorRect, b: AnchorRect): AnchorRect {
+  return {
+    left: Math.min(a.left, b.left),
+    top: Math.min(a.top, b.top),
+    right: Math.max(a.right, b.right),
+    bottom: Math.max(a.bottom, b.bottom),
+  };
+}
+
+export interface ClearPlacementOptions extends PlacementOptions {
+  /** Narrowest a beside-the-column panel may shrink to before falling back. */
+  minWidth: number;
+}
+
+export interface ClearPlacement extends Omit<AnchoredPlacement, "side"> {
+  side: AnchoredPlacement["side"] | "left" | "right";
+}
+
+/**
+ * `placeAnchored` for a panel that must never cover `clear` (the anchor plus a
+ * control such as the join grip). While the panel fits whole above or below
+ * the anchor, inside `fullViewport` cut at `chromeTop`, that placement stands.
+ * Otherwise the panel goes beside the `clear` column at the full viewport
+ * height, on the wider side that is at least `minWidth` wide, with
+ * `maxHeight` / `maxWidth` to scroll or wrap inside. With no such side it
+ * falls back to the capped vertical placement.
+ */
+export function placeAnchoredClear(
+  anchor: AnchorRect,
+  panel: PanelSize,
+  fullViewport: PlacementViewport,
+  chromeTop: number | null,
+  clear: AnchorRect,
+  options: ClearPlacementOptions,
+): ClearPlacement {
+  const { minWidth, ...base } = options;
+  const cut =
+    chromeTop == null
+      ? fullViewport
+      : {
+          ...fullViewport,
+          height: Math.max(
+            0,
+            Math.min(fullViewport.height, chromeTop - fullViewport.top),
+          ),
+        };
+  const vertical = placeAnchored(anchor, panel, cut, base);
+  if (panel.height <= vertical.maxHeight) {
+    return vertical;
+  }
+
+  const { margin, gap } = base;
+  const edgeLeft = fullViewport.left + margin;
+  const edgeRight = fullViewport.left + fullViewport.width - margin;
+  const leftSpace = Math.max(0, clear.left - gap - edgeLeft);
+  const rightSpace = Math.max(0, edgeRight - (clear.right + gap));
+  const side = rightSpace >= leftSpace ? "right" : "left";
+  const space = side === "right" ? rightSpace : leftSpace;
+  if (space < Math.min(minWidth, panel.width)) {
+    return vertical;
+  }
+
+  const width = Math.min(panel.width, space);
+  const left = side === "right" ? clear.right + gap : clear.left - gap - width;
+  const floor = fullViewport.top + margin;
+  const ceiling = fullViewport.top + fullViewport.height - margin;
+  const maxHeight = Math.max(0, ceiling - floor);
+  const height = Math.min(panel.height, maxHeight);
+  const centre = (anchor.top + anchor.bottom) / 2;
+  const top = Math.max(floor, Math.min(centre - height / 2, ceiling - height));
+  return { left, top, maxHeight, maxWidth: space, side };
+}
+
 /**
  * The visual viewport as a placement box, falling back to the layout
  * viewport. `bottomChrome` (a bottom bar or rail) ends the box at its top.

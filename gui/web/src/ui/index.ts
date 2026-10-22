@@ -1,5 +1,9 @@
 export { Avatar } from "./Avatar";
-export { placeAnchored, visualViewportBox } from "./anchoredPlacement";
+export {
+  placeAnchored,
+  placeAnchoredClear,
+  visualViewportBox,
+} from "./anchoredPlacement";
 export { BottomSheet, type BottomSheetSize } from "./BottomSheet";
 export { BrandLockup, BrandSymbol } from "./BrandMark";
 export { Button, type ButtonVariant } from "./Button";

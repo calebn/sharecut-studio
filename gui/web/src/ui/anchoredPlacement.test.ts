@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { placeAnchored } from "./anchoredPlacement";
+import {
+  type AnchorRect,
+  placeAnchored,
+  placeAnchoredClear,
+  unionRect,
+} from "./anchoredPlacement";
 
 const viewport = { left: 0, top: 0, width: 400, height: 800 };
 const EDGE = 8;
@@ -99,5 +104,96 @@ describe("placeAnchored", () => {
     });
     expect(placed.left).toBe(58);
     expect(placed.maxWidth).toBe(184);
+  });
+});
+
+describe("placeAnchoredClear", () => {
+  const clearOptions = { ...options, align: "center" as const, minWidth: 192 };
+  const joinPanel = { width: 320, height: 230 };
+
+  function overlap(a: AnchorRect, b: AnchorRect) {
+    return (
+      a.left < b.right &&
+      b.left < a.right &&
+      a.top < b.bottom &&
+      b.top < a.bottom
+    );
+  }
+
+  function check(
+    vp: { left: number; top: number; width: number; height: number },
+    chromeTop: number,
+    badge: AnchorRect,
+    grip: AnchorRect,
+  ) {
+    const clear = unionRect(badge, grip);
+    const placed = placeAnchoredClear(
+      badge,
+      joinPanel,
+      vp,
+      chromeTop,
+      clear,
+      clearOptions,
+    );
+    const width = Math.min(joinPanel.width, placed.maxWidth);
+    const height = Math.min(joinPanel.height, placed.maxHeight);
+    const rect = {
+      left: placed.left,
+      top: placed.top,
+      right: placed.left + width,
+      bottom: placed.top + height,
+    };
+    expect(placed.side).toBe("right");
+    expect(placed.left).toBeGreaterThanOrEqual(clear.right + GAP);
+    expect(rect.right).toBeLessThanOrEqual(vp.left + vp.width - EDGE);
+    expect(rect.top).toBeGreaterThanOrEqual(vp.top + EDGE);
+    expect(rect.bottom).toBeLessThanOrEqual(vp.top + vp.height - EDGE);
+    expect(overlap(rect, grip)).toBe(false);
+    expect(overlap(rect, badge)).toBe(false);
+  }
+
+  it("sits right of the grip column at 844x390", () => {
+    check(
+      { left: 0, top: 0, width: 844, height: 390 },
+      141.7,
+      { left: 180, top: 96, right: 204, bottom: 120 },
+      { left: 266.8, top: 141.7, right: 314.8, bottom: 189.7 },
+    );
+  });
+
+  it("sits right of the grip column at 568x320", () => {
+    check(
+      { left: 0, top: 0, width: 568, height: 320 },
+      165,
+      { left: 150, top: 120, right: 174, bottom: 144 },
+      { left: 187.4, top: 165, right: 235.4, bottom: 213 },
+    );
+  });
+
+  it("keeps today's placement when the panel fits whole above the rail", () => {
+    const tall = { left: 0, top: 0, width: 390, height: 844 };
+    const badge = { left: 120, top: 500, right: 144, bottom: 524 };
+    const grip = { left: 94.4, top: 677, right: 142.4, bottom: 725 };
+    const clear = {
+      left: 94.4,
+      top: 500,
+      right: 144,
+      bottom: 725,
+    };
+    const placed = placeAnchoredClear(
+      badge,
+      joinPanel,
+      tall,
+      grip.top,
+      clear,
+      clearOptions,
+    );
+    const old = placeAnchored(
+      badge,
+      joinPanel,
+      { ...tall, height: grip.top },
+      clearOptions,
+    );
+    expect(placed).toEqual(old);
   });
 });
