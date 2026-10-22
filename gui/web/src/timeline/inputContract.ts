@@ -79,21 +79,16 @@ export interface HitKindContract {
    */
   reach?: "row";
   /**
-   * The smallest box, in css px per side, the resolver reaches this target
-   * from: its painted box grows about its centre to this size. A glyph in an
-   * 8 px gutter stays small to the eye and still meets WCAG 2.5.8 (24 px) for
-   * a pointer and the 44 pt touch floor for a finger.
+   * A finger's tap on a plain surface (a lane, a non-movable clip) goes to
+   * this target when it lands within `reachPx` beside its painted box, from
+   * its top down `heightPx`, and no other kind is near the finger. The reach
+   * never leaves the target's own lane (it starts at the target's top), so a
+   * seek in the lane above and any tap lower in the lane stay seeks.
    */
-  minBoxPx?: { pointer: number; touch: number };
-  /**
-   * A tap that lands on a plain surface (a lane) within reach of this target
-   * goes to it, not to the surface. Other kinds leave such a tap to the
-   * surface (seek).
-   */
-  surfaceTap?: boolean;
+  surfaceTap?: { reachPx: number; heightPx: number };
 }
 
-const MARK_BOX = { pointer: 24, touch: 44 } as const;
+const MARK_SURFACE_TAP = { reachPx: 22, heightPx: 44 } as const;
 
 /** Every hit-testable timeline target kind and its input contract. */
 export const HIT_KINDS = {
@@ -119,8 +114,7 @@ export const HIT_KINDS = {
     command: null,
     outranks: [],
     body: false,
-    minBoxPx: MARK_BOX,
-    surfaceTap: true,
+    surfaceTap: MARK_SURFACE_TAP,
   },
   "edit-chip": {
     priority: 10,
@@ -132,8 +126,7 @@ export const HIT_KINDS = {
     command: null,
     outranks: [],
     body: false,
-    minBoxPx: MARK_BOX,
-    surfaceTap: true,
+    surfaceTap: MARK_SURFACE_TAP,
   },
   "envelope-point": {
     priority: 9,
@@ -316,9 +309,9 @@ export function needsDirectHit(kind: HitKind): boolean {
   return contract.directOnly === true;
 }
 
-export function takesSurfaceTap(kind: HitKind): boolean {
+export function surfaceTapReach(kind: HitKind): HitKindContract["surfaceTap"] {
   const contract: HitKindContract = HIT_KINDS[kind];
-  return contract.surfaceTap === true;
+  return contract.surfaceTap;
 }
 
 export const HIT_KIND_NAMES = Object.keys(HIT_KINDS) as HitKind[];

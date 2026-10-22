@@ -294,6 +294,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         ),
       onTarget: (hit) => useDawStore.getState().setSelectionHit(hit),
       precision: precisionHandoff,
+      surfaceTaps: () => {
+        const { toolMode: tool, commentMode: commenting } =
+          useDawStore.getState();
+        return tool === "select" && !commenting;
+      },
       snapshot: () => {
         const { selection, selectionHit } = useDawStore.getState();
         const bleed = clipBleedSession.getSnapshot();

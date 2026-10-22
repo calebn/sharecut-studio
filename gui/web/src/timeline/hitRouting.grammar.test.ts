@@ -39,7 +39,10 @@ function record(name: string, el: Element): void {
 }
 
 /** A router like the timeline's: 100 px/s, `boundaries` for every target. */
-function attach(boundaries: SoftBoundary[] = []): void {
+function attach(
+  boundaries: SoftBoundary[] = [],
+  surfaceTaps: () => boolean = () => true,
+): void {
   router?.dispose();
   router = attachHitRouting(root, {
     onArm: (target) => armed.push(target),
@@ -47,6 +50,7 @@ function attach(boundaries: SoftBoundary[] = []): void {
     onDetent: (detent) => detents.push(detent),
     detents: () => boundaries,
     pxPerSec: () => 100,
+    surfaceTaps,
     snapshot: () => () => {
       restored += 1;
     },
@@ -296,43 +300,169 @@ describe("clip body", () => {
   });
 });
 
-describe("tap on a surface beside a join glyph", () => {
-  function glyph(): HTMLButtonElement {
-    const join = button(hitTargetProps("join", "clip-b", 2), {
+describe("tap on a surface near an edit mark", () => {
+  function mark(kind: "join" | "edit-chip" = "join"): HTMLButtonElement {
+    const el = button(hitTargetProps(kind, "clip-b", 2), {
       left: 192,
       top: 100,
       right: 208,
       bottom: 108,
     });
-    root.append(join);
-    record("join", join);
-    return join;
+    root.append(el);
+    record(kind, el);
+    return el;
   }
 
-  it("goes to the glyph when a finger lands 20 px beside it", () => {
-    const el = lane();
-    glyph();
-    press(el, "pointerdown", 228, 104);
-    press(el, "pointerup", 228, 104);
+  function tap(el: Element, x: number, y: number, type = "touch"): void {
+    press(el, "pointerdown", x, y, 7, type);
+    press(el, "pointerup", x, y, 7, type);
+  }
 
-    expect(log.filter((entry) => entry.startsWith("join:"))).toEqual([
-      "join:pointerdown@228,104",
-      "join:pointerup@228,104",
-    ]);
-    expect(log.some((entry) => entry.startsWith("lane:"))).toBe(false);
+  const seeks = () => log.filter((entry) => entry.startsWith("lane:"));
+  const marks = (name: string) =>
+    log.filter((entry) => entry.startsWith(`${name}:`));
+
+  it.each(["join", "edit-chip"] as const)(
+    "goes to the %s when a finger lands 20 px beside it",
+    (kind) => {
+      const el = lane();
+      mark(kind);
+      tap(el, 228, 104);
+
+      expect(marks(kind)).toEqual([
+        `${kind}:pointerdown@228,104`,
+        `${kind}:pointerup@228,104`,
+      ]);
+      expect(seeks()).toEqual([]);
+    },
+  );
+
+  it("goes to the mark down to 44 px under its top", () => {
+    const el = lane();
+    mark();
+    tap(el, 200, 144);
+
+    expect(marks("join")).toHaveLength(2);
+    expect(seeks()).toEqual([]);
   });
 
-  it("stays a seek on the lane when the finger is out of the glyph's reach", () => {
+  it("stays a seek 30 px beside the mark", () => {
     const el = lane();
-    glyph();
-    press(el, "pointerdown", 260, 104);
-    press(el, "pointerup", 260, 104);
+    mark();
+    tap(el, 238, 104);
 
-    expect(log.some((entry) => entry.startsWith("join:"))).toBe(false);
-    expect(log.filter((entry) => entry.startsWith("lane:"))).toEqual([
-      "lane:pointerdown@260,104",
-      "lane:pointerup@260,104",
+    expect(marks("join")).toEqual([]);
+    expect(seeks()).toEqual([
+      "lane:pointerdown@238,104",
+      "lane:pointerup@238,104",
     ]);
+  });
+
+  it("stays a seek lower in the lane, under the mark", () => {
+    const el = lane();
+    mark();
+    tap(el, 200, 160);
+
+    expect(marks("join")).toEqual([]);
+    expect(seeks()).toHaveLength(2);
+  });
+
+  it("stays a seek in the lane above, where the mark's box would reach", () => {
+    const above = lane(-4);
+    mark();
+    tap(above, 200, 90);
+
+    expect(marks("join")).toEqual([]);
+    expect(seeks()).toEqual([
+      "lane:pointerdown@200,90",
+      "lane:pointerup@200,90",
+    ]);
+  });
+
+  it("stays a seek under a chip", () => {
+    const el = lane();
+    mark("edit-chip");
+    tap(el, 200, 170);
+
+    expect(marks("edit-chip")).toEqual([]);
+    expect(seeks()).toHaveLength(2);
+  });
+
+  it("never takes a mouse click, which has no finger to miss with", () => {
+    const el = lane();
+    mark();
+    tap(el, 228, 104, "mouse");
+
+    expect(marks("join")).toEqual([]);
+  });
+
+  it("leaves the tap to the surface in blade mode", () => {
+    attach([], () => false);
+    const el = lane();
+    mark();
+    tap(el, 228, 104);
+
+    expect(marks("join")).toEqual([]);
+    expect(seeks()).toHaveLength(2);
+  });
+
+  it("leaves the tap to the surface when a trim handle is also near", () => {
+    const el = lane();
+    mark();
+    const handle = button(hitTargetProps("trim-in", "clip-b", 2), {
+      left: 212,
+      top: 110,
+      right: 220,
+      bottom: 160,
+    });
+    root.append(handle);
+    record("trim", handle);
+    tap(el, 228, 104);
+
+    expect(marks("join")).toEqual([]);
+    expect(seeks()).toHaveLength(2);
+  });
+
+  it("opens the create menu on a long press 30 px beside the mark", () => {
+    const el = lane();
+    mark();
+    press(el, "pointerdown", 238, 104);
+    router.longPress();
+
+    expect(creates.at(-1)?.surface).toBe(el);
+    expect(marks("join")).toEqual([]);
+  });
+
+  it("opens the create menu on a long press in the lane above", () => {
+    const above = lane(-4);
+    mark();
+    press(above, "pointerdown", 200, 70);
+    router.longPress();
+
+    expect(creates.at(-1)?.surface).toBe(above);
+  });
+
+  it("lets a trim handle win a press on it while a glyph holds focus", () => {
+    const el = lane();
+    const glyph = mark();
+    const handle = button(hitTargetProps("trim-in", "clip-b", 2), {
+      left: 196,
+      top: 104,
+      right: 204,
+      bottom: 160,
+    });
+    root.append(handle);
+    record("trim", handle);
+    glyph.focus();
+    press(handle, "pointerdown", 200, 130);
+    press(handle, "pointerup", 200, 130);
+
+    expect(marks("trim")).toEqual([
+      "trim:pointerdown@200,130",
+      "trim:pointerup@200,130",
+    ]);
+    expect(marks("join")).toEqual([]);
+    expect(el.isConnected).toBe(true);
   });
 });
 
