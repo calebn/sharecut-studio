@@ -144,7 +144,9 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
           />
         ))}
       </ul>
-      <p className="model-summary">{summary(picked)}</p>
+      <p className="model-summary">
+        {busy ? "Download in progress" : summary(picked)}
+      </p>
       <div className="cluster">
         <Button
           variant="primary"

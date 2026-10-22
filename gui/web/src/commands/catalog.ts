@@ -533,6 +533,23 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canManageProjects",
     notes: "Host-only sanitized diagnostics zip for bug reports",
   },
+  "models.open": {
+    id: "models.open",
+    category: "ui",
+    label: "Manage models…",
+    keywords: [
+      "download",
+      "whisper",
+      "speech",
+      "noise",
+      "rnnoise",
+      "aligner",
+      "speaker",
+    ],
+    when: "canManageProjects",
+    notes:
+      "Host-only dialog listing every model with its state, size and a download",
+  },
   "export.deliverables": {
     id: "export.deliverables",
     category: "ui",

@@ -141,6 +141,7 @@ describe("BootstrapWizard rows", () => {
     );
     expect(screen.getByRole("button", { name: "Downloading…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Skip for now" })).toBeDisabled();
+    expect(screen.getByText("Download in progress")).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 

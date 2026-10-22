@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   closeEpisodeProject,
@@ -8,9 +9,23 @@ import {
   openEpisodeProject,
   pickEpisodeProject,
 } from "../api";
-import { ModelsProvider } from "../models/ModelsProvider";
+import { ModelsProvider } from "../models";
 import { expectNoA11yViolations } from "../test/a11y";
+import {
+  modelStatus,
+  modelsApi,
+  modelsWrapper,
+  registryRows,
+} from "../test/renderWithModels";
 import { HomeScreen } from "./HomeScreen";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, {
+    wrapper: modelsWrapper(
+      modelsApi({ status: modelStatus(registryRows(), { ready: true }) }),
+    ),
+  });
+}
 
 vi.mock("../api", () => ({
   closeEpisodeProject: vi.fn(),
@@ -318,7 +333,7 @@ describe("HomeScreen", () => {
         throw new DOMException("denied", "SecurityError");
       });
     try {
-      render(
+      rtlRender(
         <ModelsProvider>
           <HomeScreen />
         </ModelsProvider>,
@@ -357,5 +372,28 @@ describe("HomeScreen", () => {
     expect(
       await screen.findByRole("link", { name: "Open support" }),
     ).toHaveAttribute("href", "https://support.example.test");
+  });
+
+  it("keeps Models on Home with the skip flag set, and opens the dialog", async () => {
+    const user = userEvent.setup();
+    render(<HomeScreen />);
+    const button = screen.getByRole("button", { name: "Models" });
+    await user.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Models" });
+    expect(dialog).toBeTruthy();
+    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("says setup is incomplete on the Models button while a required model is missing", () => {
+    rtlRender(<HomeScreen />, {
+      wrapper: modelsWrapper(
+        modelsApi({ status: modelStatus(registryRows(), { ready: false }) }),
+      ),
+    });
+    expect(
+      screen.getByRole("button", { name: "Models · setup incomplete" }),
+    ).toBeTruthy();
   });
 });

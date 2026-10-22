@@ -6,6 +6,7 @@ import {
 } from "../api";
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
+import { ModelsDialog, useModels } from "../models";
 import { BrandLockup, Button, Field } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
@@ -36,6 +37,8 @@ export function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [modelsOpen, setModelsOpen] = useState(false);
+  const { models, ready } = useModels();
   const busy = busyAction !== null;
 
   const markReady = useCallback(() => {
@@ -153,6 +156,11 @@ export function HomeScreen() {
             </Button>
             <Button onClick={() => setMode("open")}>Open project…</Button>
             <Button onClick={() => setMcpOpen(true)}>Connect agent…</Button>
+            <Button onClick={() => setModelsOpen(true)}>
+              {models === null || ready
+                ? "Models"
+                : "Models · setup incomplete"}
+            </Button>
             <Button onClick={() => setHelpOpen(true)}>Help</Button>
           </div>
         ) : null}
@@ -269,6 +277,7 @@ export function HomeScreen() {
         onClose={() => setMcpOpen(false)}
         hasProject={false}
       />
+      <ModelsDialog open={modelsOpen} onClose={() => setModelsOpen(false)} />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </main>
   );

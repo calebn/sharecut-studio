@@ -156,6 +156,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Record room… | `record.openPanel` | Loaded host project |  |
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
+| Manage models… | `models.open` | Host project management | Host-only dialog listing every model with its state, size and a download |
 | Split speakers… | `track.splitSpeakers` | canSplitSpeakers | Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
 | Reorder track | `track.reorder` | Media ingest allowed | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |
