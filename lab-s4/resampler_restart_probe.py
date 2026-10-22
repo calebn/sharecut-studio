@@ -1,6 +1,6 @@
 """usage: python resampler_restart_probe.py [SECONDS=120] [TRIALS=30] [SEED=1]   (PYTHONPATH=src, venv; no project, no audio files, ~1-3 min)
 
-Gate for the #1958 PR-B splice.  Is ffmpeg's resampler (the one S1 uses, `ungated_audio.resample_streams`) a
+Gate for the #1958 PR-B splice.  Is ffmpeg's resampler (the one S1 uses, `ungated_audio.resample_stream`) a
 finite-support filter, so that restarting it mid-stream gives the same output as running it continuously?
 Seeded noise plus a tone burst at 48000 Hz (Daniela's dani track) and 44100 Hz (vicky) -> 8000 and 16000 Hz.
 For each trial pick a restart input sample s that is a multiple of the rate-alignment unit (6 for 48k->8k, 3 for 48k->16k,
@@ -12,7 +12,7 @@ PASS: some W <= 4096 input samples gives array_equal in ALL trials for 48k->8k a
 """
 import subprocess, sys
 import numpy as np
-from podcast_mcp.engines.ungated_audio import resample_streams
+from podcast_mcp.engines.ungated_audio import resample_stream
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 
 SECONDS = int(sys.argv[1]) if len(sys.argv) > 1 else 120
@@ -24,7 +24,7 @@ print(subprocess.run([resolve_ffmpeg_pair().ffmpeg, "-version"], capture_output=
 
 
 def convert(x, fr, to):
-    return resample_streams(iter([x[i:i + (1 << 18)] for i in range(0, len(x), 1 << 18)]), fr, (to,))[to]
+    return resample_stream(iter([x[i:i + (1 << 18)] for i in range(0, len(x), 1 << 18)]), fr, to)
 
 
 rng = np.random.default_rng(SEED)

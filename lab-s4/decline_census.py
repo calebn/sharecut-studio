@@ -1,8 +1,8 @@
 """usage: python decline_census.py <clone.project.json>   (PYTHONPATH=src, venv; read-only, no ffmpeg, seconds)
 
 How often would the in-memory evidence path decline to the render (#1958)?  Per dialogue track:
-volume-envelope points, clips where the heard render adds a bleed-restore step (off_speaker_mute_regions
-plus bleed_restore.regions, gate off), saved active chains, clip mute spans; and across the pending edits,
+volume-envelope points and clips where the heard render adds a bleed-restore step (off_speaker_mute_regions
+plus bleed_restore.regions, gate off) are the only DECLINES; saved active chains are shown but are dropped before evaluation; and across the pending edits,
 how many overlap a clip's mute spans (the cuts that need the heard cache at all).
 """
 import sys
@@ -22,7 +22,8 @@ for tid in sorted(dialogue_track_ids(p)):
     mute_clips = sum(1 for c in clips if c.mute_regions)
     rows.append((tid, len(clips), env_pts, restore, chains, mute_clips))
     print(f"{tid}: clips={len(clips)} envelope_points={env_pts} bleed_restore_clips={restore} active_chains={chains} clips_with_mutes={mute_clips}")
-declined = [r[0] for r in rows if r[2] or r[3] or r[4]]
+# active chains do NOT decline: the evidence/heard paths drop them before evaluating (#1495, audio_audit._ungated_cache).
+declined = [r[0] for r in rows if r[2] or r[3]]
 print("tracks that would decline to the render:", declined or "none", f"({len(declined)} of {len(rows)})")
 pending = [e for e in p.edit_decisions if not e.applied]
 over = 0
