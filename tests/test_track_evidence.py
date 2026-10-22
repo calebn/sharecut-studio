@@ -626,18 +626,19 @@ def test_a_failed_build_leaves_no_build_lock(tmp_path: Path) -> None:
 
 def test_threads_that_meet_in_a_batch_share_one_store(monkeypatch: pytest.MonkeyPatch) -> None:
     import threading
-    import time
     from concurrent.futures import ThreadPoolExecutor
 
     from podcast_mcp.util.batch_scope import carried, snapshot
 
     real = track_evidence._Store.__init__
 
-    def slow(self):  # type: ignore[no-untyped-def]
-        time.sleep(0.05)
+    created: list[int] = []
+
+    def counting(self):  # type: ignore[no-untyped-def]
+        created.append(1)
         real(self)
 
-    monkeypatch.setattr(track_evidence._Store, "__init__", slow)
+    monkeypatch.setattr(track_evidence._Store, "__init__", counting)
     barrier = threading.Barrier(6)
 
     def get(state):  # type: ignore[no-untyped-def]
@@ -649,6 +650,7 @@ def test_threads_that_meet_in_a_batch_share_one_store(monkeypatch: pytest.Monkey
         state = snapshot()
         stores = list(pool.map(get, [state] * 6))
 
+    assert created == [1]
     assert all(store is stores[0] for store in stores)
 
 
