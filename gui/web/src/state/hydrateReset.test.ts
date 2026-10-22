@@ -46,6 +46,7 @@ const RESET_ON_SWITCH: Reset = {
   chapterAddPending: false,
   openJoinId: null,
   joinMutationInFlight: false,
+  joinDraft: null,
   rippleTrim: null,
   rangeArmed: false,
   rangeScopeTrackIds: null,
