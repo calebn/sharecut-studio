@@ -16,8 +16,11 @@ from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
+from podcast_mcp.engines.audio import sources
+from podcast_mcp.engines.timeline_render import placed_track_audio
 from podcast_mcp.models import (
     Clip,
+    ClipJoinMode,
     CutIntent,
     CutSpeech,
     CutSpeechTrack,
@@ -1644,3 +1647,99 @@ def test_a_witnessed_cut_of_a_source_played_twice_is_refused_and_applies_nothing
             )
         assert held.value.held[0].reason == "source_geometry"
         assert project.model_dump(mode="json") == before
+
+
+def _split_with_crossfade(tmp_path):
+    project = EpisodeProject.create("crossfade split", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=5),
+        )
+    ]
+    project.clips = [
+        Clip(id="whole", track_id="host", source_start=0, source_end=5, timeline_start=0)
+    ]
+    write_wav(tmp_path / "raw/host.wav", room(seconds=5, seed=2035))
+    candidate = project.model_copy(deep=True)
+    candidate.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0,
+            source_end=2.0,
+            timeline_start=0,
+            fade_out_ms=20,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=2.01,
+            source_end=5.0,
+            timeline_start=2.0,
+            fade_in_ms=20,
+            join_in_mode=ClipJoinMode.CROSSFADE,
+        ),
+    ]
+    return project, candidate
+
+
+def test_a_crossfade_split_is_a_removal_of_the_gap_not_a_duplicate(tmp_path):
+    project, candidate = _split_with_crossfade(tmp_path)
+    effects = cut_effects.completed_audio_effects(
+        project, candidate, frozenset({"remove"}), defaults={}
+    )
+    removals = [
+        e
+        for e in effects
+        if e.join is cut_effects.CutJoin.SPLICE and e.end - e.start > 1e-6 and not e.retained
+    ]
+    assert [(e.start, e.end) for e in removals] == [pytest.approx((2.0, 2.01))]
+    (removal,) = removals
+    assert removal.before is not None
+    assert removal.timeline_start - removal.start == pytest.approx(
+        removal.before.timeline_start - removal.before.source.src_start
+    )
+
+
+@pytest.mark.parametrize(
+    ("window", "expected"),
+    [
+        (None, {"a": (0.0, 5.0), "b": (5.0, 9.0)}),
+        ((4.0, 6.0), {"a": (4.0, 5.0), "b": (5.0, 6.0)}),
+        ((1.0, 5.0), {"a": (1.0, 5.0)}),
+    ],
+)
+@pytest.mark.parametrize("mode", [ClipJoinMode.CROSSFADE, ClipJoinMode.CUT])
+def test_a_placed_leaf_reports_the_clips_own_source_bounds(tmp_path, mode, window, expected):
+    project = EpisodeProject.create("nominal", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=100),
+        )
+    ]
+    left = Clip(
+        id="a", track_id="host", source_start=10, source_end=15, timeline_start=0, fade_out_ms=200
+    )
+    right = Clip(
+        id="b",
+        track_id="host",
+        source_start=15,
+        source_end=19,
+        timeline_start=5,
+        fade_in_ms=200,
+        join_in_mode=mode,
+    )
+    audio = placed_track_audio(project, project.tracks[0], [left, right], window=window).audio
+    leaves = {leaf.clip_id: leaf for leaf in sources(audio) if not leaf.is_fill}
+    assert leaves.keys() == expected.keys()
+    for clip_id, (start, end) in expected.items():
+        assert leaves[clip_id].nominal_start == pytest.approx(10 + start)
+        assert leaves[clip_id].nominal_end == pytest.approx(10 + end)
+    if mode is ClipJoinMode.CROSSFADE and window is None:
+        assert leaves["a"].src_end > leaves["a"].nominal_end
