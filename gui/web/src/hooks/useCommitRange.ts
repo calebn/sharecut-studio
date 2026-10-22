@@ -30,9 +30,9 @@ export interface CommitRange {
  * Commit-on-release range slider: the thumb moves locally while dragging and
  * each native `change` (pointer release, or an arrow-key step) commits once,
  * skipping a value equal to `saved`. It follows `saved` (undo, a collaborator)
- * unless mid-drag. A drag cancelled, backgrounded or blurred before a change event
- * returns the thumb to `saved`; a change that follows a cancel or backgrounding
- * is ignored. The listener follows the element, so a slider that mounts
+ * unless mid-drag. A drag cancelled or backgrounded returns the thumb to `saved`
+ * and the change event that follows is ignored; a drag blurred with no change
+ * event returns to `saved` a task later. The listener follows the element, so a slider that mounts
  * later still commits.
  */
 export function useCommitRange({
@@ -95,8 +95,8 @@ export function useCommitRange({
   const endDrag = () => {
     draggingRef.current = false;
   };
-  // A pointer release can report cancel or blur just before its change event, so
-  // the revert waits a task for a change to claim the drag.
+  // A release can report blur just before its change event, so the revert
+  // waits a task for a change to claim the drag.
   const abandonDrag = () => {
     draggingRef.current = false;
     if (!uncommittedRef.current) {
@@ -112,9 +112,9 @@ export function useCommitRange({
     }, 0);
   };
 
-  // The page backgrounding or the pointer being cancelled mid-drag ends it
-  // without a user release; WebKit still fires a change event for it, which
-  // must not commit the half-dragged value.
+  // A cancel or the page backgrounding ends a drag without a user release; on
+  // iOS the interrupted touch still fires a change event, which must not commit
+  // the half-dragged value.
   const interruptDrag = () => {
     if (!uncommittedRef.current) {
       return;
@@ -144,7 +144,6 @@ export function useCommitRange({
     value,
     input,
     commitValue: (next) => {
-      interruptedRef.current = false;
       setValue(next);
       commit(next);
     },
