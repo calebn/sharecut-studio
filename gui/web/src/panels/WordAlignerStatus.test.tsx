@@ -112,6 +112,30 @@ describe("WordAlignerStatus", () => {
     ).toBeEnabled();
   });
 
+  it("hides the environment variable and path in a failed download", async () => {
+    const user = userEvent.setup();
+    runBootstrap.mockRejectedValue(
+      new Error(
+        "word-aligner: no download source: set PODCAST_BOOTSTRAP_CDN_BASE or place the file at /home/x/.cache/p/models/a/m.onnx",
+      ),
+    );
+
+    render(
+      <WordAlignerStatus
+        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        retiming={false}
+        onDownloaded={vi.fn()}
+        onRetime={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Download word aligner" }),
+    );
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Couldn't download the word aligner. Export diagnostics from the command palette and try again.",
+    );
+  });
+
   it("shows the server's busy message when another download holds the slot", async () => {
     const user = userEvent.setup();
     runBootstrap.mockRejectedValue(

@@ -27,7 +27,7 @@ describe("useBootstrapDownload", () => {
         }),
     );
 
-    const { result } = renderHook(() => useBootstrapDownload());
+    const { result } = renderHook(() => useBootstrapDownload("the word aligner"));
     expect(result.current.busy).toBe(false);
 
     let downloadPromise!: Promise<boolean>;
@@ -53,7 +53,7 @@ describe("useBootstrapDownload", () => {
   it("resolves false with an error and clears busy on failure", async () => {
     runBootstrap.mockRejectedValue(new Error("network down"));
 
-    const { result } = renderHook(() => useBootstrapDownload());
+    const { result } = renderHook(() => useBootstrapDownload("the word aligner"));
     let ok!: boolean;
     await act(async () => {
       ok = await result.current.download({ components: ["word-aligner"] });
@@ -74,7 +74,7 @@ describe("useBootstrapDownload", () => {
     );
     waitForBootstrapJob.mockResolvedValue({ id: "job1", status: "ok" });
 
-    const { result } = renderHook(() => useBootstrapDownload());
+    const { result } = renderHook(() => useBootstrapDownload("the word aligner"));
     let firstPromise!: Promise<boolean>;
     act(() => {
       firstPromise = result.current.download({ components: ["whisper"] });
@@ -96,7 +96,7 @@ describe("useBootstrapDownload", () => {
 
   it("reset clears busy, progress and error", async () => {
     runBootstrap.mockRejectedValue(new Error("boom"));
-    const { result } = renderHook(() => useBootstrapDownload());
+    const { result } = renderHook(() => useBootstrapDownload("the word aligner"));
     await act(async () => {
       await result.current.download({ components: ["word-aligner"] });
     });
@@ -108,5 +108,33 @@ describe("useBootstrapDownload", () => {
     expect(result.current.busy).toBe(false);
     expect(result.current.progress).toBeNull();
     expect(result.current.error).toBeNull();
+  });
+
+  it("hides env vars and paths behind a plain sentence naming the subject", async () => {
+    runBootstrap.mockRejectedValue(
+      new Error(
+        "word-aligner: no download source: set PODCAST_BOOTSTRAP_CDN_BASE or place the file at /home/x/.cache/p/models/a/m.onnx",
+      ),
+    );
+    const { result } = renderHook(() =>
+      useBootstrapDownload("the word aligner"),
+    );
+    await act(async () => {
+      await result.current.download({ components: ["word-aligner"] });
+    });
+    expect(result.current.error).toBe(
+      "Couldn't download the word aligner. Export diagnostics from the command palette and try again.",
+    );
+  });
+
+  it("passes a clean message through unchanged whatever the subject", async () => {
+    runBootstrap.mockRejectedValue(new Error("network down"));
+    const { result } = renderHook(() =>
+      useBootstrapDownload("the Whisper model"),
+    );
+    await act(async () => {
+      await result.current.download({ components: ["whisper"] });
+    });
+    expect(result.current.error).toBe("network down");
   });
 });
