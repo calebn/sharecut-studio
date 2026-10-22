@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { placeLikeRender } from "../audio/renderClock";
 import { clipRow } from "../test/fixtures";
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
@@ -18,7 +20,9 @@ import {
   joinRenderNote,
   joinSeamLabel,
   joinVisual,
+  joinWaveSpans,
   MIN_JOIN_CLIP_PX,
+  MIN_JOIN_WAVE_CSS_PX,
 } from "./joinRender";
 
 const clip: ClipRow = {
@@ -272,5 +276,90 @@ describe("joinVisual authoritative overlap", () => {
         50,
       ),
     ).toEqual({ kind: "blocked", reason: "no_fade_in" });
+  });
+});
+
+describe("joinWaveSpans pinned to the render clock", () => {
+  const cases = (
+    JSON.parse(
+      readFileSync(
+        `${process.cwd()}/../../tests/fixtures/render_clock/cases.json`,
+        "utf8",
+      ),
+    ) as { cases: { name: string; clips: Record<string, unknown>[] }[] }
+  ).cases;
+  const pairs = cases.flatMap((c) => {
+    const rows = c.clips.map(
+      ({ placed_start: _p, ...row }) =>
+        ({ ...row, source_id: null, recording_key: null }) as ClipRow,
+    );
+    const { borrowIn } = placeLikeRender(rows);
+    return rows.flatMap((right, i) => {
+      const left = rows[i - 1];
+      return left && right.join_in_mode === "crossfade"
+        ? [{ name: `${c.name}/${right.id}`, left, right, borrowIn }]
+        : [];
+    });
+  });
+
+  it.each(pairs)(
+    "starts both layers one render borrow before the seam edges: $name",
+    ({ left, right, borrowIn }) => {
+      const borrow = borrowIn.get(right.id) ?? 0;
+      const visual = joinVisual(right, 200);
+      const spans = joinWaveSpans(left, right, visual);
+      if (borrow === 0) {
+        expect(visual.kind).not.toBe("blend");
+        expect(spans).toBeNull();
+        return;
+      }
+      if (visual.kind !== "blend") throw new Error("expected a blend");
+      expect(visual.widthPx).toBeCloseTo(2 * borrow * 200, 9);
+      expect(spans?.leftMediaStartSec).toBeCloseTo(left.source_end - borrow, 9);
+      expect(spans?.rightMediaStartSec).toBeCloseTo(
+        right.source_start - borrow,
+        9,
+      );
+      expect(visual.leftPx + visual.widthPx / 2).toBeCloseTo(
+        right.timeline_start * 200,
+        9,
+      );
+    },
+  );
+
+  it("follows a draft length and flags sub-pixel overlaps as hairline only", () => {
+    const right = clipRow({
+      source_start: 5,
+      timeline_start: 5,
+      join_in_mode: "crossfade",
+      join_crossfade_ms: 20,
+    });
+    const left = clipRow({ source_end: 5 });
+    const hair = joinWaveSpans(left, right, joinVisual(right, 40));
+    expect(hair?.raster).toBe(false);
+    const wide = joinWaveSpans(
+      left,
+      right,
+      joinVisual({ ...right, join_crossfade_ms: 400 }, 40),
+    );
+    expect(wide).toEqual({
+      leftMediaStartSec: 4.8,
+      rightMediaStartSec: 4.8,
+      raster: true,
+    });
+    expect(MIN_JOIN_WAVE_CSS_PX).toBe(1);
+  });
+
+  it.each([
+    clipRow({ join_in_mode: "cut" }),
+    clipRow({ join_in_mode: "fade", join_crossfade_ms: 200 }),
+    clipRow({
+      join_in_mode: "crossfade",
+      join_crossfade_ms: 200,
+      join_crossfade_blocked: "no_headroom",
+    }),
+    clipRow({ join_in_mode: "crossfade", join_crossfade_ms: 0 }),
+  ])("draws nothing for a cut, fade, blocked or zero-length join", (right) => {
+    expect(joinWaveSpans(clipRow(), right, joinVisual(right, 200))).toBeNull();
   });
 });

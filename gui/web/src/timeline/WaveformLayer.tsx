@@ -92,6 +92,8 @@ type Props = {
   role: string;
   /** Track output gain (dB, `gain_db + fader_db`); drawn only post-fader. */
   gainDb: number;
+  /** Narrowest layer (css px) that still draws; defaults to MIN_CLIP_CSS_PX. */
+  minWidthCss?: number;
 };
 
 type Tile = { k: number; rect: TileRect };
@@ -212,6 +214,7 @@ function WaveformLayerView({
   colorVar,
   role,
   gainDb,
+  minWidthCss = MIN_CLIP_CSS_PX,
 }: Props) {
   const projectPath = useDawStore((s) => s.projectPath);
   const ampZoom = useDawStore((s) => s.waveformAmpZoom);
@@ -551,7 +554,7 @@ function WaveformLayerView({
       : [];
   }, [meta, range, origin, zoom, clipWidthCss, pyramidRev, showSilence]);
 
-  if (clipWidthCss < MIN_CLIP_CSS_PX) {
+  if (clipWidthCss < minWidthCss) {
     return null;
   }
   return (

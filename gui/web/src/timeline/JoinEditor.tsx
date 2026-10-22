@@ -18,7 +18,7 @@ import { useStableCallback } from "../utils/useStableCallback";
 import { useHitRouter } from "./hitRouterContext";
 import { hitTargetProps } from "./hitTargets";
 import { JoinBadgeView } from "./JoinBadge";
-import { JoinBlend } from "./JoinBlend";
+import { JoinBlend, type JoinWaveSides } from "./JoinBlend";
 import { JoinPopover } from "./JoinPopover";
 import { useJoinEdit } from "./useJoinEdit";
 import { useTouchPress } from "./useTouchPress";
@@ -30,6 +30,7 @@ interface JoinEditorProps {
   zoomPxPerSec: number;
   trackFadeMaxMs: number | null;
   rolling?: boolean;
+  waves?: JoinWaveSides;
 }
 function JoinEditorLive(props: JoinEditorProps) {
   const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs } = props;
@@ -190,7 +191,13 @@ function JoinEditorLive(props: JoinEditorProps) {
       : null;
   return (
     <>
-      <JoinBlend visual={visual} />
+      <JoinBlend
+        visual={visual}
+        left={left}
+        right={right}
+        waves={props.waves}
+        zoomPxPerSec={zoomPxPerSec}
+      />
       <JoinBadgeView
         ref={anchorRef}
         clipId={right.id}
