@@ -638,7 +638,10 @@ def test_render_gap_between_clips_pads_silence(sample_wav: Path, tmp_path: Path)
 
     render_cmds = [c for c in commands if "filter_complex" in c]
     assert len(render_cmds) == 1
-    assert "adelay=1000:all=1" in render_cmds[0]
+    assert (
+        "aformat=sample_rates=48000,adelay=delays=48000S:all=1,asetpts=N/SR/TB,aformat=sample_rates=48000"
+        in render_cmds[0]
+    )
     dur = eng.probe(out).duration_sec
     assert 1.4 < dur < 1.6
 
@@ -725,7 +728,10 @@ def test_render_leading_offset_delays_first_clip(sample_wav: Path, tmp_path: Pat
         render_track_from_timeline(project, project.tracks[0], out, {}, engine=eng)
 
     render_cmds = [c for c in commands if "filter_complex" in c]
-    assert "adelay=500:all=1" in render_cmds[0]
+    assert (
+        "aformat=sample_rates=48000,adelay=delays=24000S:all=1,asetpts=N/SR/TB,aformat=sample_rates=48000"
+        in render_cmds[0]
+    )
     dur = eng.probe(out).duration_sec
     assert 0.9 < dur < 1.1
 

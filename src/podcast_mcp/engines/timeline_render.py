@@ -53,7 +53,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 18
+RENDER_SEMANTICS_REV = 19
 
 
 def resolve_clip_audio_path(

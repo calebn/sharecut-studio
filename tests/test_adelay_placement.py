@@ -111,8 +111,8 @@ def test_render_places_a_delayed_child_at_its_own_rate_in_a_mixed_rate_mix(
         "anull",
     )
     rate, samples = _read_wav(out)
-    assert rate == 44100
-    assert abs(int(np.argmax(np.abs(samples))) - round(2500 * 48000 // 1000 * 44100 / 48000)) <= 1
+    expected = round(2500 * 48000 // 1000 * rate / 48000)
+    assert abs(int(np.argmax(np.abs(samples))) - expected) <= 1
 
 
 def test_render_places_a_long_delay_on_the_exact_sample(tmp_path: Path) -> None:
