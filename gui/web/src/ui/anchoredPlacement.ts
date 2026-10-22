@@ -149,6 +149,31 @@ export function placeAnchoredClear(
   return { left, top, maxHeight, maxWidth: space, side };
 }
 
+/** Inline size limits for a placed panel. */
+export interface InlineSizeCaps {
+  maxHeight: number;
+  maxWidth: number;
+}
+
+/**
+ * The inline caps a placement needs, or null while the stylesheet caps
+ * govern: a panel that fits whole above or below needs none.
+ */
+export function inlineSizeCaps(
+  placed: ClearPlacement,
+  panel: PanelSize,
+): InlineSizeCaps | null {
+  const beside = placed.side === "left" || placed.side === "right";
+  if (
+    !beside &&
+    panel.height <= placed.maxHeight &&
+    panel.width <= placed.maxWidth
+  ) {
+    return null;
+  }
+  return { maxHeight: placed.maxHeight, maxWidth: placed.maxWidth };
+}
+
 /**
  * The visual viewport as a placement box, falling back to the layout
  * viewport. `bottomChrome` (a bottom bar or rail) ends the box at its top.

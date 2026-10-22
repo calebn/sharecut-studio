@@ -1,6 +1,7 @@
 import { type RefObject, useLayoutEffect } from "react";
 import { useStableCallback } from "../utils/useStableCallback";
 import {
+  inlineSizeCaps,
   placeAnchored,
   placeAnchoredClear,
   unionRect,
@@ -52,6 +53,9 @@ export function useAnchoredPanel(
       Number.parseFloat(
         getComputedStyle(panel.ownerDocument.documentElement).fontSize,
       ) || 16;
+    panel.style.maxHeight = "";
+    panel.style.maxWidth = "";
+    panel.style.minWidth = "";
     const anchorRect = anchorEl.getBoundingClientRect();
     const size = { width: panel.offsetWidth, height: panel.offsetHeight };
     const options = {
@@ -77,9 +81,12 @@ export function useAnchoredPanel(
         );
     panel.style.left = `${placed.left}px`;
     panel.style.top = `${placed.top}px`;
-    panel.style.maxHeight = `${placed.maxHeight}px`;
-    panel.style.maxWidth = `${placed.maxWidth}px`;
-    panel.style.minWidth = `min(15rem, ${placed.maxWidth}px)`;
+    const caps = inlineSizeCaps(placed, size);
+    if (caps) {
+      panel.style.maxHeight = `${caps.maxHeight}px`;
+      panel.style.maxWidth = `${caps.maxWidth}px`;
+      panel.style.minWidth = `min(15rem, ${caps.maxWidth}px)`;
+    }
   });
 
   useLayoutEffect(() => {
