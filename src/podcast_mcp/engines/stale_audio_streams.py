@@ -12,7 +12,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 RERUN_STEPS = (
-    "re-run align_tracks, Re-time words (podcast pipeline run --retime-words), balance_tracks "
+    "align_tracks, Re-time words (podcast pipeline run --retime-words), balance_tracks "
     "and the proposal steps (analyze_focus_cuts, tighten_from_transcript), then the pipeline "
     "through reconcile_transcript"
 )
@@ -69,7 +69,7 @@ def stale_stream_lines(project: EpisodeProject, found: list[StaleStreamFile]) ->
         return []
     names = ", ".join(f.path for f in found)
     return [
-        f"Stale audio streams: {names} hold several audio streams and were analyzed from "
-        f"another stream than the first. {RERUN_STEPS}; then run "
+        f"Stale audio streams (several audio streams, analyzed from another stream than "
+        f"the first): {names}. To fix, re-run {RERUN_STEPS}; then run "
         f"`podcast episode mark-streams-current --project {project.workspace_path() / 'episode.project.json'}`."
     ]
