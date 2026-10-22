@@ -234,6 +234,39 @@ def _loudnorm_json(text: str) -> dict[str, Any] | None:
 _SUMMARY_TRUE_PEAK_RE = re.compile(r"Peak:\s*(-inf|-?\d+(?:\.\d+)?)\s*dBFS")
 _EBUR128_BLOCK_RE = re.compile(r"\bt:\s*(\d+(?:\.\d+)?)\s+TARGET:.*?\bM:\s*(-?\d+(?:\.\d+)?)")
 
+# Match on ``\n`` only, never ``str.splitlines()``, which also breaks on U+2028.
+_FILTER_LOG_LINE_RE = re.compile(r"^\[Parsed_(\w+?)_\d+ @ ([^\]\n]*)\] ?([^\n]*)", re.MULTILINE)
+_ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+_EMPTY_OUTPUT_RE = re.compile(r"^\[out#\d+/null @ [^\]\n]*\] Output file is empty", re.MULTILINE)
+_EBUR128_SUMMARY_RE = re.compile(r"^\[Parsed_ebur128_\d+ @ [^\]\n]*\] Summary:", re.MULTILINE)
+
+
+def _stderr_text(stderr: str | bytes | None) -> str:
+    """ffmpeg stderr as text with ``\n`` line ends; undecodable tag bytes become U+FFFD."""
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", "replace")
+    return _ANSI_SGR_RE.sub("", stderr or "").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def filter_log_text(stderr: str | bytes | None, filter_name: str) -> str:
+    """Payloads of the stderr lines ``filter_name`` itself printed, newline-joined.
+
+    Only lines from the instance that printed last (its ``@ <addr>``) count: the real filter logs
+    after the metadata dump, and a forged line in a raw-printed tag key cannot know its address.
+    """
+    lines = [m for m in _FILTER_LOG_LINE_RE.finditer(_stderr_text(stderr)) if m[1] == filter_name]
+    return "\n".join(m[3] for m in lines if m[2] == lines[-1][2]) if lines else ""
+
+
+def decoded_no_frames(stderr: str | bytes | None) -> bool:
+    return _EMPTY_OUTPUT_RE.search(_stderr_text(stderr)) is not None
+
+
+def ebur128_summary_text(stderr: str | bytes | None) -> str:
+    text = _stderr_text(stderr)
+    starts = [m.end() for m in _EBUR128_SUMMARY_RE.finditer(text)]
+    return text[starts[-1] :] if starts else ""
+
 
 def headroom_trim_db(true_peak_db: float | None, ceiling_db: float) -> float:
     """Gain (<= 0 dB) that brings a mix's true peak down to ``ceiling_db``; never boosts."""
@@ -1575,14 +1608,15 @@ class FFmpegEngine:
             "-",
         ]
         if on_progress is None:
-            r = run(cmd, capture_output=True, text=True)
-            text = (r.stderr or "") + (r.stdout or "")
+            r = run(cmd, capture_output=True)
+            text = r.stderr
         else:
             duration = total_sec if total_sec is not None else self.probe(path).duration_sec
             # Best-effort like the run() path above: a failed measure parses to None, not an error.
             text = self._run_with_progress(
                 cmd, total_sec=duration, on_progress=on_progress, check=False
             )
+        text = ebur128_summary_text(text)
         i_m = re.search(r"\bI:\s*(-?\d+\.?\d*)\s*LUFS", text)
         tp_m = re.search(r"Peak:\s*(-?\d+\.?\d*)\s*dBFS", text)
         lra_m = re.search(r"\bLRA:\s*(-?\d+\.?\d*)\s*LU", text)
@@ -1870,8 +1904,8 @@ class FFmpegEngine:
             "null",
             "-",
         ]
-        r = run(cmd, capture_output=True, text=True)
-        stderr = r.stderr or ""
+        r = run(cmd, capture_output=True)
+        stderr = _stderr_text(r.stderr)
         if r.returncode != 0:
             log.warning(
                 "ebur128 measure failed for %s (exit %s): %s",
@@ -1880,7 +1914,10 @@ class FFmpegEngine:
                 stderr[-PCM_STDERR_TAIL_BYTES:].strip(),
             )
             return []
-        blocks = [(float(t), float(m)) for t, m in _EBUR128_BLOCK_RE.findall(stderr)]
+        blocks = [
+            (float(t), float(m))
+            for t, m in _EBUR128_BLOCK_RE.findall(filter_log_text(stderr, "ebur128"))
+        ]
         if not blocks:
             log.warning(
                 "ebur128 printed no momentary blocks for %s; its log format may have changed", path
@@ -1900,8 +1937,8 @@ class FFmpegEngine:
             "null",
             "-",
         ]
-        r = run(cmd, capture_output=True, text=True)
-        text = (r.stderr or "") + (r.stdout or "")
+        r = run(cmd, capture_output=True)
+        text = ebur128_summary_text(r.stderr) if r.returncode == 0 else ""
         m = re.search(r"I:\s*(-?\d+\.?\d*)\s*LUFS", text)
         if m:
             return float(m.group(1))
