@@ -835,6 +835,7 @@ class TranscriptionEngine:
                 evidence=(
                     evidence.fingerprint_term(job.track_id) if evidence is not None else "own"
                 ),
+                first_stream=has_several_audio_streams(job.audio),
             )
         if n:
             log.info(

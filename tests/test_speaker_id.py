@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -539,17 +540,20 @@ def test_resolve_expected_speaker_count_unknown(tmp_path) -> None:
 
 def test_load_profile_by_identity_scan(tmp_path, sample_wav) -> None:
     proj = _two_track_project(tmp_path, sample_wav)
+    host_stem = _stem_path(proj, "host")
+    assert host_stem is not None
+    stem_hash = file_revision_key(host_stem)
     prof = SpeakerProfile(
         speaker_id="alice",
         track_id="host",
         embedding=[1.0, 0.0],
         enrollment_sec=1.0,
-        stem_hash="zzz",
+        stem_hash=stem_hash,
         home_track_id="host",
     )
     cache_dir = proj.artifacts_dir() / "speaker_profiles"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / "alice_zzz.json").write_text(json.dumps(prof.to_dict()), encoding="utf-8")
+    (cache_dir / f"alice_{stem_hash}.json").write_text(json.dumps(prof.to_dict()), encoding="utf-8")
     loaded = load_profile(proj, "alice")
     assert loaded is not None
     assert loaded.speaker_id == "alice"
@@ -923,11 +927,11 @@ def test_score_window_loads_dialogue_profiles_when_cache_empty(tmp_path, sample_
     proj = _two_track_project(tmp_path, sample_wav)
     cfg = SpeakerIdConfig()
     backend = MockSpeakerBackend()
-    prof = _profiles()["host"]
     cache_dir = proj.artifacts_dir() / "speaker_profiles"
     cache_dir.mkdir(parents=True, exist_ok=True)
     host_stem = _stem_path(proj, "host")
     assert host_stem is not None
+    prof = replace(_profiles()["host"], stem_hash=file_revision_key(host_stem))
     (cache_dir / f"host_{file_revision_key(host_stem)}.json").write_text(
         json.dumps(prof.to_dict()), encoding="utf-8"
     )
@@ -1120,11 +1124,11 @@ def test_resolve_speaker_backend_explicit_mock() -> None:
 
 def test_score_window_fallback_loads_track_cache(tmp_path, sample_wav) -> None:
     proj = _two_track_project(tmp_path, sample_wav)
-    prof = _profiles()["host"]
     cache_dir = proj.artifacts_dir() / "speaker_profiles"
     cache_dir.mkdir(parents=True, exist_ok=True)
     host_stem = _stem_path(proj, "host")
     assert host_stem is not None
+    prof = replace(_profiles()["host"], stem_hash=file_revision_key(host_stem))
     (cache_dir / f"host_{file_revision_key(host_stem)}.json").write_text(
         json.dumps(prof.to_dict()), encoding="utf-8"
     )

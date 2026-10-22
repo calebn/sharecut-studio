@@ -49,6 +49,7 @@ from typing import Literal
 import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
@@ -259,7 +260,7 @@ POOL_ANCHORS_MAX = 64
 POOL_ANCHOR_SPACING_SEC = 60.0
 # Each pooled sample is up to this long; a request takes the piece it needs.
 POOL_SAMPLE_SEC = 2.0
-_POOL_REV = 3
+_POOL_REV = 2
 _POOLS_KEPT = 64
 _POOL_RECORDS_KEPT = 64
 _POOLS: dict[tuple[str, FileRevision], tuple[Sample, ...]] = {}
@@ -285,11 +286,10 @@ def _remember_pool(key: tuple[str, FileRevision], pool: tuple[Sample, ...]) -> N
 def _pool_record_path(project: EpisodeProject, key: tuple[str, FileRevision]) -> Path:
     from podcast_mcp.util.hashing import short_digest
 
-    return (
-        project.artifacts_dir()
-        / "room_tone_pools"
-        / f"{short_digest(json.dumps([_POOL_REV, *map(str, key)]))}.json"
-    )
+    parts = [_POOL_REV, *map(str, key)]
+    if has_several_audio_streams(Path(key[0])):
+        parts.append("a0")
+    return project.artifacts_dir() / "room_tone_pools" / f"{short_digest(json.dumps(parts))}.json"
 
 
 def read_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:

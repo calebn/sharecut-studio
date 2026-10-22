@@ -37,6 +37,7 @@ from podcast_mcp.engines.envelope_lag import (
     copy_levels_db,
 )
 from podcast_mcp.engines.level_profile import track_profile
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
@@ -60,7 +61,7 @@ from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_fill import BleedFill
 
-BLEED_GATE_REV = 20
+BLEED_GATE_REV = 19
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -1007,7 +1008,10 @@ def bleed_gate_payload(
         media: list[dict[str, Any]] = []
         for path in sorted(set(paths)):
             try:
-                media.append({"path": str(path), "revision": file_revision(path)})
+                entry: dict[str, Any] = {"path": str(path), "revision": file_revision(path)}
+                if has_several_audio_streams(path):
+                    entry["audio_stream"] = 0
+                media.append(entry)
             except OSError:
                 media.append({"path": str(path), "unavailable": True})
         words = project.selected_source_transcripts(tid)

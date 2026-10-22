@@ -446,6 +446,8 @@ def load_profile(project: EpisodeProject, identity_or_track_id: str) -> SpeakerP
             if _profile_stem_valid(project, prof):
                 return prof
     for prof in _load_profile_files(project).values():
+        if not _profile_stem_valid(project, prof):
+            continue
         if prof.speaker_id == identity_or_track_id:
             return prof
         if prof.track_id == identity_or_track_id:

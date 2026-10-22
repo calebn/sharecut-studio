@@ -42,7 +42,7 @@ Long runs support `--json-progress` (`speaker-enroll`, `speaker-attribute`, `spe
 
 ## Enrollment audio source
 
-Enrollment and scoring prefer processed stems `artifacts/tracks/{id}.wav` when present (same audio bleed-mute gates). Otherwise raw `track.media.path`. Re-enroll after FX or stem edits; stale profiles (stem hash mismatch) are skipped automatically. A raw source with several audio streams is read on its first stream and keyed `:a0` (#2110), so profiles enrolled before are skipped the same way.
+Enrollment and scoring prefer processed stems `artifacts/tracks/{id}.wav` when present (same audio bleed-mute gates). Otherwise raw `track.media.path`. Re-enroll after FX or stem edits; stale profiles (stem hash mismatch) are skipped automatically. A raw source with several audio streams is read on its first stream and keyed `:a0` (#2110), so profiles enrolled before are skipped the same way, including by `load_profile`'s identity fallback.
 
 Prefer segment enroll from clean owner-only spans when auto-enroll would bake bleed into the profile.
 
