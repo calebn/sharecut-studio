@@ -25,8 +25,10 @@ def test_settings_wire_guard_to_merge_tools() -> None:
     entry = next(e for e in SETTINGS["hooks"]["PreToolUse"] if "merge" in e["matcher"])
     assert entry["hooks"][0]["command"] == 'sh "$CLAUDE_PROJECT_DIR"/.claude/hooks/merge-guard.sh'
     assert entry["hooks"][0]["timeout"] == 40
-    for tool in ("Bash", "mcp__.*[Gg]it[Hh]ub.*__(merge_pull_request|enable_pr_auto_merge"):
-        assert tool in entry["matcher"]
+    assert entry["matcher"] == (
+        "Bash|PowerShell|Monitor|mcp__.*device_bash|mcp__.*[Gg]it[Hh]ub.*__"
+        "(merge_pull_request|enable_pr_auto_merge|push_files|create_or_update_file|delete_file)"
+    )
 
 
 def test_shim_allows_silently_when_guard_script_is_absent(tmp_path: Path) -> None:
