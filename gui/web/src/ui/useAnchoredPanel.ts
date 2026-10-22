@@ -53,6 +53,7 @@ export function useAnchoredPanel(
       Number.parseFloat(
         getComputedStyle(panel.ownerDocument.documentElement).fontSize,
       ) || 16;
+    const scrollTop = panel.scrollTop;
     panel.style.maxHeight = "";
     panel.style.maxWidth = "";
     panel.style.minWidth = "";
@@ -86,6 +87,7 @@ export function useAnchoredPanel(
       panel.style.maxHeight = `${caps.maxHeight}px`;
       panel.style.maxWidth = `${caps.maxWidth}px`;
       panel.style.minWidth = `min(15rem, ${caps.maxWidth}px)`;
+      panel.scrollTop = scrollTop;
     }
   });
 
@@ -97,13 +99,20 @@ export function useAnchoredPanel(
     // The grip is positioned by a later layout effect than this one.
     const frame = clearRef ? requestAnimationFrame(place) : 0;
     window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
+    // Scrolling inside the panel must not re-place it: place() lifts the size
+    // caps to measure, which resets the panel's own scroll position.
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && panelRef.current?.contains(target)) return;
+      place();
+    };
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       if (frame) cancelAnimationFrame(frame);
       window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
-  }, [active, moves, place, clearRef]);
+  }, [active, moves, place, clearRef, panelRef]);
   useResizeObserver(panelRef, place, active);
   useResizeObserver(avoidRef, place, active);
   useResizeObserver(clearRef, place, active);
