@@ -41,7 +41,7 @@
   },
   "fallback": {
     "whisper": "huggingface_hub / faster-whisper default download",
-    "rnnoise": "GitHub raw URL via util.model_assets",
+    "rnnoise": "commit-pinned GitHub raw URL from this file, sha256 and size verified",
     "speaker-ecapa": "none; the file is mirrored on the CDN only"
   }
 }
