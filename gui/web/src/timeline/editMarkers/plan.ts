@@ -21,17 +21,13 @@ export interface JoinMark {
   blocked?: NonNullable<ClipRow["join_crossfade_blocked"]>;
 }
 
-export type Tier = "narrow" | "middle" | "wide";
-
-export const TIER_MIDDLE_PX = 8;
-export const TIER_WIDE_PX = 24;
-export const SHORT_LANE_PX = 40;
+export const NARROW_OVERLAP_PX = 8;
 export const CLUSTER_PX = 24;
 
 export type Box = { leftPx: number; widthPx: number };
 export type PlacedSymbol = {
   mark: JoinMark;
-  tier: Tier;
+  narrow: boolean;
   xPx: number;
   box: Box | null;
 };
@@ -48,16 +44,6 @@ export interface LanePlan {
 
 export function joinPopoverId(clipId: string): string {
   return `join-popover-${clipId}`;
-}
-
-export function markerTier(widthPx: number, laneHeightPx: number): Tier {
-  if (!(widthPx >= TIER_MIDDLE_PX)) {
-    return "narrow";
-  }
-  if (widthPx < TIER_WIDE_PX || laneHeightPx < SHORT_LANE_PX) {
-    return "middle";
-  }
-  return "wide";
 }
 
 export function collectJoinMarks(
@@ -110,7 +96,6 @@ function boxOf(mark: JoinMark, zoomPxPerSec: number): Box | null {
 export function planLaneMarks(
   marks: readonly JoinMark[],
   zoomPxPerSec: number,
-  laneHeightPx: number,
 ): LanePlan {
   const placed = marks
     .map((mark) => ({ mark, xPx: mark.sec * zoomPxPerSec }))
@@ -126,7 +111,7 @@ export function planLaneMarks(
   }
   const symbols: PlacedSymbol[] = [];
   const chips: PlacedChip[] = [];
-  groups.forEach((group, g) => {
+  for (const group of groups) {
     if (group.length > 1) {
       chips.push({
         marks: group.map((item) => item.mark),
@@ -134,23 +119,17 @@ export function planLaneMarks(
         startSec: group[0].mark.sec,
         endSec: group[group.length - 1].mark.sec,
       });
-      return;
+      continue;
     }
     const { mark, xPx } = group[0];
     const box = boxOf(mark, zoomPxPerSec);
-    const before =
-      g > 0 ? xPx - groups[g - 1][groups[g - 1].length - 1].xPx : Infinity;
-    const after = g + 1 < groups.length ? groups[g + 1][0].xPx - xPx : Infinity;
     symbols.push({
       mark,
       xPx,
       box,
-      tier: markerTier(
-        box ? box.widthPx : Math.min(before, after),
-        laneHeightPx,
-      ),
+      narrow: box != null && box.widthPx < NARROW_OVERLAP_PX,
     });
-  });
+  }
   return { symbols, chips };
 }
 

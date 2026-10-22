@@ -37,11 +37,10 @@ function pair(prefix: string, startSec: number, mode: ClipRow["join_in_mode"]) {
   return { left, right };
 }
 
-function planOf(clips: ClipRow[], zoom: number, lane = 72) {
+function planOf(clips: ClipRow[], zoom: number) {
   return planLaneMarks(
     collectJoinMarks(clips, null, () => false),
     zoom,
-    lane,
   );
 }
 
@@ -203,7 +202,7 @@ describe("EditMarkerLayer with its join editors", () => {
     const plan = planOf([a.left, a.right, b.left, b.right], 50);
     return (
       <main className="timeline-area">
-        {plan.symbols.map(({ mark, tier }) => {
+        {plan.symbols.map(({ mark, narrow }) => {
           const pairOf = mark.clipId === "a1" ? a : b;
           return (
             <JoinEditor
@@ -213,7 +212,7 @@ describe("EditMarkerLayer with its join editors", () => {
               seamSec={pairOf.right.timeline_start}
               zoomPxPerSec={50}
               trackFadeMaxMs={null}
-              tier={tier}
+              narrow={narrow}
             />
           );
         })}

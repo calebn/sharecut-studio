@@ -583,8 +583,6 @@ button.join-seam:focus-visible {
   stroke-linejoin: round;
 }
 
-/* Joins closer than 24 px fold into one count; a tap zooms to them. Its hit
-   area reaches down from the lane top to --join-hit-min, centred on the chip. */
 .edit-chip {
   position: absolute;
   top: 0;

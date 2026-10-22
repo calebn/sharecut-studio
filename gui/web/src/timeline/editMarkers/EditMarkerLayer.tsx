@@ -25,14 +25,13 @@ function Glyph({
   open: boolean;
   onClick: () => void;
 }) {
-  const { mark, tier, xPx } = symbol;
+  const { mark, xPx } = symbol;
   const type = markerType(mark.kind);
   const blocked = mark.blocked != null;
   return (
     <button
       type="button"
       className={`edit-mark edit-mark--${type}${blocked ? " edit-mark--blocked" : ""}`}
-      data-tier={tier}
       {...hitTargetProps("join", mark.clipId, mark.sec, {
         selected: open,
         detail: type,

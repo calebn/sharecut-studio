@@ -57,7 +57,6 @@ import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
 import { timelineTestIds } from "./selectors";
-import { useTimelineMetrics } from "./timelineMetrics";
 
 const NOOP = () => undefined;
 
@@ -178,7 +177,6 @@ export function TrackLaneView({
     setPointerTrackId: s.setPointerTrackId,
     zoomToSpan: s.zoomToSpan,
   }));
-  const { laneHeight } = useTimelineMetrics();
   const muteState = useTrackMuteState(track.id, track.muted);
   const [dropOver, setDropOver] = useState(false);
   const [dragFileCount, setDragFileCount] = useState(1);
@@ -261,8 +259,8 @@ export function TrackLaneView({
     [clips, rollPreview, isMoving],
   );
   const plan = useMemo(
-    () => planLaneMarks(marks, zoomPxPerSec, laneHeight),
-    [marks, zoomPxPerSec, laneHeight],
+    () => planLaneMarks(marks, zoomPxPerSec),
+    [marks, zoomPxPerSec],
   );
   const clipIndexById = useMemo(
     () => new Map(clips.map((clip, i) => [clip.id, i])),
@@ -479,11 +477,9 @@ export function TrackLaneView({
             to={move.toSec * zoomPxPerSec}
           />
         ))}
-        {/* One editor per join the plan keeps as a symbol (#690); the glyph
-            that opens its popover (#691) is drawn by EditMarkerLayer. A live
-            roll reshapes both sides, so the seam reads the rolled rows
-            ClipBlock draws. Joins too close to tell apart fold into chips. */}
-        {plan.symbols.map(({ mark, tier }) => {
+        {/* A live roll reshapes both sides, so the seam reads the rolled rows
+            ClipBlock draws. */}
+        {plan.symbols.map(({ mark, narrow }) => {
           const i = clipIndexById.get(mark.clipId)!;
           const prev = clipRowDuringRoll(clips[i - 1], rollPreview);
           const right = clipRowDuringRoll(clips[i], rollPreview);
@@ -500,7 +496,7 @@ export function TrackLaneView({
               rightRef={clipMediaRef(right, track, "raw")}
               role={track.role}
               gainDb={trackOutputGainDb(track)}
-              tier={tier}
+              narrow={narrow}
             />
           );
         })}

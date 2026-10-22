@@ -9,7 +9,6 @@ import {
   collectJoinMarks,
   type JoinMark,
   type LanePlan,
-  markerTier,
   type PlacedChip,
   planLaneMarks,
 } from "./plan";
@@ -32,29 +31,11 @@ const xs = (plan: LanePlan) =>
     (a, b) => a - b,
   );
 
-describe("markerTier", () => {
-  it.each([
-    [7.99, 72, "narrow"],
-    [8, 72, "middle"],
-    [23.99, 72, "middle"],
-    [24, 72, "wide"],
-    [30, 39, "middle"],
-    [30, 40, "wide"],
-    [3, 39, "narrow"],
-    [Number.NaN, 72, "narrow"],
-    [-5, 72, "narrow"],
-    [Number.POSITIVE_INFINITY, 72, "wide"],
-  ] as const)("width %s in a %s px lane is %s", (width, lane, tier) => {
-    expect(markerTier(width, lane)).toBe(tier);
-  });
-});
-
 describe("planLaneMarks", () => {
   it("folds marks closer than 24 px into one chip and keeps the loner a symbol", () => {
     const plan = planLaneMarks(
       [0, 10, 20, 60].map((s) => mark(s)),
       1,
-      72,
     );
     expect(plan.chips).toHaveLength(1);
     expect(plan.chips[0].marks.map((m) => m.sec)).toEqual([0, 10, 20]);
@@ -65,8 +46,8 @@ describe("planLaneMarks", () => {
   });
 
   it("merges a 23.99 px gap and keeps a 24 px gap apart", () => {
-    expect(planLaneMarks([mark(0), mark(23.99)], 1, 72).chips).toHaveLength(1);
-    const apart = planLaneMarks([mark(0), mark(24)], 1, 72);
+    expect(planLaneMarks([mark(0), mark(23.99)], 1).chips).toHaveLength(1);
+    const apart = planLaneMarks([mark(0), mark(24)], 1);
     expect(apart.chips).toHaveLength(0);
     expect(apart.symbols).toHaveLength(2);
   });
@@ -75,7 +56,6 @@ describe("planLaneMarks", () => {
     const plan = planLaneMarks(
       [0, 20, 40, 60].map((s) => mark(s)),
       1,
-      72,
     );
     expect(plan.chips.map((c) => c.marks.length)).toEqual([4]);
     expect(plan.chips[0].xPx).toBe(30);
@@ -86,12 +66,10 @@ describe("planLaneMarks", () => {
     const forward = planLaneMarks(
       secs.map((s) => mark(s)),
       1,
-      72,
     );
     const reversed = planLaneMarks(
       [...secs].reverse().map((s) => mark(s)),
       1,
-      72,
     );
     expect(reversed).toEqual(forward);
   });
@@ -100,7 +78,7 @@ describe("planLaneMarks", () => {
     const secs = Array.from({ length: 30 }, (_, i) => i * 90 + ((i * 37) % 55));
     const marks = secs.map((s) => mark(s));
     for (const zoom of [0.05, 0.1, 0.25, 0.5, 1, 2, 8]) {
-      const plan = planLaneMarks(marks, zoom, 72);
+      const plan = planLaneMarks(marks, zoom);
       const placed = xs(plan);
       for (let i = 1; i < placed.length; i += 1) {
         expect(placed[i] - placed[i - 1]).toBeGreaterThanOrEqual(24);
@@ -112,30 +90,25 @@ describe("planLaneMarks", () => {
     }
   });
 
-  it("draws a 120 ms crossfade at 50 px/s as a 6 px box in the narrow tier", () => {
+  it("draws a 120 ms crossfade at 50 px/s as a 6 px box and drops the stretched X", () => {
     const plan = planLaneMarks(
       [mark(5, { kind: "join-crossfade", crossfadeMs: 120 })],
       50,
-      72,
     );
     expect(plan.symbols[0].box).toEqual({ leftPx: 247, widthPx: 6 });
-    expect(plan.symbols[0].tier).toBe("narrow");
+    expect(plan.symbols[0].narrow).toBe(true);
   });
 
-  it("sizes a point mark by the room its nearest neighbour leaves", () => {
-    const plan = planLaneMarks([mark(0), mark(30)], 1, 72);
-    expect(plan.symbols.map((s) => s.tier)).toEqual(["wide", "wide"]);
-    expect(planLaneMarks([mark(0)], 1, 72).symbols[0].tier).toBe("wide");
+  it("keeps the X from 8 px of overlap and drops it below", () => {
+    const narrowAt = (ms: number) =>
+      planLaneMarks([mark(5, { kind: "join-crossfade", crossfadeMs: ms })], 50)
+        .symbols[0].narrow;
+    expect(narrowAt(159)).toBe(true);
+    expect(narrowAt(160)).toBe(false);
   });
 
-  it("caps the tier at middle in a lane under 40 px", () => {
-    const plan = planLaneMarks(
-      [mark(5, { kind: "join-crossfade", crossfadeMs: 1000 })],
-      50,
-      39,
-    );
-    expect(plan.symbols[0].box?.widthPx).toBe(50);
-    expect(plan.symbols[0].tier).toBe("middle");
+  it("never marks a cut as narrow", () => {
+    expect(planLaneMarks([mark(0)], 1).symbols[0].narrow).toBe(false);
   });
 
   it("draws no box for a crossfade that is blocked or has no overlap", () => {
@@ -145,12 +118,12 @@ describe("planLaneMarks", () => {
       blocked: "no_fade_in",
     });
     const none = mark(9, { kind: "join-crossfade", crossfadeMs: 0 });
-    const plan = planLaneMarks([blocked, none], 50, 72);
+    const plan = planLaneMarks([blocked, none], 50);
     expect(plan.symbols.map((s) => s.box)).toEqual([null, null]);
   });
 
   it("returns nothing for no marks", () => {
-    expect(planLaneMarks([], 50, 72)).toEqual({ symbols: [], chips: [] });
+    expect(planLaneMarks([], 50)).toEqual({ symbols: [], chips: [] });
   });
 });
 
@@ -159,8 +132,8 @@ describe("crossfade box exactness", () => {
     (z) => z <= 48000,
   );
 
-  it("equals joinVisual at every zoom, for every overlap, in every tier", () => {
-    const tiers = new Set<string>();
+  it("equals joinVisual at every zoom, for every overlap, narrow or not", () => {
+    const narrows = new Set<boolean>();
     for (const ms of [1, 20, 120, 400, 2000]) {
       const left = clipRow({
         id: "a",
@@ -181,7 +154,7 @@ describe("crossfade box exactness", () => {
       });
       for (const zoom of zooms) {
         const marks = collectJoinMarks([left, right], null, () => false);
-        const [symbol] = planLaneMarks(marks, zoom, 72).symbols;
+        const [symbol] = planLaneMarks(marks, zoom).symbols;
         const visual = joinVisual(right, zoom);
         expect(visual.kind).toBe("blend");
         if (visual.kind !== "blend") continue;
@@ -189,10 +162,10 @@ describe("crossfade box exactness", () => {
           leftPx: visual.leftPx,
           widthPx: visual.widthPx,
         });
-        tiers.add(symbol.tier);
+        narrows.add(symbol.narrow);
       }
     }
-    expect([...tiers].sort()).toEqual(["middle", "narrow", "wide"]);
+    expect([...narrows].sort()).toEqual([false, true]);
   });
 });
 

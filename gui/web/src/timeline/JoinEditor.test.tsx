@@ -53,11 +53,10 @@ function JoinWithGlyph(props: typeof base) {
   const plan = planLaneMarks(
     collectJoinMarks([props.left, props.right], null, () => false),
     props.zoomPxPerSec,
-    72,
   );
   return (
     <>
-      <JoinEditor {...props} tier="wide" />
+      <JoinEditor {...props} narrow={false} />
       <EditMarkerLayer plan={plan} onZoomToSpan={vi.fn()} />
     </>
   );
@@ -427,7 +426,7 @@ describe("JoinEditor coupled length", () => {
       view.rerender(
         <main className="timeline-area">
           <div className="lane-row">
-            <JoinEditor {...base} tier="wide" rolling />
+            <JoinEditor {...base} narrow={false} rolling />
           </div>
         </main>,
       );

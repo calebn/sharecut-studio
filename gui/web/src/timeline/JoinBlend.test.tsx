@@ -49,10 +49,9 @@ describe("JoinBlend overlap waveforms", () => {
   });
 
   it.each([
-    ["narrow", 0],
-    ["middle", 1],
-    ["wide", 1],
-  ] as const)("draws the X in the %s tier: %i path", (tier, paths) => {
+    [true, 0],
+    [false, 1],
+  ] as const)("with narrow %s draws %i X path", (narrow, paths) => {
     const row = right(200);
     const { container } = render(
       <JoinBlend
@@ -60,7 +59,7 @@ describe("JoinBlend overlap waveforms", () => {
         left={left}
         right={row}
         zoomPxPerSec={100}
-        tier={tier}
+        narrow={narrow}
       />,
     );
     expect(container.querySelector(".join-blend")).toHaveStyle({

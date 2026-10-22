@@ -56,10 +56,6 @@ export function hitRadiusPx(pointerType: string): number {
   return pointerType === "touch" ? TOUCH_HIT_RADIUS_PX : 0;
 }
 
-/**
- * The box the resolver reaches a target from: its painted box, grown about
- * its centre to the kind's `minBoxPx` for this pointer.
- */
 export function reachRect(
   rect: HitRect,
   kind: HitKind,

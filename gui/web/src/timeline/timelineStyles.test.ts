@@ -198,7 +198,6 @@ describe("timeline styles", () => {
     expect(mark).toMatch(/width:\s*1rem/);
     expect(mark).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(mark).toMatch(/pointer-events:\s*auto/);
-    // One px token sizes the clip's top inset, the mark and its glyph, so they line up at any root font size.
     const clip = rule(css, ".clip-block");
     expect(clip).toMatch(/top:\s*var\(--clip-inset-top\)/);
     expect(clip).toMatch(
