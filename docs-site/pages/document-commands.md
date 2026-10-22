@@ -40,6 +40,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
 | `ApplySuggestedActions` | — | `ids` (array \| null), `override_audio_checks` (boolean), `overrides` (object), `revise` (boolean) |
+| `ApplyTranscriptCleanup` | `track_id` (string) | `phrases` (array \| null), `words` (array \| null) |
 | `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
@@ -94,8 +95,9 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
+| `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 63 command types._
+_Generated 65 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

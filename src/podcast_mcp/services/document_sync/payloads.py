@@ -339,6 +339,28 @@ _SOURCE_ID_DESCRIPTION = (
 )
 
 
+class WordCorrectionItem(BaseModel):
+    word_index: int
+    text: str
+
+
+class PhraseCorrectionItem(BaseModel):
+    start_word_index: int
+    end_word_index: int
+    text: str
+
+
+class ApplyTranscriptCleanupPayload(BaseModel):
+    track_id: str
+    words: list[WordCorrectionItem] | None = None
+    phrases: list[PhraseCorrectionItem] | None = None
+
+
+class VerifyTranscriptPayload(BaseModel):
+    track_id: str
+    corrections: list[WordCorrectionItem]
+
+
 class CorrectTranscriptWordPayload(BaseModel):
     track_id: str
     source_id: str | None = Field(
@@ -831,6 +853,16 @@ class ReplaceTranscriptMatchesCommand(DocumentCommandEnvelope):
     payload: ReplaceTranscriptMatchesPayload
 
 
+class ApplyTranscriptCleanupCommand(DocumentCommandEnvelope):
+    type: Literal["ApplyTranscriptCleanup"] = "ApplyTranscriptCleanup"
+    payload: ApplyTranscriptCleanupPayload
+
+
+class VerifyTranscriptCommand(DocumentCommandEnvelope):
+    type: Literal["VerifyTranscript"] = "VerifyTranscript"
+    payload: VerifyTranscriptPayload
+
+
 class CorrectTranscriptWordCommand(DocumentCommandEnvelope):
     type: Literal["CorrectTranscriptWord"] = "CorrectTranscriptWord"
     payload: CorrectTranscriptWordPayload
@@ -1036,6 +1068,8 @@ DocumentCommandBody = Annotated[
     | RemoveEffectCommand
     | ReplaceTranscriptMatchesCommand
     | CorrectTranscriptWordCommand
+    | ApplyTranscriptCleanupCommand
+    | VerifyTranscriptCommand
     | CorrectTranscriptPhraseCommand
     | SetTranscriptWordSuppressedCommand
     | SetTranscriptWordAutomaticCommand
@@ -1157,6 +1191,8 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "RemoveEffect": RemoveEffectPayload,
     "ReplaceTranscriptMatches": ReplaceTranscriptMatchesPayload,
     "CorrectTranscriptWord": CorrectTranscriptWordPayload,
+    "ApplyTranscriptCleanup": ApplyTranscriptCleanupPayload,
+    "VerifyTranscript": VerifyTranscriptPayload,
     "CorrectTranscriptPhrase": CorrectTranscriptPhrasePayload,
     "SetTranscriptWordSuppressed": SetTranscriptWordSuppressedPayload,
     "SetTranscriptWordAutomatic": SetTranscriptWordAutomaticPayload,
