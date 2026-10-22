@@ -14,7 +14,15 @@ from podcast_mcp.engines.clips_ops import (
     previous_clip,
     uses_crossfade_join,
 )
-from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, MediaAsset, Track, TrackRole
+from podcast_mcp.models import (
+    Clip,
+    ClipJoinMode,
+    ClipMuteRegion,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+)
 
 
 def _clip(cid: str, start: float, end: float, *, track: str = "host", **kw) -> Clip:
@@ -175,3 +183,21 @@ def test_a_request_under_one_step_still_blends_for_one_step():
     left = _clip("a", 0, 1, fade_out_ms=4)
     right = _clip("b", 1, 2, fade_in_ms=4, join_in_mode=ClipJoinMode.CROSSFADE)
     assert crossfade_borrow_sec(_project(), left, right) == pytest.approx(0.005)
+
+
+@pytest.mark.parametrize(
+    ("owner", "span"),
+    [("a", (1.9, 2.0)), ("b", (2.0, 2.1)), ("b", (2.004, 2.2)), ("a", (1.5, 1.996))],
+)
+def test_a_join_never_borrows_muted_audio_of_its_neighbour(owner, span):
+    p = _project()
+    left = _clip("a", 1, 2, fade_out_ms=40)
+    right = _clip("b", 2, 3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
+    p.clips = [left, right]
+    {"a": left, "b": right}[owner].mute_regions = [ClipMuteRegion(start_s=span[0], end_s=span[1])]
+    # Muted audio next to the seam stops the borrow at its edge; touching it, or
+    # leaving under a blend of room, makes the join play its fades.
+    h = crossfade_borrow_sec(p, left, right)
+    assert (
+        h == 0.0 or (owner == "b" and span[0] - 2.0 >= h) or (owner == "a" and 2.0 - span[1] >= h)
+    )

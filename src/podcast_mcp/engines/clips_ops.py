@@ -484,6 +484,46 @@ def crossfade_ms_at_join(left: Clip, right: Clip) -> int:
     return max(min(vals), max(vals) // 2)
 
 
+def _unmuted_room(project: EpisodeProject, left: Clip, right: Clip) -> float:
+    """Seconds a join may borrow before it would play muted or ignored audio.
+
+    The borrowed audio comes from the recording just past ``left`` and just before
+    ``right``. Mute regions belong to one clip and ignored words to the transcript,
+    so a clip's own mutes (which render applies across its widened window) are left
+    out, while its neighbours' do not cover what it borrows from the same
+    recording. Each side stops at the nearest region edge on its recording (none
+    at all when a region already covers the clip's edge).
+    """
+    return min(_side_room(project, left, after=True), _side_room(project, right, after=False))
+
+
+def _side_room(project: EpisodeProject, clip: Clip, *, after: bool) -> float:
+    from podcast_mcp.engines.mute_regions import IgnoredWordRegions
+
+    edge = clip.source_end if after else clip.source_start
+    spans = [(r.start_s, r.end_s) for r in IgnoredWordRegions(project).raw_for(clip)]
+    for other in project.clips:
+        if (
+            other is not clip
+            and other.track_id == clip.track_id
+            and other.source_id == clip.source_id
+        ):
+            spans += [
+                (r.start_s, r.end_s) for r in (*other.mute_regions, *other.off_speaker_mute_regions)
+            ]
+    room = math.inf
+    for start, end in spans:
+        if after:
+            if end <= edge:
+                continue
+            room = min(room, 0.0 if start <= edge else start - edge)
+        else:
+            if start >= edge:
+                continue
+            room = min(room, 0.0 if end >= edge else edge - end)
+    return room
+
+
 _BORROW_STEP_SEC = 0.005
 _MIN_BLEND_SEC = 0.020
 
@@ -514,6 +554,7 @@ def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> fl
         (left.source_end - left.source_start) * 0.25,
         (right.source_end - right.source_start) * 0.25,
     )
+    room = min(room, _unmuted_room(project, left, right))
     # Less room than a short blend (the requested overlap, at most 20 ms) is a fade join.
     if 2 * room < min(ms / 1000.0, _MIN_BLEND_SEC):
         return 0.0
