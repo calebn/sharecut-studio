@@ -30,8 +30,9 @@ export interface CommitRange {
  * Commit-on-release range slider: the thumb moves locally while dragging and
  * each native `change` (pointer release, or an arrow-key step) commits once,
  * skipping a value equal to `saved`. It follows `saved` (undo, a collaborator)
- * unless mid-drag. A drag cancelled or blurred before a change event returns the
- * thumb to `saved`. The listener follows the element, so a slider that mounts
+ * unless mid-drag. A drag cancelled, backgrounded or blurred before a change event
+ * returns the thumb to `saved`; a change that follows a cancel or backgrounding
+ * is ignored. The listener follows the element, so a slider that mounts
  * later still commits.
  */
 export function useCommitRange({
@@ -46,6 +47,7 @@ export function useCommitRange({
   const draggingRef = useRef(false);
   const uncommittedRef = useRef(false);
   const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const interruptedRef = useRef(false);
   const savedRef = useRef(saved);
   savedRef.current = saved;
 
@@ -71,7 +73,13 @@ export function useCommitRange({
       onCommit(next);
     }
   };
-  const onNativeChange = useEffectEvent((next: number) => commit(next));
+  const onNativeChange = useEffectEvent((next: number) => {
+    if (interruptedRef.current || document.visibilityState === "hidden") {
+      interruptDrag();
+      return;
+    }
+    commit(next);
+  });
 
   // React's onChange fires on every input; the native change event is the commit.
   useEffect(() => {
@@ -104,10 +112,39 @@ export function useCommitRange({
     }, 0);
   };
 
+  // The page backgrounding or the pointer being cancelled mid-drag ends it
+  // without a user release; WebKit still fires a change event for it, which
+  // must not commit the half-dragged value.
+  const interruptDrag = () => {
+    if (!uncommittedRef.current) {
+      return;
+    }
+    cancelRevert();
+    draggingRef.current = false;
+    uncommittedRef.current = false;
+    interruptedRef.current = true;
+    setValue(savedRef.current);
+  };
+  const onInterrupt = useEffectEvent(interruptDrag);
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        onInterrupt();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onInterrupt);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onInterrupt);
+    };
+  }, []);
+
   return {
     value,
     input,
     commitValue: (next) => {
+      interruptedRef.current = false;
       setValue(next);
       commit(next);
     },
@@ -115,13 +152,14 @@ export function useCommitRange({
       ref: setInput,
       value,
       onChange: (e) => {
+        interruptedRef.current = false;
         cancelRevert();
         draggingRef.current = true;
         uncommittedRef.current = true;
         setValue(Number(e.currentTarget.value));
       },
       onPointerUp: endDrag,
-      onPointerCancel: abandonDrag,
+      onPointerCancel: interruptDrag,
       onBlur: abandonDrag,
     },
   };
