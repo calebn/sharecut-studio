@@ -13,7 +13,17 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools import edits as mcp_edits
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
-from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.mcp.tools.transcript import transcript_refine_waive_tool
+from podcast_mcp.models import (
+    Clip,
+    MediaAsset,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+    load_project,
+    save_project,
+)
 from podcast_mcp.services.document_sync import DocumentSyncService, submit_host_document_command
 
 
@@ -329,3 +339,47 @@ def test_staged_cut_tools_journal_through_the_document_plane(tmp_path, ten_secon
     assert _journal_types(path) == ["StageTimeRangeCut"]
     pending = load_project(Path(path)).edit_decisions
     assert [e.track_id for e in pending] == ["host"]
+
+
+def test_cut_text_match_returns_its_own_staged_cut_when_another_writer_commits_after_it(
+    tmp_path, ten_second_silence_wav, monkeypatch
+):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, ten_second_silence_wav)
+    project = load_project(Path(path))
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="beta" if i % 3 == 0 else "word", start=i + 0.1, end=i + 0.5)
+                for i in range(8)
+            ],
+        )
+    ]
+    save_project(project, Path(path))
+    transcript_refine_waive_tool(path, "probe")
+    submit = mcp_edits.submit_host_command_result
+
+    def submit_then_other_writer(*args, **kwargs):
+        result = submit(*args, **kwargs)
+        for i in range(5):
+            submit(
+                path,
+                "StageTimeRangeCut",
+                {
+                    "track_id": "host",
+                    "start": 0.7 + i * 1.7,
+                    "end": 0.9 + i * 1.7,
+                    "reason": "OTHER",
+                },
+            )
+        return result
+
+    monkeypatch.setattr(mcp_edits, "submit_host_command_result", submit_then_other_writer)
+    returned = json.loads(
+        mcp_edits.cut_text_match_tool(path, "beta", track_id="host", use_inaudible_opt=False)
+    )
+    assert any(e["reason"].startswith("nl:match") for e in returned)
