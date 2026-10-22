@@ -510,8 +510,8 @@ button.join-seam:focus-visible {
 .edit-mark {
   position: absolute;
   top: 0;
-  width: 1rem;
-  height: var(--clip-inset-top);
+  width: var(--edit-mark-size);
+  height: var(--edit-mark-size);
   translate: -50% 0;
   display: grid;
   place-items: center;
@@ -540,14 +540,6 @@ button.join-seam:focus-visible {
   --edit-mark-color: var(--color-mark-crossfade);
 }
 
-.edit-mark--mute {
-  --edit-mark-color: var(--color-mark-mute);
-}
-
-.edit-mark--split {
-  --edit-mark-color: var(--color-mark-split);
-}
-
 .edit-mark:focus-visible,
 .edit-chip:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
@@ -555,11 +547,11 @@ button.join-seam:focus-visible {
 }
 
 /* WCAG 2.5.8: a --join-hit-min (24 px) wide hit area at any root font size.
-   The negative inset is measured from the mark's padding box (100%), so the
-   rem width drops out and each side grows by half the difference. It stays in
-   the lane's top gutter, clear of the fade corners below and the lane above.
-   The gutter's px height bounds it vertically; the inspector's Join control is
-   the full-size equivalent. */
+   The negative inset is measured from the mark's padding box (100%), so each
+   side grows by half the difference. It is no taller than the mark, so it
+   never covers the fade corners and trim strips below it. The finger's wider
+   reach is the router's (HIT_KINDS surfaceTap); the inspector's Join control
+   is the full-size equivalent. */
 .edit-mark::before {
   content: "";
   position: absolute;
@@ -573,9 +565,9 @@ button.join-seam:focus-visible {
 }
 
 .edit-mark-glyph {
-  /* The mark's content box: the gutter minus its two 1px borders. */
-  width: calc(var(--clip-inset-top) - 1px - 1px);
-  height: calc(var(--clip-inset-top) - 1px - 1px);
+  /* The mark's content box: its size minus its two 1px borders. */
+  width: calc(var(--edit-mark-size) - 1px - 1px);
+  height: calc(var(--edit-mark-size) - 1px - 1px);
   fill: none;
   stroke: var(--edit-mark-color, var(--color-text-on-overlay));
   stroke-width: 2;
@@ -583,16 +575,19 @@ button.join-seam:focus-visible {
   stroke-linejoin: round;
 }
 
+/* Under 24 px wide at 24 px spacing between chip centres, so two chips never
+   touch: a count past 99 reads 99+ and the label names the rest. */
 .edit-chip {
   position: absolute;
   top: 0;
-  min-inline-size: var(--join-hit-min);
-  height: 1rem;
+  min-inline-size: var(--edit-mark-size);
+  max-inline-size: calc(var(--join-hit-min) - var(--space-0));
+  height: var(--edit-mark-size);
   translate: -50% 0;
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  padding: 0 var(--space-1);
+  padding: 0 var(--space-0);
   appearance: none;
   font: inherit;
   font-size: var(--font-size-micro);
@@ -610,8 +605,14 @@ button.join-seam:focus-visible {
 .edit-chip::before {
   content: "";
   position: absolute;
-  inset-inline: 0;
-  inset-block: 0 calc(100% - var(--join-hit-min));
+  inset-block: 0;
+  inset-inline: min(0rem, calc((100% - var(--join-hit-min)) / 2));
+}
+
+/* A group no zoom can split: a count, not a control. */
+.edit-chip--static {
+  cursor: default;
+  pointer-events: none;
 }
 
 /* The join editor body (#691). Its panel is an anchored Dialog

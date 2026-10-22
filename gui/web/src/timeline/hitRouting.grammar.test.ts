@@ -406,21 +406,26 @@ describe("tap on a surface near an edit mark", () => {
     expect(seeks()).toHaveLength(2);
   });
 
-  it("leaves the tap to the surface when a trim handle is also near", () => {
+  it("gives a press on a trim handle at the same seam to the handle", () => {
     const el = lane();
     mark();
     const handle = button(hitTargetProps("trim-in", "clip-b", 2), {
-      left: 212,
-      top: 110,
-      right: 220,
+      left: 196,
+      top: 104,
+      right: 204,
       bottom: 160,
     });
     root.append(handle);
     record("trim", handle);
-    tap(el, 228, 104);
+    tap(handle, 200, 130);
 
+    expect(marks("trim")).toEqual([
+      "trim:pointerdown@200,130",
+      "trim:pointerup@200,130",
+    ]);
     expect(marks("join")).toEqual([]);
-    expect(seeks()).toHaveLength(2);
+    expect(seeks()).toEqual([]);
+    expect(el.isConnected).toBe(true);
   });
 
   it("opens the create menu on a long press 30 px beside the mark", () => {

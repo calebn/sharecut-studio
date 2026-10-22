@@ -76,7 +76,6 @@ import {
   isHitKind,
   longPressAction,
   needsDirectHit,
-  surfaceTapReach,
 } from "./inputContract";
 
 const replayed = new WeakSet<Event>();
@@ -681,9 +680,7 @@ export function attachHitRouting(
         hits,
         winner,
         tap:
-          !hit &&
-          (options.surfaceTaps?.() ?? true) &&
-          hits.every(({ candidate }) => surfaceTapReach(candidate.kind))
+          !hit && (options.surfaceTaps?.() ?? true)
             ? (surfaceTapTarget(part, origin) ?? winner)
             : winner,
       };

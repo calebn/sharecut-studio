@@ -258,6 +258,9 @@ evidence:
 enforced-by:
 - gui/web/src/timeline/editMarkers/plan.test.ts::keeps adjacent placed marks at least 24 px apart across zooms
 - gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::names the group by count and type, and zooms to its span on click
+- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::draws a chip that cannot split as a count with no button to press
+- gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
+- gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
 - gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a selected seam tick
 -->
 
@@ -267,9 +270,16 @@ whose centres sit closer than 24 px (`CLUSTER_PX`) into one chip, so every
 glyph and chip centre is at least 24 px from the next. A glyph tap acts the
 same at every zoom: it opens the join popover (hit kind `join`). A chip tap
 zooms to its joins (hit kind `edit-chip`, `zoomToSpan`) until the closest two
-sit 30 px apart, centred on the chip, and the chip splits into glyphs. One
-target never has two meanings by zoom. The touch chooser names a chip "Edit
+sit 30 px apart, centred on the chip, and the chip splits into glyphs. A chip
+no zoom can split (the zoom ceiling, or joins an instant apart) is a plain
+count, not a button. One target never has two meanings by zoom. The touch chooser names a chip "Edit
 group".
+
+A finger's tap that lands on no target (a bare lane or a non-movable clip) goes
+to a glyph or chip within 22 px beside it and 44 px down from its top. It
+never reaches the lane above, never applies in blade or comment mode, and a
+tap on any target (a trim handle, fade corner, roll seam or clip body) is
+ranked as before, with a focused glyph no longer counting as selected.
 
 Applied ticks stay as the earlier decision left them: inert, `aria-hidden`,
 and never inside a chip. Counting applied edits in a chip would make a count
