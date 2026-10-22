@@ -503,6 +503,7 @@ class AnalysisService(EffectsService):
         apply: bool = True,
         override_placement_lock: bool = False,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         def plan(p: EpisodeProject) -> AlignmentPlan:
             return plan_retained_bleed_alignment(
@@ -523,10 +524,26 @@ class AnalysisService(EffectsService):
                 rerender_preview(p, reconcile=False, defaults=self.ws.effective_config())
             return result
 
-        with render_lock(self.ws.project, timeout=lock_timeout):
+        with render_lock(self.ws.project, timeout=lock_timeout, cancel_check=cancel_check):
             return self.ws.mutate(
                 "before retained bleed alignment", "after retained bleed alignment", mutate
             )
+
+    def preview_retained_bleed_alignment(
+        self,
+        *,
+        track_id: str | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        override_placement_lock: bool = False,
+    ) -> dict[str, Any]:
+        return self.align_retained_bleed(
+            track_id=track_id,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            apply=False,
+            override_placement_lock=override_placement_lock,
+        )
 
     def set_bleed_alignment_mode(
         self,
@@ -623,6 +640,39 @@ class AnalysisService(EffectsService):
                 lambda p: run(p, dry_run=False),
             )
 
+    def preview_bleed_mute(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        align_retained_bleed: bool = True,
+        override_placement_lock: bool = False,
+        progress: ProgressReporter | None = None,
+    ) -> dict:
+        return self.apply_bleed_mute(
+            track_id=track_id,
+            speaker=speaker,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            apply=False,
+            align_retained_bleed=align_retained_bleed,
+            override_placement_lock=override_placement_lock,
+            progress=progress,
+        )
+
+    def preview_off_speaker_mute(
+        self,
+        *,
+        track_id: str | None = None,
+        speaker: str | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict:
+        return self.mute_off_speaker(
+            track_id=track_id, speaker=speaker, apply=False, progress=progress
+        )
+
     def mute_off_speaker(
         self,
         *,
@@ -631,6 +681,7 @@ class AnalysisService(EffectsService):
         apply: bool = True,
         progress: ProgressReporter | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> dict:
         """Mute a track wherever another speaker talks and its own speaker does not (#1740).
 
@@ -652,7 +703,10 @@ class AnalysisService(EffectsService):
 
         from podcast_mcp.project.merge import adopt_project_state
 
-        with render_lock(self.ws.project, timeout=lock_timeout), self.ws.transaction():
+        with (
+            render_lock(self.ws.project, timeout=lock_timeout, cancel_check=cancel_check),
+            self.ws.transaction(),
+        ):
             plan = plan_off_speaker_mutes(
                 self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
             )

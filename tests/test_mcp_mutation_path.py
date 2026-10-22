@@ -24,9 +24,11 @@ _READ_ONLY = frozenset(
         "join_quality",
         "list_applied_edits",
         "list_bleed_words",
+        "preview_bleed_mute",
         "preview_crossfade_joins",
         "preview_fade_joins",
         "preview_reconcile_transcript",
+        "preview_retained_bleed_alignment",
         "preview_suppress_bleed",
         "list_chapters",
         "list_clips",
@@ -36,6 +38,7 @@ _READ_ONLY = frozenset(
         "low_confidence_words",
         "overlap_duplicates",
         "preview_inaudible_cut",
+        "preview_off_speaker_mute",
         "preview_transcript_replacement",
         "recommend_fades",
         "reconciliation_status",
@@ -51,18 +54,15 @@ _READ_ONLY = frozenset(
 # method into the document command catalog and shrinks this set and its size.
 _DIRECT_MUTATIONS = frozenset(
     {
-        "align_retained_bleed",
         "apply_auto",
-        "apply_bleed_mute",
         "apply_plan",
         "fill_room_tone",
-        "mute_off_speaker",
         "propose_tighten",
         "shorten_word_gaps",
         "strip_silence",
     }
 )
-_DIRECT_MUTATIONS_SIZE = 9
+_DIRECT_MUTATIONS_SIZE = 6
 # TranscriptService also carries ASR and export entry points that predate the edit services.
 _ASR_AND_EXPORT = frozenset({"transcribe", "seed", "get", "export_markdown", "export_subtitles"})
 _EDIT_SERVICES = frozenset(

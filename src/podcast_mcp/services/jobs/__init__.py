@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
+    from podcast_mcp.services.jobs.audio_edits import run_audio_edit
     from podcast_mcp.services.jobs.events import (
         JOB_EVENT_QUEUE_MAX,
         LIVE_JOB_STATUSES,
@@ -42,6 +43,7 @@ __all__ = [
     "job_events_hub",
     "job_listener_count",
     "publish_job_event",
+    "run_audio_edit",
     "shared_job_manager",
     "studio_job_manager",
 ]
@@ -62,6 +64,7 @@ _MODULE_BY_NAME = {
     "job_events_hub": "events",
     "job_listener_count": "events",
     "publish_job_event": "events",
+    "run_audio_edit": "audio_edits",
     "shared_job_manager": "manager",
     "studio_job_manager": "manager",
 }
