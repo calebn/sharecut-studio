@@ -10,6 +10,7 @@ import { capabilityTooltip } from "../../capabilities/copy";
 import { joinSeamLabel } from "../../edit/joinRender";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import { useResizeObserver } from "../../ui";
 import { EDIT_GLYPH_PATH, EDIT_MARKERS } from "../../utils/editMarkerRegistry";
 import { hitTargetProps } from "../hitTargets";
 import {
@@ -34,29 +35,51 @@ type Track = (id: string) => {
 type Register = (key: string) => (el: HTMLElement | null) => void;
 
 /**
+ * A number that changes whenever label text may measure differently: a web
+ * font finished loading, or the label's font size (a rem) resized. The probe
+ * is as wide as the label's font size, so a root font-size change resizes it.
+ */
+function useTypographyEpoch() {
+  const probe = useRef<HTMLSpanElement>(null);
+  const [epoch, setEpoch] = useState(0);
+  const bump = () => setEpoch((n) => n + 1);
+  useResizeObserver(probe, bump);
+  useEffect(() => {
+    const fonts = document.fonts;
+    fonts?.addEventListener("loadingdone", bump);
+    return () => fonts?.removeEventListener("loadingdone", bump);
+  }, []);
+  return { probe, epoch };
+}
+
+/**
  * Decorative text beside the tag (the button's name already says it). It is
- * measured once, hidden until then, and dropped when `roomPx` cannot hold it.
+ * measured per `epoch`, hidden until then, and dropped when `roomPx` cannot
+ * hold it.
  */
 function MarkLabel({
   text,
   roomPx,
   xPx,
+  epoch,
 }: {
   text: string;
   roomPx: number;
   xPx: number;
+  epoch: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [measured, setMeasured] = useState<{
     text: string;
+    epoch: number;
     widthPx: number;
   } | null>(null);
   useLayoutEffect(() => {
-    if (ref.current && measured?.text !== text) {
-      setMeasured({ text, widthPx: ref.current.scrollWidth });
+    if (ref.current && (measured?.text !== text || measured.epoch !== epoch)) {
+      setMeasured({ text, epoch, widthPx: ref.current.scrollWidth });
     }
-  }, [text, measured]);
-  const known = measured?.text === text;
+  }, [text, epoch, measured]);
+  const known = measured?.text === text && measured.epoch === epoch;
   if (known && measured.widthPx > roomPx) {
     return null;
   }
@@ -79,12 +102,14 @@ function Glyph({
   onClick,
   register,
   track,
+  epoch,
 }: {
   symbol: PlacedSymbol;
   open: boolean;
   onClick: () => void;
   register: Register;
   track: Track;
+  epoch: number;
 }) {
   const { mark, xPx, tier } = symbol;
   const { type } = EDIT_MARKERS[mark.kind];
@@ -121,7 +146,12 @@ function Glyph({
         </span>
       </button>
       {symbol.labelAllowed ? (
-        <MarkLabel text={symbol.label} roomPx={symbol.roomPx} xPx={xPx} />
+        <MarkLabel
+          text={symbol.label}
+          roomPx={symbol.roomPx}
+          xPx={xPx}
+          epoch={epoch}
+        />
       ) : null}
     </>
   );
@@ -138,6 +168,7 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
     }
     setOpenJoinId(openJoinId === clipId ? null : clipId);
   };
+  const { probe, epoch } = useTypographyEpoch();
   const elements = useRef(new Map<string, HTMLElement>());
   const register: Register = (key) => (el) => {
     if (el) {
@@ -207,6 +238,7 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
   }, [items]);
   return (
     <>
+      <span ref={probe} className="edit-mark-probe" aria-hidden="true" />
       {items.map((item) =>
         item.symbol ? (
           <Glyph
@@ -216,6 +248,7 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
             onClick={() => toggle(item.symbol.mark.clipId)}
             register={register}
             track={track}
+            epoch={epoch}
           />
         ) : item.chip.zoomTo == null ? (
           <span
