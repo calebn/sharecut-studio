@@ -67,11 +67,12 @@ function JoinEditorLive(props: JoinEditorProps) {
   const draft =
     (edit.state.kind === "pointer" && edit.state.moved) ||
     edit.state.kind === "range";
+  const draftOverlapMs = joinDraftOverlapMs(left, right, edit.value);
   const projected =
     draft && joinGlyph(right) === "crossfade"
       ? {
           ...right,
-          join_crossfade_ms: joinDraftOverlapMs(left, right, edit.value),
+          join_crossfade_ms: draftOverlapMs,
           join_crossfade_blocked: null,
         }
       : right;
@@ -169,7 +170,7 @@ function JoinEditorLive(props: JoinEditorProps) {
             <span className="join-edit-caption">
               Join at {seamSec}s · {draft ? "Draft" : "Effective"} overlap{" "}
               {draft
-                ? edit.value
+                ? draftOverlapMs
                 : right.join_crossfade_blocked
                   ? 0
                   : (right.join_crossfade_ms ?? 0)}{" "}

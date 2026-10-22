@@ -184,7 +184,7 @@ for (const width of [1280, 390]) {
         await page.mouse.down();
         await page.mouse.move(x - 8, y);
         await expect(page.locator(".join-edit-caption")).toContainText(
-          "Draft overlap 1 ms",
+          "Draft overlap 10 ms",
         );
         await page.mouse.up();
       }
