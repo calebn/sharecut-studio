@@ -7,14 +7,13 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from tests.test_speaker_extended import _speaker_project
 
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.engines.models.speaker_ecapa import EcapaOnnx
 from podcast_mcp.engines.speaker_id import enroll_track
 from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.project.transcript_context import SpeakerIdConfig
-
-from tests.test_speaker_extended import _speaker_project
 
 # The pinned network's reflect-padded convolutions reject fewer than about 700 samples.
 _NETWORK_MIN_SAMPLES = 700
@@ -65,9 +64,7 @@ def test_enrollment_does_not_embed_a_sliver_left_to_reach_the_target(
 
 def test_embed_refuses_audio_too_short_with_a_plain_error() -> None:
     with pytest.raises(ValueError, match="too short"):
-        EcapaOnnx(model_path=Path("/nonexistent/model.onnx")).embed(
-            np.zeros(399, dtype=np.float32)
-        )
+        EcapaOnnx(model_path=Path("/nonexistent/model.onnx")).embed(np.zeros(399, dtype=np.float32))
 
 
 def test_features_refuse_true_multichannel_audio() -> None:
