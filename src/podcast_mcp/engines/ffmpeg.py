@@ -1892,6 +1892,8 @@ class FFmpegEngine:
             self.ffmpeg,
             "-i",
             str(path),
+            "-map",
+            "0:a:0",
             "-af",
             "ebur128=framelog=verbose",
             "-f",

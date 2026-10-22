@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
 import multistream_media as media
-from podcast_mcp.engines import align, decoded_source, ungated_audio
+from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.loudness import check_loudness
+from podcast_mcp.engines import align, audio_audit, decoded_source, ungated_audio
 from podcast_mcp.engines import ffmpeg as ffmpeg_module
 from podcast_mcp.engines.audio import MuteEnvelope
+from podcast_mcp.engines.audio_audit import measure_astats
 from podcast_mcp.engines.ffmpeg import _EBUR128_BLOCK_RE, FFmpegEngine
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.media_seek import MediaSeek
@@ -172,7 +177,20 @@ def test_measure_loudness_blocks_reads_first_stream(pair: tuple[Path, Path]) -> 
     assert got == engine.measure_loudness_blocks(oracle)
 
 
-def test_single_stream_decodes_match_a_default_pick(single: Path, tmp_path: Path) -> None:
+def test_astats_and_loudness_read_first_stream(pair: tuple[Path, Path]) -> None:
+    source, oracle = pair
+    got = measure_astats(source)
+    assert got["rms_level_db"] is not None
+    assert got == measure_astats(oracle)
+    engine = FFmpegEngine()
+    loudness = engine.measure_loudness(source)
+    assert loudness is not None
+    assert loudness == engine.measure_loudness(oracle)
+
+
+def test_single_stream_decodes_match_a_default_pick(
+    single: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     engine = FFmpegEngine()
     layout = ffmpeg_mono_mean_layout(single)
     expected = np.frombuffer(
@@ -197,6 +215,18 @@ def test_single_stream_decodes_match_a_default_pick(single: Path, tmp_path: Path
     _extract_without_map(single, want, 0.2, 1.2)
     assert got.read_bytes() == want.read_bytes()
     assert engine.measure_loudness_blocks(single) == _loudness_blocks(single)
+    mapped = (measure_astats(single), engine.measure_loudness(single))
+    monkeypatch.setattr(audio_audit, "run", _without_map(audio_audit.run))
+    monkeypatch.setattr(ffmpeg_module, "run", _without_map(ffmpeg_module.run))
+    assert mapped == (measure_astats(single), engine.measure_loudness(single))
+
+
+def _without_map(real: Callable[..., Any]) -> Callable[..., Any]:
+    def run(cmd: list[str], **kwargs: Any) -> Any:
+        i = cmd.index("-map")
+        return real([*cmd[:i], *cmd[i + 2 :]], **kwargs)
+
+    return run
 
 
 def _extract_without_map(source: Path, target: Path, start: float, end: float) -> None:
@@ -228,3 +258,8 @@ def test_video_only_media_still_fails_to_decode(tmp_path: Path) -> None:
     with pytest.raises(subprocess.CalledProcessError):
         engine.extract_segment(path, tmp_path / "out.wav", 0.0, 0.1)
     assert engine.measure_loudness_blocks(path) == []
+    assert set(measure_astats(path).values()) == {None}
+    assert engine.measure_loudness(path) is None
+    verdict = check_loudness(path, load_defaults())
+    assert verdict["measured_lufs"] is None
+    assert verdict["pass"] is False

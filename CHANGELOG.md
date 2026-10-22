@@ -8,6 +8,7 @@
 
 ### Fixes
 
+* Audio health stats (`measure_astats`) and `check_loudness` now read the first audio stream, the one the render plays, on media with several audio streams (#2131). Single-stream files measure the same as before.
 * `load_profile` no longer falls back to a stale speaker profile (stem hash mismatch).
 
 ## [0.1.1](https://github.com/calebn/sharecut-studio/compare/v0.1.0...v0.1.1) (2026-10-18)
