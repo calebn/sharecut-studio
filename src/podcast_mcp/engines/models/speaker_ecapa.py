@@ -14,6 +14,7 @@ network path (``podcast bootstrap --component speaker-ecapa``).
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -69,15 +70,20 @@ def speaker_ecapa_path() -> Path:
     return models_dir() / filename
 
 
-def speaker_ecapa_problem() -> str | None:
-    """Why the model cannot be used (None when it is ready). Hashes once per file state."""
+def speaker_ecapa_problem(*, memoize: bool = False) -> str | None:
+    """Why the model cannot be used (None when it is ready).
+
+    ``memoize=True`` is for status polls and backend routing only: it hashes once per file
+    state, so a same-size overwrite that keeps its mtime goes unseen. Bootstrap's skip check
+    and the embedder's load hash uncached.
+    """
     path = speaker_ecapa_path()
     if not path.is_file():
         return f"not downloaded; run {SPEAKER_ECAPA_BOOTSTRAP}"
     if speaker_ecapa_override() is not None:
         return None
     _, expected = _pin()
-    if manifest_mismatch(path.parent, ((path.name, expected),), memoize=True) is not None:
+    if manifest_mismatch(path.parent, ((path.name, expected),), memoize=memoize) is not None:
         return f"does not match its pinned download; run {SPEAKER_ECAPA_BOOTSTRAP} --upgrade"
     return None
 
@@ -103,22 +109,26 @@ class EcapaOnnx:
     def __init__(self, model_path: Path | None = None) -> None:
         self._path = model_path
         self._session: Any = None
+        self._lock = threading.Lock()
 
     def _load(self) -> Any:
-        if self._session is None:
-            path = self._path
-            if path is None:
-                if (problem := speaker_ecapa_problem()) is not None:
-                    raise SpeakerEcapaMissingError(f"{SPEAKER_ECAPA_LABEL} {problem}")
-                path = speaker_ecapa_path()
-            import onnxruntime as ort
+        if self._session is not None:
+            return self._session
+        with self._lock:
+            if self._session is None:
+                path = self._path
+                if path is None:
+                    if (problem := speaker_ecapa_problem()) is not None:
+                        raise SpeakerEcapaMissingError(f"{SPEAKER_ECAPA_LABEL} {problem}")
+                    path = speaker_ecapa_path()
+                import onnxruntime as ort
 
-            options = ort.SessionOptions()
-            options.log_severity_level = 3
-            self._session = ort.InferenceSession(
-                str(path), sess_options=options, providers=["CPUExecutionProvider"]
-            )
-        return self._session
+                options = ort.SessionOptions()
+                options.log_severity_level = 3
+                self._session = ort.InferenceSession(
+                    str(path), sess_options=options, providers=["CPUExecutionProvider"]
+                )
+            return self._session
 
     def embed(self, samples: np.ndarray) -> np.ndarray:
         if np.size(samples) < MIN_SAMPLES:
