@@ -1,12 +1,7 @@
-"""An enrollment span at the end of the audio must not feed the speaker embed a sliver (#2040 item 2).
+"""An enrollment span at the end of the audio is skipped, not embedded as a sliver (#2040 item 2).
 
-``_embed`` slices ``samples[start : start + width]`` around each window centre. For an
-enrollment span shorter than a window the centre is the span's midpoint, so a span that
-reaches past the end of the recording leaves a few samples (or none) in the slice. The real
-network refuses audio that short. A window with too little audio to name a speaker is
-skipped, not padded: padding would invent audio the user never confirmed, and a span with
-no usable window already means "not enrolled" (``_enrollment_centroids`` skips it), so
-that speaker is clustered like any other.
+Padding would invent audio the user never confirmed; a span with no usable window already
+means "not enrolled", so that speaker is clustered like any other.
 """
 
 from __future__ import annotations
