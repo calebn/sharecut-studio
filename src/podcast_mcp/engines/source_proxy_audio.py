@@ -45,11 +45,11 @@ from podcast_mcp.engines.mute_regions import (
 from podcast_mcp.engines.render_clock import (
     _EVENT,
     ClockBinding,
-    _native_format,
     _pairs,
     clock_error,
     configure_observers,
     format_filter,
+    native_format,
 )
 from podcast_mcp.engines.session_timeline import origin_track_id_for_clip
 from podcast_mcp.engines.timeline_render import (
@@ -309,7 +309,7 @@ def _execute(
 
 
 def _decode_clock(engine: FFmpegEngine, source: Path, directory: Path) -> ProxyObservation:
-    native = _native_format(engine.ffmpeg, source)
+    native = native_format(engine.ffmpeg, source)
     return _execute(
         engine,
         ["-v", "info", "-i", str(source), "-af", "ashowinfo@restore_native", "-f", "null", "-"],
@@ -952,7 +952,7 @@ def render_source_proxy_inputs(
                     engine, spec, inputs.recipe or "anull", directory, native, validate
                 )
                 if (
-                    _native_format(engine.ffmpeg, baseline).channel_layout
+                    native_format(engine.ffmpeg, baseline).channel_layout
                     != clock.output.audio.channel_layout
                 ):
                     raise clock_error()

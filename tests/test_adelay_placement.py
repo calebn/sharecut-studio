@@ -359,6 +359,13 @@ def test_restore_render_of_empty_wav_keeps_bleed_code(tmp_path: Path) -> None:
     assert error.value.code == "bleed_restore_clock_invalid"
 
 
+def test_restore_native_format_of_an_empty_wav_is_the_clock_error(tmp_path: Path) -> None:
+    empty = _empty_wav(tmp_path / "empty.wav", 48000).path
+    with pytest.raises(CodedValueError) as error:
+        render_clock.native_format(FFmpegEngine().ffmpeg, empty)
+    assert error.value.code == "bleed_restore_clock_invalid"
+
+
 def test_plain_render_unreadable_non_wav_raises_render_rate_unresolved(tmp_path: Path) -> None:
     child = tmp_path / "silent.aiff"
     subprocess.run(
