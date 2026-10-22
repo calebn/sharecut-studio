@@ -57,6 +57,7 @@ def endpoint(tmp_path, monkeypatch):
         "started": threading.Event(),
         "stopped": threading.Event(),
         "secondary_sent": threading.Event(),
+        "secondary_started": threading.Event(),
     }
 
     class Handler(http.server.BaseHTTPRequestHandler):
@@ -65,6 +66,8 @@ def endpoint(tmp_path, monkeypatch):
 
         def do_GET(self):
             origin = self.path.strip("/")
+            if origin == "secondary":
+                state["secondary_started"].set()
             state["requests"].append(origin)
             state["started"].set()
             mode = state[origin]
@@ -78,6 +81,8 @@ def endpoint(tmp_path, monkeypatch):
                 body += b"x" * 1024
             if mode == "delayed":
                 assert state["secondary_sent"].wait(3)
+            if mode == "hedged":
+                assert state["secondary_started"].wait(3)
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -504,4 +509,57 @@ def test_failed_process_creation_restores_cancellation_handlers(api, tmp_path, m
     with pytest.raises(OSError, match="fixture process creation failed"):
         transport.acquire(plan, tmp_path / "InRelease")
     assert all(signal.getsignal(number) == handler for number, handler in previous.items())
+    assert not list(tmp_path.glob(".sharecut-apt-*"))
+
+
+@pytest.mark.parametrize("interrupt", ["SIGTERM", "SIGINT"])
+def test_cancellation_before_loser_cleanup_reaps_all_children(endpoint, tmp_path, interrupt):
+    base, state = endpoint
+    state.update(primary="hedged", secondary="slow")
+    code = """import hashlib,os,signal,sys
+from pathlib import Path
+import ci_apt_acquisition as transport
+from ci_apt_method import cancelled
+source=Path(transport.__file__)
+line=next(i for i,text in enumerate(source.read_text().splitlines(),1) if "attempt.process.terminate()" in text)
+observed=[]
+signal.signal(getattr(signal,sys.argv[3]),cancelled)
+def inject(frame,event,arg):
+    if event=="line" and frame.f_code.co_filename==str(source) and frame.f_lineno==line:
+        sys.settrace(None)
+        observed.extend(a.process for a in frame.f_locals["attempts"])
+        assert any(child.poll() is None for child in observed)
+        os.kill(os.getpid(),getattr(signal,sys.argv[3]))
+    return inject
+try:
+    sys.settrace(inject)
+    plan=transport.FetchPlan(transport.HashedObject(int(sys.argv[4]),sys.argv[5]),(sys.argv[1]+"/primary",sys.argv[1]+"/secondary"),transport.Budgets(hedge=0))
+    transport.acquire(plan,Path(sys.argv[2]))
+except SystemExit:
+    assert observed and all(child.poll() is not None for child in observed), "curl survived cancellation before loser cleanup"
+    assert hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest()==sys.argv[5]
+finally:
+    sys.settrace(None)
+    for child in observed:
+        if child.poll() is None:
+            child.terminate()
+            child.wait(timeout=3)
+"""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            code,
+            base,
+            str(tmp_path / "package.deb"),
+            interrupt,
+            str(len(state["body"])),
+            hashlib.sha256(state["body"]).hexdigest(),
+        ],
+        cwd=SCRIPTS,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
     assert not list(tmp_path.glob(".sharecut-apt-*"))
