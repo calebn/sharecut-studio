@@ -1,133 +1,111 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  type BootstrapStatus,
-  fetchBootstrapStatus,
-  runBootstrap,
-  type WhisperModelChoice,
-  waitForBootstrapJob,
-} from "../api";
-import { Button, Field } from "../ui";
+import { useEffect, useRef, useState } from "react";
+import { formatBytes } from "../models/format";
+import { ModelRow, type ModelRowAction } from "../models/ModelRow";
+import type { ModelView } from "../models/types";
+import { useModels } from "../models/useModels";
+import { VariantPicker } from "../models/VariantPicker";
+import { Button, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
-import { errorMessage } from "../utils/apiError";
 
 export type BootstrapWizardProps = {
   onReady: () => void;
   onSkip?: () => void;
 };
 
-type JobSnap = {
-  id: string;
-  status: string;
-  message?: string | null;
-  current?: number | null;
-  total?: number | null;
-  error?: string | null;
-  elapsed_sec?: number;
-};
+const BUSY_BLOCK = "Another download is running";
+
+function needsDownload(model: ModelView): boolean {
+  const kind = model.state.kind;
+  return kind === "missing" || kind === "update_needed" || kind === "failed";
+}
+
+/** What Continue will fetch, in words: "Download 1.7 GB", or a count when a size is unknown. */
+function summary(picked: ModelView[]): string {
+  if (picked.length === 0) {
+    return "Nothing to download";
+  }
+  if (picked.some((m) => m.sizeBytes === null)) {
+    return `Download ${picked.length} ${picked.length === 1 ? "model" : "models"}`;
+  }
+  const total = picked.reduce((sum, m) => sum + (m.sizeBytes ?? 0), 0);
+  return `Download ${formatBytes(total)}`;
+}
 
 export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
-  const [status, setStatus] = useState<BootstrapStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [job, setJob] = useState<JobSnap | null>(null);
-  const [includeRnnoise, setIncludeRnnoise] = useState(false);
-  const [whisperModel, setWhisperModel] = useState("");
-  const [models, setModels] = useState<WhisperModelChoice[]>([]);
-  const fetchGen = useRef(0);
+  const { models, tools, ready, busy, loadError, download } = useModels();
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const started = useRef(false);
+  const [finished, setFinished] = useState(false);
 
-  const refresh = useCallback(
-    async (model?: string) => {
-      const gen = ++fetchGen.current;
-      setLoading(true);
-      setError(null);
-      try {
-        const next = await fetchBootstrapStatus(model);
-        if (gen !== fetchGen.current) {
-          return;
-        }
-        setStatus(next);
-        if (next.whisper_models?.length) {
-          setModels(next.whisper_models);
-        }
-        if (!model) {
-          setWhisperModel(next.whisper_model);
-        }
-        if (next.ready) {
-          onReady();
-        }
-      } catch (e: unknown) {
-        if (gen !== fetchGen.current) {
-          return;
-        }
-        setError(errorMessage(e));
-      } finally {
-        if (gen === fetchGen.current) {
-          setLoading(false);
-        }
-      }
-    },
-    [onReady],
-  );
-
+  // Set up already when the wizard opens, or a download just ended well: nothing left to ask.
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const onModelChange = async (nextModel: string) => {
-    setWhisperModel(nextModel);
-    await refresh(nextModel);
-  };
-
-  const start = async () => {
-    setBusy(true);
-    setError(null);
-    const components = (status?.models ?? [])
-      .filter((m) => m.tier === "required")
-      .map((m) => m.id);
-    if (includeRnnoise) {
-      components.push("rnnoise");
+    if (ready && (!started.current || finished)) {
+      onReady();
     }
-    try {
-      const started = await runBootstrap({
-        components,
-        whisper_model: whisperModel,
-      });
-      setJob(started.job);
-      const finished = await waitForBootstrapJob(started.job.id, {
-        onUpdate: (next) => setJob(next),
-      });
-      setJob(finished);
-      setBusy(false);
-      if (finished.status !== "ok") {
-        setError(
-          finished.error || finished.message || `Bootstrap ${finished.status}`,
-        );
-        return;
-      }
-      void refresh(whisperModel);
-    } catch (e: unknown) {
-      setBusy(false);
-      setError(errorMessage(e));
-    }
-  };
+  }, [ready, finished, onReady]);
 
-  if (loading && !status) {
+  if (models === null) {
     return (
-      <div className="box elevated bootstrap-wizard" role="status">
-        <p>Checking installed tools…</p>
+      <div
+        className="box elevated bootstrap-wizard stack"
+        role={loadError ? undefined : "status"}
+      >
+        {loadError ? (
+          <>
+            <InlineError message={loadError} />
+            {onSkip ? (
+              <div className="cluster">
+                <Button onClick={onSkip}>Skip for now</Button>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p>Checking installed tools…</p>
+        )}
       </div>
     );
   }
 
-  if (status?.ready) {
-    return null;
+  const checked = (m: ModelView): boolean =>
+    m.tier === "required" || (overrides[m.id] ?? m.tier === "recommended");
+  const picked = models.filter((m) => checked(m) && needsDownload(m));
+  const toolsOk = tools.ffmpeg === "installed";
+
+  const actionFor = (m: ModelView): ModelRowAction => {
+    if (m.state.kind === "failed") {
+      return {
+        kind: "download",
+        onDownload: () => void run([m.id]),
+        blockedReason: busy ? BUSY_BLOCK : undefined,
+      };
+    }
+    if (!needsDownload(m)) {
+      return { kind: "none" };
+    }
+    return {
+      kind: "select",
+      checked: checked(m),
+      locked: m.tier === "required" || busy,
+      onToggle: () => setOverrides((o) => ({ ...o, [m.id]: !checked(m) })),
+    };
+  };
+
+  async function run(ids: string[]) {
+    started.current = true;
+    setFinished(false);
+    const outcome = await download(ids);
+    setFinished(outcome.kind === "ok");
   }
 
-  const ffmpegOk = status?.tools.ffmpeg.state === "installed";
-  const whisperOk =
-    status?.models.find((m) => m.id === "whisper")?.state === "installed";
-  const selected = models.find((m) => m.id === whisperModel);
+  const onContinue = () => {
+    if (picked.length === 0) {
+      if (ready) {
+        onReady();
+      }
+      return;
+    }
+    void run(picked.map((m) => m.id));
+  };
 
   return (
     <div
@@ -138,84 +116,37 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       <div className="bootstrap-wizard-header stack">
         <h1>Set up ShareCut Studio</h1>
         <p>
-          Download a Whisper speech model once. Audio tools are bundled with
-          ShareCut Studio. Nothing downloads until you click Continue. The
-          recommended model has the lowest practical WER; pick a smaller one
-          only if you need to save disk.
+          Choose the models to download. Nothing downloads until you click
+          Continue.
         </p>
       </div>
-      {error ? (
-        <p className="home-screen-error" role="alert">
-          {error}
+      <p className="model-tools" role="status">
+        Audio tools: {toolsOk ? "ready" : "unavailable"}
+      </p>
+      {!toolsOk ? (
+        <p>
+          Reinstall ShareCut Studio, or follow the{" "}
+          <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair">
+            source setup guide
+          </a>
+          .
         </p>
       ) : null}
-      <ul className="bootstrap-wizard-list">
-        <li>
-          Audio tools: {ffmpegOk ? "ready" : "unavailable"}
-          {!ffmpegOk ? (
-            <p>
-              Reinstall ShareCut Studio, or follow the{" "}
-              <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair">
-                source setup guide
-              </a>
-              .
-            </p>
-          ) : null}
-        </li>
-        <li>
-          Whisper {whisperModel}:{" "}
-          {whisperOk ? "ready" : "needed for transcription"}
-        </li>
+      <ul className="stack tight model-list">
+        {models.map((m) => (
+          <ModelRow
+            key={m.id}
+            model={m}
+            variantPicker={<VariantPicker model={m} disabled={busy} />}
+            action={actionFor(m)}
+          />
+        ))}
       </ul>
-      <Field
-        label="Speech model"
-        hint={
-          selected
-            ? `${selected.size}. ${selected.description}`
-            : "Recommended is large-v3-turbo (~1.6 GB)."
-        }
-      >
-        {(control) => (
-          <select
-            {...control}
-            value={whisperModel}
-            disabled={busy || models.length === 0}
-            onChange={(e) => void onModelChange(e.target.value)}
-          >
-            {models.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.label} ({opt.id}, {opt.size})
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
-      <label className="bootstrap-wizard-optional">
-        <input
-          type="checkbox"
-          checked={includeRnnoise}
-          disabled={busy}
-          onChange={(e) => setIncludeRnnoise(e.target.checked)}
-        />
-        Also download RNNoise model (optional noise reduction)
-      </label>
-      {job && busy ? (
-        <p
-          className="bootstrap-wizard-progress"
-          role="status"
-          aria-live="polite"
-        >
-          {job.message || "Working…"}
-          {job.total != null && job.current != null
-            ? ` (${job.current}/${job.total})`
-            : ""}
-          {job.elapsed_sec != null ? ` · ${job.elapsed_sec.toFixed(0)}s` : ""}
-        </p>
-      ) : null}
+      <p className="model-summary">{summary(picked)}</p>
       <div className="cluster">
         <Button
           variant="primary"
-          onClick={() => void start()}
+          onClick={onContinue}
           disabledReason={busy ? BUSY_REASON : undefined}
         >
           {busy ? "Downloading…" : "Continue"}
@@ -230,6 +161,9 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
           </Button>
         ) : null}
       </div>
+      {onSkip ? (
+        <p className="model-note">You can download these later from Models.</p>
+      ) : null}
     </div>
   );
 }

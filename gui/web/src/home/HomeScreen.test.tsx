@@ -8,6 +8,7 @@ import {
   openEpisodeProject,
   pickEpisodeProject,
 } from "../api";
+import { ModelsProvider } from "../models/ModelsProvider";
 import { expectNoA11yViolations } from "../test/a11y";
 import { HomeScreen } from "./HomeScreen";
 
@@ -19,6 +20,8 @@ vi.mock("../api", () => ({
   createDiagnosticsBundle: vi.fn(),
   fetchDiagnosticsMeta: vi.fn(),
   fetchBootstrapStatus: vi.fn(() => new Promise(() => {})),
+  fetchBootstrapJob: vi.fn(async () => null),
+  cancelBootstrap: vi.fn(),
   runBootstrap: vi.fn(),
   waitForBootstrapJob: vi.fn(),
 }));
@@ -315,7 +318,11 @@ describe("HomeScreen", () => {
         throw new DOMException("denied", "SecurityError");
       });
     try {
-      render(<HomeScreen />);
+      render(
+        <ModelsProvider>
+          <HomeScreen />
+        </ModelsProvider>,
+      );
       // Unreadable skip flag → setup wizard, not a crashed Home screen.
       expect(screen.getByRole("status")).toHaveTextContent(
         "Checking installed tools",
