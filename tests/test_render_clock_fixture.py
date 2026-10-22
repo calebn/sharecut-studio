@@ -43,7 +43,6 @@ def _clip(
     fade_out: int = 0,
     room: float = 10.0,
 ) -> Clip:
-    """A clip playing ``room`` seconds into its recording, so a blend can borrow before it."""
     return Clip(
         id=clip_id,
         track_id=track,
@@ -121,7 +120,6 @@ _CASES: dict[str, list[Clip]] = {
 
 
 def _leaf_starts(audio: object, base: float, out: dict[str, tuple[float, float]]) -> None:
-    """Render-clock start and first source second of each clip's leaf."""
     match audio:
         case SourceAudio():
             out[str(audio.clip_id)] = (base, audio.src_start)
@@ -260,7 +258,6 @@ def test_the_borrow_shrinks_to_the_room_the_recordings_have(tmp_path: Path) -> N
     project = _borrow_project(tmp_path)
     left = _clip("a", "host", 0, 5, fade_out=200)
     assert crossfade_borrow_sec(project, left, _clip("b", "host", 5, 9, _XFADE, 200, 0)) > 0
-    # Nothing before the right clip's start, nothing after the left clip's end.
     assert (
         crossfade_borrow_sec(project, left, _clip("b", "host", 5, 9, _XFADE, 200, 0, room=0)) == 0
     )
@@ -283,7 +280,6 @@ def test_a_window_ending_at_the_seam_keeps_the_edge_fade_off(tmp_path: Path) -> 
     (leaf,) = sources(audio)
     assert leaf.clip_id == "a"
     assert leaf.fade_out_sec == 0.0
-    # The right clip is outside the window, so nothing is borrowed from it.
     assert leaf.src_end == pytest.approx(_clip("a", "host", 0, 5).source_end)
 
 
@@ -292,7 +288,6 @@ def test_a_window_edge_inside_the_blend_shrinks_it_to_the_piece_it_has(tmp_path:
     assert isinstance(audio, MixAudio)
     blend = audio.head.audio
     assert isinstance(blend, CrossfadeAudio)
-    # The right piece is 10 ms long, so the 200 ms blend shrinks to 20 ms.
     assert blend.overlap_sec == pytest.approx(0.02)
     assert all(duration(side) >= blend.overlap_sec for side in (blend.left, blend.right))
 
@@ -308,7 +303,6 @@ def test_the_render_hash_follows_what_a_join_borrows(tmp_path: Path) -> None:
     ]
     defaults = load_defaults()
     blending = track_render_hash(project, "host", defaults=defaults)
-    # The recording's length is not in the media identity, but it decides the borrow.
     project.tracks[0].media.duration_sec = 15.05
     assert track_render_hash(project, "host", defaults=defaults) != blending
 

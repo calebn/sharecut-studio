@@ -252,7 +252,6 @@ def test_authored_windows_keep_selected_piece_cap_and_local_fades(
     render_track_segment(project, "host", start, end, out, {})
     pcm = _read(out)
     assert (len(pcm), pcm[0], pcm[len(pcm) // 2]) == (frames, first, middle)
-    # The full render's fade ramps up at 0.02 s; a blend centred on 11 s has not begun at 10.92 s.
     assert _read(full)[round(start * 48000)] == (3000 if kind == "fade" else 0)
 
 

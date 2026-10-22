@@ -912,7 +912,6 @@ def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_p
     assert len(render_cmds) == 1
     assert "acrossfade=d=0.02:c1=tri:c2=tri" in render_cmds[0]
     assert "apad" not in render_cmds[0]
-    # 0.4 s + 0.4 s: the blend borrows 10 ms from each recording and the 30 ms gap is absorbed.
     assert eng.probe(out).duration_sec == pytest.approx(0.80, abs=0.01)
 
 

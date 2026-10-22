@@ -717,9 +717,6 @@ def test_restore_clock_accounts_for_fractional_concat_and_crossfade(
     baseline = _render(project, tmp_path / "baseline.wav", None)
     project.clips[1] = _restore(project.clips[1], tmp_path / "source.wav", [(0.2, 0.3)])
     restored = _render(project, tmp_path / "restored.wav", None)
-    # A blend borrows 480 samples (half the 20 ms overlap) from each recording: the
-    # selected clip's body starts 960 before the first clip's body ends, and
-    # begins 480 samples earlier in its own recording than its source_start.
     body_first = 9600 + 480 - 960 if crossfade else 9600
     lead = 480 if crossfade else 0
     first, last = body_first + 9600 - (504 - lead), body_first + 14400 - (504 - lead)

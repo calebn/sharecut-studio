@@ -72,13 +72,11 @@ def test_block_reasons():
         == "no_fade_out"
     )
     assert crossfade_block_reason(a, _clip("b", 1, 2, join_in_mode=x), p) == "no_fade_in"
-    # The left recording ends at the seam: nothing to borrow.
     end = _clip("e", 9, 10, fade_out_ms=20)
     assert (
         crossfade_block_reason(end, _clip("f", 10, 11, fade_in_ms=20, join_in_mode=x), p)
         == "no_headroom"
     )
-    # A clip naming a missing recording has no room either (and does not raise).
     ghost = _clip("g", 0, 1, fade_out_ms=20, source_id="gone")
     assert (
         crossfade_block_reason(ghost, _clip("h", 1, 2, fade_in_ms=20, join_in_mode=x), p)
@@ -176,7 +174,6 @@ def test_a_sliver_of_room_plays_the_fades_not_a_click_blend():
     left = _clip("a", 8.99, 9.99, fade_out_ms=40)
     right = _clip("b", 9.99, 10.0, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
     p.clips = [left, right]
-    # 10 ms of room on the right recording's side (a quarter of 10 ms) is under a blend.
     assert crossfade_borrow_sec(p, left, right) == 0.0
     assert join_render_fields(left, right, p)["join_crossfade_blocked"] == "no_headroom"
 
@@ -197,8 +194,6 @@ def test_a_join_never_borrows_muted_audio_of_its_neighbour(owner, span):
     right = _clip("b", 2, 3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
     p.clips = [left, right]
     {"a": left, "b": right}[owner].mute_regions = [ClipMuteRegion(start_s=span[0], end_s=span[1])]
-    # Muted audio next to the seam stops the borrow at its edge; touching it, or
-    # leaving under a blend of room, makes the join play its fades.
     h = crossfade_borrow_sec(p, left, right)
     assert (
         h == 0.0 or (owner == "b" and span[0] - 2.0 >= h) or (owner == "a" and 2.0 - span[1] >= h)
@@ -260,8 +255,6 @@ def test_a_mute_equal_to_an_ignored_word_span_does_not_break_the_index():
 
 @pytest.mark.parametrize("side", ["left", "right"])
 def test_a_mute_ending_at_the_clips_own_edge_stops_the_borrow(side: str):
-    # A cut where the clip's own mute reaches the seam (it may be a longer mute cut
-    # short there): the borrowed audio past it must not play.
     p = _project()
     left = _clip("a", 1, 2, fade_out_ms=40)
     right = _clip("b", 5, 6, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
@@ -272,7 +265,6 @@ def test_a_mute_ending_at_the_clips_own_edge_stops_the_borrow(side: str):
     else:
         right.mute_regions = [ClipMuteRegion(start_s=5.0, end_s=5.4)]
     assert crossfade_borrow_sec(p, left, right) == 0.0
-    # The same cut with the mute well inside the clip still blends.
     left.mute_regions = [ClipMuteRegion(start_s=1.2, end_s=1.7)]
     right.mute_regions = [ClipMuteRegion(start_s=5.3, end_s=5.5)]
     assert crossfade_borrow_sec(p, left, right) == pytest.approx(0.02)

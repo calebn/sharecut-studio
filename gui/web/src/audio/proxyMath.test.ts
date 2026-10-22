@@ -314,7 +314,6 @@ describe("proxyMath", () => {
     const [a, b, c] = slices;
     expect(a.whenTimelineSec).toBe(0);
     expect(a.envelope.fadeOutSec).toBeCloseTo(0.2, 9);
-    // Each side borrows half the 0.2 s blend from its recording past the seam.
     expect(a.envelope.timelineEndSec).toBeCloseTo(2.1, 9);
     expect(b.whenTimelineSec).toBeCloseTo(1.9, 9);
     expect(b.envelope.timelineStartSec).toBeCloseTo(1.9, 9);
@@ -358,15 +357,12 @@ describe("proxyMath", () => {
         timeline_end: 6.5,
       }),
     ];
-    // b authored 0.1 s early: the blend still starts at the seam less the borrow,
-    // and c moves 0.1 s later with the frontier.
     const early = buildSchedule(rows(1.9), 0, 20, manifest());
     expect(early.map((s) => s.whenTimelineSec)).toEqual([
       0,
       expect.closeTo(1.9, 9),
       expect.closeTo(4.6, 9),
     ]);
-    // b authored 0.04 s late (inside the join tolerance) still starts at 1.9.
     const late = buildSchedule(rows(2.04), 0, 20, manifest());
     expect(late[1].whenTimelineSec).toBeCloseTo(1.9, 9);
   });
