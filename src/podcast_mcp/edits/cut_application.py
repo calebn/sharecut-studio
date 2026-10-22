@@ -371,7 +371,6 @@ def _apply_replace_gap_pad(
         for clip in clips_for_track(project, tid):
             if abs(clip.timeline_end - pad_start_sec) <= _PAD_EDGE_MATCH_SEC:
                 clip.fade_out_ms = left_pad_fade_out_ms
-                clip.join_in_mode = ClipJoinMode.FADE
     right_pad_edge_sec = pad_start_sec + gap
     for tid in dialogue_track_ids(project):
         for clip in clips_for_track(project, tid):
