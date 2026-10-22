@@ -625,7 +625,10 @@ class DocumentSyncService:
             if file_before is not None and not api_snap.get("resync"):
                 api_snap["file_before"] = file_before
             guest_snapshot = None
-            if before is not None and not api_snap.get("resync"):
+            if before is not None and before.get("resync"):
+                api_snap = {"server_seq": row["server_seq"], "resync": True}
+                guest_snapshot = api_snap
+            elif before is not None and not api_snap.get("resync"):
                 from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
                 guest_before = sanitize_guest_document_event({"snapshot": before})["snapshot"]
