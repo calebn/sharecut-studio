@@ -478,7 +478,7 @@ def test_registry_forwards_memoize_to_the_pin_check(
     assert seen == [True, False]
 
 
-def test_backend_routing_memoizes_and_leaves_the_hash_to_the_embedder(
+def test_backend_routing_memoizes_the_pin_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen: list[bool] = []
