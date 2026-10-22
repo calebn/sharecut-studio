@@ -264,3 +264,59 @@ def test_compare_script_windows_fit_word_length_regions_after_merging() -> None:
     assert script._windows(merged, 40) == [(0.0, 3.0)]
     many = [(float(i) * 10, float(i) * 10 + 9.0) for i in range(30)]
     assert len(script._windows(many, 5)) == 5
+
+
+def _chain_env(monkeypatch: pytest.MonkeyPatch, *, onnx: bool, speechbrain: bool, lite: bool):
+    """Which of the three real backends this machine could build."""
+    import sys
+    import types
+
+    monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
+    monkeypatch.setattr(
+        speaker_ecapa, "speaker_ecapa_problem", lambda: None if onnx else "not downloaded"
+    )
+    if speechbrain:
+        monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+        inference = types.ModuleType("speechbrain.inference.speaker")
+        inference.EncoderClassifier = object  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "speechbrain", types.ModuleType("speechbrain"))
+        monkeypatch.setitem(sys.modules, "speechbrain.inference", types.ModuleType("x"))
+        monkeypatch.setitem(sys.modules, "speechbrain.inference.speaker", inference)
+    else:
+        monkeypatch.setitem(sys.modules, "torch", None)
+
+    def encoder() -> object:
+        if not lite:
+            raise ImportError("no resemblyzer", name="resemblyzer")
+        return object
+
+    monkeypatch.setattr(speaker_id, "_import_voice_encoder", encoder)
+
+
+def test_auto_backend_walks_onnx_then_speechbrain_then_resemblyzer_then_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order = []
+    for onnx, speechbrain, lite in [
+        (True, True, True),
+        (False, True, True),
+        (False, False, True),
+    ]:
+        _chain_env(monkeypatch, onnx=onnx, speechbrain=speechbrain, lite=lite)
+        order.append(speaker_id.resolve_speaker_backend("auto").name())
+    assert order == ["ecapa-onnx", "speechbrain-ecapa", "resemblyzer"]
+    _chain_env(monkeypatch, onnx=False, speechbrain=False, lite=False)
+    with pytest.raises(speaker_id.SpeakerBackendUnavailable):
+        speaker_id.resolve_speaker_backend("auto")
+
+
+def test_a_user_model_that_does_not_load_falls_through_in_auto(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    junk = tmp_path / "junk.onnx"
+    junk.write_bytes(b"not a model")
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(junk))
+    _chain_env(monkeypatch, onnx=True, speechbrain=False, lite=True)
+    assert speaker_id.resolve_speaker_backend("auto").name() == "resemblyzer"
+    with pytest.raises(ImportError, match="override does not load"):
+        speaker_id.resolve_speaker_backend("ecapa-onnx")

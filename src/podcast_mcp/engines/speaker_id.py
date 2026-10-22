@@ -210,6 +210,10 @@ class OnnxEcapaBackend:
     def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
         return self._model.embed(samples)
 
+    def check_loads(self) -> None:
+        """Builds the session now, so a file that is not a model fails here, not mid-run."""
+        self._model._load()
+
 
 # Shortest span worth embedding: below it the pinned networks cannot pad the input.
 _MIN_EMBED_SEC = 0.05
@@ -293,10 +297,24 @@ def resolve_speaker_backend(
     if name == "mock":
         return MockSpeakerBackend()
     if name in ("ecapa-onnx", "ecapa", "auto"):
-        from podcast_mcp.engines.models.speaker_ecapa import speaker_ecapa_problem
+        from podcast_mcp.engines.models.speaker_ecapa import (
+            speaker_ecapa_override,
+            speaker_ecapa_problem,
+        )
 
         if speaker_ecapa_problem() is None:
-            return OnnxEcapaBackend()
+            onnx = OnnxEcapaBackend()
+            if speaker_ecapa_override() is None:
+                return onnx  # the pinned file is hash-checked; a user's own file is not
+            try:
+                onnx.check_loads()
+                return onnx
+            except Exception as exc:
+                log.warning("speaker model override does not load (%s)", exc)
+                if name == "ecapa-onnx":
+                    raise ImportError(
+                        f"speaker backend unavailable: {name} (override does not load: {exc})"
+                    ) from exc
         if name == "ecapa-onnx":
             raise ImportError(f"speaker backend unavailable: {name} ({speaker_ecapa_problem()})")
     if name in ("speechbrain", "ecapa", "auto"):
