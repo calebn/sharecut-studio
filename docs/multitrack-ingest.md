@@ -401,7 +401,7 @@ podcast speaker split --project P --track room --speakers 2 --crosstalk lane --a
 speaker's cluster. Enrolling some speakers and not others works: the rest are clustered
 and numbered by when each first talks. `--name` (repeatable) sets every name in order
 and must include each enrolled name; without it, enrolled speakers come first and the
-rest are `Speaker N`. An enrollment window that the end of the audio cuts to under 50 ms (800 samples at 16 kHz) is dropped, not embedded as a sliver; a shorter-than-a-second window of 50 ms or more is still embedded; a speaker whose spans all lie past the end is refused with `enrollment_past_end`. An enrolled name with no spans is refused with `enrollment_empty` before any audio is read. A real speaker embedding is required (`[speaker]` ECAPA or
+rest are `Speaker N`. An enrollment window that the end of the audio cuts to under 50 ms (800 samples at 16 kHz) is dropped, not embedded as a sliver; a shorter-than-a-second window of 50 ms or more is still embedded; a speaker whose spans all lie past the end is refused with `enrollment_past_end`. An enrolled name with no spans is refused with `enrollment_empty` before any audio is read. Spans must be finite with 0 <= start < end; a bad span, including one with start equal to end, is refused with `enrollment_span_invalid` before any audio is read. A real speaker embedding is required (`[speaker]` ECAPA or
 `[speaker-lite]` Resemblyzer); the CI mock is refused.
 
 **Data shape.** `engines/speaker_split.py` returns a `SpeakerAttribution`: turns that

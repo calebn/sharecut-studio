@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, replace
 from typing import Any
@@ -311,6 +312,9 @@ class SpeakerService:
                     f"or leave {name} out.",
                     code="enrollment_empty",
                 )
+            for start, end in spans:
+                if not (math.isfinite(start) and math.isfinite(end) and 0 <= start < end):
+                    raise _span_invalid(name, f"{start:g} to {end:g}")
         speakers = _speaker_names(count, names, list(enrollment or {}))
         backend = resolve_speaker_backend()
         if backend.name() == "mock":
@@ -460,7 +464,19 @@ def coerce_enrollment(
     """An enrollment map from JSON-shaped ``[[start, end], ...]`` spans to what ``split_speakers`` takes."""
     if not raw:
         return None
+    for name, spans in raw.items():
+        for span in spans:
+            if len(span) != 2:
+                raise _span_invalid(name, repr(span))
     return {name: [(float(s), float(e)) for s, e in spans] for name, spans in raw.items()}
+
+
+def _span_invalid(name: str, shown: str) -> CodedValueError:
+    return CodedValueError(
+        f"{name}'s voice sample {shown} isn't a usable time range. Give a start and end in "
+        "seconds, at 0 or later, with the start before the end.",
+        code="enrollment_span_invalid",
+    )
 
 
 def _speaker_names(count: int, names: Sequence[str] | None, enrolled: list[str]) -> list[str]:
