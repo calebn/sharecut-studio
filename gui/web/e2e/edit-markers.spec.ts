@@ -160,7 +160,7 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
   }
 }
 
-test("a mark draws a 12 px glyph and a chip no taller, and both sit at the lane's top", async ({
+test("a mark is a 12 px glyph and a chip no taller, both in the gutter above the clip", async ({
   page,
 }) => {
   await fiveJoins(page);
@@ -169,10 +169,13 @@ test("a mark draws a 12 px glyph and a chip no taller, and both sit at the lane'
   const [glyph] = await boxes(page, `${lane} .edit-mark`);
   const [shape] = await boxes(page, `${lane} .edit-mark svg`);
   const [chip] = await boxes(page, `${lane} .edit-chip`);
-  expect(shape.width).toBeCloseTo(12, 1);
-  expect(shape.height).toBeCloseTo(12, 1);
-  expect(glyph.height).toBeCloseTo(14, 1);
-  expect(chip.height).toBeCloseTo(14, 1);
+  const [clip] = await boxes(page, `${lane} .clip-block`);
+  expect(shape.width).toBeCloseTo(10, 1);
+  expect(glyph.width).toBeCloseTo(12, 1);
+  expect(glyph.height).toBeCloseTo(12, 1);
+  expect(chip.height).toBeCloseTo(12, 1);
+  expect(glyph.y + glyph.height).toBeLessThanOrEqual(clip.y + 0.01);
+  expect(chip.y + chip.height).toBeLessThanOrEqual(clip.y + 0.01);
   expect(chip.width).toBeLessThanOrEqual(22);
   expect(glyph.y).toBeCloseTo(laneBox.y, 0);
   expect(chip.y).toBeCloseTo(laneBox.y, 0);
@@ -183,7 +186,8 @@ test.describe("dense", () => {
     ["phone", "phone", "phoneLandscape", "phoneLandscape", "tablet", "desktop"],
     0,
   ) as { cell: ViewportName; theme: Theme }[];
-  for (const { cell: viewport, theme } of cells) {
+  for (const appearance of cells) {
+    const { cell: viewport, theme } = appearance;
     test(`thirty joins at fit zoom fold into chips that never touch, at ${viewport} in the ${theme} theme`, async ({
       page,
     }, info) => {

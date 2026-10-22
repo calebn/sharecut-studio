@@ -510,8 +510,8 @@ button.join-seam:focus-visible {
 .edit-mark {
   position: absolute;
   top: 0;
-  width: var(--edit-mark-size);
-  height: var(--edit-mark-size);
+  width: var(--clip-inset-top);
+  height: var(--clip-inset-top);
   translate: -50% 0;
   display: grid;
   place-items: center;
@@ -565,9 +565,9 @@ button.join-seam:focus-visible {
 }
 
 .edit-mark-glyph {
-  /* The mark's content box: its size minus its two 1px borders. */
-  width: calc(var(--edit-mark-size) - 1px - 1px);
-  height: calc(var(--edit-mark-size) - 1px - 1px);
+  /* The mark's content box: the gutter minus its two 1px borders. */
+  width: calc(var(--clip-inset-top) - 1px - 1px);
+  height: calc(var(--clip-inset-top) - 1px - 1px);
   fill: none;
   stroke: var(--edit-mark-color, var(--color-text-on-overlay));
   stroke-width: 2;
@@ -580,9 +580,9 @@ button.join-seam:focus-visible {
 .edit-chip {
   position: absolute;
   top: 0;
-  min-inline-size: var(--edit-mark-size);
+  min-inline-size: var(--clip-inset-top);
   max-inline-size: calc(var(--join-hit-min) - var(--space-0));
-  height: var(--edit-mark-size);
+  height: var(--clip-inset-top);
   translate: -50% 0;
   display: grid;
   place-items: center;
