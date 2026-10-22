@@ -6,11 +6,13 @@ import hashlib
 import ipaddress
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
 import time
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -116,6 +118,25 @@ def report(
     )
 
 
+@contextmanager
+def defer_cancellation() -> Iterator[None]:
+    previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
+    pending: list[int] = []
+
+    def defer(number: int, _frame: object) -> None:
+        pending.append(number)
+
+    try:
+        for number in previous:
+            signal.signal(number, defer)
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+        if pending:
+            signal.raise_signal(pending[0])
+
+
 def acquire(plan: FetchPlan, destination: Path) -> Receipt:
     metadata = isinstance(plan.identity, AptSignedMetadata)
     maximum = (
@@ -141,35 +162,36 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
                         budget - elapsed,
                         plan.budgets.metadata_attempt if metadata else budget,
                     )
-                    process = subprocess.Popen(
-                        [
-                            "curl",
-                            "--disable",
-                            "--silent",
-                            "--show-error",
-                            "--fail",
-                            "--proto",
-                            "=https",
-                            "--connect-timeout",
-                            str(plan.budgets.connect),
-                            "--max-time",
-                            str(max(0.001, timeout)),
-                            "--max-filesize",
-                            str(max(1, maximum)),
-                            "--speed-limit",
-                            str(plan.budgets.low_speed),
-                            "--speed-time",
-                            str(plan.budgets.low_speed_seconds),
-                            "--output",
-                            str(path),
-                            "--write-out",
-                            "%{http_code}\t%{remote_ip}",
-                            plan.urls[index],
-                        ],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    attempts.append(Attempt(process, path))
+                    with defer_cancellation():
+                        process = subprocess.Popen(
+                            [
+                                "curl",
+                                "--disable",
+                                "--silent",
+                                "--show-error",
+                                "--fail",
+                                "--proto",
+                                "=https",
+                                "--connect-timeout",
+                                str(plan.budgets.connect),
+                                "--max-time",
+                                str(max(0.001, timeout)),
+                                "--max-filesize",
+                                str(max(1, maximum)),
+                                "--speed-limit",
+                                str(plan.budgets.low_speed),
+                                "--speed-time",
+                                str(plan.budgets.low_speed_seconds),
+                                "--output",
+                                str(path),
+                                "--write-out",
+                                "%{http_code}\t%{remote_ip}",
+                                plan.urls[index],
+                            ],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL,
+                        )
+                        attempts.append(Attempt(process, path))
                 for index, attempt in enumerate(attempts):
                     if attempt.examined or attempt.process.poll() is None:
                         continue
