@@ -1276,6 +1276,10 @@
         },
         "ProjectMeta": {
           "properties": {
+            "analysis_reads_first_audio_stream": {
+              "default": false,
+              "type": "boolean"
+            },
             "created_at": {
               "type": "string"
             },
@@ -4340,6 +4344,10 @@
         },
         "ProjectMeta": {
           "properties": {
+            "analysis_reads_first_audio_stream": {
+              "default": false,
+              "type": "boolean"
+            },
             "created_at": {
               "type": "string"
             },
