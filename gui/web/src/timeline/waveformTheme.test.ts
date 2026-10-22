@@ -104,6 +104,22 @@ describe("waveformStyle", () => {
     ).not.toBe(s);
   });
 
+  it("tints a join wave from its own wash, not the peak fallback", () => {
+    const wave = document.createElement("span");
+    wave.className = "join-blend-wave";
+    wave.style.background = "rgb(13, 126, 117)";
+    const layer = document.createElement("div");
+    wave.appendChild(layer);
+    document.body.appendChild(wave);
+    const s = waveformStyle(layer, "join-blend-left", "dark");
+    expect([...s.core].map((v) => Math.round(v * 255))).toEqual([
+      122, 184, 179, 255,
+    ]);
+    expect(
+      waveformStyle(clipLayer("rgb(1, 2, 3)"), "join-blend-left", "dark"),
+    ).toBe(s);
+  });
+
   it("falls back to the peak colour, edge at 0.6 alpha, without caching", () => {
     const layer = clipLayer("transparent");
     const s = waveformStyle(layer, "var(--color-clip-sfx)", "dark");

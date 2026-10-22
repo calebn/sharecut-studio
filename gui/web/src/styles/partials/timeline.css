@@ -31,6 +31,12 @@
   opacity: var(--mute-waveform-opacity);
 }
 
+.lane-row:is(.muted, .mute-implied) .join-blend-waves,
+.lane-row:is(.muted, .mute-implied) .join-blend-seam {
+  filter: grayscale(1);
+  opacity: var(--mute-waveform-opacity);
+}
+
 /* The sweep is a transform on a pseudo-element, so the compositor keeps it
    moving while the main thread parses a large project; animating the
    background-position froze it for the seconds the load takes (#1750). */
