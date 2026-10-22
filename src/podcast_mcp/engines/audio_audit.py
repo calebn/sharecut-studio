@@ -181,6 +181,8 @@ def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float 
         ffmpeg or resolve_ffmpeg(),
         "-i",
         str(path),
+        "-map",
+        "0:a:0",
         "-af",
         "astats=metadata=1:reset=0",
         "-f",

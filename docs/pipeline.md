@@ -505,7 +505,7 @@ path and file stamp until the file changes, or until it is the least recently us
 answers. The analysis decoders map `0:a:0` the same way (#2110): `load_mono_full`,
 `load_channels_full`, the decoded-source spool, the `load_mono_window` fallback,
 `stream_pcm_f32`, `stream_mono_f32`, `decode_window_f32`, `extract_segment`,
-`measure_loudness_blocks` and the join-continuity click batches read the first audio
+`measure_loudness_blocks`, `measure_loudness` (`check_loudness`), `measure_astats` (#2131) and the join-continuity click batches read the first audio
 stream, as the render graph's `[i:a]` does, so a file with several audio streams is
 judged on the stream it plays. A graph over 8,000 characters goes to `-/filter_complex <file>` (and
 `-graph_file <file> -i dummy` for the dry run) so it does not count against the command line.
