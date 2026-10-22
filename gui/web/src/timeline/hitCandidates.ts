@@ -56,24 +56,6 @@ export function hitRadiusPx(pointerType: string): number {
   return pointerType === "touch" ? TOUCH_HIT_RADIUS_PX : 0;
 }
 
-export function reachRect(
-  rect: HitRect,
-  kind: HitKind,
-  pointerType: string,
-): HitRect {
-  const min = (HIT_KINDS[kind] as HitKindContract).minBoxPx;
-  if (!min) return rect;
-  const side = pointerType === "touch" ? min.touch : min.pointer;
-  const dx = Math.max(0, side - (rect.right - rect.left)) / 2;
-  const dy = Math.max(0, side - (rect.bottom - rect.top)) / 2;
-  return {
-    left: rect.left - dx,
-    top: rect.top - dy,
-    right: rect.right + dx,
-    bottom: rect.bottom + dy,
-  };
-}
-
 /** Pointer to the box, 0 inside it. */
 export function rectDistance(rect: HitRect, p: HitPoint): number {
   const dx = p.x - clamp(p.x, rect.left, rect.right);

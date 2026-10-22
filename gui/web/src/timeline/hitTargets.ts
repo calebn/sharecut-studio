@@ -10,9 +10,8 @@ import {
   type HitTarget,
   hitRadiusPx,
   rankHitTargets,
-  reachRect,
 } from "./hitCandidates";
-import { type HitKind, isHitKind } from "./inputContract";
+import { type HitKind, isHitKind, surfaceTapReach } from "./inputContract";
 
 const KIND_ATTR = "data-hit-kind";
 const SURFACE_ATTR = "data-hit-surface";
@@ -80,7 +79,7 @@ export function hitDetail(element: Element): string | null {
 
 type DomTarget = HitTarget & { element: Element };
 
-function readTarget(element: Element, pointerType: string): DomTarget | null {
+function readTarget(element: Element): DomTarget | null {
   const kind = element.getAttribute(KIND_ATTR);
   if (!isHitKind(kind)) {
     return null;
@@ -93,20 +92,18 @@ function readTarget(element: Element, pointerType: string): DomTarget | null {
     element,
     kind,
     id: element.getAttribute("data-hit-id") ?? "",
-    rect: reachRect(
-      { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
-      kind,
-      pointerType,
-    ),
+    rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
     selected:
       element.getAttribute("data-hit-selected") === "true" ||
-      (kind !== "envelope-line" && element === document.activeElement),
+      (kind !== "envelope-line" &&
+        !surfaceTapReach(kind) &&
+        element === document.activeElement),
   };
 }
 
 /** Painted, hit-testable, and not covered by chrome outside `root`. */
-function reachable(root: Element, target: DomTarget, at: HitPoint): boolean {
-  const style = getComputedStyle(target.element);
+function reachable(root: Element, element: Element, at: HitPoint): boolean {
+  const style = getComputedStyle(element);
   if (style.pointerEvents === "none" || style.visibility !== "visible") {
     return false;
   }
@@ -128,7 +125,7 @@ export function resolveHits(
 ): ResolvedHit[] {
   const targets: DomTarget[] = [];
   for (const element of root.querySelectorAll(`[${KIND_ATTR}]`)) {
-    const target = readTarget(element, pointerType);
+    const target = readTarget(element);
     if (target) {
       targets.push(target);
     }
@@ -139,6 +136,36 @@ export function resolveHits(
     pointer,
     hitRadiusPx(pointerType),
     hitTarget,
-    (target, at) => reachable(root, target, at),
+    (target, at) => reachable(root, target.element, at),
   ).map(({ candidate, target }) => ({ candidate, element: target.element }));
+}
+
+/**
+ * The mark a finger's tap on a plain surface goes to: the nearest target of a
+ * kind with a `surfaceTap` reach whose horizontal reach and top-down height
+ * hold the point. Nothing above a mark's top, in the lane above, or lower in
+ * its lane is taken.
+ */
+export function surfaceTapTarget(root: Element, at: HitPoint): Element | null {
+  let best: Element | null = null;
+  let bestDx = Number.POSITIVE_INFINITY;
+  for (const element of root.querySelectorAll(`[${KIND_ATTR}]`)) {
+    const kind = element.getAttribute(KIND_ATTR);
+    const reach = isHitKind(kind) ? surfaceTapReach(kind) : undefined;
+    if (!reach) continue;
+    const box = element.getBoundingClientRect();
+    const dx = Math.max(box.left - at.x, at.x - box.right, 0);
+    if (
+      dx > reach.reachPx ||
+      at.y < box.top ||
+      at.y > box.top + reach.heightPx ||
+      dx >= bestDx ||
+      !reachable(root, element, at)
+    ) {
+      continue;
+    }
+    best = element;
+    bestDx = dx;
+  }
+  return best;
 }

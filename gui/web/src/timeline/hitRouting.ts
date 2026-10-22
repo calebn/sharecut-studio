@@ -67,6 +67,7 @@ import {
   hitTimeSec,
   type ResolvedHit,
   resolveHits,
+  surfaceTapTarget,
 } from "./hitTargets";
 import {
   type DragAxis,
@@ -75,7 +76,7 @@ import {
   isHitKind,
   longPressAction,
   needsDirectHit,
-  takesSurfaceTap,
+  surfaceTapReach,
 } from "./inputContract";
 
 const replayed = new WeakSet<Event>();
@@ -240,6 +241,11 @@ export interface HitRoutingOptions {
    * drag; the arming finger's moves and lift go to it until commit or cancel.
    */
   precision?: PrecisionHandoff;
+  /**
+   * Whether a tap on a plain surface may go to a nearby mark. Off in blade and
+   * comment mode, where such a tap cuts or comments at the finger.
+   */
+  surfaceTaps?: () => boolean;
 }
 
 export interface PrecisionHandoff {
@@ -298,6 +304,8 @@ type Phase =
       at: HitPoint;
       hits: ResolvedHit[];
       winner: Element;
+      /** Where a tap goes: the winner, or a mark a finger's tap reaches. */
+      tap: Element;
     }
   | {
       kind: "open";
@@ -656,13 +664,10 @@ export function attachHitRouting(
     const hits = resolveHits(part, origin, event.pointerType, hit);
     const directKind = targetOf(hit)?.kind;
     // A target with no box yet is ranked nowhere, so the press stays its own.
-    const surfaceTarget = hit
-      ? undefined
-      : hits.find(({ candidate }) => takesSurfaceTap(candidate.kind));
     const winner =
       hit && !isBody(hit) && !(directKind && needsDirectHit(directKind))
         ? (hits[0]?.element ?? hit)
-        : (surfaceTarget?.element ?? hit ?? event.target);
+        : (hit ?? event.target);
     const touch = event.pointerType === "touch";
     // One finger moving never edits: every touch, on a selected target too,
     // waits for the press layer, which arms only on a long press. An armed
@@ -675,6 +680,12 @@ export function attachHitRouting(
         at: origin,
         hits,
         winner,
+        tap:
+          !hit &&
+          (options.surfaceTaps?.() ?? true) &&
+          hits.every(({ candidate }) => surfaceTapReach(candidate.kind))
+            ? (surfaceTapTarget(part, origin) ?? winner)
+            : winner,
       };
       return;
     }
@@ -809,11 +820,11 @@ export function attachHitRouting(
         phase.at = at;
         const press = settle();
         if (!press) return;
-        const { winner, down, origin } = press;
-        report(winner);
-        replayPointer("pointerdown", winner, down, origin);
-        replayPointer("pointerup", winner, event, origin);
-        deferClick(winner, event, origin);
+        const { tap, down, origin } = press;
+        report(tap);
+        replayPointer("pointerdown", tap, down, origin);
+        replayPointer("pointerup", tap, event, origin);
+        deferClick(tap, event, origin);
         return;
       }
       case "open": {
