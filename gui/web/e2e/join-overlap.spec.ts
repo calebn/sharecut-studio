@@ -38,32 +38,38 @@ async function visibleSpan(tiles: Locator, waves: Locator) {
     ),
   };
 }
-async function centreOn(page: Page, target: Locator) {
+async function centreOn(page: Page, target: Locator, at = 0.3) {
   const b = await box(target);
   await page.locator(".timeline-scroll").evaluate(
     (el, x) => {
       const r = el.getBoundingClientRect();
-      el.scrollLeft += x - (r.left + r.width / 2);
+      el.scrollLeft += x.centre - (r.left + r.width * x.at);
     },
-    b.x + b.width / 2,
+    { centre: b.x + b.width / 2, at },
   );
+  await page.waitForTimeout(150);
 }
 async function shoot(page: Page, lane: Locator, name: string) {
   mkdirSync(SHOTS, { recursive: true });
   await page.screenshot({ path: `${SHOTS}/${name}.png` });
   const blend = await box(lane.locator(".join-blend"));
   const laneBox = await box(lane);
-  const x = Math.max(0, blend.x + blend.width / 2 - 40);
+  const vw = page.viewportSize()!.width;
+  const w = Math.min(240, vw);
+  const x = Math.min(Math.max(0, blend.x + blend.width / 2 - w / 2), vw - w);
+  console.log(`SHOT ${name} overlap=${blend.width.toFixed(2)}px`);
   await page.screenshot({
     path: `${SHOTS}/${name}-crop.png`,
     clip: {
       x,
-      y: laneBox.y,
-      width: Math.min(80, page.viewportSize()!.width - x),
-      height: laneBox.height,
+      y: Math.max(0, laneBox.y - 24),
+      width: w,
+      height: laneBox.height + 32,
     },
   });
 }
+
+test.use({ deviceScaleFactor: 2 });
 
 for (const vp of VIEWPORTS) {
   test(`crossfade overlap draws two waveforms across the exact overlap at ${vp.name}`, async ({
@@ -105,6 +111,10 @@ for (const vp of VIEWPORTS) {
       const waves = lane.locator(".join-blend-waves");
       const tiles = waves.locator("canvas.clip-waveform-tile");
       await expect(blend).toBeAttached();
+      const position = page.getByRole("slider", { name: "Timeline position" });
+      await position.focus();
+      await page.keyboard.press("Home");
+      await centreOn(page, blend);
 
       const fitWidth = await blendWidth(blend);
       const fitBox = await box(blend);
@@ -127,21 +137,21 @@ for (const vp of VIEWPORTS) {
       }
       await shoot(page, lane, `${vp.name}-fit`);
 
-      await page.getByRole("slider", { name: "Timeline position" }).focus();
+      await position.focus();
       let mid = false;
       for (let i = 0; i < 60 && (await blendWidth(blend)) < 6; i++) {
         await page.keyboard.press("+");
         const w = await blendWidth(blend);
-        if (!mid && w >= 2 && w < 6) {
+        if (!mid && w >= 2.5 && w < 6) {
           mid = true;
-          await blend.scrollIntoViewIfNeeded();
-          await shoot(page, lane, `${vp.name}-mid`);
+          await centreOn(page, blend);
+          await shoot(page, lane, `${vp.name}-3px`);
+          await position.focus();
         }
       }
+      expect(mid).toBe(true);
       expect(await blendWidth(blend)).toBeGreaterThanOrEqual(6);
-      await page.keyboard.press("Home");
-      await blend.scrollIntoViewIfNeeded();
-      await badge.scrollIntoViewIfNeeded();
+      await centreOn(page, blend);
       await expect(seam).toHaveCount(0);
 
       const badgeBefore = await box(badge);
@@ -168,7 +178,7 @@ for (const vp of VIEWPORTS) {
           centre,
         ),
       ).toBe(true);
-      await shoot(page, lane, `${vp.name}-zoomed`);
+      await shoot(page, lane, `${vp.name}-6px`);
 
       await badge.click();
       const grip = page.getByRole("button", {
@@ -178,6 +188,17 @@ for (const vp of VIEWPORTS) {
       const gripBefore = await box(grip);
       const widthBefore = await blendWidth(blend);
       expectSameBox(await box(badge), badgeBefore, 0.5);
+      const badgeWith = await box(badge);
+      const hide = await page.addStyleTag({
+        content: ".join-blend-waves{display:none !important}",
+      });
+      await page.waitForTimeout(100);
+      expectSameBox(await box(grip), gripBefore);
+      expectSameBox(await box(badge), badgeWith);
+      await hide.evaluate((el) => (el as Element).remove());
+      await page.waitForTimeout(100);
+      expectSameBox(await box(grip), gripBefore);
+      expectSameBox(await box(badge), badgeWith);
       const grab = await page.evaluate(({ x, y, width, height }) => {
         for (let dy = 0.5; dy < 1; dy += 0.1)
           for (let dx = 0.5; dx < 1; dx += 0.1) {
@@ -203,12 +224,12 @@ for (const vp of VIEWPORTS) {
       ).toBeLessThanOrEqual(0.5);
       await page.keyboard.press("Escape");
       await page.mouse.up();
-      await page.getByRole("slider", { name: "Timeline position" }).focus();
+      await position.focus();
       for (let i = 0; i < 20 && (await blendWidth(blend)) < 40; i++)
         await page.keyboard.press("+");
       await centreOn(page, blend);
       await expect(tiles).toHaveCount(2);
-      await shoot(page, lane, `${vp.name}-wide`);
+      await shoot(page, lane, `${vp.name}-40px`);
     } finally {
       await page.keyboard.press("Escape");
       await page.evaluate(() =>

@@ -28,7 +28,6 @@ const right = (ms: number, extra = {}) =>
 const waves: JoinWaveSides = {
   leftRef: "source:a",
   rightRef: "source:b",
-  leftColor: "var(--color-clip-dialogue-0)",
   role: "dialogue",
   gainDb: -3,
 };
@@ -67,14 +66,14 @@ describe("JoinBlend overlap waveforms", () => {
       mediaStartSec: 4.9,
       clipLeftCss: 490,
       clipWidthCss: 20,
-      colorVar: "var(--color-clip-dialogue-0)",
+      colorVar: "join-blend-left",
       minWidthCss: 1,
       zoom: 100,
     });
     expect(r).toMatchObject({
       mediaRef: "source:b",
       mediaStartSec: 4.9,
-      colorVar: "var(--color-accent)",
+      colorVar: "join-blend-right",
       minWidthCss: 1,
     });
   });

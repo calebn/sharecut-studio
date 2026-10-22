@@ -241,7 +241,7 @@ export function waveformStyle(
   if (cached) {
     return cached;
   }
-  const clip = layerEl.closest(".clip-block");
+  const clip = layerEl.closest(".clip-block, .join-blend-wave");
   const tint = clip && clipWaveformFill(getComputedStyle(clip).backgroundColor);
   const core = tint && rgba(tint.core);
   const edge = tint && rgba(tint.edge);

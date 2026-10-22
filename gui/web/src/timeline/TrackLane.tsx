@@ -463,7 +463,6 @@ export function TrackLaneView({
               waves={{
                 leftRef: clipMediaRef(prev, track, "raw"),
                 rightRef: clipMediaRef(right, track, "raw"),
-                leftColor: laneColor(track.role, trackIndex),
                 role: track.role,
                 gainDb: trackOutputGainDb(track),
               }}
