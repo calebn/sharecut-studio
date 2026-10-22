@@ -3,6 +3,7 @@ from __future__ import annotations
 import struct
 import wave
 from pathlib import Path
+from subprocess import CompletedProcess
 from unittest.mock import patch
 
 import pytest
@@ -73,11 +74,17 @@ def test_deep_connected_chain_traverses_and_compiles_in_order(tmp_path: Path):
     assert duration(chain) == pytest.approx(198.02)
     assert [leaf.path for leaf in sources(chain)] == [leaf.path for leaf in leaves]
 
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    graphs: list[str] = []
+
+    def read_graph(command, *args, **kwargs):
+        graphs.append(Path(command[command.index("-/filter_complex") + 1]).read_text("utf-8"))
+        return CompletedProcess(command, 0)
+
+    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=read_graph) as run:
         FFmpegEngine().render_timeline(tmp_path / "deep.wav", chain, "anull")
 
     command = run.call_args.args[0]
-    expression = command[command.index("-filter_complex") + 1]
+    (expression,) = graphs
     assert expression.count("acrossfade=d=0.02:c1=tri:c2=tri") == 1099
     assert "[a1099]acrossfade=d=0.02:c1=tri:c2=tri[node1098]" in expression
     map_index = command.index("-map")

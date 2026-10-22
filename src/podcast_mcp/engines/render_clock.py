@@ -4,8 +4,10 @@ import errno
 import json
 import re
 import struct
+import tempfile
 import wave
 from collections.abc import Callable
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import CalledProcessError, CompletedProcess
@@ -55,6 +57,7 @@ _WAV_SUBFORMATS = {
     bytes.fromhex("0300000000001000800000aa00389b71"): 3,
 }
 _NATIVE_FORMATS: BoundedCache[tuple[str, Path, FileStamp], ObservedAudio] = BoundedCache(1024)
+_INLINE_GRAPH_MAX_CHARS = 8_000
 _WAV_EXTENSIBLE = 0xFFFE
 _WAV_MAX_CHUNKS = 64
 _WAV_MAX_FMT_BYTES = 256
@@ -91,6 +94,21 @@ def spawn_or_too_long(
                 code="render_command_too_long",
             ) from error
         raise
+
+
+def graph_file(graph: str, scratch: ExitStack | Path) -> Path | None:
+    """``graph`` written to a file when it is too long for the command line, else ``None``.
+
+    ``scratch`` is the directory to write under, or the stack that owns a temporary one made
+    only when a file is needed. Windows allows 32,767 characters for a whole command line.
+    """
+    if len(graph) <= _INLINE_GRAPH_MAX_CHARS:
+        return None
+    if isinstance(scratch, ExitStack):
+        scratch = Path(scratch.enter_context(tempfile.TemporaryDirectory(prefix=".render-graph-")))
+    path = scratch / "graph.txt"
+    path.write_text(graph, encoding="utf-8", newline="\n")
+    return path
 
 
 def validate_format(audio: ObservedAudio) -> None:
@@ -306,26 +324,29 @@ def _configured_ports(
             f"[descriptor_{i}]atrim@input_trim_{i}[input_{i}]"
         )
     configured.append("[config_output]aformat=sample_fmts=s16[out]")
-    result = spawn_or_too_long(
-        run,
-        [
-            ffprobe,
-            "-v",
-            "error",
-            "-f",
-            "lavfi",
-            "-dumpgraph",
-            "1",
-            "-show_streams",
-            "-print_format",
-            "json",
-            "-nofind_stream_info",
-            ";".join(configured),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    graph = ";".join(configured)
+    with ExitStack() as stack:
+        file = graph_file(graph, stack)
+        result = spawn_or_too_long(
+            run,
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-dumpgraph",
+                "1",
+                "-show_streams",
+                "-print_format",
+                "json",
+                "-nofind_stream_info",
+                *([graph] if file is None else ["-graph_file", str(file), "-i", "dummy"]),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
     return _ascii_ports(result.stderr)
 
 
