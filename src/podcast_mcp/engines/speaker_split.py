@@ -178,14 +178,11 @@ def _enrollment_centers(
 
 def _enrollment_centroids(
     samples: np.ndarray,
-    enrollment: Mapping[int, Sequence[Span]],
+    by_speaker: Mapping[int, Sequence[float]],
     window_sec: float,
     backend: SpeakerBackend,
     after_window: Callable[[], None] | None = None,
-    by_speaker: Mapping[int, Sequence[float]] | None = None,
 ) -> dict[int, np.ndarray]:
-    if by_speaker is None:
-        by_speaker = _enrollment_centers(samples, enrollment, window_sec)
     return {
         speaker: _unit(
             _embed(samples, np.array(centers), window_sec, backend, after_window).mean(axis=0)
@@ -398,9 +395,7 @@ def attribute_speakers(
             raise_if_cancel_requested(cancel_check)
             task.advance(1)
 
-        enrolled = _enrollment_centroids(
-            samples, enrollment, window_sec, backend, embedded_one, by_speaker
-        )
+        enrolled = _enrollment_centroids(samples, by_speaker, window_sec, backend, embedded_one)
         embeddings = _embed(samples, centers, window_sec, backend, embedded_one)
         centroids = _cluster(embeddings, speaker_count, enrolled)
         task.advance(1)
