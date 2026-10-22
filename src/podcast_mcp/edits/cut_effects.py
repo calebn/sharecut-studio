@@ -15,7 +15,7 @@ from podcast_mcp.edits.cut_policy import (
     CutJoin,
 )
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
-from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource, SourceAudio
+from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource
 from podcast_mcp.engines.session_timeline import (
     clip_plays_lane,
 )
@@ -216,7 +216,7 @@ def completed_audio_effects(
                 if binding == index
             ]
             for start, end in subtract_intervals(
-                [(leaf.source.nominal_start, leaf.source.nominal_end)], surviving
+                [(leaf.source.src_start, leaf.source.src_end)], surviving
             ):
                 append(leaf, start, end, CutJoin.SPLICE, before_leaf=leaf)
     return tuple(effects)
@@ -301,26 +301,46 @@ def _before_occurrences(
         if binding is None:
             continue
         if any(
-            other_binding == binding and _replays_source(new[i].source, other.source)
+            other_binding == binding and _replays_source(new[i], other)
             for other, other_binding in zip(new[:i], bindings[:i], strict=True)
         ):
             raise DuplicateSourceOccurrence("duplicated BEFORE source occurrence")
     return bindings
 
 
-def _replays_source(a: SourceAudio, b: SourceAudio) -> bool:
+def _replays_source(a: PlacedSource, b: PlacedSource) -> bool:
     """Whether two leaves bound to one old leaf play the same source audio twice.
 
-    Borrowed crossfade audio overlapping is fine inside continuous audio, but not when the
-    clips' own ranges are separated by a removed gap the borrowed tails would replay.
+    Borrowed audio overlapping is only harmless between the two leaves a blending join
+    itself places together over contiguous clip ranges; any other widened overlap, or a
+    removed gap the borrowed tails would replay, is a replay.
     """
 
     tolerance = SOURCE_GEOMETRY_TOLERANCE_SEC
-    gap = max(a.nominal_start, b.nominal_start) - min(a.nominal_end, b.nominal_end)
+    first, second = (a, b) if a.timeline_start <= b.timeline_start else (b, a)
+    gap = max(a.source.nominal_start, b.source.nominal_start) - min(
+        a.source.nominal_end, b.source.nominal_end
+    )
     if -gap > tolerance:
         return True
-    widened = min(a.src_end, b.src_end) - max(a.src_start, b.src_start)
-    return widened > tolerance and gap > tolerance
+    widened = min(a.source.src_end, b.source.src_end) - max(a.source.src_start, b.source.src_start)
+    if widened <= tolerance or gap > tolerance:
+        return widened > tolerance and gap > tolerance
+    return not _joined_partners(first, second)
+
+
+def _joined_partners(first: PlacedSource, second: PlacedSource) -> bool:
+    """Whether a blending join placed `second` directly after `first` over contiguous ranges."""
+
+    tolerance = SOURCE_GEOMETRY_TOLERANCE_SEC
+    left, right = first.source, second.source
+    if left.reach_out <= 0 or right.reach_in <= 0:
+        return False
+    if abs(left.nominal_end - right.nominal_start) > tolerance:
+        return False
+    overlap = left.reach_out + right.reach_in
+    joined_at = first.timeline_start + (left.src_end - left.src_start) - overlap
+    return abs(second.timeline_start - joined_at) <= tolerance
 
 
 @dataclass(frozen=True)

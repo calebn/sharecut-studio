@@ -1715,6 +1715,71 @@ def test_a_source_range_placed_twice_is_still_a_duplicate(tmp_path, fade_ms):
         cut_effects.completed_audio_effects(project, candidate, frozenset({"remove"}), defaults={})
 
 
+def _clip(clip_id, start, end, at, *, fade_ms=0, join=None):
+    return Clip(
+        id=clip_id,
+        track_id="host",
+        source_start=start,
+        source_end=end,
+        timeline_start=at,
+        fade_out_ms=fade_ms if join is None else 0,
+        fade_in_ms=fade_ms if join is not None else 0,
+        **({"join_in_mode": join} if join is not None else {}),
+    )
+
+
+def _project_pair(tmp_path, before, after):
+    # Both projects share one directory so the recordings bind.
+    project = EpisodeProject.create("pair", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10),
+        )
+    ]
+    write_wav(tmp_path / "raw/host.wav", room(seconds=10, seed=2035))
+    project.clips = before
+    candidate = project.model_copy(deep=True)
+    candidate.clips = after
+    return project, candidate
+
+
+def test_borrowed_tail_meeting_a_clip_that_is_not_its_partner_is_a_duplicate(tmp_path):
+    xfade = ClipJoinMode.CROSSFADE
+    a = Clip(
+        id="a", track_id="host", source_start=0, source_end=2, timeline_start=0, fade_out_ms=200
+    )
+    project, candidate = _project_pair(
+        tmp_path,
+        [Clip(id="w", track_id="host", source_start=0, source_end=9, timeline_start=0)],
+        [a, _clip("d", 7, 9, 2, fade_ms=200, join=xfade), _clip("b", 2, 5, 4)],
+    )
+    with pytest.raises(cut_effects.DuplicateSourceOccurrence):
+        cut_effects.completed_audio_effects(project, candidate, frozenset({"remove"}), defaults={})
+
+
+def test_a_heard_crossfade_tail_is_still_removed_when_the_join_becomes_a_cut(tmp_path):
+    xfade = ClipJoinMode.CROSSFADE
+    project, candidate = _project_pair(
+        tmp_path,
+        [_clip("a", 0, 2, 0, fade_ms=200), _clip("b", 2.3, 5, 2, fade_ms=200, join=xfade)],
+        [_clip("a", 0, 2, 0), _clip("b", 2.3, 5, 2)],
+    )
+    effects = cut_effects.completed_audio_effects(
+        project, candidate, frozenset({"remove"}), defaults={}
+    )
+    removals = sorted(
+        (round(e.start, 4), round(e.end, 4))
+        for e in effects
+        if e.join is cut_effects.CutJoin.SPLICE
+        and e.end - e.start > cut_effects.SOURCE_GEOMETRY_TOLERANCE_SEC
+        and not e.retained
+    )
+    assert removals == [(2.0, 2.1), (2.2, 2.3)]
+
+
 @pytest.mark.parametrize(
     ("window", "expected"),
     [
