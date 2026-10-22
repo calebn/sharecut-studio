@@ -163,7 +163,7 @@ def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool, blended: bool
 def restore_applies(project: EpisodeProject, track: Track, *, gated: bool | None = None) -> bool:
     """Whether the render adds a bleed-restore step after the track's tree.
 
-    ``gated`` overrides the track's transcript gate (False: the gate is left off).
+    ``gated`` overrides the track's transcript gate. Pass False to leave the gate off.
     """
     gated = track.transcript_gate if gated is None else gated
     return any(
@@ -237,11 +237,7 @@ def render_track_from_timeline(
 
 
 def unfiltered_audio_decline(project: EpisodeProject, track: Track) -> str | None:
-    """Why the track's render adds a step after its tree, else None.
-
-    The track is read as the evidence copies do: transcript gate off and the effects chain
-    left out, so neither is a step here.
-    """
+    """Return the reason the track's render adds a step after its tree, or None if it adds none."""
     if not track.media or not clips_for_track(project, track.id):
         return "empty"
     envelope = project.volume_envelope_for(track.id)
@@ -255,9 +251,11 @@ def unfiltered_audio_decline(project: EpisodeProject, track: Track) -> str | Non
 def unfiltered_track_audio(
     project: EpisodeProject, track: Track, defaults: EffectiveConfig
 ) -> tuple[Audio, str] | None:
-    """The tree ``render_track_from_timeline`` renders and its crossfade curve, when that
-    render with the gate off and the chain left out adds no filter or restore step after
-    the tree; else None."""
+    """Return the tree that ``render_track_from_timeline`` renders, with its crossfade curve.
+
+    Return None if that render, with the gate off and the chain left out, adds a filter or
+    restore step after the tree.
+    """
     if unfiltered_audio_decline(project, track) is not None:
         return None
     curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))

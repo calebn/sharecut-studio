@@ -1,14 +1,15 @@
-"""The audio a track is heard as, evaluated from its tree and shared across a batch (#1958).
+"""Evidence for how a track sounds with the transcript gate off and the effects chain left out, evaluated from its tree and shared across a batch (#1958).
 
 Cut approval reads a track as the listener would hear it with the transcript gate off and the
 effects chain left out. Rendering that with ffmpeg and decoding the wav costs a minute for a
-long episode, and the same audio is wanted again for every cut that leaves the track as it
-was. :func:`heard` and :func:`rms` return that audio from the track's ``Audio`` tree
-(:mod:`~podcast_mcp.engines.audio_eval`), and keep it while a batch runs under a key that
-names everything the evaluator reads, so a repeat is a hit and a changed track is a miss.
+long episode, and every cut that leaves the track unchanged needs the same audio again.
+:func:`heard` and :func:`rms` return that audio from the track's ``Audio`` tree
+(:mod:`~podcast_mcp.engines.audio_eval`). They store it for the length of a batch under a key
+that names everything the evaluator reads. A repeat call hits the store and a changed track
+misses.
 
-A track whose render adds a step after its tree (a volume envelope, bleed restore) or whose
-tree the evaluator does not take keeps the render, and the reason is logged.
+A track whose render adds a step after its tree (a volume envelope, bleed restore), or whose
+tree the evaluator cannot take, still uses the render. The module logs the reason.
 """
 
 from __future__ import annotations
@@ -46,22 +47,18 @@ from podcast_mcp.util.project_state import (
 
 _LOG = logging.getLogger(__name__)
 
-# What the store keeps while a batch runs (one hour of one track is 345 MB at both rates).
-# The bound is per batch scope, not per process. Settable.
 EVIDENCE_CACHE_BYTES = 1 << 30
 VERIFY_ENV = "PODCAST_EVIDENCE_VERIFY"
 RENDER_PREFIX = "sharecut-evidence-render-"
 _STORE_KEY = "track_evidence_store"
-# The rates of edits.audio_cache.TrackAudioCache: window RMS reads, and waveform scoring.
 JUMP_SAMPLE_RATE = 8000
 WAVEFORM_SAMPLE_RATE = PROFILE_SAMPLE_RATE
-# Both rates come from one pass over the tree, so any caller's 8 kHz array is the same one.
 _RATES = (JUMP_SAMPLE_RATE, WAVEFORM_SAMPLE_RATE)
 _store_creation = threading.Lock()
 
 
 class Declined(Enum):
-    """Why a track's evidence comes from the render. The value is what the log says.
+    """Why a track's evidence comes from the render.
 
     ``empty``, ``envelope`` and ``bleed_restore`` are what ``timeline_render`` reports.
     """
@@ -77,11 +74,7 @@ class Declined(Enum):
 
 @dataclass(frozen=True)
 class EvidenceKey:
-    """Everything the evaluator reads: two equal keys evaluate to the same samples.
-
-    ``tree`` is the whole of the evaluator's input except the audio files, which
-    ``revisions`` names; ``curve`` is the one ``defaults`` value the tree is read with.
-    """
+    """Everything the evaluator reads: two equal keys evaluate to the same samples."""
 
     tree: Audio
     curve: str
@@ -101,7 +94,6 @@ class _Entry:
         return sum(array.nbytes for array in self.samples.values())
 
     def cache(self, rate: int) -> TrackRmsCache:
-        """A cache over the stored array, with the profile measured once per entry."""
         if rate not in self._profiles:
             self._profiles[rate] = track_profile(self.samples[rate], rate)
         return TrackRmsCache(
@@ -111,17 +103,14 @@ class _Entry:
 
 @dataclass(frozen=True)
 class HeardAudio:
-    """A track as heard at both evidence resolutions: ``edits.audio_cache.TrackAudioCache``'s fields.
-
-    ``engines`` sits below ``edits``, so the caller builds its ``TrackAudioCache`` from these.
-    """
+    """A track as heard at both evidence resolutions: ``edits.audio_cache.TrackAudioCache``'s fields."""
 
     jump: TrackRmsCache
     waveform: TrackRmsCache
 
 
 def heard(project: EpisodeProject, track_id: str, defaults: EffectiveConfig) -> HeardAudio:
-    """The track as heard (gate off, effects chain left out) at both evidence resolutions."""
+    """Return the track as heard, with the transcript gate off and the effects chain left out, at both evidence resolutions."""
     entry = _entry(project, track_id, defaults, locked=False)
     if isinstance(entry, Declined):
         with _rendered(project, track_id, defaults, entry, locked=False) as path, unscoped():
@@ -137,10 +126,11 @@ def heard(project: EpisodeProject, track_id: str, defaults: EffectiveConfig) -> 
 def rms(
     project: EpisodeProject, track_id: str, defaults: EffectiveConfig, *, private: bool = False
 ) -> TrackRmsCache:
-    """The track as heard (gate off, effects chain left out) for window reads at 8 kHz.
+    """Return the track as heard, with the transcript gate off and the effects chain left out, for window reads at 8 kHz.
 
-    ``private`` says ``project`` is a copy only the caller holds, so reading it takes no
-    project lock: a pool worker inside a mutation does not own the lock (#1471).
+    Pass ``private=True`` when ``project`` is a copy that only the caller holds. Reading it
+    then takes no project lock, because a pool worker inside a mutation does not own that
+    lock (#1471).
     """
     entry = _entry(project, track_id, defaults, locked=not private)
     if isinstance(entry, Declined):
@@ -152,7 +142,7 @@ def rms(
 def _plan(
     project: EpisodeProject, track_id: str, defaults: EffectiveConfig
 ) -> tuple[EvidenceKey, Audio] | Declined:
-    """The track's tree with its key, or why its evidence needs the render."""
+    """Return the track's tree and its key, or the reason its evidence needs the render."""
     track = project.track_by_id(track_id)
     if track is None:
         raise CodedValueError(
@@ -176,11 +166,11 @@ def _plan(
 
 
 def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
-    """``tree`` at both evidence rates from one pass over it, or why the evaluator takes it not.
+    """Evaluate ``tree`` in one pass and return its samples at both evidence rates, or the reason the evaluator cannot take it.
 
-    The tree is evaluated at the sources' own rate, in chunks, and converted once per rate as
-    decoding the render's wav is: slices start between samples, and slicing a decode at the
-    target rate instead would shift every cut by a fraction of a sample.
+    The evaluator works in chunks at the sources' own rate and converts once per rate, as
+    decoding the render's wav does. Slices start between samples, so slicing a decode at the
+    target rate would shift every cut by a fraction of a sample.
     """
     if not single_layout(tree):
         return Declined.MIXED_LAYOUT
@@ -213,10 +203,7 @@ def _entry(
 
 
 class _Store:
-    """The batch's evidence, least recently used out first once past ``EVIDENCE_CACHE_BYTES``.
-
-    A decline is remembered too: the tree is not evaluated again to be declined again.
-    """
+    """Evidence for one batch. When the stored size passes ``EVIDENCE_CACHE_BYTES``, the store drops the least recently used entries first."""
 
     def __init__(self) -> None:
         self._entries: OrderedDict[EvidenceKey, _Entry] = OrderedDict()
@@ -277,16 +264,14 @@ class _Store:
 
 
 def _store() -> _Store:
-    # Threads carried into a batch share its scope, so two can reach here together.
     with _store_creation:
         return scoped(_STORE_KEY, _Store)
 
 
 def _verify(stored: _Entry, rebuilt: Evidence | Declined) -> None:
-    """Fail unless a rebuild of the key is the stored evidence (``PODCAST_EVIDENCE_VERIFY=1``).
+    """Raise AssertionError unless a rebuild of the key equals the stored evidence.
 
-    This checks the store, not the evaluator: equality with the render is the render-equality
-    tests' job.
+    The store calls this when ``PODCAST_EVIDENCE_VERIFY=1``.
     """
     if isinstance(rebuilt, Declined) or any(
         not np.array_equal(stored.samples[rate], array) for rate, array in rebuilt.items()
@@ -303,10 +288,9 @@ def _rendered(
     *,
     locked: bool,
 ) -> Iterator[Path]:
-    """The track's render, gate off and chain left out, for as long as the block runs.
+    """Yield the path of the track's render, made with the gate off and the chain left out.
 
-    The render runs in the batch scope, which shares its inputs. The caller reads the wav
-    outside it (``unscoped``): an entry keyed by the wav's path would outlive the file.
+    The file exists only while the block runs.
     """
     _LOG.info("track %s evidence: ffmpeg render (%s)", track_id, why.value)
     snapshot = snapshot_project(project) if locked else project.model_copy(deep=True)

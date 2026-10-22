@@ -38,9 +38,10 @@ def batch_scope() -> Iterator[None]:
 
 @contextmanager
 def unscoped() -> Iterator[None]:
-    """Run without the batch scope, so nothing made inside is kept past the block.
+    """Run without the batch scope, so the scope keeps nothing created inside the block.
 
-    For work on a temporary file: an entry keyed by its path would outlive the file.
+    Use this for work on a temporary file, because a cache entry keyed by the file's path
+    would outlive the file.
     """
     token = _scope.set(None)
     try:

@@ -24,6 +24,7 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SourceAudio,
 )
+from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.track_evidence import Declined
 from podcast_mcp.engines.ungated_audio import load_mono_full, resample_streams
 from podcast_mcp.models import (
@@ -243,14 +244,12 @@ def test_bleed_restore_declines_to_the_render(tmp_path: Path) -> None:
     _with_bleed_restore(project, tmp_path / "project")
 
     assert _declines(project) is Declined.BLEED_RESTORE
-    # With the gate off and no off-speaker region the render adds no restore step.
     plain = _project(tmp_path / "plain", "mixed joins and pads")
     for clip in [c for c in plain.clips if c.track_id == "caleb"]:
         clip.bleed_restore = ClipBleedRestore(
             source_sha256="0" * 64, regions=[SourceSpan(start_s=0.2, end_s=0.3)]
         )
     assert not isinstance(_declines(plain), Declined)
-    # The render's own test for the step agrees with the planner's.
     track = project.track_by_id("caleb")
     assert timeline_render.restore_applies(project, track, gated=False)
     assert timeline_render.unfiltered_track_audio(project, track, load_defaults()) is None
@@ -347,7 +346,6 @@ def test_a_held_cut_builds_its_evidence_once(
     with batch_scope():
         first = track_evidence.heard(project, "caleb", defaults)
         again = track_evidence.heard(project, "caleb", defaults)
-        # A held cut leaves the project's content as it was, in a copy of its own.
         copied = track_evidence.heard(project.model_copy(deep=True), "caleb", defaults)
         track_evidence.rms(project, "caleb", defaults)
 
@@ -405,13 +403,13 @@ def test_the_store_holds_to_its_byte_cap(tmp_path: Path, monkeypatch: pytest.Mon
     defaults = load_defaults()
     one = _project(tmp_path / "one", "fade joins")
     two = _project(tmp_path / "two", "crossfade joins")
-    size = 3 * track_evidence.rms(one, "caleb", defaults).samples.nbytes  # 8 kHz and 16 kHz
+    size = 3 * track_evidence.rms(one, "caleb", defaults).samples.nbytes
     calls = _count_evaluations(monkeypatch)
 
     monkeypatch.setattr(track_evidence, "EVIDENCE_CACHE_BYTES", int(size * 1.5))
     with batch_scope():
         track_evidence.rms(one, "caleb", defaults)
-        track_evidence.rms(two, "caleb", defaults)  # evicts the first
+        track_evidence.rms(two, "caleb", defaults)
         track_evidence.rms(two, "caleb", defaults)
         track_evidence.rms(one, "caleb", defaults)
     assert len(calls) == 3
@@ -420,7 +418,7 @@ def test_the_store_holds_to_its_byte_cap(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(track_evidence, "EVIDENCE_CACHE_BYTES", size // 2)
     with batch_scope():
         track_evidence.rms(one, "caleb", defaults)
-        track_evidence.rms(one, "caleb", defaults)  # larger than the cap: never stored
+        track_evidence.rms(one, "caleb", defaults)
     assert len(calls) == 2
 
 
@@ -433,7 +431,6 @@ def _audio_node_types() -> list[type]:
     ]
 
 
-# The evaluator never reads these: they name the clip and recording a leaf came from.
 UNREAD_FIELDS = {("SourceAudio", "clip_id"), ("SourceAudio", "source_id")}
 
 
@@ -445,7 +442,6 @@ def test_the_key_covers_every_field_the_evaluator_reads() -> None:
                 assert not field.compare
                 assert f".{field.name}" not in evaluator, (node_type.__name__, field.name)
             else:
-                # A field outside equality would leave the key blind to it.
                 assert field.compare, (node_type.__name__, field.name)
                 assert field.hash is not False, (node_type.__name__, field.name)
     assert dataclasses.is_dataclass(track_evidence.EvidenceKey)
@@ -693,7 +689,7 @@ def test_a_chained_track_reads_from_a_pool_worker_while_the_project_lock_is_held
 
     _ffmpeg_or_skip()
     project = _chained(_project(tmp_path, "fade joins"))
-    read: list[object] = []
+    read: list[TrackRmsCache | None] = []
 
     with batch_scope(), frozen_state(), project_state_lock(project):
         caches = shared_timeline_rms_caches(project, defaults=load_defaults())
@@ -703,10 +699,10 @@ def test_a_chained_track_reads_from_a_pool_worker_while_the_project_lock_is_held
             with carried(state):
                 read.append(caches.get("caleb"))
 
-        # A daemon thread, so a worker stuck on the lock fails the test, not the run.
+        # Use a daemon thread so a worker blocked on the lock fails this test instead of hanging the whole run.
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
         thread.join(timeout=60)
         assert not thread.is_alive(), "the pool worker waits on the project lock"
 
-    assert read and read[0] is not None and read[0].samples.size > 0  # type: ignore[attr-defined]
+    assert read and read[0] is not None and read[0].samples.size > 0

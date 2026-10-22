@@ -14,8 +14,7 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 
 # A 3,096 s stereo 48 kHz source and a 3,058 s mono 44.1 kHz one, the Daniela episode's
-# sizes: held whole as float32 at their own rates they are 1.2 GB. Each result is 87 MB at
-# 8 kHz and 174 MB more at 16 kHz, and the worker keeps one alive between tracks.
+# sizes: held whole as float32 at their own rates they are 1.2 GB.
 SOURCES = {"dani.flac": (3096, 48000, 2), "vicky.flac": (3058, 44100, 1)}
 PEAK_GROWTH_BUDGET_MB = 300
 
