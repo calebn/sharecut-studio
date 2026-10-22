@@ -178,12 +178,8 @@ def _sample_frame_expression(offset: int, source_rate: int) -> str:
 def _delay_filter(delay_sec: float, sample_rate: int) -> str:
     """Silence of ``delay_sec`` in front of the audio, with timestamps renumbered by sample.
 
-    The delay is a whole sample count, ``ms * rate // 1000`` as the evaluation places it:
-    ``adelay=<ms>`` multiplies in float32 and lands up to a sample early at 44.1 kHz and
-    tens of samples off an hour in (#2025). A sample count only means a time at one rate,
-    so ``aformat`` holds the stream at ``sample_rate`` on both sides of ``adelay``; a filter
-    later in the chain that needs another rate (``arnndn`` runs at 48 kHz) resamples after
-    the delay instead of before it.
+    Placed on ``ms * rate // 1000`` samples, as the evaluation does (#2025); ``aformat``
+    pins ``sample_rate`` around ``adelay`` so a later rate-forcing filter resamples after it.
 
     When ``atrim`` has cut the first frame on a seeked input, ``adelay`` emits its lead-in
     frames with no timestamp (``NOPTS``), and a later ``apad`` or ``atrim`` drops them: a
@@ -948,16 +944,15 @@ class FFmpegEngine:
             filters.append(f"{inputs}{operation}{label}")
             return label
 
+        def fallback_probe() -> AudioProbe:
+            return self.probe(source_paths[0]) if source_paths else AudioProbe(0.0, 48000, 2)
+
         delay_rates: dict[Path, int] = {}
 
         def delay_rate(child: Audio) -> int:
-            """The rate a delayed child is held at: its first recording's (#2025)."""
             leaves = sources(child)
             if not leaves:
-                fallback = (
-                    self.probe(source_paths[0]) if source_paths else AudioProbe(0.0, 48000, 2)
-                )
-                return fallback.sample_rate
+                return fallback_probe().sample_rate
             path = leaves[0].path.resolve()
             if path not in delay_rates:
                 delay_rates[path] = self.probe(path).sample_rate
@@ -1050,11 +1045,7 @@ class FFmpegEngine:
                             )
                     case SilenceAudio():
                         if silence_probe is None:
-                            silence_probe = (
-                                self.probe(source_paths[0])
-                                if source_paths
-                                else AudioProbe(0.0, 48000, 2)
-                            )
+                            silence_probe = fallback_probe()
                         probe = silence_probe
                         layout = f"{probe.channels}c"
                         node_labels.append(

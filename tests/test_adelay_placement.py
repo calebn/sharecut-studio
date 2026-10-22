@@ -49,35 +49,26 @@ def _filter_impulse_frame(tmp_path: Path, rate: int, chain: str) -> tuple[int, i
     return out_rate, int(np.argmax(np.abs(samples)))
 
 
-def _placed_frames(
-    tmp_path: Path, rate: int, delays_ms: list[int], af_chain: str = "anull"
-) -> list[int]:
+def _placed_frames(tmp_path: Path, rate: int, delays_ms: list[int]) -> list[int]:
     source = _impulse(tmp_path / f"impulse_{rate}.wav", rate)
     duration = _IMPULSE_FRAMES / rate
     placed = [At(ms / 1000, SourceAudio(source, 0.0, duration)) for ms in sorted(delays_ms)]
     out = tmp_path / f"placed_{rate}.wav"
-    FFmpegEngine().render_timeline(out, MixAudio(placed[0], tuple(placed[1:])), af_chain)
+    FFmpegEngine().render_timeline(out, MixAudio(placed[0], tuple(placed[1:])), "anull")
     _, samples = _read_wav(out)
     return [int(i) for i in np.flatnonzero(samples)]
 
 
-def _float32_short_ms(rate: int, count: int) -> list[int]:
-    ms = np.arange(1, 20_001, dtype=np.int64)
-    model = (ms.astype(np.float32) * np.float32(rate) / np.float32(1000)).astype(np.int64)
-    return [int(value) for value in ms[model != ms * rate // 1000][:count]]
+# First ms values where adelay's float32 multiply lands a sample early (checked against FFmpeg 9).
+_FLOAT32_SHORT_MS = {8000: [], 22050: [6100, 6180, 6260], 44100: [3050, 3090, 3130], 48000: []}
 
 
 def test_delay_filter_places_an_impulse_on_the_exact_sample(tmp_path: Path) -> None:
     rate, frame = _filter_impulse_frame(tmp_path, 44100, _delay_filter(10.9, 44100))
     assert rate == 44100
     assert frame == 480690
-
-
-def test_delay_filter_keeps_its_rate_when_a_later_filter_forces_another(tmp_path: Path) -> None:
-    chain = f"{_delay_filter(1.0, 44100)},aformat=sample_rates=48000"
-    rate, frame = _filter_impulse_frame(tmp_path, 44100, chain)
-    assert rate == 48000
-    assert abs(frame - 48000) <= 2
+    rate, frame = _filter_impulse_frame(tmp_path, 44100, _delay_filter(10.875, 44100))
+    assert frame == 479587
 
 
 def test_render_keeps_the_delay_when_the_track_chain_forces_another_rate(tmp_path: Path) -> None:
@@ -111,8 +102,7 @@ def test_render_places_a_delayed_child_at_its_own_rate_in_a_mixed_rate_mix(
         "anull",
     )
     rate, samples = _read_wav(out)
-    expected = round(2500 * 48000 // 1000 * rate / 48000)
-    assert abs(int(np.argmax(np.abs(samples))) - expected) <= 1
+    assert int(np.argmax(np.abs(samples))) == 2500 * rate // 1000
 
 
 def test_render_places_a_long_delay_on_the_exact_sample(tmp_path: Path) -> None:
@@ -140,8 +130,6 @@ def test_render_places_a_long_delay_on_the_exact_sample(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("rate", [8000, 22050, 44100, 48000])
 def test_render_places_every_delay_on_ms_times_rate_floor_1000(tmp_path: Path, rate: int) -> None:
-    delays = [*_float32_short_ms(rate, 3), 10900, 15000]
-    if rate == 44100:
-        delays.append(10875)
+    delays = [*_FLOAT32_SHORT_MS[rate], 10900, 15000]
     expected = sorted({ms * rate // 1000 for ms in delays})
     assert _placed_frames(tmp_path, rate, delays) == expected
