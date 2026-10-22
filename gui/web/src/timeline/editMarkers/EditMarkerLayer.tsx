@@ -132,10 +132,12 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
     openJoinId: s.openJoinId,
     setOpenJoinId: s.setOpenJoinId,
   }));
+  const popoverMark = useRef<string | null>(null);
   const toggle = (clipId: string) => {
     if (useDawStore.getState().joinMutationInFlight) {
       return;
     }
+    popoverMark.current = openJoinId === clipId ? null : `join-${clipId}`;
     setOpenJoinId(openJoinId === clipId ? null : clipId);
   };
   const elements = useRef(new Map<string, HTMLElement>());
@@ -184,11 +186,7 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
     },
   });
   // Opening a join popover moves focus into the dialog, which clears
-  // `focused`; the open join's mark stands in for it until the popover closes.
-  const popoverMark = useRef<string | null>(null);
-  if (openJoinId != null) {
-    popoverMark.current = `join-${openJoinId}`;
-  }
+  // `focused`; the mark whose glyph opened it stands in for it until the popover closes.
   useEffect(() => {
     const id = focused.current ?? popoverMark.current;
     if (id == null || document.activeElement !== document.body) {
