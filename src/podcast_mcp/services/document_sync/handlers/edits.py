@@ -312,8 +312,8 @@ def insert_gap(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def fill_room_tone(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TimelineService(ws).fill_room_tone_range(
-        track_id=str(p["track_id"]), start_sec=float(p["start_sec"]), end_sec=float(p["end_sec"])
+    return TimelineService(ws).fill_room_tone(
+        track_id=str(p["track_id"]), within=(float(p["start_sec"]), float(p["end_sec"]))
     )
 
 

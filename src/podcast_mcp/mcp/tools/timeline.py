@@ -597,7 +597,9 @@ def fill_with_room_tone_tool(
     """
     if start_sec is not None or end_sec is not None:
         if track_id is None or start_sec is None or end_sec is None:
-            raise ValueError("a range fill needs track_id, start_sec and end_sec")
+            raise CodedValueError(
+                "a range fill needs track_id, start_sec and end_sec", code="range_incomplete"
+            )
         return to_json(
             submit_host_command_result(
                 project_path,

@@ -474,6 +474,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Mute selected range",
     tooltip: "Mute selected range",
   },
+  "daw.range.fillRoomTone": {
+    label: "Fill range with room tone",
+    tooltip: "Fill the clip-free time in a range with the track's room tone",
+  },
   "daw.range.moveSpeakerLaneSpan": {
     label: "Move to speaker",
     tooltip: "Move the range to another speaker track",

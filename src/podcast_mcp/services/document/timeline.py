@@ -678,23 +678,14 @@ class TimelineService(CutMutatingService):
         *,
         track_id: str | None = None,
         speaker: str | None = None,
+        within: tuple[float, float] | None = None,
     ) -> dict:
         tid = self._resolve(track_id, speaker)
         return self.ws.mutate(
             "before fill room tone",
             "after fill room tone",
-            lambda p: fill_with_room_tone(p, tid, defaults=self.ws.effective_config()),
-        )
-
-    def fill_room_tone_range(self, *, track_id: str, start_sec: float, end_sec: float) -> dict:
-        return self.ws.mutate(
-            "before fill room tone",
-            "after fill room tone",
             lambda p: fill_with_room_tone(
-                p,
-                track_id,
-                within=(start_sec, end_sec),
-                defaults=self.ws.effective_config(),
+                p, tid, within=within, defaults=self.ws.effective_config()
             ),
         )
 

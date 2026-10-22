@@ -10,6 +10,7 @@ from podcast_mcp.services.document_sync.capabilities import (
     EDIT_COMMANDS,
     SUGGEST_COMMANDS,
 )
+from podcast_mcp.services.document_sync.payloads import FillRoomTonePayload
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -67,3 +68,34 @@ def test_range_fill_without_a_source_says_no_source(tmp_path, monkeypatch):
 def test_fill_room_tone_is_an_editor_command_only():
     assert "FillRoomTone" in EDIT_COMMANDS
     assert "FillRoomTone" not in SUGGEST_COMMANDS
+
+
+def test_range_fill_does_not_lay_tone_under_an_overlapping_clip(tmp_path, monkeypatch):
+    configure(monkeypatch, defaults())
+    result = project(tmp_path)
+    add_bed(result, tmp_path)
+    result.clips = [
+        Clip(id="a", track_id="host", source_start=0, source_end=10, timeline_start=0),
+        Clip(id="b", track_id="host", source_start=0, source_end=1, timeline_start=1),
+        Clip(id="c", track_id="host", source_start=0, source_end=1, timeline_start=5),
+    ]
+
+    with pytest.raises(CodedValueError) as raised:
+        fill_with_room_tone(result, "host", within=(2, 5), defaults=load_defaults())
+
+    assert raised.value.code == "nothing_to_fill"
+
+
+def test_range_fill_on_an_unknown_track_is_track_not_found(tmp_path, monkeypatch):
+    configure(monkeypatch, defaults())
+    result = project(tmp_path)
+
+    with pytest.raises(CodedValueError) as raised:
+        fill_with_room_tone(result, "absent", within=(0, 1), defaults=load_defaults())
+
+    assert raised.value.code == "track_not_found"
+
+
+def test_payload_rejects_an_inverted_range():
+    with pytest.raises(ValueError):
+        FillRoomTonePayload(track_id="host", start_sec=5, end_sec=2)
