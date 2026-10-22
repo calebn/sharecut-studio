@@ -169,3 +169,9 @@ def test_a_sliver_of_room_plays_the_fades_not_a_click_blend():
     # 10 ms of room on the right recording's side (a quarter of 10 ms) is under a blend.
     assert crossfade_borrow_sec(p, left, right) == 0.0
     assert join_render_fields(left, right, p)["join_crossfade_blocked"] == "no_headroom"
+
+
+def test_a_request_under_one_step_still_blends_for_one_step():
+    left = _clip("a", 0, 1, fade_out_ms=4)
+    right = _clip("b", 1, 2, fade_in_ms=4, join_in_mode=ClipJoinMode.CROSSFADE)
+    assert crossfade_borrow_sec(_project(), left, right) == pytest.approx(0.005)

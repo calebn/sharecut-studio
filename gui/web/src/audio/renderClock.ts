@@ -146,8 +146,8 @@ interface LaneEntry {
 
 /**
  * The render's clock, per lane (#1888). A project keeps authored clip times;
- * `timeline_render._place_clips` plays each lane on a clock a blending
- * crossfade join pulls earlier by its overlap. A clip's offset is its placed
+ * `timeline_render._place_clips` plays each lane on a clock that only a closed
+ * join gap moves (a blending crossfade borrows instead). A clip's offset is its placed
  * start less its authored start (0 or negative). The two clips of a blending
  * join overlap on the render clock, so a lane's authored-to-rendered map is
  * not one-to-one there: pass the clip you mean as `clipId`.
