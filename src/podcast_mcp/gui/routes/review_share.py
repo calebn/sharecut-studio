@@ -238,7 +238,9 @@ def get_daw_waveform_status(token: str) -> JSONResponse:
     except (HTTPException, GuardRefusal) as exc:
         raise no_store_error(exc) from exc
     try:
-        return JSONResponse(share_daw_waveform_status(token), headers=NO_STORE)
+        return JSONResponse(
+            share_daw_waveform_status(token).model_dump(mode="json"), headers=NO_STORE
+        )
     except Exception as exc:
         raise no_store_error(
             guest_http_error(exc, logger=log, operation="review waveform status")

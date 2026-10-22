@@ -227,10 +227,10 @@ def test_large_project_fixture_extra_tracks_and_synthetic_waveforms(tmp_path):
         assert any(read_bins(path, meta, 0, 0, meta.levels[0].bins))
     # The pyramids sit under the keys the viewer asks for, so status is ready at once.
     index = media_index(project_path)
-    status = waveform_status(project_path, "raw")["media"]
+    status = waveform_status(project_path, "raw").media
     for ref in ("track:reference", "track:guest", "track:t2"):
         assert ref in index.refs
-        assert status[ref]["status"] == "ready"
+        assert status[ref].status == "ready"
 
 
 def test_large_project_fixture_silent_waveforms(tmp_path):

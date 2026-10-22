@@ -270,7 +270,11 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   is cached only when the revision is the same before and after it. Keys are
   recomputed with `stat()` on every call, so media edits that do not touch the
   project JSON still change the key.
-- **`waveform_status(project_path, kind)`:** `{"format_version": 1, "media": {ref: entry}}`.
+- **`waveform_status(project_path, kind)`:** returns `WaveformStatusResult` from
+  `services/media/results.py`. Its media entries form a discriminated union of
+  `ReadyWaveformEntry`, `GeneratingWaveformEntry`, and `UnavailableWaveformEntry`.
+  Python callers read typed fields. The host and share HTTP routes serialize
+  the result as `{"format_version": 1, "media": {ref: entry}}`.
 
   | State | Entry |
   | --- | --- |
