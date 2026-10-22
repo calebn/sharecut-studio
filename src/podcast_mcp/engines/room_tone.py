@@ -41,7 +41,7 @@ import logging
 import math
 import threading
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -78,6 +78,10 @@ MIN_SAMPLE_SEC = 0.25
 # while it is still voice, which no level check or absent voice detector can catch.
 SPEECH_GUARD_SEC = 0.15
 MAX_CANDIDATES = 16
+# A bed is checked in windows this long, hopping by half: a burst of speech in a long
+# bed must not be averaged away by the steady room around it.
+BED_WINDOW_SEC = 0.5
+MAX_BED_VERDICTS = 16
 
 Span = tuple[float, float]
 """Half-open ``(start, end)`` in source seconds."""
@@ -138,6 +142,8 @@ class RecordedBedSample:
 @dataclass(frozen=True)
 class OwnQuietSample:
     sample: Sample
+    bed_failure: str | None = None
+    bed_rejected_checks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -160,6 +166,7 @@ class SampleAbsent:
     rejected_checks: tuple[str, ...] = ()
     unreadable_windows: int = 0
     bed_failure: str | None = None
+    bed_rejected_checks: tuple[str, ...] = ()
 
 
 RoomToneSelection = RecordedBedSample | OwnQuietSample | SampleAbsent
@@ -168,6 +175,7 @@ RoomToneSelection = RecordedBedSample | OwnQuietSample | SampleAbsent
 @dataclass(frozen=True)
 class BedUnavailable:
     cause: str
+    rejected_checks: tuple[str, ...] = ()
 
 
 Check = Callable[[Sample, TrackFloor], bool]
@@ -191,6 +199,11 @@ def rejection(sample: Sample, track: TrackFloor) -> str | None:
 def room_tone_source_id(track_id: str) -> str:
     """Stable ``sources[]`` id for a track's recorded room-tone bed."""
     return f"room-tone-{track_id}"
+
+
+def _after_bed(bed: BedUnavailable, selected: OwnQuietSample | SampleAbsent) -> RoomToneSelection:
+    """``selected`` carrying why the track's registered bed was not used."""
+    return replace(selected, bed_failure=bed.cause, bed_rejected_checks=bed.rejected_checks)
 
 
 def room_tone_span(
@@ -217,9 +230,10 @@ def room_tone_span(
         return RecordedBedSample(0.0, min(bed.end, duration_sec), bed.source_id, bed.path)
     track = project.track_by_id(track_id)
     if track is None:
-        return SampleAbsent("missing_track", bed_failure=bed.cause)
+        return _after_bed(bed, SampleAbsent("missing_track"))
     if track.media is None:
-        return SampleAbsent("missing_media", bed_failure=bed.cause)
+        return _after_bed(bed, SampleAbsent("missing_media"))
+
     pooled = _from_pool(
         read_room_tone_pool(project, track_id) or (),
         near_sec=near_sec,
@@ -227,20 +241,16 @@ def room_tone_span(
         avoid=avoid,
     )
     if pooled is not None:
-        return pooled
+        return _after_bed(bed, pooled)
     read = track_floor(track_audio_path(project, track_id))
     if isinstance(read, Unmeasured):
-        return SampleAbsent(read.cause, bed_failure=bed.cause)
+        return _after_bed(bed, SampleAbsent(read.cause))
     if isinstance(read, DigitalSilence):
-        return SampleAbsent("digital_silence", bed_failure=bed.cause)
+        return _after_bed(bed, SampleAbsent("digital_silence"))
     if read.gated:
-        return SampleAbsent("gated_live", bed_failure=bed.cause)
+        return _after_bed(bed, SampleAbsent("gated_live"))
     selected = _pick_sample(read.floor, near_sec=near_sec, duration_sec=duration_sec, avoid=avoid)
-    if isinstance(selected, SampleAbsent):
-        return SampleAbsent(
-            selected.cause, selected.rejected_checks, selected.unreadable_windows, bed.cause
-        )
-    return selected
+    return _after_bed(bed, selected)
 
 
 # Pool: one pick per recording, at evenly spaced points along the track: one a minute of
@@ -445,6 +455,20 @@ def room_tone_pool_digest(project: EpisodeProject) -> str:
     return json.dumps(parts) if parts else ""
 
 
+def room_tone_bed_digest(project: EpisodeProject) -> str:
+    """Which registered beds render, and why not: part of a preview's cache key."""
+    parts: list[list[object]] = []
+    for track in project.tracks:
+        if track.room_tone is None:
+            continue
+        bed = room_tone_bed(project, track.id)
+        if isinstance(bed, BedUnavailable):
+            parts.append([track.id, bed.cause, list(bed.rejected_checks)])
+        else:
+            parts.append([track.id, bed.source_id, bed.end])
+    return json.dumps(parts) if parts else ""
+
+
 def _from_pool(
     pool: Sequence[Sample], *, near_sec: float, duration_sec: float, avoid: Sequence[Span]
 ) -> OwnQuietSample | None:
@@ -609,7 +633,7 @@ def room_tone_bed(project: EpisodeProject, track_id: str) -> RecordedBedSample |
 
     try:
         path = resolve_under_workspace(project, source.path)
-        audio = load_mono_window(path, start_sec=0.0, duration_sec=bed_sec)
+        audio = load_mono_window(path, start_sec=0.0, duration_sec=bed_sec, sample_rate=SAMPLE_RATE)
     except FileNotFoundError:
         return BedUnavailable("missing_file")
     except Exception as exc:
@@ -619,4 +643,51 @@ def room_tone_bed(project: EpisodeProject, track_id: str) -> RecordedBedSample |
         return BedUnavailable("unreadable_file")
     if rms_db(audio, floor_db=DIGITAL_SILENCE_DB) <= DIGITAL_SILENCE_DB:
         return BedUnavailable("digital_silence")
+    rejected = _bed_rejection(path, file_revision(path), audio)
+    if rejected:
+        return BedUnavailable("contaminated_bed", rejected)
     return RecordedBedSample(0.0, bed_sec, source_id, path)
+
+
+_BED_VERDICTS: dict[tuple[Path, FileRevision, bool], tuple[str, ...]] = {}
+
+
+def _bed_rejection(path: Path, revision: FileRevision, audio: np.ndarray) -> tuple[str, ...]:
+    """The ``CHECKS`` rows a registered bed fails against its own levels, once per file revision.
+
+    The bed has no transcript and its own gain, so it is held to its own floor and speech
+    level, window by window, and the loudest window must pass every row. The detector is
+    in the key because ``voiced`` passes without one.
+    """
+    key = (path, revision, not _voice_detector_missing())
+    if key not in _BED_VERDICTS:
+        if len(_BED_VERDICTS) >= MAX_BED_VERDICTS:
+            _BED_VERDICTS.clear()
+        _BED_VERDICTS[key] = _measure_bed(path, audio)
+    return _BED_VERDICTS[key]
+
+
+def _measure_bed(path: Path, audio: np.ndarray) -> tuple[str, ...]:
+    window = max(1, round(SAMPLE_RATE * BED_WINDOW_SEC))
+    starts = range(0, max(audio.size - window, 0) + 1, max(1, window // 2))
+    levels = np.array([rms_db(audio[i : i + window], floor_db=DIGITAL_SILENCE_DB) for i in starts])
+    floor_db = float(np.percentile(levels, FLOOR_PERCENTILE))
+    loud = levels[levels > floor_db + FLOOR_BAND_DB]
+    track = TrackFloor(
+        path=path,
+        floor_db=floor_db,
+        speech_db=float(np.percentile(loud, SPEECH_PERCENTILE)) if loud.size else None,
+        runs=(),
+    )
+    sample = Sample(0.0, audio.size / SAMPLE_RATE, float(levels.max()), _speech_prob(audio))
+    failed = rejection(sample, track)
+    if failed:
+        log.warning(
+            "room tone bed %s rejected as contaminated by %s (loudest window %.1f dB, "
+            "floor %.1f dB); using track audio",
+            path.name,
+            failed,
+            sample.rms_db,
+            floor_db,
+        )
+    return (failed,) if failed else ()

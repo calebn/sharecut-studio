@@ -485,6 +485,8 @@ def _room_tone_bed(
 
     bed = room_tone_bed(project, track.id)
     if isinstance(bed, BedUnavailable):
+        if bed.rejected_checks:
+            return f"recorded room-tone bed rejected ({', '.join(bed.rejected_checks)})"
         return "no recorded room-tone bed"
     samples = load_mono_window(
         bed.path, start_sec=0.0, duration_sec=bed.end, sample_rate=holes.sample_rate
