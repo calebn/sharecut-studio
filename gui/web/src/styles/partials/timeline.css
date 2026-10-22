@@ -78,7 +78,7 @@
 
 .clip-block {
   position: absolute;
-  /* The top inset is the lane's top gutter; .join-badge fills it (same token). */
+  /* The top inset is the lane's top gutter; .edit-mark fills it (same token). */
   top: var(--clip-inset-top);
   height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
   border-radius: var(--radius-md);
@@ -507,7 +507,7 @@ button.join-seam:focus-visible {
   outline-offset: var(--focus-ring-offset);
 }
 
-.join-badge {
+.edit-mark {
   position: absolute;
   top: 0;
   width: 1rem;
@@ -523,23 +523,44 @@ button.join-seam:focus-visible {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-overlay);
-  color: var(--color-text-on-overlay);
+  color: var(--edit-mark-color, var(--color-text-on-overlay));
   z-index: var(--z-join);
   pointer-events: auto;
 }
 
-.join-badge:focus-visible {
+.edit-mark--cut {
+  --edit-mark-color: var(--color-mark-cut);
+}
+
+.edit-mark--fade {
+  --edit-mark-color: var(--color-mark-fade);
+}
+
+.edit-mark--crossfade {
+  --edit-mark-color: var(--color-mark-crossfade);
+}
+
+.edit-mark--mute {
+  --edit-mark-color: var(--color-mark-mute);
+}
+
+.edit-mark--split {
+  --edit-mark-color: var(--color-mark-split);
+}
+
+.edit-mark:focus-visible,
+.edit-chip:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
 
 /* WCAG 2.5.8: a --join-hit-min (24 px) wide hit area at any root font size.
-   The negative inset is measured from the badge's padding box (100%), so the
-   rem badge width drops out and each side grows by half the difference. It
-   stays in the lane's top gutter, clear of the fade corners below and the
-   lane above. The gutter's px height bounds it vertically; the inspector's
-   Join control is the full-size equivalent. */
-.join-badge::before {
+   The negative inset is measured from the mark's padding box (100%), so the
+   rem width drops out and each side grows by half the difference. It stays in
+   the lane's top gutter, clear of the fade corners below and the lane above.
+   The gutter's px height bounds it vertically; the inspector's Join control is
+   the full-size equivalent. */
+.edit-mark::before {
   content: "";
   position: absolute;
   inset-block: 0;
@@ -547,19 +568,52 @@ button.join-seam:focus-visible {
 }
 
 /* A crossfade render cannot blend (join_crossfade_blocked). */
-.join-badge--blocked {
+.edit-mark--blocked {
   border-color: var(--color-warning);
 }
 
-.join-badge-glyph {
-  /* The badge's content box: the gutter minus its two 1px borders. */
+.edit-mark-glyph {
+  /* The mark's content box: the gutter minus its two 1px borders. */
   width: calc(var(--clip-inset-top) - 1px - 1px);
   height: calc(var(--clip-inset-top) - 1px - 1px);
   fill: none;
-  stroke: var(--color-text-on-overlay);
+  stroke: var(--edit-mark-color, var(--color-text-on-overlay));
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Joins closer than 24 px fold into one count; a tap zooms to them. Its hit
+   area reaches down from the lane top to --join-hit-min, centred on the chip. */
+.edit-chip {
+  position: absolute;
+  top: 0;
+  min-inline-size: var(--join-hit-min);
+  height: 1rem;
+  translate: -50% 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 0 var(--space-1);
+  appearance: none;
+  font: inherit;
+  font-size: var(--font-size-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  z-index: var(--z-join);
+  pointer-events: auto;
+}
+
+.edit-chip::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block: 0 calc(100% - var(--join-hit-min));
 }
 
 /* The join editor body (#691). Its panel is an anchored Dialog
@@ -606,19 +660,19 @@ button.join-seam:focus-visible {
     var(--pending-region-offset, 0rem)
   );
   width: var(--pending-region-width);
-  border: 1px solid var(--color-danger);
+  border: 1px solid var(--color-mark-cut);
   background: var(--color-pending-edit-stripe);
   pointer-events: none;
 }
 
 .pending-overlay.mute::before {
-  border-color: var(--color-accent);
+  border-color: var(--color-mark-mute);
   background: var(--color-pending-mute);
 }
 
 .pending-overlay.split::before {
-  border-color: var(--color-warning);
-  background: var(--color-warning);
+  border-color: var(--color-mark-split);
+  background: var(--color-mark-split);
 }
 
 .pending-hit {
@@ -849,6 +903,10 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 
 .applied-tick--edge::before {
   border-block-start-color: var(--color-applied-edit);
+}
+
+.applied-tick--mute::before {
+  border-block-start-color: var(--color-mark-mute);
 }
 
 .applied-tick.selected {

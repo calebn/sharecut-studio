@@ -232,6 +232,11 @@
     var(--color-warning) 40%,
     transparent
   );
+  --color-mark-cut: var(--color-danger);
+  --color-mark-fade: var(--primitive-blue-350);
+  --color-mark-crossfade: var(--primitive-teal-400);
+  --color-mark-mute: var(--color-accent);
+  --color-mark-split: var(--color-warning);
   --color-envelope-line: var(--primitive-teal-400);
   --color-envelope-subtle: color-mix(
     in srgb,
