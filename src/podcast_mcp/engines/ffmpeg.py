@@ -348,6 +348,21 @@ class AudioProbe:
     sample_fmt: str | None = None
     # Audio streams in the file.
     audio_stream_count: int = 1
+    # Audio stream FFmpeg's automatic pick chose before analysis read the first one
+    # (default-flagged, else most channels, lowest index on ties); None when ffprobe
+    # lacked the fields to tell. The packet-count term of FFmpeg's score is not modelled.
+    legacy_default_audio_index: int | None = 0
+
+
+def _legacy_audio_pick(audio_streams: list[dict[str, Any]]) -> int | None:
+    scores: list[tuple[int, int]] = []
+    for s in audio_streams:
+        default = (s.get("disposition") or {}).get("default")
+        channels = s.get("channels")
+        if default is None or channels is None:
+            return None if len(audio_streams) > 1 else 0
+        scores.append((int(default), int(channels)))
+    return max(range(len(scores)), key=lambda k: (scores[k], -k), default=0)
 
 
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
@@ -469,6 +484,7 @@ class FFmpegEngine:
             audio_duration_sec=audio_duration,
             sample_fmt=stream.get("sample_fmt") or None,
             audio_stream_count=len(audio_streams),
+            legacy_default_audio_index=_legacy_audio_pick(audio_streams),
         )
 
     def stream_pcm_f32(

@@ -13,12 +13,14 @@ _SECONDS = 2
 _STEREO = "[1:a]pan=stereo|c0=c0|c1=c0[b]"
 _FIVE_ONE = "[1:a]pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0[b]"
 _NO_DEFAULT = ("-disposition:a:0", "0", "-disposition:a:1", "0")
+_FIRST_DEFAULT = ("-disposition:a:0", "default", "-disposition:a:1", "0")
 _SECOND_DEFAULT = ("-disposition:a:0", "0", "-disposition:a:1", "default")
 
 _STREAMS = {
     "st.mkv": (f"[0:a]pan=stereo|c0=c0|c1=c0[a];{_STEREO}", "[a]", "pcm_s16le", _SECOND_DEFAULT),
     "kid.ogg": (_STEREO, "0:a", "flac", ()),
     "none.mkv": (_STEREO, "0:a", "pcm_s16le", _NO_DEFAULT),
+    "first_default.mkv": (_STEREO, "0:a", "pcm_s16le", _FIRST_DEFAULT),
     "two_b.mkv": (_FIVE_ONE, "0:a", "pcm_s16le", _SECOND_DEFAULT),
 }
 
