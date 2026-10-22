@@ -21,7 +21,6 @@ from podcast_mcp.engines.models.speaker_ecapa import (
     bootstrap_speaker_ecapa,
     speaker_ecapa_path,
     speaker_ecapa_problem,
-    speaker_ecapa_unavailable,
 )
 from podcast_mcp.engines.models.whisper import (
     WHISPER_BOOTSTRAP,
@@ -66,7 +65,6 @@ class ModelSpec:
     install: Callable[[str | None, bool], dict[str, Any]]
     location: Callable[[], Path]
     default_variant: str | None = None
-    unavailable: Callable[[], str | None] = lambda: None
 
     @property
     def fix_command(self) -> str:
@@ -180,7 +178,6 @@ MODELS: tuple[ModelSpec, ...] = (
         problem=_speaker_ecapa_problem,
         install=_speaker_ecapa_install,
         location=speaker_ecapa_path,
-        unavailable=speaker_ecapa_unavailable,
     ),
 )
 

@@ -35,13 +35,14 @@
       "license": "Apache-2.0 (SpeechBrain spkrec-ecapa-voxceleb)",
       "cdn_prefix": "models/speaker-ecapa",
       "filename": "ecapa-voxceleb-embedding.onnx",
+      "url": "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx",
       "sha256": "1a310d0e6fe231c623a6bf2a3e115c6ac70df08cf19a91380663d60c01820a82",
-      "notes": "ONNX export of the embedding_model at speechbrain/spkrec-ecapa-voxceleb 0f99f2d0, made by scripts/export_ecapa_onnx.py. No upstream URL: publish the exported file to the CDN prefix before the first release that offers it."
+      "notes": "ONNX export of the embedding_model at speechbrain/spkrec-ecapa-voxceleb 0f99f2d0, made by scripts/export_ecapa_onnx.py. Downloaded from the first-party CDN url above; the object at that path is immutable, so a re-export ships under a new filename plus a new pin."
     }
   },
   "fallback": {
     "whisper": "huggingface_hub / faster-whisper default download",
     "rnnoise": "commit-pinned GitHub raw URL from this file, sha256 and size verified",
-    "speaker-ecapa": "none; the file is mirrored on the CDN only"
+    "speaker-ecapa": "direct first-party CDN url, sha-pinned"
   }
 }

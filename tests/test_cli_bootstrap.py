@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import io
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -174,7 +176,7 @@ def _stub_installers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
             installed.append(spec.id)
             return {"ok": True, "path": f"/stub/{spec.id}"}
 
-        return replace(spec, install=install, unavailable=lambda: None)
+        return replace(spec, install=install)
 
     monkeypatch.setattr(registry, "MODELS", tuple(stub(s) for s in registry.MODELS))
     monkeypatch.setattr("podcast_mcp.cli.setup_cmd.MODELS", registry.MODELS)
@@ -212,51 +214,58 @@ def _network_installers_patched():
     )
 
 
-def test_bootstrap_all_skips_speaker_when_the_build_has_no_download_source(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+class _ModelOpener:
+    def __init__(self, payload: bytes) -> None:
+        self.payload = payload
+        self.requested: list[str] = []
+
+    def open(self, req, timeout: float = 120.0):
+        del timeout
+        self.requested.append(req.full_url)
+        return io.BytesIO(self.payload)
+
+
+def _stock_speaker_download(monkeypatch: pytest.MonkeyPatch) -> _ModelOpener:
+    from podcast_mcp.engines.models import speaker_ecapa
+    from podcast_mcp.util import asset_sources
+
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    payload = b"model-bytes"
+    sha = hashlib.sha256(payload).hexdigest()
+    real = speaker_ecapa.asset_entry
+    monkeypatch.setattr(
+        speaker_ecapa, "asset_entry", lambda asset_id: {**real(asset_id), "sha256": sha}
+    )
+    opener = _ModelOpener(payload)
+    monkeypatch.setattr(asset_sources, "_https_opener", lambda: opener)
+    return opener
+
+
+def test_bootstrap_all_installs_speaker_on_a_stock_build(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opener = _stock_speaker_download(monkeypatch)
     whisper, rnnoise, problem, aligner = _network_installers_patched()
     with whisper, rnnoise, problem, aligner:
         result = runner.invoke(app, ["bootstrap", "--component", "all"])
     assert result.exit_code == 0
-    assert "[skip] speaker-ecapa: no download source in this build" in result.stdout
-    assert "[ok] word-aligner: /w" in result.stdout
+    assert opener.requested == [
+        "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
+    ]
+    assert "[ok] speaker-ecapa:" in result.stdout
+    assert "[skip] speaker-ecapa" not in result.stdout
     assert "Bootstrap complete." in result.stdout
 
 
-def test_bootstrap_speaker_named_explicitly_fails_without_a_download_source(
+def test_bootstrap_speaker_named_explicitly_installs_on_a_stock_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
-    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    opener = _stock_speaker_download(monkeypatch)
     result = runner.invoke(app, ["bootstrap", "--component", "speaker-ecapa"])
-    assert result.exit_code == 1
-    assert "[fail] speaker-ecapa: no download source in this build" in result.stderr
-    assert "PODCAST_" not in result.stderr
-    assert "Bootstrap complete." not in result.stdout
-
-
-def test_bootstrap_all_installs_speaker_when_the_build_has_a_source(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("PODCAST_BOOTSTRAP_CDN_BASE", "https://cdn.example.test/b")
-    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
-    whisper, rnnoise, problem, aligner = _network_installers_patched()
-    with (
-        whisper,
-        rnnoise,
-        problem,
-        aligner,
-        patch(
-            "podcast_mcp.engines.models.speaker_ecapa.download_first_ok", return_value="cdn"
-        ) as download,
-    ):
-        result = runner.invoke(app, ["bootstrap", "--component", "all"])
     assert result.exit_code == 0
-    download.assert_called_once()
-    assert "[skip] speaker-ecapa" not in result.stdout
+    assert len(opener.requested) == 1
+    assert "[ok] speaker-ecapa:" in result.stdout
 
 
 def test_bootstrap_failure_of_one_model_does_not_skip_the_rest(
