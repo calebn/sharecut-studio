@@ -34,7 +34,6 @@ type Draft =
   | { kind: "envelope"; track: string; points: AutomationPoint[] };
 type Pending = { commandId: string; draft: Draft };
 const drafts = new Map<string, Pending>();
-/** Acknowledged commands whose snapshot the authority has not adopted yet, with the seq that carries them. */
 const heldAcks = new Map<string, number>();
 let generation = -1;
 function current(): Map<string, Pending> {
@@ -211,12 +210,10 @@ export function finishDocumentDraft(commandId: string): void {
   for (const [key, value] of current())
     if (value.commandId === commandId) drafts.delete(key);
 }
-/** Keep an acknowledged command's draft until the authority adopts a snapshot at `seq`. */
 export function holdDocumentDraftUntil(commandId: string, seq: number): void {
   current();
   heldAcks.set(commandId, seq);
 }
-/** Retire the held drafts whose command the authority now includes. */
 export function releaseHeldDrafts(adoptedSeq: number): void {
   current();
   for (const [commandId, seq] of heldAcks) {

@@ -341,11 +341,7 @@ export function applyDocumentResult(
   refreshDocumentDisplay();
   return next;
 }
-/**
- * Retire an acknowledged command's draft once the authority includes its
- * snapshot. A snapshot dropped during recovery keeps the draft until a later
- * one at or past `seq` is adopted, so nothing repaints the stale value.
- */
+/** A snapshot dropped during recovery must not retire its draft: the stale authority would repaint. */
 export function retireCommandDraft(commandId: string, seq?: number): void {
   if (seq !== undefined && currentDocumentSeq() < seq)
     holdDocumentDraftUntil(commandId, seq);
