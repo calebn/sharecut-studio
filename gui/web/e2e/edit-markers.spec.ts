@@ -522,6 +522,74 @@ test("a crossfade label hides and returns as the root font size changes", async 
   await expect(label).toHaveCount(1);
 });
 
+test("a crossfade label refits when the real font set reports a load", async ({
+  page,
+}) => {
+  const project = JSON.parse(fs.readFileSync(projectPath, "utf8"));
+  for (const track of project.timeline.tracks) {
+    if (track.id === TRACK) track.role = "music";
+  }
+  fs.writeFileSync(projectPath, JSON.stringify(project));
+  await split(page, [20, 21]);
+  const clips = (await projectJson(page, projectPath)).clips.tracks[TRACK];
+  for (const [sec, mode] of [
+    [20, "crossfade"],
+    [21, "cut"],
+  ] as const) {
+    const i = clips.findIndex((c) => c.timeline_start === sec);
+    await postDocumentCommand(
+      page,
+      CLIENT_ID,
+      "SetClipJoin",
+      {
+        left_clip_id: clips[i - 1].id,
+        right_clip_id: clips[i].id,
+        mode,
+        ...(mode === "crossfade" ? { length_ms: 120 } : {}),
+      },
+      projectPath,
+    );
+  }
+  await openAtFit(page, "desktop", "dark");
+  await page
+    .locator(".time-ruler")
+    .first()
+    .click({ position: { x: 4, y: 4 } });
+  const crossfade = page.locator(`${lane} .edit-mark--crossfade`);
+  for (let step = 0; step < 24; step += 1) {
+    if (
+      (await crossfade.count()) > 0 &&
+      (await crossfade.getAttribute("data-tier")) === "wide"
+    ) {
+      break;
+    }
+    await page.keyboard.press("=");
+  }
+  await expect(crossfade).toHaveAttribute("data-tier", "wide");
+  const label = page.locator(`${lane} .edit-mark-label`, {
+    hasText: "Crossfade 120 ms",
+  });
+  await expect(label).toHaveCount(1);
+  // Widen the label's text without touching the root font size, so only a
+  // font-set event can tell the layer to measure again.
+  await page.evaluate(() => {
+    const style = document.createElement("style");
+    style.id = "wide-label-probe";
+    style.textContent = ".edit-mark-label { letter-spacing: 3em; }";
+    document.head.append(style);
+  });
+  expect(await label.count()).toBe(1);
+  await page.evaluate(() => {
+    document.fonts.dispatchEvent(new Event("loadingdone"));
+  });
+  await expect(label).toHaveCount(0);
+  await page.evaluate(() => {
+    document.getElementById("wide-label-probe")?.remove();
+    document.fonts.dispatchEvent(new Event("loadingdone"));
+  });
+  await expect(label).toHaveCount(1);
+});
+
 test("the tag's size transition snaps under reduced motion", async ({
   page,
 }) => {

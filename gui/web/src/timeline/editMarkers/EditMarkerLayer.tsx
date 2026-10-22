@@ -44,9 +44,15 @@ function useTypographyEpoch() {
   const [epoch, setEpoch] = useState(0);
   const bump = () => setEpoch((n) => n + 1);
   useResizeObserver(probe, bump);
-  useEffect(() => {
+  // A layout effect, so no font load can land between commit and attach; a
+  // load still in flight at attach gets one refit in case it already ended.
+  useLayoutEffect(() => {
     const fonts = document.fonts;
     fonts?.addEventListener("loadingdone", bump);
+    if (fonts && fonts.status !== "loaded") {
+      // oxlint-disable-next-line react/set-state-in-effect -- one refit for a load that may already have ended
+      bump();
+    }
     return () => fonts?.removeEventListener("loadingdone", bump);
   }, []);
   return { probe, epoch };
