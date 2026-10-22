@@ -27,6 +27,7 @@ import {
   errorMessage,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../utils/apiError";
+import { markerVariant, pendingKind } from "../utils/editMarkerRegistry";
 import { pendingEditTrackIds } from "../utils/edits";
 import {
   pendingReasonLabel,
@@ -1141,7 +1142,7 @@ function PendingEditRegion({
     <>
       <div
         ref={regionRef}
-        className={`pending-overlay${edit.type === "mute" ? " mute" : isSplit ? " split" : " remove"}${selected ? " selected" : ""}`}
+        className={`pending-overlay ${markerVariant(pendingKind(edit.type))}${selected ? " selected" : ""}`}
         data-pending-id={edit.id}
         style={regionStyle}
         data-coarse-handles={coarseHandles ? "ready" : undefined}
