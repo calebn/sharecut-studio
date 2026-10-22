@@ -57,6 +57,7 @@ from podcast_mcp.services.document_sync import (
     parse_view_projection,
 )
 from podcast_mcp.services.media import (
+    WaveformStatusResult,
     delete_object_store_object_if_unused,
     review_guest_audio_path,
     upload_review_version_to_object_store,
@@ -962,7 +963,7 @@ def _current_review_version_ids(project_path: Path) -> frozenset[str]:
     raise ProjectBusyError(str(project_path))
 
 
-def share_daw_waveform_status(token: str) -> dict[str, Any]:
+def share_daw_waveform_status(token: str) -> WaveformStatusResult:
     """Raw-media pyramid status for guests (``view``); stems are host-only.
 
     Like the host route, this queues missing pyramids: it is the only builder for

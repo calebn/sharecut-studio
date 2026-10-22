@@ -102,6 +102,10 @@ the implementation modules.
 The projection guard remains in
 `tests/test_import_direction.py`.
 
+The media facade exposes `WaveformStatusResult` with typed media entries.
+Host and share routes serialize these results; the waveform service and engines
+own scheduling and metadata. See [waveform.md](waveform.md).
+
 ### Jobs
 
 `services/jobs/` owns Studio's background work: one `Job` record

@@ -32,7 +32,7 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 from filelock import Timeout as FileLockTimeout
 
@@ -70,6 +70,14 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project.io import open_project
+from podcast_mcp.services.media.results import (
+    GeneratingWaveformEntry,
+    ReadyWaveformEntry,
+    UnavailableWaveformEntry,
+    WaveformEntry,
+    WaveformLevel,
+    WaveformStatusResult,
+)
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
@@ -271,26 +279,17 @@ def _served_meta(path: Path, key: str) -> PyramidMeta:
         raise WaveformDecodeError("waveform pyramid could not be read") from exc
 
 
-def _ready_entry(key: str, meta: PyramidMeta) -> dict[str, Any]:
-    return {
-        "status": "ready",
-        "key": key,
-        "sample_rate": meta.sample_rate,
-        "channels": meta.channels,
-        "total_frames": meta.total_frames,
-        "base_spp": meta.base_spp,
-        "level_factor": meta.level_factor,
-        "bins_per_tile": meta.bins_per_tile,
-        "levels": [{"spp": lv.spp, "bins": lv.bins} for lv in meta.levels],
-    }
-
-
-def _unavailable(reason: str) -> dict[str, Any]:
-    return {"status": "unavailable", "reason": reason}
-
-
-def _generating() -> dict[str, Any]:
-    return {"status": "generating"}
+def _ready_entry(key: str, meta: PyramidMeta) -> ReadyWaveformEntry:
+    return ReadyWaveformEntry(
+        key=key,
+        sample_rate=meta.sample_rate,
+        channels=meta.channels,
+        total_frames=meta.total_frames,
+        base_spp=meta.base_spp,
+        level_factor=meta.level_factor,
+        bins_per_tile=meta.bins_per_tile,
+        levels=[WaveformLevel(spp=lv.spp, bins=lv.bins) for lv in meta.levels],
+    )
 
 
 def _ref_status(
@@ -300,21 +299,21 @@ def _ref_status(
     entry: MediaEntry,
     *,
     defaults: EffectiveConfig,
-) -> dict[str, Any]:
+) -> WaveformEntry:
     try:
         target = pyramid_target(artifacts_dir, ref, entry)
     except OSError:
-        return _unavailable(REASON_NO_MEDIA)
+        return UnavailableWaveformEntry(reason=REASON_NO_MEDIA)
     # Pending first: a job drops its pending mark only after os.replace (#421).
     if pyramid_build_pending(target.slug, target.key):
-        return _generating()
+        return GeneratingWaveformEntry()
     if target.out.is_file():
         try:
             return _ready_entry(target.key, _meta(target.out, target.key))
         except (OSError, ValueError):
             _drop_pyramid(target.out, target.key)
     if pyramid_build_failed(target.key):
-        return _unavailable(REASON_DECODE_FAILED)
+        return UnavailableWaveformEntry(reason=REASON_DECODE_FAILED)
     if schedule_pyramid_build(
         ref,
         target.key,
@@ -322,16 +321,16 @@ def _ref_status(
         target.out,
         current_key=functools.partial(current_ref_key, project_path, ref, defaults=defaults),
     ):
-        return _generating()
-    return _unavailable(REASON_DECODE_FAILED)
+        return GeneratingWaveformEntry()
+    return UnavailableWaveformEntry(reason=REASON_DECODE_FAILED)
 
 
 def _ref_kind(ref: str) -> MediaKind:
     return "stem" if ref.startswith("stem:") else "raw"
 
 
-def waveform_status(project_path: Path, kind: MediaKind) -> dict[str, Any]:
-    """``{"format_version", "media": {ref: entry}}`` for every ref of *kind*."""
+def waveform_status(project_path: Path, kind: MediaKind) -> WaveformStatusResult:
+    """Typed pyramid status for every ref of *kind*, sorted by media ref."""
     index = media_index(project_path)
     try:
         gc_pyramids(project_path, index)
@@ -340,7 +339,7 @@ def waveform_status(project_path: Path, kind: MediaKind) -> dict[str, Any]:
     from podcast_mcp.services.pipeline import run_defaults_for
 
     defaults = run_defaults_for(project_path)
-    media: dict[str, dict[str, Any]] = {}
+    media: dict[str, WaveformEntry] = {}
     for ref, entry in index.refs.items():
         if entry.kind == kind:
             media[ref] = _ref_status(
@@ -348,8 +347,10 @@ def waveform_status(project_path: Path, kind: MediaKind) -> dict[str, Any]:
             )
     for ref, reason in index.unavailable.items():
         if _ref_kind(ref) == kind:
-            media[ref] = _unavailable(reason)
-    return {"format_version": waveform_format_version(), "media": dict(sorted(media.items()))}
+            media[ref] = UnavailableWaveformEntry(reason=reason)
+    return WaveformStatusResult(
+        format_version=waveform_format_version(), media=dict(sorted(media.items()))
+    )
 
 
 def _pyramid_file(project_path: Path, ref: str, key: str) -> Path:

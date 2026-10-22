@@ -26,6 +26,13 @@ from podcast_mcp.engines.waveform_pyramid import (
     write_synthetic_pyramid,
 )
 from podcast_mcp.models import MediaAsset, Track, load_project, save_project
+from podcast_mcp.services.media import (
+    GeneratingWaveformEntry,
+    ReadyWaveformEntry,
+    UnavailableWaveformEntry,
+    WaveformLevel,
+    WaveformStatusResult,
+)
 from podcast_mcp.services.media.waveform import (
     MediaEntry,
     StaleWaveformKeyError,
@@ -173,27 +180,32 @@ def test_keys_change_with_size_and_mtime(tmp_path):
 def test_status_generating_then_ready_and_links_shared_media(tmp_path):
     project_path = waveform_project(tmp_path)
     status = waveform_status(project_path, "raw")
-    assert status["format_version"] == 1
-    media = status["media"]
-    assert media["track:host"] == {"status": "generating"}
-    assert media["source:s_host"] == {"status": "generating"}
-    assert media["track:gone"] == {"status": "unavailable", "reason": "no-media"}
-    assert media["source:ghost"] == {"status": "unavailable", "reason": "no-media"}
+    assert isinstance(status, WaveformStatusResult)
+    assert status.format_version == 1
+    assert list(status.media) == sorted(status.media)
+    media = status.media
+    assert media["track:host"] == GeneratingWaveformEntry()
+    assert media["source:s_host"] == GeneratingWaveformEntry()
+    assert media["track:gone"] == UnavailableWaveformEntry(reason="no-media")
+    assert media["source:ghost"] == UnavailableWaveformEntry(reason="no-media")
     wait_pyramid_jobs()
-    ready = waveform_status(project_path, "raw")["media"]
+    ready = waveform_status(project_path, "raw").media
     host = ready["track:host"]
-    assert host["status"] == "ready"
-    assert host["sample_rate"] == SR
-    assert host["channels"] == 1
-    assert host["total_frames"] == 64 * 300
-    assert host["base_spp"] == 64
-    assert host["level_factor"] == 4
-    assert host["bins_per_tile"] == 4096
-    assert host["levels"] == [{"spp": 64, "bins": 300}]
-    assert ready["source:s_host"]["key"] == host["key"]
+    assert isinstance(host, ReadyWaveformEntry)
+    assert host.status == "ready"
+    assert host.sample_rate == SR
+    assert host.channels == 1
+    assert host.total_frames == 64 * 300
+    assert host.base_spp == 64
+    assert host.level_factor == 4
+    assert host.bins_per_tile == 4096
+    assert host.levels == [WaveformLevel(spp=64, bins=300)]
+    source = ready["source:s_host"]
+    assert isinstance(source, ReadyWaveformEntry)
+    assert source.key == host.key
     peaks = project_path.parent / "artifacts" / "peaks"
-    a = pyramid_path(peaks, "track-host", host["key"])
-    b = pyramid_path(peaks, "source-s_host", host["key"])
+    a = pyramid_path(peaks, "track-host", host.key)
+    b = pyramid_path(peaks, "source-s_host", host.key)
     assert a.stat().st_size == b.stat().st_size
     assert a.read_bytes() == b.read_bytes()
 
@@ -210,14 +222,14 @@ def test_status_pending_then_failed(tmp_path):
         raise RuntimeError("decode boom")
 
     with patch.object(wm_pyramid, "decode_media", side_effect=blocked):
-        first = waveform_status(project_path, "raw")["media"]["track:guest"]
-        assert first == {"status": "generating"}
-        again = waveform_status(project_path, "raw")["media"]["track:guest"]
-        assert again == {"status": "generating"}  # pending, not rescheduled
+        first = waveform_status(project_path, "raw").media["track:guest"]
+        assert first == GeneratingWaveformEntry()
+        again = waveform_status(project_path, "raw").media["track:guest"]
+        assert again == GeneratingWaveformEntry()
         release.set()
         wait_pyramid_jobs()
-    failed = waveform_status(project_path, "raw")["media"]["track:guest"]
-    assert failed == {"status": "unavailable", "reason": "decode-failed"}
+    failed = waveform_status(project_path, "raw").media["track:guest"]
+    assert failed == UnavailableWaveformEntry(reason="decode-failed")
 
 
 def test_status_drops_and_rebuilds_corrupt_pyramid(tmp_path):
@@ -227,7 +239,7 @@ def test_status_drops_and_rebuilds_corrupt_pyramid(tmp_path):
     out = pyramid_path(peaks, "track-host", current_key(entry))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(b"garbage")
-    assert waveform_status(project_path, "raw")["media"]["track:host"] == {"status": "generating"}
+    assert waveform_status(project_path, "raw").media["track:host"] == GeneratingWaveformEntry()
     wait_pyramid_jobs()
     assert read_meta(out).total_frames == 64 * 302
 
@@ -242,12 +254,12 @@ def test_status_rebuilds_instead_of_reusing_a_legacy_short_pyramid(tmp_path):
     old = pyramid_path(project_path.parent / "artifacts" / "peaks", "track-host", old_key)
     write_synthetic_pyramid(old, sample_rate=SR, total_frames=1, seed=1)
 
-    assert waveform_status(project_path, "raw")["media"]["track:host"] == {"status": "generating"}
+    assert waveform_status(project_path, "raw").media["track:host"] == GeneratingWaveformEntry()
     wait_pyramid_jobs()
-    ready = waveform_status(project_path, "raw")["media"]["track:host"]
-    assert ready["status"] == "ready"
-    assert ready["key"] != old_key
-    assert ready["total_frames"] == 64 * 300
+    ready = waveform_status(project_path, "raw").media["track:host"]
+    assert ready.status == "ready"
+    assert ready.key != old_key
+    assert ready.total_frames == 64 * 300
 
 
 def test_old_job_does_not_prune_new_media_path_for_the_same_ref(tmp_path):
@@ -298,7 +310,7 @@ def test_tile_and_pcm_treat_a_corrupt_pyramid_as_missing(tmp_path):
     project_path = waveform_project(tmp_path)
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
-    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    key = waveform_status(project_path, "raw").media["track:host"].key
     out = pyramid_path(project_path.parent / "artifacts" / "peaks", "track-host", key)
     for read in (
         lambda: tile_bytes(project_path, "track:host", key, 0, 0, 1),
@@ -316,7 +328,7 @@ def test_corrupt_reader_preserves_a_concurrently_rebuilt_pyramid(tmp_path, monke
     project_path = waveform_project(tmp_path)
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
-    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    key = waveform_status(project_path, "raw").media["track:host"].key
     out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
     out.write_bytes(b"garbage")
     if read_kind != "cached-tile":
@@ -366,14 +378,14 @@ def test_corrupt_reader_preserves_a_concurrently_rebuilt_pyramid(tmp_path, monke
     assert not reader.is_alive()
     assert errors == []
     assert read_meta(out).total_frames == 64 * 300
-    assert waveform_status(project_path, "raw")["media"]["track:host"]["status"] == "ready"
+    assert waveform_status(project_path, "raw").media["track:host"].status == "ready"
 
 
 def test_drop_pyramid_unlinks_and_evicts_the_cached_header(tmp_path):
     project_path = waveform_project(tmp_path)
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
-    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    key = waveform_status(project_path, "raw").media["track:host"].key
     out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
     assert (str(out), key) in svc._META
     out.write_bytes(b"garbage")
@@ -388,7 +400,7 @@ def test_corruption_cleanup_failure_keeps_the_file_and_evicts_the_header(tmp_pat
     project_path = waveform_project(tmp_path)
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
-    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    key = waveform_status(project_path, "raw").media["track:host"].key
     out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
     assert (str(out), key) in svc._META
     out.write_bytes(b"garbage")
@@ -402,7 +414,7 @@ def test_tile_bytes_short_read_under_a_cached_header_is_corrupt(tmp_path):
     project_path = waveform_project(tmp_path)
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
-    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    key = waveform_status(project_path, "raw").media["track:host"].key
     out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
     assert (str(out), key) in svc._META  # status cached the header
     out.write_bytes(b"garbage")
@@ -410,7 +422,7 @@ def test_tile_bytes_short_read_under_a_cached_header_is_corrupt(tmp_path):
         tile_bytes(project_path, "track:host", key, 0, 0, 1)
     assert not out.exists()
     assert (str(out), key) not in svc._META
-    assert waveform_status(project_path, "raw")["media"]["track:host"] == {"status": "generating"}
+    assert waveform_status(project_path, "raw").media["track:host"] == GeneratingWaveformEntry()
     wait_pyramid_jobs()
     assert out.exists()
 
@@ -418,19 +430,19 @@ def test_tile_bytes_short_read_under_a_cached_header_is_corrupt(tmp_path):
 def test_status_schedule_refused_and_vanished_media(tmp_path):
     project_path = waveform_project(tmp_path)
     with patch.object(svc, "schedule_pyramid_build", return_value=False):
-        media = waveform_status(project_path, "raw")["media"]
-    assert media["track:host"] == {"status": "unavailable", "reason": "decode-failed"}
+        media = waveform_status(project_path, "raw").media
+    assert media["track:host"] == UnavailableWaveformEntry(reason="decode-failed")
     (project_path.parent / "raw" / "guest.wav").unlink()  # after the index was cached
-    media = waveform_status(project_path, "raw")["media"]
-    assert media["track:guest"] == {"status": "unavailable", "reason": "no-media"}
+    media = waveform_status(project_path, "raw").media
+    assert media["track:guest"] == UnavailableWaveformEntry(reason="no-media")
 
 
 def test_status_stem_kind(tmp_path):
     project_path = waveform_project(tmp_path)
     write_wav(project_path.parent / "artifacts" / "tracks" / "host.wav", 640)
     with patch.object(wm, "stem_is_fresh", lambda _p, tid, **_kw: tid == "host"):
-        media = waveform_status(project_path, "stem")["media"]
-    assert media == {"stem:host": {"status": "generating"}}
+        media = waveform_status(project_path, "stem").media
+    assert media == {"stem:host": GeneratingWaveformEntry()}
 
 
 # --- Tiles and PCM --------------------------------------------------------------------
@@ -439,7 +451,7 @@ def test_status_stem_kind(tmp_path):
 def _ready(project_path: Path, ref: str = "track:host") -> tuple[str, Path]:
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
-    key = waveform_status(project_path, "raw")["media"][ref]["key"]
+    key = waveform_status(project_path, "raw").media[ref].key
     kind, ref_id = parse_ref(ref)
     return key, pyramid_path(
         project_path.parent / "artifacts" / "peaks", ref_slug(kind, ref_id), key
@@ -668,7 +680,7 @@ def test_gc_refreshes_live_refs_after_waiting_for_publication(tmp_path, monkeypa
     assert removed == [1]
     assert out.read_bytes() == expected
     with patch.object(wm_pyramid, "decode_media") as decode:
-        assert waveform_status(project_path, "raw")["media"]["track:new"]["status"] == "ready"
+        assert waveform_status(project_path, "raw").media["track:new"].status == "ready"
         wait_pyramid_jobs()
     decode.assert_not_called()
 
@@ -703,8 +715,8 @@ def test_meta_cache_is_bounded(tmp_path, monkeypatch):
     project_path = waveform_project(tmp_path)
     waveform_status(project_path, "raw")
     wait_pyramid_jobs()
-    media = waveform_status(project_path, "raw")["media"]
-    assert media["track:host"]["status"] == media["track:guest"]["status"] == "ready"
+    media = waveform_status(project_path, "raw").media
+    assert media["track:host"].status == media["track:guest"].status == "ready"
     assert len(svc._META) == 1
 
 
@@ -1154,7 +1166,7 @@ def test_status_survives_gc_error(tmp_path, monkeypatch):
         raise RuntimeError("x")
 
     monkeypatch.setattr(svc, "gc_pyramids", boom)
-    assert "track:host" in waveform_status(project_path, "raw")["media"]
+    assert "track:host" in waveform_status(project_path, "raw").media
 
 
 def test_source_ref_resolves_like_clip_render(tmp_path):

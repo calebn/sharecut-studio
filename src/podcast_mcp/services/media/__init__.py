@@ -52,6 +52,14 @@ if TYPE_CHECKING:
         proxy_manifest_payload,
     )
     from podcast_mcp.services.media.range_audio import render_range_audio
+    from podcast_mcp.services.media.results import (
+        GeneratingWaveformEntry,
+        ReadyWaveformEntry,
+        UnavailableWaveformEntry,
+        WaveformEntry,
+        WaveformLevel,
+        WaveformStatusResult,
+    )
     from podcast_mcp.services.media.review_media import (
         delete_object_store_object_if_unused,
         media_type_for_path,
@@ -90,14 +98,20 @@ __all__ = [
     "BounceService",
     "BucketCorsResult",
     "BucketSetupError",
+    "GeneratingWaveformEntry",
     "IngestService",
+    "ReadyWaveformEntry",
     "SpeakerService",
     "StaleWaveformKeyError",
     "TranscriptContextBusyError",
     "TranscriptPrecorrectService",
     "TranscriptRefineService",
+    "UnavailableWaveformEntry",
     "VocabularyConflictError",
     "WaveformBusyError",
+    "WaveformEntry",
+    "WaveformLevel",
+    "WaveformStatusResult",
     "accepted_proxy_chunk_path",
     "admin_config_path",
     "cached_guest_cors",
@@ -142,6 +156,12 @@ __all__ = [
 ]
 
 _MODULE_BY_NAME = {
+    "WaveformStatusResult": "results",
+    "WaveformLevel": "results",
+    "WaveformEntry": "results",
+    "UnavailableWaveformEntry": "results",
+    "ReadyWaveformEntry": "results",
+    "GeneratingWaveformEntry": "results",
     "accepted_proxy_chunk_path": "proxy_variants",
     "ensure_proxy_manifest": "proxy_variants",
     "proxy_manifest_payload": "proxy_variants",

@@ -136,7 +136,7 @@ def get_waveform_status(
             400, "kind must be raw or stem", code="waveform_kind_invalid", headers=NO_STORE
         )
     body = waveform_call(lambda: waveform_status(project_path, "stem" if kind == "stem" else "raw"))
-    return JSONResponse(body, headers=NO_STORE)
+    return JSONResponse(body.model_dump(mode="json"), headers=NO_STORE)
 
 
 @router.get("/api/waveform/tiles/{key}", response_class=Response, responses=OCTET_STREAM_RESPONSES)
