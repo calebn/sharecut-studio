@@ -253,12 +253,19 @@ date: 2026-10-22
 decided-by: calebn
 evidence:
 - #2076: every edit type stays visible at any zoom, and joins that crowd each other fold into a count
-- WCAG 2.5.8 Target Size (Minimum): a 12 px glyph is under the 24 px target, so its centre must sit at least 24 px from every other target's centre
+- WCAG 2.5.8 Target Size (Minimum), the Equivalent exception: the 12 px glyph is under the 24 px target and its hit box is 24 px wide but only as tall as the gutter, so the same function (a join's mode and length) is also offered by the inspector's Join control at full size
+- WCAG 1.4.11 Non-text Contrast: a glyph is the only visual identity of its button, so every type's hue must reach 3:1 against the tag face at every tier in both themes; the tiers shrink size and stroke weight and never dim
+- WCAG 2.5.3 Label in Name and 2.4.3 Focus Order: the visible text leads the accessible name, Tab follows time, and focus survives a zoom that removes the focused mark
 - The shipped rule in AppliedEditOverlay.tsx and gui-viewer.md: applied ticks are decorative because dense stacks cannot meet 2.5.8 as 24 px buttons
 enforced-by:
 - gui/web/src/timeline/editMarkers/plan.test.ts::keeps adjacent placed marks at least 24 px apart across zooms
 - gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::names the group by count and type, and zooms to its span on click
 - gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::draws a chip that cannot split as a count with no button to press
+- gui/web/src/timeline/editMarkers/markContrast.test.ts::keeps every mark hue at 3:1 or better on the tag face in both themes
+- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::renders glyphs and chips in one time-ordered sequence so Tab follows time
+- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::moves focus to the chip a focused glyph merges into on zoom out
+- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::moves focus to the nearest remaining mark when a focused chip goes inert
+- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::shows 'Crossfade 120 ms' beside a wide glyph, hidden from assistive tech and leading the glyph's name
 - gui/web/src/timeline/timelineStyles.test.ts::shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion
 - gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
 - gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
@@ -273,9 +280,15 @@ same at every zoom: it opens the join popover (hit kind `join`). A chip tap
 zooms to its joins (hit kind `edit-chip`, `zoomToSpan`) until the closest two
 sit 30 px apart, centred on the chip, and the chip splits into glyphs. A chip
 no zoom can split (the zoom ceiling, or joins an instant apart) is a plain
-count, not a button. One target never has two meanings by zoom: a glyph's tag may shrink as its crossfade
-draws at real scale (the wide tier), but its button and 24 px hit area stay
-the same size and a tap does the same. The touch chooser names a chip "Edit
+count, not a button. One target never has two meanings by zoom: a glyph's tag
+may shrink as its crossfade draws at real scale (the wide tier), by size and
+stroke weight only and never by opacity, so its hue keeps 3:1 against the tag
+face in both themes; its button and 24 px hit area stay the same size and a
+tap does the same. Glyphs and chips share one time-ordered tab sequence. When
+a zoom merges the focused glyph into a chip, or a chip goes inert at the zoom
+ceiling, focus moves to the chip now holding it, else the nearest remaining
+mark. A glyph that draws a label is named with that text first ("Crossfade
+120 ms join at 0:05.0"). The touch chooser names a chip "Edit
 group".
 
 A finger's tap that lands on no target (a bare lane or a non-movable clip) goes
