@@ -63,14 +63,16 @@ def test_enrollment_does_not_embed_a_sliver_left_to_reach_the_target(
 
 
 def test_embed_refuses_audio_too_short_with_a_plain_error() -> None:
-    with pytest.raises(ValueError, match="too short"):
+    with pytest.raises(ValueError, match="too short") as short:
         EcapaOnnx(model_path=Path("/nonexistent/model.onnx")).embed(np.zeros(399, dtype=np.float32))
+    assert short.value.code == "audio_too_short"
 
 
 def test_features_refuse_true_multichannel_audio() -> None:
     stereo = np.zeros((16000, 2), dtype=np.float32)
-    with pytest.raises(ValueError, match="mono"):
+    with pytest.raises(ValueError, match="mono") as refused:
         ecapa_features(stereo)
+    assert refused.value.code == "audio_not_mono"
 
 
 def test_features_accept_a_single_row_or_column_like_a_flat_signal() -> None:
