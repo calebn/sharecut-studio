@@ -1042,7 +1042,7 @@ size; nothing is added.
   across layers, but layers below views may not import them. The import reader is
   `test/importGraph.ts`.
 - `state/setProjectGovernance.test.ts` allows `setProject(` calls only in
-  `document/` and `state/projectSlice.ts`. Nine calls in seven other files are
+  `document/` and `state/projectSlice.ts`. Two calls in two other files are
   allowlisted by file and call count.
 - `state/readmeRuleGovernance.test.ts` checks the three rules in
   `gui/web/README.md`. Files outside `api/` import the `api.ts` facade, not

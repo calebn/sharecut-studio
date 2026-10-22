@@ -4,7 +4,9 @@ import { refreshDocumentDisplay } from "../document/applyDocumentUpdate";
 import { documentAuthority } from "../document/authorityState";
 import {
   beginDocumentDraft,
+  clearPreviewDraft,
   finishDocumentDraft,
+  setPreviewDraft,
 } from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
@@ -236,6 +238,25 @@ describe("track mix commands (#386)", () => {
     serverSends({ fader_db: -9 });
     held[0].reject(new Error("nope"));
     await vi.waitFor(() => expect(hostTrack()?.fader_db).toBe(-9));
+  });
+
+  it("rejects a change the draft table has no room for and keeps sending later ones", async () => {
+    const filler = Symbol("filler");
+    for (let i = 0; i < 256; i++) {
+      setPreviewDraft(`filler:${i}`, filler, (project) => project);
+    }
+    await expect(execute("track.setVolume", { db: -6 })).rejects.toThrow();
+    for (let i = 0; i < 256; i++) {
+      clearPreviewDraft(`filler:${i}`, filler);
+    }
+    const pending = execute("track.setVolume", { db: -3 });
+    await vi.advanceTimersByTimeAsync(VOLUME_SAVE_DELAY_MS);
+    expect((await pending).status).toBe("ok");
+    expect(api.setTrackFaderCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      -3,
+    );
   });
 
   it("marks the premix behind as soon as the mix changes", async () => {
