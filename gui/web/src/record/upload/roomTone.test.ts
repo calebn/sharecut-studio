@@ -7,7 +7,12 @@ describe("uploadRoomToneWav", () => {
     const transport = memoryUploadTransport();
     const wav = new Uint8Array(44 + 8);
     wav.set([82, 73, 70, 70], 0);
-    await uploadRoomToneWav({ wav, transport });
+    const result = await uploadRoomToneWav({ wav, transport });
     expect(transport.puts).toBe(1);
+    expect(result).toEqual({
+      fileAck: true,
+      landed: true,
+      landFailed: false,
+    });
   });
 });

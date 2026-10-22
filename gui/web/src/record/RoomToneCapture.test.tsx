@@ -5,6 +5,8 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { RoomToneCapture } from "./RoomToneCapture";
 import {
   ROOM_TONE_CAPTURING_COPY,
+  ROOM_TONE_DEVICE_COPY,
+  ROOM_TONE_HOST_COPY,
   ROOM_TONE_NOT_READY_COPY,
   ROOM_TONE_PROMPT_COPY,
   ROOM_TONE_TOO_LOUD_COPY,
@@ -47,6 +49,22 @@ describe("RoomToneCapture", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalled();
     await expectNoA11yViolations(container);
+  });
+
+  it("says where a recorded bed is kept without claiming it is in the project", () => {
+    const props = {
+      status: "recorded" as const,
+      error: null,
+      micReady: true,
+      onRecord: vi.fn(),
+      onSkip: vi.fn(),
+      onRetry: vi.fn(),
+    };
+    const { rerender } = render(<RoomToneCapture {...props} />);
+    expect(screen.getByText(ROOM_TONE_DEVICE_COPY)).toBeInTheDocument();
+    rerender(<RoomToneCapture {...props} delivery="host" />);
+    expect(screen.getByText(ROOM_TONE_HOST_COPY)).toBeInTheDocument();
+    expect(screen.queryByText(ROOM_TONE_DEVICE_COPY)).toBeNull();
   });
 
   it("announces capture progress and disables retry while capturing", async () => {

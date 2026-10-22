@@ -9,6 +9,9 @@ export type RoomToneStatus =
   | "skipped"
   | "error";
 
+/** Where a recorded bed has got to; the host registers it at session end. */
+export type RoomToneDelivery = "device" | "host";
+
 export function rmsDbfs(samples: Float32Array): number {
   if (samples.length === 0) {
     return Number.NEGATIVE_INFINITY;

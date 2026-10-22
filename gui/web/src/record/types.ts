@@ -202,7 +202,8 @@ export const ROOM_TONE_DURATION_SEC = 3;
 export const ROOM_TONE_TOO_LOUD_DBFS = -35;
 export const ROOM_TONE_PROMPT_COPY = "Record 3 seconds of room tone";
 export const ROOM_TONE_TOO_LOUD_COPY = "Too loud: is something playing?";
-export const ROOM_TONE_DONE_COPY = "Room tone saved";
+export const ROOM_TONE_DEVICE_COPY = "Room tone saved on this device";
+export const ROOM_TONE_HOST_COPY = "Room tone sent to the host";
 export const ROOM_TONE_CAPTURING_COPY = "Recording room tone…";
 /** Guest Accept requires record or skip. Host Start does not: idle is an implicit skip. */
 export const ROOM_TONE_GATE_COPY = "Record or skip room tone before accepting.";
