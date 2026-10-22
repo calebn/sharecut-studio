@@ -71,6 +71,7 @@ def pipeline_run(
     ),
     assignments: list[str] | None = typer.Option(None, "--set", help=_SET_HELP),
 ) -> None:
+    from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
     from podcast_mcp.pipeline.meta import set_by_path
     from podcast_mcp.services.pipeline import transcribe_run_config
 
@@ -91,19 +92,22 @@ def pipeline_run(
         unattended=unattended,
         config=config,
     )
-    _echo_run_report(result)
+    notices = stale_stream_lines(ws.project, stale_stream_files(ws.project))
+    _echo_run_report(result, notices)
     if strict and not result.ok:
         typer.echo("Export QC is not ok; exiting 1 (pass --no-strict to exit 0).", err=True)
         raise typer.Exit(1)
 
 
-def _echo_run_report(result: PipelineRunResult) -> None:
+def _echo_run_report(result: PipelineRunResult, notices: list[str]) -> None:
     for log in result.steps:
         line = f"  {log.status:<5} {log.step}"
         if log.message:
             line = f"{line}: {log.message}"
         typer.echo(line)
     for line in result.qc_report_lines():
+        typer.echo(line)
+    for line in notices:
         typer.echo(line)
     typer.echo(f"Pipeline complete. Last step: {result.last_step}")
 

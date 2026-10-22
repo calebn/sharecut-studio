@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import Any
 
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.room_tone import schedule_room_tone_pool
+from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
 from podcast_mcp.engines.track_ids import slug_track_id
 from podcast_mcp.engines.track_media import (
     apply_full_span_media,
@@ -268,7 +270,7 @@ class EpisodeService:
         """
         p = self.ws.project
         pending = sum(1 for d in p.edit_decisions if d.review_required)
-        return {
+        summary: dict[str, Any] = {
             "name": p.name,
             "duration_sec": p.timeline.duration_sec,
             "tracks": [t.id for t in p.tracks],
@@ -278,6 +280,28 @@ class EpisodeService:
             "applied_edits": len(p.editorial.edit_log),
             "reconciliation_stale": p.render.reconciliation_stale,
         }
+        found = stale_stream_files(p)
+        if found:
+            summary["stale_audio_streams"] = {
+                "files": [
+                    {
+                        "path": f.path,
+                        "tracks": list(f.track_ids),
+                        "audio_streams": f.audio_streams,
+                        "old_pick": f.old_pick,
+                    }
+                    for f in found
+                ],
+                "rerun": stale_stream_lines(p, found)[0],
+            }
+        return summary
+
+    def mark_streams_current(self) -> dict:
+        """Record that the user re-ran the steps listed for stale multi-stream media."""
+        with self.ws.transaction() as p:
+            p.meta.analysis_reads_first_audio_stream = True
+            self.ws.save()
+        return {"analysis_reads_first_audio_stream": True}
 
     def reorder_track(self, track_id: str, index: int) -> dict:
         """Move ``track_id`` to 0-based position ``index`` in ``timeline.tracks``."""
