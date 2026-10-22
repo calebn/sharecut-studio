@@ -7,6 +7,7 @@ import pytest
 
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_DB,
+    DIGITAL_SILENCE_RMS,
     LOW_BAND,
     SPEECH_BAND,
     GaussianBand,
@@ -47,6 +48,73 @@ def test_frame_rms_db_matches_scalar_rms_and_caps_frames() -> None:
     assert frame_rms_db(x, 400, 100, max_frames=2).size == 2
     assert frame_rms_db(x[:10], 400, 100).size == 0
     assert frame_rms_db(x, 0, 100).size == 0
+
+
+def _frame_rms_db_reference(
+    samples: np.ndarray,
+    frame: int,
+    hop: int,
+    *,
+    max_frames: int | None = None,
+    floor_db: float = DIGITAL_SILENCE_DB,
+) -> np.ndarray:
+    if frame <= 0 or hop <= 0 or samples.size < frame:
+        return np.empty(0, dtype=np.float64)
+    windows = np.lib.stride_tricks.sliding_window_view(samples, frame)[::hop]
+    if max_frames is not None:
+        windows = windows[:max_frames]
+    rms = np.sqrt(np.mean(np.square(windows, dtype=np.float64), axis=1))
+    out = np.full(rms.shape, floor_db, dtype=np.float64)
+    loud = rms >= DIGITAL_SILENCE_RMS
+    out[loud] = 20.0 * np.log10(rms[loud])
+    return out
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.int16])
+@pytest.mark.parametrize("stride", [1, 2, -1])
+def test_frame_rms_db_preserves_reduction_bits_and_input(dtype, stride: int) -> None:
+    source = (np.random.default_rng(101).standard_normal(1025) * 30).astype(dtype)
+    original = source.tobytes()
+    source.flags.writeable = False
+    samples = source[::stride]
+
+    for frame, hop in [(1, 1), (7, 3), (31, 8), (32, 8), (33, 8), (400, 400), (31, 40)]:
+        for cap in [None, 0, 1, 2, -1, -10_000, 10_000]:
+            expected = _frame_rms_db_reference(samples, frame, hop, max_frames=cap)
+            actual = frame_rms_db(samples, frame, hop, max_frames=cap)
+            assert actual.dtype == np.float64
+            np.testing.assert_array_equal(actual.view(np.uint64), expected.view(np.uint64))
+
+    assert source.tobytes() == original
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize("floor_db", [DIGITAL_SILENCE_DB, -120.0])
+def test_frame_rms_db_preserves_floor_and_nonfinite_reduction_bits(dtype, floor_db: float) -> None:
+    samples = np.repeat(
+        np.array([0.0, -0.0, 0.5e-10, 1e-10, 2e-10, np.nan, np.inf, -np.inf], dtype=dtype),
+        40,
+    )
+    original = samples.tobytes()
+
+    expected = _frame_rms_db_reference(samples, 33, 8, floor_db=floor_db)
+    actual = frame_rms_db(samples, 33, 8, floor_db=floor_db)
+
+    np.testing.assert_array_equal(actual.view(np.uint64), expected.view(np.uint64))
+    assert samples.tobytes() == original
+
+
+def test_frame_rms_db_stream_preserves_original_reduction_bits() -> None:
+    samples = np.random.default_rng(102).uniform(-1, 1, 1025).astype(np.float32)
+    chunks = [samples[:7], samples[7:408], samples[408:409], samples[409:]]
+    expected = _frame_rms_db_reference(samples, 33, 8)
+
+    actual = frame_rms_db_stream(iter(chunks), 33, 8)
+    joint_rms, joint_peak = frame_db_stream(iter(chunks), 33, 8, (frame_rms_db, frame_peak_db))
+
+    np.testing.assert_array_equal(actual.view(np.uint64), expected.view(np.uint64))
+    np.testing.assert_array_equal(joint_rms.view(np.uint64), expected.view(np.uint64))
+    np.testing.assert_array_equal(joint_peak, frame_peak_db(samples, 33, 8))
 
 
 def test_frame_band_db_reads_only_the_band_above_its_cutoff() -> None:
