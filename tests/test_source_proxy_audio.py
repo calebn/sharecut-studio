@@ -685,7 +685,7 @@ def test_restore_proxy_of_a_multistream_source_uses_the_first_stream(tmp_path, m
 
 def test_first_stream_fix_moves_render_and_proxy_identities(tmp_path, monkeypatch):
     p, track, clip, _ = _project(tmp_path, monkeypatch)
-    assert timeline_render.RENDER_SEMANTICS_REV == 20
+    assert timeline_render.RENDER_SEMANTICS_REV == 21
     captured = proxy.SourceProxyInputs.capture_occurrence(
         p, clip.id, FFmpegEngine(), defaults=load_defaults()
     )
