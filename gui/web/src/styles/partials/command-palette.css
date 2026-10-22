@@ -929,6 +929,15 @@ html[data-shell="phone"]
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-floating);
   pointer-events: auto;
+  /* When a placement caps the height below the content (a narrow phone with
+     no room beside the grip), the whole panel scrolls; a body that scrolled on
+     its own would collapse to a few pixels between header and footer. */
+  overflow-y: auto;
+}
+
+.ui-dialog-root--anchored > .command-palette-panel > .command-palette-body {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .ui-dialog-root--anchored .command-palette-header {

@@ -114,6 +114,8 @@ for (const phone of PHONES) {
 
           for (const button of [seek, audition]) {
             await expect(button).toBeVisible();
+            // A height-capped panel scrolls; bring the control into view.
+            await button.scrollIntoViewIfNeeded({ timeout: 1000 });
             const box = await button.boundingBox();
             if (!box) throw new Error("missing button box");
             expect(box.x).toBeGreaterThanOrEqual(0);
@@ -122,6 +124,7 @@ for (const phone of PHONES) {
             expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 0.5);
           }
           for (const control of [seek, audition, slider]) {
+            await control.scrollIntoViewIfNeeded({ timeout: 1000 });
             const box = await control.boundingBox();
             if (!box) throw new Error("missing control box");
             expect(
