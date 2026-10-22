@@ -19,6 +19,7 @@ STAMPED = {
     "podcast_mcp/engines/decoded_source.py",
     "podcast_mcp/engines/gate_fill.py",
     "podcast_mcp/engines/play_audit.py",
+    "podcast_mcp/engines/render_clock.py",
     "podcast_mcp/engines/waveform_media.py",
     "podcast_mcp/engines/word_align.py",
     "podcast_mcp/project/store.py",
