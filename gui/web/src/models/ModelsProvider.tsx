@@ -151,6 +151,9 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       running.current = "starting";
       if (options?.whisperModel && ids.includes("whisper")) {
         dispatch({ type: "variantChosen", variant: options.whisperModel });
+        if (options.whisperModel !== stateRef.current.status?.whisper_model) {
+          void load(options.whisperModel);
+        }
       }
       dispatch({ type: "downloadStarted", ids });
       const rows = stateRef.current.status?.models ?? [];
@@ -182,7 +185,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         return { kind: "failed", failed: ids };
       }
     },
-    [adoptRunning, track],
+    [adoptRunning, track, load],
   );
 
   const cancel = useCallback(async () => {
@@ -208,7 +211,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const api = useMemo<ModelsApi>(
     () => ({
       models: state.status
-        ? overlay(state.status, state.job, state.failures)
+        ? overlay(state.status, state.job, state.failures, state.variant)
         : null,
       tools: toolsOf(state.status),
       ready: state.status?.ready ?? false,

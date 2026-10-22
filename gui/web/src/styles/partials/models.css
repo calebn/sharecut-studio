@@ -63,9 +63,10 @@
   flex: 1 1 12rem;
   min-inline-size: 0;
   block-size: var(--space-4);
-  accent-color: var(--color-accent-strong);
+  accent-color: var(--color-accent-solid);
 }
 
+/* The fill is the solid accent: at least 3:1 against the sunken track in both themes (WCAG 1.4.11). */
 /* A calm track from the theme's own surfaces, not the browser's near-white one. */
 .model-row-progress progress {
   appearance: none;
@@ -80,11 +81,11 @@
 }
 
 .model-row-progress progress::-webkit-progress-value {
-  background: var(--color-accent-strong);
+  background: var(--color-accent-solid);
 }
 
 .model-row-progress progress::-moz-progress-bar {
-  background: var(--color-accent-strong);
+  background: var(--color-accent-solid);
 }
 
 .model-row-actions {
@@ -149,4 +150,10 @@
   font-style: italic;
   box-shadow: none;
   cursor: not-allowed;
+}
+
+/* "Skip for now" while a download holds the slot: inactive, but still readable text. */
+.bootstrap-wizard .ui-control.linkish:is(:disabled, [aria-disabled="true"]) {
+  opacity: 1;
+  color: var(--color-text-secondary);
 }
