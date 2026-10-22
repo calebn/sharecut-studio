@@ -9,7 +9,7 @@ named or with ``--component all``.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,6 +24,8 @@ from podcast_mcp.engines.models.speaker_ecapa import (
 )
 from podcast_mcp.engines.models.whisper import (
     WHISPER_BOOTSTRAP,
+    WHISPER_MODEL_CATALOG,
+    WHISPER_SIZE_BYTES,
     WhisperPinMismatchError,
     bootstrap_whisper_model,
     resolve_whisper_model,
@@ -38,7 +40,7 @@ from podcast_mcp.engines.models.word_aligner import (
     word_aligner_model,
     word_aligner_problem,
 )
-from podcast_mcp.util.asset_sources import OnProgress
+from podcast_mcp.util.asset_sources import OnProgress, asset_entry
 from podcast_mcp.util.model_assets import (
     bootstrap_rnnoise_model,
     resolve_rnnoise_model,
@@ -66,6 +68,15 @@ class ModelSpec:
     install: Callable[[str | None, bool, OnProgress | None], dict[str, Any]]
     location: Callable[[], Path]
     default_variant: str | None = None
+    variant_sizes: Callable[[str | None], tuple[str | None, int | None]] = field(
+        default=lambda variant: (None, None)
+    )
+
+    def size_label(self, variant: str | None = None) -> str:
+        return self.variant_sizes(variant)[0] or self.size
+
+    def size_bytes(self, variant: str | None = None) -> int | None:
+        return self.variant_sizes(variant)[1]
 
     @property
     def fix_command(self) -> str:
@@ -146,6 +157,18 @@ def _speaker_ecapa_install(
     return bootstrap_speaker_ecapa(force=force, on_progress=on_progress)
 
 
+def _whisper_sizes(variant: str | None) -> tuple[str | None, int | None]:
+    for item in WHISPER_MODEL_CATALOG:
+        if item["id"] == variant:
+            return item["size"], WHISPER_SIZE_BYTES.get(item["id"])
+    return None, None
+
+
+def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
+    pinned = asset_entry("rnnoise").get("size_bytes")
+    return None, pinned if isinstance(pinned, int) else None
+
+
 _WORD_ALIGNER = word_aligner_model(DEFAULT_WORD_ALIGNER)
 
 MODELS: tuple[ModelSpec, ...] = (
@@ -158,6 +181,7 @@ MODELS: tuple[ModelSpec, ...] = (
         problem=_whisper_problem,
         install=_whisper_install,
         location=whisper_cache_dir,
+        variant_sizes=_whisper_sizes,
     ),
     ModelSpec(
         id="rnnoise",
@@ -168,6 +192,7 @@ MODELS: tuple[ModelSpec, ...] = (
         problem=_rnnoise_problem,
         install=_rnnoise_install,
         location=rnnoise_model_path,
+        variant_sizes=_rnnoise_sizes,
     ),
     ModelSpec(
         id="word-aligner",

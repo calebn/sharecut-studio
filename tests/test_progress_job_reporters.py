@@ -112,7 +112,7 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
         "resolve_ffmpeg_pair",
         lambda **_kwargs: (_ for _ in ()).throw(FFmpegPairResolutionError("missing pair")),
     )
-    assert boot.component_status()["components"]["ffmpeg"]["ok"] is False
+    assert boot.component_status()["tools"]["ffmpeg"]["state"] == "missing"
 
     ff = tmp_path / "ffmpeg"
     fp = tmp_path / "ffprobe"
@@ -125,7 +125,7 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
         "resolve_ffmpeg_pair",
         lambda **_kwargs: FFmpegPair(str(ff), str(fp), (9, 0, 2), "explicit"),
     )
-    assert boot.component_status()["components"]["ffmpeg"]["ok"] is True
+    assert boot.component_status()["tools"]["ffmpeg"]["state"] == "installed"
 
     from podcast_mcp.engines.models import registry
 

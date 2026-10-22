@@ -43,6 +43,24 @@ def test_setup_prints_each_models_readiness_and_fix(tmp_path, monkeypatch):
     ) in result.stdout
 
 
+def test_setup_says_update_needed_for_a_pin_mismatch(tmp_path, monkeypatch):
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setattr(
+        "podcast_mcp.cli.setup_cmd.model_status",
+        lambda model_id, variant=None: {
+            "state": "update_needed" if model_id == "rnnoise" else "installed",
+            "size": "~0.3 MB",
+            "bootstrap": "podcast bootstrap --component rnnoise --upgrade",
+        },
+    )
+    result = runner.invoke(setup_app, ["setup"])
+    assert (
+        "  rnnoise: update needed (noise reduction, ~0.3 MB). "
+        "Fix: podcast bootstrap --component rnnoise --upgrade"
+    ) in result.stdout
+    assert "  whisper: ready (transcription)" in result.stdout
+
+
 def test_setup_ffmpeg_missing(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     with patch(

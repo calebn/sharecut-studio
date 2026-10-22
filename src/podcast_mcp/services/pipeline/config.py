@@ -280,9 +280,9 @@ def ensure_whisper_cached_for_run(
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     """Host component readiness for Pipeline badges.
 
-    ``whisper.ok`` requires both the faster-whisper import **and** on-disk
+    ``whisper.state`` is ``installed`` only with both the faster-whisper import **and** on-disk
     weights for ``whisper_model`` (working-set / resolved preference).
-    ``word-aligner`` is an opt-in download (``opt_in: true``); the Precise word boundaries
+    ``word-aligner`` is an offered download (``tier: offered``); the Precise word boundaries
     toggle follows ``build_config_payload()["forced_alignment"]`` for its effective state.
     """
     from podcast_mcp.engines.models.whisper import resolve_whisper_model
@@ -296,7 +296,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         path = pair.ffmpeg
         ok = pair.is_available()
         out["ffmpeg"] = {
-            "ok": ok,
+            "state": "installed" if ok else "missing",
             "path": path,
             **(
                 {}
@@ -307,7 +307,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             ),
         }
     except FFmpegPairResolutionError as exc:
-        out["ffmpeg"] = {"ok": False, "hint": str(exc)}
+        out["ffmpeg"] = {"state": "missing", "hint": str(exc)}
 
     try:
         import faster_whisper  # noqa: F401
@@ -315,7 +315,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         out["whisper"] = model_status("whisper", resolve_whisper_model(requested=whisper_model))
     except Exception as exc:
         out["whisper"] = {
-            "ok": False,
+            "state": "missing",
             "hint": f"faster-whisper unavailable: {exc}",
         }
 

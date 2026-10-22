@@ -39,7 +39,7 @@ def _stub_health(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.component_status",
-        lambda: {"ready": True, "components": {}},
+        lambda: {"ready": True, "models": [], "tools": {}},
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
@@ -105,7 +105,7 @@ def test_build_bundle_contents_and_doctor_reuse(
     monkeypatch.setattr("podcast_mcp.services.support.diagnostics.run_doctor_checks", spy)
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.component_status",
-        lambda: {"ready": True, "components": {}},
+        lambda: {"ready": True, "models": [], "tools": {}},
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
@@ -157,7 +157,7 @@ def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.component_status",
-        lambda: {"ready": True, "components": {}},
+        lambda: {"ready": True, "models": [], "tools": {}},
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
@@ -189,7 +189,7 @@ def test_doctor_cli_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.component_status",
-        lambda: {"ready": True, "components": {}},
+        lambda: {"ready": True, "models": [], "tools": {}},
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
@@ -225,7 +225,7 @@ def test_diagnostics_routes_host_only(tmp_path: Path, monkeypatch: pytest.Monkey
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.component_status",
-        lambda: {"ready": True, "components": {}},
+        lambda: {"ready": True, "models": [], "tools": {}},
     )
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
@@ -808,10 +808,10 @@ def test_report_json_scrubs_non_home_cache(tmp_path: Path, monkeypatch: pytest.M
         "podcast_mcp.services.support.diagnostics.component_status",
         lambda: {
             "ready": True,
-            "components": {
-                "whisper": {"cache": str(cache / "whisper")},
-                "rnnoise": {"path": str(cache / "models" / "std.rnnn")},
-            },
+            "models": [
+                {"id": "whisper", "cache": str(cache / "whisper")},
+                {"id": "rnnoise", "path": str(cache / "models" / "std.rnnn")},
+            ],
         },
     )
     monkeypatch.setattr(
@@ -825,6 +825,31 @@ def test_report_json_scrubs_non_home_cache(tmp_path: Path, monkeypatch: pytest.M
     text = zipfile.ZipFile(report.path).read("report.json").decode()
     assert str(cache) not in text
     assert "<cache>" in text
+
+
+def test_bundle_reports_the_model_status_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setattr(
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
+        lambda _p=None: DoctorReport(),
+    )
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path, include_logs=False)
+    bootstrap = json.loads(zipfile.ZipFile(report.path).read("report.json"))["bootstrap"]
+    assert [row["id"] for row in bootstrap["models"]] == [
+        "whisper",
+        "rnnoise",
+        "word-aligner",
+        "speaker-ecapa",
+    ]
+    assert {row["state"] for row in bootstrap["models"]} <= {
+        "installed",
+        "missing",
+        "update_needed",
+    }
+    assert "components" not in bootstrap
+    assert set(bootstrap["tools"]) == {"ffmpeg"}
 
 
 def test_build_bundle_prefers_parent_progress(

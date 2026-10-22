@@ -99,6 +99,14 @@ WHISPER_MODEL_CATALOG: tuple[dict[str, str], ...] = (
 )
 
 WHISPER_MODEL_IDS: tuple[str, ...] = tuple(item["id"] for item in WHISPER_MODEL_CATALOG)
+WHISPER_SIZE_BYTES: dict[str, int] = {
+    "tiny.en": 75_000_000,
+    "base.en": 150_000_000,
+    "small.en": 500_000_000,
+    "medium.en": 1_500_000_000,
+    "large-v3-turbo": 1_600_000_000,
+    "large-v3": 3_000_000_000,
+}
 WHISPER_SIZE_ENUM: tuple[str, ...] = tuple(sorted(FASTER_WHISPER_SIZES))
 
 # Files shared across repos (identical bytes at each pinned revision). gitleaks' generic-api-key

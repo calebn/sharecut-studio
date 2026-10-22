@@ -73,11 +73,13 @@ def setup(
     whisper = resolve_whisper_model()
     for spec in MODELS:
         status = model_status(spec.id, whisper if spec.id == "whisper" else None)
-        if status["ok"]:
+        if status["state"] == "installed":
             typer.echo(f"  {spec.id}: ready ({spec.purpose})")
         else:
+            word = "update needed" if status["state"] == "update_needed" else "missing"
             typer.echo(
-                f"  {spec.id}: missing ({spec.purpose}, {spec.size}). Fix: {status['bootstrap']}"
+                f"  {spec.id}: {word} ({spec.purpose}, {status['size']}). "
+                f"Fix: {status['bootstrap']}"
             )
 
     typer.echo(f"Cache: {cache_dir()}")
@@ -225,7 +227,9 @@ def bootstrap(
     ok = True
     for spec in wanted:
         variant = whisper_model if spec.id == "whisper" else None
-        if not sys.stderr.isatty() and (upgrade or not model_status(spec.id, variant)["ok"]):
+        if not sys.stderr.isatty() and (
+            upgrade or model_status(spec.id, variant)["state"] != "installed"
+        ):
             typer.echo(f"[get] {spec.id} ({spec.size})")
         with _cause_stays_in_the_log():
             try:

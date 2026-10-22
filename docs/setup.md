@@ -191,10 +191,17 @@ generic API key; `.gitleaks.toml` allowlists the two pin shapes in
 and `("<file>", "…")` manifest entries), so keep new pins in one of those
 shapes ([docs/testing.md § Credential history
 scanning](testing.md#credential-history-scanning)).
-`GET /api/bootstrap/status` and the Pipeline tab's component badges report a
-pin mismatch (Whisper or word aligner) as `ok: false` with
-`pin_mismatch: true`, the mismatch as `hint`, and an `--upgrade` `bootstrap`
-command naming the model. Status is built from the registry rows only: Whisper reports its cache directory as `path` (it was `cache`), `speaker-ecapa` no longer reports `license`, and there is no `silero-vad` entry.
+`GET /api/bootstrap/status` and the Pipeline tab's component badges read one record per registry model
+(`model_status`): `id`, `label`, `purpose`, `tier` (`required`, `recommended` or `offered`), `model`
+(the variant), `size` and `size_bytes` (`null` when unpinned; Whisper follows `?whisper_model=`),
+`state` (`installed`, `missing` or `update_needed`), `path`, and for a model that is not installed a
+`hint` and a `bootstrap` command. A pin mismatch (Whisper or word aligner) is `update_needed`, the
+mismatch is the `hint`, and the `--upgrade` `bootstrap` command names the model. The bootstrap route
+lists the records as `models`, in registry order, and puts FFmpeg under `tools.ffmpeg`
+(`state`, `source`, `hint`); `ready` is FFmpeg plus every `required` model installed. The Pipeline
+config `components` map is the same record keyed by id. `ok`, `pin_mismatch`, `required_for_first_run`,
+`opt_in` and the `components`, `default_components`, `optional_components` and `opt_in_components`
+lists are gone. `sharecut setup` prints `update needed` for an `update_needed` model.
 
 To check the shipped pins against a clean download (network; bootstrap hashes every
 file uncached and exits 1 on a mismatch):

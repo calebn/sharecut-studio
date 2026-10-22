@@ -440,6 +440,26 @@ def test_a_failed_job_carries_the_first_failure_and_its_plain_text(
     assert snap["failure"] == job.failure and snap["download"] is None
 
 
+def test_a_failed_model_reports_its_failure_and_the_next_still_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def installs(variant, force, on_progress):
+        return {"ok": True, "path": "/stub/word-aligner"}
+
+    specs = {
+        "rnnoise": _spec_raising(_http_error(404)),
+        "word-aligner": replace(registry.model_spec("word-aligner"), install=installs),
+    }
+    monkeypatch.setattr(boot, "model_spec", lambda model_id: specs[model_id])
+    monkeypatch.setattr(boot, "component_status", lambda **_k: {})
+    out = boot.run_bootstrap(["rnnoise", "word-aligner"])
+    plain = "The download server doesn't have RNNoise noise reduction."
+    assert out["ok"] is False
+    assert out["results"]["rnnoise"]["failure"] == {"kind": "http", "status": 404, "plain": plain}
+    assert out["results"]["rnnoise"]["error"] == plain
+    assert out["results"]["word-aligner"] == {"ok": True, "path": "/stub/word-aligner"}
+
+
 SECRET = "/home/someone/secret/model.bin"
 
 
@@ -976,7 +996,10 @@ def test_cli_get_line_prints_only_when_the_model_will_install(
         replace(spec, install=install) if spec.id == "rnnoise" else spec for spec in registry.MODELS
     )
     monkeypatch.setattr("podcast_mcp.cli.setup_cmd.MODELS", models)
-    monkeypatch.setattr("podcast_mcp.cli.setup_cmd.model_status", lambda *_a, **_k: {"ok": cached})
+    monkeypatch.setattr(
+        "podcast_mcp.cli.setup_cmd.model_status",
+        lambda *_a, **_k: {"state": "installed" if cached else "missing"},
+    )
     monkeypatch.setattr(
         boot, "model_spec", lambda model_id: next(s for s in models if s.id == model_id)
     )

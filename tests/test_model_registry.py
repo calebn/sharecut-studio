@@ -28,9 +28,37 @@ def test_registry_rows_and_tiers() -> None:
 
 def test_bootstrap_views_derive_from_the_registry() -> None:
     assert boot.DEFAULT_FIRST_RUN_COMPONENTS == ("whisper",)
-    assert boot.OPTIONAL_COMPONENTS == ("rnnoise",)
-    assert boot.OPT_IN_COMPONENTS == ("word-aligner", "speaker-ecapa")
     assert boot.ALL_GUI_COMPONENTS == ("whisper", "rnnoise", "word-aligner", "speaker-ecapa")
+    assert not hasattr(boot, "OPTIONAL_COMPONENTS")
+    assert not hasattr(boot, "OPT_IN_COMPONENTS")
+
+
+def test_size_follows_the_whisper_variant() -> None:
+    whisper = model_spec("whisper")
+    assert whisper.size_label("tiny.en") == "~75 MB"
+    assert whisper.size_bytes("tiny.en") == 75_000_000
+    assert whisper.size_label("large-v3-turbo") == "~1.6 GB"
+    assert whisper.size_bytes("large-v3-turbo") == 1_600_000_000
+    assert whisper.size_label("large-v3") == "~3 GB"
+    assert whisper.size_bytes("large-v3") == 3_000_000_000
+
+
+def test_whisper_sizes_cover_the_catalog_and_the_unlisted_fall_back() -> None:
+    from podcast_mcp.engines.models.whisper import WHISPER_MODEL_IDS
+
+    whisper = model_spec("whisper")
+    assert all(whisper.size_bytes(model) is not None for model in WHISPER_MODEL_IDS)
+    assert whisper.size_label("distil-large-v3") == whisper.size
+    assert whisper.size_bytes("distil-large-v3") is None
+    assert whisper.size_label(None) == whisper.size
+
+
+def test_size_is_pinned_or_unknown() -> None:
+    assert model_spec("rnnoise").size_bytes(None) == 297646
+    assert model_spec("rnnoise").size_label(None) == "~0.3 MB"
+    assert model_spec("word-aligner").size_bytes(None) is None
+    assert model_spec("word-aligner").size_label(None) == "~360 MB"
+    assert model_spec("speaker-ecapa").size_bytes(None) is None
 
 
 def test_fix_command_names_the_component() -> None:
@@ -40,39 +68,38 @@ def test_fix_command_names_the_component() -> None:
 def test_component_status_lists_every_registry_model(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: None)
     status = boot.component_status()
-    assert [name for name in status["components"] if name in boot.ALL_GUI_COMPONENTS] == [
-        spec.id for spec in MODELS
+    assert [row["id"] for row in status["models"]] == [spec.id for spec in MODELS]
+    assert [(row["id"], row["tier"], row["purpose"]) for row in status["models"]] == [
+        (spec.id, spec.setup, spec.purpose) for spec in MODELS
     ]
-    assert status["default_components"] == ["whisper"]
-    assert status["optional_components"] == ["rnnoise"]
-    assert status["opt_in_components"] == ["word-aligner", "speaker-ecapa"]
-    speaker = status["components"]["speaker-ecapa"]
-    assert speaker["ok"] is False
-    assert speaker["opt_in"] is True
-    assert speaker["required_for_first_run"] is False
+    speaker = status["models"][-1]
+    assert speaker["state"] == "missing"
     assert speaker["model"] == "speaker-ecapa"
+    assert speaker["size"] == "~80 MB"
+    assert speaker["size_bytes"] is None
     assert speaker["bootstrap"] == "podcast bootstrap --component speaker-ecapa"
-    assert status["components"]["whisper"]["required_for_first_run"] is True
+    assert status["models"][0]["tier"] == "required"
 
 
 def test_rnnoise_status_follows_the_model_file(tmp_path: Path, monkeypatch) -> None:
     model = tmp_path / "model.rnnn"
     monkeypatch.setenv("PODCAST_MCP_RNNOISE_MODEL", str(model))
     missing = boot.model_status("rnnoise")
-    assert missing["ok"] is False
+    assert missing["state"] == "missing"
     assert missing["bootstrap"] == "podcast bootstrap --component rnnoise"
     assert missing["hint"] == (
         f"RNNoise model not found at {model}. Run `podcast bootstrap --component rnnoise`."
     )
     model.write_bytes(b"x")
     ready = boot.model_status("rnnoise")
-    assert ready["ok"] is True
+    assert ready["state"] == "installed"
     assert "hint" not in ready
 
 
-def test_status_components_come_only_from_the_registry() -> None:
-    components = boot.component_status()["components"]
-    assert set(components) == {"ffmpeg", *(spec.id for spec in registry.MODELS)}
+def test_status_models_come_only_from_the_registry() -> None:
+    status = boot.component_status()
+    assert [row["id"] for row in status["models"]] == [spec.id for spec in registry.MODELS]
+    assert set(status["tools"]) == {"ffmpeg"}
 
 
 def test_run_bootstrap_installs_every_named_model(monkeypatch: pytest.MonkeyPatch) -> None:

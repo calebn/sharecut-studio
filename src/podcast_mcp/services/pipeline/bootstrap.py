@@ -49,27 +49,29 @@ from podcast_mcp.util.progress import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = tuple(s.id for s in models_for("required"))
-OPTIONAL_COMPONENTS: tuple[str, ...] = tuple(s.id for s in models_for("recommended"))
-OPT_IN_COMPONENTS: tuple[str, ...] = tuple(s.id for s in models_for("offered"))
 ALL_GUI_COMPONENTS: tuple[str, ...] = tuple(s.id for s in MODELS)
 
 
 def model_status(
     model_id: str, variant: str | None = None, *, memoize: bool = True
 ) -> dict[str, Any]:
-    """One model's readiness (no download) for bootstrap status and Pipeline badges.
+    """One model's readiness (no download): the record bootstrap status, Pipeline badges, the CLI
+    and the diagnostics bundle all read.
 
-    ``ok: True`` when the registry row reports no problem. A pin mismatch adds
-    ``pin_mismatch: true`` and an ``--upgrade`` fix as ``bootstrap``; any other problem
-    gets ``hint`` and ``bootstrap``. An unexpected error is reported, never raised.
+    ``state`` is ``installed`` when the registry row reports no problem. A pin mismatch is
+    ``update_needed`` with an ``--upgrade`` fix as ``bootstrap``; any other problem is
+    ``missing`` with ``hint`` and ``bootstrap``. An unexpected error is reported, never raised.
     """
     spec = model_spec(model_id)
+    model = variant or spec.default_variant or spec.id
     base: dict[str, Any] = {
-        "model": variant or spec.default_variant or spec.id,
+        "id": spec.id,
+        "model": model,
         "label": spec.label,
-        "size": spec.size,
-        "required_for_first_run": spec.setup == "required",
-        "opt_in": spec.setup == "offered",
+        "purpose": spec.purpose,
+        "tier": spec.setup,
+        "size": spec.size_label(model),
+        "size_bytes": spec.size_bytes(model),
     }
     try:
         problem = spec.problem(variant, memoize)
@@ -77,11 +79,10 @@ def model_status(
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
         problem = ModelProblem(str(exc), spec.fix_command)
     if problem is None:
-        return {**base, "ok": True}
+        return {**base, "state": "installed"}
     return {
         **base,
-        "ok": False,
-        **({"pin_mismatch": True} if problem.pin_mismatch else {}),
+        "state": "update_needed" if problem.pin_mismatch else "missing",
         "hint": problem.hint,
         "bootstrap": problem.fix,
     }
@@ -97,30 +98,23 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         ffmpeg_pair = None
         ffmpeg_error = str(exc)
     ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
-    components = {
-        "ffmpeg": {
-            "ok": ffmpeg_ok,
-            "source": ffmpeg_pair.source if ffmpeg_pair else "not found",
-            "required_for_first_run": True,
-            "hint": ffmpeg_error,
-        },
-        **{
-            spec.id: model_status(spec.id, model if spec.id == "whisper" else None)
-            for spec in MODELS
-        },
-    }
+    models = [model_status(spec.id, model if spec.id == "whisper" else None) for spec in MODELS]
     ready = ffmpeg_ok and all(
-        components[name]["ok"] for name in DEFAULT_FIRST_RUN_COMPONENTS if name in components
+        row["state"] == "installed" for row in models if row["id"] in DEFAULT_FIRST_RUN_COMPONENTS
     )
     return {
         "ready": ready,
         "cdn_base": cdn_base_configured(),
         "whisper_model": model,
         "whisper_models": catalog_payload(),
-        "components": components,
-        "default_components": list(DEFAULT_FIRST_RUN_COMPONENTS),
-        "optional_components": list(OPTIONAL_COMPONENTS),
-        "opt_in_components": list(OPT_IN_COMPONENTS),
+        "tools": {
+            "ffmpeg": {
+                "state": "installed" if ffmpeg_ok else "missing",
+                "source": ffmpeg_pair.source if ffmpeg_pair else "not found",
+                "hint": ffmpeg_error,
+            }
+        },
+        "models": models,
     }
 
 
