@@ -148,6 +148,24 @@ describe("BootstrapWizard rows", () => {
     expect(button).toHaveAccessibleDescription(/Nothing is picked/);
   });
 
+  it("does not claim nothing is picked while a download runs", () => {
+    renderWithModels(<BootstrapWizard onReady={vi.fn()} />, {
+      status: modelStatus(
+        registryRows().map((r) => ({ ...r, state: "installed" as const })),
+        { ready: false },
+      ),
+      job: {
+        id: "j",
+        kind: "bootstrap",
+        components: ["whisper"],
+        whisper_model: "large-v3-turbo",
+        status: "running",
+      },
+    });
+    expect(screen.getByText("Download in progress")).toBeTruthy();
+    expect(screen.queryByText(/Nothing is picked/)).toBeNull();
+  });
+
   it("counts models when a size is unknown", async () => {
     const user = userEvent.setup();
     renderWithModels(<BootstrapWizard onReady={vi.fn()} />, {

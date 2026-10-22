@@ -103,7 +103,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
   }
 
   const stuckReason =
-    picked.length === 0 && !ready
+    !busy && picked.length === 0 && !ready
       ? "Nothing is picked to download, and setup cannot finish without the audio tools."
       : undefined;
   const continueReason = busy ? BUSY_REASON : stuckReason;
