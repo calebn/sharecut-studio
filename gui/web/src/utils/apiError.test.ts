@@ -6,6 +6,7 @@ import {
   isPermanentRejection,
   isServerTimeoutError,
   readApiFailure,
+  refusalReason,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "./apiError";
 
@@ -129,5 +130,25 @@ describe("isAbortError", () => {
     expect(isAbortError(new Error("boom"))).toBe(false);
     expect(isAbortError("AbortError")).toBe(false);
     expect(isAbortError(null)).toBe(false);
+  });
+});
+
+describe("refusalReason", () => {
+  it("keeps a refusal's own message", () => {
+    expect(
+      refusalReason(new ApiError("Clip is gone", "document_conflict", 409)),
+    ).toBe("Clip is gone");
+  });
+
+  it("replaces the transcript-refine gate's command-line advice with the app's one action", () => {
+    const reason = refusalReason(
+      new ApiError(
+        "Run `podcast transcript refine-waive --reason ...`",
+        TRANSCRIPT_REFINE_REQUIRED_CODE,
+        409,
+      ),
+    );
+    expect(reason).toMatch(/waive it with a reason/);
+    expect(reason).not.toMatch(/podcast|--reason/);
   });
 });

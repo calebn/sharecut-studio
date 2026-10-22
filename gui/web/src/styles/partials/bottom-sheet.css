@@ -105,6 +105,13 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   height: auto;
 }
 
+/* A refused Approve adds its message and recovery form to the strip. Cap it at the half
+   sheet's reach so the transport, ruler, marker lane and one lane stay in view; the sheet
+   body scrolls (#2158). */
+.bottom-sheet--compact.bottom-sheet--peek {
+  max-block-size: max(100% - 13.625rem, min(100%, 9rem));
+}
+
 .bottom-sheet--peek .bottom-sheet-header {
   padding-block: var(--space-1);
 }
