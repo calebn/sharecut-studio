@@ -370,6 +370,7 @@ def attribute_speakers(
                 "too little speech to tell the speakers apart. Pick a recording where each speaker talks.",
                 code="too_little_speech",
             )
+        enrolled = _enrollment_centroids(samples, enrollment or {}, window_sec, backend)
         task.advance(0, total=centers.size + 2, message=f"Embedding {centers.size} windows")
 
         def embedded_one() -> None:
@@ -377,7 +378,6 @@ def attribute_speakers(
             task.advance(1)
 
         embeddings = _embed(samples, centers, window_sec, backend, embedded_one)
-        enrolled = _enrollment_centroids(samples, enrollment or {}, window_sec, backend)
         centroids = _cluster(embeddings, speaker_count, enrolled)
         task.advance(1)
         scores = _frame_scores(centers, embeddings @ centroids.T, frames, window_sec)
