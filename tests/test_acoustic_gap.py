@@ -53,6 +53,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.pipeline.meta import PARAM_FIELDS
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
     CancelledProgress,
     RecordingProgress,
@@ -1363,13 +1364,28 @@ def test_without_the_probe_setting_nothing_is_heard(
     assert calls == []
 
 
+@pytest.mark.parametrize("gone", ["loader", "gate"])
 def test_a_missing_model_leaves_the_proposal_unflagged_and_counts_it(
-    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch, gone: str
 ) -> None:
     del sample_wav
+    error: Exception = (
+        WhisperWeightsMissingError("large-v3-turbo")
+        if gone == "loader"
+        else ModelMissing(
+            id="whisper",
+            model="large-v3-turbo",
+            label="Whisper speech model",
+            purpose="transcription",
+            size="~1.6 GB",
+            size_bytes=None,
+            command="podcast bootstrap --component whisper",
+            state="missing",
+        )
+    )
 
     def missing(defaults: dict) -> object:
-        raise WhisperWeightsMissingError("large-v3-turbo")
+        raise error
 
     monkeypatch.setattr("podcast_mcp.edits.tighten.propose.whisper_span_transcriber", missing)
 

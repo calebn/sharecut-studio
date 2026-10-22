@@ -27,6 +27,7 @@ from podcast_mcp.edits.tighten_reasons import (
 )
 from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.models import EditDecision
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
     CancelledProgress,
     raise_if_cancel_requested,
@@ -106,7 +107,7 @@ def flag_possible_words(
             raise_if_cancel_requested(current_cancel_check())
             try:
                 heard = span_heard_a_word(samples, transcribe, languages.get(decision.track_id))
-            except WhisperWeightsMissingError:
+            except (WhisperWeightsMissingError, ModelMissing):
                 raise
             except CancelledProgress:
                 raise

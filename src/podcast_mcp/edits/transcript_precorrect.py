@@ -24,6 +24,7 @@ from podcast_mcp.project.transcript_context import (
     TranscriptContext,
     load_transcript_context,
 )
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.util.wer import normalize_token
 
@@ -508,8 +509,12 @@ def run_precorrect_transcript(
                     defaults=defaults,
                 )
                 result.speaker_ran = True
-            except ImportError:
-                skip_reason = "speaker extra not installed"
+            except ImportError as exc:
+                skip_reason = (
+                    "speaker model not downloaded"
+                    if isinstance(exc, ModelMissing)
+                    else "speaker extra not installed"
+                )
                 task.message(skip_reason)
                 speaker_report = {"ran": False, "skipped_reason": skip_reason}
         else:

@@ -31,6 +31,7 @@ from podcast_mcp.engines.asr_timing import (
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.models.whisper import (
     DEFAULT_WHISPER_MODEL,
+    WhisperWeightsMissingError,
     resolve_whisper_model_path,
     validate_whisper_model,
 )
@@ -485,7 +486,13 @@ class TranscriptionEngine:
         if self._model is None:
             from faster_whisper import WhisperModel
 
-            model_path = resolve_whisper_model_path(self.model_size)
+            try:
+                model_path = resolve_whisper_model_path(self.model_size)
+            except WhisperWeightsMissingError:
+                from podcast_mcp.engines.models.registry import require_model
+
+                require_model("whisper", self.model_size, memoize=False)
+                raise
             self._model = WhisperModel(
                 model_path,
                 device=self.device,

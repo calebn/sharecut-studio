@@ -8,8 +8,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from model_pin_helpers import plant_pinned_whisper
+from model_pin_helpers import isolate_model_env, plant_pinned_whisper
 from podcast_mcp.config.defaults import load_defaults
+
+
+@pytest.fixture(autouse=True)
+def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_model_env(monkeypatch, tmp_path)
 
 
 def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
@@ -145,7 +150,10 @@ def test_gui_pipeline_run_409_when_weights_missing(
     assert detail["model"]["id"] == "whisper"
     assert detail["model"]["model"] == "small.en"
     assert detail["model"]["state"] == "missing"
-    assert detail["model"]["command"] == "podcast bootstrap --component whisper"
+    assert (
+        detail["model"]["command"]
+        == "podcast bootstrap --component whisper --whisper-model small.en"
+    )
     assert started["called"] is False
     status = client.get("/api/pipeline/status")
     assert status.status_code == 200
@@ -213,8 +221,8 @@ def test_transcription_engine_uses_local_files_only(
 def test_transcription_engine_refuses_a_tampered_pinned_snapshot(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.engines.models.whisper import WhisperPinMismatchError
     from podcast_mcp.engines.transcribe import TranscriptionEngine
+    from podcast_mcp.util.model_missing import ModelMissing
 
     cache = tmp_path / "whisper"
     snap = plant_pinned_whisper(cache, "tiny.en", monkeypatch)
@@ -231,24 +239,27 @@ def test_transcription_engine_refuses_a_tampered_pinned_snapshot(
 
     with patch("faster_whisper.WhisperModel", side_effect=fake_model):
         eng = TranscriptionEngine("tiny.en", defaults=load_defaults())
-        with pytest.raises(WhisperPinMismatchError, match=r"config\.json"):
+        with pytest.raises(ModelMissing) as caught:
             eng._get_model()
+    assert caught.value.state == "update_needed"
+    assert caught.value.command.endswith("--whisper-model tiny.en --upgrade")
     assert called["n"] == 0
 
 
 def test_transcription_engine_raises_when_weights_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
     from podcast_mcp.engines.transcribe import TranscriptionEngine
+    from podcast_mcp.util.model_missing import ModelMissing
 
     monkeypatch.setattr(
         "podcast_mcp.config.defaults.whisper_cache_dir",
         lambda: tmp_path / "empty",
     )
     eng = TranscriptionEngine("tiny.en", defaults=load_defaults())
-    with pytest.raises(WhisperWeightsMissingError, match=r"tiny\.en"):
+    with pytest.raises(ModelMissing) as caught:
         eng._get_model()
+    assert caught.value.model == "tiny.en"
 
 
 def test_selected_whisper_model_uses_yaml_when_prefs_unset(

@@ -23,7 +23,6 @@ from podcast_mcp.engines.models.speaker_ecapa import (
     speaker_ecapa_problem,
 )
 from podcast_mcp.engines.models.whisper import (
-    WHISPER_BOOTSTRAP,
     WHISPER_MODEL_CATALOG,
     WHISPER_SIZE_BYTES,
     WhisperPinMismatchError,
@@ -94,7 +93,7 @@ def _whisper_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
     return ModelProblem(
         f"Whisper model {model!r} is not downloaded — pick Download in the Pipeline tab "
         f"or run {whisper_bootstrap_command(model)}",
-        WHISPER_BOOTSTRAP,
+        whisper_bootstrap_command(model),
     )
 
 
