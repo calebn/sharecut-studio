@@ -471,6 +471,56 @@ def test_the_route_maps_an_unavailable_backend_to_409(
     assert res.headers["X-Sharecut-Error-Code"] == "speaker_backend_unavailable"
 
 
+@pytest.fixture
+def model_absent(room: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    from podcast_mcp.engines import speaker_id
+    from podcast_mcp.engines.models import speaker_ecapa
+
+    monkeypatch.setattr(speaker_ecapa, "models_dir", lambda: tmp_path / "no-models")
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
+    monkeypatch.setitem(sys.modules, "torch", None)
+
+    def no_encoder() -> object:
+        raise ImportError("no resemblyzer", name="resemblyzer")
+
+    monkeypatch.setattr(speaker_id, "_import_voice_encoder", no_encoder)
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.speaker.resolve_speaker_backend",
+        speaker_id.resolve_speaker_backend,
+    )
+
+
+def test_the_route_asks_for_the_model_when_it_is_not_downloaded(
+    room: Path, model_absent: None, tmp_path: Path
+) -> None:
+    res = _client().post(
+        "/api/speaker/split", json={"path": str(room), "track_id": "room", "speaker_count": 2}
+    )
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "model_needed"
+    assert res.headers["Cache-Control"] == "no-store"
+    detail = res.json()["detail"]
+    assert detail["model"]["id"] == "speaker-ecapa"
+    assert detail["model"]["state"] == "missing"
+    assert "podcast bootstrap --component speaker-ecapa" in detail["detail"]
+    assert str(tmp_path) not in res.text
+
+
+def test_the_route_does_not_offer_a_download_for_an_override_that_is_missing(
+    room: Path, model_absent: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(tmp_path / "gone.onnx"))
+    res = _client().post(
+        "/api/speaker/split", json={"path": str(room), "track_id": "room", "speaker_count": 2}
+    )
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "speaker_backend_unavailable"
+    assert str(tmp_path) not in res.text
+
+
 def test_the_speaker_doctor_route_is_host_only_and_uses_the_service_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

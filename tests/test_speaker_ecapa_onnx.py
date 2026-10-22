@@ -210,8 +210,10 @@ def test_auto_backend_prefers_onnx_when_ready(monkeypatch: pytest.MonkeyPatch) -
 def test_explicit_onnx_backend_refuses_when_not_ready(
     model_dir: Path,
 ) -> None:
-    with pytest.raises(ImportError, match="ecapa-onnx"):
+    with pytest.raises(speaker_id.SpeakerModelMissing) as caught:
         speaker_id.resolve_speaker_backend("ecapa-onnx")
+    assert caught.value.code == "model_needed"
+    assert caught.value.state == "missing"
 
 
 @pytest.mark.skipif(
@@ -503,6 +505,6 @@ def test_backend_routing_reports_the_polled_problem_without_a_second_check(
 
     monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_problem", problem)
     monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_override", lambda: None)
-    with pytest.raises(ImportError, match="not downloaded"):
+    with pytest.raises(speaker_id.SpeakerModelMissing):
         speaker_id.resolve_speaker_backend("ecapa-onnx")
     assert seen == [True]

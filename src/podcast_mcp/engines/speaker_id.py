@@ -29,6 +29,7 @@ from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.project.transcript_context import SpeakerIdConfig, TranscriptContext
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
@@ -143,6 +144,30 @@ class SpeakerBackendUnavailable(CodedValueError, ImportError):
             or "Speaker recognition isn't available on this computer. "
             "See the speaker setup instructions to enable it."
         )
+
+
+class SpeakerModelMissing(ModelMissing, SpeakerBackendUnavailable):
+    """The pinned speaker model is not downloaded, so a download would fix it.
+
+    Still an ``ImportError`` and a ``SpeakerBackendUnavailable``, so the callers that treat
+    "no backend here" as a skip keep doing so; the HTTP handler sees ``ModelMissing`` first.
+    """
+
+
+def _speaker_model_missing() -> SpeakerModelMissing:
+    from podcast_mcp.engines.models.registry import model_record
+
+    rec = model_record("speaker-ecapa")
+    return SpeakerModelMissing(
+        id=rec["id"],
+        model=rec["model"],
+        label=rec["label"],
+        purpose=rec["purpose"],
+        size=rec["size"],
+        size_bytes=rec["size_bytes"],
+        command=rec["bootstrap"],
+        state=rec["state"],
+    )
 
 
 class MockSpeakerBackend:
@@ -318,6 +343,8 @@ def resolve_speaker_backend(
                         f"speaker backend unavailable: {name} (override does not load: {exc})"
                     ) from exc
         if name == "ecapa-onnx":
+            if problem is not None and speaker_ecapa_override() is None:
+                raise _speaker_model_missing()
             raise ImportError(f"speaker backend unavailable: {name} ({problem})")
     if name in ("speechbrain", "ecapa", "auto"):
         try:
@@ -339,6 +366,8 @@ def resolve_speaker_backend(
         # build without a real backend reports "unavailable" instead of a made-up result.
         if settings.text(MOCK_BACKEND_ENV).lower() == "mock":
             return MockSpeakerBackend()
+        if speaker_ecapa_problem(memoize=True) is not None and speaker_ecapa_override() is None:
+            raise _speaker_model_missing()
         raise SpeakerBackendUnavailable()
     raise ImportError(f"speaker backend unavailable: {name}")
 

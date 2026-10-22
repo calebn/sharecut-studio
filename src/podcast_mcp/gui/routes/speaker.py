@@ -17,6 +17,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.media import SpeakerService
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.model_missing import ModelMissing
 
 router = APIRouter()
 
@@ -54,6 +55,8 @@ def speaker_split(
             names=body.names,
             enrollment=body.enrollment,
         )
+    except ModelMissing:
+        raise
     except CodedValueError as exc:
         if exc.code != "speaker_backend_unavailable":
             raise coded_http_error(400, str(exc), code=exc.code) from exc
