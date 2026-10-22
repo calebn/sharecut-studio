@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import http.server
 import io
+import signal
 import ssl
 import subprocess
 import sys
@@ -485,4 +486,22 @@ finally:
         timeout=10,
     )
     assert result.returncode == 0, result.stderr
+    assert not list(tmp_path.glob(".sharecut-apt-*"))
+
+
+def test_failed_process_creation_restores_cancellation_handlers(api, tmp_path, monkeypatch):
+    transport, _ = api
+    previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
+
+    def failed_start(*_args, **_kwargs):
+        raise OSError("fixture process creation failed")
+
+    monkeypatch.setattr(transport.subprocess, "Popen", failed_start)
+    plan = transport.FetchPlan(
+        transport.AptSignedMetadata(1024),
+        ("https://archive.ubuntu.com/ubuntu/dists/resolute/InRelease",) * 2,
+    )
+    with pytest.raises(OSError, match="fixture process creation failed"):
+        transport.acquire(plan, tmp_path / "InRelease")
+    assert all(signal.getsignal(number) == handler for number, handler in previous.items())
     assert not list(tmp_path.glob(".sharecut-apt-*"))
