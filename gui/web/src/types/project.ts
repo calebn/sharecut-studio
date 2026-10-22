@@ -27,7 +27,11 @@ export interface ClippingRegion {
 export type JoinMode = ClipJoinMode;
 
 /** Why a crossfade-mode join renders without an overlap. */
-export type CrossfadeBlocked = "not_abutting" | "no_fade_out" | "no_fade_in";
+export type CrossfadeBlocked =
+  | "not_abutting"
+  | "no_fade_out"
+  | "no_fade_in"
+  | "no_headroom";
 
 export interface ClipRow {
   id: string;
@@ -46,6 +50,11 @@ export interface ClipRow {
   /** Overlap render uses at this join (0 when it is not a crossfade). */
   join_crossfade_ms?: number;
   join_crossfade_blocked?: CrossfadeBlocked | null;
+  /**
+   * Seconds each side of this join borrows from its recording (half the overlap);
+   * 0 when the join does not blend. `clips_ops.crossfade_borrow_sec`.
+   */
+  join_borrow_sec?: number;
   source_id: string | null;
   /**
    * Length (s) of the recording this clip plays; null when unmeasured. A trim

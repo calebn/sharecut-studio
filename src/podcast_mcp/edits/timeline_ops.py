@@ -1174,7 +1174,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
                 "fade_in_ms": c.fade_in_ms,
                 "fade_out_ms": c.fade_out_ms,
                 "join_in_mode": c.join_in_mode.value,
-                **join_render_fields(prev, c),
+                **join_render_fields(prev, c, project),
                 "source_id": c.source_id,
                 "source_duration_sec": duration,
                 "recording_key": key,

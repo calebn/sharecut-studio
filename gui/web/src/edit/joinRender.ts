@@ -16,6 +16,7 @@ const BLOCKED_REASON: Record<string, string> = {
   not_abutting: "the clips do not touch",
   no_fade_out: "the left clip has no fade-out",
   no_fade_in: "this clip has no fade-in",
+  no_headroom: "the recordings have no room past the cut to overlap",
 };
 
 /** True when render treats this clip's incoming join as a hard cut (a track's first clip has no join). */
