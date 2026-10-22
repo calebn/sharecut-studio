@@ -318,6 +318,23 @@ def test_clean_bed_passes_without_a_voice_detector(tmp_path: Path, no_voice_dete
     )
 
 
+def test_bed_the_voice_detector_cannot_measure_is_not_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=11)[: 2 * SR])
+
+    def broken(_audio: np.ndarray) -> float:
+        raise RuntimeError("detector failed")
+
+    monkeypatch.setattr("podcast_mcp.engines.room_tone._speech_prob", broken)
+
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+
+    assert not isinstance(selected, RecordedBedSample)
+    assert selected.bed_failure == "unreadable_file"
+
+
 def test_clean_bed_has_no_bed_failure(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
