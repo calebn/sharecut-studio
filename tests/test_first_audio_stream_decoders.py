@@ -9,6 +9,7 @@ import pytest
 import multistream_media as media
 from podcast_mcp.engines import align, decoded_source, ungated_audio
 from podcast_mcp.engines import ffmpeg as ffmpeg_module
+from podcast_mcp.engines.audio import MuteEnvelope
 from podcast_mcp.engines.ffmpeg import _EBUR128_BLOCK_RE, FFmpegEngine
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.media_seek import MediaSeek
@@ -132,7 +133,7 @@ def test_extract_segment_reads_first_stream(pair: tuple[Path, Path], tmp_path: P
     expected = engine.extract_segment(oracle, tmp_path / "want.wav", 0.2, 1.2).read_bytes()
     assert got == expected
     muted = engine.extract_segment(
-        source, tmp_path / "muted.wav", 0.2, 1.2, mute_spans=[(50.0, 51.0)]
+        source, tmp_path / "muted.wav", 0.2, 1.2, mute_spans=(MuteEnvelope(50.0, 51.0, 0.0, 0.0),)
     )
     assert muted.read_bytes() == got
 
