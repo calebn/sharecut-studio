@@ -42,7 +42,7 @@ for opening track details. To reset it, tap the track's initials, then choose
 **Clear clip light** in the track inspector. With reduced motion enabled, the
 meter bar stays still while clip detection continues.
 
-Joins stay visible at any zoom as a small marker at the top of the lane: `|` cut, `╲╱` fade, `✕` crossfade. On a phone held upright most joins sit closer than 24 px, so they fold into a count; tap it to zoom until they separate, then tap a marker to edit its join. Applied edits stay thin, untappable ticks.
+Joins stay visible at any zoom as a small marker at the top of the lane: `|` cut, `╲╱` fade, `✕` crossfade. When you zoom in far enough that a crossfade draws as a real overlap, its marker shrinks to a small tag so the shape reads, and past 24 px of overlap a label such as "Crossfade 120 ms" appears beside it when there is room. On a phone held upright most joins sit closer than 24 px, so they fold into a count; tap it to zoom until they separate, then tap a marker to edit its join. Applied edits stay thin, untappable ticks.
 
 Pending edit regions fill their lane. Select one to reveal its label and review
 actions above or below the lane; they stay clear of the edge controls, and a

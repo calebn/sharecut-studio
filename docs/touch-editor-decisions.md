@@ -259,6 +259,7 @@ enforced-by:
 - gui/web/src/timeline/editMarkers/plan.test.ts::keeps adjacent placed marks at least 24 px apart across zooms
 - gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::names the group by count and type, and zooms to its span on click
 - gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::draws a chip that cannot split as a count with no button to press
+- gui/web/src/timeline/timelineStyles.test.ts::shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion
 - gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
 - gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
 - gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a selected seam tick
@@ -272,7 +273,9 @@ same at every zoom: it opens the join popover (hit kind `join`). A chip tap
 zooms to its joins (hit kind `edit-chip`, `zoomToSpan`) until the closest two
 sit 30 px apart, centred on the chip, and the chip splits into glyphs. A chip
 no zoom can split (the zoom ceiling, or joins an instant apart) is a plain
-count, not a button. One target never has two meanings by zoom. The touch chooser names a chip "Edit
+count, not a button. One target never has two meanings by zoom: a glyph's tag may shrink as its crossfade
+draws at real scale (the wide tier), but its button and 24 px hit area stay
+the same size and a tap does the same. The touch chooser names a chip "Edit
 group".
 
 A finger's tap that lands on no target (a bare lane or a non-movable clip) goes
