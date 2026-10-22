@@ -93,6 +93,7 @@ from podcast_mcp.models import EpisodeProject, GateFill, GateFillSource, Track, 
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import rms_db
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.pcm_stream import SequentialWindowReader
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import FileRevision, file_revision
@@ -668,7 +669,7 @@ def plan_gate_fill(project: EpisodeProject, track: Track, *, fade_ms: int) -> Ga
     """Measure ``track``'s holes and write their fill from the first source that has one."""
     assert track.media is not None
     path = resolve_under_workspace(project, track.media.path)
-    stat = path.stat()
+    stamp = file_stamp(path)
     holes = detect_gate_holes(path)
     if not holes.bounds:
         return GateFillResult(track.id, None, 0, "no gate holes")
@@ -680,14 +681,13 @@ def plan_gate_fill(project: EpisodeProject, track: Track, *, fade_ms: int) -> Ga
             continue
         fade = round(fade_ms / 1000.0 * holes.sample_rate)
         rel = _write_fill(project, track.id, holes, made.samples, fade)
-        after = path.stat()
-        if (after.st_size, after.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
+        if file_stamp(path).content != stamp.content:
             return GateFillResult(track.id, None, len(holes.bounds), "media changed while read")
         fill = GateFill(
             source=source,
             path=rel,
-            media_size=stat.st_size,
-            media_mtime_ns=stat.st_mtime_ns,
+            media_size=stamp.size,
+            media_mtime_ns=stamp.mtime_ns,
             holes=len(holes.bounds),
             filled_sec=round(holes.seconds, 3),
             level_db=round(made.level_db, 2),
@@ -744,11 +744,11 @@ def current_gate_fill_path(project: EpisodeProject, track: Track) -> Path | None
     if fill is None or track.media is None:
         return None
     try:
-        stat = resolve_under_workspace(project, track.media.path).stat()
+        stamp = file_stamp(resolve_under_workspace(project, track.media.path))
         path = resolve_under_workspace(project, fill.path)
     except (OSError, ValueError):
         return None
-    if (stat.st_size, stat.st_mtime_ns) != (fill.media_size, fill.media_mtime_ns):
+    if stamp.content != (fill.media_size, fill.media_mtime_ns):
         log.debug("gate fill for %s ignored: its media changed since it was measured", track.id)
         return None
     return path if path.is_file() else None
@@ -759,8 +759,7 @@ def gate_fill_payload(project: EpisodeProject, track: Track) -> dict[str, Any] |
     path = current_gate_fill_path(project, track)
     if path is None or track.gate_fill is None:
         return None
-    stat = path.stat()
     return {
         "fill": track.gate_fill.model_dump(mode="json"),
-        "file": [stat.st_size, stat.st_mtime_ns],
+        "file": list(file_stamp(path).content),
     }

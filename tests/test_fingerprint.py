@@ -13,9 +13,11 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 
 # Modules whose cache keys come from a stamp.
 STAMPED = {
+    "podcast_mcp/edits/prosody_profile.py",
     "podcast_mcp/edits/transcript_reuse.py",
     "podcast_mcp/engines/alignment_audit.py",
     "podcast_mcp/engines/decoded_source.py",
+    "podcast_mcp/engines/gate_fill.py",
     "podcast_mcp/engines/play_audit.py",
     "podcast_mcp/engines/waveform_media.py",
     "podcast_mcp/engines/word_align.py",
@@ -37,8 +39,6 @@ STAMPED = {
 # key, a sample rate, a stored value to compare against) or order the files by mtime. Move
 # one to ``file_stamp`` only when its key keeps exactly the parts it keeps today.
 OWN_STAT = {
-    "podcast_mcp/edits/prosody_profile.py",
-    "podcast_mcp/engines/gate_fill.py",
     "podcast_mcp/engines/transcribe.py",
     "podcast_mcp/engines/waveform_pyramid.py",
     "podcast_mcp/gui/audio.py",
