@@ -1,9 +1,9 @@
 export { EditMarkerLayer } from "./EditMarkerLayer";
 export {
   chipLabel,
-  clusterZoom,
   collectJoinMarks,
   joinPopoverId,
   type LanePlan,
+  type PlacedChip,
   planLaneMarks,
 } from "./plan";

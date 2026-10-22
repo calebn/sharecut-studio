@@ -6,7 +6,7 @@ import type { ClipRow } from "../../types/project";
 import { JoinBlend } from "../JoinBlend";
 import { timelineLaneStoryDecorator } from "../timelineLaneStoryDecorator";
 import { EditMarkerLayer } from "./EditMarkerLayer";
-import { collectJoinMarks, planLaneMarks } from "./plan";
+import { collectJoinMarks, type PlacedChip, planLaneMarks } from "./plan";
 
 type JoinSpec = {
   sec: number;
@@ -51,31 +51,30 @@ function chain(specs: JoinSpec[]): ClipRow[] {
 function Lane({
   specs,
   zoomPxPerSec,
-  onZoomToSpan,
+  onZoomChip,
 }: {
   specs: JoinSpec[];
   zoomPxPerSec: number;
-  onZoomToSpan: (startSec: number, endSec: number) => void;
+  onZoomChip: (chip: PlacedChip) => void;
 }) {
   const clips = chain(specs);
   const plan = planLaneMarks(
     collectJoinMarks(clips, null, () => false),
     zoomPxPerSec,
+    600,
   );
   return (
     <>
-      {plan.symbols.map(({ mark, narrow }) => {
-        const right = clips.find((c) => c.id === mark.clipId)!;
+      {plan.symbols.map(({ mark }) => {
         return (
           <JoinBlend
             key={mark.id}
-            visual={joinVisual(right, zoomPxPerSec)}
+            visual={joinVisual(mark.right, zoomPxPerSec)}
             zoomPxPerSec={zoomPxPerSec}
-            narrow={narrow}
           />
         );
       })}
-      <EditMarkerLayer plan={plan} onZoomToSpan={onZoomToSpan} />
+      <EditMarkerLayer plan={plan} onZoomChip={onZoomChip} />
     </>
   );
 }
@@ -86,7 +85,7 @@ const meta: Meta<typeof Lane> = {
   tags: ["autodocs"],
   parameters: { layout: "fullscreen", lanePreviewLabel: "Edit marker preview" },
   decorators: [timelineLaneStoryDecorator],
-  args: { zoomPxPerSec: 50, onZoomToSpan: fn() },
+  args: { zoomPxPerSec: 50, onZoomChip: fn() },
 };
 
 export default meta;

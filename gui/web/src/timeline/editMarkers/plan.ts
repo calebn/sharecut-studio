@@ -2,7 +2,7 @@ import {
   clipRowDuringRoll,
   type RollPreview,
 } from "../../edit/clipEdgePreview";
-import { isJoin, joinVisual } from "../../edit/joinRender";
+import { isJoin } from "../../edit/joinRender";
 import type { ClipRow } from "../../types/project";
 import {
   JOIN_KINDS,
@@ -17,25 +17,21 @@ export interface JoinMark {
   clipId: string;
   kind: JoinMarkerKind;
   sec: number;
-  crossfadeMs: ClipRow["join_crossfade_ms"];
-  blocked?: NonNullable<ClipRow["join_crossfade_blocked"]>;
+  /** The rows either side of the seam, rolled by a live roll as the clips draw. */
+  left: ClipRow;
+  right: ClipRow;
 }
 
-export const NARROW_OVERLAP_PX = 8;
 export const CLUSTER_PX = 24;
 
-export type Box = { leftPx: number; widthPx: number };
-export type PlacedSymbol = {
-  mark: JoinMark;
-  narrow: boolean;
-  xPx: number;
-  box: Box | null;
-};
+export type PlacedSymbol = { mark: JoinMark; xPx: number };
 export type PlacedChip = {
   marks: readonly JoinMark[];
   xPx: number;
   startSec: number;
   endSec: number;
+  /** The zoom that splits the group, or null when zooming in cannot. */
+  zoomTo: number | null;
 };
 export interface LanePlan {
   symbols: readonly PlacedSymbol[];
@@ -66,36 +62,17 @@ export function collectJoinMarks(
       clipId: right.id,
       kind: joinKind(right),
       sec: right.timeline_start,
-      crossfadeMs: right.join_crossfade_ms,
-      ...(right.join_crossfade_blocked
-        ? { blocked: right.join_crossfade_blocked }
-        : {}),
+      left,
+      right,
     });
   }
   return marks;
 }
 
-function boxOf(mark: JoinMark, zoomPxPerSec: number): Box | null {
-  if (mark.kind !== "join-crossfade") {
-    return null;
-  }
-  const visual = joinVisual(
-    {
-      join_in_mode: "crossfade",
-      join_crossfade_blocked: mark.blocked ?? null,
-      join_crossfade_ms: mark.crossfadeMs,
-      timeline_start: mark.sec,
-    },
-    zoomPxPerSec,
-  );
-  return visual.kind === "blend"
-    ? { leftPx: visual.leftPx, widthPx: visual.widthPx }
-    : null;
-}
-
 export function planLaneMarks(
   marks: readonly JoinMark[],
   zoomPxPerSec: number,
+  sessionSec: number,
 ): LanePlan {
   const placed = marks
     .map((mark) => ({ mark, xPx: mark.sec * zoomPxPerSec }))
@@ -112,31 +89,29 @@ export function planLaneMarks(
   const symbols: PlacedSymbol[] = [];
   const chips: PlacedChip[] = [];
   for (const group of groups) {
-    if (group.length > 1) {
-      chips.push({
-        marks: group.map((item) => item.mark),
-        xPx: (group[0].xPx + group[group.length - 1].xPx) / 2,
-        startSec: group[0].mark.sec,
-        endSec: group[group.length - 1].mark.sec,
-      });
+    if (group.length === 1) {
+      symbols.push(group[0]);
       continue;
     }
-    const { mark, xPx } = group[0];
-    const box = boxOf(mark, zoomPxPerSec);
-    symbols.push({
-      mark,
-      xPx,
-      box,
-      narrow: box != null && box.widthPx < NARROW_OVERLAP_PX,
+    const zoom = clusterZoom(
+      group.map((item) => item.mark.sec),
+      sessionSec,
+    );
+    chips.push({
+      marks: group.map((item) => item.mark),
+      xPx: (group[0].xPx + group[group.length - 1].xPx) / 2,
+      startSec: group[0].mark.sec,
+      endSec: group[group.length - 1].mark.sec,
+      zoomTo: zoom > zoomPxPerSec ? zoom : null,
     });
   }
   return { symbols, chips };
 }
 
-export function clusterZoom(chip: PlacedChip, sessionSec: number): number {
+function clusterZoom(secs: readonly number[], sessionSec: number): number {
   let gapSec = Number.POSITIVE_INFINITY;
-  for (let i = 1; i < chip.marks.length; i += 1) {
-    gapSec = Math.min(gapSec, chip.marks[i].sec - chip.marks[i - 1].sec);
+  for (let i = 1; i < secs.length; i += 1) {
+    gapSec = Math.min(gapSec, secs[i] - secs[i - 1]);
   }
   const zoom =
     gapSec > 0 ? (1.25 * CLUSTER_PX) / gapSec : Number.POSITIVE_INFINITY;
@@ -151,5 +126,5 @@ export function chipLabel(chip: PlacedChip): string {
     }
     return [`${n} ${markerLabel(kind).toLowerCase()}${n > 1 ? "s" : ""}`];
   });
-  return `${chip.marks.length} edits: ${parts.join(", ")}. Zoom in`;
+  return `${chip.marks.length} edits: ${parts.join(", ")}${chip.zoomTo == null ? "" : ". Zoom in"}`;
 }

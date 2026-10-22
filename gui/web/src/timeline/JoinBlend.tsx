@@ -11,6 +11,9 @@ export type JoinWaveSides = {
   gainDb: number;
 };
 
+/** Narrower than this, the crossfade X would be a smear: only the waves draw. */
+export const NARROW_OVERLAP_PX = 8;
+
 const LEFT_KEY = "join-blend-left";
 const RIGHT_KEY = "join-blend-right";
 
@@ -86,14 +89,12 @@ export function JoinBlend({
   right,
   waves,
   zoomPxPerSec,
-  narrow,
 }: {
   visual: JoinVisual;
   left?: Pick<ClipRow, "source_end">;
   right?: Pick<ClipRow, "source_start">;
   waves?: JoinWaveSides;
   zoomPxPerSec: number;
-  narrow?: boolean;
 }) {
   if (visual.kind !== "blend") return null;
   return (
@@ -115,7 +116,9 @@ export function JoinBlend({
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
-        {narrow ? null : <path d="M0 0L100 100M100 0L0 100" />}
+        {visual.widthPx < NARROW_OVERLAP_PX ? null : (
+          <path d="M0 0L100 100M100 0L0 100" />
+        )}
       </svg>
     </>
   );

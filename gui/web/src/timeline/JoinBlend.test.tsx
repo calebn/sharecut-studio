@@ -49,25 +49,31 @@ describe("JoinBlend overlap waveforms", () => {
   });
 
   it.each([
-    [true, 0],
-    [false, 1],
-  ] as const)("with narrow %s draws %i X path", (narrow, paths) => {
-    const row = right(200);
-    const { container } = render(
-      <JoinBlend
-        visual={joinVisual(row, 100)}
-        left={left}
-        right={row}
-        zoomPxPerSec={100}
-        narrow={narrow}
-      />,
-    );
-    expect(container.querySelector(".join-blend")).toHaveStyle({
-      left: "490px",
-      width: "20px",
-    });
-    expect(container.querySelectorAll(".join-blend path")).toHaveLength(paths);
-  });
+    [25, 5, 0],
+    [39, 7.8, 0],
+    [40, 8, 1],
+    [100, 20, 1],
+    [4000, 800, 1],
+  ] as const)(
+    "at %f px/s draws the 200 ms overlap %f px wide with %i X path",
+    (zoom, widthPx, paths) => {
+      const row = right(200);
+      const { container } = render(
+        <JoinBlend
+          visual={joinVisual(row, zoom)}
+          left={left}
+          right={row}
+          zoomPxPerSec={zoom}
+        />,
+      );
+      const svg = container.querySelector<SVGElement>(".join-blend");
+      expect(Number.parseFloat(svg?.style.width ?? "")).toBeCloseTo(widthPx, 9);
+      expect(svg?.style.left).toBe(`${5 * zoom - widthPx / 2}px`);
+      expect(container.querySelectorAll(".join-blend path")).toHaveLength(
+        paths,
+      );
+    },
+  );
 
   it("draws the left tail and right head across exactly the overlap box", () => {
     const { container } = mount();

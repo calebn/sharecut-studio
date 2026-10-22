@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { joinVisual } from "../../edit/joinRender";
 import { clipRow } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
-import { clampZoomPxPerSec } from "../../utils/zoom";
+import { effectiveMaxZoomPxPerSec } from "../../utils/timelineZoom.generated";
 import {
   chipLabel,
-  clusterZoom,
   collectJoinMarks,
   type JoinMark,
   type LanePlan,
   type PlacedChip,
   planLaneMarks,
 } from "./plan";
+
+const SESSION_SEC = 600;
+const row = clipRow({ id: "row" });
 
 const mark = (
   sec: number,
@@ -22,9 +23,13 @@ const mark = (
   clipId: id,
   kind: "join-cut",
   sec,
-  crossfadeMs: undefined,
+  left: row,
+  right: row,
   ...over,
 });
+
+const planAt = (marks: readonly JoinMark[], zoom: number) =>
+  planLaneMarks(marks, zoom, SESSION_SEC);
 
 const xs = (plan: LanePlan) =>
   [...plan.symbols.map((s) => s.xPx), ...plan.chips.map((c) => c.xPx)].sort(
@@ -33,7 +38,7 @@ const xs = (plan: LanePlan) =>
 
 describe("planLaneMarks", () => {
   it("folds marks closer than 24 px into one chip and keeps the loner a symbol", () => {
-    const plan = planLaneMarks(
+    const plan = planAt(
       [0, 10, 20, 60].map((s) => mark(s)),
       1,
     );
@@ -46,14 +51,14 @@ describe("planLaneMarks", () => {
   });
 
   it("merges a 23.99 px gap and keeps a 24 px gap apart", () => {
-    expect(planLaneMarks([mark(0), mark(23.99)], 1).chips).toHaveLength(1);
-    const apart = planLaneMarks([mark(0), mark(24)], 1);
+    expect(planAt([mark(0), mark(23.99)], 1).chips).toHaveLength(1);
+    const apart = planAt([mark(0), mark(24)], 1);
     expect(apart.chips).toHaveLength(0);
     expect(apart.symbols).toHaveLength(2);
   });
 
   it("links a chain end to end: each step under 24 px joins the group", () => {
-    const plan = planLaneMarks(
+    const plan = planAt(
       [0, 20, 40, 60].map((s) => mark(s)),
       1,
     );
@@ -63,11 +68,11 @@ describe("planLaneMarks", () => {
 
   it("gives the same plan for shuffled input", () => {
     const secs = [60, 0, 20, 10, 200, 250, 5];
-    const forward = planLaneMarks(
+    const forward = planAt(
       secs.map((s) => mark(s)),
       1,
     );
-    const reversed = planLaneMarks(
+    const reversed = planAt(
       [...secs].reverse().map((s) => mark(s)),
       1,
     );
@@ -78,7 +83,7 @@ describe("planLaneMarks", () => {
     const secs = Array.from({ length: 30 }, (_, i) => i * 90 + ((i * 37) % 55));
     const marks = secs.map((s) => mark(s));
     for (const zoom of [0.05, 0.1, 0.25, 0.5, 1, 2, 8]) {
-      const plan = planLaneMarks(marks, zoom);
+      const plan = planAt(marks, zoom);
       const placed = xs(plan);
       for (let i = 1; i < placed.length; i += 1) {
         expect(placed[i] - placed[i - 1]).toBeGreaterThanOrEqual(24);
@@ -90,82 +95,8 @@ describe("planLaneMarks", () => {
     }
   });
 
-  it("draws a 120 ms crossfade at 50 px/s as a 6 px box and drops the stretched X", () => {
-    const plan = planLaneMarks(
-      [mark(5, { kind: "join-crossfade", crossfadeMs: 120 })],
-      50,
-    );
-    expect(plan.symbols[0].box).toEqual({ leftPx: 247, widthPx: 6 });
-    expect(plan.symbols[0].narrow).toBe(true);
-  });
-
-  it("keeps the X from 8 px of overlap and drops it below", () => {
-    const narrowAt = (ms: number) =>
-      planLaneMarks([mark(5, { kind: "join-crossfade", crossfadeMs: ms })], 50)
-        .symbols[0].narrow;
-    expect(narrowAt(159)).toBe(true);
-    expect(narrowAt(160)).toBe(false);
-  });
-
-  it("never marks a cut as narrow", () => {
-    expect(planLaneMarks([mark(0)], 1).symbols[0].narrow).toBe(false);
-  });
-
-  it("draws no box for a crossfade that is blocked or has no overlap", () => {
-    const blocked = mark(5, {
-      kind: "join-crossfade",
-      crossfadeMs: 120,
-      blocked: "no_fade_in",
-    });
-    const none = mark(9, { kind: "join-crossfade", crossfadeMs: 0 });
-    const plan = planLaneMarks([blocked, none], 50);
-    expect(plan.symbols.map((s) => s.box)).toEqual([null, null]);
-  });
-
   it("returns nothing for no marks", () => {
-    expect(planLaneMarks([], 50)).toEqual({ symbols: [], chips: [] });
-  });
-});
-
-describe("crossfade box exactness", () => {
-  const zooms = Array.from({ length: 24 }, (_, i) => 0.05 * 2 ** i).filter(
-    (z) => z <= 48000,
-  );
-
-  it("equals joinVisual at every zoom, for every overlap, narrow or not", () => {
-    const narrows = new Set<boolean>();
-    for (const ms of [1, 20, 120, 400, 2000]) {
-      const left = clipRow({
-        id: "a",
-        source_end: 5,
-        timeline_end: 5,
-        source_duration_sec: 100,
-      });
-      const right = clipRow({
-        id: "b",
-        source_start: 5,
-        source_end: 10,
-        timeline_start: 5,
-        timeline_end: 10,
-        join_in_mode: "crossfade",
-        join_left_clip_id: "a",
-        join_crossfade_ms: ms,
-        source_duration_sec: 100,
-      });
-      for (const zoom of zooms) {
-        const marks = collectJoinMarks([left, right], null, () => false);
-        const [symbol] = planLaneMarks(marks, zoom).symbols;
-        const visual = joinVisual(right, zoom);
-        expect(visual.kind).toBe("blend");
-        if (visual.kind !== "blend") continue;
-        expect(symbol.box).toEqual({
-          leftPx: visual.leftPx,
-          widthPx: visual.widthPx,
-        });
-        narrows.add(symbol.narrow);
-      }
-    }
-    expect([...narrows].sort()).toEqual([false, true]);
+    expect(planAt([], 50)).toEqual({ symbols: [], chips: [] });
   });
 });
 
@@ -218,53 +149,70 @@ describe("collectJoinMarks", () => {
     expect(rolled.map((m) => m.sec)).toEqual([5.5]);
   });
 
-  it("carries the blocked reason and the crossfade length", () => {
-    const [m] = collectJoinMarks(
-      [
-        a,
-        b({
-          join_in_mode: "crossfade",
-          join_crossfade_ms: 40,
-          join_crossfade_blocked: "no_fade_in",
-        }),
-      ],
-      null,
-      still,
+  it("carries the rows either side of the seam, as a live roll moves them", () => {
+    const [still] = collectJoinMarks([a, b()], null, () => false);
+    expect([still.left.id, still.right.id]).toEqual(["a", "b"]);
+    expect(still.right.timeline_start).toBe(5);
+    const [rolled] = collectJoinMarks(
+      [a, b()],
+      { leftClipId: "a", rightClipId: "b", deltaSec: 0.5 },
+      () => false,
     );
-    expect(m.blocked).toBe("no_fade_in");
-    expect(m.crossfadeMs).toBe(40);
+    expect(rolled.right.timeline_start).toBe(5.5);
+    expect(rolled.left.timeline_end).toBe(5.5);
   });
 });
 
-describe("clusterZoom", () => {
-  const chip = (secs: number[]): PlacedChip => ({
-    marks: secs.map((s) => mark(s)),
-    xPx: 0,
-    startSec: secs[0],
-    endSec: secs[secs.length - 1],
-  });
+describe("a chip's zoom", () => {
+  const chipAt = (secs: number[], zoom: number, sessionSec = SESSION_SEC) =>
+    planLaneMarks(
+      secs.map((s) => mark(s)),
+      zoom,
+      sessionSec,
+    ).chips[0];
 
   it("zooms until the closest members sit 30 px apart", () => {
-    expect(clusterZoom(chip([1, 1.1, 1.2, 1.5]), 600)).toBeCloseTo(300, 9);
-    expect(clusterZoom(chip([1, 1.1, 1.3]), 600)).toBeCloseTo(300, 9);
+    expect(chipAt([1, 1.1, 1.2, 1.5], 10)?.zoomTo).toBeCloseTo(300, 9);
+    expect(chipAt([1, 1.1, 1.3], 10)?.zoomTo).toBeCloseTo(300, 9);
   });
 
-  it("clamps at the session's maximum zoom", () => {
-    expect(clusterZoom(chip([1, 1.0000001]), 600)).toBe(
-      clampZoomPxPerSec(Number.POSITIVE_INFINITY, 600),
+  it("zooms to the session's maximum for members that are one instant", () => {
+    expect(chipAt([1, 1], 10)?.zoomTo).toBe(
+      effectiveMaxZoomPxPerSec(SESSION_SEC),
     );
+  });
+
+  it("zooms to the maximum, short of the 30 px spacing, for members closer than it allows", () => {
+    const max = effectiveMaxZoomPxPerSec(SESSION_SEC);
+    expect(chipAt([1, 1 + 10 / max], 1)?.zoomTo).toBe(max);
+  });
+
+  it("cannot split a chip already at the maximum zoom", () => {
+    const max = effectiveMaxZoomPxPerSec(SESSION_SEC);
+    expect(chipAt([1, 1 + 10 / max], max)?.zoomTo).toBeNull();
+    expect(chipAt([1, 1], max)?.zoomTo).toBeNull();
   });
 });
 
 describe("chipLabel", () => {
-  it("counts joins by type in cut, fade, crossfade order", () => {
-    const marks = [
-      mark(0, { kind: "join-crossfade" }, "x"),
-      mark(1, { kind: "join-cut" }, "y"),
-      mark(2, { kind: "join-cut" }, "z"),
-    ];
-    expect(chipLabel({ marks, xPx: 0, startSec: 0, endSec: 2 })).toBe(
-      "3 edits: 2 cuts, 1 crossfade. Zoom in",
-    );
+  const marks = [
+    mark(0, { kind: "join-crossfade" }, "x"),
+    mark(1, { kind: "join-cut" }, "y"),
+    mark(2, { kind: "join-cut" }, "z"),
+  ];
+  const chip = (zoomTo: number | null): PlacedChip => ({
+    marks,
+    xPx: 0,
+    startSec: 0,
+    endSec: 2,
+    zoomTo,
+  });
+
+  it("counts joins by type in cut, fade, crossfade order and offers the zoom", () => {
+    expect(chipLabel(chip(300))).toBe("3 edits: 2 cuts, 1 crossfade. Zoom in");
+  });
+
+  it("offers no zoom to a chip that cannot split", () => {
+    expect(chipLabel(chip(null))).toBe("3 edits: 2 cuts, 1 crossfade");
   });
 });
