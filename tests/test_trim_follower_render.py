@@ -247,7 +247,8 @@ def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
 
     with wave.open(str(output), "rb") as rendered:
         actual_frames = rendered.getnframes()
-        sample_positions = (10.5, 10.95, 11.5, 12.5, 14.5, 21.5)
+        # The blend is centred on the seam at 11 s, so its midpoint (half of each side) is there.
+        sample_positions = (10.5, 11.0, 11.5, 12.5, 14.5, 21.5)
         actual_samples = []
         for second in sample_positions:
             rendered.setpos(round(second * rendered.getframerate()))
