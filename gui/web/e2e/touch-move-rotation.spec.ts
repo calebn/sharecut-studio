@@ -53,13 +53,16 @@ for (const rotate of [false, true]) {
         await finger.up();
 
         if (rotate) {
-          await page.waitForTimeout(500);
+          await page.waitForLoadState("networkidle");
           expect(commands.filter((c) => c.type === "MoveClips")).toEqual([]);
           expect(await starts(page, projectPath)).toEqual(before);
         } else {
           await expect
             .poll(() => commands.filter((c) => c.type === "MoveClips").length)
             .toBe(1);
+          await expect
+            .poll(async () => await starts(page, projectPath))
+            .not.toEqual(before);
         }
       });
     },
