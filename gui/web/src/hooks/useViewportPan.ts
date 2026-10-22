@@ -38,19 +38,32 @@ function publish(viewport: VisualViewport): void {
  * After a rotation Safari leaves the visual viewport `offsetTop` below the layout
  * top for 3 to 20 s, with no page scroll to undo it, so the fixed shell's top rows
  * sit off screen (#1761). Publish a pan that no keyboard, pinch zoom or focused
- * field explains; `layout.css` moves the shell to the visible band.
+ * field explains; `layout.css` moves the shell to the visible band. It reads the
+ * state a frame after the event so `useKeyboardInset` has already run.
  */
 export function useViewportPan(): void {
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
-    const update = () => publish(viewport);
+    let frame: number | null = null;
+    const update = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        publish(viewport);
+      });
+    };
     viewport.addEventListener("resize", update);
     viewport.addEventListener("scroll", update);
-    update();
+    document.addEventListener("focusin", update);
+    document.addEventListener("focusout", update);
+    publish(viewport);
     return () => {
       viewport.removeEventListener("resize", update);
       viewport.removeEventListener("scroll", update);
+      document.removeEventListener("focusin", update);
+      document.removeEventListener("focusout", update);
+      if (frame !== null) cancelAnimationFrame(frame);
       clear(document.documentElement);
     };
   }, []);
