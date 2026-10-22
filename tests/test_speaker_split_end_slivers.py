@@ -7,6 +7,8 @@ them like an unenrolled speaker could put their name on a different voice.
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import pytest
 
@@ -86,3 +88,65 @@ def test_speaker_keeping_one_usable_window_still_enrolls(tail_span: tuple[float,
     assert attribution.turns
     assert attribution.method == "enroll"
     assert min(backend.lengths) >= MIN_SAMPLES
+
+
+def _attribute(audio: np.ndarray, enrollment: dict[int, list[tuple[float, float]]]):
+    return attribute_speakers(
+        audio, speaker_count=2, backend=SpectralBackend(), enrollment=enrollment
+    )
+
+
+def test_span_far_longer_than_the_recording_builds_only_centers_the_audio_can_use(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    duration = audio.size / RATE
+    lengths: list[int] = []
+    real_arange = np.arange
+
+    def spy(*args: float, **kwargs: object) -> np.ndarray:
+        result = real_arange(*args, **kwargs)
+        lengths.append(len(result))
+        return result
+
+    monkeypatch.setattr(np, "arange", spy)
+
+    _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, 2e6)]})
+
+    assert lengths
+    assert max(lengths) <= (duration + 1.0) / 0.25 + 2
+
+
+def test_span_longer_than_the_recording_attributes_like_one_ending_past_it() -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    duration = audio.size / RATE
+
+    long = _attribute(audio, {0: [(0.5, 4.0)], 1: [(0, 1e6)]})
+    reference = _attribute(audio, {0: [(0.5, 4.0)], 1: [(0, duration + 1)]})
+
+    assert long == reference
+
+
+@pytest.mark.parametrize("span", [(25.0, 1e9), (1e9, 2e9)])
+def test_span_starting_past_the_end_is_still_refused(span: tuple[float, float]) -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    assert audio.size / RATE < span[0]
+    began = time.perf_counter()
+
+    with pytest.raises(CodedValueError) as raised:
+        _attribute(audio, {0: [(0.5, 4.0)], 1: [span]})
+
+    assert raised.value.code == "enrollment_past_end"
+    assert time.perf_counter() - began < 5.0
+
+
+@pytest.mark.parametrize("offset", [-0.25, 0.0, 1e-9, 0.3])
+def test_end_near_the_last_usable_window_matches_a_longer_span(offset: float) -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    duration = audio.size / RATE
+    window = 1.0
+
+    edge = _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, duration + window + offset)]})
+    reference = _attribute(audio, {0: [(0.5, 4.0)], 1: [(10.0, duration + window + 0.3)]})
+
+    assert edge.turns == reference.turns
