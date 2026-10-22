@@ -130,7 +130,7 @@ def acquire(plan: FetchPlan, destination: Path) -> Receipt:
         try:
             while (elapsed := time.monotonic() - started) < budget:
                 ready = (
-                    not attempts or attempts[-1].process.poll() is not None
+                    not attempts or attempts[-1].examined
                     if metadata
                     else elapsed >= len(attempts) * plan.budgets.hedge
                 )
