@@ -15,6 +15,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+import multistream_media as media
 from podcast_mcp.engines import ffmpeg as ff
 from podcast_mcp.engines import render_clock
 from podcast_mcp.engines.audio import (
@@ -28,6 +29,7 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, _delay_filter
 from podcast_mcp.util.coded_error import CodedValueError
+from test_render_wav_header import _UNDECODABLE
 
 _IMPULSE = 16384
 _IMPULSE_FRAMES = 64
@@ -406,6 +408,93 @@ def test_plain_render_unreadable_non_wav_raises_render_rate_unresolved(tmp_path:
             "anull",
         )
     assert error.value.code == "render_rate_unresolved"
+
+
+def test_multistream_head_renders_at_first_stream_rate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    head = SourceAudio(media.multistream(tmp_path, "kid.ogg"), 0.0, 1.0)
+    audio = MixAudio(At(0.0, head), (At(0.25, _zeros(tmp_path / "child.wav", 44100, 1.0)),))
+    graphs: list[str] = []
+    real_run = ff.run
+
+    def capture_run(cmd, *args, **kwargs):
+        if "-map" in cmd:
+            graphs.append(cmd[cmd.index("-filter_complex") + 1])
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(ff, "run", capture_run)
+    plain = FFmpegEngine().render_timeline(tmp_path / "plain.wav", audio, "anull")
+    assert "aformat=sample_rates=22050,adelay=delays=5512S" in graphs[-1]
+    rate, samples = _read_wav(plain)
+    assert (rate, len(samples)) == (22050, 27562)
+    restored = FFmpegEngine().render_timeline(
+        tmp_path / "restored.wav", audio, "anull", clock_path=tmp_path / "clock.json"
+    )
+    assert restored.read_bytes() == plain.read_bytes()
+
+
+def _undecodable_child(tmp_path: Path, name: str) -> Path:
+    child = tmp_path / "child.wav"
+    child.write_bytes(_UNDECODABLE[name]())
+    decode = subprocess.run(
+        [FFmpegEngine().ffmpeg, "-v", "error", "-i", str(child), "-f", "null", "-"],
+        capture_output=True,
+    )
+    assert decode.returncode != 0
+    return child
+
+
+def _plain_error(tmp_path: Path, child: Path) -> CodedValueError:
+    audio = _with_child(tmp_path, SourceAudio(child, 0.0, 0.1))
+    with pytest.raises(CodedValueError) as error:
+        FFmpegEngine().render_timeline(tmp_path / "out.wav", audio, "anull")
+    return error.value
+
+
+def _observer_error(child: Path) -> CodedValueError:
+    engine = FFmpegEngine()
+    with pytest.raises(CodedValueError) as error:
+        render_clock.configure_observers(
+            engine.ffmpeg, engine.ffprobe, ["[0:a]anull[out]"], (child,), {}, []
+        )
+    return error.value
+
+
+@pytest.mark.parametrize("name", list(_UNDECODABLE))
+def test_header_valid_undecodable_wav_is_render_rate_unresolved(tmp_path: Path, name: str) -> None:
+    child = _undecodable_child(tmp_path, name)
+    plain = _plain_error(tmp_path, child)
+    assert plain.code == "render_rate_unresolved"
+    assert child.name in str(plain)
+    assert _observer_error(child).code == "bleed_restore_clock_invalid"
+
+
+def test_unopenable_file_is_coded_on_the_restore_route(tmp_path: Path) -> None:
+    child = tmp_path / "child.wav"
+    child.write_bytes(np.random.default_rng(0).bytes(256))
+    with pytest.raises(CodedValueError) as error:
+        render_clock.native_format(FFmpegEngine().ffmpeg, child)
+    assert error.value.code == "bleed_restore_clock_invalid"
+    assert _observer_error(child).code == "bleed_restore_clock_invalid"
+
+
+@pytest.mark.parametrize("build", [media.video_only, media.cover_image])
+def test_input_without_audio_keeps_its_coded_errors(
+    tmp_path: Path, build: Callable[[Path], Path]
+) -> None:
+    child = build(tmp_path)
+    plain = _plain_error(tmp_path, child)
+    assert plain.code == "render_rate_unresolved"
+    assert child.name in str(plain)
+    assert _observer_error(child).code == "bleed_restore_clock_invalid"
+
+
+def test_a_failing_final_render_with_a_delay_stays_a_process_error(tmp_path: Path) -> None:
+    out = tmp_path / "out.wav"
+    out.mkdir()
+    with pytest.raises(subprocess.CalledProcessError):
+        FFmpegEngine().render_timeline(out, _delayed(tmp_path, 48000, [(48000, 1.0)]), "anull")
 
 
 def _m4a(path: Path, rate: int) -> SourceAudio:

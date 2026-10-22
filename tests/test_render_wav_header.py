@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import multistream_media as media
 from podcast_mcp.engines import render_clock
 from podcast_mcp.engines.audio import At, MixAudio, ObservedAudio, SourceAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -227,7 +228,35 @@ _PCM = _samples("s16", 1, _FRAMES)
 _STEREO = _samples("s16", 2, _FRAMES)
 _F16_TAIL = b"\x01\x00"
 _OTHER_GUID = bytes.fromhex("0600000000001000800000aa00389b71")
+
+
+def _list_before_data(size: int) -> bytes:
+    return _riff(_fmt_chunk(_Wav()), _chunk(b"LIST", b"INFO"[:size]), _chunk(b"data", _PCM))
+
+
+def _undecodable_wavs() -> dict[str, Callable[[], bytes]]:
+    return {
+        **{
+            f"LIST under 4 bytes, {size}": lambda size=size: _list_before_data(size)
+            for size in range(4)
+        },
+        "SMV0 chunk": lambda: _riff(
+            _fmt_chunk(_Wav()), _chunk(b"SMV0", bytes(8)), _chunk(b"data", _PCM)
+        ),
+        "XMA2 before fmt": lambda: _riff(
+            _chunk(b"XMA2", bytes(34)), _fmt_chunk(_Wav()), _chunk(b"data", _PCM)
+        ),
+        "stereo data 2 bytes": lambda: _plain(_Wav(channels=2), bytes(2)),
+        "mono data 1 byte": lambda: _plain(_Wav(), bytes(1)),
+        "data size 0, 1 trailing byte": lambda: _riff(
+            _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 0) + bytes(1)
+        ),
+    }
+
+
+_UNDECODABLE = _undecodable_wavs()
 _DEFERRED: dict[str, Callable[[Path], bytes]] = {
+    **{name: lambda _, build=build: build() for name, build in _UNDECODABLE.items()},
     "three channels": lambda _: _plain(_Wav(channels=3), _samples("s16", 3, 8)),
     "six channels": lambda _: _plain(_Wav(channels=6), _samples("s16", 6, 8)),
     "rf64": lambda _: _riff(_fmt_chunk(_Wav()), _chunk(b"data", _PCM), magic=b"RF64"),
@@ -287,6 +316,70 @@ def test_wav_header_defers_to_probe(tmp_path: Path, name: str) -> None:
     path = tmp_path / "input.wav"
     path.write_bytes(_DEFERRED[name](tmp_path))
     assert _header(path) is None
+
+
+_NEAR_MISSES: dict[str, Callable[[], bytes]] = {
+    "LIST of exactly 4 bytes": lambda: _list_before_data(4),
+    "LIST INFOx": lambda: _riff(
+        _chunk(b"LIST", b"INFOx"), _fmt_chunk(_Wav()), _chunk(b"data", _PCM)
+    ),
+    "mono data 2 bytes": lambda: _plain(_Wav(), bytes(2)),
+    "stereo data 5 bytes": lambda: _plain(_Wav(channels=2), bytes(5)),
+    "data size 0, whole frames": lambda: _riff(
+        _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 0) + _PCM
+    ),
+    "data size 0xFFFFFFFF": lambda: _riff(
+        _fmt_chunk(_Wav()), b"data" + struct.pack("<I", 0xFFFFFFFF) + _PCM
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(_NEAR_MISSES))
+def test_wav_header_near_misses_keep_the_header_route(tmp_path: Path, name: str) -> None:
+    path = tmp_path / "input.wav"
+    path.write_bytes(_NEAR_MISSES[name]())
+    assert _header(path) == _probed(path)
+    assert _header(path) is not None
+
+
+@pytest.mark.parametrize("name", ["two_b.mkv", "none.mkv", "kid.ogg"])
+def test_native_format_reads_the_first_audio_stream(tmp_path: Path, name: str) -> None:
+    path = media.multistream(tmp_path, name)
+    assert _probed(path) == media.first_stream_format(path) == (22050, "s16", "mono")
+
+
+@pytest.mark.parametrize(
+    "build", [media.video_first_mkv, media.cover_art_mp3], ids=["video first", "cover art"]
+)
+def test_native_format_probes_the_audio_stream_beside_video(
+    tmp_path: Path, build: Callable[[Path], Path]
+) -> None:
+    path = build(tmp_path)
+    rate, fmt, layout = media.first_stream_format(path)
+    audio = render_clock._native_format(FFmpegEngine().ffmpeg, path)
+    assert (audio.sample_rate, audio.channel_layout) == (rate, layout)
+    assert audio.sample_fmt == fmt
+
+
+def test_native_format_probe_maps_the_first_audio_stream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[list[str]] = []
+
+    def capture(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        commands.append(cmd)
+        info = (
+            "[ashowinfo@restore_descriptor @ 0x1] n:0 pts:0 pts_time:0 fmt:s16 channels:1 "
+            "chlayout:mono rate:22050 nb_samples:1024"
+        )
+        return subprocess.CompletedProcess(cmd, 0, "", info)
+
+    monkeypatch.setattr(render_clock, "run", capture)
+    render_clock._native_format("ffmpeg", tmp_path / "any.mkv")
+    (cmd,) = commands
+    assert cmd[cmd.index("-map") + 1] == "0:a:0"
+    assert cmd.index("-map") < cmd.index("-af")
+    assert cmd[cmd.index("-frames:a") + 1] == "1"
 
 
 def test_an_spdif_stream_past_4_kib_decodes_as_float_though_the_header_says_s16(

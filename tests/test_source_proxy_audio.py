@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -9,9 +10,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import multistream_media as media
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.engines import play_audit, timeline_render, transcript_gated_play
 from podcast_mcp.engines import source_proxy_audio as proxy
-from podcast_mcp.engines import timeline_render, transcript_gated_play
 from podcast_mcp.engines.bleed_gate import BleedGatePlan
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import (
@@ -33,7 +35,7 @@ from podcast_mcp.models.episode import (
     TranscriptWord,
 )
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.hashing import sha256_file, short_digest
 from podcast_mcp.util.wav import open_wav
 
 
@@ -646,3 +648,58 @@ def test_fill_eligibility_is_sealed_before_capture(tmp_path, monkeypatch):
     with pytest.raises(CodedValueError):
         proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
     assert target.read_bytes() == b"old complete artifact"
+
+
+def _swap_source(tmp_path, clip, name):
+    shutil.copy(media.multistream(tmp_path, name), tmp_path / "source.wav")
+    clip.bleed_restore.source_sha256 = sha256_file(tmp_path / "source.wav")
+
+
+def test_proxy_decode_clock_reads_the_first_audio_stream(tmp_path):
+    source = media.multistream(tmp_path, "kid.ogg")
+    (tmp_path / "work").mkdir()
+    audio = proxy._decode_clock(FFmpegEngine(), source, tmp_path / "work").audio
+    assert (audio.sample_rate, audio.channel_layout, audio.frames) == (22050, "mono", 44100)
+
+
+def test_source_chain_render_takes_the_first_audio_stream(tmp_path):
+    source = media.multistream(tmp_path, "st.mkv")
+    project = EpisodeProject.create("Chain", str(tmp_path))
+    track = Track(id="origin", label="Origin", media=MediaAsset(path=source.name))
+    project.tracks = [track]
+    multi = tmp_path / "multi.out.wav"
+    timeline_render.render_source_with_chain(project, track, multi, defaults=load_defaults())
+    assert _read(multi)[0] == 22050
+    (tmp_path / "single").mkdir()
+    shutil.copy(media.first_stream_only(source, tmp_path / "single"), source)
+    single = tmp_path / "single.out.wav"
+    timeline_render.render_source_with_chain(project, track, single, defaults=load_defaults())
+    assert multi.read_bytes() == single.read_bytes()
+
+
+@pytest.mark.parametrize("name", ["st.mkv", "kid.ogg"])
+def test_restore_proxy_of_a_multistream_source_uses_the_first_stream(tmp_path, monkeypatch, name):
+    p, _, clip, _ = _project(tmp_path, monkeypatch)
+    _swap_source(tmp_path, clip, name)
+    target = tmp_path / "variant.wav"
+    proxy.render_source_proxy_restore(p, clip.id, target, defaults=load_defaults())
+    rate, frames = _read(target)
+    assert (rate, len(frames)) == (22050, 44100)
+
+
+def test_first_stream_fix_moves_render_and_proxy_identities(tmp_path, monkeypatch):
+    p, track, clip, _ = _project(tmp_path, monkeypatch)
+    assert timeline_render.RENDER_SEMANTICS_REV == 20
+    captured = proxy.SourceProxyInputs.capture_occurrence(
+        p, clip.id, FFmpegEngine(), defaults=load_defaults()
+    )
+    assert captured.identity_payload["revision"] == "source-proxy-inputs-v2"
+    payloads = []
+
+    def spy(raw, *args, **kwargs):
+        payloads.append(json.loads(raw))
+        return short_digest(raw, *args, **kwargs)
+
+    monkeypatch.setattr(play_audit, "short_digest", spy)
+    play_audit.proxy_render_hash(p, track.id, defaults=load_defaults())
+    assert payloads[-1]["stream"] == "0:a:0"
