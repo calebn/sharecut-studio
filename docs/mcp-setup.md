@@ -278,13 +278,16 @@ download is never started for you. For Whisper the refusal also carries `whisper
 was picked; pass it to `model_download` so that size is the one downloaded.
 
 - `model_download(component, whisper_model=None, upgrade=False)` downloads one model, only
-  after the user agrees. With ShareCut Studio running it starts a download job and returns
-  `job_id`; without Studio it downloads inside the call, which can take minutes for
-  Whisper, and reports progress while it runs. A download already running for another model
+  after the user agrees. Inside the ShareCut Studio process (your client connected to Studio's
+  own MCP endpoint) it starts a download job and returns `job_id`. In a stdio server it
+  downloads inside the call, even when Studio is running next to it (the tool takes no
+  `project_path`, so it is not handed to Studio): that can take minutes for Whisper, reports
+  progress while it runs, starts no job and is not visible to Studio. A download already running for another model
   is refused as `bootstrap_job_running`.
 - `model_download_status(job_id=None)` reads a Studio download job: `status`, the current
-  `download` (`component`, `bytes`, `total`) and any `failure`. Without Studio it returns
-  `{"running": false}`.
+  `download` (`component`, `bytes`, `total`) and any `failure`. Only the Studio process has
+  download jobs; from a stdio server it always returns `{"running": false}`, including right
+  after an inline `model_download`.
 
 Both tools are for the owner's agent only; a share guest's remote MCP does not list them.
 
