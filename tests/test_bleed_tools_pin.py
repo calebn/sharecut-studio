@@ -19,6 +19,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.jobs import run_audio_edit
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     render_cancel_scope,
@@ -506,8 +507,9 @@ def test_run_audio_edit_rejects_any_other_op(op):
         patch("podcast_mcp.services.jobs.audio_edits.AnalysisService") as service,
         patch("podcast_mcp.services.document_sync.after_agent_mutation") as journal,
     ):
-        with pytest.raises(ValueError, match="unsupported audio edit op"):
+        with pytest.raises(CodedValueError, match="unsupported audio edit op") as raised:
             run_audio_edit(object(), op, {}, lock_timeout=1.0)  # type: ignore[arg-type]
+    assert raised.value.code == "unsupported_audio_edit_op"
     service.assert_not_called()
     journal.assert_not_called()
 
