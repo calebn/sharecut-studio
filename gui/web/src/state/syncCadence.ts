@@ -3,7 +3,7 @@
  * session meta) and the offline-queue drain timers (`useHostSync`, `useGuestSync`).
  * Sockets deliver in-process changes immediately; other processes' journal
  * writes also arrive over the sockets via the server's cross-process watcher
- * (#695) — this is only a sanity net. Plain module, so non-hook code such as
- * `commands/trackMix.ts` can size its windows from it.
+ * (#695) — this is only a sanity net. Plain module, so non-hook code can size
+ * its windows from it.
  */
 export const SANITY_POLL_MS = 30_000;
