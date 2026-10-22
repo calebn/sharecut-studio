@@ -73,6 +73,7 @@ from podcast_mcp.project.io import open_project
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.project_state import FileRevision, file_revision, waveform_lock_path
 from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
@@ -187,11 +188,11 @@ def _watch_signature(paths: tuple[Path, ...]) -> _WatchSig:
     out: list[tuple[int, int] | None] = []
     for path in paths:
         try:
-            st = path.stat()
+            stamp = file_stamp(path)
         except OSError:
             out.append(None)
             continue
-        out.append((st.st_size, st.st_mtime_ns))
+        out.append(stamp.content)
     return tuple(out)
 
 

@@ -48,6 +48,7 @@ from podcast_mcp.engines.models.word_aligner import (
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import clamp
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowReader
 
 # The #641 measurement setting.
@@ -114,11 +115,11 @@ class WordAligner:
         onnx_path = model_dir / model.onnx_file
         local_source: dict[str, Any] | None = None
         if word_aligner_override_dir() is not None:
-            stat = onnx_path.stat()
+            stamp = file_stamp(onnx_path)
             local_source = {
                 "dir": str(model_dir.resolve()),
-                "onnx_size": stat.st_size,
-                "onnx_mtime_ns": stat.st_mtime_ns,
+                "onnx_size": stamp.size,
+                "onnx_mtime_ns": stamp.mtime_ns,
             }
         else:
             # User-supplied override dirs are not the pinned bytes; only the pinned

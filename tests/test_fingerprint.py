@@ -13,8 +13,12 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 
 # Modules whose cache keys come from a stamp.
 STAMPED = {
+    "podcast_mcp/edits/transcript_reuse.py",
     "podcast_mcp/engines/alignment_audit.py",
     "podcast_mcp/engines/decoded_source.py",
+    "podcast_mcp/engines/play_audit.py",
+    "podcast_mcp/engines/waveform_media.py",
+    "podcast_mcp/engines/word_align.py",
     "podcast_mcp/project/store.py",
     "podcast_mcp/services/collaboration/review_versions.py",
     "podcast_mcp/services/document/boundary.py",
@@ -23,6 +27,7 @@ STAMPED = {
     "podcast_mcp/services/document/play_support.py",
     "podcast_mcp/services/document_sync/service.py",
     "podcast_mcp/services/document_sync/snapshot_cache.py",
+    "podcast_mcp/services/media/waveform.py",
     "podcast_mcp/util/batch_scope.py",
     "podcast_mcp/util/model_manifest.py",
     "podcast_mcp/util/project_state.py",
@@ -33,17 +38,12 @@ STAMPED = {
 # one to ``file_stamp`` only when its key keeps exactly the parts it keeps today.
 OWN_STAT = {
     "podcast_mcp/edits/prosody_profile.py",
-    "podcast_mcp/edits/transcript_reuse.py",
     "podcast_mcp/engines/gate_fill.py",
-    "podcast_mcp/engines/play_audit.py",
     "podcast_mcp/engines/transcribe.py",
-    "podcast_mcp/engines/waveform_media.py",
     "podcast_mcp/engines/waveform_pyramid.py",
-    "podcast_mcp/engines/word_align.py",
     "podcast_mcp/gui/audio.py",
     "podcast_mcp/services/document/analysis.py",
     "podcast_mcp/services/document/play_cache.py",
-    "podcast_mcp/services/media/waveform.py",
     "podcast_mcp/util/binaries.py",
 }
 

@@ -20,6 +20,7 @@ from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, c
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.project.transcript_context import TranscriptContext, load_transcript_context
 from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import sha256_file
 
 log = logging.getLogger(__name__)
@@ -70,8 +71,7 @@ def audio_identity(
     Shared by transcript reuse and prosody profile reuse (both cache a per-track
     analysis keyed on the same track's primary media).
     """
-    st = job.audio.stat()
-    stats = (st.st_size, st.st_mtime_ns)
+    stats = file_stamp(job.audio).content
     if (
         current is not None
         and current.audio_sha256
