@@ -173,7 +173,8 @@ describe("TrackFaderView", () => {
         screen.getByText("Staging gain −2.0 dB; plays at 0.0 dB"),
       ).toBeVisible();
       expect(onCommit).not.toHaveBeenCalled();
-      fireEvent.change(slider(), { target: { value: "2.5" } });
+      fireEvent.input(slider(), { target: { value: "2.5" } });
+      fireEvent.change(slider());
       expect(onCommit.mock.calls).toEqual([[2.5]]);
     },
   );
