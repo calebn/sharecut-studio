@@ -1,8 +1,10 @@
 import { useCallback, useState } from "react";
 import { runBootstrap, waitForBootstrapJob } from "../api";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { plainError } from "../utils/plainError";
 import { useSingleFlight } from "./useSingleFlight";
+
+const BOOTSTRAP_BUSY_CODE = "bootstrap_job_running";
 
 /**
  * One bootstrap download with live progress text. On success `busy` stays
@@ -41,10 +43,16 @@ export function useBootstrapDownload(subject: string) {
           setHeld(true);
           return true;
         } catch (e: unknown) {
+          setProgress(null);
+          if (e instanceof ApiError && e.code === BOOTSTRAP_BUSY_CODE) {
+            setError(
+              "Another download is already running. Try again when it finishes.",
+            );
+            return false;
+          }
           const raw = errorMessage(e);
           const internal =
             plainError(raw) !== raw || /^[a-z][a-z0-9-]*:\s/.test(raw);
-          setProgress(null);
           setError(
             internal
               ? `Couldn't download ${subject}. Export diagnostics from the command palette and try again.`
