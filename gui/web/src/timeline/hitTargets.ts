@@ -10,6 +10,7 @@ import {
   type HitTarget,
   hitRadiusPx,
   rankHitTargets,
+  reachRect,
 } from "./hitCandidates";
 import { type HitKind, isHitKind } from "./inputContract";
 
@@ -79,7 +80,7 @@ export function hitDetail(element: Element): string | null {
 
 type DomTarget = HitTarget & { element: Element };
 
-function readTarget(element: Element): DomTarget | null {
+function readTarget(element: Element, pointerType: string): DomTarget | null {
   const kind = element.getAttribute(KIND_ATTR);
   if (!isHitKind(kind)) {
     return null;
@@ -92,7 +93,11 @@ function readTarget(element: Element): DomTarget | null {
     element,
     kind,
     id: element.getAttribute("data-hit-id") ?? "",
-    rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+    rect: reachRect(
+      { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+      kind,
+      pointerType,
+    ),
     selected:
       element.getAttribute("data-hit-selected") === "true" ||
       (kind !== "envelope-line" && element === document.activeElement),
@@ -123,7 +128,7 @@ export function resolveHits(
 ): ResolvedHit[] {
   const targets: DomTarget[] = [];
   for (const element of root.querySelectorAll(`[${KIND_ATTR}]`)) {
-    const target = readTarget(element);
+    const target = readTarget(element, pointerType);
     if (target) {
       targets.push(target);
     }

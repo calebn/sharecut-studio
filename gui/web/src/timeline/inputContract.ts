@@ -78,7 +78,23 @@ export interface HitKindContract {
    * A finger on the ruler or a clip beside the lane is never taken by it.
    */
   reach?: "row";
+  /**
+   * The smallest box, in css px per side, the resolver reaches this target
+   * from: its painted box grows about its centre to this size. A glyph in an
+   * 8 px gutter stays small to the eye and still meets WCAG 2.5.8 (24 px) for
+   * a pointer and the 44 pt touch floor for a finger.
+   */
+  minBoxPx?: { pointer: number; touch: number };
+  /**
+   * A tap that lands on a plain surface (a lane) within reach of this target
+   * goes to it, not to the surface. Other kinds leave such a tap to the
+   * surface (seek).
+   */
+  surfaceTap?: boolean;
 }
+
+/** Join marks: a 24 px target for a pointer, 44 pt for a finger. */
+const MARK_BOX = { pointer: 24, touch: 44 } as const;
 
 /** Every hit-testable timeline target kind and its input contract. */
 export const HIT_KINDS = {
@@ -104,6 +120,8 @@ export const HIT_KINDS = {
     command: null,
     outranks: [],
     body: false,
+    minBoxPx: MARK_BOX,
+    surfaceTap: true,
   },
   "edit-chip": {
     priority: 10,
@@ -115,6 +133,8 @@ export const HIT_KINDS = {
     command: null,
     outranks: [],
     body: false,
+    minBoxPx: MARK_BOX,
+    surfaceTap: true,
   },
   "envelope-point": {
     priority: 9,
@@ -295,6 +315,12 @@ export type HitKind = keyof typeof HIT_KINDS;
 export function needsDirectHit(kind: HitKind): boolean {
   const contract: HitKindContract = HIT_KINDS[kind];
   return contract.directOnly === true;
+}
+
+/** A tap on a plain surface within reach of this kind goes to it. */
+export function takesSurfaceTap(kind: HitKind): boolean {
+  const contract: HitKindContract = HIT_KINDS[kind];
+  return contract.surfaceTap === true;
 }
 
 export const HIT_KIND_NAMES = Object.keys(HIT_KINDS) as HitKind[];
