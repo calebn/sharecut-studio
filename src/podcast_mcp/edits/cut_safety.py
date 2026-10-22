@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import math
 import subprocess
-import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -71,7 +70,7 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_sec_inside,
 )
 from podcast_mcp.edits.word_onset import edge_decays_into_valley, next_kept_word
-from podcast_mcp.engines import speaker_id, timeline_render
+from podcast_mcp.engines import speaker_id, track_evidence
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.engines.level_profile import (
     LEVEL_FRAME_SEC,
@@ -640,7 +639,8 @@ def complete_effect_acoustics(
             if _effect_has_accepted_mute(project, effect):
                 timeline_cache = heard_caches.get(effect.track_id)
                 if timeline_cache is None:
-                    timeline_cache = _heard_timeline_audio_cache(project, effect.track_id, defaults)
+                    heard = track_evidence.heard(project, effect.track_id, defaults)
+                    timeline_cache = TrackAudioCache(jump=heard.jump, waveform=heard.waveform)
                     heard_caches[effect.track_id] = timeline_cache
                 source_cache = source_caches.get(effect.recording)
                 if source_cache is None:
@@ -776,31 +776,6 @@ def _effect_has_accepted_mute(project: EpisodeProject, effect: CutAudioEffect) -
         and effect.start < before.source.src_start + mute.end
         for mute in before.source.mute_spans
     )
-
-
-def _heard_timeline_audio_cache(
-    project: EpisodeProject, track_id: str, defaults: dict
-) -> TrackAudioCache:
-
-    snapshot = project.model_copy(deep=True)
-    track = snapshot.track_by_id(track_id)
-    if track is None or track.media is None:
-        raise CodedValueError(
-            f"track {track_id} has no renderable media. Add media to that track first.",
-            code="track_has_no_media",
-        )
-    track.transcript_gate = False
-    snapshot.processing_chains = [
-        chain
-        for chain in snapshot.processing_chains
-        if chain.track_id != track_id or all(effect.bypass for effect in chain.effects)
-    ]
-    with tempfile.TemporaryDirectory(prefix="sharecut-cut-effect-") as temporary:
-        rendered = Path(temporary) / "heard.wav"
-        timeline_render.render_track_from_timeline(snapshot, track, rendered, defaults)
-        samples = recording_audio_cache(rendered)
-
-    return samples
 
 
 def _source_clock_cache(

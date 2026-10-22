@@ -15,7 +15,7 @@ the length of the track in 48 kHz samples.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from itertools import accumulate
 from pathlib import Path
@@ -106,10 +106,14 @@ def evaluate_resampled(
     crossfade_curve: str,
     reader: Callable[[Path], SourceReader],
     sample_rate: int,
-    target_rate: int,
-    resample: Callable[[Iterator[np.ndarray], int, int], np.ndarray],
-) -> np.ndarray | None:
-    """The track's samples at ``target_rate``, from ``sample_rate`` evaluated in chunks."""
+    target_rates: Sequence[int],
+    resample: Callable[[Iterator[np.ndarray], int, Sequence[int]], dict[int, np.ndarray]],
+) -> dict[int, np.ndarray] | None:
+    """The track's samples at each of ``target_rates``, from ``sample_rate`` evaluated in chunks.
+
+    One pass over the tree feeds every rate, so the results are the same whichever rates
+    are asked for together.
+    """
     piece = plan_audio(
         audio, crossfade_curve=crossfade_curve, reader=reader, sample_rate=sample_rate
     )
@@ -120,7 +124,7 @@ def evaluate_resampled(
         for start in range(0, piece.size, CHUNK_SAMPLES):
             yield piece.read(start, min(piece.size, start + CHUNK_SAMPLES))
 
-    return resample(chunks(), sample_rate, target_rate)
+    return resample(chunks(), sample_rate, target_rates)
 
 
 def plan_audio(

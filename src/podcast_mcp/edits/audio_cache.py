@@ -181,7 +181,7 @@ def track_level_profile(
     )
 
 
-def _decode_track(path: Path) -> TrackAudioCache:
+def decode_track(path: Path) -> TrackAudioCache:
     return TrackAudioCache(
         jump=TrackRmsCache.from_timeline_stem(path, sample_rate=JUMP_SAMPLE_RATE),
         waveform=TrackRmsCache.from_timeline_stem(path, sample_rate=WAVEFORM_SAMPLE_RATE),
@@ -197,7 +197,7 @@ def source_audio_cache(
 
 
 def recording_audio_cache(path: Path) -> TrackAudioCache:
-    return scoped_by_file("track_audio_cache", path, None, partial(_decode_track, path))
+    return scoped_by_file("track_audio_cache", path, None, partial(decode_track, path))
 
 
 def build_track_audio_caches(
@@ -223,7 +223,7 @@ def build_track_audio_caches(
             continue
         try:
             path = track_audio_path(project, tid)
-            cache = scoped_by_file("track_audio_cache", path, None, partial(_decode_track, path))
+            cache = scoped_by_file("track_audio_cache", path, None, partial(decode_track, path))
         except Exception as exc:
             log.debug("audio cache skipped for track %s: %s", tid, exc)
             continue
