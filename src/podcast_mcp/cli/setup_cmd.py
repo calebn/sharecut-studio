@@ -9,25 +9,20 @@ from podcast_mcp.config.defaults import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
 from podcast_mcp.services.pipeline import (
     DEFAULT_WHISPER_MODEL,
-    DEFAULT_WORD_ALIGNER,
+    MODELS,
     WHISPER_MODEL_IDS,
-    bootstrap_speaker_ecapa,
-    bootstrap_whisper_model,
-    bootstrap_word_aligner,
+    install_model,
+    model_status,
+    models_for,
     persist_whisper_model,
+    resolve_whisper_model,
     validate_whisper_model,
-    word_aligner_is_cached,
 )
 from podcast_mcp.util.binaries import FFmpegPairResolutionError
-from podcast_mcp.util.model_assets import (
-    bootstrap_nisqa_model,
-    bootstrap_rnnoise_model,
-)
 
 setup_app = typer.Typer(help="Install and verify Podcast MCP.")
 
-_COMPONENTS = ("whisper", "rnnoise", "silero-vad", "nisqa", "word-aligner", "speaker-ecapa")
-_OPT_IN_COMPONENTS = ("nisqa", "word-aligner", "speaker-ecapa")
+_COMPONENT_IDS = tuple(spec.id for spec in MODELS)
 
 
 @setup_app.command("setup")
@@ -65,6 +60,17 @@ def setup(
             "Fix: install a matching FFmpeg 9.0.2 or later 9.x pair; see docs/setup.md",
             err=True,
         )
+
+    typer.echo("Models:")
+    whisper = resolve_whisper_model()
+    for spec in MODELS:
+        status = model_status(spec.id, whisper if spec.id == "whisper" else None)
+        if status["ok"]:
+            typer.echo(f"  {spec.id}: ready ({spec.purpose})")
+        else:
+            typer.echo(
+                f"  {spec.id}: missing ({spec.purpose}, {spec.size}). Fix: {status['bootstrap']}"
+            )
 
     typer.echo(f"Cache: {cache_dir()}")
     typer.echo(f"Python: {sys.version.split()[0]}")
@@ -143,10 +149,13 @@ def doctor(
 
 @setup_app.command("bootstrap")
 def bootstrap(
-    component: str = typer.Option(
-        "all",
+    component: str | None = typer.Option(
+        None,
         "--component",
-        help=f"Which asset to install: all, {', '.join(_COMPONENTS)}.",
+        help=(
+            f"Which model to install: all, {', '.join(_COMPONENT_IDS)}. "
+            f"Default: {', '.join(spec.id for spec in models_for('required', 'recommended'))}."
+        ),
     ),
     whisper_model: str = typer.Option(
         DEFAULT_WHISPER_MODEL,
@@ -158,121 +167,60 @@ def bootstrap(
     ),
     upgrade: bool = typer.Option(False, "--upgrade", help="Re-download even if already cached."),
 ) -> None:
-    """Download optional model assets on demand.
+    """Download model assets on demand.
 
     Nothing here is required to install the package -- everything is fetched
     lazily into the cache dir (`podcast doctor` shows the path) the first time
-    you actually need it. Run this once for a fully offline-ready setup, or
-    per-component (`--component whisper`) to top up just one piece. Safe to
-    re-run; already-cached assets are skipped unless `--upgrade`.
+    you actually need it. A bare run installs the recommended models (Whisper
+    and RNNoise); `--component all` installs every model, or name one
+    (`--component whisper`) to top up just that piece. Safe to re-run;
+    already-cached assets are skipped unless `--upgrade`.
     """
-    if component != "all" and component not in _COMPONENTS:
+    if component is not None and component != "all" and component not in _COMPONENT_IDS:
         typer.echo(
-            f"Unknown component {component!r}; choose from: all, {', '.join(_COMPONENTS)}",
+            f"Unknown component {component!r}; choose from: all, {', '.join(_COMPONENT_IDS)}",
             err=True,
         )
         raise typer.Exit(2)
 
-    wanted: tuple[str, ...] = _COMPONENTS if component == "all" else (component,)
-    # Opt-in components (NISQA, the forced word aligner, speaker recognition) never pull on `--component all`.
-    if component == "all":
-        wanted = tuple(c for c in wanted if c not in _OPT_IN_COMPONENTS)
-    ok = True
-    if "whisper" in wanted:
+    if component is None:
+        wanted = models_for("required", "recommended")
+    elif component == "all":
+        wanted = MODELS
+    else:
+        wanted = tuple(spec for spec in MODELS if spec.id == component)
+    if any(spec.id == "whisper" for spec in wanted):
         try:
-            model = validate_whisper_model(whisper_model)
+            whisper_model = validate_whisper_model(whisper_model)
         except ValueError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(2) from exc
-        ok = _bootstrap_whisper_component(model, force=upgrade) and ok
-    if "rnnoise" in wanted:
-        ok = _bootstrap_rnnoise_component(force=upgrade) and ok
-    if "silero-vad" in wanted:
-        ok = _report_silero_component() and ok
-    if "nisqa" in wanted:
-        ok = _bootstrap_nisqa_component(force=upgrade) and ok
-    if "word-aligner" in wanted:
-        ok = _bootstrap_word_aligner_component(force=upgrade) and ok
-    if "speaker-ecapa" in wanted:
-        ok = _bootstrap_speaker_ecapa_component(force=upgrade) and ok
+    ok = True
+    for spec in wanted:
+        reason = spec.unavailable() if component == "all" else None
+        if reason is not None and not model_status(spec.id)["ok"]:
+            typer.echo(f"[skip] {spec.id}: {reason}")
+            continue
+        try:
+            result = install_model(spec, whisper_model=whisper_model, force=upgrade)
+        except Exception as exc:
+            typer.echo(f"[fail] {spec.id}: {exc}", err=True)
+            ok = False
+            continue
+        verb = "[skip]" if result.get("skipped") else "[ok]"
+        detail = str(result.get("path") or result.get("reason", ""))
+        if model := result.get("model"):
+            detail = f"{detail} ({model})"
+        typer.echo(f"{verb} {spec.id}: {detail}")
+        if result.get("persist_error"):
+            typer.echo(
+                f"[warn] could not persist Whisper preference: {result['persist_error']}",
+                err=True,
+            )
 
     if not ok:
         raise typer.Exit(1)
     typer.echo("Bootstrap complete.")
-
-
-def _bootstrap_whisper_component(model_size: str, *, force: bool) -> bool:
-    try:
-        result = bootstrap_whisper_model(model_size, force=force)
-    except ImportError as exc:
-        typer.echo(f"[fail] whisper: {exc}", err=True)
-        return False
-    except Exception as exc:  # pragma: no cover - network/platform failures
-        typer.echo(f"[fail] whisper: {exc}", err=True)
-        return False
-    typer.echo(f"[ok] whisper model {result['model']!r} cached at {result['cache']}")
-    if result.get("persist_error"):
-        typer.echo(
-            f"[warn] could not persist Whisper preference: {result['persist_error']}",
-            err=True,
-        )
-    return True
-
-
-def _bootstrap_rnnoise_component(*, force: bool) -> bool:
-    try:
-        path = bootstrap_rnnoise_model(force=force)
-    except Exception as exc:  # pragma: no cover - network failures
-        typer.echo(f"[fail] rnnoise: {exc}", err=True)
-        return False
-    typer.echo(f"[ok] rnnoise model: {path}")
-    return True
-
-
-def _bootstrap_nisqa_component(*, force: bool) -> bool:
-    try:
-        path = bootstrap_nisqa_model(force=force)
-    except Exception as exc:  # pragma: no cover - network failures
-        typer.echo(f"[fail] nisqa: {exc}", err=True)
-        return False
-    typer.echo(f"[ok] nisqa model: {path}")
-    return True
-
-
-def _bootstrap_word_aligner_component(*, force: bool) -> bool:
-    if not force and word_aligner_is_cached():
-        typer.echo(f"[skip] word-aligner: {DEFAULT_WORD_ALIGNER} already cached")
-        return True
-    try:
-        result = bootstrap_word_aligner(force=force)
-    except Exception as exc:  # network / hub failures
-        typer.echo(f"[fail] word-aligner: {exc}", err=True)
-        return False
-    typer.echo(f"[ok] word-aligner {result['model']!r}: {result['path']}")
-    return True
-
-
-def _bootstrap_speaker_ecapa_component(*, force: bool) -> bool:
-    try:
-        result = bootstrap_speaker_ecapa(force=force)
-    except Exception as exc:  # network / pin failures
-        typer.echo(f"[fail] speaker-ecapa: {exc}", err=True)
-        return False
-    verb = "[skip]" if result.get("skipped") else "[ok]"
-    typer.echo(f"{verb} speaker-ecapa: {result['path']}")
-    return True
-
-
-def _report_silero_component() -> bool:
-    from podcast_mcp.engines.vad_silero import is_available, model_path
-
-    if not is_available():
-        typer.echo(
-            "[fail] silero-vad: not available (onnxruntime/faster-whisper missing)", err=True
-        )
-        return False
-    typer.echo(f"[ok] silero-vad: bundled with faster-whisper at {model_path()}")
-    return True
 
 
 def _skills_root() -> Path:

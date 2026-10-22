@@ -876,7 +876,7 @@ speech near 1).
 This has **zero extra install cost**: the ONNX model and `onnxruntime` are already
 bundled inside `faster-whisper` (a core dependency, used for its own `vad_filter`
 option), so there's nothing to download or declare as an optional dependency —
-`podcast bootstrap --component silero-vad` just verifies it's there. Falls back to
+`podcast doctor` reports whether it is available. Falls back to
 the heuristic automatically if `onnxruntime`/the model are unavailable, or if
 detection is requested at a sample rate other than 16kHz (Silero's fixed contract).
 

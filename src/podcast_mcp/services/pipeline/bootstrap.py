@@ -7,156 +7,65 @@ network on import or resolve) — same contract as ``util/binaries.py``.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
-from podcast_mcp.config.defaults import whisper_cache_dir
-from podcast_mcp.engines.models.speaker_ecapa import (
-    SPEAKER_ECAPA_ASSET,
-    SPEAKER_ECAPA_BOOTSTRAP,
-    SPEAKER_ECAPA_LABEL,
-    SPEAKER_ECAPA_LICENSE,
-    SPEAKER_ECAPA_SIZE,
-    bootstrap_speaker_ecapa,
-    speaker_ecapa_problem,
+from podcast_mcp.engines.models.registry import (
+    MODELS,
+    ModelProblem,
+    ModelSpec,
+    model_spec,
+    models_for,
 )
-from podcast_mcp.engines.models.whisper import (
-    WHISPER_BOOTSTRAP,
-    WhisperPinMismatchError,
-    bootstrap_whisper_model,
-    catalog_payload,
-    resolve_whisper_model,
-    whisper_bootstrap_command,
-    whisper_model_problem,
-)
-from podcast_mcp.engines.models.word_aligner import (
-    DEFAULT_WORD_ALIGNER,
-    WORD_ALIGNER_BOOTSTRAP,
-    WordAlignerPinMismatchError,
-    bootstrap_word_aligner,
-    word_aligner_model,
-    word_aligner_problem,
-)
+from podcast_mcp.engines.models.whisper import catalog_payload, resolve_whisper_model
 from podcast_mcp.util.asset_sources import cdn_base_configured
 from podcast_mcp.util.binaries import (
     FFmpegPairResolutionError,
     resolve_ffmpeg_pair,
 )
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.model_assets import bootstrap_rnnoise_model, rnnoise_model_path
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 
-# Consumer first-run defaults: never pull torch / NISQA.
-DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = ("whisper",)
-OPTIONAL_COMPONENTS: tuple[str, ...] = ("rnnoise",)
-# Opt-in (like the CLI's nisqa / word-aligner): downloaded only when a request names it;
-# never a first-run default. Studio offers it next to the Pipeline field that uses it.
-OPT_IN_COMPONENTS: tuple[str, ...] = ("word-aligner", "speaker-ecapa")
-ALL_GUI_COMPONENTS: tuple[str, ...] = (
-    DEFAULT_FIRST_RUN_COMPONENTS + OPTIONAL_COMPONENTS + OPT_IN_COMPONENTS
-)
+DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = tuple(s.id for s in models_for("required"))
+OPTIONAL_COMPONENTS: tuple[str, ...] = tuple(s.id for s in models_for("recommended"))
+OPT_IN_COMPONENTS: tuple[str, ...] = tuple(s.id for s in models_for("offered"))
+ALL_GUI_COMPONENTS: tuple[str, ...] = tuple(s.id for s in MODELS)
 
 
-def _rnnoise_ready() -> bool:
-    return rnnoise_model_path().is_file()
-
-
-def _pinned_component_status(
-    problem: Callable[[], Exception | None],
-    mismatch: type[Exception],
-    base: dict[str, Any],
-    *,
-    missing_hint: str,
-    bootstrap: str,
-    upgrade_bootstrap: str,
+def model_status(
+    model_id: str, variant: str | None = None, *, memoize: bool = True
 ) -> dict[str, Any]:
-    """The status payload shared by pinned model components (Whisper, word aligner).
+    """One model's readiness (no download) for bootstrap status and Pipeline badges.
 
-    ``ok: True`` when ``problem()`` returns None. A pin mismatch adds ``pin_mismatch:
-    true``, the mismatch as ``hint`` and ``upgrade_bootstrap``; any other problem gets
-    ``missing_hint`` and ``bootstrap``. An unexpected error is reported, never raised.
+    ``ok: True`` when the registry row reports no problem. A pin mismatch adds
+    ``pin_mismatch: true`` and an ``--upgrade`` fix as ``bootstrap``; any other problem
+    gets ``hint`` and ``bootstrap``. An unexpected error is reported, never raised.
     """
+    spec = model_spec(model_id)
+    base: dict[str, Any] = {
+        "model": variant or spec.default_variant or spec.id,
+        "label": spec.label,
+        "size": spec.size,
+        "required_for_first_run": spec.setup == "required",
+        "opt_in": spec.setup == "offered",
+    }
     try:
-        found = problem()
+        problem = spec.problem(variant, memoize)
+        base["path"] = str(spec.location())
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
-        return {**base, "ok": False, "hint": str(exc), "bootstrap": bootstrap}
-    if found is None:
-        return {**base, "ok": True}
-    if isinstance(found, mismatch):
-        return {
-            **base,
-            "ok": False,
-            "pin_mismatch": True,
-            "hint": str(found),
-            "bootstrap": upgrade_bootstrap,
-        }
-    return {**base, "ok": False, "hint": missing_hint, "bootstrap": bootstrap}
-
-
-def whisper_component(model: str) -> dict[str, Any]:
-    """Whisper readiness for ``model`` (no download) for bootstrap status and Pipeline badges."""
-    return _pinned_component_status(
-        lambda: whisper_model_problem(model, memoize=True),
-        WhisperPinMismatchError,
-        {"model": model},
-        missing_hint=(
-            f"Whisper model {model!r} is not downloaded — pick Download in the Pipeline tab "
-            f"or run {whisper_bootstrap_command(model)}"
-        ),
-        bootstrap=WHISPER_BOOTSTRAP,
-        upgrade_bootstrap=whisper_bootstrap_command(model, upgrade=True),
-    )
-
-
-def word_aligner_component() -> dict[str, Any]:
-    """Opt-in forced-aligner readiness (no download) for bootstrap status and Pipeline badges."""
-    model = word_aligner_model(DEFAULT_WORD_ALIGNER)
-    base: dict[str, Any] = {
-        "model": model.id,
-        "label": model.label,
-        "size": model.size,
-        "required_for_first_run": False,
-        "opt_in": True,
-    }
-    return _pinned_component_status(
-        lambda: word_aligner_problem(model.id, memoize=True),
-        WordAlignerPinMismatchError,
-        base,
-        missing_hint=(
-            f"{model.label} ({model.size}) is not downloaded; Precise word boundaries is "
-            "unavailable and words keep Whisper's times until it is. Download it next to "
-            "that field in the Pipeline tab"
-        ),
-        bootstrap=WORD_ALIGNER_BOOTSTRAP,
-        upgrade_bootstrap=f"{WORD_ALIGNER_BOOTSTRAP} --upgrade",
-    )
-
-
-def speaker_ecapa_component() -> dict[str, Any]:
-    """Opt-in speaker-recognition model readiness (no download)."""
-    problem = speaker_ecapa_problem()
-    base: dict[str, Any] = {
-        "model": SPEAKER_ECAPA_ASSET,
-        "label": SPEAKER_ECAPA_LABEL,
-        "size": SPEAKER_ECAPA_SIZE,
-        "license": SPEAKER_ECAPA_LICENSE,
-        "required_for_first_run": False,
-        "opt_in": True,
-    }
+        problem = ModelProblem(str(exc), spec.fix_command)
     if problem is None:
         return {**base, "ok": True}
     return {
         **base,
         "ok": False,
-        "hint": f"{SPEAKER_ECAPA_LABEL} {problem}",
-        "bootstrap": SPEAKER_ECAPA_BOOTSTRAP,
+        **({"pin_mismatch": True} if problem.pin_mismatch else {}),
+        "hint": problem.hint,
+        "bootstrap": problem.fix,
     }
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     """Return GUI first-run readiness without downloads."""
-    from podcast_mcp.engines.vad_silero import is_available as silero_available
-
     model = resolve_whisper_model(requested=whisper_model)
     ffmpeg_error = None
     try:
@@ -165,8 +74,6 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         ffmpeg_pair = None
         ffmpeg_error = str(exc)
     ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
-    whisper = whisper_component(model)
-    rnnoise_ok = _rnnoise_ready()
     components = {
         "ffmpeg": {
             "ok": ffmpeg_ok,
@@ -174,19 +81,10 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "required_for_first_run": True,
             "hint": ffmpeg_error,
         },
-        "whisper": {**whisper, "cache": str(whisper_cache_dir()), "required_for_first_run": True},
-        "rnnoise": {
-            "ok": rnnoise_ok,
-            "path": str(rnnoise_model_path()),
-            "required_for_first_run": False,
+        **{
+            spec.id: model_status(spec.id, model if spec.id == "whisper" else None)
+            for spec in MODELS
         },
-        "silero-vad": {
-            "ok": silero_available(),
-            "required_for_first_run": False,
-            "note": "bundled with faster-whisper; no download",
-        },
-        "word-aligner": word_aligner_component(),
-        "speaker-ecapa": speaker_ecapa_component(),
     }
     ready = ffmpeg_ok and all(
         components[name]["ok"] for name in DEFAULT_FIRST_RUN_COMPONENTS if name in components
@@ -203,6 +101,11 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     }
 
 
+def install_model(spec: ModelSpec, *, whisper_model: str, force: bool = False) -> dict[str, Any]:
+    """Install one registry model; ``whisper_model`` is the variant only Whisper takes."""
+    return spec.install(whisper_model if spec.id == "whisper" else None, force)
+
+
 def run_bootstrap(
     components: list[str] | tuple[str, ...] | None = None,
     *,
@@ -212,9 +115,9 @@ def run_bootstrap(
 ) -> dict[str, Any]:
     """Download selected components; report ProgressReporter events.
 
-    Torch / NISQA / speaker extras are intentionally unsupported here. The opt-in word
-    aligner downloads only when ``components`` names it. ``force`` also re-downloads a
-    pinned Whisper catalog snapshot (``bootstrap_whisper_model(..., force=True)``).
+    Torch / speaker extras are intentionally unsupported here. Offered models (the word
+    aligner, speaker recognition) download only when ``components`` names them. ``force``
+    also re-downloads a pinned Whisper catalog snapshot.
     """
     model = resolve_whisper_model(requested=whisper_model)
     wanted = list(components) if components else list(DEFAULT_FIRST_RUN_COMPONENTS)
@@ -237,49 +140,12 @@ def run_bootstrap(
     ) as task:
         for name in wanted:
             task.set_phase(name, f"Fetching {name}…")
-            if name == "whisper":
-                results[name] = _run_whisper(model, force=force)
-            elif name == "rnnoise":
-                results[name] = _run_rnnoise(force=force)
-            elif name == "word-aligner":
-                results[name] = _run_word_aligner(force=force)
-            elif name == "speaker-ecapa":
-                results[name] = _run_speaker_ecapa(force=force)
+            try:
+                results[name] = install_model(model_spec(name), whisper_model=model, force=force)
+            except Exception as exc:
+                results[name] = {"ok": False, "error": str(exc)}
             task.advance(1, message=f"Done {name}", total=total)
         task.message("Bootstrap complete")
 
     status = component_status(whisper_model=model)
     return {"ok": all(r.get("ok") for r in results.values()), "results": results, **status}
-
-
-def _run_whisper(model_size: str, *, force: bool = False) -> dict[str, Any]:
-    try:
-        return bootstrap_whisper_model(model_size, force=force)
-    except ImportError as exc:
-        return {"ok": False, "error": str(exc)}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
-
-
-def _run_rnnoise(*, force: bool) -> dict[str, Any]:
-    try:
-        path = bootstrap_rnnoise_model(force=force)
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
-    return {"ok": True, "path": str(path)}
-
-
-def _run_speaker_ecapa(*, force: bool) -> dict[str, Any]:
-    try:
-        return bootstrap_speaker_ecapa(force=force)
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
-
-
-def _run_word_aligner(*, force: bool) -> dict[str, Any]:
-    if not force and word_aligner_problem() is None:
-        return {"ok": True, "skipped": True, "reason": "cached", "model": DEFAULT_WORD_ALIGNER}
-    try:
-        return bootstrap_word_aligner(force=force)
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}

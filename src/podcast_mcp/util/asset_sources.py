@@ -160,6 +160,11 @@ def ordered_http_urls(asset_id: str, *, relative_path: str) -> list[str]:
     return urls
 
 
+def has_download_source(asset_id: str, *, relative_path: str) -> bool:
+    """Whether this build can fetch the asset at all (a CDN base or an upstream URL)."""
+    return bool(ordered_http_urls(asset_id, relative_path=relative_path))
+
+
 def _copy_bounded(src: Any, dest: Any, *, max_bytes: int) -> None:
     remaining = max_bytes
     while True:

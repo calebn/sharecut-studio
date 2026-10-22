@@ -77,7 +77,7 @@ summary table.
 
 ## Maximal install (all extras)
 
-For enrollment speaker ID and/or neural join QC, install **every** pip extra. This is much larger than `./install.sh` (Docker clean-room on Linux aarch64: ~6 GB `.venv` from CUDA-flavored `torch`, plus ~0.5 GB after `podcast bootstrap --component all`).
+For enrollment speaker ID and/or neural join QC, install **every** pip extra. This is much larger than `./install.sh` (Docker clean-room on Linux aarch64: ~6 GB `.venv` from CUDA-flavored `torch`, plus the models `podcast bootstrap --component all` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model is unavailable until its CDN copy ships, so `all` prints `[skip] speaker-ecapa: no download source in this build` and still exits 0; naming `--component speaker-ecapa` fails with that reason).
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -107,7 +107,7 @@ podcast bootstrap --component all
 podcast doctor
 ```
 
-`podcast bootstrap --component nisqa` is opt-in only (not in `--component all`). The default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir when using the neural joinqc path.
+`podcast bootstrap` does not download NISQA weights. Set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir when using the neural joinqc path.
 
 ## Frontend exporter dependencies
 
@@ -151,16 +151,14 @@ A new extra must be added to `EXTRA_IMPORTS` in that file; a fast test fails oth
 
 ### Bootstrap cache downloads (`podcast bootstrap`)
 
-Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
+Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`). The rows below are the model registry (`engines/models/registry.py`); `podcast bootstrap --component` choices, the Studio setup status and `podcast setup` all derive from it. A bare `podcast bootstrap` installs the `required` and `recommended` rows (`whisper`, `rnnoise`); `--component all` installs every row. `podcast setup` prints each model as ready or missing, with the `podcast bootstrap --component <id>` line that fixes it. `--component all` skips a model this build cannot download (today `speaker-ecapa`) with `[skip] <id>: no download source in this build` and still exits 0; naming that model fails with the same reason. Silero VAD ships inside `faster-whisper`, so it has no row and is not in the bootstrap status; `podcast doctor` reports it.
 
 | Component | What it fetches | Needed for |
 |-----------|------------------|------------|
 | `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the ShareCut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.engines.models.whisper.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch reports `[fail]` with a `--upgrade` hint; any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset |
-| `silero-vad` | Nothing — verifies the model bundled with `faster-whisper` | Optional VAD breath handling |
-| `nisqa` | NISQA weights (**opt-in only**; not included in `--component all`) | Neural join QC with `joinqc` extra. Default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir if needed |
-| `word-aligner` | Pinned wav2vec2-base CTC ONNX snapshot (~360 MB, English; **opt-in download**; not in `--component all`; once downloaded, `transcribe.forced_alignment.enabled` (default unset) turns forced alignment on by itself. Without the snapshot, unset remains unavailable and an explicit `true` blocks the run with this command; Studio shows that saved request checked and lets a person turn it off. #780. Every snapshot file (`vocab.json`, `config.json`, `preprocessor_config.json`, the ONNX) is checked against a pinned per-file sha256 manifest at download, at load (before `vocab.json` is read) and in status checks (Pipeline badge, bootstrap status, `podcast doctor`; memoised per file on path/size/mtime) and, uncached, in bootstrap's cache check, so a corrupt or swapped snapshot reports [fail] with an --upgrade hint instead of [skip], and any download (including Studio's **Download word aligner**) re-fetches it; a failed load is not retried for the rest of that run) | `transcribe.forced_alignment.enabled`; `PODCAST_MCP_WORD_ALIGNER_MODEL` points at a local snapshot dir. Studio: **Download word aligner** under the Pipeline tab's Precise word boundaries field (`POST /api/bootstrap/run` `components: ["word-aligner"]`); `GET /api/bootstrap/status` reports it under `components["word-aligner"]` (`opt_in: true`, never in `ready`). The status check hashes an unchanged snapshot once per process, keyed by path/size/mtime/pin, and remembers a pin mismatch the same way until a re-download changes the file. |
-| `speaker-ecapa` | Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (~80 MB, Apache-2.0; **opt-in download**; not in `--component all`). Runs on `onnxruntime`, so it needs no torch and works in the packaged app. Checked against its pinned sha256 at download and in status checks. | Speaker enroll, score, attribute, gate-track and split. `resolve_speaker_backend()` prefers it (`ecapa-onnx`) over the torch `speechbrain-ecapa` extra; embeddings match (cosine 1.0, `scripts/export_ecapa_onnx.py`), so existing profiles keep matching. `PODCAST_MCP_SPEAKER_ECAPA_MODEL` points at a local ONNX file. The file is mirrored on the CDN only: it needs publishing to `models/speaker-ecapa/` before a build can download it. |
+| `word-aligner` | Pinned wav2vec2-base CTC ONNX snapshot (~360 MB, English; **offered**: installed by `--component all` or by name, never by a bare `podcast bootstrap`; once downloaded, `transcribe.forced_alignment.enabled` (default unset) turns forced alignment on by itself. Without the snapshot, unset remains unavailable and an explicit `true` blocks the run with this command; Studio shows that saved request checked and lets a person turn it off. #780. Every snapshot file (`vocab.json`, `config.json`, `preprocessor_config.json`, the ONNX) is checked against a pinned per-file sha256 manifest at download, at load (before `vocab.json` is read) and in status checks (Pipeline badge, bootstrap status, `podcast doctor`; memoised per file on path/size/mtime) and, uncached, in bootstrap's cache check, so a corrupt or swapped snapshot reports [fail] with an --upgrade hint instead of [skip], and any download (including Studio's **Download word aligner**) re-fetches it; a failed load is not retried for the rest of that run) | `transcribe.forced_alignment.enabled`; `PODCAST_MCP_WORD_ALIGNER_MODEL` points at a local snapshot dir. Studio: **Download word aligner** under the Pipeline tab's Precise word boundaries field (`POST /api/bootstrap/run` `components: ["word-aligner"]`); `GET /api/bootstrap/status` reports it under `components["word-aligner"]` (`opt_in: true`, never in `ready`). The status check hashes an unchanged snapshot once per process, keyed by path/size/mtime/pin, and remembers a pin mismatch the same way until a re-download changes the file. |
+| `speaker-ecapa` | Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (~80 MB, Apache-2.0; **offered**: installed by `--component all` or by name, never by a bare `podcast bootstrap`). Runs on `onnxruntime`, so it needs no torch and works in the packaged app. Checked against its pinned sha256 at download and in status checks. | Speaker enroll, score, attribute, gate-track and split. `resolve_speaker_backend()` prefers it (`ecapa-onnx`) over the torch `speechbrain-ecapa` extra; embeddings match (cosine 1.0, `scripts/export_ecapa_onnx.py`), so existing profiles keep matching. `PODCAST_MCP_SPEAKER_ECAPA_MODEL` points at a local ONNX file. The file is mirrored on the CDN only: it needs publishing to `models/speaker-ecapa/` before a build can download it. |
 
 **Word aligner tiers.** `word-aligner` bootstraps the single pinned tier the
 pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` also
@@ -194,7 +192,7 @@ scanning](testing.md#credential-history-scanning)).
 `GET /api/bootstrap/status` and the Pipeline tab's component badges report a
 pin mismatch (Whisper or word aligner) as `ok: false` with
 `pin_mismatch: true`, the mismatch as `hint`, and an `--upgrade` `bootstrap`
-command naming the model.
+command naming the model. Status is built from the registry rows only: Whisper reports its cache directory as `path` (it was `cache`), `speaker-ecapa` no longer reports `license`, and there is no `silero-vad` entry.
 
 To check the shipped pins against a clean download (network; bootstrap hashes every
 file uncached and exits 1 on a mismatch):
@@ -213,15 +211,15 @@ uv run hf download Systran/faster-whisper-small.en config.json model.bin tokeniz
 shasum -a 256 /tmp/pin-check/config.json /tmp/pin-check/model.bin /tmp/pin-check/tokenizer.json /tmp/pin-check/vocabulary.txt
 ```
 
-Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so RNNoise tries CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
+Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so RNNoise tries CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). The word aligner is not in the manifest and always downloads from upstream.
 
 ```bash
-podcast bootstrap --component all
+podcast bootstrap                     # the recommended models: whisper and rnnoise
+podcast bootstrap --component all     # every model in the table, including word-aligner and speaker-ecapa
 podcast bootstrap --component whisper --whisper-model small.en
 podcast setup --whisper-model medium.en   # persist without downloading
 # Use another downloaded model for one standalone transcription run.
 podcast transcribe --project /path/to/episode.project.json --model small.en
-podcast bootstrap --component nisqa    # only when using joinqc neural path
 podcast bootstrap --component word-aligner  # precise word boundaries turn on by default once downloaded (transcribe.forced_alignment.enabled)
 ```
 
@@ -532,7 +530,7 @@ All bootstrapped/downloaded assets live under `~/.cache/podcast_mcp/`
 | `whisper/` | `faster-whisper` model weights |
 | `prefs.yaml` | Machine Whisper model preference (setup / bootstrap / first-run wizard) |
 | `bin/` | Existing source-use location for a locally supplied supported `ffmpeg`/`ffprobe` pair |
-| `models/` | Bootstrapped model assets (RNNoise `.rnnn`; optional NISQA dir) |
+| `models/` | Bootstrapped model assets (RNNoise `.rnnn`, the speaker ECAPA ONNX file) |
 | `word-aligner/` | Opt-in forced-aligner Hugging Face snapshot |
 
 Model weights stay outside the repository and installed package. Fetch models

@@ -378,11 +378,11 @@ def test_pipeline_and_bootstrap_ffmpeg_status_refresh_warmed_admission(
 
 def test_component_status_word_aligner_missing_hint(monkeypatch) -> None:
     from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
-    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.services.pipeline.config import component_status
 
     monkeypatch.setattr(
-        boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
+        "podcast_mcp.engines.models.registry.word_aligner_problem",
+        lambda *a, **k: WordAlignerMissingError("onnx-base"),
     )
     status = component_status()
     assert "not downloaded" in status["word-aligner"]["hint"]
@@ -750,15 +750,13 @@ def test_component_status_error_branches(monkeypatch) -> None:
         "podcast_mcp.util.binaries.resolve_ffmpeg_pair",
         boom_ffmpeg,
     )
-    monkeypatch.setattr(
-        "podcast_mcp.util.model_assets.resolve_rnnoise_model",
-        boom_rnnoise,
-    )
+    monkeypatch.setattr("podcast_mcp.util.model_assets.rnnoise_model_path", boom_rnnoise)
     status = pc.component_status()
     assert status["ffmpeg"]["ok"] is False
     assert "no ffmpeg" in status["ffmpeg"]["hint"]
     assert status["rnnoise"]["ok"] is False
-    assert "bootstrap" in status["rnnoise"]
+    assert status["rnnoise"]["hint"] == "no rnnoise"
+    assert status["rnnoise"]["bootstrap"] == "podcast bootstrap --component rnnoise"
 
 
 def test_apply_enable_toggle_when_enabled_steps_none(tmp_path) -> None:
