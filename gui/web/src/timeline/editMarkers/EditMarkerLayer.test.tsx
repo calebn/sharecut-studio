@@ -583,6 +583,19 @@ describe("EditMarkerLayer with its join editors", () => {
     expect(screen.getByRole("button", { name: /^2 edits/ })).toHaveFocus();
   });
 
+  it("leaves focus alone when a join folds after its popover closed", async () => {
+    const user = userEvent.setup();
+    const view = render(<Lane />);
+    const glyph = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:05.0",
+    });
+    await user.click(glyph);
+    await user.click(glyph);
+    glyph.blur();
+    view.rerender(<Lane zoom={1} />);
+    expect(document.body).toHaveFocus();
+  });
+
   it("has no axe violations while open", async () => {
     render(<Lane />);
     fireEvent.click(
