@@ -493,13 +493,15 @@ Each `adelay` is placed at the rate the render graph runs at there (#2025). One
 `abuffer` per distinct input in the format the decoder reports, and the delay is wrapped in
 `aformat=sample_rates=<rate>` before and after `adelay`. The trailing pin keeps `adelay`'s
 output at that rate when a filter after the mix forces another one and the dry run disagrees
-with the real run. A plain RIFF WAV (mono or stereo, integer or float PCM) gives its format
-from the header, with no process spawned (#2082). Every other input, and every input of a
-Restore render, is decoded for one frame by `ffmpeg`, side by side, and the answer is kept
-in memory by path and file stamp until the file changes. A graph over 8,000 characters goes to
+with the real run. A plain RIFF WAV (mono or stereo, 8/16/24-bit integer or 32/64-bit float
+PCM) gives its format from the header, with no process spawned (#2082); the dry run reads WAV
+headers the same way, and a Restore render's clock observers decode every input. Every other
+input is decoded for one frame by `ffmpeg`, side by side, and the answer is kept in memory by
+path and file stamp until the file changes. A graph over 8,000 characters goes to
 `-/filter_complex <file>` (and `-graph_file <file> -i dummy` for the dry run) so it does not
 count against the command line. A render fails with `render_rate_unresolved` when no rate can
-be read for an input (a file with no decodable audio), and with `render_command_too_long`
+be read for an input (a non-WAV input with no decodable audio; a WAV with an empty data chunk
+renders at its header format), and with `render_command_too_long`
 when the operating system refuses the command line, which takes about 120 to 200 distinct
 inputs on Windows.
 
