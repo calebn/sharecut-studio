@@ -239,6 +239,9 @@ def run_tighten_benchmark(
 
 
 MAX_REBUILDS_PER_DECISION = 3
+# Measured 0.48-0.59 on a Mac, 1.16 on a 4-core cloud box, 4.3 on older main: 2.0 passes
+# slower hardware and still trips that regression.
+MAX_APPLY_SEC_PER_RANGE = 2.0
 
 
 def _assert_ripple_apply_shape(result: TightenBenchmarkResult) -> None:
@@ -251,16 +254,18 @@ def _assert_ripple_apply_shape(result: TightenBenchmarkResult) -> None:
 
 
 @pytest.mark.slow
+@pytest.mark.timeout(900)
 def test_tighten_benchmark_synthetic_under_threshold(tmp_path):
     result = run_tighten_benchmark(_synthetic_filler_project(1000, tmp_path))
     _assert_ripple_apply_shape(result)
-    # Per-cut budgets (measured ~0.1 s each): a superlinear regression trips them as the
-    # project grows, while a slower machine does not.
+    # Per-cut budgets (propose measured ~0.12 s on a Mac): a superlinear regression trips
+    # them as the project grows, while a slower machine does not.
     assert result.propose_sec / result.decisions_proposed < 0.5
-    assert result.apply_sec / result.merged_ranges < 0.5
+    assert result.apply_sec / result.merged_ranges < MAX_APPLY_SEC_PER_RANGE
 
 
 @pytest.mark.slow
+@pytest.mark.timeout(300)
 def test_tighten_benchmark_optional_cleanup_test():
     from optional_projects import cleanup_test_project
 
@@ -310,12 +315,13 @@ def run_tighten_apply_word_only_benchmark(project: EpisodeProject) -> TightenBen
 
 
 @pytest.mark.slow
+@pytest.mark.timeout(300)
 def test_tighten_apply_word_only_under_threshold(tmp_path):
     result = run_tighten_apply_word_only_benchmark(_synthetic_filler_project(1000, tmp_path))
     assert result.ffmpeg_window_calls == 0
     assert result.decisions_proposed > 0
     assert len(set(result.clip_counts.values())) == 1
-    assert result.apply_sec / result.merged_ranges < 0.5
+    assert result.apply_sec / result.merged_ranges < MAX_APPLY_SEC_PER_RANGE
 
 
 def run_tighten_apply_full_mode_warm_benchmark(project: EpisodeProject) -> tuple[int, float]:
@@ -347,6 +353,7 @@ def run_tighten_apply_full_mode_warm_benchmark(project: EpisodeProject) -> tuple
 
 
 @pytest.mark.slow
+@pytest.mark.timeout(150)
 def test_tighten_apply_full_mode_warm_under_threshold(tmp_path):
     first_calls, warm_sec = run_tighten_apply_full_mode_warm_benchmark(
         _synthetic_filler_project(500, tmp_path)
