@@ -37,7 +37,7 @@ from podcast_mcp.engines.speaker_split import (
 )
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.ungated_audio import load_mono_full
-from podcast_mcp.mcp.tools.speaker import speaker_move_lane_span_tool
+from podcast_mcp.mcp.tools.speaker import speaker_move_lane_span_tool, speaker_split_tool
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -1019,6 +1019,75 @@ def test_the_preflight_refuses_an_enrolled_name_with_no_spans(mixed_ws: ProjectW
 
     assert raised.value.code == "enrollment_empty"
     assert "Ana has no voice sample" in str(raised.value)
+
+
+INVALID_SPANS = [(5.0, 2.0), (3.0, 3.0), (-10.0, -5.0), (float("nan"), 1.0), (1.0, float("inf"))]
+
+
+@pytest.mark.parametrize("span", INVALID_SPANS)
+def test_an_unusable_enrollment_span_is_refused_before_any_audio_is_read(
+    mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch, span: tuple[float, float]
+) -> None:
+    def no_audio(*_args, **_kwargs):
+        raise AssertionError("read audio")
+
+    monkeypatch.setattr("podcast_mcp.services.media.speaker.load_mono_full", no_audio)
+    service = SpeakerService(mixed_ws)
+    start, end = span
+    message = (
+        f"Ana's voice sample {start:g} to {end:g} isn't a usable time range. Give a start and "
+        "end in seconds, at 0 or later, with the start before the end."
+    )
+
+    with pytest.raises(CodedValueError) as split:
+        service.split_speakers(
+            "room", speaker_count=2, names=["Ana", "Ben"], enrollment={"Ana": [span]}
+        )
+    with pytest.raises(CodedValueError) as check:
+        service.check_split(
+            "room", speaker_count=2, names=["Ana", "Ben"], enrollment={"Ana": [(0.5, 4.0), span]}
+        )
+
+    assert split.value.code == check.value.code == "enrollment_span_invalid"
+    assert str(split.value) == str(check.value) == message
+
+
+def test_a_usable_enrollment_span_passes_the_preflight(
+    mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_audio(*_args, **_kwargs):
+        raise AssertionError("read audio")
+
+    monkeypatch.setattr("podcast_mcp.services.media.speaker.load_mono_full", no_audio)
+    speakers, _ = SpeakerService(mixed_ws).check_split(
+        "room", speaker_count=2, names=["Ana", "Ben"], enrollment={"Ana": [(0.5, 4.0)]}
+    )
+    assert speakers == ["Ana", "Ben"]
+
+
+@pytest.mark.parametrize("span", [[1, 2, 3], [1]])
+def test_the_mcp_tool_refuses_a_span_that_is_not_a_start_and_end(
+    mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch, span: list[float]
+) -> None:
+    def no_audio(*_args, **_kwargs):
+        raise AssertionError("read audio")
+
+    monkeypatch.setattr("podcast_mcp.services.media.speaker.load_mono_full", no_audio)
+
+    with pytest.raises(CodedValueError) as raised:
+        speaker_split_tool(
+            str(mixed_ws.path),
+            "room",
+            speaker_count=2,
+            names=["Ana", "Ben"],
+            enrollment={"Ana": [span]},
+        )
+
+    assert raised.value.code == "enrollment_span_invalid"
+    assert str(raised.value) == (
+        f"Ana's voice sample {span!r} isn't a usable time range. Give a start and end in "
+        "seconds, at 0 or later, with the start before the end."
+    )
 
 
 @pytest.mark.parametrize("attributes_first", [False, True])
