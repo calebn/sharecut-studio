@@ -1007,6 +1007,7 @@
               "additionalProperties": true,
               "type": "object"
             },
+            "maxItems": 10000,
             "title": "Recommendations",
             "type": "array"
           }
