@@ -1,11 +1,15 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { waitForDialogFocus } from "../../test/dialogFocus";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  FakeResizeObserver,
+  stubResizeObserver,
+} from "../../test/resizeObserver";
 import type { ClipRow } from "../../types/project";
 import { effectiveMaxZoomPxPerSec } from "../../utils/timelineZoom.generated";
 import { JoinEditor } from "../JoinEditor";
@@ -242,6 +246,79 @@ describe("EditMarkerLayer tiers and labels", () => {
       );
     },
   );
+});
+
+describe("EditMarkerLayer label refit", () => {
+  const fonts = new EventTarget();
+
+  beforeEach(() => {
+    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
+    stubResizeObserver();
+    Object.defineProperty(document, "fonts", {
+      value: fonts,
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    document.documentElement.style.fontSize = "";
+    Reflect.deleteProperty(document, "fonts");
+  });
+
+  function renderTwoCuts() {
+    const a = pair("a", 5, "cut");
+    const b = pair("b", 24, "cut");
+    return render(
+      <EditMarkerLayer
+        plan={planOf([a.left, a.right, b.left, b.right], 4)}
+        onZoomChip={vi.fn()}
+      />,
+    );
+  }
+  const drawn = (root: HTMLElement) =>
+    root.querySelectorAll(".edit-mark-label").length;
+  const rootPx = () =>
+    parseFloat(document.documentElement.style.fontSize || "16");
+
+  it("refits the labels when the root font size changes at runtime", () => {
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
+      () => (40 * rootPx()) / 16,
+    );
+    const { container } = renderTwoCuts();
+    expect(drawn(container)).toBe(2);
+
+    document.documentElement.style.fontSize = "32px";
+    const probe = container.querySelector(".edit-mark-probe");
+    expect(probe).not.toBeNull();
+    act(() => FakeResizeObserver.of(probe as Element).fire());
+    expect(drawn(container)).toBe(0);
+
+    document.documentElement.style.fontSize = "16px";
+    act(() => FakeResizeObserver.of(probe as Element).fire());
+    expect(drawn(container)).toBe(2);
+  });
+
+  it("refits the labels when a web font finishes loading", () => {
+    let widthPx = 40;
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
+      () => widthPx,
+    );
+    const { container } = renderTwoCuts();
+    expect(drawn(container)).toBe(2);
+
+    widthPx = 80;
+    act(() => {
+      fonts.dispatchEvent(new Event("loadingdone"));
+    });
+    expect(drawn(container)).toBe(0);
+
+    widthPx = 40;
+    act(() => {
+      fonts.dispatchEvent(new Event("loadingdone"));
+    });
+    expect(drawn(container)).toBe(2);
+  });
 });
 
 describe("EditMarkerLayer chips", () => {
