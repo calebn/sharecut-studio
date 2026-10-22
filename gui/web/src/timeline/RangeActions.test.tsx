@@ -44,7 +44,7 @@ beforeEach(() =>
 
 describe("range action bar and phone sheet", () => {
   it.each([false, true])(
-    "renders all five actions and passes axe with sheet=%s",
+    "renders all six actions and passes axe with sheet=%s",
     async (sheet) => {
       const { container } = render(
         <main>
@@ -55,6 +55,7 @@ describe("range action bar and phone sheet", () => {
         "Play",
         "Cut",
         "Mute",
+        "Fill room tone",
         "Comment",
         "Bounce",
         "Clear range",

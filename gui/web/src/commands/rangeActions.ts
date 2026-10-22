@@ -4,6 +4,7 @@ import { apiSend } from "../api/http";
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
 import { rangeIsCurrent, resolveSelectionRange } from "../edit/rangeSelection";
+import { roomToneGaps } from "../edit/roomToneGaps";
 import { extractClipsInRange } from "../edit/selectionClipboard";
 import {
   hasShareCapability,
@@ -14,7 +15,7 @@ import { useDawStore } from "../state/dawStore";
 import type { DawState } from "../state/types";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";
-import { errorMessage, readApiError } from "../utils/apiError";
+import { ApiError, errorMessage, readApiError } from "../utils/apiError";
 import { oneWordOf } from "../utils/rangeSelect";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { openCommentDraft } from "./comments";
@@ -22,11 +23,18 @@ import { registerCommand } from "./execute";
 import { commandLabel } from "./labels";
 import type { ExecuteResult } from "./types";
 
-export type RangeAction = "play" | "cut" | "mute" | "comment" | "bounce";
+export type RangeAction =
+  | "play"
+  | "cut"
+  | "mute"
+  | "fillRoomTone"
+  | "comment"
+  | "bounce";
 export const RANGE_ACTIONS: RangeAction[] = [
   "play",
   "cut",
   "mute",
+  "fillRoomTone",
   "comment",
   "bounce",
 ];
@@ -83,6 +91,15 @@ export function rangeActionDescriptors(
     if (!reason && (action === "cut" || action === "mute")) {
       if (mode === "none") reason = "This share cannot suggest edits";
       else if (!target?.clips.length) reason = "No audible media in this range";
+    }
+    if (!reason && action === "fillRoomTone") {
+      if (mode !== "edit") reason = "Only editors can fill room tone";
+      else if (
+        !state.project ||
+        !target ||
+        !roomToneGaps(state.project, target).length
+      )
+        reason = "No gap between clips in this range";
     }
     if (!reason && action === "bounce" && guest)
       reason = "Only the host can export selected tracks";
@@ -154,6 +171,13 @@ export async function runRangeAction(
   const epoch = state.projectEpoch;
   const selection = state.selection;
   try {
+    if (action === "fillRoomTone")
+      return await fillRoomToneInRange(
+        state.projectPath,
+        state.project,
+        target,
+        epoch,
+      );
     if (action === "cut" || action === "mute") {
       const result = await submitDocumentCommand(
         state.projectPath,
@@ -242,6 +266,67 @@ export async function runRangeAction(
     if (useDawStore.getState().projectEpoch === epoch)
       useDawStore.getState().setRangeBusy(false);
   }
+}
+
+const ROOM_TONE_NO_FILL: Record<string, string> = {
+  no_source: "No usable room tone on this track to fill with",
+  nothing_to_fill: "No gap between clips in this range",
+};
+
+async function fillRoomToneInRange(
+  projectPath: string,
+  project: NonNullable<DawState["project"]>,
+  target: ExactRangeTarget,
+  epoch: number,
+): Promise<ExecuteResult> {
+  const gaps = roomToneGaps(project, target);
+  const pairs = new Set(gaps.map((g) => g.track_id));
+  let filled = 0;
+  let head: ReturnType<typeof replyHistoryHead> = null;
+  const unfilled = new Set<string>();
+  for (const trackId of pairs) {
+    for (const interval of target.intervals) {
+      try {
+        const result = await submitDocumentCommand(
+          projectPath,
+          DocumentCommand.FillRoomTone,
+          {
+            track_id: trackId,
+            start_sec: interval.start,
+            end_sec: interval.end,
+          },
+        );
+        if (result.queued === true) {
+          useDawStore
+            .getState()
+            .announceStatus("Fill queued. Reconnect to send it.");
+          return { status: "ok" };
+        }
+        filled += 1;
+        head = replyHistoryHead(result) ?? head;
+      } catch (error) {
+        const code = error instanceof ApiError ? error.code : null;
+        if (code === "nothing_to_fill") continue;
+        if (code !== null && code in ROOM_TONE_NO_FILL)
+          unfilled.add(ROOM_TONE_NO_FILL[code]!);
+        else throw error;
+      }
+    }
+  }
+  const live = useDawStore.getState();
+  if (live.projectEpoch !== epoch) return { status: "ok" };
+  if (filled === 0) {
+    const reason = [...unfilled][0] ?? "No gap between clips in this range";
+    live.announceStatus(reason, { tone: "error" });
+    return { status: "disabled", reason };
+  }
+  live.announceStatus(
+    unfilled.size
+      ? `Filled ${filled} ${filled === 1 ? "gap" : "gaps"} with room tone. ${[...unfilled][0]} in the rest.`
+      : `Filled ${filled} ${filled === 1 ? "gap" : "gaps"} with room tone. Use Undo to restore it.`,
+    { undo: head },
+  );
+  return { status: "ok" };
 }
 
 export function registerRangeCommands(): void {
