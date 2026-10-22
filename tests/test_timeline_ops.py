@@ -5,7 +5,12 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
+from podcast_mcp.edits.join_modes import (
+    crossfade_joins,
+    fade_joins,
+    set_clip_join,
+    set_clip_join_mode,
+)
 from podcast_mcp.edits.timeline_ops import (
     _write_ripple_delete,
     duplicate_segment,
@@ -930,6 +935,32 @@ def test_split_clip_applies_micro_fades() -> None:
     )
     assert host_clips[0].fade_out_ms > 0
     assert host_clips[1].fade_in_ms > 0
+
+
+def test_split_clip_keeps_the_other_joins_of_the_track() -> None:
+    p = _two_track_project()
+    p.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=2.0, source_end=4.0, timeline_start=2.0),
+        Clip(id="c", track_id="host", source_start=4.0, source_end=6.0, timeline_start=4.0),
+        Clip(id="d", track_id="host", source_start=6.0, source_end=8.0, timeline_start=6.0),
+    ]
+    defaults = load_defaults()
+    set_clip_join(p, "a", "b", ClipJoinMode.CROSSFADE, length_ms=90, defaults=defaults)
+    set_clip_join(p, "b", "c", ClipJoinMode.CUT, defaults=defaults)
+    before = {c.id: c.model_dump() for c in p.clips if c.id in {"a", "b", "c", "d"}}
+
+    split_clip(p, "host", 7.0, defaults=defaults)
+
+    after = {c.id: c for c in p.clips if c.track_id == "host"}
+    for clip_id in ("a", "b", "c"):
+        assert after[clip_id].model_dump() == before[clip_id], clip_id
+    pieces = sorted(
+        (c for c in after.values() if c.id not in before), key=lambda c: c.timeline_start
+    )
+    assert len(pieces) == 2
+    assert pieces[0].join_in_mode == before["d"]["join_in_mode"]
+    assert pieces[1].join_in_mode == ClipJoinMode.FADE
 
 
 def test_list_clips_filtered_by_track() -> None:

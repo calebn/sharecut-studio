@@ -473,6 +473,9 @@ def split_clip(
         tl_end = clip.timeline_end
         if not split and clip.timeline_start < at_time < tl_end:
             before, after = split_clip_at(clip, at_time, defaults=defaults)
+            fades = recommend_micro_fades(defaults=defaults)
+            before.fade_out_ms = max(before.fade_out_ms, fades["fade_out_ms"])
+            after.fade_in_ms = max(after.fade_in_ms, fades["fade_in_ms"])
             new_clips.extend([before, after])
             split = True
         else:
@@ -481,15 +484,7 @@ def split_clip(
         raise CodedValueError(
             f"no clip at timeline {at_time} on track {track_id}", code="no_clip_at_time"
         )
-    fades = recommend_micro_fades(defaults=defaults)
-    if len(new_clips) >= 2:
-        ordered = sorted(new_clips, key=lambda c: c.timeline_start)
-        for i in range(len(ordered) - 1):
-            if abs(ordered[i].timeline_end - ordered[i + 1].timeline_start) <= 1e-6:
-                ordered[i].fade_out_ms = max(ordered[i].fade_out_ms, fades["fade_out_ms"])
-                ordered[i + 1].fade_in_ms = max(ordered[i + 1].fade_in_ms, fades["fade_in_ms"])
-                ordered[i + 1].join_in_mode = ClipJoinMode.FADE
-        new_clips = ordered
+    new_clips.sort(key=lambda c: c.timeline_start)
     set_track_clips(project, track_id, new_clips)
     update_timeline_duration(project)
     return change_summary(project, operation="split_clip", affected_tracks=[track_id])
