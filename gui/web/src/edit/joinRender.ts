@@ -203,7 +203,6 @@ export function joinVisual(right: ClipRow, zoomPxPerSec: number): JoinVisual {
   };
 }
 
-/** Below this overlap width (CSS px) the join draws a seam hairline instead of waveforms. */
 export const MIN_JOIN_WAVE_CSS_PX = 1;
 
 export type JoinWaveSpans = {
@@ -212,12 +211,6 @@ export type JoinWaveSpans = {
   raster: boolean;
 };
 
-/**
- * Where the two overlap waveforms start in their recordings: the left clip's
- * tail begins `lengthMs / 2` before its `source_end`, the right clip's head
- * `lengthMs / 2` before its `source_start`, so both layers meet their own
- * clip's edge at the seam. `raster` is false below MIN_JOIN_WAVE_CSS_PX.
- */
 export function joinWaveSpans(
   left: Pick<ClipRow, "source_end">,
   right: Pick<ClipRow, "source_start">,

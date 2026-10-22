@@ -92,7 +92,6 @@ type Props = {
   role: string;
   /** Track output gain (dB, `gain_db + fader_db`); drawn only post-fader. */
   gainDb: number;
-  /** Narrowest layer (css px) that still draws; defaults to MIN_CLIP_CSS_PX. */
   minWidthCss?: number;
 };
 
