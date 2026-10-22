@@ -217,6 +217,9 @@ def test_cli_pipeline_run_prints_stale_notice(tmp_path):
 def test_mcp_pipeline_run_direct_appends_stale_notice(tmp_path):
     ws = _workspace(tmp_path, media.multistream(tmp_path, "st.mkv"))
     done = PipelineRunResult(last_step="ingest_tracks", steps=[])
-    with patch("podcast_mcp.mcp.tools.pipeline.PipelineService.run", return_value=done):
+    with (
+        patch("podcast_mcp.mcp.tools.pipeline.ensure_whisper_cached_for_run"),
+        patch("podcast_mcp.mcp.tools.pipeline.PipelineService.run", return_value=done),
+    ):
         out = mcp_pipeline.pipeline_run(str(ws.path), use_working_set=False)
     assert out.splitlines()[-1].startswith("Stale audio streams")
