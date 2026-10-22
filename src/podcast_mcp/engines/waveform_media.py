@@ -37,6 +37,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     schedule_pyramid_build,
 )
 from podcast_mcp.models import EpisodeProject, Track, load_project, project_file_path
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.tracks import stem_path
 from podcast_mcp.util.workspace_paths import (
     resolve_under_workspace,
@@ -214,8 +215,7 @@ def current_key(entry: MediaEntry) -> str:
     Request handlers call ``services.media.waveform.live_key`` instead: it turns a missing
     file into ``LookupError`` (404), where a bare ``OSError`` would become a 500.
     """
-    st = entry.abs_path.stat()
-    return media_key(entry.rel_path, st.st_size, st.st_mtime_ns)
+    return media_key(entry.rel_path, *file_stamp(entry.abs_path).content)
 
 
 def current_ref_key(project_path: Path, ref: str, *, defaults: EffectiveConfig) -> str | None:

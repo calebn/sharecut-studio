@@ -20,6 +20,7 @@ from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, stem_path
@@ -255,11 +256,11 @@ def proxy_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effec
     try:
         src = track_audio_path(project, track_id)
         if src.is_file():
-            st = src.stat()
+            stamp = file_stamp(src)
             media_identity = {
                 "name": src.name,
-                "size": st.st_size,
-                "mtime_ns": st.st_mtime_ns,
+                "size": stamp.size,
+                "mtime_ns": stamp.mtime_ns,
             }
         else:
             media_identity = {"name": src.name, "size": None, "mtime_ns": None}
@@ -754,10 +755,10 @@ def master_source_hash(project: EpisodeProject) -> str | None:
     each one; the mix hash adds which tracks it played and at what gain.
     """
     try:
-        st = premix_path(project).stat()
+        stamp = file_stamp(premix_path(project))
     except FileNotFoundError:
         return None
-    payload = {"mix": read_premix_hash(project), "size": st.st_size, "mtime_ns": st.st_mtime_ns}
+    payload = {"mix": read_premix_hash(project), "size": stamp.size, "mtime_ns": stamp.mtime_ns}
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return short_digest(raw)
 
