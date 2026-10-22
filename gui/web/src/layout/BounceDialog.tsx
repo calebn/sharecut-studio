@@ -21,7 +21,7 @@ export function BounceDialog() {
     sessionRegion,
   } = useDaw((s) => ({
     bounceRangeTarget: s.bounceRangeTarget,
-    bounceDialogOpen: s.bounceDialogOpen,
+    bounceDialogOpen: s.chrome.bounceDialogOpen,
     setBounceDialogOpen: s.setBounceDialogOpen,
     project: s.project,
     projectPath: s.projectPath,

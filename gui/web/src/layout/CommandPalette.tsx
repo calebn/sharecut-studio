@@ -14,7 +14,7 @@ import { paletteCommands } from "./commandPaletteRows";
 export function CommandPalette() {
   const { commandPaletteOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
     useDaw((s) => ({
-      commandPaletteOpen: s.commandPaletteOpen,
+      commandPaletteOpen: s.chrome.commandPaletteOpen,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
       setGesturesSheetOpen: s.setGesturesSheetOpen,
     }));

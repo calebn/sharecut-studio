@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useDawKeymapListener } from "../keymap/listener";
 import { TransportBar } from "../layout/TransportBar";
 import { useDawStore } from "../state/dawStore";
+import { setChrome } from "../test/chrome";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { executePointerCommand } from "./pointer";
@@ -27,15 +28,18 @@ beforeEach(() => {
   useDawStore
     .getState()
     .hydrate("/tmp/transport-availability", minimalProject());
+  setChrome({
+    commandPaletteOpen: false,
+    bounceDialogOpen: false,
+    shareDialogOpen: false,
+  });
   useDawStore.setState({
     isPlaying: false,
     playStartSec: null,
     playheadSec: 0,
     timelineFocused: true,
     activeTab: "comments",
-    commandPaletteOpen: false,
-    bounceDialogOpen: false,
-    shareDialogOpen: false,
+
     followingClientId: null,
   });
 });

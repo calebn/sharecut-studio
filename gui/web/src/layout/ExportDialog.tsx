@@ -42,7 +42,7 @@ type Flow =
  */
 export function ExportDialog() {
   const { open, setOpen, project, projectPath, activityJob } = useDaw((s) => ({
-    open: s.exportDialogOpen,
+    open: s.chrome.exportDialogOpen,
     setOpen: s.setExportDialogOpen,
     project: s.project,
     projectPath: s.projectPath,

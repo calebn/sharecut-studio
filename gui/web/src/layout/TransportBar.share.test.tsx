@@ -19,7 +19,7 @@ describe("TransportBar Share menu", () => {
     clearRegisteredCommands();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ hostMcpDialogOpen: false });
+    useDawStore.getState().setHostMcpDialogOpen(false);
   });
 
   it("shows Share… when share.ui.menu is present", async () => {
@@ -53,7 +53,7 @@ describe("TransportBar Share menu", () => {
     await userEvent.click(
       screen.getByRole("menuitem", { name: "Connect agent…" }),
     );
-    expect(useDawStore.getState().hostMcpDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.hostMcpDialogOpen).toBe(true);
   });
 
   it("hides Share… when the feature is absent", async () => {

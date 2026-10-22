@@ -16,7 +16,7 @@ describe("share.manage", () => {
     resetFeaturesCache();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ shareDialogOpen: false });
+    useDawStore.getState().setShareDialogOpen(false);
   });
 
   afterEach(() => {
@@ -28,7 +28,7 @@ describe("share.manage", () => {
     expect(peekCachedFeatures()).toBeNull();
     const result = await execute("share.manage");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().shareDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(true);
   });
 
   it("disables after features load without share.ui.menu", async () => {
@@ -42,7 +42,7 @@ describe("share.manage", () => {
     await fetchFeatures();
     const result = await execute("share.manage");
     expect(result.status).toBe("disabled");
-    expect(useDawStore.getState().shareDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(false);
   });
 
   it("opens when share.ui.menu is cached", async () => {
@@ -59,6 +59,6 @@ describe("share.manage", () => {
     await fetchFeatures();
     const result = await execute("share.manage");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().shareDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(true);
   });
 });

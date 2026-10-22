@@ -27,6 +27,28 @@ import type {
   HeldTrimResult,
 } from "./projectSlice";
 
+/** Open/closed state of the app's dialogs, sheets and inline panels; only the palette and gestures sheet exclude each other. */
+export interface ChromeFlags {
+  /** Command palette (Commands and shortcuts) open. */
+  commandPaletteOpen: boolean;
+  /** Mobile gestures cheatsheet open. */
+  gesturesSheetOpen: boolean;
+  /** Bounce dialog open (host export/bounces). */
+  bounceDialogOpen: boolean;
+  /** Host Export deliverables dialog (configure, progress, outcome). */
+  exportDialogOpen: boolean;
+  /** Host share management dialog. */
+  shareDialogOpen: boolean;
+  /** Host record-room control panel. */
+  recordPanelOpen: boolean;
+  /** Local host MCP connect dialog (Streamable HTTP URL). */
+  hostMcpDialogOpen: boolean;
+  /** Host Help → diagnostics bundle dialog. */
+  helpDialogOpen: boolean;
+  /** Transcript find/replace panel open. */
+  transcriptFindReplaceOpen: boolean;
+}
+
 export type { AuditionMode } from "../types/session";
 export type { LaneHeightMode } from "../utils/laneHeightPref";
 
@@ -288,7 +310,6 @@ export interface DawState {
   transcriptCorrecting: boolean;
   transcriptTimingRequest: TranscriptInlineEditRequest | null;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
-  transcriptFindReplaceOpen: boolean;
   /** An inline transcript word fix is saving; outlives a TranscriptPanel remount (tab switch). */
   transcriptInlineCommitPending: boolean;
   /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
@@ -342,18 +363,12 @@ export interface DawState {
   laneHeightPx: number;
   /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
   drawnLaneHeightPx: number | null;
-  /** Command palette (Commands and shortcuts) open. */
-  commandPaletteOpen: boolean;
-  /** Mobile gestures cheatsheet open. */
-  gesturesSheetOpen: boolean;
-  /** Bounce dialog open (host export/bounces). */
+  chrome: ChromeFlags;
+  setTranscriptFindReplaceOpen: (on: boolean) => void;
   bounceRangeTarget: import("../types/project").ExactRangeTarget | null;
   setBounceRangeTarget: (
     target: import("../types/project").ExactRangeTarget | null,
   ) => void;
-  bounceDialogOpen: boolean;
-  /** Host Export deliverables dialog (configure, progress, outcome). */
-  exportDialogOpen: boolean;
   splitSpeakersReview: {
     trackId: string;
     splitId: string;
@@ -368,17 +383,9 @@ export interface DawState {
   ) => void;
   /** Track the Split speakers dialog is open for; null while it is closed. */
   splitSpeakersTrackId: string | null;
-  /** Host share management dialog. */
-  shareDialogOpen: boolean;
-  /** Host record-room control panel. */
-  recordPanelOpen: boolean;
   /** Tighten tab Apply-eligible scope for keyboard shortcuts. */
   tightenApplyScope: { ids: string[] };
   setTightenApplyScope: (scope: { ids: string[] }) => void;
-  /** Local host MCP connect dialog (Streamable HTTP URL). */
-  hostMcpDialogOpen: boolean;
-  /** Host Help → diagnostics bundle dialog. */
-  helpDialogOpen: boolean;
   /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/JoinBadge.tsx). */
   openJoinId: string | null;
   /**

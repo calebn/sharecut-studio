@@ -6,7 +6,7 @@ import { CommandPalette } from "./CommandPalette";
 export function CheatsheetDialogs() {
   const { gesturesSheetOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
     useDaw((s) => ({
-      gesturesSheetOpen: s.gesturesSheetOpen,
+      gesturesSheetOpen: s.chrome.gesturesSheetOpen,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
       setGesturesSheetOpen: s.setGesturesSheetOpen,
     }));

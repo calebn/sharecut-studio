@@ -13,6 +13,7 @@ import { registerDawCommands } from "../commands/register";
 import { AskDialog } from "../feedback/AskDialog";
 import { askConfirm, askText } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
+import { setChrome } from "../test/chrome";
 import { minimalProject } from "../test/fixtures";
 import { BottomSheet } from "../ui/BottomSheet";
 import { Dialog } from "../ui/Dialog";
@@ -51,7 +52,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.mocked(execute).mockImplementation(actualExecute);
-  useDawStore.setState({ recordPanelOpen: false, selection: null });
+  setChrome({ recordPanelOpen: false });
+  useDawStore.setState({ selection: null });
   disposeHandle?.();
   disposeHandle = null;
   clearRegisteredCommands();
@@ -272,7 +274,7 @@ it("keeps native typing in a dialog's text field while the app shortcuts are hel
 
 it("lets through only the shortcuts the open modal hands on: M drops a marker in the Record room", async () => {
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
-  useDawStore.setState({ recordPanelOpen: true });
+  useDawStore.getState().setRecordPanelOpen(true);
   const { rerender } = render(
     <>
       <KeymapHost />
@@ -378,7 +380,7 @@ it.each(GATED_DIALOGS)(
 
 it("ignores the dialog open flags in the store: only a mounted overlay holds the keymap", async () => {
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
-  useDawStore.setState({
+  setChrome({
     commandPaletteOpen: true,
     bounceDialogOpen: true,
     shareDialogOpen: true,
@@ -386,7 +388,7 @@ it("ignores the dialog open flags in the store: only a mounted overlay holds the
   render(<KeymapHost />);
   fireEvent.keyDown(screen.getByTestId("canvas"), { key: " ", code: "Space" });
   await waitFor(() => expect(vi.mocked(execute)).toHaveBeenCalled());
-  useDawStore.setState({
+  setChrome({
     commandPaletteOpen: false,
     bounceDialogOpen: false,
     shareDialogOpen: false,
@@ -449,8 +451,8 @@ it("runs the Tighten hit on Backspace while the panel is open, and the clip dele
 
 it("drops a marker on M while the record panel is open and mutes the track once it closes", async () => {
   render(<KeymapHost />);
-  useDawStore.setState({ recordPanelOpen: true });
+  useDawStore.getState().setRecordPanelOpen(true);
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["record.marker"]);
-  useDawStore.setState({ recordPanelOpen: false });
+  useDawStore.getState().setRecordPanelOpen(false);
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["track.muteToggle"]);
 });

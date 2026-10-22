@@ -9,6 +9,7 @@ import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
+import { setChrome } from "../test/chrome";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { Dialog } from "../ui/Dialog";
 import { BounceDialog } from "./BounceDialog";
@@ -67,7 +68,7 @@ describe("MobileShell Mix", () => {
     useDawStore.getState().setMobileMode("listen");
     useDawStore.getState().setGesturesSheetOpen(false);
     useDawStore.getState().setCommandPaletteOpen(false);
-    useDawStore.setState({
+    setChrome({
       bounceDialogOpen: false,
       shareDialogOpen: false,
       recordPanelOpen: false,
@@ -257,7 +258,7 @@ describe("MobileShell Mix", () => {
       ).toHaveFocus(),
     );
     await user.keyboard("{Control>}{Shift>}B{/Shift}{/Control}");
-    expect(useDawStore.getState().bounceDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.bounceDialogOpen).toBe(true);
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     const bounce = screen.getByRole("dialog", { name: "Bounce…" });
     await waitFor(() =>

@@ -9,7 +9,7 @@ describe("help.diagnosticsBundle", () => {
     clearRegisteredCommands();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ helpDialogOpen: false });
+    useDawStore.getState().setHelpDialogOpen(false);
   });
 
   afterEach(() => {
@@ -19,14 +19,14 @@ describe("help.diagnosticsBundle", () => {
   it("opens Help for a host project", async () => {
     const result = await execute("help.diagnosticsBundle");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().helpDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.helpDialogOpen).toBe(true);
   });
 
   it("disables for share guests", async () => {
     useDawStore.setState({ projectPath: "share:fantastic-acoustic-whale" });
     const result = await execute("help.diagnosticsBundle");
     expect(result.status).toBe("disabled");
-    expect(useDawStore.getState().helpDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.helpDialogOpen).toBe(false);
   });
 
   it("reports the handler's own host-only reason on a bypassed (button) call", async () => {
@@ -40,6 +40,6 @@ describe("help.diagnosticsBundle", () => {
       status: "disabled",
       reason: "Export diagnostics is host-only",
     });
-    expect(useDawStore.getState().helpDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.helpDialogOpen).toBe(false);
   });
 });

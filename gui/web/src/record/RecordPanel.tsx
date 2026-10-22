@@ -108,9 +108,9 @@ export function RecordPanel({
     project,
     selectClip,
   } = useDaw((s) => ({
-    recordPanelOpen: s.recordPanelOpen,
+    recordPanelOpen: s.chrome.recordPanelOpen,
     setRecordPanelOpen: s.setRecordPanelOpen,
-    shareDialogOpen: s.shareDialogOpen,
+    shareDialogOpen: s.chrome.shareDialogOpen,
     projectPath: s.projectPath,
     setShareDialogOpen: s.setShareDialogOpen,
     project: s.project,

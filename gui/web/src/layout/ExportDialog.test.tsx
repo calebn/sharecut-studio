@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { setChrome } from "../test/chrome";
 import { minimalProject } from "../test/fixtures";
 import type {
   PipelineConfigResponse,
@@ -88,11 +89,11 @@ async function openAndExport(user: ReturnType<typeof userEvent.setup>) {
 
 describe("ExportDialog", () => {
   beforeEach(() => {
+    setChrome({ exportDialogOpen: false });
     useDawStore.setState({
       projectPath: PATH,
       project: minimalProject(),
       guestMode: null,
-      exportDialogOpen: false,
       activityJob: null,
       pipelineJob: null,
       pendingJobResults: {},
@@ -160,7 +161,7 @@ describe("ExportDialog", () => {
       x1: "Exported 2 files to export/",
     });
     await user.click(screen.getByRole("button", { name: "Done" }));
-    expect(useDawStore.getState().exportDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.exportDialogOpen).toBe(false);
   });
 
   it("cancels the running job and says so", async () => {

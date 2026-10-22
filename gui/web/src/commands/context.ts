@@ -116,7 +116,7 @@ export function buildCommandContext(): CommandContext {
     ),
     hasInspectorSelection: selection != null,
     following: s.followingClientId != null,
-    recordPanelOpen: s.recordPanelOpen,
+    recordPanelOpen: s.chrome.recordPanelOpen,
     // The timeline layout hides the bottom tabs, so the Tighten panel too.
     tightenPanelOpen: s.activeTab === "tighten" && s.layoutMode !== "timeline",
   };

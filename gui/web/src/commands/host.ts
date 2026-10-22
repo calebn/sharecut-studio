@@ -57,12 +57,12 @@ function shareFeatureGate(what: string): ExecuteResult | null {
  */
 function revealRecordFailure(reason: string): void {
   const daw = useDawStore.getState();
-  if (daw.recordPanelOpen) {
+  if (daw.chrome.recordPanelOpen) {
     useRecordHostStore.getState().setTransportError(reason);
     return;
   }
   daw.announceStatus(reason, { tone: "error" });
-  if (daw.shareDialogOpen) {
+  if (daw.chrome.shareDialogOpen) {
     return;
   }
   useRecordHostStore.getState().setTransportError(reason);
