@@ -26,9 +26,8 @@ type MixValue = number | boolean;
 
 /**
  * One saved field of one track. Its newest value is shown at once, as a
- * preview draft over every server snapshot, until the command carrying it has
- * its own draft (a value the host queued stays shown through that draft); only
- * the latest value of a burst is sent.
+ * preview draft over every server snapshot; only the latest value of a burst
+ * is sent.
  */
 interface MixLane {
   projectPath: string;
@@ -120,7 +119,7 @@ function showPending(key: string, lane: MixLane): void {
   showPreview(key, lane.owner, apply, apply, () => true);
 }
 
-/** Drop an idle lane and its preview; the saved value or a queued command's draft keeps what is shown. */
+/** Drop an idle lane and its preview. */
 function settle(key: string, lane: MixLane): void {
   if (
     pendingValue(lane) !== undefined ||
