@@ -191,6 +191,13 @@ describe("track mix commands (#386)", () => {
     expect(documentAuthority.project?.tracks[0].muted).toBe(false);
   });
 
+  it("stops overlaying a settled lane on later snapshots", async () => {
+    await execute("track.muteToggle");
+    serverSends({ muted: true });
+    serverSends({ muted: false });
+    expect(hostTrack()?.muted).toBe(false);
+  });
+
   it("marks the premix behind as soon as the mix changes", async () => {
     const project = useDawStore.getState().project;
     if (project) {
