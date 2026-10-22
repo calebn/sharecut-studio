@@ -81,10 +81,6 @@ export function joinMarkLabel(kind: JoinMarkerKind, lengthMs: number): string {
     : `${label} ${Math.round(lengthMs)} ms`;
 }
 
-export function markerType(kind: EditMarkerKind): EditType {
-  return EDIT_MARKERS[kind].type;
-}
-
 export function joinKind(right: Pick<ClipRow, "join_in_mode">): JoinMarkerKind {
   if (right.join_in_mode === "cut") {
     return "join-cut";
