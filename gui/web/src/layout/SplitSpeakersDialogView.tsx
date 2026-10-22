@@ -2,6 +2,7 @@ import { type RefObject, useId, useRef } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, Field, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { plainError } from "../utils/plainError";
 import {
   MAX_SPLIT_SPEAKERS,
   MIN_SPLIT_SPEAKERS,
@@ -185,7 +186,11 @@ function SplitSpeakersForm({
                   {speakerModel.progress}
                 </span>
               ) : null}
-              <InlineError message={speakerModel?.error ?? null} />
+              <InlineError
+                message={
+                  speakerModel?.error ? plainError(speakerModel.error) : null
+                }
+              />
             </>
           ) : null}
         </p>

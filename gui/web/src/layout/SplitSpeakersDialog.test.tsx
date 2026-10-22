@@ -340,7 +340,9 @@ describe("SplitSpeakersDialog", () => {
     );
     await screen.findByRole("alert");
     const shown = screen.getByRole("alert").textContent ?? "";
-    expect(shown).not.toMatch(/PODCAST_BOOTSTRAP_CDN_BASE|speaker-ecapa|\/home\//);
+    expect(shown).not.toMatch(
+      /PODCAST_BOOTSTRAP_CDN_BASE|speaker-ecapa|\/home\//,
+    );
   });
 
   it("grows the name fields with the count and refuses a count out of range", async () => {
