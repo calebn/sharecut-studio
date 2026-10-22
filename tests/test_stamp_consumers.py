@@ -180,18 +180,28 @@ def test_gate_fill_payload_file_part_is_the_fill_files_size_and_mtime(tmp_path: 
     assert second["file"] == [5, T0 + 6 * SEC]
 
 
+@pytest.mark.parametrize("during", ["detection", "fill"])
+@pytest.mark.parametrize(
+    ("data", "mtime_ns"), [(b"x" * 100, T0 + 8 * SEC), (b"x" * 101, T0)], ids=["mtime", "size"]
+)
 def test_plan_gate_fill_refuses_when_the_media_changes_while_it_is_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, during: str, data: bytes, mtime_ns: int
 ) -> None:
     project, track, media = _gate_filled_project(tmp_path)
     holes = SimpleNamespace(bounds=[(0, 1)], sample_rate=16000, seconds=0.5)
-    monkeypatch.setattr(gate_fill, "detect_gate_holes", lambda _path: holes)
 
-    def fill_and_touch(*_args: object) -> SimpleNamespace:
-        _file(media, b"x" * 100, mtime_ns=T0 + 8 * SEC)
+    def detect(_path: Path) -> SimpleNamespace:
+        if during == "detection":
+            _file(media, data, mtime_ns)
+        return holes
+
+    def fill(*_args: object) -> SimpleNamespace:
+        if during == "fill":
+            _file(media, data, mtime_ns)
         return SimpleNamespace(samples=None, level_db=-60.0, noise_db=None, basis="test")
 
-    monkeypatch.setattr(gate_fill, "FILL_SOURCES", [(GateFillSource.COMFORT_NOISE, fill_and_touch)])
+    monkeypatch.setattr(gate_fill, "detect_gate_holes", detect)
+    monkeypatch.setattr(gate_fill, "FILL_SOURCES", [(GateFillSource.COMFORT_NOISE, fill)])
     monkeypatch.setattr(gate_fill, "_write_fill", lambda *_args: "fill.wav")
 
     result = gate_fill.plan_gate_fill(project, track, fade_ms=5)
@@ -240,6 +250,10 @@ def test_prosody_reuse_rehashes_only_on_stat_change(
     profile = pp.load_track_profile(project, "host").profile
     assert profile is not None
     assert profile.audio_mtime_ns == T0 + 2 * SEC
+    _file(media, media.read_bytes() + b"x", T0 + 2 * SEC)
+    resized = pp.run_prosody_analysis(project, {})
+    assert resized.computed == ["host"]
+    assert len(hashes) == 2
 
 
 def test_prosody_stale_on_size_alone_and_mtime_alone(
@@ -282,7 +296,8 @@ def test_prosody_stale_on_size_alone_and_mtime_alone(
 def test_prosody_reads_the_newest_cached_profile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    path, _media = _prosody(tmp_path, monkeypatch)
+    path, media = _prosody(tmp_path, monkeypatch)
+    original_size = media.stat().st_size
     project = load_project(path)
     pp.run_prosody_analysis(project, {})
     (original,) = pp.prosody_dir(project).glob("host_*.json")
@@ -300,7 +315,7 @@ def test_prosody_reads_the_newest_cached_profile(
     assert newer_copy is not None
     assert newer_copy.audio_size == 999
     assert newer_original is not None
-    assert newer_original.audio_size == 205484
+    assert newer_original.audio_size == original_size
 
 
 def _proxy_project(tmp_path: Path) -> tuple[EpisodeProject, Path]:
