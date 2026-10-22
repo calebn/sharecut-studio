@@ -134,4 +134,63 @@ describe("useBootstrapDownload", () => {
       "Couldn't download the word aligner. Export diagnostics from the command palette and try again.",
     );
   });
+
+  const SAFE =
+    "Couldn't download the word aligner. Export diagnostics from the command palette and try again.";
+
+  it("clears raw progress text when the job fails", async () => {
+    const raw =
+      "speaker-ecapa: speaker-ecapa has no sha256 pin in bootstrap-assets.json";
+    runBootstrap.mockResolvedValue({
+      job: { id: "job1", status: "running", message: "Starting…" },
+    });
+    waitForBootstrapJob.mockImplementation(
+      async (
+        _id: string,
+        opts?: { onUpdate?: (job: { message: string }) => void },
+      ) => {
+        opts?.onUpdate?.({ message: raw });
+        throw new Error(raw);
+      },
+    );
+    const { result } = renderHook(() =>
+      useBootstrapDownload("the word aligner"),
+    );
+    await act(async () => {
+      await result.current.download({ components: ["speaker-ecapa"] });
+    });
+
+    expect(result.current.progress).toBeNull();
+    expect(result.current.error).toBe(SAFE);
+  });
+
+  it.each([
+    "speaker-ecapa: speaker-ecapa has no sha256 pin in bootstrap-assets.json",
+    "word-aligner: sha256 mismatch for model.onnx: expected abc, got def",
+    "whisper: model tiny not found",
+  ])("hides a component-id lead: %s", async (raw) => {
+    runBootstrap.mockRejectedValue(new Error(raw));
+    const { result } = renderHook(() =>
+      useBootstrapDownload("the word aligner"),
+    );
+    await act(async () => {
+      await result.current.download({ components: ["word-aligner"] });
+    });
+    expect(result.current.error).toBe(SAFE);
+  });
+
+  it.each([
+    "network down",
+    "Another download is already running (whisper). Wait for it to finish.",
+    "Bootstrap failed",
+  ])("passes a clean message through: %s", async (raw) => {
+    runBootstrap.mockRejectedValue(new Error(raw));
+    const { result } = renderHook(() =>
+      useBootstrapDownload("the word aligner"),
+    );
+    await act(async () => {
+      await result.current.download({ components: ["word-aligner"] });
+    });
+    expect(result.current.error).toBe(raw);
+  });
 });
