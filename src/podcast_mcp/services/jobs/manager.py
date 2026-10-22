@@ -33,7 +33,7 @@ from podcast_mcp.services.media import (
     coerce_enrollment,
 )
 from podcast_mcp.services.pipeline import BootstrapRequest, PipelineService, run_bootstrap
-from podcast_mcp.util.progress import bind_progress
+from podcast_mcp.util.progress import CancelledProgress, bind_progress
 
 logger = logging.getLogger(__name__)
 
@@ -336,7 +336,7 @@ class JobManager:
         reporter = JobProgressReporter(job)
         try:
             if job.cancel_requested:
-                raise RuntimeError("cancelled")
+                raise CancelledProgress("cancelled before it started")
             result = run_bootstrap(
                 job.components or None,
                 whisper_model=job.whisper_model,
@@ -367,8 +367,11 @@ class JobManager:
                     job.message = "Bootstrap complete"
                 job.result = result
                 job.finished_at = time.monotonic()
-        except Exception:
-            logger.exception("bootstrap job %s failed", job.id)
+        except Exception as exc:
+            if isinstance(exc, CancelledProgress):
+                logger.info("bootstrap job %s cancelled", job.id)
+            else:
+                logger.exception("bootstrap job %s failed", job.id)
             with job._lock:
                 if job.cancel_requested:
                     job.status = "cancelled"

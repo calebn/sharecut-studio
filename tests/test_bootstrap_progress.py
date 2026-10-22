@@ -425,6 +425,32 @@ def test_a_cancelled_job_ends_cancelled_without_an_error(
     assert list(tmp_path.glob("m.bin*")) == []
 
 
+def test_cancelling_a_bootstrap_job_logs_no_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _serve(monkeypatch, _Opener({"https://up.example/m": b"x" * (3 * MIB)}))
+    job = Job.bootstrap("b1", ["rnnoise"])
+    spec = _cdn_spec(
+        tmp_path / "m.bin",
+        ["https://up.example/m"],
+        after_chunk=lambda: setattr(job, "cancel_requested", True),
+    )
+    monkeypatch.setattr(boot, "model_spec", lambda model_id: spec)
+    with caplog.at_level("INFO"):
+        JobManager()._run_bootstrap_job(job)
+    assert job.status == "cancelled"
+    assert [r for r in caplog.records if r.levelname == "ERROR"] == []
+
+
+def test_a_cancel_before_the_job_starts_logs_no_error(caplog: pytest.LogCaptureFixture) -> None:
+    job = Job.bootstrap("b2", ["rnnoise"])
+    job.cancel_requested = True
+    with caplog.at_level("INFO"):
+        JobManager()._run_bootstrap_job(job)
+    assert job.status == "cancelled"
+    assert [r for r in caplog.records if r.levelname == "ERROR"] == []
+
+
 def test_a_failed_job_carries_the_first_failure_and_its_plain_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

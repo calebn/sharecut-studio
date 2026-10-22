@@ -59,6 +59,27 @@ function job(over: Partial<BootstrapJobSnapshot> = {}): BootstrapJobSnapshot {
 const kinds = (views: { state: { kind: string } }[]) =>
   views.map((v) => v.state.kind);
 
+describe("statusLoaded for another size", () => {
+  it("does not clear a Whisper failure with the installed row of a different size", () => {
+    const failure: ModelFailure = { kind: null, plain: "Lost." };
+    const chosen = reduce(
+      { ...initialState, failures: { whisper: failure } },
+      { type: "variantChosen", variant: "large-v3" },
+    );
+    const failed = reduce(chosen, {
+      type: "failed",
+      failures: { whisper: failure },
+    });
+    const small = status({
+      whisper_model: "small.en",
+      models: [row({ id: "whisper", model: "small.en", state: "installed" })],
+    });
+    expect(
+      reduce(failed, { type: "statusLoaded", status: small }).failures,
+    ).toEqual({ whisper: failure });
+  });
+});
+
 describe("overlay", () => {
   it("keeps server order and reads the install state", () => {
     const views = overlay(status(), null, {});
@@ -132,6 +153,25 @@ describe("overlay", () => {
       models: [row({ id: "rnnoise", state: "installed" })],
     });
     expect(overlay(installed, null, { rnnoise: failure })[0]!.state).toEqual({
+      kind: "installed",
+    });
+  });
+
+  it("shows a Whisper failure for the size asked for while the status describes another", () => {
+    const failure: ModelFailure = { kind: null, plain: "Lost." };
+    const small = status({
+      whisper_model: "small.en",
+      models: [row({ id: "whisper", model: "small.en", state: "installed" })],
+    });
+    expect(
+      overlay(small, null, { whisper: failure }, "large-v3")[0]!.state,
+    ).toEqual({
+      kind: "failed",
+      failure,
+    });
+    expect(
+      overlay(small, null, { whisper: failure }, "small.en")[0]!.state,
+    ).toEqual({
       kind: "installed",
     });
   });
