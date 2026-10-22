@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import multistream_media as media
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_safety import assess_proposed_cut
 from podcast_mcp.edits.join_continuity import (
@@ -519,67 +520,22 @@ def test_unsupported_click_windows_match_individual_flac(tmp_path: Path, sample_
             assert got == pytest.approx(want, rel=1e-5)
 
 
-def test_click_batch_matches_ffmpeg_audio_stream_selection(tmp_path: Path) -> None:
+@pytest.mark.parametrize("name", ["st.mkv", "kid.ogg", "two_b.mkv"])
+def test_click_batch_scores_the_first_audio_stream(tmp_path: Path, name: str) -> None:
     from podcast_mcp.edits import join_continuity as jc
-    from podcast_mcp.util.binaries import resolve_ffmpeg
-    from podcast_mcp.util.process import run
 
-    first = tmp_path / "two_audio.mka"
-    run(
-        [
-            resolve_ffmpeg(),
-            "-y",
-            "-v",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=440:sample_rate=8000",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=880:sample_rate=48000",
-            "-t",
-            "1",
-            "-map",
-            "0:a",
-            "-map",
-            "1:a",
-            "-c:a",
-            "pcm_s16le",
-            str(first),
-        ],
-        check=True,
-    )
-    second = tmp_path / "second_default.mka"
-    run(
-        [
-            resolve_ffmpeg(),
-            "-y",
-            "-v",
-            "error",
-            "-i",
-            str(first),
-            "-map",
-            "0:a",
-            "-c",
-            "copy",
-            "-disposition:a:0",
-            "0",
-            "-disposition:a:1",
-            "default",
-            str(second),
-        ],
-        check=True,
-    )
-    assert jc._preferred_audio_stream(first) == 0
-    assert jc._preferred_audio_stream(second) == 1
-    for path in (first, second):
-        join = (0.5, 0.5)
-        with jc._highrate_click_scorer(path, source_joins=[join, (0.8, 0.8)]) as score:
-            actual = score(join)
-        expected = jc._score_single_highrate_window(path, join, side_sec=0.02)
-        assert actual == pytest.approx(expected, rel=1e-5)
+    source = media.multistream(tmp_path, name)
+    oracle_dir = tmp_path / "oracle"
+    oracle_dir.mkdir()
+    oracle = media.first_stream_only(source, oracle_dir)
+    joins = [(0.5, 0.5), (0.8, 0.9)]
+    batch = jc._score_highrate_batches(source, joins, side_sec=0.02)
+    expected = jc._score_highrate_batches(oracle, joins, side_sec=0.02)
+    assert all(score is not None for score in expected.values())
+    for join in joins:
+        single = jc._score_single_highrate_window(source, join, side_sec=0.02)
+        assert batch[join] == pytest.approx(expected[join], rel=1e-5)
+        assert batch[join] == pytest.approx(single, rel=1e-5)
 
 
 def test_click_batch_bounds_temporary_bytes_for_long_source(
@@ -608,7 +564,6 @@ def test_click_batch_bounds_temporary_bytes_for_long_source(
             np.zeros(4800, dtype=np.float32).tofile(output)
         sizes.append(sum(output.stat().st_size for output in outputs))
 
-    monkeypatch.setattr(jc, "_preferred_audio_stream", lambda _path: 0)
     monkeypatch.setattr(jc, "run", fake_run)
     monkeypatch.setattr(jc.tempfile, "TemporaryDirectory", tracked_temporary_directory)
     scores = jc._score_highrate_batches(path, joins, side_sec=0.02)
@@ -644,7 +599,6 @@ def test_click_batch_failure_falls_back_per_join_and_cleans_up(
         calls.append(join)
         return join[1] if join != (2.0, 2.5) else None
 
-    monkeypatch.setattr(jc, "_preferred_audio_stream", lambda _path: 0)
     monkeypatch.setattr(jc, "run", fail_batch)
     monkeypatch.setattr(jc, "_score_single_highrate_window", fallback)
     monkeypatch.setattr(jc.tempfile, "TemporaryDirectory", tracked_temporary_directory)

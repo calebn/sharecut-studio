@@ -112,3 +112,19 @@ def cover_art_mp3(directory: Path) -> Path:
         path,
     )
     return path
+
+
+def single_stream_media(directory: Path) -> dict[str, Path]:
+    cover = cover_art_mp3(directory)
+    mono = directory / "mono.wav"
+    _ffmpeg(*_sine(22050, 431), "-ac", "1", mono)
+    stereo = directory / "stereo.m4a"
+    _ffmpeg(*_sine(44100, 330), "-ac", "2", "-c:a", "aac", stereo)
+    video = directory / "video.mp4"
+    _ffmpeg(
+        *("-f", "lavfi", "-i", "color=c=black:s=16x16:d=2"),
+        *_sine(44100, 330),
+        *("-map", "0:v", "-map", "1:a", "-c:v", "mpeg4", "-c:a", "aac"),
+        video,
+    )
+    return {"wav": mono, "m4a": stereo, "mp4": video, "mp3": cover}
