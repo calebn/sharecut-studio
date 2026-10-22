@@ -6,7 +6,9 @@ import {
   followJobToOk,
   getSpeakerDoctor,
   JobCancelledError,
+  runBootstrap,
   startSplitSpeakersJob,
+  waitForBootstrapJob,
 } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import { executePointerCommand, runPointerCommand } from "../commands/pointer";
@@ -27,6 +29,8 @@ vi.mock("../api", async (importOriginal) => ({
   getSpeakerDoctor: vi.fn(),
   followJobToOk: vi.fn(),
   cancelPipelineRun: vi.fn(),
+  runBootstrap: vi.fn(),
+  waitForBootstrapJob: vi.fn(),
 }));
 vi.mock("../commands/pointer", () => ({
   executePointerCommand: vi.fn(),
@@ -254,6 +258,66 @@ describe("SplitSpeakersDialog", () => {
     ).toBeDisabled();
     expect(getSpeakerDoctor).toHaveBeenCalledTimes(1);
     expect(startSplitSpeakersJob).not.toHaveBeenCalled();
+  });
+
+  it("downloads the speaker model from the dialog and then allows the split", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSpeakerDoctor)
+      .mockReset()
+      .mockResolvedValueOnce({ available_backends: [], recommended: null })
+      .mockResolvedValue({
+        available_backends: ["ecapa-onnx"],
+        recommended: "ecapa-onnx",
+      });
+    vi.mocked(runBootstrap)
+      .mockReset()
+      .mockResolvedValue({
+        job: { id: "boot-1", message: "Downloading…" },
+      } as never);
+    vi.mocked(waitForBootstrapJob)
+      .mockReset()
+      .mockResolvedValue({} as never);
+    render(<SplitSpeakersDialog />);
+    openFor("room");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Download speaker model" }),
+    );
+    expect(runBootstrap).toHaveBeenCalledWith({
+      components: ["speaker-ecapa"],
+    });
+    await waitFor(() => expect(getSpeakerDoctor).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Download speaker model" }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.queryByText(
+        "Speaker recognition isn't available on this computer.",
+      ),
+    ).toBeNull();
+  });
+
+  it("shows why the speaker model download failed and keeps the split blocked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSpeakerDoctor)
+      .mockReset()
+      .mockResolvedValue({ available_backends: [], recommended: null });
+    vi.mocked(runBootstrap)
+      .mockReset()
+      .mockRejectedValue(new Error("no download source"));
+    render(<SplitSpeakersDialog />);
+    openFor("room");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Download speaker model" }),
+    );
+    expect(await screen.findByText("no download source")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Split speakers" }),
+    ).toBeDisabled();
+    expect(getSpeakerDoctor).toHaveBeenCalledTimes(1);
   });
 
   it("grows the name fields with the count and refuses a count out of range", async () => {

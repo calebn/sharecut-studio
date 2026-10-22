@@ -10,6 +10,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { runRangeAction } from "../commands/rangeActions";
 import { seekTransport } from "../commands/seek";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
+import { useBootstrapDownload } from "../hooks/useBootstrapDownload";
 import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
 import { seedStudioJob } from "../state/seedStudioJob";
@@ -42,6 +43,8 @@ type SpeakerReadiness =
   | "available"
   | "unavailable"
   | "check_failed";
+/** The bootstrap component that gives the app a speaker-recognition model (#1998). */
+const SPEAKER_MODEL_COMPONENT = "speaker-ecapa";
 const DEFAULT_SETTINGS: Settings = { count: "2", names: [], samples: [] };
 
 /** What the split is doing; the live job snapshot comes from the store. */
@@ -92,6 +95,8 @@ export function SplitSpeakersDialog() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [speakerReadiness, setSpeakerReadiness] =
     useState<SpeakerReadiness>("checking");
+  const [readinessCheck, setReadinessCheck] = useState(0);
+  const speakerModel = useBootstrapDownload();
   const open = trackId != null && project != null;
   useEffect(() => {
     if (!open) return;
@@ -113,7 +118,7 @@ export function SplitSpeakersDialog() {
     return () => {
       current = false;
     };
-  }, [open]);
+  }, [open, readinessCheck]);
   const [wasOpen, setWasOpen] = useState(false);
   const [sampleTrackId, setSampleTrackId] = useState<string | null>(null);
   if (trackId !== sampleTrackId) {
@@ -419,6 +424,20 @@ export function SplitSpeakersDialog() {
       }}
       trackLabel={trackLabel}
       stage={stage}
+      speakerModel={{
+        busy: speakerModel.busy,
+        progress: speakerModel.progress,
+        error: speakerModel.error,
+      }}
+      onDownloadSpeakerModel={() =>
+        void speakerModel
+          .download({ components: [SPEAKER_MODEL_COMPONENT] })
+          .then((ok) => {
+            if (!ok) return;
+            speakerModel.reset();
+            setReadinessCheck((n) => n + 1);
+          })
+      }
       onCountChange={(next) => setSettings((s) => ({ ...s, count: next }))}
       onNameChange={(index, name) =>
         setSettings((s) => {
