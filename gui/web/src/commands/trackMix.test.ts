@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { refreshDocumentDisplay } from "../document/applyDocumentUpdate";
 import { documentAuthority } from "../document/authorityState";
+import {
+  beginDocumentDraft,
+  finishDocumentDraft,
+} from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import {
@@ -9,6 +13,7 @@ import {
   minimalProject,
   sampleTrack,
 } from "../test/fixtures";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import type { TrackView } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
 import {
@@ -184,11 +189,20 @@ describe("track mix commands (#386)", () => {
     expect(hostTrack()?.fader_db).toBe(0);
   });
 
-  it("keeps showing a value the host queued", async () => {
-    vi.mocked(api.setTrackMuteCommand).mockResolvedValue({ queued: true });
+  it("keeps a host-queued value shown through its command draft", async () => {
+    vi.mocked(api.setTrackMuteCommand).mockImplementation(async () => {
+      beginDocumentDraft("queued-mute", DocumentCommand.SetTrackMute, {
+        track_id: "host",
+        muted: true,
+      });
+      return { queued: true };
+    });
     await execute("track.muteToggle");
+    serverSends({ muted: false });
     expect(hostTrack()?.muted).toBe(true);
-    expect(documentAuthority.project?.tracks[0].muted).toBe(false);
+    finishDocumentDraft("queued-mute");
+    serverSends({ muted: false });
+    expect(hostTrack()?.muted).toBe(false);
   });
 
   it("stops overlaying a settled lane on later snapshots", async () => {
