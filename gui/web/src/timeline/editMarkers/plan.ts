@@ -180,6 +180,11 @@ function clusterZoom(secs: readonly number[], sessionSec: number): number {
   return clampZoomPxPerSec(zoom, sessionSec);
 }
 
+/** The count a chip draws: exact up to 99, then "99+". */
+export function chipCount(chip: PlacedChip): string {
+  return chip.marks.length > 99 ? "99+" : String(chip.marks.length);
+}
+
 export function chipLabel(chip: PlacedChip): string {
   const parts = JOIN_KINDS.flatMap((kind) => {
     const n = chip.marks.filter((mark) => mark.kind === kind).length;
@@ -188,5 +193,5 @@ export function chipLabel(chip: PlacedChip): string {
     }
     return [`${n} ${markerLabel(kind).toLowerCase()}${n > 1 ? "s" : ""}`];
   });
-  return `${chip.marks.length} edits: ${parts.join(", ")}${chip.zoomTo == null ? "" : ". Zoom in"}`;
+  return `${chipCount(chip)} edits: ${parts.join(", ")}${chip.zoomTo == null ? "" : ". Zoom in"}`;
 }
