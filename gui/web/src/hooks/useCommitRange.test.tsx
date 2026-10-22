@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useCommitRange } from "./useCommitRange";
 
 function Harness({
@@ -39,6 +39,13 @@ function Harness({
 }
 
 describe("useCommitRange", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("moves the value locally on input without committing", () => {
     const onCommit = vi.fn();
     render(<Harness saved={10} onCommit={onCommit} />);
@@ -83,6 +90,73 @@ describe("useCommitRange", () => {
     fireEvent.pointerUp(input);
     rerender(<Harness saved={60} onCommit={onCommit} />);
     expect(screen.getByTestId("value")).toHaveTextContent("60");
+  });
+
+  it("returns the thumb to saved when the drag is cancelled before a change", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    expect(screen.getByTestId("value")).toHaveTextContent("40");
+    fireEvent.pointerCancel(input);
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(screen.getByTestId("value")).toHaveTextContent("10");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("commits a release whose cancel or blur arrives just before its change", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent.pointerCancel(input);
+    fireEvent.blur(input);
+    act(() => {
+      input.dispatchEvent(new Event("change"));
+      vi.runAllTimers();
+    });
+    expect(screen.getByTestId("value")).toHaveTextContent("40");
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(40);
+  });
+
+  it("does not revert a new drag that starts before a pending revert fires", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent.blur(input);
+    fireEvent.input(input, { target: { value: "55" } });
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(screen.getByTestId("value")).toHaveTextContent("55");
+  });
+
+  it("returns the thumb to saved when focus leaves mid-drag", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent.blur(input);
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(screen.getByTestId("value")).toHaveTextContent("10");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("keeps a committed value through release and blur while the save is pending", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent.pointerUp(input);
+    fireEvent.change(input, { target: { value: "40" } });
+    fireEvent.blur(input);
+    expect(screen.getByTestId("value")).toHaveTextContent("40");
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(40);
   });
 
   it("commitValue sets the value and commits", () => {
