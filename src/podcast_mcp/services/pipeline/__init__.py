@@ -44,6 +44,7 @@ if TYPE_CHECKING:
         PipelineRunResult,
         PipelineService,
         format_export_qc_lines,
+        stale_stream_notices,
     )
 
 __all__ = [
@@ -79,6 +80,7 @@ __all__ = [
     "run_bootstrap",
     "run_defaults_for",
     "skip_steps_from_enabled",
+    "stale_stream_notices",
     "suggest_pipeline_tuning",
     "transcribe_run_config",
     "unexpected_text",
@@ -103,6 +105,7 @@ _MODULE_BY_NAME = {
     "PipelineRunResult": "service",
     "PipelineService": "service",
     "format_export_qc_lines": "service",
+    "stale_stream_notices": "service",
     "render_preview_result": "preview",
     "rerender_preview": "preview",
     "component_status": "bootstrap",

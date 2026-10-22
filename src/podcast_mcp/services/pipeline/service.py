@@ -8,8 +8,15 @@ from typing import Any
 from uuid import uuid4
 
 from podcast_mcp.edits.envelopes import validate_envelope_point_times
+from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
-from podcast_mcp.models import AutomationEnvelope, AutomationPoint, PipelineRun, PipelineStepLog
+from podcast_mcp.models import (
+    AutomationEnvelope,
+    AutomationPoint,
+    EpisodeProject,
+    PipelineRun,
+    PipelineStepLog,
+)
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
@@ -21,6 +28,11 @@ from podcast_mcp.util.project_state import render_cancel_scope, render_lock
 from podcast_mcp.util.text import count_noun
 
 EXPORT_CANCELLED = "Export cancelled"
+
+
+def stale_stream_notices(project: EpisodeProject) -> list[str]:
+    """Notice lines for multi-stream media analyzed before analysis read the first stream."""
+    return stale_stream_lines(project, stale_stream_files(project))
 
 
 def format_export_qc_lines(
