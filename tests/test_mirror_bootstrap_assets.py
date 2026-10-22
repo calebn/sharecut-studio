@@ -65,7 +65,7 @@ def _run_mirror(tmp_path: Path, monkeypatch, asset: dict, payload: bytes | None 
     if payload is not None:
 
         class _Opener:
-            def open(self, req, timeout=None):  # noqa: ANN001
+            def open(self, req, timeout=None):
                 del req, timeout
                 return io.BytesIO(payload)
 
