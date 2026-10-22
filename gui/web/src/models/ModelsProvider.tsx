@@ -46,25 +46,23 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const mounted = useMountedRef();
   const controller = useRef<AbortController | null>(null);
   const running = useRef<string | null>(null);
+  const requested = useRef<string | undefined>(undefined);
 
-  const load = useCallback(
-    async (variant?: string) => {
-      const token = latest.begin();
-      try {
-        const next = await fetchBootstrapStatus(variant);
-        if (latest.isCurrent(token)) {
-          dispatch({ type: "statusLoaded", status: next });
-        }
-        return next;
-      } catch (e: unknown) {
-        if (latest.isCurrent(token)) {
-          dispatch({ type: "loadFailed", message: errorMessage(e) });
-        }
-        return null;
+  const reload = useCallback(async () => {
+    const token = latest.begin();
+    try {
+      const next = await fetchBootstrapStatus(requested.current);
+      if (latest.isCurrent(token)) {
+        dispatch({ type: "statusLoaded", status: next });
       }
-    },
-    [latest],
-  );
+      return next;
+    } catch (e: unknown) {
+      if (latest.isCurrent(token)) {
+        dispatch({ type: "loadFailed", message: errorMessage(e) });
+      }
+      return null;
+    }
+  }, [latest]);
 
   const track = useCallback(
     async (
@@ -83,9 +81,11 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
             }
           },
         });
-        const refreshed = await load(done.whisper_model);
+        const refreshed = await reload();
         const stillMissing = done.components.filter(
           (id) =>
+            (id !== "whisper" ||
+              done.whisper_model === refreshed?.whisper_model) &&
             refreshed?.models.find((m) => m.id === id)?.state !== "installed",
         );
         const failures = jobFailures(done, stillMissing);
@@ -117,7 +117,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         running.current = null;
       }
     },
-    [load, mounted],
+    [reload, mounted],
   );
 
   const adoptRunning = useCallback(async () => {
@@ -135,10 +135,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const ctrl = new AbortController();
     controller.current = ctrl;
-    void load();
+    void reload();
     void adoptRunning();
     return () => ctrl.abort();
-  }, [load, adoptRunning]);
+  }, [reload, adoptRunning]);
 
   const download = useCallback(
     async (
@@ -151,8 +151,9 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       running.current = "starting";
       if (options?.whisperModel && ids.includes("whisper")) {
         dispatch({ type: "variantChosen", variant: options.whisperModel });
+        requested.current = options.whisperModel;
         if (options.whisperModel !== stateRef.current.status?.whisper_model) {
-          void load(options.whisperModel);
+          void reload();
         }
       }
       dispatch({ type: "downloadStarted", ids });
@@ -185,7 +186,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         return { kind: "failed", failed: ids };
       }
     },
-    [adoptRunning, track, load],
+    [adoptRunning, track, reload],
   );
 
   const cancel = useCallback(async () => {
@@ -196,16 +197,17 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     try {
       await cancelBootstrap(id);
     } catch {
-      await load(stateRef.current.variant);
+      await reload();
     }
-  }, [load]);
+  }, [reload]);
 
   const choose = useCallback(
     (variant: string) => {
       dispatch({ type: "variantChosen", variant });
-      void load(variant);
+      requested.current = variant;
+      void reload();
     },
-    [load],
+    [reload],
   );
 
   const api = useMemo<ModelsApi>(
