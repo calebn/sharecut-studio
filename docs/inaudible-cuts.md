@@ -58,6 +58,14 @@ Normal dialogue **ripple** cuts from tighten, NL, and focus set `join_in_mode=fa
 | Harsh boundaries from analyze | `recommend_fades_tool` → `apply_fade_recommendations_tool` (fade mode) |
 
 Crossfade curve for overlap mode only: `render.crossfade_curve` (default `tri`).
+
+ShareCut Studio draws a blending crossfade join (`join_in_mode=crossfade`, not
+`join_crossfade_blocked`, `join_crossfade_ms > 0`) as two transparent waveforms
+across exactly `join_crossfade_ms`, centred on the seam: the left clip's tail
+(its recording from `source_end - join_crossfade_ms / 2`) and the right clip's
+head (from `source_start - join_crossfade_ms / 2`), both from the raw
+recording. Below 1 CSS px of overlap it draws a one-device-pixel seam hairline
+instead. Cut, fade and blocked joins draw nothing extra.
 The saved predecessor is the partner. Native sequential crossfades extend only
 that connected component, including when a short middle clip lets the next
 transition reach earlier connected audio. An unrelated enclosing clip remains

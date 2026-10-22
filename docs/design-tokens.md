@@ -228,7 +228,11 @@ light stage: the well one recessed step below the panes and lanes near paper,
 so clips carry the color and each track header reads as one row with its lane.
 Dark mode keeps the stage darkest with lanes one step up. The playhead is the
 accent in each theme. Waveforms take their tints from each clip's own fill
-(`clipWaveformFill`), mirrored around the midline. The empty-session stage
+(`clipWaveformFill`), mirrored around the midline.
+A blending crossfade join draws two waveforms across its overlap, tinted from
+`--color-join-wave-left` (white, fixed tier) and `--color-join-wave-right`
+(the accent, per theme); `--color-join-seam-left` / `-right` colour the
+hairline drawn below 1 CSS px. The empty-session stage
 keeps a decorative grid; lanes do not, because a grid that ignores the ruler
 reads as false time divisions. The lane floor falls off toward the well's
 inline edges (#387): two 1.5rem `.timeline-edge` strips

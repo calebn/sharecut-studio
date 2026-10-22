@@ -1922,19 +1922,19 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 }
 
 .join-blend-wave-left {
-  background: rgb(255 255 255 / 0.4);
+  background: var(--color-join-wave-left);
 }
 
 .join-blend-wave-right {
-  background: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  background: var(--color-join-wave-right);
 }
 
 .join-blend-seam-left {
-  background: rgb(255 255 255 / 0.55);
+  background: var(--color-join-seam-left);
 }
 
 .join-blend-seam-right {
-  background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: var(--color-join-seam-right);
 }
 
 .join-blend-seam > span {

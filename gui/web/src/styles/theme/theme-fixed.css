@@ -12,6 +12,19 @@
  */
 
 :root {
+  /* Join overlap wash and seam hairline, left side: white on the clip fill in
+     both themes. */
+  --color-join-wave-left: color-mix(
+    in srgb,
+    var(--primitive-white) 40%,
+    transparent
+  );
+  --color-join-seam-left: color-mix(
+    in srgb,
+    var(--primitive-white) 55%,
+    transparent
+  );
+
   /* Fixed dark transport in both themes. Orange belongs to Play alone (and its
      glow while playing); selected segments and tools use a lifted chip.
      Transport text ≥4.5:1: text 15.4:1 and muted 6.8:1 on the strip, muted

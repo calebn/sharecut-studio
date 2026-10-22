@@ -67,6 +67,16 @@
   /* Neutral status badges. */
   --color-badge-bg: var(--primitive-neutral-800);
   --color-badge-fg: var(--color-text-secondary);
+  --color-join-wave-right: color-mix(
+    in srgb,
+    var(--color-accent) 50%,
+    transparent
+  );
+  --color-join-seam-right: color-mix(
+    in srgb,
+    var(--color-accent) 55%,
+    transparent
+  );
   --color-accent-subtle: color-mix(
     in srgb,
     var(--color-accent) 12%,
