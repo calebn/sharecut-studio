@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import re
 import urllib.request
 from pathlib import Path
 from unittest.mock import patch
@@ -377,3 +378,37 @@ def test_download_url_sha_mismatch_leaves_dest(
             expected_sha256=hashlib.sha256(b"good").hexdigest(),
         )
     assert dest.read_bytes() == b"keep"
+
+
+def test_rnnoise_manifest_pin_contract() -> None:
+    from podcast_mcp.util import model_assets
+
+    meta = asset_entry("rnnoise")
+    assert re.search(r"/[0-9a-f]{40}/", meta["url"])
+    assert "/master/" not in meta["url"]
+    assert re.fullmatch(r"[0-9a-f]{64}", meta["sha256"])
+    assert meta["size_bytes"] == 297646
+    assert isinstance(meta["size_bytes"], int) and not isinstance(meta["size_bytes"], bool)
+    assert not hasattr(model_assets, "RNNOISE_MODEL_URL")
+
+
+def test_manifest_schema_declares_size_bytes() -> None:
+    schema_path = Path(__file__).resolve().parents[1] / "contracts" / "bootstrap-assets.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    def find_props(node: object) -> list[dict]:
+        found: list[dict] = []
+        if isinstance(node, dict):
+            props = node.get("properties")
+            if isinstance(props, dict) and "sha256" in props:
+                found.append(props)
+            for value in node.values():
+                found.extend(find_props(value))
+        elif isinstance(node, list):
+            for value in node:
+                found.extend(find_props(value))
+        return found
+
+    all_props = find_props(schema)
+    assert all_props
+    assert all(props.get("size_bytes", {}).get("type") == "integer" for props in all_props)
