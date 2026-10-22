@@ -272,6 +272,7 @@ def _chain_env(monkeypatch: pytest.MonkeyPatch, *, onnx: bool, speechbrain: bool
     import types
 
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.setattr(
         speaker_ecapa, "speaker_ecapa_problem", lambda: None if onnx else "not downloaded"
     )
@@ -315,8 +316,8 @@ def test_a_user_model_that_does_not_load_falls_through_in_auto(
 ) -> None:
     junk = tmp_path / "junk.onnx"
     junk.write_bytes(b"not a model")
-    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(junk))
     _chain_env(monkeypatch, onnx=True, speechbrain=False, lite=True)
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(junk))
     assert speaker_id.resolve_speaker_backend("auto").name() == "resemblyzer"
     with pytest.raises(ImportError, match="override does not load"):
         speaker_id.resolve_speaker_backend("ecapa-onnx")
