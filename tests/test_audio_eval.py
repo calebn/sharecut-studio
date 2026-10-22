@@ -93,8 +93,7 @@ CLIP_LAYOUTS = {
         (0, 3, 0, 15, 25, FADE),
         (3.4, 8, 3, 40, 40, CROSSFADE),
         (8.5, 12, 7.6, 30, 30, FADE),
-        # Not 10.9: a 44.1 kHz mono render disagrees with the evaluation there (#2025).
-        (13, 16.3, 10.875, 20, 20, FADE),
+        (13, 16.3, 10.9, 20, 20, FADE),
         (16.3, 19, 15.0, 50, 50, CROSSFADE),
     ],
 }
