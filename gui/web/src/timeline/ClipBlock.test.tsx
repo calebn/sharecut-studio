@@ -1600,6 +1600,45 @@ describe("ClipBlock waveform", () => {
       expect(onMoveCommit).not.toHaveBeenCalled();
       expect(hit.hasAttribute("data-hit-armed")).toBe(false);
     });
+
+    it.each([
+      "pointercancel",
+      "lostpointercapture",
+      "window blur",
+      "Escape",
+      "unmount",
+    ])(
+      "drops an armed move on %s, saving nothing and ignoring the lift",
+      (interruption) => {
+        const onMoveCommit = vi.fn();
+        const onMoveCancel = vi.fn();
+        const { hit, router, unmount } = touchClip(later, {
+          onMoveCommit,
+          onMoveCancel,
+        });
+        press(hit, "pointerdown", 50, 50);
+        router.longPress();
+        act(() => {
+          press(hit, "pointermove", 90, 50);
+        });
+        act(() => {
+          if (interruption === "pointercancel")
+            press(hit, "pointercancel", 90, 50);
+          else if (interruption === "lostpointercapture")
+            fireEvent.lostPointerCapture(hit, { pointerId: 7 });
+          else if (interruption === "window blur") fireEvent.blur(window);
+          else if (interruption === "Escape")
+            fireEvent.keyDown(document.body, { key: "Escape" });
+          else unmount();
+        });
+        press(hit, "pointermove", 95, 50);
+        press(hit, "pointerup", 95, 50);
+        router.dispose();
+
+        expect(onMoveCancel).toHaveBeenCalledWith("c1");
+        expect(onMoveCommit).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it("does not body-move in blade mode", () => {
