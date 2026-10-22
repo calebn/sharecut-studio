@@ -193,6 +193,28 @@ describe("JoinEditor coupled length", () => {
     expect(glyph()).toHaveAttribute("data-tier", "narrow");
     expect(useDawStore.getState().joinDraft).toBeNull();
   });
+  it("leaves another editor's live draft alone when its own row changes or it mounts", () => {
+    const { rerender, props } = mount();
+    const other = { ...right, id: "elsewhere", join_crossfade_ms: 300 };
+    act(() => useDawStore.getState().setJoinDraft(other));
+    const seen: unknown[] = [];
+    const stop = useDawStore.subscribe((s) => seen.push(s.joinDraft));
+    rerender(
+      <RoutedLanes>
+        <JoinWithGlyph {...props} right={{ ...right }} />
+      </RoutedLanes>,
+    );
+    stop();
+    expect(seen).toEqual([]);
+    expect(useDawStore.getState().joinDraft?.id).toBe("elsewhere");
+  });
+  it("clears only the draft it published when its drag ends", () => {
+    mount();
+    move(1012);
+    expect(useDawStore.getState().joinDraft?.id).toBe("right");
+    pointer(grip(), "pointerup", 1012);
+    expect(useDawStore.getState().joinDraft).toBeNull();
+  });
   it("caps the draft box at the render headroom and draws no waves for a blocked join", () => {
     const tight = { ...right, source_start: 0.05, source_end: 10 };
     const { container, unmount } = mount({

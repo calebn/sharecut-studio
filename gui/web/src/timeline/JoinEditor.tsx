@@ -98,7 +98,7 @@ function JoinEditorLive(props: JoinEditorProps) {
   );
   const setJoinDraft = useDaw((s) => s.setJoinDraft);
   useEffect(() => {
-    setJoinDraft(draft ? projected : null);
+    if (draft) setJoinDraft(projected);
     return () => {
       if (useDawStore.getState().joinDraft?.id === right.id) {
         setJoinDraft(null);
