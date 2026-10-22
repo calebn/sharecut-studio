@@ -202,7 +202,6 @@ def room_tone_source_id(track_id: str) -> str:
 
 
 def _after_bed(bed: BedUnavailable, selected: OwnQuietSample | SampleAbsent) -> RoomToneSelection:
-    """``selected`` carrying why the track's registered bed was not used."""
     return replace(selected, bed_failure=bed.cause, bed_rejected_checks=bed.rejected_checks)
 
 
@@ -649,28 +648,45 @@ def room_tone_bed(project: EpisodeProject, track_id: str) -> RecordedBedSample |
     return RecordedBedSample(0.0, bed_sec, source_id, path)
 
 
-_BED_VERDICTS: dict[tuple[Path, FileRevision, bool], tuple[str, ...]] = {}
+_BED_VERDICTS: dict[tuple[Path, FileRevision, int, bool], tuple[str, ...]] = {}
 
 
 def _bed_rejection(path: Path, revision: FileRevision, audio: np.ndarray) -> tuple[str, ...]:
-    """The ``CHECKS`` rows a registered bed fails against its own levels, once per file revision.
+    """The bed's failed ``CHECKS`` rows, measured once per file revision.
 
     The bed has no transcript and its own gain, so it is held to its own floor and speech
     level, window by window, and the loudest window must pass every row. The detector is
     in the key because ``voiced`` passes without one.
     """
-    key = (path, revision, not _voice_detector_missing())
-    if key not in _BED_VERDICTS:
+    key = (path, revision, audio.size, not _voice_detector_missing())
+    verdict = _BED_VERDICTS.get(key)
+    if verdict is None:
+        verdict = _measure_bed(path, audio)
         if len(_BED_VERDICTS) >= MAX_BED_VERDICTS:
             _BED_VERDICTS.clear()
-        _BED_VERDICTS[key] = _measure_bed(path, audio)
-    return _BED_VERDICTS[key]
+        _BED_VERDICTS[key] = verdict
+    return verdict
 
 
 def _measure_bed(path: Path, audio: np.ndarray) -> tuple[str, ...]:
     window = max(1, round(SAMPLE_RATE * BED_WINDOW_SEC))
-    starts = range(0, max(audio.size - window, 0) + 1, max(1, window // 2))
+    hop = max(1, window // 2)
+    starts = [*range(0, max(audio.size - window, 0) + 1, hop)]
+    if starts[-1] + window < audio.size:
+        starts.append(audio.size - window)
     levels = np.array([rms_db(audio[i : i + window], floor_db=DIGITAL_SILENCE_DB) for i in starts])
+    # A gated bed is live room noise between stretches of digital silence; those windows
+    # would pull the floor below the room itself.
+    frame = round(SAMPLE_RATE * FRAME_SEC)
+    silent = np.array(
+        [
+            rms_db(audio[i : i + frame], floor_db=DIGITAL_SILENCE_DB) <= DIGITAL_SILENCE_DB
+            for i in range(0, audio.size, frame)
+        ]
+    )
+    live = np.array([not silent[i // frame : -(-(i + window) // frame)].any() for i in starts])
+    if live.any():
+        levels = levels[live]
     floor_db = float(np.percentile(levels, FLOOR_PERCENTILE))
     loud = levels[levels > floor_db + FLOOR_BAND_DB]
     track = TrackFloor(
