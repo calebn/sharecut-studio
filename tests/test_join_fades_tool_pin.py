@@ -165,3 +165,32 @@ def test_a_preview_cannot_be_submitted_as_a_command(command):
     validate_payload(command, {"dry_run": False})
     with pytest.raises(ValueError):
         validate_payload(command, {"dry_run": True})
+
+
+@pytest.mark.parametrize(
+    ("tool", "command"),
+    [("fade_joins_tool", "FadeJoins"), ("crossfade_joins_tool", "CrossfadeJoins")],
+)
+def test_the_registered_tool_journals_one_row_and_a_preview_none(tmp_path, tool, command):
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    class _Server:
+        def __init__(self) -> None:
+            self.tools: dict[str, object] = {}
+
+        def tool(self, *_args, **_kwargs):
+            def register(fn):
+                self.tools[fn.__name__] = fn
+                return fn
+
+            return register
+
+    server = _Server()
+    mcp_timeline.register(server)
+    registered = server.tools[tool]
+    path = _joined_path(tmp_path)
+    registered(path, dry_run=True)
+    assert DocumentSyncService.open(path).store.commands_after(0) == []
+    registered(path, fade_ms=10)
+    types = [r["type"] for r in DocumentSyncService.open(path).store.commands_after(0)]
+    assert types == [command]

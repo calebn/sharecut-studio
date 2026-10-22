@@ -1330,6 +1330,8 @@ def register(mcp: MCPServer) -> None:
     }
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit
     mutating.discard(move_clips_tool)
+    mutating.discard(fade_joins_tool)
+    mutating.discard(crossfade_joins_tool)
     for fn in (
         inspect_clip_bleed_tool,
         restore_clip_bleed_tool,
