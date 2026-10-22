@@ -792,6 +792,7 @@ class ProjectMeta(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     schema_id: str = "podcast-mcp/episode/2"
     ingest_alignment: dict[str, SpeakerIngestAlignment] | None = None
+    analysis_reads_first_audio_stream: bool = False
 
 
 class SourceClippingRegion(BaseModel):
@@ -1101,6 +1102,7 @@ class EpisodeProject(BaseModel):
             meta=ProjectMeta(
                 name=name,
                 workspace_dir=str(Path(workspace_dir).resolve()),
+                analysis_reads_first_audio_stream=True,
             ),
         )
 

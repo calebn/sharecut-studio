@@ -26,7 +26,8 @@
         "name": { "type": "string" },
         "workspace_dir": { "type": "string" },
         "created_at": { "type": "string" },
-        "schema_id": { "type": "string" }
+        "schema_id": { "type": "string" },
+        "analysis_reads_first_audio_stream": { "type": "boolean" }
       }
     },
     "SourceClippingRegion": {
