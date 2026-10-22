@@ -26,6 +26,7 @@ from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import silence_filter_fingerprint
 from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.prosody import parselmouth_version
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import EpisodeProject, GateFill, GateFillSource, MediaAsset, Track
 from podcast_mcp.services.document.play_stems import _PlayStems
@@ -397,6 +398,7 @@ def _stored_prosody(project: EpisodeProject, path: Path, **extra: object) -> Non
         audio_mtime_ns=stamp.mtime_ns,
         words_fingerprint=prosody_profile.track_words_fingerprint(project, "t"),
         algorithm_version=prosody_profile.ALGORITHM_VERSION,
+        engine={"version": parselmouth_version() or "0"},
         **extra,
     )
     target = prosody_profile.profile_path(project, "t", "a" * 16, "b" * 16)
