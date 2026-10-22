@@ -52,7 +52,7 @@ async def test_mcp_transcribe_track_without_the_model_is_a_coded_refusal(
         )
     assert result.is_error
     assert result.structured_content["error_code"] == "model_needed"
-    assert result.content[0].text.endswith(f"run `{WHISPER_COMMAND}`")
+    assert f"run `{WHISPER_COMMAND}`" in result.content[0].text
     _assert_whisper_fields(result.structured_content["model"])
     assert minimal_project.read_bytes() == before
 

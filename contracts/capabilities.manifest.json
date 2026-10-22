@@ -1874,7 +1874,11 @@
           "home.models",
           "ModelsDialog"
         ],
-        "cli": "podcast setup"
+        "cli": "podcast setup",
+        "mcp": [
+          "model_download",
+          "model_download_status"
+        ]
       },
       "omit": {
         "keyboard_reason": "dialog from Home / palette",
