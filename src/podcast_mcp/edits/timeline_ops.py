@@ -35,6 +35,7 @@ from podcast_mcp.edits.transcript_search import (
 )
 from podcast_mcp.engines.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
+    MuteIndex,
     clips_for_track,
     extract_clips_in_timeline_range,
     join_render_fields,
@@ -1149,6 +1150,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
     by_track: dict[str, list[dict]] = {}
     sources = {s.id: s for s in project.sources}
     prev_by_track: dict[str, Clip] = {}
+    mutes = MuteIndex(project)
     recordings: dict[tuple[str, str | None], tuple[float | None, str | None]] = {}
     ignored_words = IgnoredWordRegions(project)
     for c in sorted(clips, key=lambda x: (x.track_id, x.timeline_start)):
@@ -1174,7 +1176,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
                 "fade_in_ms": c.fade_in_ms,
                 "fade_out_ms": c.fade_out_ms,
                 "join_in_mode": c.join_in_mode.value,
-                **join_render_fields(prev, c, project),
+                **join_render_fields(prev, c, project, mutes),
                 "source_id": c.source_id,
                 "source_duration_sec": duration,
                 "recording_key": key,

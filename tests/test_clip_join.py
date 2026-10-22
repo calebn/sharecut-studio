@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
+
 import pytest
 
 from podcast_mcp.engines.clips_ops import (
@@ -201,3 +203,39 @@ def test_a_join_never_borrows_muted_audio_of_its_neighbour(owner, span):
     assert (
         h == 0.0 or (owner == "b" and span[0] - 2.0 >= h) or (owner == "a" and 2.0 - span[1] >= h)
     )
+
+
+def test_a_mute_on_an_aliased_recording_stops_the_borrow():
+    from podcast_mcp.models.episode import SourceRecording
+
+    p = _project()
+    p.tracks[0].media = MediaAsset(path="h.wav", duration_sec=10)
+    p.sources = [SourceRecording(id="s1", path="h.wav", duration_sec=10)]
+    left = _clip("a", 1, 2, fade_out_ms=40)
+    right = _clip("b", 2, 3, fade_in_ms=40, join_in_mode=ClipJoinMode.CROSSFADE)
+    other = _clip("c", 5, 6, source_id="s1")
+    other.mute_regions = [ClipMuteRegion(start_s=2.0, end_s=2.5)]
+    p.clips = [left, right, other]
+    assert crossfade_borrow_sec(p, left, right) == 0.0
+
+
+def test_the_mute_index_keeps_a_long_crossfade_lane_fast():
+    import time
+
+    p = _project()
+    clips = []
+    for i in range(3000):
+        c = _clip(f"c{i}", i * 3, i * 3 + 3, fade_in_ms=40, fade_out_ms=40)
+        c.timeline_start = i * 3
+        c.join_in_mode = ClipJoinMode.CROSSFADE
+        c.mute_regions = [ClipMuteRegion(start_s=i * 3 + 1, end_s=i * 3 + 1.2)]
+        clips.append(c)
+    p.tracks[0].media = MediaAsset(path="h.wav", duration_sec=10_000)
+    p.clips = clips
+    from podcast_mcp.engines.clips_ops import MuteIndex
+
+    started = time.perf_counter()
+    index = MuteIndex(p)
+    for prev, c in pairwise(clips):
+        assert crossfade_borrow_sec(p, prev, c, index) > 0
+    assert time.perf_counter() - started < 2.0

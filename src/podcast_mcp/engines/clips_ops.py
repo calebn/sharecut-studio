@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import math
 import uuid
+from bisect import bisect_left
 from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import Any, Literal
@@ -484,51 +485,92 @@ def crossfade_ms_at_join(left: Clip, right: Clip) -> int:
     return max(min(vals), max(vals) // 2)
 
 
-def _unmuted_room(project: EpisodeProject, left: Clip, right: Clip) -> float:
-    """Seconds a join may borrow before it would play muted or ignored audio.
+class MuteIndex:
+    """Mute and ignored-word spans per recording, sorted for the borrow's nearby lookups.
 
-    The borrowed audio comes from the recording just past ``left`` and just before
+    A join borrows audio from the recording just past ``left`` and just before
     ``right``. Mute regions belong to one clip and ignored words to the transcript,
-    so a clip's own mutes (which render applies across its widened window) are left
-    out, while its neighbours' do not cover what it borrows from the same
-    recording. Each side stops at the nearest region edge on its recording (none
-    at all when a region already covers the clip's edge).
+    so a neighbour's mute does not cover what a join borrows. Build one index per
+    pass over a project's joins and hand it to ``crossfade_borrow_sec``.
     """
-    return min(_side_room(project, left, after=True), _side_room(project, right, after=False))
 
+    def __init__(self, project: EpisodeProject) -> None:
+        from podcast_mcp.engines.mute_regions import IgnoredWordRegions
 
-def _side_room(project: EpisodeProject, clip: Clip, *, after: bool) -> float:
-    from podcast_mcp.engines.mute_regions import IgnoredWordRegions
+        self._project = project
+        self._ignored = IgnoredWordRegions(project)
+        self._spans: dict[tuple[str, str | None], list[tuple[float, float, str | None]]] = {}
+        for clip in project.clips:
+            for r in (*clip.mute_regions, *clip.off_speaker_mute_regions):
+                self._spans.setdefault((clip.track_id, clip.source_id), []).append(
+                    (r.start_s, r.end_s, clip.id)
+                )
+        self._sorted: dict[
+            tuple[str, str | None], tuple[list[float], list[tuple[float, float, str | None]], float]
+        ] = {}
+        self._aliases: dict[tuple[str, str | None], frozenset[str | None]] = {}
 
-    edge = clip.source_end if after else clip.source_start
-    spans = [(r.start_s, r.end_s) for r in IgnoredWordRegions(project).raw_for(clip)]
-    for other in project.clips:
-        if (
-            other is not clip
-            and other.track_id == clip.track_id
-            and other.source_id == clip.source_id
-        ):
-            spans += [
-                (r.start_s, r.end_s) for r in (*other.mute_regions, *other.off_speaker_mute_regions)
-            ]
-    room = math.inf
-    for start, end in spans:
-        if after:
-            if end <= edge:
-                continue
-            room = min(room, 0.0 if start <= edge else start - edge)
-        else:
-            if start >= edge:
-                continue
-            room = min(room, 0.0 if end >= edge else edge - end)
-    return room
+    def _group(
+        self, track_id: str, source_id: str | None
+    ) -> list[tuple[list[float], list[tuple[float, float, str | None]], float]]:
+        key = (track_id, source_id)
+        aliases = self._aliases.get(key)
+        if aliases is None:
+            aliases = self._project.equivalent_source_ids(track_id, source_id) | {source_id}
+            self._aliases[key] = aliases
+        groups = []
+        for sid in aliases:
+            built = self._sorted.get((track_id, sid))
+            if built is None:
+                spans = list(self._spans.get((track_id, sid), ()))
+                if sid == source_id:
+                    spans += [
+                        (r.start_s, r.end_s, None)
+                        for r in self._ignored.raw_for_source(track_id, source_id)
+                    ]
+                spans.sort()
+                built = (
+                    [sp[0] for sp in spans],
+                    spans,
+                    max((sp[1] - sp[0] for sp in spans), default=0.0),
+                )
+                self._sorted[(track_id, sid)] = built
+            groups.append(built)
+        return groups
+
+    def room_after(self, clip: Clip, reach: float) -> float:
+        """Seconds past ``clip``'s end before muted audio (``inf`` beyond ``reach``)."""
+        edge = clip.source_end
+        room = math.inf
+        for starts, spans, longest in self._group(clip.track_id, clip.source_id):
+            for i in range(bisect_left(starts, edge - longest), len(spans)):
+                start, end, owner = spans[i]
+                if start > edge + reach:
+                    break
+                # A clip's own mutes cover its widened window in render.
+                if end > edge and owner != clip.id:
+                    room = min(room, 0.0 if start <= edge else start - edge)
+        return room
+
+    def room_before(self, clip: Clip, reach: float) -> float:
+        """Seconds before ``clip``'s start before muted audio (``inf`` beyond ``reach``)."""
+        edge = clip.source_start
+        room = math.inf
+        for starts, spans, longest in self._group(clip.track_id, clip.source_id):
+            for i in range(bisect_left(starts, edge - reach - longest), bisect_left(starts, edge)):
+                _start, end, owner = spans[i]
+                if end >= edge - reach and owner != clip.id:
+                    room = min(room, 0.0 if end >= edge else edge - end)
+        return room
 
 
 _BORROW_STEP_SEC = 0.005
 _MIN_BLEND_SEC = 0.020
 
 
-def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> float:
+def crossfade_borrow_sec(
+    project: EpisodeProject, left: Clip, right: Clip, index: MuteIndex | None = None
+) -> float:
     """Seconds each side of a blending join borrows from its recording (half the overlap).
 
     The blend is centred on the seam: ``left`` plays on past its end and ``right``
@@ -536,7 +578,7 @@ def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> fl
     time on the lane. The borrow shrinks to the room the recordings have beyond
     the two edges (an unmeasured recording has none) and to a quarter of either
     clip, so the two joins of a short clip never meet. ``0`` when the join does
-    not blend.
+    not blend. Pass one ``MuteIndex`` when scanning many joins.
     """
     ms = crossfade_ms_at_join(left, right)
     if ms <= 0:
@@ -554,7 +596,9 @@ def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> fl
         (left.source_end - left.source_start) * 0.25,
         (right.source_end - right.source_start) * 0.25,
     )
-    room = min(room, _unmuted_room(project, left, right))
+    index = index or MuteIndex(project)
+    reach = max(ms / 2000.0, _BORROW_STEP_SEC)
+    room = min(room, index.room_after(left, reach), index.room_before(right, reach))
     # Less room than a short blend (the requested overlap, at most 20 ms) is a fade join.
     if 2 * room < min(ms / 1000.0, _MIN_BLEND_SEC):
         return 0.0
@@ -565,7 +609,9 @@ def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> fl
     return round(steps * _BORROW_STEP_SEC, 6) if steps >= 1 else 0.0
 
 
-def join_render_fields(prev: Clip | None, clip: Clip, project: EpisodeProject) -> dict[str, Any]:
+def join_render_fields(
+    prev: Clip | None, clip: Clip, project: EpisodeProject, index: MuteIndex | None = None
+) -> dict[str, Any]:
     """Effective render of the join into ``clip`` (flat fields for ``list_clips`` rows).
 
     The fields are what render does given the recordings' lengths:
@@ -580,7 +626,7 @@ def join_render_fields(prev: Clip | None, clip: Clip, project: EpisodeProject) -
             "join_crossfade_blocked": None,
         }
     blends = clip.join_in_mode == ClipJoinMode.CROSSFADE
-    borrow = crossfade_borrow_sec(project, prev, clip) if blends else 0.0
+    borrow = crossfade_borrow_sec(project, prev, clip, index) if blends else 0.0
     blocked = _authored_block_reason(prev, clip) if blends else None
     if blends and blocked is None and borrow <= 0:
         blocked = "no_headroom"
