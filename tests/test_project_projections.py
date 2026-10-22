@@ -397,7 +397,6 @@ def test_projection_for_command() -> None:
     assert projection_for_command("SplitAtTime") is ViewProjection.SHELL
     assert projection_for_command("SetClipFade") is ViewProjection.CLIPS
     assert projection_for_command("FillRoomTone") is ViewProjection.SHELL
-    assert projection_for_command("StripSilence") is ViewProjection.SHELL
     assert projection_for_command("ShortenWordGaps") is ViewProjection.SHELL
     assert projection_for_command("SetJoinMode") is ViewProjection.CLIPS
     assert projection_for_command("ApplyFadeRecommendations") is ViewProjection.CLIPS

@@ -70,17 +70,13 @@ def strip_silence_tool(
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored.
     """
-    result = submit_host_command_result(
-        project_path,
-        "StripSilence",
-        {
-            "track_id": track_id,
-            "speaker": speaker,
-            "over_voice_floor_db": over_voice_floor_db,
-            "min_duration_sec": min_duration_sec,
-            "use_inaudible_opt": use_inaudible_opt,
-        },
-        client_id="mcp:host",
+    ws = ProjectWorkspace.open(project_path)
+    result = AnalysisService(ws).strip_silence(
+        track_id=track_id,
+        speaker=speaker,
+        over_voice_floor_db=over_voice_floor_db,
+        min_duration_sec=min_duration_sec,
+        use_inaudible_opt=use_inaudible_opt,
     )
     return to_json(result)
 
@@ -1351,7 +1347,6 @@ def register(mcp: MCPServer) -> None:
     mutating.discard(crossfade_joins_tool)
     mutating.discard(apply_fade_recommendations_tool)
     mutating.discard(ripple_delete_text_tool)
-    mutating.discard(strip_silence_tool)
     mutating.discard(shorten_gaps_tool)
     mutating.discard(fill_with_room_tone_tool)
     for fn in (

@@ -73,7 +73,6 @@ DocumentCommandType = Literal[
     "PasteSegment",
     "CutRange",
     "RippleDeleteText",
-    "StripSilence",
     "ShortenWordGaps",
     "FillRoomTone",
     "AddTrack",

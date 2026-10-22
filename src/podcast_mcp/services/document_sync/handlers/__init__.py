@@ -68,7 +68,6 @@ HANDLERS: dict[str, Handler] = {
     "PasteSegment": edits.paste_segment,
     "CutRange": edits.cut_range,
     "RippleDeleteText": edits.ripple_delete_text,
-    "StripSilence": edits.strip_silence,
     "ShortenWordGaps": edits.shorten_word_gaps,
     "FillRoomTone": edits.fill_room_tone,
     "AddTrack": episode.add_track,

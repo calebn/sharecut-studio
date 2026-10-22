@@ -93,7 +93,6 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `StageTimeRangeCut` | `end` (number), `start` (number), `track_id` (string) | `reason` (string \| null), `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `StageUtteranceCut` | `utterance_index` (integer) | `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `StageWordsCut` | `end_word_index` (integer), `start_word_index` (integer), `track_id` (string) | `review_required` (boolean), `source_id` (string \| null), `use_inaudible_opt` (boolean \| null) |
-| `StripSilence` | — | `min_duration_sec` (number), `over_voice_floor_db` (number), `speaker` (string \| null), `track_id` (string \| null), `use_inaudible_opt` (boolean \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
 | `SuppressBleed` | — | `end_sec` (number \| null), `exclude_words` (array \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null), `words` (array \| null) |
 | `SuppressLowAudibility` | — | `speaker` (string \| null), `track_id` (string \| null), `words` (array \| null) |
@@ -105,7 +104,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 73 command types._
+_Generated 72 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

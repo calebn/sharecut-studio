@@ -621,13 +621,6 @@ def test_a_failed_call_through_the_registered_tools_journals_nothing(trio):
 def test_the_trio_commands_validate_with_the_tool_defaults():
     from podcast_mcp.services.document_sync.payloads import validate_payload
 
-    assert validate_payload("StripSilence", {}) == {
-        "track_id": None,
-        "speaker": None,
-        "over_voice_floor_db": 0.0,
-        "min_duration_sec": 0.5,
-        "use_inaudible_opt": None,
-    }
     assert validate_payload("ShortenWordGaps", {}) == {
         "max_gap_sec": 0.35,
         "use_inaudible_opt": None,
@@ -640,7 +633,7 @@ def test_the_trio_commands_are_host_only_for_every_share_role():
     from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
     from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 
-    for command in ("StripSilence", "ShortenWordGaps", "FillRoomTone"):
+    for command in ("ShortenWordGaps", "FillRoomTone"):
         authorize_document_command(None, command)
         for role in ("viewer", "commenter", "editor"):
             with pytest.raises(PermissionError) as raised:
@@ -648,9 +641,9 @@ def test_the_trio_commands_are_host_only_for_every_share_role():
             assert raised.value.code == "share_capability_required"
 
 
-def test_strip_journals_one_command_row(trio):
+def test_strip_direct_call_journals_nothing_current_journal(trio):
     _strip(trio, track_id="host")
-    assert _journal_types(trio) == ["StripSilence"]
+    assert _journal_types(trio) == []
 
 
 def test_shorten_journals_one_command_row(trio):
@@ -673,9 +666,9 @@ def test_fill_with_fewer_than_two_clips_journals_one_command_row(trio):
     assert _journal_types(trio) == ["FillRoomTone"]
 
 
-def test_registered_strip_journals_one_command_row(trio):
+def test_registered_strip_journals_one_external_mutate_row_current_journal(trio):
     _registered("strip_silence_tool")(str(trio), track_id="host")
-    assert _journal_types(trio) == ["StripSilence"]
+    assert _journal_types(trio) == ["ExternalMutate"]
 
 
 def test_registered_shorten_journals_one_command_row(trio):

@@ -8492,144 +8492,6 @@
         "title": "StageWordsCutPayload",
         "type": "object"
       },
-      "StripSilenceCommand": {
-        "properties": {
-          "causation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Causation Id"
-          },
-          "client_id": {
-            "title": "Client Id",
-            "type": "string"
-          },
-          "client_seq": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Seq"
-          },
-          "command_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Command Id"
-          },
-          "payload": {
-            "$ref": "#/components/schemas/StripSilencePayload"
-          },
-          "role": {
-            "default": "viewer",
-            "enum": [
-              "agent",
-              "viewer",
-              "cli",
-              "guest"
-            ],
-            "title": "Role",
-            "type": "string"
-          },
-          "structural_mode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Structural Mode"
-          },
-          "token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Token"
-          },
-          "type": {
-            "const": "StripSilence",
-            "default": "StripSilence",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "client_id"
-        ],
-        "title": "StripSilenceCommand",
-        "type": "object"
-      },
-      "StripSilencePayload": {
-        "properties": {
-          "min_duration_sec": {
-            "default": 0.5,
-            "title": "Min Duration Sec",
-            "type": "number"
-          },
-          "over_voice_floor_db": {
-            "default": 0.0,
-            "title": "Over Voice Floor Db",
-            "type": "number"
-          },
-          "speaker": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Speaker"
-          },
-          "track_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Track Id"
-          },
-          "use_inaudible_opt": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Use Inaudible Opt"
-          }
-        },
-        "title": "StripSilencePayload",
-        "type": "object"
-      },
       "SuggestPendingEditCommand": {
         "properties": {
           "causation_id": {
@@ -11068,7 +10930,6 @@
                     "StageTimeRangeCut": "#/components/schemas/StageTimeRangeCutCommand",
                     "StageUtteranceCut": "#/components/schemas/StageUtteranceCutCommand",
                     "StageWordsCut": "#/components/schemas/StageWordsCutCommand",
-                    "StripSilence": "#/components/schemas/StripSilenceCommand",
                     "SuggestPendingEdit": "#/components/schemas/SuggestPendingEditCommand",
                     "SuppressBleed": "#/components/schemas/SuppressBleedCommand",
                     "SuppressLowAudibility": "#/components/schemas/SuppressLowAudibilityCommand",
@@ -11271,9 +11132,6 @@
                   },
                   {
                     "$ref": "#/components/schemas/RippleDeleteTextCommand"
-                  },
-                  {
-                    "$ref": "#/components/schemas/StripSilenceCommand"
                   },
                   {
                     "$ref": "#/components/schemas/ShortenWordGapsCommand"

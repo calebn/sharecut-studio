@@ -367,16 +367,6 @@ def ripple_delete_text(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any
     )
 
 
-def strip_silence(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return AnalysisService(ws).strip_silence(
-        track_id=p.get("track_id"),
-        speaker=p.get("speaker"),
-        over_voice_floor_db=p["over_voice_floor_db"],
-        min_duration_sec=p["min_duration_sec"],
-        use_inaudible_opt=p.get("use_inaudible_opt"),
-    )
-
-
 def shorten_word_gaps(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).shorten_word_gaps(
         p["max_gap_sec"], use_inaudible_opt=p.get("use_inaudible_opt")
