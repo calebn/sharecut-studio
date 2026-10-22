@@ -346,6 +346,8 @@ class AudioProbe:
     audio_duration_sec: float | None = None
     # The decoder's sample format (``s16``, ``fltp``, ...), when ffprobe reports one.
     sample_fmt: str | None = None
+    # Audio streams in the file; the rest are ignored by every decode (``-map 0:a:0``).
+    audio_stream_count: int = 1
 
 
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
@@ -466,6 +468,7 @@ class FFmpegEngine:
             ),
             audio_duration_sec=audio_duration,
             sample_fmt=stream.get("sample_fmt") or None,
+            audio_stream_count=len(audio_streams),
         )
 
     def stream_pcm_f32(
@@ -632,7 +635,14 @@ class FFmpegEngine:
             "1",
         ]
         seek = MediaSeek.at(start_sec or 0.0)
-        argv += [*seek.input_args(), "-i", str(path), *seek.output_args(duration_sec)]
+        argv += [
+            *seek.input_args(),
+            "-i",
+            str(path),
+            "-map",
+            "0:a:0",
+            *seek.output_args(duration_sec),
+        ]
         layout = ffmpeg_mono_mean_layout(path) if channels == 1 else ["-ac", str(channels)]
         argv += ["-f", "f32le", *layout, "-ar", str(sample_rate), "pipe:1"]
         return argv
@@ -1836,6 +1846,8 @@ class FFmpegEngine:
             "-nostats",
             "-i",
             str(path),
+            "-map",
+            "0:a:0",
             "-af",
             chain,
             "-f",
@@ -1923,6 +1935,8 @@ class FFmpegEngine:
             *seek.input_args(),
             "-i",
             str(src),
+            "-map",
+            "0:a:0",
             "-threads",
             "1",
             *seek.output_args(max(0.01, end_sec - start_sec)),

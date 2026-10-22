@@ -121,6 +121,8 @@ def _decode(path: Path, sample_rate: int, target: Path) -> int:
             "-y",
             "-i",
             str(path),
+            "-map",
+            "0:a:0",
             *ffmpeg_mono_mean_layout(path),
             "-ar",
             str(sample_rate),
