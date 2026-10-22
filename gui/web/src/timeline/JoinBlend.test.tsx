@@ -75,6 +75,30 @@ describe("JoinBlend overlap waveforms", () => {
     },
   );
 
+  it.each([
+    [39, "narrow"],
+    [40, "middle"],
+    [120, "middle"],
+    [120.1, "wide"],
+  ] as const)(
+    "tiers the 200 ms overlap at %f px/s as %s from its drawn width",
+    (zoom, tier) => {
+      const row = right(200);
+      const { container } = render(
+        <JoinBlend
+          visual={joinVisual(row, zoom)}
+          left={left}
+          right={row}
+          zoomPxPerSec={zoom}
+        />,
+      );
+      expect(container.querySelector(".join-blend")).toHaveAttribute(
+        "data-tier",
+        tier,
+      );
+    },
+  );
+
   it("draws the left tail and right head across exactly the overlap box", () => {
     const { container } = mount();
     expect(container.querySelector(".join-blend-waves")).toHaveStyle({

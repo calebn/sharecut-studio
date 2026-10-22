@@ -66,9 +66,9 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
       "screenshot receipts for the desktop and phone cells in both themes",
   },
   "edit-markers.spec.ts": {
-    loops: 1,
+    loops: 2,
     reason:
-      "the marks take one themed hue per edit type, so each viewport's screenshot receipt is taken in both themes",
+      "the marks take one themed hue per edit type, so each viewport's screenshot receipt, and the zoom ladder's wide-tier receipt, are taken in both themes",
   },
   "touch-nudge.spec.ts": {
     loops: 1,

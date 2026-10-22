@@ -121,11 +121,14 @@
   --ruler-height: 24px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas marker lane height */
   --marker-lane-height: 72px;
-  /* Clip top (and bottom) inset inside a lane: the top gutter an edit marker
-     fills, so a 12 px glyph clears the fade corners. px like --lane-height, so
-     it holds at any root font size. */
+  /* Clip top inset inside a lane: the top gutter an edit marker fills, so a
+     12 px glyph clears the fade corners. The bottom inset stays 8 px, so a
+     clip loses 4 px of height, not 8. px like --lane-height, so both hold at
+     any root font size. */
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas clip inset vs lane height */
   --clip-inset-top: 12px;
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas clip inset vs lane height */
+  --clip-inset-bottom: 8px;
   /* WCAG 2.5.8 24 px target for the join marks' hit areas (.edit-mark::before, .edit-chip::before):
      two --clip-inset-top gutters, so it stays canvas px at any root font size. */
   --join-hit-min: calc(2 * var(--clip-inset-top));

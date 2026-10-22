@@ -10,6 +10,7 @@ import {
   JOIN_KINDS,
   JOIN_MODE_OPTIONS,
   joinKind,
+  joinMarkLabel,
   markerLabel,
   markerType,
   markerVariant,
@@ -53,6 +54,17 @@ describe("edit marker registry", () => {
         short: "Crossfade",
       },
     ]);
+  });
+
+  it.each([
+    ["join-crossfade", 120, "Crossfade 120 ms"],
+    ["join-crossfade", 0, "Crossfade"],
+    ["join-fade", 80, "Fade 80 ms"],
+    ["join-fade", 0, "Fade"],
+    ["join-cut", 80, "Cut"],
+    ["join-fade", 79.6, "Fade 80 ms"],
+  ] as const)("labels a %s of %f ms as %s", (kind, ms, text) => {
+    expect(joinMarkLabel(kind, ms)).toBe(text);
   });
 
   it("reads an unknown join mode as fade, as render does", () => {

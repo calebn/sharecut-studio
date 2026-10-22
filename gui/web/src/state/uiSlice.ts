@@ -312,6 +312,8 @@ type UiSlice = Pick<
   | "setOpenJoinId"
   | "joinMutationInFlight"
   | "setJoinMutationInFlight"
+  | "joinDraft"
+  | "setJoinDraft"
   | "rippleTrim"
   | "setRippleTrim"
   | "fitToWindow"
@@ -340,6 +342,7 @@ export function uiProjectInitial() {
     chapterAddPending: false,
     openJoinId: null,
     joinMutationInFlight: false,
+    joinDraft: null,
     rippleTrim: null,
     rangeArmed: false,
     rangeScopeTrackIds: null as readonly string[] | null,
@@ -887,6 +890,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setOpenJoinId: (openJoinId) => set({ openJoinId }),
     setJoinMutationInFlight: (joinMutationInFlight) =>
       set({ joinMutationInFlight }),
+    setJoinDraft: (joinDraft) => set({ joinDraft }),
     setRippleTrim: (rippleTrim) => set({ rippleTrim }),
     fitToWindow: (viewportWidth) => {
       const duration = sessionSecOf(get());

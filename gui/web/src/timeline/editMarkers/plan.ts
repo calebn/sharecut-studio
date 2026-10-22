@@ -2,12 +2,20 @@ import {
   clipRowDuringRoll,
   type RollPreview,
 } from "../../edit/clipEdgePreview";
-import { isJoin } from "../../edit/joinRender";
+import {
+  drawnOverlapPx,
+  isJoin,
+  type JoinTier,
+  joinLengthMs,
+  joinTier,
+  joinVisual,
+} from "../../edit/joinRender";
 import type { ClipRow } from "../../types/project";
 import {
   JOIN_KINDS,
   type JoinMarkerKind,
   joinKind,
+  joinMarkLabel,
   markerLabel,
 } from "../../utils/editMarkerRegistry";
 import { clampZoomPxPerSec } from "../../utils/zoom";
@@ -24,7 +32,24 @@ export interface JoinMark {
 
 export const CLUSTER_PX = 24;
 
-export type PlacedSymbol = { mark: JoinMark; xPx: number };
+/** Half the 12 px glyph, and the gap before its label (canvas px, like CLUSTER_PX). */
+const GLYPH_HALF_PX = 6;
+const LABEL_GAP_PX = 4;
+/** A chip is at most 24 px wide, so 12 px reaches left of its centre. */
+const CHIP_HALF_PX = 12;
+
+export type PlacedSymbol = {
+  mark: JoinMark;
+  xPx: number;
+  /** The overlap as drawn (px), the open length draft included. */
+  drawnPx: number;
+  tier: JoinTier;
+  /** The mark's text ("Crossfade 120 ms"), shown beside the glyph when `labelAllowed` and it fits `roomPx`. */
+  label: string;
+  labelAllowed: boolean;
+  /** Px from the glyph's right edge to the next mark or chip, or the end of the session. */
+  roomPx: number;
+};
 export type PlacedChip = {
   marks: readonly JoinMark[];
   xPx: number;
@@ -69,10 +94,35 @@ export function collectJoinMarks(
   return marks;
 }
 
+/** The crossfade's own overlap is the only join with a drawn length; the rest are points. */
+function placeSymbol(
+  mark: JoinMark,
+  xPx: number,
+  zoomPxPerSec: number,
+  draft: ClipRow | null,
+): Omit<PlacedSymbol, "roomPx"> {
+  const right = draft?.id === mark.right.id ? draft : mark.right;
+  const drawnPx = drawnOverlapPx(joinVisual(right, zoomPxPerSec));
+  const tier = joinTier(drawnPx);
+  const lengthMs =
+    mark.kind === "join-crossfade"
+      ? (right.join_crossfade_ms ?? 0)
+      : joinLengthMs(mark.left, right);
+  return {
+    mark,
+    xPx,
+    drawnPx,
+    tier,
+    label: joinMarkLabel(mark.kind, lengthMs),
+    labelAllowed: tier === "wide" || drawnPx === 0,
+  };
+}
+
 export function planLaneMarks(
   marks: readonly JoinMark[],
   zoomPxPerSec: number,
   sessionSec: number,
+  draft: ClipRow | null = null,
 ): LanePlan {
   const placed = marks
     .map((mark) => ({ mark, xPx: mark.sec * zoomPxPerSec }))
@@ -88,10 +138,22 @@ export function planLaneMarks(
   }
   const symbols: PlacedSymbol[] = [];
   const chips: PlacedChip[] = [];
-  for (const group of groups) {
+  const edgePx = (group: typeof placed | undefined): number => {
+    if (group == null) {
+      return sessionSec * zoomPxPerSec;
+    }
+    return group.length === 1
+      ? group[0].xPx - GLYPH_HALF_PX
+      : (group[0].xPx + group[group.length - 1].xPx) / 2 - CHIP_HALF_PX;
+  };
+  groups.forEach((group, i) => {
     if (group.length === 1) {
-      symbols.push(group[0]);
-      continue;
+      const { mark, xPx } = group[0];
+      symbols.push({
+        ...placeSymbol(mark, xPx, zoomPxPerSec, draft),
+        roomPx: edgePx(groups[i + 1]) - xPx - GLYPH_HALF_PX - LABEL_GAP_PX,
+      });
+      return;
     }
     const zoom = clusterZoom(
       group.map((item) => item.mark.sec),
@@ -104,7 +166,7 @@ export function planLaneMarks(
       endSec: group[group.length - 1].mark.sec,
       zoomTo: zoom > zoomPxPerSec ? zoom : null,
     });
-  }
+  });
   return { symbols, chips };
 }
 

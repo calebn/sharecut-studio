@@ -259,9 +259,14 @@ export function TrackLaneView({
     () => collectJoinMarks(clips, rollPreview, isMoving),
     [clips, rollPreview, isMoving],
   );
+  const joinDraft = useDaw((s) =>
+    s.joinDraft && marks.some((m) => m.clipId === s.joinDraft?.id)
+      ? s.joinDraft
+      : null,
+  );
   const plan = useMemo(
-    () => planLaneMarks(marks, zoomPxPerSec, sessionSec),
-    [marks, zoomPxPerSec, sessionSec],
+    () => planLaneMarks(marks, zoomPxPerSec, sessionSec, joinDraft),
+    [marks, zoomPxPerSec, sessionSec, joinDraft],
   );
   const onZoomChip = useCallback(
     (chip: PlacedChip) => {

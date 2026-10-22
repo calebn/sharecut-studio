@@ -1,4 +1,9 @@
-import { type JoinVisual, joinWaveSpans } from "../edit/joinRender";
+import {
+  drawnOverlapPx,
+  type JoinVisual,
+  joinTier,
+  joinWaveSpans,
+} from "../edit/joinRender";
 import { useDevicePixelRatio } from "../hooks/useDevicePixelRatio";
 import type { ClipRow } from "../types/project";
 import type { MediaRef } from "../waveform/types";
@@ -10,9 +15,6 @@ export type JoinWaveSides = {
   role: string;
   gainDb: number;
 };
-
-/** Narrower than this, the crossfade X would be a smear: only the waves draw. */
-export const NARROW_OVERLAP_PX = 8;
 
 const LEFT_KEY = "join-blend-left";
 const RIGHT_KEY = "join-blend-right";
@@ -97,6 +99,7 @@ export function JoinBlend({
   zoomPxPerSec: number;
 }) {
   if (visual.kind !== "blend") return null;
+  const tier = joinTier(drawnOverlapPx(visual));
   return (
     <>
       {waves && left && right ? (
@@ -110,15 +113,14 @@ export function JoinBlend({
       ) : null}
       <svg
         className="join-blend"
+        data-tier={tier}
         aria-hidden="true"
         focusable="false"
         style={{ left: visual.leftPx, width: visual.widthPx }}
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
-        {visual.widthPx < NARROW_OVERLAP_PX ? null : (
-          <path d="M0 0L100 100M100 0L0 100" />
-        )}
+        {tier === "narrow" ? null : <path d="M0 0L100 100M100 0L0 100" />}
       </svg>
     </>
   );

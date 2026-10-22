@@ -110,19 +110,61 @@ export const AllTypes: Story = {
 };
 
 export const NarrowOverlap: Story = {
-  args: { specs: [{ sec: 3, mode: "crossfade", ms: 120 }] },
+  args: { specs: [{ sec: 3, mode: "crossfade", ms: 120 }], zoomPxPerSec: 40 },
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelector(".join-blend")).not.toBeNull();
+    await expect(canvasElement.querySelector(".edit-mark")).toHaveAttribute(
+      "data-tier",
+      "narrow",
+    );
     await expect(canvasElement.querySelector(".join-blend path")).toBeNull();
+    await expect(canvasElement.querySelector(".edit-mark-label")).toBeNull();
+  },
+};
+
+export const MiddleOverlap: Story = {
+  args: { specs: [{ sec: 3, mode: "crossfade", ms: 120 }], zoomPxPerSec: 150 },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector(".edit-mark")).toHaveAttribute(
+      "data-tier",
+      "middle",
+    );
+    await expect(
+      canvasElement.querySelector(".join-blend path"),
+    ).not.toBeNull();
+    await expect(canvasElement.querySelector(".edit-mark-label")).toBeNull();
   },
 };
 
 export const WideOverlap: Story = {
-  args: { specs: [{ sec: 3, mode: "crossfade", ms: 800 }] },
+  args: { specs: [{ sec: 3, mode: "crossfade", ms: 120 }], zoomPxPerSec: 400 },
   play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector(".edit-mark")).toHaveAttribute(
+      "data-tier",
+      "wide",
+    );
     await expect(
       canvasElement.querySelector(".join-blend path"),
     ).not.toBeNull();
+    await expect(
+      canvasElement.querySelector(".edit-mark-label"),
+    ).toHaveTextContent("Crossfade 120 ms");
+  },
+};
+
+/** Two cuts 76 px apart: the first has 60 px of room, so "Cut" fits and a longer label would not. */
+export const LabelRoom: Story = {
+  args: {
+    specs: [
+      { sec: 5, mode: "cut" },
+      { sec: 24, mode: "cut" },
+      { sec: 40, mode: "fade" },
+    ],
+    zoomPxPerSec: 4,
+  },
+  play: async ({ canvasElement }) => {
+    const labels = [...canvasElement.querySelectorAll(".edit-mark-label")];
+    await expect(labels[0]).toHaveTextContent("Cut");
+    await expect(labels.at(-1)).toHaveTextContent(/^Fade/);
   },
 };
 

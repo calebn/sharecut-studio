@@ -9,6 +9,7 @@ import {
   clipIdsBeforeCut,
   clipsAbut,
   cutFadeHint,
+  drawnOverlapPx,
   isCrossfadeJoin,
   isCutJoin,
   isJoin,
@@ -17,6 +18,7 @@ import {
   joinModeLabel,
   joinRenderNote,
   joinSeamLabel,
+  joinTier,
   joinVisual,
   joinWaveSpans,
   MIN_JOIN_WAVE_CSS_PX,
@@ -538,4 +540,34 @@ describe("projectJoinDraft", () => {
       expect(out.join_crossfade_ms).toBe(400);
     },
   );
+});
+
+describe("joinTier", () => {
+  it.each([
+    [0, "narrow"],
+    [7.99, "narrow"],
+    [8, "middle"],
+    [24, "middle"],
+    [24.01, "wide"],
+    [400, "wide"],
+  ] as const)("reads a %f px drawn overlap as %s", (px, tier) => {
+    expect(joinTier(px)).toBe(tier);
+  });
+
+  it("tiers a 120 ms crossfade by its drawn width at the zoom", () => {
+    const right = clipRow({
+      join_in_mode: "crossfade",
+      join_crossfade_ms: 120,
+    });
+    const tierAt = (zoom: number) =>
+      joinTier(drawnOverlapPx(joinVisual(right, zoom)));
+    expect(tierAt(66)).toBe("narrow");
+    expect(tierAt(200)).toBe("middle");
+    expect(tierAt(1000)).toBe("wide");
+  });
+
+  it("draws no overlap for a join that is not a blend", () => {
+    expect(drawnOverlapPx({ kind: "ordinary" })).toBe(0);
+    expect(drawnOverlapPx({ kind: "blocked", reason: "no_headroom" })).toBe(0);
+  });
 });

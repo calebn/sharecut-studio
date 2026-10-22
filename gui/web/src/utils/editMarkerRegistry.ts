@@ -73,6 +73,14 @@ export function markerVariant(kind: EditMarkerKind): string {
   return kind.slice(kind.indexOf("-") + 1);
 }
 
+/** A join's on-timeline text: its type, then its length when it has one ("Crossfade 120 ms", "Fade 80 ms", "Cut"). */
+export function joinMarkLabel(kind: JoinMarkerKind, lengthMs: number): string {
+  const label = markerLabel(kind);
+  return kind === "join-cut" || !(lengthMs > 0)
+    ? label
+    : `${label} ${Math.round(lengthMs)} ms`;
+}
+
 export function markerType(kind: EditMarkerKind): EditType {
   return EDIT_MARKERS[kind].type;
 }

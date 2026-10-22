@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { capabilityTooltip } from "../../capabilities/copy";
 import { joinSeamLabel } from "../../edit/joinRender";
 import { useDawStore } from "../../state/dawStore";
@@ -23,6 +23,46 @@ const chipCount = (chip: PlacedChip) =>
 
 type Register = (key: string) => (el: HTMLElement | null) => void;
 
+/**
+ * Decorative text beside the tag (the button's name already says it). It is
+ * measured once, hidden until then, and dropped when `roomPx` cannot hold it.
+ */
+function MarkLabel({
+  text,
+  roomPx,
+  xPx,
+}: {
+  text: string;
+  roomPx: number;
+  xPx: number;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [measured, setMeasured] = useState<{
+    text: string;
+    widthPx: number;
+  } | null>(null);
+  useLayoutEffect(() => {
+    if (ref.current && measured?.text !== text) {
+      setMeasured({ text, widthPx: ref.current.scrollWidth });
+    }
+  }, [text, measured]);
+  const known = measured?.text === text;
+  if (known && measured.widthPx > roomPx) {
+    return null;
+  }
+  return (
+    <span
+      ref={ref}
+      className="edit-mark-label"
+      style={{ left: xPx }}
+      aria-hidden="true"
+      data-measured={known ? "" : undefined}
+    >
+      {text}
+    </span>
+  );
+}
+
 function Glyph({
   symbol,
   open,
@@ -34,35 +74,43 @@ function Glyph({
   onClick: () => void;
   register: Register;
 }) {
-  const { mark, xPx } = symbol;
+  const { mark, xPx, tier } = symbol;
   const { type } = EDIT_MARKERS[mark.kind];
   const blocked = mark.right.join_crossfade_blocked != null;
   return (
-    <button
-      ref={register(mark.id)}
-      type="button"
-      className={`edit-mark edit-mark--${type}${blocked ? " edit-mark--blocked" : ""}`}
-      {...hitTargetProps("join", mark.clipId, mark.sec, {
-        selected: open,
-        detail: type,
-      })}
-      style={{ left: xPx }}
-      aria-label={`${joinSeamLabel(mark.kind, mark.sec)}${blocked ? ", will not blend" : ""}`}
-      aria-haspopup="dialog"
-      aria-expanded={open}
-      aria-controls={open ? joinPopoverId(mark.clipId) : undefined}
-      title={capabilityTooltip("timeline.join.badge")}
-      onClick={onClick}
-    >
-      <svg
-        className="edit-mark-glyph"
-        viewBox="0 0 12 12"
-        aria-hidden="true"
-        focusable="false"
+    <>
+      <button
+        ref={register(mark.id)}
+        type="button"
+        className={`edit-mark edit-mark--${type}${blocked ? " edit-mark--blocked" : ""}`}
+        data-tier={tier}
+        {...hitTargetProps("join", mark.clipId, mark.sec, {
+          selected: open,
+          detail: type,
+        })}
+        style={{ left: xPx }}
+        aria-label={`${joinSeamLabel(mark.kind, mark.sec)}${blocked ? ", will not blend" : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? joinPopoverId(mark.clipId) : undefined}
+        title={capabilityTooltip("timeline.join.badge")}
+        onClick={onClick}
       >
-        <path d={EDIT_GLYPH_PATH[type]} />
-      </svg>
-    </button>
+        <span className="edit-mark-face">
+          <svg
+            className="edit-mark-glyph"
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d={EDIT_GLYPH_PATH[type]} />
+          </svg>
+        </span>
+      </button>
+      {symbol.labelAllowed ? (
+        <MarkLabel text={symbol.label} roomPx={symbol.roomPx} xPx={xPx} />
+      ) : null}
+    </>
   );
 }
 

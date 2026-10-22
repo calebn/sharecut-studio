@@ -3,6 +3,7 @@ import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
 import type {
   AutomationPoint,
+  ClipRow,
   HistoryEntryId,
   ProjectView,
   Selection,
@@ -407,6 +408,12 @@ export interface DawState {
    */
   joinMutationInFlight: boolean;
   /**
+   * The open join's right clip as a length drag or the slider is drafting it,
+   * or null: the edit marker reads its tier and label from the drawn draft
+   * (timeline/JoinEditor.tsx sets it, timeline/editMarkers/plan.ts reads it).
+   */
+  joinDraft: ClipRow | null;
+  /**
    * The ripple trim a drag or a focused handle's arrows are previewing, or
    * null. Every lane it ripples draws where its later clips go
    * (edit/ripplePreview.ts); a project switch clears it.
@@ -600,6 +607,7 @@ export interface DawState {
   setModelsDialogOpen: (on: boolean) => void;
   setOpenJoinId: (id: string | null) => void;
   setJoinMutationInFlight: (on: boolean) => void;
+  setJoinDraft: (draft: ClipRow | null) => void;
   setRippleTrim: (
     trim: import("../edit/ripplePreview").RippleTrim | null,
   ) => void;

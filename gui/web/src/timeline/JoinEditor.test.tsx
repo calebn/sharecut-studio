@@ -5,6 +5,7 @@ import { setClipJoin } from "../api";
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { useDaw } from "../state/useDaw";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { place } from "../test/hitDom";
@@ -50,10 +51,12 @@ const base = {
   trackFadeMaxMs: null as number | null,
 };
 function JoinWithGlyph(props: typeof base) {
+  const joinDraft = useDaw((s) => s.joinDraft);
   const plan = planLaneMarks(
     collectJoinMarks([props.left, props.right], null, () => false),
     props.zoomPxPerSec,
     600,
+    joinDraft,
   );
   return (
     <>
@@ -171,6 +174,24 @@ describe("JoinEditor coupled length", () => {
       width: "1px",
     });
     expect(xPaths()).toBe(0);
+  });
+  it("tiers the glyph from the dragged width and settles back on release", () => {
+    mount();
+    const glyph = () => screen.getByRole("button", { name: /join at/ });
+    expect(glyph()).toHaveAttribute("data-tier", "narrow");
+    move(1010);
+    expect(glyph()).toHaveAttribute("data-tier", "middle");
+    move(1012);
+    expect(glyph()).toHaveAttribute("data-tier", "wide");
+    expect(document.querySelector(".edit-mark-label")).toHaveTextContent(
+      "Crossfade 500 ms",
+    );
+    move(1000);
+    expect(glyph()).toHaveAttribute("data-tier", "narrow");
+    move(1012);
+    pointer(grip(), "pointerup", 1012);
+    expect(glyph()).toHaveAttribute("data-tier", "narrow");
+    expect(useDawStore.getState().joinDraft).toBeNull();
   });
   it("caps the draft box at the render headroom and draws no waves for a blocked join", () => {
     const tight = { ...right, source_start: 0.05, source_end: 10 };

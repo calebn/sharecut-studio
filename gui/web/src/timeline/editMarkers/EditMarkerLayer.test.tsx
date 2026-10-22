@@ -126,6 +126,106 @@ describe("EditMarkerLayer glyphs", () => {
   });
 });
 
+describe("EditMarkerLayer tiers and labels", () => {
+  beforeEach(() => {
+    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
+  });
+
+  const withLength = (right: ClipRow, ms: number): ClipRow => ({
+    ...right,
+    join_crossfade_ms: ms,
+  });
+  function widthOfLabels(px: number) {
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(px);
+  }
+
+  it.each([
+    [66, "narrow"],
+    [200, "middle"],
+    [1000, "wide"],
+  ] as const)(
+    "tiers the glyph of a 120 ms crossfade at %f px/s as %s",
+    (zoom, tier) => {
+      const { left, right } = pair("a", 2, "crossfade");
+      render(
+        <EditMarkerLayer
+          plan={planOf([left, withLength(right, 120)], zoom)}
+          onZoomChip={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Crossfade join at 0:02.0" }),
+      ).toHaveAttribute("data-tier", tier);
+    },
+  );
+
+  it("shows 'Crossfade 120 ms' beside a wide glyph, hidden from assistive tech and out of its name", async () => {
+    widthOfLabels(90);
+    const { left, right } = pair("a", 2, "crossfade");
+    const { container } = render(
+      <EditMarkerLayer
+        plan={planOf([left, withLength(right, 120)], 1000)}
+        onZoomChip={vi.fn()}
+      />,
+    );
+    const label = container.querySelector(".edit-mark-label");
+    expect(label).toHaveTextContent("Crossfade 120 ms");
+    expect(label).toHaveAttribute("aria-hidden", "true");
+    expect(
+      screen.getByRole("button", { name: "Crossfade join at 0:02.0" }),
+    ).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("draws no label on a crossfade below the wide tier", () => {
+    const { left, right } = pair("a", 2, "crossfade");
+    const { container } = render(
+      <EditMarkerLayer
+        plan={planOf([left, withLength(right, 120)], 200)}
+        onZoomChip={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".edit-mark-label")).toBeNull();
+  });
+
+  it("labels a cut and a fade with their length when room allows", () => {
+    widthOfLabels(20);
+    const cut = pair("a", 5, "cut");
+    const fade = pair("b", 25, "fade");
+    const { container } = render(
+      <EditMarkerLayer
+        plan={planOf([cut.left, cut.right, fade.left, fade.right], 20)}
+        onZoomChip={vi.fn()}
+      />,
+    );
+    const labels = [...container.querySelectorAll(".edit-mark-label")].map(
+      (el) => el.textContent,
+    );
+    expect(labels).toEqual(["Cut", "Fade 10 ms"]);
+  });
+
+  it.each([
+    [60, 2],
+    [61, 1],
+  ] as const)(
+    "gates a %f px label against the 60 px of room before the next mark: %i labels draw",
+    (width, drawn) => {
+      widthOfLabels(width);
+      const a = pair("a", 5, "cut");
+      const b = pair("b", 24, "cut");
+      const { container } = render(
+        <EditMarkerLayer
+          plan={planOf([a.left, a.right, b.left, b.right], 4)}
+          onZoomChip={vi.fn()}
+        />,
+      );
+      expect(container.querySelectorAll(".edit-mark-label")).toHaveLength(
+        drawn,
+      );
+    },
+  );
+});
+
 describe("EditMarkerLayer chips", () => {
   beforeEach(() => {
     useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
