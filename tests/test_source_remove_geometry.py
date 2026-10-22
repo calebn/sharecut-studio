@@ -16,7 +16,7 @@ from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
-from podcast_mcp.engines.audio import sources
+from podcast_mcp.engines.audio import PlacedSource, SourceAudio, sources
 from podcast_mcp.engines.timeline_render import placed_track_audio
 from podcast_mcp.models import (
     Clip,
@@ -1758,6 +1758,74 @@ def test_borrowed_tail_meeting_a_clip_that_is_not_its_partner_is_a_duplicate(tmp
     )
     with pytest.raises(cut_effects.DuplicateSourceOccurrence):
         cut_effects.completed_audio_effects(project, candidate, frozenset({"remove"}), defaults={})
+
+
+def _run_duplicate_check(project, candidate):
+    return cut_effects.completed_audio_effects(
+        project, candidate, frozenset({"remove"}), defaults={}
+    )
+
+
+def _crossfaded_pair():
+    return [
+        _clip("a", 0, 2, 0, fade_ms=200),
+        _clip("b", 2, 5, 2, fade_ms=200, join=ClipJoinMode.CROSSFADE),
+    ]
+
+
+@pytest.mark.parametrize(
+    "after",
+    [
+        pytest.param(
+            [*_crossfaded_pair(), _clip("a2", 1.95, 2.05, 6)],
+            id="intact_pair_plus_replay_inside_borrowed_tail",
+        ),
+        pytest.param(
+            [_clip("a", 1.95, 2.05, 0), _clip("a2", 1.95, 2.05, 1)], id="two_clips_in_borrowed_zone"
+        ),
+        pytest.param(
+            [_clip("a", 1.5, 2.05, 0), _clip("a2", 1.5, 2.05, 1)], id="two_clips_reaching_past"
+        ),
+        pytest.param(
+            [_clip("a", 0, 2, 0, fade_ms=200), _clip("a2", 1.95, 2.05, 6)], id="full_plus_replay"
+        ),
+    ],
+)
+def test_a_replay_inside_a_crossfades_borrowed_zone_is_a_duplicate(tmp_path, after):
+    project, candidate = _project_pair(tmp_path, _crossfaded_pair(), after)
+    with pytest.raises(cut_effects.DuplicateSourceOccurrence):
+        _run_duplicate_check(project, candidate)
+
+
+@pytest.mark.parametrize("gap", [1e-3, -1e-3])
+def test_partners_must_have_contiguous_nominal_ends(tmp_path, gap):
+    project, candidate = _split_with_crossfade(tmp_path, gap=gap, fade_ms=200)
+    with pytest.raises(cut_effects.DuplicateSourceOccurrence):
+        _run_duplicate_check(project, candidate)
+
+
+def _placed(start, end, at, *, reach_in=0.0, reach_out=0.0):
+    leaf = SourceAudio(
+        path=Path("host.wav"),
+        src_start=start,
+        src_end=end,
+        reach_in=reach_in,
+        reach_out=reach_out,
+    )
+    return PlacedSource(leaf, at, ())
+
+
+@pytest.mark.parametrize(
+    ("shift", "replays"),
+    [(0.0, False), (1e-3, True), (-1e-3, True)],
+    ids=["blend_placement", "placed_late", "placed_early"],
+)
+def test_partners_must_sit_where_the_blend_places_them(shift, replays):
+    # a plays [0, 2.1) with 0.1 borrowed; b plays [1.9, 5) with 0.1 borrowed; blend overlap 0.2.
+    first = _placed(0.0, 2.1, 0.0, reach_out=0.1)
+    second = _placed(1.9, 5.0, 1.9 + shift, reach_in=0.1)
+    assert cut_effects._replays_source(first, second) is replays
+    assert cut_effects._replays_source(second, first) is replays
 
 
 def test_a_heard_crossfade_tail_is_still_removed_when_the_join_becomes_a_cut(tmp_path):

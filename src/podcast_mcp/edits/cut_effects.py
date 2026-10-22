@@ -211,7 +211,7 @@ def completed_audio_effects(
                     )
         for index, leaf in enumerate(old):
             surviving = [
-                (n.source.nominal_start, n.source.nominal_end)
+                (n.source.src_start, n.source.src_end)
                 for n, binding in zip(new, bindings, strict=True)
                 if binding == index
             ]
@@ -247,8 +247,8 @@ def _before_occurrences(
         containing = [
             i
             for i in qualified
-            if old[i].source.nominal_start <= source.nominal_start + SOURCE_GEOMETRY_TOLERANCE_SEC
-            and old[i].source.nominal_end >= source.nominal_end - SOURCE_GEOMETRY_TOLERANCE_SEC
+            if old[i].source.src_start <= source.src_start + SOURCE_GEOMETRY_TOLERANCE_SEC
+            and old[i].source.src_end >= source.src_end - SOURCE_GEOMETRY_TOLERANCE_SEC
         ]
         if not containing and not source.is_fill:
             # A trim that extends a clip's edge keeps all of the clip's old audio inside the new
@@ -257,9 +257,8 @@ def _before_occurrences(
                 i
                 for i in qualified
                 if old[i].source.clip_id == source.clip_id
-                and source.nominal_start
-                <= old[i].source.nominal_start + SOURCE_GEOMETRY_TOLERANCE_SEC
-                and source.nominal_end >= old[i].source.nominal_end - SOURCE_GEOMETRY_TOLERANCE_SEC
+                and source.src_start <= old[i].source.src_start + SOURCE_GEOMETRY_TOLERANCE_SEC
+                and source.src_end >= old[i].source.src_end - SOURCE_GEOMETRY_TOLERANCE_SEC
             ]
         matches = (
             [i for i in containing if old[i].source.clip_id == origin]
@@ -311,21 +310,17 @@ def _before_occurrences(
 def _replays_source(a: PlacedSource, b: PlacedSource) -> bool:
     """Whether two leaves bound to one old leaf play the same source audio twice.
 
-    Borrowed audio overlapping is only harmless between the two leaves a blending join
-    itself places together over contiguous clip ranges; any other widened overlap, or a
-    removed gap the borrowed tails would replay, is a replay.
+    Widened ranges that overlap are a replay, except between the two leaves a blending join
+    itself placed together.
     """
 
     tolerance = SOURCE_GEOMETRY_TOLERANCE_SEC
-    first, second = (a, b) if a.timeline_start <= b.timeline_start else (b, a)
-    gap = max(a.source.nominal_start, b.source.nominal_start) - min(
-        a.source.nominal_end, b.source.nominal_end
+    widened_overlap = min(a.source.src_end, b.source.src_end) - max(
+        a.source.src_start, b.source.src_start
     )
-    if -gap > tolerance:
-        return True
-    widened = min(a.source.src_end, b.source.src_end) - max(a.source.src_start, b.source.src_start)
-    if widened <= tolerance or gap > tolerance:
-        return widened > tolerance and gap > tolerance
+    if widened_overlap <= tolerance:
+        return False
+    first, second = (a, b) if a.timeline_start <= b.timeline_start else (b, a)
     return not _joined_partners(first, second)
 
 
