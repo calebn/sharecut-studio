@@ -365,10 +365,10 @@ Only `frontend-suite` selects the locked `frontend-exporters` group, checks its 
 See [locked Python installation](testing-ci.md#locked-python-installation) and [private temporary storage](testing-ci.md#temporary-storage) for pytest, browser, and extras jobs.
 Browser engines, browser system dependencies, virtual environments, and installed
 Node packages are not cached. Each browser matrix job installs only its declared
-engine and its system dependencies with Playwright `--with-deps`.
+engine and its system dependencies with Playwright `--with-deps`; see [browser installation](testing-ci.md#browser-installation).
 
 Run the archive boundary and workflow checks with
-`.venv/bin/python -m pytest -q --no-cov tests/test_ffmpeg_payload.py tests/test_build_ffmpeg.py tests/test_build_sidecar.py tests/test_ci_dependency_cache.py tests/test_release_desktop_workflows.py tests/test_desktop_scripts_lib.py tests/test_desktop_pack_scripts.py tests/test_updater_signing_scripts.py tests/test_browser_acceptance_matrix.py tests/test_ci_plan.py`.
+`.venv/bin/python -m pytest -q --no-cov tests/test_ffmpeg_payload.py tests/test_build_ffmpeg.py tests/test_build_sidecar.py tests/test_ci_dependency_cache.py tests/test_ci_browser_install.py tests/test_release_desktop_workflows.py tests/test_desktop_scripts_lib.py tests/test_desktop_pack_scripts.py tests/test_updater_signing_scripts.py tests/test_browser_acceptance_matrix.py tests/test_ci_plan.py`.
 
 ### FFmpeg release acceptance
 
