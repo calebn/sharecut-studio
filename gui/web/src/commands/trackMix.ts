@@ -4,6 +4,7 @@ export { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
 
 import { setTrackFaderCommand, setTrackMuteCommand } from "../api";
 import { endPreview, showPreview } from "../document/applyDocumentUpdate";
+import { documentAuthority } from "../document/authorityState";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView, TrackView } from "../types/project";
@@ -40,6 +41,8 @@ interface MixLane {
   latest?: MixValue;
   /** Value being sent. */
   inFlight?: MixValue;
+  /** Value the host queued behind another command, until a send is saved. */
+  queued?: MixValue;
   /** Holds this lane's preview draft, so no other lane clears it. */
   owner: symbol;
   scheduled: boolean;
@@ -150,7 +153,7 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
     if (value === undefined) {
       return;
     }
-    if (value === lane.confirmed) {
+    if (value === (lane.queued ?? lane.confirmed)) {
       // The burst ended where it began: nothing to save.
       return;
     }
@@ -159,8 +162,11 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
       const reply = (await lane.send(lane.projectPath, value)) as {
         queued?: boolean;
       } | null;
-      if (reply?.queued !== true) {
+      if (reply?.queued === true) {
+        lane.queued = value;
+      } else {
         lane.confirmed = value;
+        lane.queued = undefined;
       }
       lane.inFlight = undefined;
     } catch (e) {
@@ -175,7 +181,14 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
             ? patchTrackMix(
                 project,
                 lane.trackId,
-                fieldsOf(lane.field, lane.confirmed),
+                fieldsOf(
+                  lane.field,
+                  readField(
+                    documentAuthority.project,
+                    lane.trackId,
+                    lane.field,
+                  ) ?? lane.confirmed,
+                ),
               )
             : project,
         );
@@ -227,11 +240,19 @@ function commitMixField(
     lanes.set(key, lane);
   }
   const current = lane;
+  const previous = current.latest;
   current.latest = value;
   const done = new Promise<ExecuteResult>((resolve) => {
     current.waiters.push(resolve);
   });
-  showPending(key, current);
+  try {
+    showPending(key, current);
+  } catch (e) {
+    current.latest = previous;
+    current.waiters.pop();
+    settle(key, current);
+    throw e;
+  }
   if (current.timer !== undefined) {
     clearTimeout(current.timer);
     current.timer = undefined;

@@ -198,6 +198,32 @@ describe("track mix commands (#386)", () => {
     expect(hostTrack()?.muted).toBe(false);
   });
 
+  it("sends a change back to the saved value while the first is host-queued", async () => {
+    const { held, impl } = heldSend();
+    vi.mocked(api.setTrackMuteCommand).mockImplementation(impl);
+    const first = execute("track.muteToggle");
+    await vi.waitFor(() => expect(held).toHaveLength(1));
+    const second = execute("track.muteToggle");
+    held[0].resolve({ queued: true });
+    await vi.waitFor(() => expect(held).toHaveLength(2));
+    held[1].resolve({});
+    await Promise.all([first, second]);
+    expect(vi.mocked(api.setTrackMuteCommand).mock.calls).toEqual([
+      ["/tmp/ep", "host", true],
+      ["/tmp/ep", "host", false],
+    ]);
+  });
+
+  it("shows a newer server value after a failed send", async () => {
+    const { held, impl } = heldSend();
+    vi.mocked(api.setTrackFaderCommand).mockImplementation(impl);
+    void execute("track.setVolume", { db: -6 });
+    await vi.advanceTimersByTimeAsync(VOLUME_SAVE_DELAY_MS);
+    serverSends({ fader_db: -9 });
+    held[0].reject(new Error("nope"));
+    await vi.waitFor(() => expect(hostTrack()?.fader_db).toBe(-9));
+  });
+
   it("marks the premix behind as soon as the mix changes", async () => {
     const project = useDawStore.getState().project;
     if (project) {
