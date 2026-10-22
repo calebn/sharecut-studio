@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import pwd
@@ -13,6 +12,7 @@ import signal
 import stat
 import sys
 from pathlib import Path
+from typing import TextIO
 from urllib.parse import unquote, urlsplit
 
 from ci_apt_acquisition import AptSignedMetadata, FetchPlan, HashedObject, acquire
@@ -83,22 +83,26 @@ def plan_request(fields: dict[str, str]) -> FetchPlan:
     return FetchPlan(identity, (f"https://{uri.netloc}/ubuntu/{relative}", SECONDARY + relative))
 
 
-def read_message(stream: io.TextIOBase) -> tuple[str, dict[str, str]] | None:
+def read_message(stream: TextIO) -> tuple[str, dict[str, str]] | None:
     first = stream.readline(MAXIMUM_MESSAGE + 1)
     if not first:
         return None
-    if len(first) > MAXIMUM_MESSAGE or not re.fullmatch(r"[0-9]{3} [^\r\n]+\n", first):
+    if len(first.encode("utf-8")) > MAXIMUM_MESSAGE or not re.fullmatch(
+        r"[0-9]{3} [^\x00-\x1f\x7f]+\n", first
+    ):
         raise ValueError("invalid apt message header")
     fields: dict[str, str] = {}
-    length = len(first)
+    length = len(first.encode("utf-8"))
     while True:
         line = stream.readline(MAXIMUM_MESSAGE + 1)
-        length += len(line)
+        length += len(line.encode("utf-8"))
         if not line or length > MAXIMUM_MESSAGE:
             raise ValueError("incomplete or oversized apt message")
         if line == "\n":
             return first[:3], fields
-        if len(fields) >= MAXIMUM_FIELDS or not re.fullmatch(r"[A-Za-z0-9-]+: [^\r\n]*\n", line):
+        if len(fields) >= MAXIMUM_FIELDS or not re.fullmatch(
+            r"[A-Za-z0-9-]+: [^\x00-\x1f\x7f]*\n", line
+        ):
             raise ValueError("invalid apt field")
         key, value = line[:-1].split(": ", 1)
         if key in fields:
@@ -158,6 +162,10 @@ def run_method() -> int:
                         "bytes": receipt.size,
                         "elapsed": round(receipt.elapsed, 3),
                         "kind": type(plan.identity).__name__,
+                        "winner": receipt.source,
+                        "budget": plan.budgets.metadata_total
+                        if isinstance(plan.identity, AptSignedMetadata)
+                        else plan.budgets.object_total,
                     }
                 ),
                 file=sys.stderr,
@@ -173,7 +181,12 @@ def run_method() -> int:
                     "SHA512-Hash": receipt.sha512,
                 },
             )
-        except (ValueError, KeyError, OSError, RuntimeError):
+        except (ValueError, KeyError, OSError, RuntimeError) as error:
+            print(
+                json.dumps({"outcome": "request-failed", "failure": type(error).__name__}),
+                file=sys.stderr,
+                flush=True,
+            )
             send("400 URI Failure", {"URI": uri, "Message": "Bounded Ubuntu acquisition failed"})
     return 0
 
@@ -199,6 +212,41 @@ def rewrite_mirrors(source: str) -> str:
     return "".join(result)
 
 
+def owned_target(path: Path) -> None:
+    if path.is_symlink() or path.parent.resolve(strict=True) != path.parent:
+        raise ValueError("configuration path traverses a symlink")
+    if path.exists():
+        info = path.stat()
+        if info.st_uid != os.geteuid() or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022:
+            raise ValueError("configuration file must be owned without other writers")
+
+
+def rewrite_sources(source: str) -> str:
+    uri_lines = re.findall(r"^URIs:[ \t]+(.+)$", source, re.M)
+    allowed = {"mirror+file:/etc/apt/apt-mirrors.txt"}
+    for host in CANONICAL:
+        allowed.update(
+            f"{scheme}://{host}/ubuntu{slash}"
+            for scheme in ("https", METHOD)
+            for slash in ("", "/")
+        )
+    if not uri_lines or any(uri not in allowed for line in uri_lines for uri in line.split()):
+        raise ValueError("unsupported Ubuntu source layout")
+    suites = re.findall(r"^Suites:[ \t]+(.+)$", source, re.M)
+    components = re.findall(r"^Components:[ \t]+(.+)$", source, re.M)
+    if not suites or any(suite not in SUITES for line in suites for suite in line.split()):
+        raise ValueError("unsupported runner Ubuntu suites")
+    if not components or any(c not in COMPONENTS for line in components for c in line.split()):
+        raise ValueError("unsupported runner Ubuntu components")
+    for host in CANONICAL:
+        source = re.sub(
+            rf"(?<!\S)https://{re.escape(host)}/ubuntu/?(?=\s|$)",
+            f"{METHOD}://{host}/ubuntu/",
+            source,
+        )
+    return source
+
+
 def configure(
     apt_root: Path = Path("/etc/apt"),
     install: Path = INSTALL,
@@ -208,17 +256,13 @@ def configure(
         if directory.resolve(strict=True) != directory or directory.stat().st_uid != os.geteuid():
             raise ValueError("configuration directory is not owned or traverses a symlink")
     mirrors = apt_root / "apt-mirrors.txt"
-    changed = rewrite_mirrors(mirrors.read_text())
     ubuntu = apt_root / "sources.list.d/ubuntu.sources"
-    sources = ubuntu.read_text()
-    for host in CANONICAL:
-        sources = re.sub(
-            rf"(?<!\S)https://{re.escape(host)}/ubuntu/?(?=\s|$)",
-            f"{METHOD}://{host}/ubuntu/",
-            sources,
-        )
-    if "mirror+file:/etc/apt/apt-mirrors.txt" not in sources and f"{METHOD}://" not in sources:
-        raise ValueError("unsupported Ubuntu source layout")
+    executable = method_directory / METHOD
+    configuration = apt_root / "apt.conf.d/99sharecut-acquisition"
+    for path in (mirrors, ubuntu, executable, configuration):
+        owned_target(path)
+    changed = rewrite_mirrors(mirrors.read_text())
+    sources = rewrite_sources(ubuntu.read_text())
     for command in ("curl", "/usr/bin/python3"):
         if shutil.which(command) is None:
             raise ValueError("runner lacks Ubuntu transport prerequisites")
@@ -233,18 +277,11 @@ def configure(
     ):
         raise ValueError("method directory must be owned and readable without other writers")
     for name in ("ci_apt_method.py", "ci_apt_acquisition.py"):
-        if (install / name).is_symlink():
-            raise ValueError("installed module is a symlink")
+        owned_target(install / name)
         shutil.copyfile(Path(__file__).with_name(name), install / name)
         (install / name).chmod(0o644)
-    executable = method_directory / METHOD
-    if executable.is_symlink():
-        raise ValueError("method executable is a symlink")
     executable.write_text(f'#!/bin/sh\nexec /usr/bin/python3 "{install}/ci_apt_method.py"\n')
     executable.chmod(0o755)
-    configuration = apt_root / "apt.conf.d/99sharecut-acquisition"
-    if configuration.is_symlink() or mirrors.is_symlink() or ubuntu.is_symlink():
-        raise ValueError("configuration file is a symlink")
     configuration.write_text('APT::Update::Error-Mode "any";\n')
     configuration.chmod(0o644)
     mirrors.write_text(changed)

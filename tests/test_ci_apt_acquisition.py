@@ -7,7 +7,6 @@ import ssl
 import subprocess
 import sys
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -55,6 +54,8 @@ def endpoint(tmp_path, monkeypatch):
         "requests": [],
         "body": b"apt-authenticated bytes" * 8,
         "started": threading.Event(),
+        "stopped": threading.Event(),
+        "secondary_sent": threading.Event(),
     }
 
     class Handler(http.server.BaseHTTPRequestHandler):
@@ -75,18 +76,20 @@ def endpoint(tmp_path, monkeypatch):
             if mode == "oversize":
                 body += b"x" * 1024
             if mode == "delayed":
-                time.sleep(0.3)
+                assert state["secondary_sent"].wait(3)
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             try:
                 if mode == "slow":
-                    for value in body:
-                        self.wfile.write(bytes([value]))
-                        self.wfile.flush()
-                        time.sleep(0.05)
+                    self.wfile.write(body[:1])
+                    self.wfile.flush()
+                    state["stopped"].wait(3)
                 else:
                     self.wfile.write(body)
+                    self.wfile.flush()
+                if origin == "secondary":
+                    state["secondary_sent"].set()
             except (OSError, ssl.SSLError):
                 pass
 
@@ -99,6 +102,7 @@ def endpoint(tmp_path, monkeypatch):
     try:
         yield f"https://127.0.0.1:{server.server_port}", state
     finally:
+        state["stopped"].set()
         server.shutdown()
         server.server_close()
         thread.join()
@@ -347,3 +351,73 @@ acquire(plan,Path(sys.argv[2]))
         if process.poll() is None:
             process.kill()
             process.wait()
+
+
+def test_failure_diagnostics_include_bounded_network_fields(api, endpoint, tmp_path, capsys):
+    import json
+
+    transport, _ = api
+    base, state = endpoint
+    state.update(primary="absent", secondary="absent")
+    identity = transport.HashedObject(1, "0" * 64)
+    plan = transport.FetchPlan(
+        identity, (base + "/primary", base + "/secondary"), budgets(transport)
+    )
+    with pytest.raises(RuntimeError):
+        transport.acquire(plan, tmp_path / "absent")
+    events = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert len(events) == 2
+    assert {event["source"] for event in events} == {0, 1}
+    assert all(
+        event["outcome"] == "http-failure"
+        and event["http_status"] == 404
+        and event["remote_ip"] == "127.0.0.1"
+        and event["budget"] == 1.5
+        for event in events
+    )
+    assert all(
+        set(event)
+        == {
+            "host",
+            "path",
+            "source",
+            "outcome",
+            "bytes",
+            "elapsed",
+            "budget",
+            "curl_exit",
+            "http_status",
+            "remote_ip",
+            "kind",
+        }
+        for event in events
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "URIs: https://archive.ubuntu.com/ubuntu-lookalike\nSuites: resolute\nComponents: main\n",
+        "URIs: http://archive.ubuntu.com/ubuntu/\nSuites: resolute\nComponents: main\n",
+        "URIs: https://other.example/ubuntu/\nSuites: resolute\nComponents: main\n",
+        "URIs: https://archive.ubuntu.com/ubuntu/\nSuites: future\nComponents: main\n",
+    ],
+)
+def test_unsupported_runner_sources_fail_before_rewrite(api, source):
+    _, method = api
+    with pytest.raises(ValueError):
+        method.rewrite_sources(source)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "600 URI Acquire\nURI: x\x00y\n\n",
+        "600 URI Acquire\nURI: " + "é" * 32768 + "\n\n",
+        "600 URI Acquire\n" + "".join(f"Field{i}: value\n" for i in range(129)) + "\n",
+    ],
+)
+def test_control_characters_and_encoded_message_bounds(api, message):
+    _, method = api
+    with pytest.raises(ValueError):
+        method.read_message(io.StringIO(message))
