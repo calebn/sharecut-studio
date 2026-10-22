@@ -7,12 +7,12 @@ import { WaveformLayer } from "./WaveformLayer";
 export type JoinWaveSides = {
   leftRef: MediaRef;
   rightRef: MediaRef;
-  leftColor: string;
   role: string;
   gainDb: number;
 };
 
-const RIGHT_COLOR = "var(--color-accent)";
+const LEFT_KEY = "join-blend-left";
+const RIGHT_KEY = "join-blend-right";
 
 function JoinWaves({
   visual,
@@ -42,8 +42,8 @@ function JoinWaves({
           width: hair,
         }}
       >
-        <span style={{ background: waves.leftColor }} />
-        <span style={{ background: RIGHT_COLOR }} />
+        <span className="join-blend-seam-left" />
+        <span className="join-blend-seam-right" />
       </span>
     );
   }
@@ -74,8 +74,8 @@ function JoinWaves({
       aria-hidden="true"
       style={{ left: visual.leftPx, width: visual.widthPx }}
     >
-      {layer("left", waves.leftRef, spans.leftMediaStartSec, waves.leftColor)}
-      {layer("right", waves.rightRef, spans.rightMediaStartSec, RIGHT_COLOR)}
+      {layer("left", waves.leftRef, spans.leftMediaStartSec, LEFT_KEY)}
+      {layer("right", waves.rightRef, spans.rightMediaStartSec, RIGHT_KEY)}
     </span>
   );
 }
