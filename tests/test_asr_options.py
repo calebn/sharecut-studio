@@ -7,7 +7,7 @@ import pytest
 from model_pin_helpers import plant_pinned_word_aligner
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
-from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
+from podcast_mcp.util.model_missing import ModelMissing
 
 
 def test_yaml_defaults_equal_dataclass_defaults():
@@ -54,10 +54,11 @@ def test_forced_alignment_explicit_true_without_the_model_is_blocked():
         "blocked: transcribe.forced_alignment.enabled is true but word aligner 'onnx-base' "
         "is not downloaded (podcast bootstrap --component word-aligner)"
     )
-    with pytest.raises(WordAlignerMissingError) as excinfo:
+    with pytest.raises(ModelMissing) as excinfo:
         blocked.require()
-    assert "podcast bootstrap --component word-aligner" in str(excinfo.value)
-    assert "transcribe.forced_alignment.enabled is true" in str(excinfo.value)
+    assert excinfo.value.id == "word-aligner"
+    assert excinfo.value.state == "missing"
+    assert "run `podcast bootstrap --component word-aligner`" in str(excinfo.value)
 
 
 def test_forced_alignment_explicit_true_with_the_model(monkeypatch, tmp_path):
@@ -79,16 +80,15 @@ def test_forced_alignment_explicit_true_with_the_model(monkeypatch, tmp_path):
 
 def test_forced_alignment_explicit_true_fails_on_a_corrupt_snapshot(monkeypatch, tmp_path):
     """#780: `true` with a present-but-corrupt model must fail the run, with the --upgrade hint."""
-    from podcast_mcp.engines.models.word_aligner import WordAlignerPinMismatchError
-
     snap = plant_pinned_word_aligner(monkeypatch, tmp_path)
     (snap / "onnx" / "model.onnx").write_bytes(b"not an onnx model")
     corrupt = _requested(True).forced_alignment
     assert corrupt.installed is True
     assert corrupt.enabled is True
-    with pytest.raises(WordAlignerPinMismatchError) as excinfo:
+    with pytest.raises(ModelMissing) as excinfo:
         corrupt.require()
-    assert "podcast bootstrap --component word-aligner --upgrade" in str(excinfo.value)
+    assert excinfo.value.state == "update_needed"
+    assert excinfo.value.command == "podcast bootstrap --component word-aligner --upgrade"
     # The default keeps the presence check: no hash, no raise; the load reports the failure.
     _requested(None).forced_alignment.require()
     _requested(False).forced_alignment.require()

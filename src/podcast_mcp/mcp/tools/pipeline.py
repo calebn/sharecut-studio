@@ -11,6 +11,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import (
     PipelineService,
     ensure_whisper_cached_for_run,
+    ensure_word_aligner_for_run,
     format_export_qc_lines,
     stale_stream_notices,
 )
@@ -96,6 +97,9 @@ def pipeline_run(
     if jobs is not None:
         ensure_whisper_cached_for_run(
             config=run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
+        )
+        ensure_word_aligner_for_run(
+            run_config, from_step=from_step, only_step=only_step, skip_steps=skip_steps
         )
         job = jobs.start(
             ws.path,

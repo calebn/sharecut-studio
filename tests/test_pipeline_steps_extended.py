@@ -2001,8 +2001,8 @@ def test_transcribe_tracks_retime_words_fails_fast_without_the_word_aligner(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
     from podcast_mcp.services.pipeline.config import transcribe_run_config
+    from podcast_mcp.util.model_missing import ModelMissing
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
@@ -2012,12 +2012,8 @@ def test_transcribe_tracks_retime_words_fails_fast_without_the_word_aligner(
     defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
     with (
         patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
-        patch(
-            "podcast_mcp.engines.word_align.WordAligner.load",
-            side_effect=WordAlignerMissingError("onnx-base"),
-        ),
     ):
-        with pytest.raises(WordAlignerMissingError):
+        with pytest.raises(ModelMissing):
             steps.transcribe_tracks(proj, defaults)
 
     assert proj.transcripts[0].word_aligner is None
@@ -2145,14 +2141,14 @@ def test_transcribe_tracks_explicit_true_without_the_word_aligner_fails_before_a
     import copy
 
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
+    from podcast_mcp.util.model_missing import ModelMissing
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     defaults = copy.deepcopy(load_defaults())
     defaults["transcribe"]["forced_alignment"]["enabled"] = True
     with (
         patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
-        pytest.raises(WordAlignerMissingError) as excinfo,
+        pytest.raises(ModelMissing) as excinfo,
     ):
         steps.transcribe_tracks(proj, defaults)
 

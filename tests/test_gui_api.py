@@ -4457,6 +4457,9 @@ def test_api_pipeline_run_retime_words_is_run_only(minimal_project, monkeypatch)
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_: None
     )
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.pipeline.ensure_word_aligner_for_run", lambda *_a, **_k: None
+    )
     client = TestClient(create_app())
     res = client.post(
         "/api/pipeline/run",
