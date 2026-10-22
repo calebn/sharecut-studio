@@ -10,6 +10,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash|PowerShell|Monitor|mcp__.*device_bash|mcp__.*[Gg]it[Hh]ub.*__(merge_pull_request|enable_pr_auto_merge|push_files|create_or_update_file|delete_file)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/merge-guard.sh",
+            "timeout": 40
+          }
+        ]
       }
     ]
   }

@@ -531,3 +531,15 @@ unless the description says hardest or escalation. `Explore`, `Plan`,
 `claude-code-guide` and `statusline-setup` are exempt. Without `jq` it allows
 the launch and prints a warning. The hook cannot tell a Sonnet lane from an
 Opus lane that happens to say "review", so pick the tier per role.
+
+## Merge guard
+
+Claude Code cloud project threads run `.claude/hooks/merge-guard.sh` as a `PreToolUse`
+hook on Bash, PowerShell, Monitor, device_bash and the GitHub MCP merge, auto-merge and
+file-write tools (wired in `.claude/settings.json`). The shim runs the guard kept with the
+project's receipts at `/mnt/project-files/trails/tools/merge-guard.sh` and allows silently
+when that file does not exist, so local checkouts, the owner's Mac and other harnesses are
+never blocked. The guard denies a merge or a push to a default branch unless the pre-merge
+gate wrote a permit for that PR and head (`premerge_gate.sh posted`); a guard that fails to
+run is a deny. A repo edit can remove the hook, so the guard is a tripwire for hurried
+agents, not a sandbox; GitHub's `expectedHeadSha` pin is the hard stop.
