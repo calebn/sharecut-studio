@@ -16,10 +16,13 @@ def model_download(component: str, whisper_model: str | None = None, upgrade: bo
 
     ``component`` is the ``model.id`` of a ``model_needed`` refusal (``whisper``, ``rnnoise``,
     ``word-aligner`` or ``speaker-ecapa``); ``whisper_model`` picks the Whisper size and
-    ``upgrade`` re-fetches a model that no longer matches its pin. With ShareCut Studio running
-    this starts a download job and returns its ``job_id``: poll ``model_download_status``.
-    Without Studio it downloads in this call, which can take minutes for Whisper, and reports
-    progress while it runs.
+    ``upgrade`` re-fetches a model that no longer matches its pin. Inside the ShareCut Studio
+    process (this server reached through Studio's own MCP endpoint) it starts a download job
+    and returns its ``job_id``: poll ``model_download_status``. In any other server, including a
+    stdio server next to a running Studio (this tool is not handed to Studio, as it has no
+    ``project_path``), it downloads in this call, which can take minutes for Whisper, reports
+    progress while it runs, and starts no job, so ``model_download_status`` answers
+    ``{"running": false}`` and Studio does not see it.
     """
     from podcast_mcp.services.jobs import studio_job_manager
 
@@ -60,8 +63,8 @@ def model_download(component: str, whisper_model: str | None = None, upgrade: bo
 def model_download_status(job_id: str | None = None) -> str:
     """Report a model download started by model_download: status, current file and any failure.
 
-    Omit ``job_id`` for the latest download. Without ShareCut Studio there are no jobs, so
-    the answer is ``{"running": false}``.
+    Omit ``job_id`` for the latest download. Only the ShareCut Studio process has download jobs;
+    anywhere else (a stdio server, even with Studio running) the answer is ``{"running": false}``.
     """
     from podcast_mcp.services.jobs import studio_job_manager
 

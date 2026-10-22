@@ -116,6 +116,7 @@ def test_without_studio_it_downloads_in_the_call_and_reports_progress(
         out = json.loads(model_download("rnnoise", upgrade=True))
     assert out == {"ok": True, "components": ["rnnoise"], "result": {"ok": True, "path": "x"}}
     assert installs == [(None, True)]
+    assert json.loads(model_download_status()) == {"running": False}  # no job exists to poll
     assert any(name in {"start", "update"} for name, _, _ in progress.calls)
     assert any(a and a[0] == "bootstrap" for _, a, _ in progress.calls)
 
@@ -206,3 +207,11 @@ def test_require_model_never_starts_a_download(blocked_run) -> None:
 
 def test_the_download_tools_are_not_guest_tools() -> None:
     assert not {"model_download", "model_download_status"} & set(ALL_GUEST_TOOLS)
+
+
+def test_model_download_is_never_handed_to_a_running_studio() -> None:
+    """No ``project_path``: the stdio hand-off cannot forward it, so it runs in the caller."""
+    import inspect
+
+    assert "project_path" not in inspect.signature(model_download).parameters
+    assert "project_path" not in inspect.signature(model_download_status).parameters
