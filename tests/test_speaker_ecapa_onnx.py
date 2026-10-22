@@ -464,7 +464,7 @@ def test_concurrent_first_embeds_build_one_session(
     assert built == [str(model_file)]
 
 
-def test_status_polls_memoize_and_the_backend_gate_does_not_rehash_twice(
+def test_registry_forwards_memoize_to_the_pin_check(
     model_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.engines.models import registry
@@ -476,3 +476,17 @@ def test_status_polls_memoize_and_the_backend_gate_does_not_rehash_twice(
     registry._speaker_ecapa_problem(None, True)
     registry._speaker_ecapa_problem(None, False)
     assert seen == [True, False]
+
+
+def test_backend_routing_memoizes_and_leaves_the_hash_to_the_embedder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[bool] = []
+
+    def problem(*, memoize: bool = False) -> None:
+        seen.append(memoize)
+
+    monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_problem", problem)
+    monkeypatch.setattr(speaker_ecapa, "speaker_ecapa_override", lambda: None)
+    speaker_id.resolve_speaker_backend("ecapa-onnx")
+    assert seen == [True]
