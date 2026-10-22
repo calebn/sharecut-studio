@@ -333,6 +333,7 @@ describe("fill range with room tone", () => {
     expect(useDawStore.getState().statusAnnouncement).toContain(
       "Filled room tone in 1 place",
     );
+    expect(useDawStore.getState().selection).toBeNull();
   });
 
   it("explains a refusal in plain words", async () => {
@@ -365,6 +366,9 @@ describe("fill range with room tone", () => {
     vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
     await execute("range.fillRoomTone");
     expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    useDawStore.setState({
+      selection: { kind: "range", target: twoIntervals },
+    });
     vi.mocked(submitDocumentCommand).mockRejectedValue(new Error("offline"));
     expect(await execute("range.fillRoomTone")).toEqual({
       status: "disabled",
