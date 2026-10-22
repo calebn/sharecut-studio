@@ -688,7 +688,7 @@ def _pre_transcript_gate_cache(
 def _ungated_cache(
     snapshot: EpisodeProject, track_id: str, *, defaults: EffectiveConfig
 ) -> TrackRmsCache:
-    """``track_id`` rendered with its transcript gate off, from a private copy it may change."""
+    """Render ``track_id`` with its transcript gate off, from a private copy that this function may change."""
     from podcast_mcp.engines.timeline_render import render_track_from_timeline
 
     track = snapshot.track_by_id(track_id)

@@ -420,7 +420,6 @@ def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypat
 
     def check_heard(live, track_id, heard_defaults):
         cache = heard_evidence(live, track_id, heard_defaults)
-        # The render of the same state, which the evidence stands in for.
         snapshot = live.model_copy(deep=True)
         track = snapshot.track_by_id(track_id)
         track.transcript_gate = False

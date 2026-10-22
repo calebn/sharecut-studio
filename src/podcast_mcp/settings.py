@@ -137,7 +137,7 @@ VARIABLES: tuple[Variable, ...] = (
         ("PODCAST_SHARE_ACCOUNTS", "Enable restricted shares with sign-in (1, true, yes, on)."),
         (
             "PODCAST_EVIDENCE_VERIFY",
-            "Rebuild every cached track evidence hit and fail on a difference (tests, lab).",
+            "On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab).",
         ),
     ),
     *_group(

@@ -65,10 +65,11 @@ def _decode_f32_uncached(
 def resample_streams(
     chunks: Iterator[np.ndarray], from_rate: int, to_rates: Iterable[int]
 ) -> dict[int, np.ndarray]:
-    """Mono ``chunks`` converted by ffmpeg exactly as decoding a wav of them at each of ``to_rates`` would.
+    """Convert mono ``chunks`` to each of ``to_rates`` with ffmpeg, giving the same samples as decoding a wav of the chunks at that rate.
 
-    The chunks stream through one ffmpeg process per rate, so each converter's state carries
-    across chunk edges as it does across a file, and only the converted results are held.
+    The chunks stream through one ffmpeg process per rate. Each converter keeps its state
+    across chunk edges, as it would across a file, and the function holds only the converted
+    results.
     A rate equal to ``from_rate`` is the chunks themselves. A failed conversion raises
     ``CalledProcessError``, as a failed decode does.
     """

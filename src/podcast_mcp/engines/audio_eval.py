@@ -109,10 +109,10 @@ def evaluate_resampled(
     target_rates: Sequence[int],
     resample: Callable[[Iterator[np.ndarray], int, Sequence[int]], dict[int, np.ndarray]],
 ) -> dict[int, np.ndarray] | None:
-    """The track's samples at each of ``target_rates``, from ``sample_rate`` evaluated in chunks.
+    """Evaluate the tree in chunks at ``sample_rate`` and return its samples at each of ``target_rates``.
 
-    One pass over the tree feeds every rate, so the results are the same whichever rates
-    are asked for together.
+    One pass over the tree feeds every rate, so a rate's result does not depend on which
+    other rates are requested.
     """
     piece = plan_audio(
         audio, crossfade_curve=crossfade_curve, reader=reader, sample_rate=sample_rate

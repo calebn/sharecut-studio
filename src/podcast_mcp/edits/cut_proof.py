@@ -13,9 +13,10 @@ def shared_timeline_rms_caches(
 ) -> TrackRmsCacheSet:
     """Timeline stems for every dialogue track, once per read-only proof block.
 
-    Built on the caller's thread: a tighten pool worker that built a track here would wait
-    on the project lock the thread in ``mutate`` holds (#1471). A chained track's evidence
-    is the batch's, by content (``track_evidence``), so the next block finds it built.
+    This builds on the caller's thread. A tighten pool worker that built a track here would
+    wait on the project lock that the thread in ``mutate`` holds (#1471). The batch shares a
+    chained track's evidence by content (``track_evidence``), so the next block finds it
+    already built.
     """
     tracks = tuple(sorted(dialogue_track_ids(project)))
     return frozen(
