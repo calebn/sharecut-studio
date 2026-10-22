@@ -244,6 +244,40 @@ trim. A touch trim drag commits like a mouse one. Both carry trusted manual inte
 under D-manual-cut-intent, while structural limits remain mandatory
 (`e2e-compat/touch-grammar.spec.ts`, #1154, #1403).
 
+### Proposed decision: Edit chips zoom, join glyphs act, applied ticks stay inert
+
+<!-- decision
+id: D-edit-chip-zooms
+status: proposed
+date: 2026-10-22
+decided-by: calebn
+evidence:
+- #2076: every edit type stays visible at any zoom, and joins that crowd each other fold into a count
+- WCAG 2.5.8 Target Size (Minimum): a 12 px glyph is under the 24 px target, so its centre must sit at least 24 px from every other target's centre
+- The shipped rule in AppliedEditOverlay.tsx and gui-viewer.md: applied ticks are decorative because dense stacks cannot meet 2.5.8 as 24 px buttons
+enforced-by:
+- gui/web/src/timeline/editMarkers/plan.test.ts::keeps adjacent placed marks at least 24 px apart across zooms
+- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::names the group by count and type, and zooms to its span on click
+- gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a selected seam tick
+-->
+
+Two touch targets join the timeline: a join glyph and an edit chip. Both
+cover joins only. The plan (`timeline/editMarkers/plan.ts`) folds any joins
+whose centres sit closer than 24 px (`CLUSTER_PX`) into one chip, so every
+glyph and chip centre is at least 24 px from the next. A glyph tap acts the
+same at every zoom: it opens the join popover (hit kind `join`). A chip tap
+zooms to its joins (hit kind `edit-chip`, `zoomToSpan`) until the closest two
+sit 30 px apart, centred on the chip, and the chip splits into glyphs. One
+target never has two meanings by zoom. The touch chooser names a chip "Edit
+group".
+
+Applied ticks stay as the earlier decision left them: inert, `aria-hidden`,
+and never inside a chip. Counting applied edits in a chip would make a count
+that looks tappable and answers to nothing, so chips show joins only. The
+owner can still ask for an inert "+n applied" count. Pending regions keep
+their real scale and their 0.75rem floor at every zoom and their own touch
+chooser (#1051).
+
 ### Superseded decision: Sheets have no drag gesture
 
 <!-- decision
@@ -320,7 +354,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Clip move: `ClipBlockView.tsx`, clip move owner | Drag visible clip body/grip; click selects and modifier click extends selection | Owner previews destination before `MoveClips`; accepted changed release commits once; Escape, capture loss, blur, unmount cancel. Existing command permission and Undo apply. Move clip in the inspector previews time and track placement through native fields and pointer step buttons before Apply move or Cancel. | **Keep drag and add inspector placement.** `ClipBlock.test.tsx`, `edit/clipMove.test.ts`, and `inventory-audit.spec.ts` are the cited coverage. Exact 7/27-second persistence remained failed in the #878 record. |
 | Trim, fade, roll and crossfade: clip handles, join controls, inspector | Drag visible edge/seam; native numeric/range fields and keyboard nudges | Local preview follows the active owner. Accepted changes use existing commands; Escape/cancel does not save. Save failures stay in current inspector error routes; accepted edits use document History. Touch and dense-target behavior vary by timeline width. | **Keep.** `fade-curves.spec.ts`, `crossfade-length.spec.ts`, `transitions-acceptance.spec.ts`, and `edit-boundary-precision.spec.ts` retain existing evidence. Do not add another gesture system. |
 | Pending range, chapter, social markers: `MarkerLane`, pending inspector | Drag eligible visible handles/body; inspector numeric timing and Edit timing | Draft remains local before the existing command. Escape, lost ownership, blur, and unmount cancel owned previews. Host/guest permissions remain at current command boundaries; accepted edits are undoable. Phone dense pending handles can give way to Edit timing. | **Keep.** `pending-edge-controls.spec.ts`, `MarkerLane.test.tsx`, and #878 inventory cover named paths; not every interruption combination. |
-| Join endpoint / transition length: join badge and inspector | Select join; numeric transition length | Endpoint row is separated from neighboring actions. Numeric field is the exact visible equivalent; preview/save/failure follow current inspector command. Existing History applies to accepted edit. | **Keep.** `transitions-acceptance.spec.ts` checks saved bounds and Undo. Do not add rotate or hidden pinch. |
+| Join endpoint / transition length: join glyph and inspector | Select join; numeric transition length | Endpoint row is separated from neighboring actions. Numeric field is the exact visible equivalent; preview/save/failure follow current inspector command. Existing History applies to accepted edit. | **Keep.** `transitions-acceptance.spec.ts` checks saved bounds and Undo. Do not add rotate or hidden pinch. |
 | Envelope points and creation: envelope overlay / #950 inspector | Existing point editing; creation is missing | Point selection/edit behavior remains in #950's ownership. Its future edit contract must define preview, apply/cancel, save failure, permission, History and narrow responsive behavior at that boundary. | **Keep point editing; route creation to #950.** This patch touches none of the #950-owned files or claims. |
 | Desktop/tablet editor splitter: `BottomTabsSplitterView.tsx` | Drag separator; Shorter/Taller/Reset panel size buttons; Arrow keys, Home/End, Enter reset | Existing separator owns preview and Escape cancellation; accepted view sizing may persist its preference but creates no document History. It remains a desktop/tablet surface with a 10 CSS-pixel measured pointer strip in #878. | **Keep drag and add native size buttons.** `splitter-recovery.spec.ts` is current cancellation evidence. The #1033 native size buttons add the non-drag route without widening the separator. |
 | Track order and gutter: `RelatedCommands`, track reorder controller | Existing Move up/down buttons; reorder grip drag remains available where permitted | Move up/down are single-pointer buttons that invoke current track-order commands; command permission and Undo paths remain authoritative. If a selection has no related or overflow command, `RelatedCommands` renders no empty command region. The reorder grip owns drag preview/drop. No new gutter drag ownership, auto-scroll, or selection model. | **Keep Move up/down as the non-drag route and keep the reorder grip.** Source confirms the alternate action already exists; task-path comparison between the buttons and drag remains open. |
@@ -583,7 +617,7 @@ mobile and assistive-technology acceptance remains #960.
 
 Dense timeline targets no longer compete by CSS z-index and DOM order. Each
 small target marks itself with `hitTargetProps` (`timeline/hitTargets.ts`):
-envelope points, fade corners, trim strips, roll seams, join badges, pending
+envelope points, fade corners, trim strips, roll seams, join glyphs, edit chips, pending
 edit edges and split flags, and chapter markers. Plain hit areas behind them
 (lane seek, envelope lane, wide pending region, and the body of a clip that
 cannot move) carry `HIT_SURFACE_PROPS`. A movable clip's body is the `clip`
@@ -1002,7 +1036,7 @@ Round 4b builds the grammar on the 4a branch. It shipped behind the touch
 chooser lab until the owner made it the default (2026-10-07).
 
 - **Arming.** A long press (`LONG_PRESS_MS`) on one target arms it, if its
-  contract gives it an axis, or selects it (a join badge, a pending split).
+  contract gives it an axis, or selects it (a join glyph, a pending split).
   Over two or more targets the chooser opens, and a chip arms its target as
   before. An armed target wears the chooser's about-to-grab halo, the screen
   reader hears "Fade in armed: drag sideways to move it, lift to finish",

@@ -28,7 +28,7 @@ The domain composition inventory covered 42 story families:
 | Area | Story families |
 | --- | --- |
 | Layout (16) | AvatarStack, BottomTabsSplitter, BounceDialog, CommandPalette, EditingToolRail, FollowBanner, GuestAttentionBanner, HostMcpDialog, ListenHero, OverlayLegend, PipelineStatusChip, ShareDialog, StatusBar, ToolModeToggle, TransportFrame, TransportPlayControls |
-| Timeline (12) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EnvelopeOverlay, JoinBadge, JoinPopover, MarkerLane, PendingEditOverlay, PresenceOverlay, StaleInvalidationOverlay, TimeRuler, TimelineRange |
+| Timeline (12) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EditMarkerLayer, EnvelopeOverlay, JoinPopover, MarkerLane, PendingEditOverlay, PresenceOverlay, StaleInvalidationOverlay, TimeRuler, TimelineRange |
 | Transcript (3) | EditBoundaryMark, GhostWordChips, TranscriptTurn |
 | Comments (2) | CommentCard, CommentCompose |
 | Recording (8) | ConsentGate, Declined, DeviceCheck, FullRoom, HostUploadRoster, LiveComments, Lobby, RecIndicator |
