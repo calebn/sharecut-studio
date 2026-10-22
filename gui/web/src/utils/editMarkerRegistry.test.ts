@@ -12,7 +12,6 @@ import {
   joinKind,
   joinMarkLabel,
   markerLabel,
-  markerType,
   markerVariant,
   pendingKind,
 } from "./editMarkerRegistry";
@@ -23,7 +22,7 @@ const theme = (name: string) =>
   readFileSync(join(here, "../styles/theme", name), "utf8");
 
 const KINDS = Object.keys(EDIT_MARKERS) as EditMarkerKind[];
-const TYPES = [...new Set(KINDS.map(markerType))];
+const TYPES = [...new Set(KINDS.map((kind) => EDIT_MARKERS[kind].type))];
 
 describe("edit marker registry", () => {
   it("gives every kind a label and a type, and every join kind a glyph", () => {
