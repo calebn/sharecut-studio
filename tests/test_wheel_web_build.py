@@ -25,6 +25,9 @@ def _source_tree(root: Path, *, web_build: bool) -> Path:
     (root / "README.md").write_text("readme\n", encoding="utf-8")
     shutil.copytree(_ROOT / "contracts", root / "contracts")
     shutil.copytree(_ROOT / ".agents/defaults", root / ".agents/defaults")
+    skill = root / ".agents/skills/demo/SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("skill\n", encoding="utf-8")
     for package in ("podcast_mcp", "podcast_mcp/gui", "podcast_relay"):
         (root / "src" / package).mkdir(parents=True, exist_ok=True)
         (root / "src" / package / "__init__.py").write_text("", encoding="utf-8")
@@ -103,3 +106,15 @@ def test_sdist_excludes_installed_frontend_dependencies(tmp_path):
     assert not [member.name for member in members if "/node_modules/" in member.name]
     assert not [member.name for member in members if member.islnk()]
     assert any(member.name.endswith("/gui/web/dist/index.html") for member in members)
+
+
+def test_agent_skills_stay_out_of_the_wheel_and_sdist(tmp_path: Path) -> None:
+    root = _source_tree(tmp_path / "src-tree", web_build=False)
+    sdist = next(SdistBuilder(str(root)).build(directory=str(tmp_path / "sdist")))
+    with tarfile.open(sdist) as archive:
+        sdist_names = {member.name.split("/", 1)[1] for member in archive.getmembers()}
+    assert ".agents/defaults/pipeline.yaml" in sdist_names
+    assert not [name for name in sdist_names if name.startswith(".agents/skills")]
+    wheel_names = _wheel_names(root, tmp_path / "out")
+    assert "podcast_mcp/defaults/pipeline.yaml" in wheel_names
+    assert not [name for name in wheel_names if "skills" in name.split("/")]
