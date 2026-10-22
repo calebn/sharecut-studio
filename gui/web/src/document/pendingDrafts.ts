@@ -4,6 +4,7 @@ import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { documentAuthority } from "./authorityState";
 import {
   type ClipMoveItem,
+  patchClipFade,
   patchClipsMove,
   patchTrackMeta,
   patchTrackMix,
@@ -12,6 +13,9 @@ import {
 
 type Draft =
   | { kind: "move"; clips: ClipMoveItem[] }
+  | { kind: "fade"; clipId: string; fadeInMs: number; fadeOutMs: number }
+  /** A held control's local preview, a function of the latest project (not a copy of one). */
+  | { kind: "preview"; apply: (project: ProjectView) => ProjectView }
   | { kind: "order"; track: string; index: number }
   | {
       kind: "meta";
@@ -68,6 +72,23 @@ export function beginDocumentDraft(
       });
     }
     entries.push([commandId, { kind: "move", clips }]);
+  } else if (
+    type === DocumentCommand.SetClipFade &&
+    typeof payload.clip_id === "string" &&
+    typeof payload.fade_in_ms === "number" &&
+    Number.isFinite(payload.fade_in_ms) &&
+    typeof payload.fade_out_ms === "number" &&
+    Number.isFinite(payload.fade_out_ms)
+  ) {
+    entries.push([
+      `fade:${payload.clip_id}`,
+      {
+        kind: "fade",
+        clipId: payload.clip_id,
+        fadeInMs: payload.fade_in_ms,
+        fadeOutMs: payload.fade_out_ms,
+      },
+    ]);
   } else if (typeof track === "string") {
     if (
       type === DocumentCommand.ReorderTrack &&
@@ -156,6 +177,23 @@ export function beginDocumentDraft(
   }
   for (const [key, value] of candidate) pending.set(key, value);
 }
+/** Show `apply` over the latest project until `clearPreviewDraft`; the caller redisplays. */
+export function setPreviewDraft(
+  key: string,
+  apply: (project: ProjectView) => ProjectView,
+): void {
+  const pending = current();
+  const id = `preview:${key}`;
+  if (!pending.has(id) && pending.size >= 256)
+    throw new Error(
+      "Wait for pending edits to finish before editing more tracks",
+    );
+  pending.set(id, { commandId: id, draft: { kind: "preview", apply } });
+}
+/** True when a preview was held, so the caller knows to redisplay. */
+export function clearPreviewDraft(key: string): boolean {
+  return current().delete(`preview:${key}`);
+}
 export function finishDocumentDraft(commandId: string): void {
   for (const [key, value] of current())
     if (value.commandId === commandId) drafts.delete(key);
@@ -166,6 +204,17 @@ export function overlayDocumentDrafts(project: ProjectView): ProjectView {
     switch (draft.kind) {
       case "move":
         result = patchClipsMove(result, draft.clips);
+        break;
+      case "fade":
+        result = patchClipFade(
+          result,
+          draft.clipId,
+          draft.fadeInMs,
+          draft.fadeOutMs,
+        );
+        break;
+      case "preview":
+        result = draft.apply(result);
         break;
       case "order":
         result = patchTracksOrder(result, draft.track, draft.index);
