@@ -253,9 +253,11 @@ def test_prosody_reuse_rehashes_only_on_stat_change(
     touched = pp.run_prosody_analysis(project, {})
     assert touched.reused == ["host"]
     assert len(hashes) == 1
-    profile = pp.load_track_profile(project, "host").profile
-    assert profile is not None
-    assert profile.audio_mtime_ns == T0 + 2 * SEC
+    lookup = pp.load_track_profile(project, "host")
+    assert lookup.status == "fresh"
+    assert lookup.profile is not None
+    assert lookup.profile.audio_size == media.stat().st_size
+    assert lookup.profile.audio_mtime_ns == T0 + 2 * SEC
     _file(media, media.read_bytes() + b"x", T0 + 2 * SEC)
     resized = pp.run_prosody_analysis(project, {})
     assert resized.computed == ["host"]
@@ -264,6 +266,11 @@ def test_prosody_reuse_rehashes_only_on_stat_change(
     older = pp.run_prosody_analysis(project, {})
     assert older.reused == ["host"]
     assert len(hashes) == 3
+    lookup = pp.load_track_profile(project, "host")
+    assert lookup.status == "fresh"
+    assert lookup.profile is not None
+    assert lookup.profile.audio_size == media.stat().st_size
+    assert lookup.profile.audio_mtime_ns == T0 - 2 * SEC
 
 
 def test_prosody_stale_on_size_alone_and_mtime_alone(
@@ -369,7 +376,9 @@ def test_proxy_render_hash_moves_with_name_size_and_mtime(tmp_path: Path) -> Non
     assert other.stat().st_size == 3
     assert play_audit.proxy_render_hash(project, "host", defaults=defaults) != base
     other.unlink()
-    assert play_audit.proxy_render_hash(project, "host", defaults=defaults) != base
+    missing = play_audit.proxy_render_hash(project, "host", defaults=defaults)
+    assert missing != base
+    assert missing == "c94f395da0f09385"
 
 
 def test_word_aligner_local_source_is_onnx_size_and_mtime(
