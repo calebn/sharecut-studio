@@ -30,6 +30,7 @@ from podcast_mcp.engines.audio import (
 from podcast_mcp.engines.bleed_restore import RestoreSupport, active_restore_regions
 from podcast_mcp.engines.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
+    MuteIndex,
     clips_for_track,
     crossfade_borrow_sec,
 )
@@ -365,9 +366,10 @@ def placed_track_audio(
     # `borrow[i]` is what a window can play: no more than either piece has.
     blends = [0.0] * len(sorted_clips)
     borrow = [0.0] * len(sorted_clips)
+    mutes = MuteIndex(project)
     for index in range(1, len(sorted_clips)):
         left, right = sorted_clips[index - 1], sorted_clips[index]
-        blends[index] = crossfade_borrow_sec(project, left, right)
+        blends[index] = crossfade_borrow_sec(project, left, right, mutes)
         left_span, right_span = spans[index - 1], spans[index]
         if (
             blends[index] > 0

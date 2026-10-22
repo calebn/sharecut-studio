@@ -8,7 +8,7 @@ from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.engines.bleed_restore import RESTORE_RENDER_REV
-from podcast_mcp.engines.clips_ops import clips_for_track, crossfade_borrow_sec
+from podcast_mcp.engines.clips_ops import MuteIndex, clips_for_track, crossfade_borrow_sec
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
@@ -71,6 +71,7 @@ def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effe
     ]
     clips = []
     ignored_lookup = IgnoredWordRegions(project)
+    mutes = MuteIndex(project)
     media_by_source: dict[str | None, dict[str, Any]] = {}
     previous: Clip | None = None
     for c in clips_for_track(project, track_id):
@@ -90,7 +91,7 @@ def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effe
         }
         # What a blending join borrows from the recordings; it depends on their lengths,
         # which the media identity above does not carry.
-        borrow = crossfade_borrow_sec(project, previous, c) if previous is not None else 0.0
+        borrow = crossfade_borrow_sec(project, previous, c, mutes) if previous is not None else 0.0
         if borrow > 0:
             clip_payload["join_borrow_sec"] = borrow
         previous = c

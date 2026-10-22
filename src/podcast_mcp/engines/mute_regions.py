@@ -257,9 +257,9 @@ class IgnoredWordRegions:
             self._raw[key] = cached
         return cached
 
-    def raw_for(self, clip: Clip) -> list[ClipMuteRegion]:
-        """Every ignored span of ``clip``'s transcript, whatever the clip's range."""
-        return self._raw_for(clip.track_id, clip.source_id)
+    def raw_for_source(self, track_id: str, source_id: str | None) -> list[ClipMuteRegion]:
+        """Every ignored span of one recording's transcript, whatever a clip's range."""
+        return self._raw_for(track_id, source_id)
 
     def for_clip(self, clip: Clip) -> list[ClipMuteRegion]:
         """Ignored spans for ``clip``'s transcript that overlap its source range."""
