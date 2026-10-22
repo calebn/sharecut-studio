@@ -67,21 +67,6 @@ def test_desktop_build_notarizes_app_once_then_packs_dmg() -> None:
 
 
 @pytest.mark.parametrize("script_name", ["build_desktop.sh", "build_linux_appimage.sh"])
-def test_desktop_build_scripts_canonicalize_relative_profile_before_changing_directory(
-    script_name: str,
-) -> None:
-    text = (ROOT / "scripts" / "desktop" / script_name).read_text(encoding="utf-8")
-
-    caller_at = text.index('CALLER_DIR="$PWD"')
-    relative_at = text.index('DIST_PROFILE="$CALLER_DIR/$DIST_PROFILE"')
-    canonical_at = text.index('pwd -P)/$(basename "$DIST_PROFILE")')
-    chdir_at = text.index('cd "$ROOT"')
-    export_at = text.index('export PODCAST_DISTRIBUTION_PROFILE="$DIST_PROFILE"')
-
-    assert caller_at < relative_at < canonical_at < chdir_at < export_at
-
-
-@pytest.mark.parametrize("script_name", ["build_desktop.sh", "build_linux_appimage.sh"])
 def test_desktop_build_scripts_resolve_relative_profiles_from_the_callers_directory(
     tmp_path: Path, script_name: str
 ) -> None:

@@ -4,7 +4,6 @@
 # workflow_dispatch release-desktop for the amd64 artifact testers download.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-CALLER_DIR="$PWD"
 IMAGE="${SHARECUT_LINUX_APPIMAGE_IMAGE:-sharecut-linux-amd64-appimage:local}"
 DOCKERFILE="$ROOT/gui/desktop/Dockerfile.linux-appimage"
 BASE_IMAGE="${SHARECUT_LINUX_BASE_IMAGE:-}"
@@ -15,15 +14,7 @@ UBUNTU_BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/u
 PROFILE_ENV_ARGS=()
 PROFILE_MOUNT_ARGS=()
 if [[ -n "${PODCAST_DISTRIBUTION_PROFILE:-}" ]]; then
-  DIST_PROFILE="$PODCAST_DISTRIBUTION_PROFILE"
-  if [[ "$DIST_PROFILE" != /* ]]; then
-    DIST_PROFILE="$CALLER_DIR/$DIST_PROFILE"
-  fi
-  if [[ ! -f "$DIST_PROFILE" ]]; then
-    echo "error: distribution profile not found: $DIST_PROFILE" >&2
-    exit 1
-  fi
-  DIST_PROFILE="$(cd "$(dirname "$DIST_PROFILE")" && pwd -P)/$(basename "$DIST_PROFILE")"
+  DIST_PROFILE="$(resolve_distribution_profile --must-exist)"
   case "$DIST_PROFILE" in
     "$ROOT"/*)
       CONTAINER_DIST_PROFILE="/src/${DIST_PROFILE#"$ROOT"/}"

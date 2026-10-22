@@ -4,14 +4,7 @@
 # are set, then packs a DMG with hdiutil retries (never re-submit the .app to Apple).
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-CALLER_DIR="$PWD"
-if [[ -n "${PODCAST_DISTRIBUTION_PROFILE:-}" ]]; then
-  DIST_PROFILE="$PODCAST_DISTRIBUTION_PROFILE"
-  [[ "$DIST_PROFILE" = /* ]] || DIST_PROFILE="$CALLER_DIR/$DIST_PROFILE"
-  DIST_PROFILE="$(cd "$(dirname "$DIST_PROFILE")" && pwd -P)/$(basename "$DIST_PROFILE")"
-else
-  DIST_PROFILE="$ROOT/config/distribution.dev.json"
-fi
+DIST_PROFILE="$(resolve_distribution_profile)"
 cd "$ROOT"
 
 DIST_OVERLAY="$ROOT/gui/desktop/src-tauri/target/distribution/tauri.conf.json"
