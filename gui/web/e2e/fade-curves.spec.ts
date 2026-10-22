@@ -213,7 +213,7 @@ test.describe("Timeline fade curves", () => {
     await expectPageAxeClean(page, ".lane-row .clip-block");
   });
 
-  test("keeps the join badge clear of the fade corners, the roll seam and the marker lane at any root font size", async ({
+  test("keeps the join glyph clear of the fade corners, the roll seam and the marker lane at any root font size", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -234,11 +234,11 @@ test.describe("Timeline fade curves", () => {
 
       const expectBadgeClear = async () => {
         const badgeBox = await badge.boundingBox();
-        if (!badgeBox) throw new Error("join badge has no box");
+        if (!badgeBox) throw new Error("join glyph has no box");
         const seamBox = await lane.locator(".join-seam").boundingBox();
         if (!seamBox) throw new Error("roll seam has no box");
         expect(intersects(badgeBox, seamBox)).toBe(false);
-        // The first track sits right under the marker lane; the badge must not paint over it.
+        // The first track sits right under the marker lane; the glyph must not paint over it.
         const markerBox = await page
           .locator(".marker-lane")
           .first()
@@ -258,14 +258,14 @@ test.describe("Timeline fade curves", () => {
         const outBox = await cornerOut.boundingBox();
         if (!outBox) throw new Error("fade-out corner has no box");
         expect(intersects(badgeBox, outBox)).toBe(false);
-        // The glyph stays inside the badge (it fills the gutter's content box).
-        // Re-read the badge box here: the two clip selects above can scroll the
-        // lane (the join badge is now a real button, part of the tab/click
-        // order), and the badge's own box would otherwise be stale.
+        // The glyph stays inside its button (it fills the gutter's content box).
+        // Re-read the button box here: the two clip selects above can scroll the
+        // lane (the join glyph is now a real button, part of the tab/click
+        // order), and the button's own box would otherwise be stale.
         const glyphBadgeBox = await badge.boundingBox();
-        if (!glyphBadgeBox) throw new Error("join badge has no box");
+        if (!glyphBadgeBox) throw new Error("join glyph has no box");
         const glyphBox = await badge.locator(".edit-mark-glyph").boundingBox();
-        if (!glyphBox) throw new Error("join badge glyph has no box");
+        if (!glyphBox) throw new Error("join glyph glyph has no box");
         const eps = 0.01;
         expect(glyphBox.x).toBeGreaterThanOrEqual(glyphBadgeBox.x - eps);
         expect(glyphBox.y).toBeGreaterThanOrEqual(glyphBadgeBox.y - eps);
@@ -278,13 +278,13 @@ test.describe("Timeline fade curves", () => {
       };
 
       await expectBadgeClear();
-      // A larger browser text size grows rem chrome but not the px clip gutter the badge fills.
+      // A larger browser text size grows rem chrome but not the px clip gutter the glyph fills.
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "24px";
       });
       await expectBadgeClear();
 
-      // Two clips with a drawn join badge and the seam clip's revealed zero fade corners.
+      // Two clips with a drawn join glyph and the seam clip's revealed zero fade corners.
       await expectPageAxeClean(page, ".lane-row .clip-block");
       await expectPageAxeClean(page, ".lane-row .edit-mark");
     } finally {

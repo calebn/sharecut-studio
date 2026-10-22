@@ -64,7 +64,7 @@ export function isJoin(
 /** Seconds of context either side of the seam when auditioning a join (inspector footer and popover). */
 export const JOIN_AUDITION_PAD_SEC = 0.75;
 
-/** "Fade join at 0:05.0": the join badge's name and the popover's title. A badge that draws its text passes it as `label` so the name starts with the visible words. */
+/** "Fade join at 0:05.0": the join glyph's name and the popover's title. A glyph that draws its text passes it as `label` so the name starts with the visible words. */
 export function joinSeamLabel(
   kind: JoinMarkerKind,
   seamSec: number,

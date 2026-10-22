@@ -70,7 +70,7 @@ const STARTS: Record<string, (page: Page) => Promise<Point | null>> = {
     centerOf(page, `${lane} circle[aria-label^="Envelope point 3 "]`),
   "crowded envelope point": (page) =>
     centerOf(page, `${lane} circle[aria-label^="Envelope point 2 "]`),
-  "join badge": (page) => centerOf(page, `${lane} .edit-mark >> nth=-1`),
+  "join glyph": (page) => centerOf(page, `${lane} .edit-mark >> nth=-1`),
   "pending region": (page) =>
     centerOf(page, `${lane} .pending-overlay .pending-hit`),
   "fade corner": (page) => centerOf(page, `${lane} .fade-corner.in`),
@@ -160,7 +160,7 @@ test("a tap still selects or opens what it lands on", async ({
   await buildFixture(page, projectPath, CLIENT_ID);
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
-    for (const start of ["clip body", "lone envelope point", "join badge"]) {
+    for (const start of ["clip body", "lone envelope point", "join glyph"]) {
       const { page: p, cdp } = await newTouchPage(context);
       await openTimeline(p, projectPath, viewport, "dark");
       await setZoom(p, 3);
@@ -175,7 +175,7 @@ test("a tap still selects or opens what it lands on", async ({
         activated:
           start === "clip body"
             ? after.selectedClips.length === 1
-            : start === "join badge"
+            : start === "join glyph"
               ? after.openJoin != null
               : after.pressedPoint?.startsWith("Envelope point 3 ") === true,
         after,

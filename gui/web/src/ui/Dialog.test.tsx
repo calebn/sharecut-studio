@@ -101,7 +101,7 @@ it("keeps an anchored dialog non-modal, beside its anchor, closing on an outside
     return (
       <main data-daw-app-chrome>
         <button ref={anchorRef} type="button">
-          Join badge
+          Join glyph
         </button>
         <button type="button">Elsewhere</button>
         <Dialog
@@ -129,7 +129,7 @@ it("keeps an anchored dialog non-modal, beside its anchor, closing on an outside
   await expectNoA11yViolations(dialog);
 
   fireEvent.pointerDown(dialog);
-  fireEvent.pointerDown(screen.getByRole("button", { name: "Join badge" }));
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Join glyph" }));
   expect(onClose).not.toHaveBeenCalled();
   fireEvent.pointerDown(screen.getByRole("button", { name: "Elsewhere" }));
   expect(onClose).toHaveBeenCalledTimes(1);
@@ -142,7 +142,7 @@ it("closes an anchored dialog when a modal opens over it", () => {
     return (
       <main data-daw-app-chrome>
         <button ref={anchorRef} type="button">
-          Join badge
+          Join glyph
         </button>
         <Dialog
           open={anchoredOpen}

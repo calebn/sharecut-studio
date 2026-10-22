@@ -354,7 +354,7 @@ export function registerClipMoveCommands(): void {
     return {
       status: "disabled",
       reason:
-        "Use the join badge on the timeline or the Join control in the clip inspector",
+        "Use the join glyph on the timeline or the Join control in the clip inspector",
     };
   });
 
