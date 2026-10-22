@@ -519,7 +519,8 @@ def crossfade_borrow_sec(project: EpisodeProject, left: Clip, right: Clip) -> fl
         return 0.0
     # 5 ms steps put both halves on whole samples at the common rates, so a chain of
     # joins neither gains nor loses samples against the lane.
-    steps = math.floor(min(ms / 2000.0, room) / _BORROW_STEP_SEC + 1e-9)
+    # A request under one step still gets that step (the shortest blend there is).
+    steps = math.floor(min(max(ms / 2000.0, _BORROW_STEP_SEC), room) / _BORROW_STEP_SEC + 1e-9)
     return round(steps * _BORROW_STEP_SEC, 6) if steps >= 1 else 0.0
 
 
