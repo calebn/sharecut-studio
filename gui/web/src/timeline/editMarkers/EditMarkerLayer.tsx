@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { capabilityTooltip } from "../../capabilities/copy";
 import { joinSeamLabel } from "../../edit/joinRender";
@@ -41,20 +42,35 @@ type Register = (key: string) => (el: HTMLElement | null) => void;
  */
 function useTypographyEpoch() {
   const probe = useRef<HTMLSpanElement>(null);
-  const [epoch, setEpoch] = useState(0);
-  const bump = () => setEpoch((n) => n + 1);
-  useResizeObserver(probe, bump);
-  // A layout effect, so no font load can land between commit and attach; a
-  // load still in flight at attach gets one refit in case it already ended.
-  useLayoutEffect(() => {
-    const fonts = document.fonts;
-    fonts?.addEventListener("loadingdone", bump);
-    if (fonts && fonts.status !== "loaded") {
-      // oxlint-disable-next-line react/set-state-in-effect -- one refit for a load that may already have ended
-      bump();
-    }
-    return () => fonts?.removeEventListener("loadingdone", bump);
-  }, []);
+  const [store] = useState(() => {
+    let epoch = 0;
+    const listeners = new Set<() => void>();
+    const bump = () => {
+      epoch += 1;
+      for (const listener of listeners) {
+        listener();
+      }
+    };
+    return {
+      bump,
+      getSnapshot: () => epoch,
+      // Attaching also refits once when a font load may already have ended.
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        const fonts = document.fonts;
+        fonts?.addEventListener("loadingdone", bump);
+        if (fonts && fonts.status !== "loaded") {
+          bump();
+        }
+        return () => {
+          listeners.delete(listener);
+          fonts?.removeEventListener("loadingdone", bump);
+        };
+      },
+    };
+  });
+  const epoch = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  useResizeObserver(probe, store.bump);
   return { probe, epoch };
 }
 
