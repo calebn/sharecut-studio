@@ -113,6 +113,27 @@ describe("hydrate resets", () => {
     expect(pick(Object.keys(RESET_ON_SWITCH))).toEqual(RESET_ON_SWITCH);
   });
 
+  it("resets the three project-bound chrome flags only on a project switch", () => {
+    const flags = {
+      bounceDialogOpen: true,
+      exportDialogOpen: true,
+      transcriptFindReplaceOpen: true,
+    };
+    const other = { shareDialogOpen: true };
+    useDawStore.setState({
+      chrome: { ...useDawStore.getState().chrome, ...flags, ...other },
+    });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+    expect(useDawStore.getState().chrome).toMatchObject({ ...flags, ...other });
+    useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    expect(useDawStore.getState().chrome).toMatchObject({
+      bounceDialogOpen: false,
+      exportDialogOpen: false,
+      transcriptFindReplaceOpen: false,
+      ...other,
+    });
+  });
+
   it("starts the store with the same values hydrate resets to", () => {
     const initial = useDawStore.getInitialState() as unknown as Reset;
     for (const reset of [ALWAYS, KEPT_ON_SAME_PATH, RESET_ON_SWITCH]) {
