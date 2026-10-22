@@ -15,6 +15,7 @@ import { type HitKind, isHitKind, surfaceTapReach } from "./inputContract";
 
 const KIND_ATTR = "data-hit-kind";
 const SURFACE_ATTR = "data-hit-surface";
+const OWN_TAP_ATTR = "data-hit-own-tap";
 
 export type HitTargetAttrs = {
   "data-hit-kind": HitKind;
@@ -50,6 +51,16 @@ export function hitTargetProps(
  */
 export const HIT_SURFACE_PROPS = { [SURFACE_ATTR]: "" } as const;
 
+/**
+ * A surface whose tap is its own (a pending region selects its edit, the
+ * envelope selects its track), so a finger's tap on it never redirects to a
+ * join glyph or chip beside it.
+ */
+export const OWN_TAP_HIT_SURFACE_PROPS = {
+  [SURFACE_ATTR]: "",
+  [OWN_TAP_ATTR]: "",
+} as const;
+
 /** A ranked candidate and the element that owns its gestures. */
 export interface ResolvedHit {
   candidate: HitCandidate;
@@ -62,6 +73,10 @@ export function closestHitTarget(node: EventTarget | null): Element | null {
 
 export function closestHitSurface(node: EventTarget | null): Element | null {
   return node instanceof Element ? node.closest(`[${SURFACE_ATTR}]`) : null;
+}
+
+export function ownsTap(node: EventTarget | null): boolean {
+  return closestHitSurface(node)?.hasAttribute(OWN_TAP_ATTR) ?? false;
 }
 
 export function hitTimeSec(element: Element): number {

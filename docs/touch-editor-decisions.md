@@ -293,7 +293,7 @@ group".
 
 A finger's tap that lands on no target (a bare lane or a non-movable clip) goes
 to a glyph or chip within 22 px beside it and 44 px down from its top. It
-never reaches the lane above, never applies in blade or comment mode, and a
+never reaches the lane above, never applies in blade or comment mode, never applies to a pending region or the envelope lane (they own their tap), and a
 tap on any target (a trim handle, fade corner, roll seam or clip body) is
 ranked as before, with a focused glyph no longer counting as selected.
 
@@ -646,7 +646,9 @@ small target marks itself with `hitTargetProps` (`timeline/hitTargets.ts`):
 envelope points, fade corners, trim strips, roll seams, join glyphs, edit chips, pending
 edit edges and split flags, and chapter markers. Plain hit areas behind them
 (lane seek, envelope lane, wide pending region, and the body of a clip that
-cannot move) carry `HIT_SURFACE_PROPS`. A movable clip's body is the `clip`
+cannot move) carry `HIT_SURFACE_PROPS`; the wide pending region and the
+envelope lane carry `OWN_TAP_HIT_SURFACE_PROPS`, so a finger's tap on them stays
+theirs and never redirects to a join glyph beside it. A movable clip's body is the `clip`
 kind, a body that counts only when no other target is in reach (round 4b).
 
 The resolver's data shape is `HitCandidate` in `timeline/hitCandidates.ts`:
