@@ -11,6 +11,7 @@ from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import StaleWaveformKeyError, WaveformBusyError
 from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError, coded_cause
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
 from podcast_mcp.util.tool_refusal import ToolRefusal, tool_refusal
 
@@ -39,7 +40,7 @@ def guest_http_error(
         return coded_http_error(
             503, refusal.message, code=code, headers={"Retry-After": cause.retry_after}
         )
-    if isinstance(cause, StaleWaveformKeyError) or refusal.code == "job_running":
+    if isinstance(cause, (StaleWaveformKeyError, ModelMissing)) or refusal.code == "job_running":
         status = 409
     elif isinstance(cause, HostSetupError):
         status = 500

@@ -69,6 +69,20 @@ def test_explicit_flag_with_a_mismatched_model_asks_for_the_upgrade(
     assert caught.value.command == f"{ALIGNER} --upgrade"
 
 
+def test_a_bad_override_names_the_variable_not_a_download(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    bad = tmp_path / "empty-aligner"
+    bad.mkdir()
+    monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(bad))
+    with pytest.raises(Exception) as caught:
+        _options(True).forced_alignment.require()
+    assert not isinstance(caught.value, ModelMissing)
+    assert "PODCAST_MCP_WORD_ALIGNER_MODEL" in str(caught.value)
+    assert "vocab.json" in str(caught.value)
+    assert "bootstrap" not in str(caught.value)
+
+
 @pytest.mark.parametrize("value", [None, False])
 def test_unset_or_off_flag_still_falls_back_with_its_reason(value: object) -> None:
     alignment = _options(value).forced_alignment
