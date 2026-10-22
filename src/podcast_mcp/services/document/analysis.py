@@ -503,7 +503,6 @@ class AnalysisService(EffectsService):
         apply: bool = True,
         override_placement_lock: bool = False,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
-        cancel_check: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         def plan(p: EpisodeProject) -> AlignmentPlan:
             return plan_retained_bleed_alignment(
@@ -524,7 +523,7 @@ class AnalysisService(EffectsService):
                 rerender_preview(p, reconcile=False, defaults=self.ws.effective_config())
             return result
 
-        with render_lock(self.ws.project, timeout=lock_timeout, cancel_check=cancel_check):
+        with render_lock(self.ws.project, timeout=lock_timeout):
             return self.ws.mutate(
                 "before retained bleed alignment", "after retained bleed alignment", mutate
             )
@@ -681,7 +680,6 @@ class AnalysisService(EffectsService):
         apply: bool = True,
         progress: ProgressReporter | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
-        cancel_check: Callable[[], bool] | None = None,
     ) -> dict:
         """Mute a track wherever another speaker talks and its own speaker does not (#1740).
 
@@ -703,10 +701,7 @@ class AnalysisService(EffectsService):
 
         from podcast_mcp.project.merge import adopt_project_state
 
-        with (
-            render_lock(self.ws.project, timeout=lock_timeout, cancel_check=cancel_check),
-            self.ws.transaction(),
-        ):
+        with render_lock(self.ws.project, timeout=lock_timeout), self.ws.transaction():
             plan = plan_off_speaker_mutes(
                 self.ws.project, tid, progress=progress, defaults=self.ws.effective_config()
             )

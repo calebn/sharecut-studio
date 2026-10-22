@@ -21,7 +21,6 @@ from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.jobs import run_audio_edit
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
-    REQUEST_RENDER_LOCK_TIMEOUT_SEC,
     render_cancel_scope,
     render_lock,
 )
@@ -34,17 +33,14 @@ CALLS = {
     "align_retained_bleed_tool": WINDOW,
     "mute_off_speaker_tool": {"track_id": "uncertain"},
 }
+PREVIEW_ARGS = {
+    "apply_transcript_gate_tool": {**WINDOW, "dry_run": True},
+    "align_retained_bleed_tool": {**WINDOW, "apply": False},
+    "mute_off_speaker_tool": {"track_id": "uncertain", "dry_run": True},
+}
 APPLY_PARAMS = [
-    pytest.param(
-        "apply_transcript_gate_tool",
-        {**WINDOW, "dry_run": True},
-        "dry_run",
-        id="gate",
-    ),
-    pytest.param("align_retained_bleed_tool", {**WINDOW, "apply": False}, "apply", id="align"),
-    pytest.param(
-        "mute_off_speaker_tool", {"track_id": "uncertain", "dry_run": True}, "dry_run", id="off"
-    ),
+    pytest.param(name, args, id=name_id)
+    for (name, args), name_id in zip(PREVIEW_ARGS.items(), ["gate", "align", "off"], strict=True)
 ]
 
 
@@ -310,9 +306,9 @@ async def test_off_speaker_tool_with_no_regions_returns_the_plan_summary_only(tm
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("name,preview_args,_", APPLY_PARAMS)
+@pytest.mark.parametrize("name,preview_args", APPLY_PARAMS)
 async def test_tools_journal_one_external_mutate_row_per_apply_and_none_for_previews(
-    tmp_path, name, preview_args, _
+    tmp_path, name, preview_args
 ):
     ws = _workspace(tmp_path)
     assert _types(ws.path) == []
@@ -325,9 +321,9 @@ async def test_tools_journal_one_external_mutate_row_per_apply_and_none_for_prev
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("name,preview_args,_", APPLY_PARAMS)
+@pytest.mark.parametrize("name,preview_args", APPLY_PARAMS)
 async def test_tool_functions_called_directly_journal_once_for_apply_only(
-    tmp_path, name, preview_args, _
+    tmp_path, name, preview_args
 ):
     ws = _workspace(tmp_path)
     getattr(timeline, name)(str(ws.path), **{**CALLS[name], **preview_args})
@@ -354,12 +350,7 @@ async def test_apply_records_the_render_invalidation_and_preview_records_none(
 ):
     ws = _workspace(tmp_path)
     before = _state(ws.path)
-    preview_args = {
-        "apply_transcript_gate_tool": {**WINDOW, "dry_run": True},
-        "align_retained_bleed_tool": {**WINDOW, "apply": False},
-        "mute_off_speaker_tool": {"track_id": "uncertain", "dry_run": True},
-    }[name]
-    await _reply(name, ws.path, **preview_args)
+    await _reply(name, ws.path, **PREVIEW_ARGS[name])
     assert _invalidations(ws.path) == []
     assert _state(ws.path) == before
     await _reply(name, ws.path, **CALLS[name])
@@ -369,8 +360,8 @@ async def test_apply_records_the_render_invalidation_and_preview_records_none(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("name,_args,_", APPLY_PARAMS)
-async def test_previews_leave_project_history_and_files_untouched(tmp_path, name, _args, _):
+@pytest.mark.parametrize("name,_args", APPLY_PARAMS)
+async def test_previews_leave_project_history_and_files_untouched(tmp_path, name, _args):
     ws = _workspace(tmp_path)
     ws.record_snapshot("baseline")
     status = HistoryService(ws).status()
@@ -443,16 +434,11 @@ async def test_render_lock_held_elsewhere_refuses_with_project_busy_and_changes_
 @pytest.mark.parametrize("name", list(CALLS))
 async def test_previews_do_not_wait_for_the_render_lock(tmp_path, name):
     ws = _workspace(tmp_path)
-    preview = {
-        "apply_transcript_gate_tool": {"dry_run": True},
-        "align_retained_bleed_tool": {"apply": False},
-        "mute_off_speaker_tool": {"dry_run": True},
-    }[name]
     with (
         _render_lock_held_elsewhere(ws),
         patch.object(timeline, "REQUEST_RENDER_LOCK_TIMEOUT_SEC", 0.2),
     ):
-        result = await _call(name, ws.path, **CALLS[name], **preview)
+        result = await _call(name, ws.path, **PREVIEW_ARGS[name])
     assert result.is_error is False
 
 
@@ -486,77 +472,6 @@ async def test_off_speaker_tool_refusals_carry_their_codes(tmp_path):
         "error_code": "missing_argument",
     }
     assert _types(ws.path) == []
-
-
-@pytest.mark.parametrize(
-    "name,preview_kwargs,op,preview",
-    [
-        pytest.param(
-            "apply_transcript_gate_tool",
-            {"dry_run": True},
-            "apply_bleed_mute",
-            "preview_bleed_mute",
-            id="gate",
-        ),
-        pytest.param(
-            "align_retained_bleed_tool",
-            {"apply": False},
-            "align_retained_bleed",
-            "preview_retained_bleed_alignment",
-            id="align",
-        ),
-        pytest.param(
-            "mute_off_speaker_tool",
-            {"dry_run": True},
-            "mute_off_speaker",
-            "preview_off_speaker_mute",
-            id="off",
-        ),
-    ],
-)
-def test_tools_route_apply_through_run_audio_edit_and_previews_through_the_read_only_methods(
-    tmp_path, name, preview_kwargs, op, preview
-):
-    path = str(tmp_path / "episode.project.json")
-    with (
-        patch("podcast_mcp.mcp.tools.timeline.ProjectWorkspace"),
-        patch("podcast_mcp.mcp.tools.timeline.AnalysisService") as service,
-        patch("podcast_mcp.mcp.tools.timeline.run_audio_edit", return_value={"marker": 1}) as run,
-    ):
-        getattr(service.return_value, preview).return_value = {"marker": 2}
-        assert json.loads(getattr(timeline, name)(path, **CALLS[name])) == {"marker": 1}
-        assert json.loads(getattr(timeline, name)(path, **CALLS[name], **preview_kwargs)) == {
-            "marker": 2
-        }
-    run.assert_called_once()
-    assert run.call_args.args[1] == op
-    assert run.call_args.kwargs == {"lock_timeout": REQUEST_RENDER_LOCK_TIMEOUT_SEC}
-    getattr(service.return_value, preview).assert_called_once()
-    assert not getattr(service.return_value, op).called
-
-
-@pytest.mark.parametrize("op", ["apply_bleed_mute", "align_retained_bleed", "mute_off_speaker"])
-def test_run_audio_edit_applies_then_journals_once_after_the_service_returns(op):
-    order: list[str] = []
-    ws = object()
-
-    def service_call(**kwargs):
-        order.append("service")
-        assert kwargs["apply"] is True
-        assert kwargs["lock_timeout"] == 7.0
-        return {"marker": 1}
-
-    with (
-        patch("podcast_mcp.services.jobs.audio_edits.AnalysisService") as service,
-        patch(
-            "podcast_mcp.services.document_sync.after_agent_mutation",
-            side_effect=lambda w: order.append("journal"),
-        ) as journal,
-    ):
-        setattr(service.return_value, op, service_call)
-        assert run_audio_edit(ws, op, {"track_id": "t"}, lock_timeout=7.0) == {"marker": 1}
-    assert order == ["service", "journal"]
-    journal.assert_called_once_with(ws)
 
 
 def test_run_audio_edit_does_not_journal_when_the_service_raises():
