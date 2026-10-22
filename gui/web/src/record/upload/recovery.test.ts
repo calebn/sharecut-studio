@@ -229,6 +229,85 @@ describe("downloadLocalKeepers", () => {
     await vi.runAllTimersAsync();
   });
 
+  describe("a room-tone bed that fails after it was opened", () => {
+    async function archiveWithBed(bedBehavior: {
+      stream: () => ReadableStream<Uint8Array>;
+      arrayBuffer: () => Promise<ArrayBuffer>;
+    }) {
+      vi.useFakeTimers();
+      const blobs: Blob[] = [];
+      const NativeURL = URL;
+      class DownloadURL extends NativeURL {
+        static createObjectURL(blob: Blob) {
+          blobs.push(blob);
+          return "blob:keeper";
+        }
+        static revokeObjectURL = vi.fn();
+      }
+      vi.stubGlobal("URL", DownloadURL);
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+        () => {},
+      );
+      const sink = new MemorySink();
+      const ids = {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_guest",
+      };
+      await sink.write(
+        keeperWavPath({ ...ids, segmentIndex: 0 }),
+        new Uint8Array([1]),
+      );
+      const bedPath = roomToneWavPath("room1", "p_guest");
+      const bed = {
+        size: 1,
+        type: "audio/wav",
+        stream: vi.fn(bedBehavior.stream),
+        arrayBuffer: vi.fn(bedBehavior.arrayBuffer),
+      };
+      const readBlob = sink.readBlob.bind(sink);
+      vi.spyOn(sink, "readBlob").mockImplementation(async (path: string) =>
+        path === bedPath ? (bed as unknown as Blob) : readBlob(path),
+      );
+
+      await downloadLocalKeepers(sink, "room1", "p_guest", 0);
+
+      const text = new TextDecoder("latin1").decode(
+        await blobs[0]!.arrayBuffer(),
+      );
+      await vi.runAllTimersAsync();
+      return { bed, text };
+    }
+
+    const failingStream = () =>
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.error(new TypeError("network error"));
+        },
+      });
+
+    it("drops a room-tone bed whose read fails mid-stream", async () => {
+      const { text } = await archiveWithBed({
+        stream: failingStream,
+        arrayBuffer: () => Promise.reject(new TypeError("network error")),
+      });
+
+      expect(text).toContain("full-quality-take-1-segment-1-partial.wav");
+      expect(text).not.toContain("room-tone.wav");
+    });
+
+    it("keeps a bed that reads once, and never reads it again", async () => {
+      const { bed, text } = await archiveWithBed({
+        stream: failingStream,
+        arrayBuffer: async () => new Uint8Array([2]).buffer,
+      });
+
+      expect(text).toContain("room-tone.wav");
+      expect(bed.stream).not.toHaveBeenCalled();
+      expect(bed.arrayBuffer).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("does not call a room-tone bed alone a full-quality recording", async () => {
     const sink = new MemorySink();
     await sink.write(roomToneWavPath("room1", "p_guest"), new Uint8Array([2]));
