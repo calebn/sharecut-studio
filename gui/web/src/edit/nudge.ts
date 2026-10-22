@@ -512,7 +512,7 @@ export async function saveNudge(
 }
 
 /** The stable key of a field, for a run and a button row. */
-function sameNudgeBase(
+export function sameNudgeBase(
   project: ProjectView,
   origin: ProjectView,
   field: NudgeField,

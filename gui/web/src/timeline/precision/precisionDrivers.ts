@@ -1,4 +1,8 @@
-import { endPreview, showPreview } from "../../document/applyDocumentUpdate";
+import {
+  endPreview,
+  showPreview,
+  supersedePreview,
+} from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
 import { revertOptimisticIfUnchanged } from "../../document/optimisticRevert";
 import {
@@ -7,6 +11,7 @@ import {
   nudgeAxis,
   nudgeKey,
   previewsAsDraft,
+  sameNudgeBase,
   saveNudge,
   withNudge,
   withNudgeIfUnchanged,
@@ -43,9 +48,6 @@ export function registerPrecisionDriver(
   };
 }
 
-/** Which driver instance holds each draft preview, so a late commit cannot clear a newer drag's. */
-const previewOwner = new Map<string, symbol>();
-
 function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
   let token: symbol | null = null;
   let origin: ProjectView | null = null;
@@ -68,8 +70,7 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
     owner: symbol | null,
   ) => {
     if (asDraft) {
-      if (!owner || previewOwner.get(key) !== owner) return;
-      previewOwner.delete(key);
+      if (!owner) return;
       const shown = useDawStore.getState().project;
       if (
         from &&
@@ -77,8 +78,8 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
         shown &&
         nudgeAxis(shown, field)?.value === value
       )
-        endPreview(key, (p) => withNudgeReverted(p, from, field));
-      else endPreview(key);
+        endPreview(key, owner, (p) => withNudgeReverted(p, from, field));
+      else supersedePreview(key, owner);
     } else if (from && shown)
       revertOptimisticIfUnchanged(from, seq, path, shown);
   };
@@ -97,19 +98,20 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
     show(next) {
       if (!origin) return;
       const shown = withNudge(origin, field, next);
-      if (asDraft) {
+      if (asDraft && token) {
         const from = origin;
         try {
           showPreview(
             key,
+            token,
             (p) => withNudgeIfUnchanged(p, from, field, next),
             (p) => withNudge(p, field, next),
+            (p) => sameNudgeBase(p, from, field),
           );
         } catch {
           // Too many pending drafts: this frame is not shown, so it is not the value to save.
           return;
         }
-        if (token) previewOwner.set(key, token);
       } else useDawStore.getState().setProject(shown);
       value = next;
       preview = shown;
@@ -132,10 +134,7 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
         );
         if (saved) {
           // A queued save keeps the value shown through its own command draft.
-          if (asDraft && owner && previewOwner.get(key) === owner) {
-            previewOwner.delete(key);
-            endPreview(key);
-          }
+          if (asDraft && owner) endPreview(key, owner);
           store.announceStatus(NUDGE_KINDS[field.kind].saved, {
             undo: saved.undo,
           });

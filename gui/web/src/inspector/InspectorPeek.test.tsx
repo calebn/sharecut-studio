@@ -195,13 +195,17 @@ describe("InspectorPeek nudges", () => {
     expect(api.setClipFade.mock.calls[0]?.slice(1, 4)).toEqual(["c2", 310, 0]);
   });
 
-  it("shows a pushed fade as it is, and not the held one, when the push changed it", () => {
+  it("shows a pushed fade as it is, and not the held one, when the push changed it", async () => {
     open(FADE);
     const plus = button("Fade in 10 ms longer");
     fireEvent.pointerDown(plus, { button: 0 });
     const pushed = structuredClone(project);
     pushed.clips.tracks.host![1]!.fade_in_ms = 120;
     applyDocumentSnapshot({ server_seq: 1, project: pushed });
+    expect(fadeIn()).toBe(120);
+    fireEvent.pointerUp(plus);
+    await flush();
+    expect(api.setClipFade).not.toHaveBeenCalled();
     expect(fadeIn()).toBe(120);
   });
 

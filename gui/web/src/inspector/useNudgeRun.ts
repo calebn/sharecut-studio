@@ -39,6 +39,7 @@ import {
   nudgeKey,
   nudgeStep,
   previewsAsDraft,
+  sameNudgeBase,
   saveNudge,
   withNudge,
   withNudgeIfUnchanged,
@@ -71,6 +72,8 @@ interface Run {
   projectEpoch: number;
   seq: number;
   trimToken: symbol | null;
+  /** Holds this run's draft preview, so no other run or drag clears it. */
+  owner: symbol;
   value: number;
   /** Steps that moved the value. */
   moved: number;
@@ -101,8 +104,23 @@ export function useNudgeRun() {
 
   const isEnvelopeNudge = (r: Run) =>
     r.field.kind === "envelope-level" || r.field.kind === "envelope-time";
+  const sameOwnedFade = (r: Run) => {
+    if (r.field.kind !== "fade") return true;
+    const { project } = useDawStore.getState();
+    const { trackId, clipId } = r.field;
+    const find = (p: ProjectView) =>
+      p.clips.tracks[trackId]?.find((c) => c.id === clipId);
+    const shown = project && find(project);
+    const expected = find(r.preview ?? r.origin);
+    return (
+      !!shown &&
+      !!expected &&
+      shown.fade_in_ms === expected.fade_in_ms &&
+      shown.fade_out_ms === expected.fade_out_ms
+    );
+  };
   const sameOwnedEnvelope = (r: Run) => {
-    if (!isEnvelopeNudge(r)) return true;
+    if (!isEnvelopeNudge(r)) return sameOwnedFade(r);
     const state = useDawStore.getState();
     if (
       !state.project ||
@@ -128,7 +146,7 @@ export function useNudgeRun() {
     );
   };
   const abandonRun = (r: Run) => {
-    if (previewsAsDraft(r.field)) supersedePreview(nudgeKey(r.field));
+    if (previewsAsDraft(r.field)) supersedePreview(nudgeKey(r.field), r.owner);
     if (r.input === "pointer") stalePointerClick.current = true;
     if (r.timer) clearTimeout(r.timer);
     r.timer = null;
@@ -196,8 +214,10 @@ export function useNudgeRun() {
             const at = next.value;
             showPreview(
               nudgeKey(field),
+              r.owner,
               (p) => withNudgeIfUnchanged(p, origin, field, at),
               (p) => withNudge(p, field, at),
+              (p) => sameNudgeBase(p, origin, field),
             );
           } else {
             store.setProject(preview);
@@ -284,6 +304,7 @@ export function useNudgeRun() {
       projectEpoch: s.projectEpoch,
       seq: currentDocumentSeq(),
       trimToken,
+      owner: Symbol(nudgeKey(field)),
       value,
       moved: 0,
       repeats: 0,
@@ -329,14 +350,11 @@ export function useNudgeRun() {
       if (r.trimToken || !r.preview) return;
       if (previewsAsDraft(r.field)) {
         const key = nudgeKey(r.field);
-        const shown = useDawStore.getState().project;
-        if (isEnvelopeNudge(r) && !sameOwnedEnvelope(r)) supersedePreview(key);
-        else if (
-          !isEnvelopeNudge(r) &&
-          (!shown || nudgeAxis(shown, r.field)?.value !== r.value)
-        )
-          endPreview(key);
-        else endPreview(key, (p) => withNudgeReverted(p, r.origin, r.field));
+        if (!sameOwnedEnvelope(r)) supersedePreview(key, r.owner);
+        else
+          endPreview(key, r.owner, (p) =>
+            withNudgeReverted(p, r.origin, r.field),
+          );
         return;
       }
       const state = useDawStore.getState();
@@ -396,7 +414,7 @@ export function useNudgeRun() {
     } finally {
       settle();
       // A queued save keeps the value shown through its own command draft.
-      if (previewsAsDraft(r.field)) endPreview(nudgeKey(r.field));
+      if (previewsAsDraft(r.field)) endPreview(nudgeKey(r.field), r.owner);
       setSaving(false);
     }
   };
