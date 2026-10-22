@@ -246,8 +246,7 @@ class GateFill(BaseModel):
     # The track's own noise under its speech, as measured; None for a recorded bed.
     noise_db: float | None = Field(default=None, allow_inf_nan=False)
     fade_ms: int = Field(ge=0)
-    # 0 when measured on the first audio stream of media that has several (#2110); None
-    # when measured before that, or on media with one stream, where every read agrees.
+    # 0 for the first audio stream of multi-stream media; None where it was not recorded.
     audio_stream: int | None = Field(default=None, ge=0)
 
 

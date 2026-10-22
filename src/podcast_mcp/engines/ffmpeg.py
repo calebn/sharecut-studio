@@ -346,7 +346,7 @@ class AudioProbe:
     audio_duration_sec: float | None = None
     # The decoder's sample format (``s16``, ``fltp``, ...), when ffprobe reports one.
     sample_fmt: str | None = None
-    # Audio streams in the file; the rest are ignored by every decode (``-map 0:a:0``).
+    # Audio streams in the file.
     audio_stream_count: int = 1
 
 
