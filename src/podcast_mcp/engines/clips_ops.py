@@ -481,7 +481,6 @@ def crossfade_ms_at_join(left: Clip, right: Clip) -> int:
 
 
 class MuteIndex:
-
     def __init__(self, project: EpisodeProject) -> None:
         from podcast_mcp.engines.mute_regions import IgnoredWordRegions
 
