@@ -521,7 +521,6 @@ button.join-seam:focus-visible {
 .edit-mark {
   --edit-mark-scale: 1;
   --edit-mark-weight: 2;
-  --edit-mark-ink: 1;
   position: absolute;
   top: 0;
   width: var(--clip-inset-top);
@@ -544,13 +543,11 @@ button.join-seam:focus-visible {
 .edit-mark[data-tier="middle"] {
   --edit-mark-scale: 0.85;
   --edit-mark-weight: 1.5;
-  --edit-mark-ink: 0.85;
 }
 
 .edit-mark[data-tier="wide"] {
   --edit-mark-scale: 0.75;
   --edit-mark-weight: 1.25;
-  --edit-mark-ink: 0.75;
 }
 
 .edit-mark-face {
@@ -562,7 +559,6 @@ button.join-seam:focus-visible {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-overlay);
-  opacity: var(--edit-mark-ink);
 }
 
 /* Decorative: the button's aria-label names the join. A sibling of the button
@@ -639,8 +635,7 @@ button.join-seam:focus-visible {
   .edit-mark-face {
     transition:
       width var(--motion-state) var(--motion-ease-out),
-      height var(--motion-state) var(--motion-ease-out),
-      opacity var(--motion-state) var(--motion-ease-out);
+      height var(--motion-state) var(--motion-ease-out);
   }
 
   .edit-mark-glyph {

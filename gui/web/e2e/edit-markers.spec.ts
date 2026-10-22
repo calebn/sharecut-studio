@@ -438,7 +438,9 @@ for (const theme of ["light", "dark"] as const) {
     }
     expect(seen.map((r) => r.tier)).toContain("middle");
     const mark = page.locator(`${lane} .edit-mark`);
-    await expect(mark).toHaveAccessibleName(/^Crossfade join at 0:20\.0$/);
+    await expect(mark).toHaveAccessibleName(
+      /^Crossfade 120 ms join at 0:20\.0$/,
+    );
     const hitWidth = await mark.evaluate((el) =>
       Number.parseFloat(getComputedStyle(el, "::before").width),
     );
@@ -459,7 +461,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("the tag's size and opacity transition snaps under reduced motion", async ({
+test("the tag's size transition snaps under reduced motion", async ({
   page,
 }) => {
   await oneCrossfade(page);
@@ -469,7 +471,7 @@ test("the tag's size and opacity transition snaps under reduced motion", async (
       .locator(`${lane} .edit-mark-face`)
       .evaluate((el) => getComputedStyle(el).transitionDuration);
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  expect(await duration()).toBe("0.25s, 0.25s, 0.25s");
+  expect(await duration()).toBe("0.25s, 0.25s");
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect(await duration()).toBe("0s");
 });
