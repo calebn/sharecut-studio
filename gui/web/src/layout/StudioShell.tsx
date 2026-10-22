@@ -10,8 +10,8 @@ import { runPointerCommand } from "../commands/pointer";
 import { isRangeSelection } from "../edit/rangeSelection";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
-import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useRealignViewport } from "../hooks/useRealignViewport";
+import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../hooks/useViewportClass";
 import {
   audioFilesFromDrop,
