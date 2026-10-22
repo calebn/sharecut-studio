@@ -7,11 +7,19 @@ them like an unenrolled speaker could put their name on a different voice.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
+from podcast_mcp.engines import speaker_split
 from podcast_mcp.engines.models.speaker_ecapa import MIN_SAMPLES
-from podcast_mcp.engines.speaker_split import HOP_SEC, attribute_speakers
+from podcast_mcp.engines.speaker_split import (
+    HOP_SEC,
+    _enrollment_centroids,
+    _window_samples,
+    attribute_speakers,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 from test_speaker_split import RATE, SpectralBackend, _mix
 
@@ -159,3 +167,29 @@ def test_span_starting_astronomically_past_the_end_is_refused_in_plain_words(
         _attribute(audio, {0: [(0.5, 4.0)], 1: [(start, float(np.nextafter(start, np.inf)))]})
 
     assert raised.value.code == "enrollment_past_end"
+
+
+@pytest.mark.parametrize("span", [(0.5, 4.0), (10.0, 25.0), (0.0, 30.0)])
+def test_embedded_centers_are_exactly_the_unclamped_usable_grid(
+    monkeypatch: pytest.MonkeyPatch, span: tuple[float, float]
+) -> None:
+    audio, _ = _mix(2, 20.0, seed=3)
+    window = 1.0
+    start, end = span
+    embedded: list[list[float]] = []
+    real_embed = speaker_split._embed
+
+    def spy(samples: np.ndarray, centers: np.ndarray, *args: Any, **kwargs: Any) -> np.ndarray:
+        embedded.append(centers.tolist())
+        return real_embed(samples, centers, *args, **kwargs)
+
+    monkeypatch.setattr(speaker_split, "_embed", spy)
+    expected = [
+        c
+        for c in np.arange(start + window / 2, end - window / 2 + 1e-9, HOP_SEC).tolist()
+        if _window_samples(audio, c, window) >= MIN_SAMPLES
+    ]
+
+    _enrollment_centroids(audio, {0: [span]}, window, SpectralBackend())
+
+    assert embedded == [expected]
