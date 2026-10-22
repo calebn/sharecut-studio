@@ -86,7 +86,10 @@ with `source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"`
 the scripts used to repeat: `set -euo pipefail`, `ROOT`, `on_exit` (cleanup that
 runs in registration order and keeps the script's exit status; scripts no longer
 define their own `cleanup()` or `trap ... EXIT`; `smoke_linux_appimage.sh` keeps
-its own `ERR` trap), `desktop_arch`, `tauri_version`,
+its own `ERR` trap), `CALLER_DIR` (the directory the script was run from),
+`resolve_distribution_profile` (the one place `PODCAST_DISTRIBUTION_PROFILE` is
+resolved: relative paths join `CALLER_DIR`; `--must-exist`, used by the Docker
+wrapper, fails before the path is made physical), `desktop_arch`, `tauri_version`,
 `run_notarytool` (bounded by `NOTARY_WAIT_SEC`, default 2700) and
 `staple_with_retries` (`STAPLE_ATTEMPTS`, `STAPLE_RETRY_DELAY`). Stapler output
 goes to stderr, so `stage_updater_bundle.sh` still prints only the tarball path on

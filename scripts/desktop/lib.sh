@@ -6,8 +6,14 @@
 # Provides, with no side effects beyond the shell options, the EXIT trap and the
 # variables below:
 #   ROOT                     repo root (two levels above this file)
+#   CALLER_DIR               $PWD when lib.sh was sourced
 #   on_exit CMD              run CMD (eval'd, in registration order) when the script exits;
 #                            the script's exit status survives the cleanup
+#   resolve_distribution_profile [--must-exist]
+#                            print the absolute path of the distribution profile
+#                            (PODCAST_DISTRIBUTION_PROFILE, else the dev profile). Call it
+#                            only as `VAR="$(resolve_distribution_profile)"`: `local`/`export
+#                            VAR=$(...)` hides its failure
 #   desktop_arch             aarch64 | x64 | the raw `uname -m` (Tauri bundle naming)
 #   tauri_version            "version" of gui/desktop/src-tauri/tauri.conf.json
 #   run_notarytool ARGS...   `xcrun notarytool submit ARGS...`, killed after NOTARY_WAIT_SEC
@@ -18,6 +24,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CALLER_DIR="$PWD"
 NOTARY_WAIT_SEC="${NOTARY_WAIT_SEC:-2700}"
 
 _on_exit_cmds=()
@@ -47,6 +54,30 @@ desktop_arch() {
 tauri_version() {
   python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
     "$ROOT/gui/desktop/src-tauri/tauri.conf.json"
+}
+
+resolve_distribution_profile() {
+  local must_exist=0 path
+  case "${1:-}" in
+    "") ;;
+    --must-exist) must_exist=1 ;;
+    *)
+      echo "resolve_distribution_profile: unknown option: $1" >&2
+      return 2
+      ;;
+  esac
+  if [[ -z "${PODCAST_DISTRIBUTION_PROFILE:-}" ]]; then
+    printf '%s\n' "$ROOT/config/distribution.dev.json"
+    return 0
+  fi
+  path="$PODCAST_DISTRIBUTION_PROFILE"
+  [[ "$path" = /* ]] || path="$CALLER_DIR/$path"
+  if ((must_exist)) && [[ ! -f "$path" ]]; then
+    echo "error: distribution profile not found: $path" >&2
+    return 1
+  fi
+  path="$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")"
+  printf '%s\n' "$path"
 }
 
 run_notarytool() {
