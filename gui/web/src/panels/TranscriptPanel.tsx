@@ -283,7 +283,7 @@ export function TranscriptPanel() {
   const lastTouchTapRef = useRef<(WordRef & { at: number }) | null>(null);
   const correctedTouchAtRef = useRef(-Infinity);
   const pendingCorrectionRef = useRef<WordRef | null>(null);
-  const findReplaceOpen = useDaw((s) => s.transcriptFindReplaceOpen);
+  const findReplaceOpen = useDaw((s) => s.chrome.transcriptFindReplaceOpen);
   /** Word being edited in place (navigate intent, host, hydrated). */
   const [inlineEdit, setInlineEdit] = useState<WordRef | null>(null);
   /** Word chip to refocus after Enter / Esc closes the inline editor. */

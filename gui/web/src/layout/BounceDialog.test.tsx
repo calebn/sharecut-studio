@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { followJobToOk, startBounceJob } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { setChrome } from "../test/chrome";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { BounceDialog } from "./BounceDialog";
 
@@ -43,8 +44,8 @@ function bounced(...paths: string[]): PipelineJobSnapshot {
 
 describe("BounceDialog", () => {
   beforeEach(() => {
+    setChrome({ bounceDialogOpen: false });
     useDawStore.setState({
-      bounceDialogOpen: false,
       bounceRangeTarget: null,
       projectPath: "/tmp/ep.project.json",
       project: projectStub,
@@ -58,7 +59,7 @@ describe("BounceDialog", () => {
   });
 
   it("shows bounce dialog and is axe-clean", async () => {
-    useDawStore.setState({ bounceDialogOpen: true });
+    useDawStore.getState().setBounceDialogOpen(true);
     const { baseElement: container } = render(<BounceDialog />);
     const dialog = screen.getByRole("dialog", { name: "Bounce…" });
     expect(dialog).toBeTruthy();
@@ -78,12 +79,12 @@ describe("BounceDialog", () => {
       </div>,
     );
     screen.getByTestId("opener").focus();
-    useDawStore.setState({ bounceDialogOpen: true });
+    useDawStore.getState().setBounceDialogOpen(true);
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
     });
     await user.keyboard("{Escape}");
-    expect(useDawStore.getState().bounceDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.bounceDialogOpen).toBe(false);
     await waitFor(() => {
       expect(screen.getByTestId("opener")).toHaveFocus();
     });
@@ -102,14 +103,14 @@ describe("BounceDialog", () => {
       });
     });
     render(<BounceDialog />);
-    useDawStore.setState({ bounceDialogOpen: true });
+    useDawStore.getState().setBounceDialogOpen(true);
     const bounceBtn = await screen.findByRole("button", { name: "Bounce" });
     await user.click(bounceBtn);
     await waitFor(() => {
       expect(followJobToOk).toHaveBeenCalled();
     });
     expect(captured?.aborted).toBe(false);
-    useDawStore.setState({ bounceDialogOpen: false });
+    useDawStore.getState().setBounceDialogOpen(false);
     await waitFor(() => {
       expect(captured?.aborted).toBe(true);
     });
@@ -123,11 +124,11 @@ describe("BounceDialog", () => {
       bounced("export/bounces/a.wav", "export/bounces/a.mp3"),
     );
     render(<BounceDialog />);
-    useDawStore.setState({ bounceDialogOpen: true });
+    useDawStore.getState().setBounceDialogOpen(true);
     const bounceBtn = await screen.findByRole("button", { name: "Bounce" });
     await user.click(bounceBtn);
     await waitFor(() => {
-      expect(useDawStore.getState().bounceDialogOpen).toBe(false);
+      expect(useDawStore.getState().chrome.bounceDialogOpen).toBe(false);
     });
     // useJobStatusAnnouncement owns speaking this once the "b1" chip goes
     // terminal (#704); BounceDialog itself must not race it via announceStatus.
@@ -149,10 +150,10 @@ it("keeps an exact range preset when lane and transport selections change", asyn
     clips: [],
     media_seals: { a: "seal" },
   };
+  setChrome({ bounceDialogOpen: true });
   useDawStore.setState({
     project: projectStub,
     projectPath: "/tmp/ep.project.json",
-    bounceDialogOpen: true,
     bounceRangeTarget: target,
     selection: { kind: "track", trackId: "other" },
     sessionRegion: { start_sec: 0, end_sec: 60 },

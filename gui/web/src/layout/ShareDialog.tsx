@@ -71,7 +71,7 @@ export function ShareDialog() {
     projectEpoch,
     announceStatus,
   } = useDaw((s) => ({
-    shareDialogOpen: s.shareDialogOpen,
+    shareDialogOpen: s.chrome.shareDialogOpen,
     setShareDialogOpen: s.setShareDialogOpen,
     project: s.project,
     projectPath: s.projectPath,
@@ -143,7 +143,7 @@ export function ShareDialog() {
       current.shareDialogOpen &&
       scope.projectPath === state.projectPath &&
       scope.projectEpoch === state.projectEpoch &&
-      state.shareDialogOpen &&
+      state.chrome.shareDialogOpen &&
       state.project !== null
     );
   }, []);

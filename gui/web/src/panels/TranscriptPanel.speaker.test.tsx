@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { setChrome } from "../test/chrome";
 import {
   COMMENTER_CAPABILITIES,
   minimalProject,
@@ -79,11 +80,11 @@ describe("Transcript speaker control", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
   });
   it("keeps find and replace host-only even for edit-capability shares", () => {
+    setChrome({ transcriptFindReplaceOpen: true });
     useDawStore.setState({
       projectPath: "share:test",
       guestMode: "edit",
       shareCapabilities: ["edit"],
-      transcriptFindReplaceOpen: true,
     });
     render(<TranscriptPanel />);
     expect(

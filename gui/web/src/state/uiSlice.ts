@@ -39,6 +39,7 @@ import {
 } from "../utils/zoomPointer";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
+  ChromeFlags,
   CommentDraft,
   DawStore,
   DawTab,
@@ -222,7 +223,8 @@ type UiSlice = Pick<
   | "transcriptInlineEditFailure"
   | "transcriptReviewCursor"
   | "chapterAddPending"
-  | "transcriptFindReplaceOpen"
+  | "chrome"
+  | "setTranscriptFindReplaceOpen"
   | "transcriptAnnotate"
   | "transcriptCorrecting"
   | "setTranscriptCorrecting"
@@ -283,30 +285,22 @@ type UiSlice = Pick<
   | "toggleFitTracksHeight"
   | "stepLaneHeight"
   | "setDrawnLaneHeightPx"
-  | "commandPaletteOpen"
   | "setCommandPaletteOpen"
-  | "gesturesSheetOpen"
   | "setGesturesSheetOpen"
   | "toggleCommandPalette"
   | "bounceRangeTarget"
   | "setBounceRangeTarget"
-  | "bounceDialogOpen"
   | "setBounceDialogOpen"
-  | "exportDialogOpen"
   | "setExportDialogOpen"
   | "splitSpeakersReview"
   | "setSplitSpeakersReview"
   | "splitSpeakersTrackId"
   | "setSplitSpeakersTrackId"
-  | "shareDialogOpen"
   | "setShareDialogOpen"
-  | "recordPanelOpen"
   | "setRecordPanelOpen"
   | "tightenApplyScope"
   | "setTightenApplyScope"
-  | "hostMcpDialogOpen"
   | "setHostMcpDialogOpen"
-  | "helpDialogOpen"
   | "setHelpDialogOpen"
   | "openJoinId"
   | "setOpenJoinId"
@@ -317,6 +311,20 @@ type UiSlice = Pick<
   | "fitToWindow"
   | "measureTimelineViewport"
 >;
+
+export function chromeInitial(): ChromeFlags {
+  return {
+    commandPaletteOpen: false,
+    gesturesSheetOpen: false,
+    bounceDialogOpen: false,
+    exportDialogOpen: false,
+    shareDialogOpen: false,
+    recordPanelOpen: false,
+    hostMcpDialogOpen: false,
+    helpDialogOpen: false,
+    transcriptFindReplaceOpen: false,
+  };
+}
 
 export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
   set,
@@ -483,7 +491,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     transcriptReviewCursor: null as TranscriptReviewCursor | null,
     chapterAddPending: false,
-    transcriptFindReplaceOpen: false,
     transcriptAnnotate: false,
     transcriptCorrecting: false,
     showCutAwayUtterances: false,
@@ -775,50 +782,58 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         set({ drawnLaneHeightPx });
       }
     },
-    commandPaletteOpen: false,
-    setCommandPaletteOpen: (commandPaletteOpen) =>
-      set({
-        commandPaletteOpen,
-        ...(commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
-      }),
-    gesturesSheetOpen: false,
-    setGesturesSheetOpen: (gesturesSheetOpen) =>
-      set({
-        gesturesSheetOpen,
-        ...(gesturesSheetOpen ? { commandPaletteOpen: false } : {}),
-      }),
+    chrome: chromeInitial(),
+    setTranscriptFindReplaceOpen: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, transcriptFindReplaceOpen: on } })),
+    setCommandPaletteOpen: (on) =>
+      set((s) => ({
+        chrome: {
+          ...s.chrome,
+          commandPaletteOpen: on,
+          ...(on ? { gesturesSheetOpen: false } : {}),
+        },
+      })),
+    setGesturesSheetOpen: (on) =>
+      set((s) => ({
+        chrome: {
+          ...s.chrome,
+          gesturesSheetOpen: on,
+          ...(on ? { commandPaletteOpen: false } : {}),
+        },
+      })),
     toggleCommandPalette: () =>
       set((s) => ({
-        commandPaletteOpen: !s.commandPaletteOpen,
-        ...(!s.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
+        chrome: {
+          ...s.chrome,
+          commandPaletteOpen: !s.chrome.commandPaletteOpen,
+          ...(!s.chrome.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
+        },
       })),
     bounceRangeTarget: null,
     setBounceRangeTarget: (bounceRangeTarget) => set({ bounceRangeTarget }),
-    bounceDialogOpen: false,
-    setBounceDialogOpen: (bounceDialogOpen) =>
-      set(
-        bounceDialogOpen
-          ? { bounceDialogOpen }
-          : { bounceDialogOpen, bounceRangeTarget: null },
-      ),
-    exportDialogOpen: false,
-    setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
+    setBounceDialogOpen: (on) =>
+      set((s) => ({
+        chrome: { ...s.chrome, bounceDialogOpen: on },
+        ...(on ? {} : { bounceRangeTarget: null }),
+      })),
+    setExportDialogOpen: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, exportDialogOpen: on } })),
     splitSpeakersReview: null,
     setSplitSpeakersReview: (splitSpeakersReview) =>
       set({ splitSpeakersReview }),
     splitSpeakersTrackId: null,
     setSplitSpeakersTrackId: (splitSpeakersTrackId) =>
       set({ splitSpeakersTrackId }),
-    shareDialogOpen: false,
-    setShareDialogOpen: (shareDialogOpen) => set({ shareDialogOpen }),
-    recordPanelOpen: false,
-    setRecordPanelOpen: (recordPanelOpen) => set({ recordPanelOpen }),
+    setShareDialogOpen: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, shareDialogOpen: on } })),
+    setRecordPanelOpen: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, recordPanelOpen: on } })),
     tightenApplyScope: { ids: [] },
     setTightenApplyScope: (tightenApplyScope) => set({ tightenApplyScope }),
-    hostMcpDialogOpen: false,
-    setHostMcpDialogOpen: (hostMcpDialogOpen) => set({ hostMcpDialogOpen }),
-    helpDialogOpen: false,
-    setHelpDialogOpen: (helpDialogOpen) => set({ helpDialogOpen }),
+    setHostMcpDialogOpen: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, hostMcpDialogOpen: on } })),
+    setHelpDialogOpen: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, helpDialogOpen: on } })),
     openJoinId: null,
     setOpenJoinId: (openJoinId) => set({ openJoinId }),
     joinMutationInFlight: false,

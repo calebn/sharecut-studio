@@ -7,6 +7,7 @@ import { registerDawCommands } from "../commands/register";
 import { getKeymapOverride } from "../keymap/remaps";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import { setChrome } from "../test/chrome";
 import { waitForDialogFocus } from "../test/dialogFocus";
 import { minimalProject } from "../test/fixtures";
 import { CommandPalette } from "./CommandPalette";
@@ -24,7 +25,8 @@ describe("CommandPalette", () => {
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
-    useDawStore.setState({ exportDialogOpen: false, statusAnnouncement: "" });
+    setChrome({ exportDialogOpen: false });
+    useDawStore.setState({ statusAnnouncement: "" });
   });
 
   it("lists keyed and keyless catalog commands together", () => {
@@ -66,7 +68,7 @@ describe("CommandPalette", () => {
     renderPalette();
     await waitForDialogFocus();
     await user.keyboard("annotate{Enter}");
-    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
     await waitFor(() =>
       expect(useDawStore.getState().transcriptAnnotate).toBe(true),
     );
@@ -80,9 +82,9 @@ describe("CommandPalette", () => {
     await user.click(
       screen.getByRole("option", { name: /^Export deliverables…/ }),
     );
-    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
     await waitFor(() =>
-      expect(useDawStore.getState().exportDialogOpen).toBe(true),
+      expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true),
     );
   });
 
@@ -104,7 +106,7 @@ describe("CommandPalette", () => {
     renderPalette();
     await waitForDialogFocus();
     await userEvent.keyboard("{Escape}");
-    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
   });
 
   it("keeps Tab focus inside the panel", async () => {

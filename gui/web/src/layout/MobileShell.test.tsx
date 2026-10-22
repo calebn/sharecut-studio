@@ -158,7 +158,7 @@ describe("MobileShell", () => {
     await user.click(
       menu.getByRole("menuitem", { name: /^Export deliverables…/ }),
     );
-    expect(useDawStore.getState().exportDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true);
     await expectNoA11yViolations(container);
   });
 
@@ -409,9 +409,9 @@ describe("MobileShell", () => {
     await waitFor(() => expect(search).toHaveFocus());
     await user.type(search, "export deliverables");
     await user.keyboard("{Enter}");
-    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
     await waitFor(() =>
-      expect(useDawStore.getState().exportDialogOpen).toBe(true),
+      expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true),
     );
   });
 
@@ -540,16 +540,16 @@ describe("MobileShell", () => {
   it("keeps cheatsheets mutually exclusive for every store entry point", () => {
     useDawStore.getState().setGesturesSheetOpen(true);
     useDawStore.getState().toggleCommandPalette();
-    expect(useDawStore.getState().commandPaletteOpen).toBe(true);
-    expect(useDawStore.getState().gesturesSheetOpen).toBe(false);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(true);
+    expect(useDawStore.getState().chrome.gesturesSheetOpen).toBe(false);
 
     useDawStore.getState().setGesturesSheetOpen(true);
-    expect(useDawStore.getState().gesturesSheetOpen).toBe(true);
-    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    expect(useDawStore.getState().chrome.gesturesSheetOpen).toBe(true);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
 
     useDawStore.getState().setCommandPaletteOpen(true);
-    expect(useDawStore.getState().commandPaletteOpen).toBe(true);
-    expect(useDawStore.getState().gesturesSheetOpen).toBe(false);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(true);
+    expect(useDawStore.getState().chrome.gesturesSheetOpen).toBe(false);
   });
 
   it("Pending chip selects the first review-required edit and opens Timeline", async () => {

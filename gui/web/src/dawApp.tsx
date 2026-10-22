@@ -48,9 +48,7 @@ const selectDawAppFields = pickDaw(
   "activityJob",
   "setActivityJob",
   "setActivityRunningCount",
-  "hostMcpDialogOpen",
   "setHostMcpDialogOpen",
-  "helpDialogOpen",
   "setHelpDialogOpen",
 );
 
@@ -74,11 +72,11 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     activityJob,
     setActivityJob,
     setActivityRunningCount,
-    hostMcpDialogOpen,
     setHostMcpDialogOpen,
-    helpDialogOpen,
     setHelpDialogOpen,
   } = useDaw(selectDawAppFields);
+  const hostMcpDialogOpen = useDaw((s) => s.chrome.hostMcpDialogOpen);
+  const helpDialogOpen = useDaw((s) => s.chrome.helpDialogOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
   const [feedbackHost, setFeedbackHost] = useState<HTMLDivElement | null>(null);

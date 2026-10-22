@@ -9,7 +9,7 @@ describe("mcp.connect", () => {
     clearRegisteredCommands();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ hostMcpDialogOpen: false });
+    useDawStore.getState().setHostMcpDialogOpen(false);
   });
 
   afterEach(() => {
@@ -19,20 +19,20 @@ describe("mcp.connect", () => {
   it("opens the local MCP dialog for a host project", async () => {
     const result = await execute("mcp.connect");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().hostMcpDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.hostMcpDialogOpen).toBe(true);
   });
 
   it("opens when no episode is loaded (DawApp still mounted)", async () => {
     useDawStore.setState({ project: null, projectPath: "" });
     const result = await execute("mcp.connect");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().hostMcpDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.hostMcpDialogOpen).toBe(true);
   });
 
   it("disables for share guests", async () => {
     useDawStore.setState({ projectPath: "share:fantastic-acoustic-whale" });
     const result = await execute("mcp.connect");
     expect(result.status).toBe("disabled");
-    expect(useDawStore.getState().hostMcpDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.hostMcpDialogOpen).toBe(false);
   });
 });

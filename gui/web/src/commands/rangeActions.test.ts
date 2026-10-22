@@ -3,6 +3,7 @@ import { submitDocumentCommand } from "../api/documentEdits";
 import { getClipboard, setClipboard } from "../edit/clipboard";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
+import { setChrome } from "../test/chrome";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { wordSelection } from "../utils/rangeSelect";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -46,6 +47,7 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerRangeCommands();
   setClipboard(null);
+  setChrome({ bounceDialogOpen: false });
   useDawStore.setState({
     project: p,
     projectPath: "/tmp/ep",
@@ -55,7 +57,6 @@ beforeEach(() => {
     selection: { kind: "range", target },
     rangeBusy: false,
     joinMutationInFlight: false,
-    bounceDialogOpen: false,
     bounceRangeTarget: null,
     commentDraft: null,
     sourcePreview: null,
@@ -224,7 +225,7 @@ describe("shared range action policy and commands", () => {
     const state = useDawStore.getState();
     expect(state.bounceRangeTarget).toEqual(target);
     expect(state.bounceRangeTarget).not.toBe(target);
-    expect(state.bounceDialogOpen).toBe(true);
+    expect(state.chrome.bounceDialogOpen).toBe(true);
   });
   it("plays a prepared range through the owned transport preview", async () => {
     vi.stubGlobal(

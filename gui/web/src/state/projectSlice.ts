@@ -284,9 +284,6 @@ export const createProjectSlice: StateCreator<
       transcriptInlineEditRequest: null,
       transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
       transcriptReviewCursor: samePath ? get().transcriptReviewCursor : null,
-      transcriptFindReplaceOpen: samePath
-        ? get().transcriptFindReplaceOpen
-        : false,
       transcriptViewAnchor: samePath ? get().transcriptViewAnchor : null,
       playbackRate: samePath ? get().playbackRate : 1,
       ingestBusy: false,
@@ -322,8 +319,12 @@ export const createProjectSlice: StateCreator<
             rangeScopeTrackIds: null,
             rangeBusy: false,
             bounceRangeTarget: null,
-            bounceDialogOpen: false,
-            exportDialogOpen: false,
+            chrome: {
+              ...get().chrome,
+              bounceDialogOpen: false,
+              exportDialogOpen: false,
+              transcriptFindReplaceOpen: false,
+            },
             splitSpeakersReview: null,
             splitSpeakersTrackId: null,
             ...NO_SELECTION,

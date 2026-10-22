@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeaturesContext } from "../extensions/FeaturesContext";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { setChrome } from "../test/chrome";
 import type { HostShareRow } from "../types/shares";
 import { ApiError } from "../utils/apiError";
 import { ShareDialog } from "./ShareDialog";
@@ -108,8 +109,8 @@ describe("ShareDialog", () => {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
     });
     listHostShares.mockResolvedValue(listed());
+    setChrome({ shareDialogOpen: false });
     useDawStore.setState({
-      shareDialogOpen: false,
       projectEpoch: 1,
       projectPath: "/tmp/ep.project.json",
       project: projectStub,
@@ -118,7 +119,7 @@ describe("ShareDialog", () => {
   });
 
   it("shows empty live list and is axe-clean", async () => {
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     const { baseElement: container } = render(<ShareDialog />);
     const dialog = await screen.findByRole("dialog", { name: "Share" });
     expect(dialog.querySelector(".command-palette-body")).toBeTruthy();
@@ -140,7 +141,7 @@ describe("ShareDialog", () => {
       share_count: 1,
       retry_at: null,
     });
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     const { unmount } = render(<ShareDialog />);
     await screen.findByText("No review links yet.");
     expect(loadTunnelStatus).not.toHaveBeenCalled();
@@ -161,7 +162,7 @@ describe("ShareDialog", () => {
 
   it("loads the current scope after StrictMode effect replay", async () => {
     listHostShares.mockResolvedValue(listed([liveRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(
       <StrictMode>
         <ShareDialog />
@@ -174,7 +175,7 @@ describe("ShareDialog", () => {
 
   it("shows a current list error", async () => {
     listHostShares.mockRejectedValue(new Error("List failed"));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     expect(await screen.findByText("List failed")).toBeTruthy();
@@ -183,7 +184,7 @@ describe("ShareDialog", () => {
   it("suppresses a list error from an obsolete project generation", async () => {
     const oldLoad = deferred<ReturnType<typeof listed>>();
     listHostShares.mockReturnValueOnce(oldLoad.promise);
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await waitFor(() => expect(listHostShares).toHaveBeenCalledTimes(1));
@@ -208,7 +209,7 @@ describe("ShareDialog", () => {
     listHostShares
       .mockResolvedValueOnce(listed())
       .mockResolvedValue(listed([liveRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await screen.findByText("No review links yet.");
     fireEvent.click(screen.getByRole("button", { name: "Create review link" }));
@@ -232,7 +233,7 @@ describe("ShareDialog", () => {
   it("sends freeze when the host freezes the new link on the current version", async () => {
     createHostShare.mockResolvedValue(liveRow);
     listHostShares.mockResolvedValue(listed());
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await screen.findByText("No review links yet.");
     fireEvent.click(screen.getByLabelText("Freeze on the current version"));
@@ -264,7 +265,7 @@ describe("ShareDialog", () => {
     listHostShares
       .mockResolvedValueOnce(listed())
       .mockResolvedValue(listed([liveRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await screen.findByText("No review links yet.");
     fireEvent.click(screen.getByRole("button", { name: "Create review link" }));
@@ -278,7 +279,7 @@ describe("ShareDialog", () => {
     const user = userEvent.setup();
     const create = deferred<HostShareRow>();
     createHostShare.mockReturnValue(create.promise);
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     const view = render(<ShareDialog />);
     await screen.findByText("No review links yet.");
     await user.click(
@@ -313,7 +314,7 @@ describe("ShareDialog", () => {
       )
       .mockResolvedValueOnce(liveRow);
     listHostShares.mockResolvedValue(listed([liveRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -357,7 +358,7 @@ describe("ShareDialog", () => {
       .mockResolvedValueOnce(liveRow);
     execute.mockResolvedValue({ status: "ok" });
     listHostShares.mockResolvedValue(listed([liveRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     const { baseElement } = render(<ShareDialog />);
 
     await user.click(
@@ -392,14 +393,14 @@ describe("ShareDialog", () => {
           finishNew = resolve;
         }),
       );
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
       await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(screen.getByRole("button", { name: "Close" }));
-    act(() => useDawStore.setState({ shareDialogOpen: true }));
+    act(() => useDawStore.getState().setShareDialogOpen(true));
     await user.click(
       await screen.findByRole("button", { name: "Create review link" }),
     );
@@ -438,7 +439,7 @@ describe("ShareDialog", () => {
     const stale = () =>
       new ApiError("premix is stale; refresh it", "stale_mix", 409);
     createHostShare.mockRejectedValue(stale());
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -448,7 +449,7 @@ describe("ShareDialog", () => {
       await screen.findByRole("button", { name: "Refresh mix" }),
     );
     await user.click(screen.getByRole("button", { name: "Close" }));
-    act(() => useDawStore.setState({ shareDialogOpen: true }));
+    act(() => useDawStore.getState().setShareDialogOpen(true));
     await user.click(
       await screen.findByRole("button", { name: "Create review link" }),
     );
@@ -480,7 +481,7 @@ describe("ShareDialog", () => {
       ),
     );
     execute.mockResolvedValue({ status: "disabled", reason: "Render failed" });
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -505,7 +506,7 @@ describe("ShareDialog", () => {
         409,
       ),
     );
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -528,7 +529,7 @@ describe("ShareDialog", () => {
       .mockRejectedValueOnce(stale())
       .mockRejectedValueOnce(stale());
     execute.mockResolvedValue({ status: "ok" });
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -555,7 +556,7 @@ describe("ShareDialog", () => {
     createHostShare.mockRejectedValue(
       new ApiError("premix is stale; refresh it", "stale_mix", 409),
     );
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -593,7 +594,7 @@ describe("ShareDialog", () => {
     createHostShare.mockRejectedValue(
       new ApiError("premix is stale; refresh it", "stale_mix", 409),
     );
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -619,7 +620,7 @@ describe("ShareDialog", () => {
     createHostShare.mockRejectedValue(
       new ApiError("premix is stale; refresh it", "stale_mix", 409),
     );
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await user.click(
@@ -647,7 +648,7 @@ describe("ShareDialog", () => {
     listHostShares
       .mockResolvedValueOnce(listed())
       .mockResolvedValue(listed([liveRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await screen.findByText("No review links yet.");
     expect(
@@ -666,7 +667,7 @@ describe("ShareDialog", () => {
   it("flashes Copied on the copy button after Copy link", async () => {
     const user = userEvent.setup();
     listHostShares.mockResolvedValue(listed([liveRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await user.click(await screen.findByRole("button", { name: "Copy link" }));
     expect(
@@ -682,7 +683,7 @@ describe("ShareDialog", () => {
       value: { writeText },
     });
     listHostShares.mockResolvedValue(listed([mcpRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Copy MCP URL" }),
@@ -698,7 +699,7 @@ describe("ShareDialog", () => {
 
   it("lists live rows and is axe-clean", async () => {
     listHostShares.mockResolvedValue(listed([liveRow, mcpRow]));
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     const { baseElement: container } = render(<ShareDialog />);
     expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
     expect(await screen.findByText("editor-mcp-narwhal")).toBeTruthy();
@@ -711,7 +712,7 @@ describe("ShareDialog", () => {
     const nativeConfirm = vi.spyOn(window, "confirm");
     listHostShares.mockResolvedValue(listed([liveRow]));
     revokeHostShare.mockResolvedValue(undefined);
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
     listHostShares.mockResolvedValue(
@@ -751,12 +752,12 @@ describe("ShareDialog", () => {
       </div>,
     );
     screen.getByTestId("opener").focus();
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
     });
     await user.keyboard("{Escape}");
-    expect(useDawStore.getState().shareDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(false);
   });
 
   it("creates record links and can end the room", async () => {
@@ -794,7 +795,7 @@ describe("ShareDialog", () => {
         revoked: [guestRow.token, producerRow.token],
       };
     });
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     const { baseElement: container } = render(<ShareDialog />);
     await screen.findByRole("heading", { name: "Record rooms" });
     fireEvent.click(
@@ -868,7 +869,7 @@ describe("ShareDialog", () => {
           }),
       )
       .mockResolvedValueOnce(room);
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await screen.findByRole("heading", { name: "Record rooms" });
     await user.click(
@@ -910,13 +911,13 @@ describe("ShareDialog", () => {
       record_role: "producer",
     };
     listHostShares.mockResolvedValue(listed([guestRow, producerRow]));
-    useDawStore.setState({ shareDialogOpen: true, recordPanelOpen: false });
+    setChrome({ shareDialogOpen: true, recordPanelOpen: false });
     render(<ShareDialog />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Open room panel" }),
     );
-    expect(useDawStore.getState().shareDialogOpen).toBe(false);
-    expect(useDawStore.getState().recordPanelOpen).toBe(true);
+    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(true);
   });
 
   it("replaces a closed guest invite, copies the new link, and refreshes rows", async () => {
@@ -946,7 +947,7 @@ describe("ShareDialog", () => {
       .mockResolvedValueOnce(listed([closedGuest]))
       .mockResolvedValue(listed([closedGuest, replacement]));
     replaceHostRecordInvite.mockResolvedValue(replacement);
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
 
     await userEvent.click(
@@ -998,7 +999,7 @@ describe("ShareDialog", () => {
       .mockResolvedValueOnce(listed([closedGuest]))
       .mockResolvedValueOnce(listed([otherProject]));
     replaceHostRecordInvite.mockResolvedValue(replacement);
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await userEvent.click(
       await screen.findByRole("button", { name: "Replace guest invite" }),
@@ -1054,7 +1055,7 @@ describe("ShareDialog", () => {
       .mockResolvedValueOnce(listed([closedGuest]))
       .mockResolvedValueOnce(listed([reopenedRow]));
     replaceHostRecordInvite.mockResolvedValue(replacement);
-    useDawStore.setState({ shareDialogOpen: true });
+    useDawStore.getState().setShareDialogOpen(true);
     render(<ShareDialog />);
     await userEvent.click(
       await screen.findByRole("button", { name: "Replace guest invite" }),

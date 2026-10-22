@@ -6,6 +6,7 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
+import { setChrome } from "../test/chrome";
 import {
   minimalProject,
   recordParticipant,
@@ -164,7 +165,7 @@ describe("RecordPanel", () => {
     vi.mocked(createOpfsSink).mockReset();
     vi.mocked(createOpfsSink).mockResolvedValue(new MemorySink());
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ recordPanelOpen: true, shareDialogOpen: false });
+    setChrome({ recordPanelOpen: true, shareDialogOpen: false });
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setTransportError(null);
     useRecordHostStore.getState().setConnected(true);
@@ -278,7 +279,7 @@ describe("RecordPanel", () => {
     useRecordHostStore
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
-    useDawStore.setState({ recordPanelOpen: false });
+    useDawStore.getState().setRecordPanelOpen(false);
     useRecordHostStore.getState().setCaptureHealth("failed");
     const { rerender } = render(
       <RecordPanel
@@ -346,7 +347,7 @@ describe("RecordPanel", () => {
       { sec: 105 },
       { skipWhen: true },
     );
-    expect(useDawStore.getState().recordPanelOpen).toBe(false);
+    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(false);
   });
 
   it("shows your own mic meter while the panel is open", async () => {
@@ -364,7 +365,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setCaptureHealth("failed");
     render(<RecordPanel micStatus="denied" />);
     await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
-    expect(useDawStore.getState().shareDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(true);
     expect(screen.queryByRole("dialog", { name: "Record room" })).toBeNull();
     act(() => useDawStore.getState().setShareDialogOpen(false));
     expect(screen.getByRole("dialog", { name: "Record room" })).toBeVisible();
@@ -390,7 +391,7 @@ describe("RecordPanel", () => {
       ),
     ).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
-    expect(useDawStore.getState().shareDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(true);
     await expectNoA11yViolations(container);
   });
 
@@ -721,7 +722,7 @@ describe("RecordPanel", () => {
     useRecordHostStore
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
-    useDawStore.setState({ recordPanelOpen: false });
+    useDawStore.getState().setRecordPanelOpen(false);
     useRecordHostStore.getState().setCaptureHealth("silent");
     render(
       <RecordPanel
@@ -735,14 +736,14 @@ describe("RecordPanel", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Record room" })).toBeNull(),
     );
-    expect(useDawStore.getState().recordPanelOpen).toBe(false);
+    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(false);
   });
 
   it("does not show REC: no audio while the microphone is lost", async () => {
     useRecordHostStore
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
-    useDawStore.setState({ recordPanelOpen: true });
+    useDawStore.getState().setRecordPanelOpen(true);
     useRecordHostStore.getState().setCaptureHealth("silent");
     render(
       <RecordPanel
@@ -762,7 +763,7 @@ describe("RecordPanel", () => {
     useRecordHostStore
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
-    useDawStore.setState({ recordPanelOpen: false });
+    useDawStore.getState().setRecordPanelOpen(false);
     useRecordHostStore.getState().setCaptureHealth("silent");
     const { baseElement: container, rerender } = render(
       <RecordPanel
@@ -837,12 +838,12 @@ describe("RecordPanel", () => {
       take_index: 0,
       start_blockers: [],
     });
-    useDawStore.setState({ recordPanelOpen: false });
+    useDawStore.getState().setRecordPanelOpen(false);
     const { baseElement: container } = render(
       <RecordPanel micLost onRetryMic={vi.fn()} />,
     );
     await waitFor(() => {
-      expect(useDawStore.getState().recordPanelOpen).toBe(true);
+      expect(useDawStore.getState().chrome.recordPanelOpen).toBe(true);
       expect(
         screen.getByRole("button", { name: "Reconnect microphone" }),
       ).toBeVisible();

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
+import { setChrome } from "../test/chrome";
 import { minimalProject } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
@@ -15,11 +16,11 @@ describe("export.deliverables", () => {
     clearRegisteredCommands();
     registerDawCommands();
     vi.mocked(api.startExportJob).mockReset();
+    setChrome({ exportDialogOpen: false });
     useDawStore.setState({
       projectPath: "/tmp/test/episode.project.json",
       project: minimalProject(),
       guestMode: null,
-      exportDialogOpen: false,
     });
   });
 
@@ -27,7 +28,7 @@ describe("export.deliverables", () => {
     expect(
       await execute("export.deliverables", {}, { skipWhen: true }),
     ).toEqual({ status: "ok" });
-    expect(useDawStore.getState().exportDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true);
     expect(api.startExportJob).not.toHaveBeenCalled();
   });
 
@@ -36,6 +37,6 @@ describe("export.deliverables", () => {
     expect(
       await execute("export.deliverables", {}, { skipWhen: true }),
     ).toEqual({ status: "disabled", reason: "No project loaded" });
-    expect(useDawStore.getState().exportDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.exportDialogOpen).toBe(false);
   });
 });
