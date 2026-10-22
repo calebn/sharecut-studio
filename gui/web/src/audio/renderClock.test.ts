@@ -20,9 +20,9 @@ const CASES: FixtureCase[] = JSON.parse(
 
 function rows(c: FixtureCase): ClipRow[] {
   return c.clips.map(({ placed_start: _placed, ...row }) => ({
-    ...row,
     source_id: null,
     recording_key: null,
+    ...row,
   }));
 }
 

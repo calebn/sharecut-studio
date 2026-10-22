@@ -227,16 +227,41 @@ export function joinWaveSpans(
 
 const BORROW_STEP_SEC = 0.005;
 const MIN_BLEND_SEC = 0.02;
+const BLEND_SLACK_SEC = 1e-9;
+/** `clips_ops.SPLICE_SOURCE_EPS_SEC`: a source gap under this is a contiguous split. */
+const SPLICE_SOURCE_EPS_SEC = 1e-4;
+
+type DraftPick = Pick<
+  ClipRow,
+  "source_start" | "source_end" | "source_duration_sec"
+> &
+  Partial<Pick<ClipRow, "recording_key">>;
+
+/**
+ * `clips_ops._gap_room`: half the removed source span between two clips of one recording, else Infinity.
+ * Draft-only difference: a null `recording_key` is uncapped here, whereas Python
+ * treats two clips with the same (or both None) source id as one recording; the
+ * browser has no server field to tell those apart.
+ */
+function gapRoom(left: DraftPick, right: DraftPick): number {
+  if (left.recording_key == null || left.recording_key !== right.recording_key)
+    return Infinity;
+  const rawGap = right.source_start - left.source_end;
+  // The raw comparison `is_splice` makes, before the 6 dp rounding.
+  if (rawGap < SPLICE_SOURCE_EPS_SEC) return Infinity;
+  return Math.round(rawGap * 1e6) / 1e6 / 2;
+}
 
 /**
  * The overlap (ms) render settles on for a draft length `ms`: the same room
  * and 5 ms steps as `clips_ops.crossfade_borrow_sec` / `renderClock.borrowSec`
- * (the recordings beyond both edges, a quarter of either clip), 0 when too
+ * (the recordings beyond both edges, a quarter of either clip, half the
+ * removed source span between two clips of one recording), 0 when too
  * little room is left to blend or either recording is unmeasured.
  */
 export function joinDraftOverlapMs(
-  left: Pick<ClipRow, "source_start" | "source_end" | "source_duration_sec">,
-  right: Pick<ClipRow, "source_start" | "source_end" | "source_duration_sec">,
+  left: DraftPick,
+  right: DraftPick,
   ms: number,
 ): number {
   if (left.source_duration_sec === null || right.source_duration_sec === null)
@@ -246,8 +271,13 @@ export function joinDraftOverlapMs(
     (left.source_end - left.source_start) * 0.25,
     (right.source_end - right.source_start) * 0.25,
     left.source_duration_sec - left.source_end,
+    gapRoom(left, right),
   );
-  if (!(ms > 0) || 2 * room < Math.min(ms / 1000, MIN_BLEND_SEC)) return 0;
+  if (
+    !(ms > 0) ||
+    2 * room + BLEND_SLACK_SEC < Math.min(ms / 1000, MIN_BLEND_SEC)
+  )
+    return 0;
   const steps = Math.floor(
     Math.min(Math.max(ms / 2000, BORROW_STEP_SEC), room) / BORROW_STEP_SEC +
       1e-9,
@@ -256,14 +286,15 @@ export function joinDraftOverlapMs(
 }
 
 export function projectJoinDraft(
-  left: Pick<ClipRow, "source_start" | "source_end" | "source_duration_sec">,
+  left: DraftPick,
   right: ClipRow,
   ms: number,
 ): ClipRow {
   if (joinGlyph(right) !== "crossfade") return right;
   // The browser cannot see mutes, so a saved no_headroom is kept for the drag.
   // It is length-curable only for a mute 5-10 ms past the edge (needs a ~20 ms
-  // or shorter drag); release re-reads the server row.
+  // or shorter drag); a source gap under 20 ms is not curable by length.
+  // Release re-reads the server row.
   if (
     right.join_crossfade_blocked === "no_headroom" ||
     right.join_crossfade_blocked === "not_abutting"

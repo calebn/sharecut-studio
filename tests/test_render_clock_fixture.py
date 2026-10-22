@@ -33,6 +33,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.models.episode import SourceRecording
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "render_clock" / "cases.json"
 
@@ -51,10 +52,12 @@ def _clip(
     fade_out: int = 0,
     room: float = 10.0,
     mutes: tuple[tuple[float, float], ...] = (),
+    rec: bool = False,
 ) -> Clip:
     return Clip(
         id=clip_id,
         track_id=track,
+        source_id=_SOURCE_ID if rec else None,
         source_start=room,
         source_end=room + end - start,
         timeline_start=start,
@@ -66,6 +69,9 @@ def _clip(
 
 
 _RECORDING_SEC = 100.0
+# The cut-gap cases name their recording, as a project view does; the others leave both unset.
+_SOURCE_ID = "s1"
+_RECORDING_KEY = "rec-fixture-a"
 
 _CASES: dict[str, list[Clip]] = {
     "no_crossfade_is_identity": [
@@ -141,6 +147,21 @@ _CASES: dict[str, list[Clip]] = {
         _clip("b", "host", 5, 9, _XFADE, 100, 0),
         _clip("c", "host", 9, 12),
     ],
+    "a_cut_gap_caps_the_borrow_at_half": [
+        _clip("a", "host", 0, 5, fade_out=400, rec=True),
+        _clip("b", "host", 5, 9, _XFADE, 400, 0, room=15.3, rec=True),
+        _clip("c", "host", 9, 12, rec=True),
+    ],
+    "an_exact_contiguous_split_borrows_the_full_half": [
+        _clip("a", "host", 0, 5, fade_out=400, rec=True),
+        _clip("b", "host", 5, 9, _XFADE, 400, 0, room=15.0, rec=True),
+        _clip("c", "host", 9, 12, rec=True),
+    ],
+    "a_gap_under_20ms_joins_without_a_blend": [
+        _clip("a", "host", 0, 5, fade_out=200, rec=True),
+        _clip("b", "host", 5, 9, _XFADE, 200, 0, room=15.01, rec=True),
+        _clip("c", "host", 9, 12, rec=True),
+    ],
 }
 
 _UNMEASURED = {"an_unmeasured_recording_joins_without_a_blend"}
@@ -176,6 +197,10 @@ def _case_rows(clips: list[Clip], tmp_path: Path, measured: bool = True) -> list
     project.timeline.tracks = []
     project.timeline.clips = clips
     recording_sec = _RECORDING_SEC if measured else None
+    if any(c.source_id for c in clips):
+        project.sources = [
+            SourceRecording(id=_SOURCE_ID, path="raw/host.wav", duration_sec=recording_sec)
+        ]
     for track_id in lanes:
         (tmp_path / "raw" / f"{track_id}.wav").write_bytes(b"")
         project.timeline.tracks.append(
@@ -196,7 +221,9 @@ def _case_rows(clips: list[Clip], tmp_path: Path, measured: bool = True) -> list
         for index, clip in enumerate(lane):
             base, src_start = starts[clip.id]
             placed[clip.id] = base + clip.source_start - src_start
+            named = {"source_id": clip.source_id, "recording_key": _RECORDING_KEY}
             rows[clip.id] = {
+                **(named if clip.source_id else {}),
                 "id": clip.id,
                 "track_id": clip.track_id,
                 "source_start": clip.source_start,
@@ -349,3 +376,35 @@ def test_a_join_with_no_room_reports_no_headroom_and_borrows_nothing(tmp_path: P
     assert fields["join_crossfade_blocked"] == "no_headroom"
     assert fields["join_crossfade_ms"] == 0
     assert "join_borrow_sec" not in fields
+
+
+@pytest.mark.parametrize("gap", [0.01, 0.02, 0.08, 0.3, 0.4, 1.0])
+@pytest.mark.parametrize("xf_ms", [20, 200, 400, 1000])
+def test_the_played_spans_of_a_cut_never_overlap_inside_the_removed_span(
+    tmp_path: Path, gap: float, xf_ms: int
+) -> None:
+    """No removed audio is heard twice: the left plays [e, e+h], the right [s-h, s], h <= gap/2."""
+    project = _borrow_project(tmp_path)
+    left = _clip("a", "host", 0, 5, fade_out=xf_ms)
+    right = _clip("b", "host", 5, 9, _XFADE, xf_ms, 0, room=left.source_end + gap)
+    audio = placed_track_audio(project, project.tracks[0], [left, right]).audio
+    leaves = {s.clip_id: s for s in sources(audio)}
+    removed = (left.source_end, right.source_start)
+    left_played = (max(leaves["a"].src_end, removed[0]), min(leaves["a"].src_end, removed[1]))
+    right_played = (max(leaves["b"].src_start, removed[0]), removed[1])
+    left_tail = leaves["a"].src_end - removed[0]
+    right_head = removed[1] - leaves["b"].src_start
+    assert left_tail <= gap / 2 + 1e-9, (left_played, right_played)
+    assert right_head <= gap / 2 + 1e-9, (left_played, right_played)
+    assert leaves["a"].src_end <= leaves["b"].src_start + 1e-9
+    assert duration(audio) == pytest.approx(9.0)
+
+
+def test_a_contiguous_split_still_plays_its_full_borrow(tmp_path: Path) -> None:
+    project = _borrow_project(tmp_path)
+    left = _clip("a", "host", 0, 5, fade_out=400)
+    right = _clip("b", "host", 5, 9, _XFADE, 400, 0, room=left.source_end)
+    audio = placed_track_audio(project, project.tracks[0], [left, right]).audio
+    leaves = {s.clip_id: s for s in sources(audio)}
+    assert leaves["a"].src_end == pytest.approx(left.source_end + 0.2)
+    assert leaves["b"].src_start == pytest.approx(right.source_start - 0.2)

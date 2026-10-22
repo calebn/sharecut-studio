@@ -557,6 +557,29 @@ class MuteIndex:
 _EDGE_TOUCH_SEC = 0.001
 _BORROW_STEP_SEC = 0.005
 _MIN_BLEND_SEC = 0.020
+_BLEND_SLACK_SEC = 1e-9
+
+
+def _gap_room(project: EpisodeProject, left: Clip, right: Clip) -> float:
+    """Room a cut's removed span leaves each side to borrow: half the source gap.
+
+    ``left`` and ``right`` of one recording with ``right`` starting past where
+    ``left`` ends (a cut took the span between) may each borrow at most half of
+    it, so the two borrowed spans never overlap and no removed audio plays
+    twice. Contiguous clips (a split, gap under ``SPLICE_SOURCE_EPS_SEC``), a
+    right clip that starts before the left ends, and clips of different
+    recordings have no such cap (``inf``).
+    """
+    if left.track_id != right.track_id:
+        return math.inf
+    if left.source_id != right.source_id and right.source_id not in (
+        project.equivalent_source_ids(left.track_id, left.source_id)
+    ):
+        return math.inf
+    raw_gap = float(right.source_start) - float(left.source_end)
+    if raw_gap < SPLICE_SOURCE_EPS_SEC:  # the raw comparison ``is_splice`` makes, before rounding
+        return math.inf
+    return round(raw_gap, 6) / 2.0
 
 
 def crossfade_borrow_sec(
@@ -568,8 +591,11 @@ def crossfade_borrow_sec(
     starts before its start, each by this much, so the join adds and removes no
     time on the lane. The borrow shrinks to the room the recordings have beyond
     the two edges (an unmeasured recording has none) and to a quarter of either
-    clip, so the two joins of a short clip never meet. ``0`` when the join does
-    not blend. Pass one ``MuteIndex`` when scanning many joins.
+    clip, so the two joins of a short clip never meet. Across a cut in one
+    recording (``right`` starts past ``left``'s end) it is also capped at half
+    the removed span, so no removed audio is heard twice; a gap too small to
+    leave a 20 ms blend plays the stored fades. ``0`` when the join does not
+    blend. Pass one ``MuteIndex`` when scanning many joins.
     """
     ms = crossfade_ms_at_join(left, right)
     if ms <= 0:
@@ -586,11 +612,12 @@ def crossfade_borrow_sec(
         right.source_start,
         (left.source_end - left.source_start) * 0.25,
         (right.source_end - right.source_start) * 0.25,
+        _gap_room(project, left, right),
     )
     index = index or MuteIndex(project)
     reach = max(ms / 2000.0, _BORROW_STEP_SEC)
     room = min(room, index.room_after(left, reach), index.room_before(right, reach))
-    if 2 * room < min(ms / 1000.0, _MIN_BLEND_SEC):
+    if 2 * room + _BLEND_SLACK_SEC < min(ms / 1000.0, _MIN_BLEND_SEC):
         return 0.0
     steps = math.floor(min(max(ms / 2000.0, _BORROW_STEP_SEC), room) / _BORROW_STEP_SEC + 1e-9)
     return round(steps * _BORROW_STEP_SEC, 6) if steps >= 1 else 0.0
