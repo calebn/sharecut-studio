@@ -42,15 +42,18 @@ def _live_relay(
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
-    server = uvicorn.Server(config)
+    startup_complete = threading.Event()
+
+    class ReadyServer(uvicorn.Server):
+        async def startup(self, sockets: list[socket.socket] | None = None) -> None:
+            await super().startup(sockets=sockets)
+            startup_complete.set()
+
+    server = ReadyServer(config)
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
-    for _ in range(200):
-        if server.started:
-            break
-        time.sleep(0.01)
-    assert server.started, "relay uvicorn failed to start"
     try:
+        assert startup_complete.wait(timeout=2) and server.started, "relay uvicorn failed to start"
         yield f"ws://127.0.0.1:{port}"
     finally:
         server.should_exit = True
