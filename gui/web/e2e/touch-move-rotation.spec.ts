@@ -90,11 +90,13 @@ test("rotating the phone mid long-press move saves nothing, and a later move sav
       x: again.x + again.width / 2,
       y: again.y + again.height / 2,
     };
+    const sentBeforeSecond = moves().length;
     await finger.down(from);
     await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
     await finger.slide({ x: from.x + 40, y: from.y }, 4, 16);
     await finger.up();
 
+    expect(sentBeforeSecond).toBe(0);
     await expect.poll(() => moves().length).toBeGreaterThanOrEqual(1);
     await expect
       .poll(async () => await starts(page, projectPath))
