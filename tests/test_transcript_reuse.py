@@ -5,11 +5,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import multistream_media as media
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits import transcript_reuse
 from podcast_mcp.edits.transcript_correct import correct_word
 from podcast_mcp.edits.transcript_reuse import (
     TranscribePlan,
     TranscriptOverwriteRefused,
+    _refresh_silence_flags,
     merge_transcripts_by_key,
     needs_retime,
     plan_retime,
@@ -755,3 +758,29 @@ def test_transcribe_run_keeps_prompt_revision_snapshot_during_vocabulary_save(jo
     engine.transcribe_all_dialogue.side_effect = decode
     result = run_transcribe_plan(project, plan, lambda: engine, use_cache=True, language="en")
     assert result[0].vocabulary_revision == "old"
+
+
+@pytest.mark.parametrize(("name", "refreshed"), [("mono", 0), ("two_b.mkv", 1)])
+def test_main_era_silence_fingerprint_is_current_for_one_stream_only(
+    tmp_path, monkeypatch, name, refreshed
+):
+    audio = (
+        media.single_stream_media(tmp_path)["wav"]
+        if name == "mono"
+        else media.multistream(tmp_path, name)
+    )
+    options = AsrOptions()
+    stored = _tr(
+        silence_filter_fingerprint=silence_filter_fingerprint(
+            [TranscriptWord(text="hi", start=0, end=0.5)], "hash", options
+        )
+    )
+    monkeypatch.setattr(transcript_reuse, "refresh_silence_flags", lambda *_a, **_k: 0)
+    skipped, count = _refresh_silence_flags(
+        _project(stored, workspace=str(tmp_path)),
+        [TranscribeJob("host", None, audio)],
+        lambda _job: "hash",
+        options,
+        bleed_check=False,
+    )
+    assert (skipped, count) == ([], refreshed)

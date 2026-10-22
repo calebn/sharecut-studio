@@ -756,8 +756,8 @@ def current_gate_fill_path(project: EpisodeProject, track: Track) -> Path | None
     if stamp.content != (fill.media_size, fill.media_mtime_ns):
         log.debug("gate fill for %s ignored: its media changed since it was measured", track.id)
         return None
-    if fill.audio_stream is None and has_several_audio_streams(media):
-        log.debug("gate fill for %s ignored: measured before the first-stream decode", track.id)
+    if fill.audio_stream != 0 and has_several_audio_streams(media):
+        log.debug("gate fill for %s ignored: not measured on the first audio stream", track.id)
         return None
     return path if path.is_file() else None
 

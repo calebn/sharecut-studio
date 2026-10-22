@@ -105,7 +105,7 @@ def test_analyze_track_streams_without_full_decode(
 
     cached = next(pp.prosody_dir(proj).glob("host_*.json"))
     payload = json.loads(cached.read_text(encoding="utf-8"))
-    assert payload["algorithm_version"] == pp.ALGORITHM_VERSION == 6
+    assert payload["algorithm_version"] == pp.ALGORITHM_VERSION == 5
 
 
 def test_analyze_track_refuses_to_cache_when_media_changes_mid_analysis(

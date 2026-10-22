@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh
 from podcast_mcp.engines.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.waveform_pyramid import (
@@ -215,7 +216,11 @@ def current_key(entry: MediaEntry) -> str:
     Request handlers call ``services.media.waveform.live_key`` instead: it turns a missing
     file into ``LookupError`` (404), where a bare ``OSError`` would become a 500.
     """
-    return media_key(entry.rel_path, *file_stamp(entry.abs_path).content)
+    return media_key(
+        entry.rel_path,
+        *file_stamp(entry.abs_path).content,
+        first_stream=has_several_audio_streams(entry.abs_path),
+    )
 
 
 def current_ref_key(project_path: Path, ref: str, *, defaults: EffectiveConfig) -> str | None:

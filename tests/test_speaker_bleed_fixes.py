@@ -346,17 +346,20 @@ def test_score_returns_error_when_unscorable(tmp_path, sample_wav) -> None:
 
 def test_load_profile_by_home_track_id(tmp_path, sample_wav) -> None:
     proj = _project(tmp_path, sample_wav)
+    host_stem, _ = _stem_path_and_source(proj, "host")
+    assert host_stem is not None
+    stem_hash = file_revision_key(host_stem)
     prof = SpeakerProfile(
         speaker_id="alice",
         track_id="host",
         embedding=[1.0, 0.0],
         enrollment_sec=1.0,
-        stem_hash="zzz",
+        stem_hash=stem_hash,
         home_track_id="host",
     )
     cache_dir = proj.artifacts_dir() / "speaker_profiles"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / "alice_zzz.json").write_text(json.dumps(prof.to_dict()), encoding="utf-8")
+    (cache_dir / f"alice_{stem_hash}.json").write_text(json.dumps(prof.to_dict()), encoding="utf-8")
     from podcast_mcp.engines.speaker_id import load_profile
 
     loaded = load_profile(proj, "host")
