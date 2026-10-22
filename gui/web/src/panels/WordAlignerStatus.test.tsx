@@ -19,7 +19,7 @@ describe("WordAlignerStatus", () => {
   it("shows the needs-download message when not ok", () => {
     render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -37,10 +37,9 @@ describe("WordAlignerStatus", () => {
     render(
       <WordAlignerStatus
         status={{
-          ok: false,
-          opt_in: true,
+          state: "update_needed",
+          tier: "offered",
           size: "~360 MB",
-          pin_mismatch: true,
         }}
         retiming={false}
         onDownloaded={vi.fn()}
@@ -75,7 +74,7 @@ describe("WordAlignerStatus", () => {
 
     render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={onDownloaded}
         onRetime={vi.fn()}
@@ -98,7 +97,7 @@ describe("WordAlignerStatus", () => {
 
     render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -123,7 +122,7 @@ describe("WordAlignerStatus", () => {
 
     render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -149,7 +148,7 @@ describe("WordAlignerStatus", () => {
 
     render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -172,7 +171,7 @@ describe("WordAlignerStatus", () => {
     const onRetime = vi.fn();
     render(
       <WordAlignerStatus
-        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={onRetime}
@@ -188,7 +187,7 @@ describe("WordAlignerStatus", () => {
   it("disables both the download and the re-time button", () => {
     const { rerender } = render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         disabledReason={BUSY_REASON}
         retiming={false}
         onDownloaded={vi.fn()}
@@ -201,7 +200,7 @@ describe("WordAlignerStatus", () => {
 
     rerender(
       <WordAlignerStatus
-        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
         disabledReason={BUSY_REASON}
         retiming={false}
         onDownloaded={vi.fn()}
@@ -216,7 +215,7 @@ describe("WordAlignerStatus", () => {
   it("locks to the download and names the reason when the aligner is missing", async () => {
     const { container } = render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         alignment={{
           enabled: false,
           model: null,
@@ -248,7 +247,7 @@ describe("WordAlignerStatus", () => {
     const user = userEvent.setup();
     const { container } = render(
       <WordAlignerStatus
-        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
         alignment={{
           enabled: true,
           model: "onnx-base",
@@ -273,7 +272,7 @@ describe("WordAlignerStatus", () => {
   it("hides Re-time words when the field is explicitly off", () => {
     render(
       <WordAlignerStatus
-        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
         alignment={{
           enabled: false,
           model: null,
@@ -296,7 +295,7 @@ describe("WordAlignerStatus", () => {
   it("has no axe violations when needing download", async () => {
     const { container } = render(
       <WordAlignerStatus
-        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        status={{ state: "missing", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -308,7 +307,7 @@ describe("WordAlignerStatus", () => {
   it("has no axe violations when downloaded", async () => {
     const { container } = render(
       <WordAlignerStatus
-        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -320,7 +319,7 @@ describe("WordAlignerStatus", () => {
   it("shows Re-timing… with aria-busy while retiming", async () => {
     const { container } = render(
       <WordAlignerStatus
-        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        status={{ state: "installed", tier: "offered", size: "~360 MB" }}
         disabledReason={BUSY_REASON}
         retiming={true}
         onDownloaded={vi.fn()}

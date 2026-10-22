@@ -6,6 +6,7 @@ import { FeatureProvider } from "./extensions/FeatureProvider";
 import { useFeaturesReady, useHasFeature } from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
 import { HomeScreen } from "./home/HomeScreen";
+import { ModelsProvider } from "./models";
 import { loadOfflineSnapshot } from "./services/offlineQueue/offlineStore";
 import { shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
@@ -190,9 +191,14 @@ function AppInner() {
 }
 
 export default function App() {
+  const inner = <AppInner />;
   return (
     <FeatureProvider>
-      <AppInner />
+      {shareRouteFromLocation() ? (
+        inner
+      ) : (
+        <ModelsProvider>{inner}</ModelsProvider>
+      )}
     </FeatureProvider>
   );
 }

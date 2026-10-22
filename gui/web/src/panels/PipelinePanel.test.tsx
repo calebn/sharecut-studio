@@ -182,9 +182,9 @@ const baseConfig = {
     },
   ],
   components: {
-    ffmpeg: { ok: true },
-    whisper: { ok: true },
-    rnnoise: { ok: false, hint: "missing" },
+    ffmpeg: { state: "installed" },
+    whisper: { state: "installed" },
+    rnnoise: { state: "missing", hint: "missing" },
   },
   forced_alignment: {
     enabled: false,
@@ -248,8 +248,8 @@ function alignerConfig(
   cfg.components = {
     ...cfg.components,
     "word-aligner": {
-      ok: installed,
-      opt_in: true,
+      state: installed ? "installed" : "missing",
+      tier: "offered",
       size: "~360 MB",
       hint: "Word aligner (~360 MB) is not downloaded; Precise word boundaries is unavailable and words keep Whisper's times until it is. Download it next to that field in the Pipeline tab",
       bootstrap: "podcast bootstrap --component word-aligner",
@@ -1286,9 +1286,9 @@ describe("PipelinePanel", () => {
           transcribe: { model: "large-v3-turbo" },
         },
         components: {
-          ffmpeg: { ok: true },
-          whisper: { ok: false, hint: "not downloaded" },
-          rnnoise: { ok: true },
+          ffmpeg: { state: "installed" },
+          whisper: { state: "missing", hint: "not downloaded" },
+          rnnoise: { state: "installed" },
         },
       }),
     );

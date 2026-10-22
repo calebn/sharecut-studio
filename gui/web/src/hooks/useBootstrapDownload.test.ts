@@ -53,6 +53,35 @@ describe("useBootstrapDownload", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it.each(["error", "cancelled"])(
+    "resolves false with the job's message when the job ends %s",
+    async (status) => {
+      runBootstrap.mockResolvedValue({
+        job: { id: "job1", status: "running" },
+      });
+      waitForBootstrapJob.mockResolvedValue({
+        id: "job1",
+        status,
+        error: status === "error" ? "The download server is busy." : null,
+        message: "Stopped",
+      });
+      const { result } = renderHook(() =>
+        useBootstrapDownload("the word aligner"),
+      );
+      let outcome!: boolean;
+      await act(async () => {
+        outcome = await result.current.download({
+          components: ["word-aligner"],
+        });
+      });
+      expect(outcome).toBe(false);
+      expect(result.current.busy).toBe(false);
+      expect(result.current.error).toBe(
+        status === "error" ? "The download server is busy." : "Stopped",
+      );
+    },
+  );
+
   it("resolves false with an error and clears busy on failure", async () => {
     runBootstrap.mockRejectedValue(new Error("network down"));
 

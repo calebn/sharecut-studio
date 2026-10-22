@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { type BootstrapJobSnapshot, waitForBootstrapJob } from "./api";
-import { JOB_STREAM_RECHECK_MS } from "./api/jobStream";
+import {
+  type BootstrapJobSnapshot,
+  cancelBootstrap,
+  fetchBootstrapJob,
+  waitForBootstrapJob,
+} from "./bootstrap";
+import { JOB_STREAM_RECHECK_MS } from "./jobStream";
 
 type Handler = ((ev: MessageEvent) => void) | null;
 type ErrHandler = (() => void) | null;
@@ -64,21 +68,79 @@ describe("waitForBootstrapJob", () => {
     expect(es.closed).toBe(true);
   });
 
-  it("rejects on terminal SSE error status", async () => {
+  it("resolves a failed job with its failure and result intact", async () => {
     const p = waitForBootstrapJob("job-err");
+    const es = FakeEventSource.instances[0]!;
+    const failed: BootstrapJobSnapshot = {
+      id: "job-err",
+      kind: "bootstrap",
+      components: ["whisper"],
+      whisper_model: "small.en",
+      status: "error",
+      error: "The download server doesn't have Whisper.",
+      failure: {
+        kind: "http",
+        status: 404,
+        plain: "The download server doesn't have Whisper.",
+      },
+      download: { component: "whisper", bytes: 10, total: 100 },
+      result: { results: { whisper: { ok: false } } },
+    };
+    es.emit({ type: "status", job: failed });
+    await expect(p).resolves.toEqual(failed);
+    expect(es.closed).toBe(true);
+  });
+
+  it("resolves a cancelled job", async () => {
+    const p = waitForBootstrapJob("job-cancel");
     const es = FakeEventSource.instances[0]!;
     es.emit({
       type: "status",
-      job: {
-        id: "job-err",
-        kind: "bootstrap",
-        components: ["whisper"],
-        whisper_model: "small.en",
-        status: "error",
-        error: "network down",
-      },
+      job: { ...okJob("job-cancel"), status: "cancelled" },
     });
-    await expect(p).rejects.toThrow(/network down/);
+    await expect(p).resolves.toMatchObject({
+      id: "job-cancel",
+      status: "cancelled",
+    });
+  });
+
+  it("resolves a terminal error found by the status re-check", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              job: { ...okJob("job-late"), status: "error", error: "boom" },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+      ),
+    );
+    const p = waitForBootstrapJob("job-late");
+    FakeEventSource.instances[0]!.emitError();
+    await expect(p).resolves.toMatchObject({
+      id: "job-late",
+      status: "error",
+    });
+  });
+
+  it("rejects when the caller aborts the wait", async () => {
+    const controller = new AbortController();
+    const p = waitForBootstrapJob("job-abort", { signal: controller.signal });
+    const es = FakeEventSource.instances[0]!;
+    controller.abort();
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
+    expect(es.closed).toBe(true);
+  });
+
+  it("rejects at once when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      waitForBootstrapJob("job-pre", { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(FakeEventSource.instances.every((es) => es.closed)).toBe(true);
   });
 
   it("re-checks status-job on EventSource error", async () => {
@@ -218,5 +280,44 @@ describe("waitForBootstrapJob", () => {
     );
     await vi.advanceTimersByTimeAsync(0);
     expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("bootstrap requests", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts the job id to cancel and returns the snapshot", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({ job: { ...okJob("job-c"), status: "running" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(cancelBootstrap("job-c")).resolves.toMatchObject({
+      id: "job-c",
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toContain("/api/bootstrap/cancel");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({ job_id: "job-c" });
+  });
+
+  it("asks status-job for the current job when no id is given", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string) =>
+        new Response(JSON.stringify({ job: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchBootstrapJob()).resolves.toBeNull();
+    expect(fetchMock.mock.calls[0]![0]).toMatch(
+      /\/api\/bootstrap\/status-job$/,
+    );
   });
 });
