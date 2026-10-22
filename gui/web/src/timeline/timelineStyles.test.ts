@@ -236,6 +236,16 @@ describe("timeline styles", () => {
     );
   });
 
+  it("sizes the bleed pick strip from the bottom clip inset, not the top gutter", () => {
+    const css = readFileSync(
+      join(here, "BleedAttenuationOverlay.css"),
+      "utf8",
+    );
+    const pick = rule(css, ".bleed-attenuation-pick.ui-control");
+    expect(pick).toMatch(/block-size:\s*var\(--clip-inset-bottom\)/);
+    expect(css).not.toMatch(/--clip-inset-top/);
+  });
+
   it("shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion", () => {
     const css = partial("timeline.css");
     const mark = rule(css, ".edit-mark");
