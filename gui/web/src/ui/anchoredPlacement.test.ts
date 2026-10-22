@@ -5,6 +5,7 @@ import {
   placeAnchored,
   placeAnchoredClear,
   unionRect,
+  visualViewportBox,
 } from "./anchoredPlacement";
 
 const viewport = { left: 0, top: 0, width: 400, height: 800 };
@@ -242,5 +243,32 @@ describe("inlineSizeCaps", () => {
       align: "center",
     });
     expect(inlineSizeCaps(placed, big)).not.toBeNull();
+  });
+});
+
+describe("visualViewportBox", () => {
+  function chrome(top: number, rendered: boolean): Element {
+    const element = document.createElement("nav");
+    element.getBoundingClientRect = () =>
+      ({ top: rendered ? top : 0, bottom: rendered ? top + 52 : 0 }) as DOMRect;
+    element.getClientRects = () =>
+      (rendered
+        ? [element.getBoundingClientRect()]
+        : []) as unknown as DOMRectList;
+    return element;
+  }
+
+  it("ends the box at the top of the bottom chrome", () => {
+    expect(visualViewportBox(chrome(323, true)).height).toBe(323);
+  });
+
+  it("ignores chrome that is not rendered (display: none reads back top 0)", () => {
+    const box = visualViewportBox(chrome(323, false));
+    expect(box.height).toBe(window.innerHeight);
+    expect(box.height).toBeGreaterThan(0);
+  });
+
+  it("uses the whole viewport without chrome", () => {
+    expect(visualViewportBox(null).height).toBe(window.innerHeight);
   });
 });
