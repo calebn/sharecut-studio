@@ -19,6 +19,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 5,
     reason: "each test reads computed colors, which differ per theme",
   },
+  "models.spec.ts": {
+    loops: 2,
+    reason:
+      "the models acceptance asks for screenshots and contrast-enabled axe at three viewports in both themes (#2046)",
+  },
   "review-surface.spec.ts": {
     loops: 1,
     reason: "axe contrast for two different screens, each in both themes",

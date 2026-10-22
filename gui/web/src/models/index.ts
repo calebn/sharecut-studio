@@ -6,6 +6,7 @@ export {
 export { formatBytes } from "./format";
 export { ModelProgress } from "./ModelProgress";
 export { ModelRow, type ModelRowAction } from "./ModelRow";
+export { ModelsDialog } from "./ModelsDialog";
 export { ModelsProvider } from "./ModelsProvider";
 export type {
   DownloadOptions,

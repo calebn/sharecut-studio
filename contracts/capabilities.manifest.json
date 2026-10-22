@@ -1860,6 +1860,33 @@
       }
     },
     {
+      "id": "daw.models.open",
+      "label": "Manage models\u2026",
+      "effect": "view",
+      "service": "Bootstrap status (services/pipeline/bootstrap.py)",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "models.open",
+        "gui": [
+          "home.models",
+          "ModelsDialog"
+        ],
+        "cli": "podcast setup"
+      },
+      "omit": {
+        "keyboard_reason": "dialog from Home / palette",
+        "guest": true
+      },
+      "tooltip": "See every model and download the ones you want",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.export.deliverables",
       "label": "Export deliverables\u2026",
       "effect": "project",

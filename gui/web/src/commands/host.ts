@@ -203,6 +203,15 @@ export function registerHostCommands(): void {
     return { status: "ok" };
   });
 
+  registerCommand("models.open", () => {
+    const s = useDawStore.getState();
+    if (!canManageProjects(s.projectPath)) {
+      return { status: "disabled", reason: "Manage models is host-only" };
+    }
+    s.setModelsDialogOpen(true);
+    return { status: "ok" };
+  });
+
   registerCommand("share.manage", (_args, ctx) => {
     const blocked = hostProjectGate(ctx) ?? shareFeatureGate("Share");
     if (blocked) {

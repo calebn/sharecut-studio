@@ -294,6 +294,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Export diagnostics…",
     tooltip: "Create a sanitized diagnostics bundle",
   },
+  "daw.models.open": {
+    label: "Manage models…",
+    tooltip: "See every model and download the ones you want",
+  },
   "daw.export.deliverables": {
     label: "Export deliverables…",
     tooltip: "Export deliverables…",
@@ -544,6 +548,8 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   HostMcpDialog: "daw.mcp.connect",
   "home.help": "daw.help.diagnosticsBundle",
   HelpDialog: "daw.help.diagnosticsBundle",
+  "home.models": "daw.models.open",
+  ModelsDialog: "daw.models.open",
   ExportDialog: "daw.export.deliverables",
   trackLane: "daw.track.add",
   "mobileShell.more": "daw.edit.addChapter",

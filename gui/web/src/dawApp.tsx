@@ -20,6 +20,7 @@ import { HostMcpDialog } from "./layout/HostMcpDialog";
 import { ShareDialog } from "./layout/ShareDialog";
 import { SplitSpeakersDialog } from "./layout/SplitSpeakersDialog";
 import { StudioShell } from "./layout/StudioShell";
+import { ModelsDialog } from "./models";
 import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
 import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
@@ -50,6 +51,7 @@ const selectDawAppFields = pickDaw(
   "setActivityRunningCount",
   "setHostMcpDialogOpen",
   "setHelpDialogOpen",
+  "setModelsDialogOpen",
 );
 
 const selectDawAppDerived = (s: DawState) => ({
@@ -74,9 +76,11 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setActivityRunningCount,
     setHostMcpDialogOpen,
     setHelpDialogOpen,
+    setModelsDialogOpen,
   } = useDaw(selectDawAppFields);
   const hostMcpDialogOpen = useDaw((s) => s.chrome.hostMcpDialogOpen);
   const helpDialogOpen = useDaw((s) => s.chrome.helpDialogOpen);
+  const modelsDialogOpen = useDaw((s) => s.chrome.modelsDialogOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
   const [feedbackHost, setFeedbackHost] = useState<HTMLDivElement | null>(null);
@@ -221,6 +225,12 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
         open={helpDialogOpen}
         onClose={() => setHelpDialogOpen(false)}
       />
+      {syncEnabled ? (
+        <ModelsDialog
+          open={modelsDialogOpen}
+          onClose={() => setModelsDialogOpen(false)}
+        />
+      ) : null}
       <AskDialog />
       <FeedbackToast host={feedbackHost} />
     </>

@@ -41,7 +41,6 @@
 .model-row-purpose,
 .model-row-note,
 .model-row-bytes {
-  margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
 }
@@ -84,14 +83,16 @@
 }
 
 .model-summary {
-  margin: 0;
   font-weight: 600;
 }
 
 .model-tools,
 .model-note {
-  margin: 0;
   color: var(--color-text-secondary);
+}
+
+.model-row-actions .model-row-note {
+  margin: 0;
 }
 
 .models-dialog-panel {
@@ -101,4 +102,8 @@
 .models-dialog-intro {
   margin: 0 0 var(--space-4);
   color: var(--color-text-secondary);
+}
+
+.model-row select {
+  min-block-size: var(--touch-min);
 }
