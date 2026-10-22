@@ -1,3 +1,10 @@
+export {
+  ANOTHER_DOWNLOAD_REASON,
+  type ModelActivity,
+  modelActivity,
+} from "./activity";
+export { formatBytes } from "./format";
+export { ModelProgress } from "./ModelProgress";
 export { ModelRow, type ModelRowAction } from "./ModelRow";
 export { ModelsProvider } from "./ModelsProvider";
 export type {
@@ -9,3 +16,4 @@ export type {
   WhisperChoice,
 } from "./types";
 export { useModel, useModels } from "./useModels";
+export { VariantPicker } from "./VariantPicker";

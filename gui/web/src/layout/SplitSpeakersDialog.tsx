@@ -10,7 +10,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { runRangeAction } from "../commands/rangeActions";
 import { seekTransport } from "../commands/seek";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
-import { useBootstrapDownload } from "../hooks/useBootstrapDownload";
+import { useModel } from "../models";
 import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
 import { seedStudioJob } from "../state/seedStudioJob";
@@ -96,7 +96,7 @@ export function SplitSpeakersDialog() {
   const [speakerReadiness, setSpeakerReadiness] =
     useState<SpeakerReadiness>("checking");
   const [readinessCheck, setReadinessCheck] = useState(0);
-  const speakerModel = useBootstrapDownload("the speaker model");
+  const speakerModel = useModel(SPEAKER_MODEL_COMPONENT);
   const open = trackId != null && project != null;
   useEffect(() => {
     if (!open) return;
@@ -424,19 +424,13 @@ export function SplitSpeakersDialog() {
       }}
       trackLabel={trackLabel}
       stage={stage}
-      speakerModel={{
-        busy: speakerModel.busy,
-        progress: speakerModel.progress,
-        error: speakerModel.error,
-      }}
+      speakerModel={{ row: speakerModel.row, busy: speakerModel.busy }}
       onDownloadSpeakerModel={() =>
-        void speakerModel
-          .download({ components: [SPEAKER_MODEL_COMPONENT] })
-          .then((ok) => {
-            if (!ok) return;
-            speakerModel.reset();
+        void speakerModel.download().then((outcome) => {
+          if (outcome.kind === "ok") {
             setReadinessCheck((n) => n + 1);
-          })
+          }
+        })
       }
       onCountChange={(next) => setSettings((s) => ({ ...s, count: next }))}
       onNameChange={(index, name) =>

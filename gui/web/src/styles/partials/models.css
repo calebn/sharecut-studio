@@ -48,6 +48,7 @@
 
 .model-row-progress {
   display: flex;
+  inline-size: 100%;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-4);

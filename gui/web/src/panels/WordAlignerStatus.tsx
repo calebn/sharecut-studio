@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useBootstrapDownload } from "../hooks/useBootstrapDownload";
+import { ModelProgress, modelActivity, useModel } from "../models";
 import type {
   PipelineComponentStatus,
   PipelineForcedAlignment,
@@ -48,15 +48,17 @@ export function WordAlignerStatus({
   onDownloaded: () => void;
   onRetime: () => void;
 }) {
-  const { busy, progress, error, download, reset } =
-    useBootstrapDownload("the word aligner");
+  const { row, busy: slotBusy, download } = useModel(WORD_ALIGNER_COMPONENT);
+  const { working, downloading, failure, blockedReason } = modelActivity(
+    row,
+    slotBusy,
+  );
   const size = status?.size ?? "~360 MB";
   const ok = status?.state === "installed";
   const canRetime = ok && (alignment?.enabled ?? true);
 
   const onDownload = async () => {
-    if (await download({ components: [WORD_ALIGNER_COMPONENT] })) {
-      reset();
+    if ((await download()).kind === "ok") {
       onDownloaded();
     }
   };
@@ -65,11 +67,13 @@ export function WordAlignerStatus({
   if (!ok) {
     action = (
       <Button
-        disabledReason={disabledReason ?? (busy ? BUSY_REASON : undefined)}
-        aria-busy={busy || undefined}
+        disabledReason={
+          disabledReason ?? (working ? BUSY_REASON : blockedReason)
+        }
+        aria-busy={working || undefined}
         onClick={() => void onDownload()}
       >
-        {busy ? "Downloading…" : "Download word aligner"}
+        {working ? "Downloading…" : "Download word aligner"}
       </Button>
     );
   } else if (canRetime) {
@@ -95,16 +99,10 @@ export function WordAlignerStatus({
           ? " This saved request can be turned off here."
           : null}
       </span>
-      {busy && progress ? (
-        <span
-          className="pipeline-aligner-progress"
-          role="status"
-          aria-live="polite"
-        >
-          {progress}
-        </span>
+      {downloading ? (
+        <ModelProgress state={downloading} label="Word aligner" />
       ) : null}
-      <InlineError message={error} />
+      <InlineError message={failure?.plain} />
       {action ? <div className="cluster">{action}</div> : null}
     </div>
   );

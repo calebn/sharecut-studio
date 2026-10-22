@@ -1,14 +1,13 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelPipelineRun,
   followJobToOk,
   getSpeakerDoctor,
   JobCancelledError,
-  runBootstrap,
   startSplitSpeakersJob,
-  waitForBootstrapJob,
 } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import { executePointerCommand, runPointerCommand } from "../commands/pointer";
@@ -19,9 +18,23 @@ import { TrackInspector } from "../inspector/views/TrackInspector";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import {
+  modelStatus,
+  registryRows,
+  renderWithModels,
+} from "../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { HistoryEntryId } from "../types/project";
 import { SplitSpeakersDialog } from "./SplitSpeakersDialog";
+
+const downloadModel = vi.fn();
+
+function render(ui: ReactElement) {
+  return renderWithModels(ui, {
+    status: modelStatus(registryRows()),
+    download: downloadModel,
+  });
+}
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
@@ -29,8 +42,6 @@ vi.mock("../api", async (importOriginal) => ({
   getSpeakerDoctor: vi.fn(),
   followJobToOk: vi.fn(),
   cancelPipelineRun: vi.fn(),
-  runBootstrap: vi.fn(),
-  waitForBootstrapJob: vi.fn(),
 }));
 vi.mock("../commands/pointer", () => ({
   executePointerCommand: vi.fn(),
@@ -269,23 +280,14 @@ describe("SplitSpeakersDialog", () => {
         available_backends: ["ecapa-onnx"],
         recommended: "ecapa-onnx",
       });
-    vi.mocked(runBootstrap)
-      .mockReset()
-      .mockResolvedValue({
-        job: { id: "boot-1", message: "Downloading…" },
-      } as never);
-    vi.mocked(waitForBootstrapJob)
-      .mockReset()
-      .mockResolvedValue({ id: "boot-1", status: "ok" } as never);
+    downloadModel.mockReset().mockResolvedValue({ kind: "ok" });
     render(<SplitSpeakersDialog />);
     openFor("room");
 
     await user.click(
       await screen.findByRole("button", { name: "Download speaker model" }),
     );
-    expect(runBootstrap).toHaveBeenCalledWith({
-      components: ["speaker-ecapa"],
-    });
+    expect(downloadModel).toHaveBeenCalledWith(["speaker-ecapa"], undefined);
     await waitFor(() => expect(getSpeakerDoctor).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(
@@ -299,48 +301,75 @@ describe("SplitSpeakersDialog", () => {
     ).toBeNull();
   });
 
-  it("shows why the speaker model download failed and keeps the split blocked", async () => {
+  it("does not recheck speaker recognition when the download failed", async () => {
     const user = userEvent.setup();
     vi.mocked(getSpeakerDoctor)
       .mockReset()
       .mockResolvedValue({ available_backends: [], recommended: null });
-    vi.mocked(runBootstrap)
+    downloadModel
       .mockReset()
-      .mockRejectedValue(new Error("no download source"));
+      .mockResolvedValue({ kind: "failed", failed: ["speaker-ecapa"] });
     render(<SplitSpeakersDialog />);
     openFor("room");
 
     await user.click(
       await screen.findByRole("button", { name: "Download speaker model" }),
     );
-    expect(await screen.findByText("no download source")).toBeTruthy();
+    await waitFor(() => expect(downloadModel).toHaveBeenCalled());
     expect(
       screen.getByRole("button", { name: "Split speakers" }),
     ).toBeDisabled();
     expect(getSpeakerDoctor).toHaveBeenCalledTimes(1);
   });
 
-  it("hides the environment variable and path in a speaker model download failure", async () => {
-    const user = userEvent.setup();
+  it("shows the plain reason the speaker model download failed", async () => {
     vi.mocked(getSpeakerDoctor)
       .mockReset()
       .mockResolvedValue({ available_backends: [], recommended: null });
-    vi.mocked(runBootstrap)
-      .mockReset()
-      .mockRejectedValue(
-        new Error(
-          "speaker-ecapa: no download source: set PODCAST_BOOTSTRAP_CDN_BASE or place the file at /home/me/.cache/podcast/models/speaker-ecapa/model.onnx",
-        ),
-      );
-    render(<SplitSpeakersDialog />);
+    renderWithModels(<SplitSpeakersDialog />, {
+      status: modelStatus(registryRows()),
+      failures: {
+        "speaker-ecapa": {
+          kind: "http",
+          plain: "The download server doesn't have the speaker model.",
+        },
+      },
+    });
     openFor("room");
 
-    await user.click(
-      await screen.findByRole("button", { name: "Download speaker model" }),
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The download server doesn't have the speaker model.",
     );
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Couldn't download the speaker model. Export diagnostics from the command palette and try again.",
-    );
+    expect(
+      screen.getByRole("button", { name: "Download speaker model" }),
+    ).toBeEnabled();
+  });
+
+  it("shows the live byte bar while the speaker model downloads", async () => {
+    vi.mocked(getSpeakerDoctor)
+      .mockReset()
+      .mockResolvedValue({ available_backends: [], recommended: null });
+    renderWithModels(<SplitSpeakersDialog />, {
+      status: modelStatus(registryRows()),
+      job: {
+        id: "j",
+        kind: "bootstrap",
+        components: ["speaker-ecapa"],
+        whisper_model: "large-v3-turbo",
+        status: "running",
+        download: {
+          component: "speaker-ecapa",
+          bytes: 40_000_000,
+          total: 80_000_000,
+        },
+      },
+    });
+    openFor("room");
+
+    expect(
+      await screen.findByRole("progressbar", { name: "Speaker model" }),
+    ).toHaveAttribute("aria-valuetext", "40 MB of 80 MB");
+    expect(screen.getByRole("button", { name: "Downloading…" })).toBeDisabled();
   });
 
   it("grows the name fields with the count and refuses a count out of range", async () => {

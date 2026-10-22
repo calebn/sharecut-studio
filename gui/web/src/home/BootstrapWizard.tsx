@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { formatBytes } from "../models/format";
-import { ModelRow, type ModelRowAction } from "../models/ModelRow";
-import type { ModelView } from "../models/types";
-import { useModels } from "../models/useModels";
-import { VariantPicker } from "../models/VariantPicker";
+import {
+  ANOTHER_DOWNLOAD_REASON,
+  formatBytes,
+  ModelRow,
+  type ModelRowAction,
+  type ModelView,
+  useModels,
+  VariantPicker,
+} from "../models";
 import { Button, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 
@@ -11,8 +15,6 @@ export type BootstrapWizardProps = {
   onReady: () => void;
   onSkip?: () => void;
 };
-
-const BUSY_BLOCK = "Another download is running";
 
 function needsDownload(model: ModelView): boolean {
   const kind = model.state.kind;
@@ -76,7 +78,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       return {
         kind: "download",
         onDownload: () => void run([m.id]),
-        blockedReason: busy ? BUSY_BLOCK : undefined,
+        blockedReason: busy ? ANOTHER_DOWNLOAD_REASON : undefined,
       };
     }
     if (!needsDownload(m)) {

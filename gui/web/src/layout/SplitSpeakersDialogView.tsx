@@ -1,4 +1,5 @@
 import { type RefObject, useId, useRef } from "react";
+import { ModelProgress, type ModelView, modelActivity } from "../models";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, Field, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -77,11 +78,10 @@ export type SplitSpeakersDialogViewProps = {
   onGoTo: (sec: number) => void;
   /** Back to the settings after a failure, a cancel or an undo. */
   onRestart: () => void;
-  /** Download state for the speaker model offered when recognition is unavailable. */
+  /** The speaker model offered when recognition is unavailable, and whether any download holds the slot. */
   speakerModel?: {
+    row: ModelView | null;
     busy: boolean;
-    progress: string | null;
-    error: string | null;
   };
   /** Omit where the model cannot be downloaded (catalog previews). */
   onDownloadSpeakerModel?: () => void;
@@ -149,6 +149,10 @@ function SplitSpeakersForm({
   countRef: RefObject<HTMLInputElement | null>;
 }) {
   const namesHintId = useId();
+  const speakerDownload = modelActivity(
+    speakerModel?.row ?? null,
+    speakerModel?.busy ?? false,
+  );
   if (stage.kind !== "configure") {
     return null;
   }
@@ -173,19 +177,25 @@ function SplitSpeakersForm({
               </span>{" "}
               <Button
                 type="button"
-                disabledReason={speakerModel?.busy ? BUSY_REASON : undefined}
-                aria-busy={speakerModel?.busy || undefined}
+                disabledReason={
+                  speakerDownload.working
+                    ? BUSY_REASON
+                    : speakerDownload.blockedReason
+                }
+                aria-busy={speakerDownload.working || undefined}
                 onClick={onDownloadSpeakerModel}
               >
-                {speakerModel?.busy ? "Downloading…" : "Download speaker model"}
+                {speakerDownload.working
+                  ? "Downloading…"
+                  : "Download speaker model"}
               </Button>
-              {speakerModel?.busy && speakerModel.progress ? (
-                <span role="status" aria-live="polite">
-                  {" "}
-                  {speakerModel.progress}
-                </span>
+              {speakerDownload.downloading ? (
+                <ModelProgress
+                  state={speakerDownload.downloading}
+                  label="Speaker model"
+                />
               ) : null}
-              <InlineError message={speakerModel?.error ?? null} />
+              <InlineError message={speakerDownload.failure?.plain} />
             </>
           ) : null}
         </p>

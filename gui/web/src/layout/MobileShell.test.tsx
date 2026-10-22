@@ -1,12 +1,13 @@
 import {
   act,
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
@@ -21,9 +22,14 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
+import { defaultModelsWrapper } from "../test/renderWithModels";
 import { wordSelection } from "../utils/rangeSelect";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: defaultModelsWrapper });
+}
 
 const offlineStore = vi.hoisted(() => ({
   loadConflicts: vi.fn(),
