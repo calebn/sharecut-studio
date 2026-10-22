@@ -15,7 +15,7 @@ import pytest
 from podcast_mcp.engines.track_evidence import Declined
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import audio, audio_eval, timeline_render, track_evidence
+from podcast_mcp.engines import audio, audio_audit, audio_eval, timeline_render, track_evidence
 from podcast_mcp.engines.audio import (
     At,
     CrossfadeAudio,
@@ -565,3 +565,50 @@ def test_the_tree_is_hashable_for_every_plain_shape(tmp_path: Path) -> None:
     leaf = SourceAudio(Path("a"), 0.0, 1.0)
     tree = MixAudio(At(0.0, SequenceAudio(leaf, (CrossfadeAudio(leaf, leaf, 0.1),))), ())
     assert hash(tree) == hash(copy.deepcopy(tree))
+
+
+def test_from_samples_measures_no_profile_until_it_is_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    measured: list[int] = []
+    real = audio_audit.track_profile
+
+    def counting(samples, rate):  # type: ignore[no-untyped-def]
+        measured.append(rate)
+        return real(samples, rate)
+
+    monkeypatch.setattr(audio_audit, "track_profile", counting)
+    cache = audio_audit.TrackRmsCache.from_samples(np.zeros(JUMP, dtype=np.float32))
+
+    assert measured == []
+    cache.profile  # noqa: B018
+    cache.profile  # noqa: B018
+    assert measured == [JUMP]
+
+
+def test_an_entry_keeps_the_tree_it_was_built_from(tmp_path: Path) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "fade joins")
+    key = _key(project)
+
+    with batch_scope():
+        track_evidence.rms(project, "caleb", load_defaults())
+        store = next(v for v in scope_module._scope.get().values() if hasattr(v, "get_or_build"))
+        entry = store._entries[key]
+
+    assert entry.tree == key.tree
+
+
+@pytest.mark.skip(reason="PR-B")
+def test_a_resampler_restarted_mid_stream_matches_a_continuous_run() -> None:
+    _ffmpeg_or_skip()
+    rng = np.random.default_rng(11)
+    source = (rng.standard_normal(48000 * 6) * 0.1).astype(np.float32)
+    middle = 48000 * 3 + 17
+    continuous = resample_streams(iter([source]), 48000, (JUMP, WAVEFORM))
+
+    first = resample_streams(iter([source[:middle]]), 48000, (JUMP, WAVEFORM))
+    rest = resample_streams(iter([source[middle:]]), 48000, (JUMP, WAVEFORM))
+
+    for rate in (JUMP, WAVEFORM):
+        np.testing.assert_array_equal(np.concatenate([first[rate], rest[rate]]), continuous[rate])
