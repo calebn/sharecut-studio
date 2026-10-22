@@ -44,7 +44,7 @@
     "tests/test_fanout_hub.py": 0,
     "tests/test_guest_progress.py": 19,
     "tests/test_guest_ws_common.py": 0,
-    "tests/test_guest_ws_workers.py": 2,
+    "tests/test_guest_ws_workers.py": 1,
     "tests/test_gui_api.py": 16,
     "tests/test_gui_speaker_split.py": 3,
     "tests/test_job_events.py": 0,
