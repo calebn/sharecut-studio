@@ -280,8 +280,21 @@ describe("EnvelopeWorkspace", () => {
       settle();
     });
     await waitFor(() =>
-      expect(useDawStore.getState().envelopeSaving).toBeNull(),
+      expect(useDawStore.getState().envelopeSaving).toEqual([]),
     );
+  });
+  it("tracks overlapping saves on different tracks and survives a same-path refresh", () => {
+    const a = { projectPath: "/tmp/p.json", projectEpoch: 1, trackId: "a" };
+    const b = { projectPath: "/tmp/p.json", projectEpoch: 1, trackId: "b" };
+    const store = useDawStore.getState();
+    store.beginEnvelopeSave(a);
+    store.beginEnvelopeSave(b);
+    store.endEnvelopeSave(b);
+    expect(useDawStore.getState().envelopeSaving).toEqual([a]);
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    expect(useDawStore.getState().envelopeSaving).toEqual([a]);
+    useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    expect(useDawStore.getState().envelopeSaving).toEqual([]);
   });
   it("clears the in-flight save when the request fails, so the draft can be saved again", async () => {
     setEnvelope.mockRejectedValueOnce(new Error("offline"));
@@ -290,7 +303,7 @@ describe("EnvelopeWorkspace", () => {
     await level("0.25");
     await save();
     await waitFor(() =>
-      expect(useDawStore.getState().envelopeSaving).toBeNull(),
+      expect(useDawStore.getState().envelopeSaving).toEqual([]),
     );
     first.unmount();
     mount();

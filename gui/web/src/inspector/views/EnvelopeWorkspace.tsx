@@ -70,11 +70,14 @@ export function EnvelopeWorkspace({
   const [collisionId, setCollisionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
-  const savingEntry = useDaw((state) => state.envelopeSaving);
-  const saving =
-    savingEntry?.projectPath === projectPath &&
-    savingEntry.projectEpoch === projectEpoch &&
-    savingEntry.trackId === trackId;
+  const saving = useDaw((state) =>
+    state.envelopeSaving.some(
+      (entry) =>
+        entry.projectPath === projectPath &&
+        entry.projectEpoch === projectEpoch &&
+        entry.trackId === trackId,
+    ),
+  );
   const mounted = useMountedRef();
   const editable = canEditEnvelopes(projectPath, guestMode, shareCapabilities);
   const levelsVisible = layers.showLevels;
@@ -178,7 +181,7 @@ export function EnvelopeWorkspace({
     }
     lock.current = true;
     const target = { projectPath, projectEpoch, trackId };
-    useDawStore.getState().setEnvelopeSaving(target);
+    useDawStore.getState().beginEnvelopeSave(target);
     setBusy(true);
     setError(null);
     try {
@@ -192,13 +195,7 @@ export function EnvelopeWorkspace({
         });
     } finally {
       lock.current = false;
-      const current = useDawStore.getState().envelopeSaving;
-      if (
-        current?.projectPath === target.projectPath &&
-        current.projectEpoch === target.projectEpoch &&
-        current.trackId === target.trackId
-      )
-        useDawStore.getState().setEnvelopeSaving(null);
+      useDawStore.getState().endEnvelopeSave(target);
       if (targetCurrent()) setBusy(false);
     }
   };

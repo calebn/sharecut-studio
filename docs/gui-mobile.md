@@ -207,7 +207,10 @@ held sideways) compact the editor:
   open form in view. The open point
   draft is store state (`envelopeDraft`), keyed to its project, track and
   point and dropped when the selection leaves that target, so the phone and tablet
-  shells swapping on rotation do not lose what was typed. The sheet root pads
+  shells swapping on rotation do not lose what was typed. A save in flight is store
+  state too (`envelopeSaving`, keyed to the same project, epoch and track), so a
+  remount keeps **Save point** busy and does not dispatch a second save; the entry
+  clears when the request settles, success or failure. The sheet root pads
   its sides with `env(safe-area-inset-left/right)` so nothing sits under the
   notch or Dynamic Island held sideways; Playwright cannot emulate those insets, so only
   a real iPhone proves them.

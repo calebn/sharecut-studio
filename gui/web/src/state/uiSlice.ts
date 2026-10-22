@@ -272,7 +272,8 @@ type UiSlice = Pick<
   | "toggleCommentMode"
   | "setCommentDraft"
   | "setEnvelopeDraft"
-  | "setEnvelopeSaving"
+  | "beginEnvelopeSave"
+  | "endEnvelopeSave"
   | "setWordDraft"
   | "setToolMode"
   | "setShellBreakpoint"
@@ -319,7 +320,6 @@ type UiSlice = Pick<
 export function uiAlwaysInitial() {
   return {
     envelopeDraft: null as EnvelopeDraftEntry | null,
-    envelopeSaving: null as EnvelopeSaving | null,
     wordDraft: null as WordDraftEntry | null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     ingestBusy: false,
@@ -330,6 +330,7 @@ export function uiAlwaysInitial() {
 /** UI state tied to one project; `hydrate` clears it when the project path changes. */
 export function uiProjectInitial() {
   return {
+    envelopeSaving: [] as EnvelopeSaving[],
     transcriptTimingRequest: null,
     transcriptReviewCursor: null as TranscriptReviewCursor | null,
     highlightStaleRender: false,
@@ -702,7 +703,12 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
     setEnvelopeDraft: (envelopeDraft) => set({ envelopeDraft }),
-    setEnvelopeSaving: (envelopeSaving) => set({ envelopeSaving }),
+    beginEnvelopeSave: (target) =>
+      set((s) => ({ envelopeSaving: [...s.envelopeSaving, target] })),
+    endEnvelopeSave: (target) =>
+      set((s) => ({
+        envelopeSaving: s.envelopeSaving.filter((entry) => entry !== target),
+      })),
     setWordDraft: (wordDraft) => set({ wordDraft }),
     setToolMode: (toolMode: ToolMode) =>
       set({
