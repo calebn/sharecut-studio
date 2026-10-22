@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from model_pin_helpers import isolate_model_env
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.util.coded_error import CodedValueError
@@ -312,11 +313,15 @@ def test_pipeline_refusals(
 
 
 def test_pipeline_model_needed(
-    minimal_project: Path, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    minimal_project: Path,
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     from podcast_mcp.engines.models.registry import require_model
     from podcast_mcp.gui.routes import pipeline
 
+    isolate_model_env(monkeypatch, tmp_path)
     monkeypatch.setattr(
         pipeline, "ensure_whisper_cached_for_run", lambda **_k: require_model("rnnoise")
     )
@@ -348,3 +353,33 @@ def test_review_daw_refusals(minimal_project: Path, sample_wav: Path) -> None:
         403,
         "rerender_not_allowed",
     )
+
+
+def test_guest_model_needed_is_409_with_guest_copy(
+    minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from podcast_mcp.engines.models.registry import require_model
+    from podcast_mcp.gui.routes import review_share
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.collaboration.share import ShareService
+
+    isolate_model_env(monkeypatch, tmp_path)
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    token = ShareService(ProjectWorkspace.open(minimal_project)).create_for_host(role="editor")[
+        "token"
+    ]
+
+    def render(*_a: object, **_k: object) -> None:
+        require_model("rnnoise")  # the real ModelMissing, as the denoise render raises it
+
+    monkeypatch.setattr(review_share, "share_pending_preview_wav_cached", lambda *_a, **_k: None)
+    monkeypatch.setattr(review_share, "share_pending_preview_wav", render)
+    client = TestClient(create_app(served_project=Path(minimal_project)))
+    res = client.get(f"/api/review/{token}/daw/pending-preview", params={"edit_id": "e1"})
+    _check(res, 409, "model_needed")
+    assert isinstance(res.json()["detail"], str)
+    assert str(tmp_path) not in res.text

@@ -78,7 +78,22 @@ class ForcedAlignment:
         if self.requested is not True:
             return
         from podcast_mcp.engines.models.registry import require_model
+        from podcast_mcp.engines.models.word_aligner import (
+            WORD_ALIGNER_ENV,
+            WordAlignerMissingError,
+            word_aligner_override_dir,
+            word_aligner_problem,
+        )
 
+        override = word_aligner_override_dir()
+        # A download cannot fix a bad override (it still wins), so name the variable instead.
+        if override is not None and word_aligner_problem(self.model, memoize=False) is not None:
+            raise WordAlignerMissingError(
+                self.model,
+                f"{WORD_ALIGNER_ENV}={override} has no vocab.json or the model file",
+                problem="override is unusable",
+                fix=f"point {WORD_ALIGNER_ENV} at a complete snapshot, or unset it",
+            )
         require_model("word-aligner", self.model, memoize=False)
 
     def report(self) -> dict[str, Any]:
