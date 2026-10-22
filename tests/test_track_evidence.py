@@ -253,9 +253,7 @@ def test_bleed_restore_declines_to_the_render(tmp_path: Path) -> None:
     # The render's own test for the step agrees with the planner's.
     track = project.track_by_id("caleb")
     assert timeline_render.restore_applies(project, track, gated=False)
-    assert (
-        timeline_render.unfiltered_track_audio(project, track, load_defaults(), bare=True) is None
-    )
+    assert timeline_render.unfiltered_track_audio(project, track, load_defaults()) is None
 
 
 def test_a_volume_envelope_declines_to_the_render(tmp_path: Path) -> None:

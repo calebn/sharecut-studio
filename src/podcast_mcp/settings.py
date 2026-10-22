@@ -136,7 +136,7 @@ VARIABLES: tuple[Variable, ...] = (
         ("PODCAST_GUEST_RENDER", "Allow guest render previews (1, true, yes, on)."),
         ("PODCAST_SHARE_ACCOUNTS", "Enable restricted shares with sign-in (1, true, yes, on)."),
         (
-            "SHARECUT_EVIDENCE_VERIFY",
+            "PODCAST_EVIDENCE_VERIFY",
             "Rebuild every cached track evidence hit and fail on a difference (tests, lab).",
         ),
     ),

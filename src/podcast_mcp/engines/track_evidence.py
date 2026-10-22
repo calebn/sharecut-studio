@@ -17,7 +17,7 @@ import logging
 import tempfile
 import threading
 from collections import OrderedDict
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from enum import Enum
@@ -28,8 +28,8 @@ import numpy as np
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines import timeline_render
-from podcast_mcp.engines.audio import Audio, MaskAudio, postorder, sources
-from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
+from podcast_mcp.engines.audio import Audio, sources
+from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.audio_eval import common_rate, evaluate_resampled, single_layout
 from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE, LevelProfile, track_profile
@@ -46,26 +46,29 @@ from podcast_mcp.util.project_state import (
 
 _LOG = logging.getLogger(__name__)
 
-# What the store keeps while a batch runs, as a hard bound (one hour of one track is 115 MB at
-# 8 kHz and 230 MB at 16 kHz). Settable.
+# What the store keeps while a batch runs (one hour of one track is 345 MB at both rates).
+# The bound is per batch scope, not per process. Settable.
 EVIDENCE_CACHE_BYTES = 1 << 30
-VERIFY_ENV = "SHARECUT_EVIDENCE_VERIFY"
+VERIFY_ENV = "PODCAST_EVIDENCE_VERIFY"
 RENDER_PREFIX = "sharecut-evidence-render-"
 _STORE_KEY = "track_evidence_store"
 # The rates of edits.audio_cache.TrackAudioCache: window RMS reads, and waveform scoring.
 JUMP_SAMPLE_RATE = 8000
 WAVEFORM_SAMPLE_RATE = PROFILE_SAMPLE_RATE
-_HEARD_RATES = (JUMP_SAMPLE_RATE, WAVEFORM_SAMPLE_RATE)
-_RMS_RATES = (JUMP_SAMPLE_RATE,)
+# Both rates come from one pass over the tree, so any caller's 8 kHz array is the same one.
+_RATES = (JUMP_SAMPLE_RATE, WAVEFORM_SAMPLE_RATE)
+_store_creation = threading.Lock()
 
 
 class Declined(Enum):
-    """Why a track's evidence comes from the render. The value is what the log says."""
+    """Why a track's evidence comes from the render. The value is what the log says.
+
+    ``empty``, ``envelope`` and ``bleed_restore`` are what ``timeline_render`` reports.
+    """
 
     EMPTY = "empty"
     ENVELOPE = "envelope"
     BLEED_RESTORE = "bleed_restore"
-    MASK = "mask"
     MIXED_LAYOUT = "mixed_layout"
     MIXED_RATE = "mixed_rate"
     EVALUATOR = "evaluator"
@@ -82,7 +85,6 @@ class EvidenceKey:
 
     tree: Audio
     curve: str
-    rates: tuple[int, ...]
     revisions: tuple[FileRevision, ...]
 
 
@@ -92,17 +94,19 @@ Evidence = dict[int, np.ndarray]
 @dataclass
 class _Entry:
     samples: Evidence
-    tree: Audio  # what the samples are of, for a later diff against a changed tree
     _profiles: dict[int, LevelProfile] = field(default_factory=dict)
 
     @property
     def nbytes(self) -> int:
         return sum(array.nbytes for array in self.samples.values())
 
-    def profile(self, rate: int) -> LevelProfile:
+    def cache(self, rate: int) -> TrackRmsCache:
+        """A cache over the stored array, with the profile measured once per entry."""
         if rate not in self._profiles:
             self._profiles[rate] = track_profile(self.samples[rate], rate)
-        return self._profiles[rate]
+        return TrackRmsCache(
+            samples=self.samples[rate], sample_rate=rate, recording_profile=self._profiles[rate]
+        )
 
 
 @dataclass(frozen=True)
@@ -118,18 +122,15 @@ class HeardAudio:
 
 def heard(project: EpisodeProject, track_id: str, defaults: EffectiveConfig) -> HeardAudio:
     """The track as heard (gate off, effects chain left out) at both evidence resolutions."""
-    entry = _entry(project, track_id, defaults, _HEARD_RATES, locked=False)
+    entry = _entry(project, track_id, defaults, locked=False)
     if isinstance(entry, Declined):
-        with _rendered(project, track_id, defaults, entry, locked=False) as path:
+        with _rendered(project, track_id, defaults, entry, locked=False) as path, unscoped():
             return HeardAudio(
                 jump=TrackRmsCache.from_timeline_stem(path, sample_rate=JUMP_SAMPLE_RATE),
                 waveform=TrackRmsCache.from_timeline_stem(path, sample_rate=WAVEFORM_SAMPLE_RATE),
             )
     return HeardAudio(
-        jump=TrackRmsCache(samples=entry.samples[JUMP_SAMPLE_RATE], sample_rate=JUMP_SAMPLE_RATE),
-        waveform=TrackRmsCache(
-            samples=entry.samples[WAVEFORM_SAMPLE_RATE], sample_rate=WAVEFORM_SAMPLE_RATE
-        ),
+        jump=entry.cache(JUMP_SAMPLE_RATE), waveform=entry.cache(WAVEFORM_SAMPLE_RATE)
     )
 
 
@@ -141,18 +142,15 @@ def rms(
     ``private`` says ``project`` is a copy only the caller holds, so reading it takes no
     project lock: a pool worker inside a mutation does not own the lock (#1471).
     """
-    entry = _entry(project, track_id, defaults, _RMS_RATES, locked=not private)
+    entry = _entry(project, track_id, defaults, locked=not private)
     if isinstance(entry, Declined):
-        with _rendered(project, track_id, defaults, entry, locked=not private) as path:
+        with _rendered(project, track_id, defaults, entry, locked=not private) as path, unscoped():
             return TrackRmsCache.from_timeline_stem(path)
-    return TrackRmsCache(
-        samples=entry.samples[JUMP_SAMPLE_RATE],
-        recording_profile=entry.profile(JUMP_SAMPLE_RATE),
-    )
+    return entry.cache(JUMP_SAMPLE_RATE)
 
 
 def _plan(
-    project: EpisodeProject, track_id: str, defaults: EffectiveConfig, rates: tuple[int, ...]
+    project: EpisodeProject, track_id: str, defaults: EffectiveConfig
 ) -> tuple[EvidenceKey, Audio] | Declined:
     """The track's tree with its key, or why its evidence needs the render."""
     track = project.track_by_id(track_id)
@@ -161,11 +159,11 @@ def _plan(
             f"track {track_id!r} is unavailable. Add media to that track first.",
             code="track_has_no_media",
         )
-    reason = timeline_render.unfiltered_audio_decline(project, track, bare=True)
-    if reason is not None:
+    plain = timeline_render.unfiltered_track_audio(project, track, defaults)
+    if plain is None:
+        reason = timeline_render.unfiltered_audio_decline(project, track)
+        assert reason is not None
         return Declined(reason)
-    plain = timeline_render.unfiltered_track_audio(project, track, defaults, bare=True)
-    assert plain is not None
     tree, curve = plain
     paths = {
         path for leaf in sources(tree) for path in (leaf.path, leaf.fill_path) if path is not None
@@ -174,18 +172,16 @@ def _plan(
         revisions = tuple(file_revision(path) for path in sorted(paths))
     except OSError:
         return Declined.UNREADABLE
-    return EvidenceKey(tree, curve, rates, revisions), tree
+    return EvidenceKey(tree, curve, revisions), tree
 
 
-def _evaluate(tree: Audio, curve: str, rates: tuple[int, ...]) -> Evidence | Declined:
-    """``tree`` at each of ``rates`` from one pass over it, or why the evaluator takes it not.
+def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
+    """``tree`` at both evidence rates from one pass over it, or why the evaluator takes it not.
 
     The tree is evaluated at the sources' own rate, in chunks, and converted once per rate as
     decoding the render's wav is: slices start between samples, and slicing a decode at the
     target rate instead would shift every cut by a fraction of a sample.
     """
-    if any(isinstance(node, MaskAudio) for node in postorder(tree)):
-        return Declined.MASK
     if not single_layout(tree):
         return Declined.MIXED_LAYOUT
     rate = common_rate(tree)
@@ -197,7 +193,7 @@ def _evaluate(tree: Audio, curve: str, rates: tuple[int, ...]) -> Evidence | Dec
             crossfade_curve=curve,
             reader=reader,
             sample_rate=rate,
-            target_rates=rates,
+            target_rates=_RATES,
             resample=resample_streams,
         )
     if samples is None or not all(array.size for array in samples.values()):
@@ -206,83 +202,71 @@ def _evaluate(tree: Audio, curve: str, rates: tuple[int, ...]) -> Evidence | Dec
 
 
 def _entry(
-    project: EpisodeProject,
-    track_id: str,
-    defaults: EffectiveConfig,
-    rates: tuple[int, ...],
-    *,
-    locked: bool,
+    project: EpisodeProject, track_id: str, defaults: EffectiveConfig, *, locked: bool
 ) -> _Entry | Declined:
     with project_state_lock(project) if locked else nullcontext():
-        planned = _plan(project, track_id, defaults, rates)
+        planned = _plan(project, track_id, defaults)
     if isinstance(planned, Declined):
         return planned
     key, tree = planned
-    # Evidence at both rates holds the 8 kHz array any caller asks for.
-    wider = [_with_rates(key, _HEARD_RATES)] if rates == _RMS_RATES else []
-    return _store().get_or_build(key, lambda: _evaluate(tree, key.curve, key.rates), also=wider)
-
-
-def _evidence(
-    project: EpisodeProject, track_id: str, defaults: EffectiveConfig, rates: tuple[int, ...]
-) -> Evidence | Declined:
-    entry = _entry(project, track_id, defaults, rates, locked=False)
-    return entry if isinstance(entry, Declined) else entry.samples
-
-
-def _with_rates(key: EvidenceKey, rates: tuple[int, ...]) -> EvidenceKey:
-    return EvidenceKey(key.tree, key.curve, rates, key.revisions)
+    return _store().get_or_build(key, lambda: _evaluate(tree, key.curve))
 
 
 class _Store:
-    """The batch's evidence, least recently used out first once past ``EVIDENCE_CACHE_BYTES``."""
+    """The batch's evidence, least recently used out first once past ``EVIDENCE_CACHE_BYTES``.
+
+    A decline is remembered too: the tree is not evaluated again to be declined again.
+    """
 
     def __init__(self) -> None:
         self._entries: OrderedDict[EvidenceKey, _Entry] = OrderedDict()
+        self._declined: dict[EvidenceKey, Declined] = {}
         self._bytes = 0
         self._lock = threading.Lock()
         self._building: dict[EvidenceKey, threading.Lock] = {}
 
     def get_or_build(
-        self,
-        key: EvidenceKey,
-        build: Callable[[], Evidence | Declined],
-        *,
-        also: Iterable[EvidenceKey] = (),
+        self, key: EvidenceKey, build: Callable[[], Evidence | Declined]
     ) -> _Entry | Declined:
         with self._lock:
-            hit = self._find(key, also)
-            builder = None if hit is not None else self._building.setdefault(key, threading.Lock())
-        if hit is not None:
-            if settings.flag(VERIFY_ENV):
-                _verify(key, hit, build())
-            return hit
+            known = self._find(key)
+            builder = (
+                None if known is not None else self._building.setdefault(key, threading.Lock())
+            )
+        if known is not None:
+            if isinstance(known, _Entry) and settings.flag(VERIFY_ENV):
+                _verify(known, build())
+            return known
         assert builder is not None
         with builder:
-            with self._lock:
-                hit = self._find(key, also)
-            if hit is not None:
-                return hit
-            built = build()
-            if isinstance(built, Declined):
-                return built
-            for array in built.values():
-                array.flags.writeable = False
-            entry = _Entry(built, key.tree)
-            self._put(key, entry)
-            return entry
-
-    def _find(self, key: EvidenceKey, also: Iterable[EvidenceKey]) -> _Entry | None:
-        for candidate in (key, *also):
-            entry = self._entries.get(candidate)
-            if entry is not None:
-                self._entries.move_to_end(candidate)
+            try:
+                with self._lock:
+                    known = self._find(key)
+                if known is not None:
+                    return known
+                built = build()
+                if isinstance(built, Declined):
+                    with self._lock:
+                        self._declined[key] = built
+                    return built
+                for array in built.values():
+                    array.flags.writeable = False
+                entry = _Entry(built)
+                self._put(key, entry)
                 return entry
-        return None
+            finally:
+                with self._lock:
+                    self._building.pop(key, None)
+
+    def _find(self, key: EvidenceKey) -> _Entry | Declined | None:
+        entry = self._entries.get(key)
+        if entry is not None:
+            self._entries.move_to_end(key)
+            return entry
+        return self._declined.get(key)
 
     def _put(self, key: EvidenceKey, entry: _Entry) -> None:
         with self._lock:
-            self._building.pop(key, None)
             if entry.nbytes > EVIDENCE_CACHE_BYTES:
                 return
             self._entries[key] = entry
@@ -293,16 +277,21 @@ class _Store:
 
 
 def _store() -> _Store:
-    return scoped(_STORE_KEY, _Store)
+    # Threads carried into a batch share its scope, so two can reach here together.
+    with _store_creation:
+        return scoped(_STORE_KEY, _Store)
 
 
-def _verify(key: EvidenceKey, stored: _Entry, rebuilt: Evidence | Declined) -> None:
-    """Fail unless a rebuild is the stored evidence (``SHARECUT_EVIDENCE_VERIFY=1``)."""
+def _verify(stored: _Entry, rebuilt: Evidence | Declined) -> None:
+    """Fail unless a rebuild of the key is the stored evidence (``PODCAST_EVIDENCE_VERIFY=1``).
+
+    This checks the store, not the evaluator: equality with the render is the render-equality
+    tests' job.
+    """
     if isinstance(rebuilt, Declined) or any(
-        rate not in stored.samples or not np.array_equal(stored.samples[rate], array)
-        for rate, array in rebuilt.items()
+        not np.array_equal(stored.samples[rate], array) for rate, array in rebuilt.items()
     ):
-        raise AssertionError(f"evidence for {key.rates} differs from a rebuild of its key")
+        raise AssertionError("stored evidence differs from a rebuild of its key")
 
 
 @contextmanager
@@ -316,8 +305,8 @@ def _rendered(
 ) -> Iterator[Path]:
     """The track's render, gate off and chain left out, for as long as the block runs.
 
-    Nothing the block makes is kept in the batch scope: an entry keyed by the render's path
-    would outlive the file.
+    The render runs in the batch scope, which shares its inputs. The caller reads the wav
+    outside it (``unscoped``): an entry keyed by the wav's path would outlive the file.
     """
     _LOG.info("track %s evidence: ffmpeg render (%s)", track_id, why.value)
     snapshot = snapshot_project(project) if locked else project.model_copy(deep=True)
@@ -329,46 +318,7 @@ def _rendered(
         )
     track.transcript_gate = False
     snapshot.processing_chains = [c for c in snapshot.processing_chains if c.track_id != track_id]
-    with unscoped(), tempfile.TemporaryDirectory(prefix=RENDER_PREFIX) as directory:
+    with tempfile.TemporaryDirectory(prefix=RENDER_PREFIX) as directory:
         path = Path(directory) / "evidence.wav"
         timeline_render.render_track_from_timeline(snapshot, track, path, defaults)
         yield path
-
-
-class _LazyCaches(Mapping[str, TrackRmsCache]):
-    """Each track's cache, built when it is first read; a track that builds none is absent."""
-
-    def __init__(
-        self, build: Callable[[str], TrackRmsCache | None], track_ids: Iterable[str]
-    ) -> None:
-        self._build = build
-        self._ids = tuple(dict.fromkeys(track_ids))
-        self._built: dict[str, TrackRmsCache | None] = {}
-        self._lock = threading.RLock()
-
-    def _get(self, track_id: str) -> TrackRmsCache | None:
-        with self._lock:
-            if track_id not in self._built:
-                self._built[track_id] = self._build(track_id)
-            return self._built[track_id]
-
-    def __getitem__(self, track_id: str) -> TrackRmsCache:
-        cache = self._get(track_id) if track_id in self._ids else None
-        if cache is None:
-            raise KeyError(track_id)
-        return cache
-
-    def __iter__(self) -> Iterator[str]:
-        return (tid for tid in self._ids if self._get(tid) is not None)
-
-    def __len__(self) -> int:
-        return sum(1 for _ in self)
-
-
-class LazyRmsSet(TrackRmsCacheSet):
-    """A :class:`TrackRmsCacheSet` whose tracks are built when a proof first reads them."""
-
-    def __init__(
-        self, build: Callable[[str], TrackRmsCache | None], track_ids: Iterable[str]
-    ) -> None:
-        super().__init__(caches=_LazyCaches(build, track_ids))  # type: ignore[arg-type]
