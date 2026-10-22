@@ -56,6 +56,7 @@ beforeEach(() => {
     openCreate: vi.fn(),
     close: vi.fn(),
     adopt: vi.fn(() => vi.fn()),
+    disarm: vi.fn(),
   };
   view = {
     origin: { x: 120, y: 150 },

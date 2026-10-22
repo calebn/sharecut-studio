@@ -121,6 +121,26 @@ describe("arming", () => {
       null,
     ]);
   });
+
+  it("disarms only the element whose owner cancelled, and ignores the lift", () => {
+    const fade = loneFade();
+    const other = document.createElement("div");
+    press(fade, "pointerdown", 200, 112);
+    router.longPress();
+    router.disarm(other);
+    const stillArmed = fade.hasAttribute(ARMED_ATTR);
+    router.disarm(fade);
+    const cleared = !fade.hasAttribute(ARMED_ATTR);
+    press(fade, "pointermove", 230, 112);
+    press(fade, "pointerup", 230, 112);
+
+    expect(stillArmed).toBe(true);
+    expect(cleared).toBe(true);
+    expect(armed).toEqual([
+      { kind: "fade-out", id: "clip-a", axis: "x" },
+      null,
+    ]);
+  });
 });
 
 describe("drag detents", () => {
