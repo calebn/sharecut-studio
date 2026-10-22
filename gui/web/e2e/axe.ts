@@ -37,3 +37,18 @@ export async function expectReadingSurfaceAxeClean(page: Page): Promise<void> {
     JSON.stringify(results.violations, null, 2),
   ).toEqual([]);
 }
+
+/** Axe over one surface with color-contrast on; only the page-landmark rule stays off. */
+export async function expectSurfaceAxeClean(
+  page: Page,
+  selector: string,
+): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .disableRules(["region"])
+    .include(selector)
+    .analyze();
+  expect(
+    results.violations,
+    JSON.stringify(results.violations, null, 2),
+  ).toEqual([]);
+}

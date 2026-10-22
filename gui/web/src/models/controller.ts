@@ -76,7 +76,11 @@ export function reduce(
     case "failed":
       return { ...state, failures: { ...state.failures, ...action.failures } };
     case "variantChosen":
-      return { ...state, variant: action.variant };
+      return {
+        ...state,
+        variant: action.variant,
+        failures: without(state.failures, (id) => id === "whisper"),
+      };
   }
 }
 

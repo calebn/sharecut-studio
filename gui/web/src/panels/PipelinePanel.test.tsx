@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Answer, Question } from "../feedback/ask";
+import { ModelsContext } from "../models/useModels";
 import { expectNoA11yViolations } from "../test/a11y";
 import { answerQuestions } from "../test/ask";
 import {
@@ -852,6 +853,39 @@ describe("PipelinePanel", () => {
     expect(
       await screen.findByRole("button", { name: "Re-time words" }),
     ).toBeInTheDocument();
+  });
+
+  it("refetches the config when a download the panel did not start finishes", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig
+      .mockResolvedValueOnce(alignerConfig(true, false))
+      .mockResolvedValue(alignerConfig(true, true));
+    const missing = modelsApi({ status: modelStatus(registryRows()) });
+    const installedRows = registryRows().map((r) =>
+      r.id === "word-aligner" ? { ...r, state: "installed" as const } : r,
+    );
+    const installed = modelsApi({ status: modelStatus(installedRows) });
+    const ui = (api: typeof missing) => (
+      <ModelsContext.Provider value={api}>
+        <main>
+          <PipelinePanel />
+        </main>
+      </ModelsContext.Provider>
+    );
+    const { rerender } = rtlRender(ui(missing));
+    await user.click(
+      await screen.findByRole("button", { name: "Transcribe tracks" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+    expect(
+      await screen.findByText(/Word aligner needs download/i),
+    ).toBeInTheDocument();
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+    rerender(ui(installed));
+    expect(
+      await screen.findByText(/Word aligner is downloaded/i),
+    ).toBeInTheDocument();
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
   });
 
   it("locks Precise word boundaries off with the download when the aligner is missing", async () => {

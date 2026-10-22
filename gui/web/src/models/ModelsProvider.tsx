@@ -102,8 +102,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         }
         const lost: ModelFailure = {
           kind: null,
-          plain:
-            "Lost the connection to the download. Check it again in a moment.",
+          plain: "Lost the connection to the download. Retry it in a moment.",
         };
         dispatch({
           type: "failed",
@@ -185,10 +184,15 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
 
   const cancel = useCallback(async () => {
     const id = stateRef.current.job?.id;
-    if (id) {
-      await cancelBootstrap(id);
+    if (!id) {
+      return;
     }
-  }, []);
+    try {
+      await cancelBootstrap(id);
+    } catch {
+      await load(stateRef.current.variant);
+    }
+  }, [load]);
 
   const choose = useCallback(
     (variant: string) => {

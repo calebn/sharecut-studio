@@ -1,6 +1,6 @@
 import path from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { expectPageAxeClean, expectReadingSurfaceAxeClean } from "./axe";
+import { expectReadingSurfaceAxeClean, expectSurfaceAxeClean } from "./axe";
 import { openHostProject } from "./overlayReachability";
 
 /**
@@ -524,7 +524,7 @@ test.describe("models palette command 1440x900", () => {
       const dialog = page.getByRole("dialog", { name: "Models" });
       await expect(dialog).toBeVisible();
       await expect(dialog.locator("li.model-row")).toHaveCount(4);
-      await expectPageAxeClean(page, ".command-palette-panel");
+      await expectSurfaceAxeClean(page, ".command-palette-panel");
       await shot(page, "1440x900", theme, "palette-opens-dialog");
       await page.keyboard.press("Escape");
       await expect(dialog).toBeHidden();
@@ -561,7 +561,7 @@ test.describe("models dialog in a project on a phone", () => {
     await last.scrollIntoViewIfNeeded();
     await expect(last).toBeInViewport();
     await expectNoHorizontalScroll(page);
-    await expectPageAxeClean(page, ".command-palette-panel");
+    await expectSurfaceAxeClean(page, ".command-palette-panel");
     await shot(page, "390x844", "light", "palette-sheet");
     expect(mock.runs).toEqual([]);
   });
