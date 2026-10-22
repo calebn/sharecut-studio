@@ -80,6 +80,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.room_tone import (
     MIN_BELOW_SPEECH_DB,
     SPEECH_GUARD_SEC,
@@ -695,6 +696,7 @@ def plan_gate_fill(project: EpisodeProject, track: Track, *, fade_ms: int) -> Ga
             level_db=round(made.level_db, 2),
             noise_db=None if made.noise_db is None else round(made.noise_db, 2),
             fade_ms=fade_ms,
+            audio_stream=0 if has_several_audio_streams(path) else None,
         )
         return GateFillResult(track.id, fill, len(holes.bounds), basis=made.basis)
     return GateFillResult(track.id, None, len(holes.bounds), reasons[-1])
@@ -746,12 +748,16 @@ def current_gate_fill_path(project: EpisodeProject, track: Track) -> Path | None
     if fill is None or track.media is None:
         return None
     try:
-        stamp = file_stamp(resolve_under_workspace(project, track.media.path))
+        media = resolve_under_workspace(project, track.media.path)
+        stamp = file_stamp(media)
         path = resolve_under_workspace(project, fill.path)
     except (OSError, ValueError):
         return None
     if stamp.content != (fill.media_size, fill.media_mtime_ns):
         log.debug("gate fill for %s ignored: its media changed since it was measured", track.id)
+        return None
+    if fill.audio_stream is None and has_several_audio_streams(media):
+        log.debug("gate fill for %s ignored: measured before the first-stream decode", track.id)
         return None
     return path if path.is_file() else None
 
@@ -762,6 +768,8 @@ def gate_fill_payload(project: EpisodeProject, track: Track) -> dict[str, Any] |
     if path is None or track.gate_fill is None:
         return None
     return {
-        "fill": track.gate_fill.model_dump(mode="json"),
+        "fill": track.gate_fill.model_dump(
+            mode="json", exclude={"audio_stream"} if track.gate_fill.audio_stream is None else None
+        ),
         "file": list(file_stamp(path).content),
     }

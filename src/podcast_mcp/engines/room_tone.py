@@ -259,7 +259,7 @@ POOL_ANCHORS_MAX = 64
 POOL_ANCHOR_SPACING_SEC = 60.0
 # Each pooled sample is up to this long; a request takes the piece it needs.
 POOL_SAMPLE_SEC = 2.0
-_POOL_REV = 2
+_POOL_REV = 3
 _POOLS_KEPT = 64
 _POOL_RECORDS_KEPT = 64
 _POOLS: dict[tuple[str, FileRevision], tuple[Sample, ...]] = {}

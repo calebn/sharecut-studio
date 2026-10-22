@@ -83,7 +83,7 @@ def silence_filter_fingerprint(
     once a word carries a score.
     """
     digest = sha256()
-    digest.update(f"v3:{audio_sha256}:{options.silence_filter_enabled}:".encode())
+    digest.update(f"v4:{audio_sha256}:{options.silence_filter_enabled}:".encode())
     for word in words:
         digest.update(
             f"{word.start.hex()}:{word.end.hex()}:{int(word.suspect_hallucination)};".encode()

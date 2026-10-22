@@ -28,6 +28,7 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_MAX_WORD_DURATION_SEC,
     word_duration_is_anomalous,
 )
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.models.whisper import (
     DEFAULT_WHISPER_MODEL,
     resolve_whisper_model_path,
@@ -568,15 +569,20 @@ class TranscriptionEngine:
         asr_cache: Path,
         aligner: WordAligner,
         words: list[TranscriptWord],
+        audio: Path | None = None,
     ) -> Path:
-        """Alignment cache beside the ASR cache: same audio/inputs key + aligner + Whisper's words."""
-        key_src = json.dumps(
-            {
-                "aligner": aligner.cache_identity(),
-                "words": [[w.text, w.start, w.end] for w in words],
-            },
-            sort_keys=True,
-        )
+        """Alignment cache beside the ASR cache: same audio/inputs key + aligner + Whisper's words.
+
+        Several audio streams in ``audio`` add a first-stream term, so a cache measured on the
+        default stream is not read back.
+        """
+        key_fields: dict[str, object] = {
+            "aligner": aligner.cache_identity(),
+            "words": [[w.text, w.start, w.end] for w in words],
+        }
+        if audio is not None and has_several_audio_streams(audio):
+            key_fields["audio_stream"] = 0
+        key_src = json.dumps(key_fields, sort_keys=True)
         key = short_digest(key_src)
         return _cache_file(project, cache_id, f"{asr_cache.stem}.word_align_{key}.json")
 
@@ -636,7 +642,7 @@ class TranscriptionEngine:
             )
             return entry
         path = self.word_align_cache_path(
-            project, job.cache_id, asr_cache, aligner, transcript.words
+            project, job.cache_id, asr_cache, aligner, transcript.words, job.audio
         )
         cached = _read_align_cache(path, len(transcript.words)) if use_cache else None
         status = "cached"

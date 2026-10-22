@@ -301,7 +301,7 @@ def file_level_profile(
 
 
 # Bump when ``profile_from_levels`` or its whole-track framing changes what it returns.
-_RECORD_REV = 2
+_RECORD_REV = 3
 # A record is a few bytes, but every edit to a recording leaves one behind. Eviction goes by
 # write time, so the cap sits well over tracks x sample rates: a long-lived record stays.
 _RECORDS_KEPT = 256

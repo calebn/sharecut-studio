@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 
+from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.models.episode import EpisodeProject, Track
 from podcast_mcp.util.project_state import file_revision
 
@@ -48,6 +49,8 @@ def balance_basis_digest(project: EpisodeProject, track_id: str) -> str | None:
         "effects": [effect.model_dump(mode="json") for effect in chain.effects] if chain else [],
         "kept_speech": kept_speech_intervals(project, track_id),
     }
+    if has_several_audio_streams(path):
+        payload["audio_stream"] = 0
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(encoded.encode()).hexdigest()
 
