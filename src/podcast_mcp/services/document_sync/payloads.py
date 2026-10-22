@@ -644,6 +644,12 @@ class FillRoomTonePayload(BaseModel):
     start_sec: float = Field(ge=0, allow_inf_nan=False)
     end_sec: float = Field(ge=0, allow_inf_nan=False)
 
+    @model_validator(mode="after")
+    def _range_is_forward(self) -> FillRoomTonePayload:
+        if self.end_sec <= self.start_sec:
+            raise ValueError("end_sec must be after start_sec")
+        return self
+
 
 class FadeJoinsPayload(BaseModel):
     track_id: str | None = None

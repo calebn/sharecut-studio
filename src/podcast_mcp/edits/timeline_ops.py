@@ -1216,17 +1216,20 @@ def fill_with_room_tone(
     """Fill timeline gaps between clips with the track's room tone (``engines/room_tone.py``).
 
     ``within`` limits the fill to the clip-free time inside ``[start, end)``; clips are
-    never touched, and a range that fills nothing raises ``no_source`` or
-    ``nothing_to_fill``.
+    never touched, only gaps between clips count, and a range that fills nothing raises
+    ``no_source`` or ``nothing_to_fill``.
 
     Only gaps wider than ``min_gap_sec`` are filled; the default is the shared join
     tolerance, so pairs that already render as a join are left alone. A gap with no
     room tone near it stays a gap.
     """
     clips = clips_for_track(project, track_id)
-    if len(clips) < 2:
-        if within is not None:
+    if within is not None:
+        if not project.track_by_id(track_id):
+            raise unknown_track(track_id)
+        if len(clips) < 2:
             raise CodedValueError("no gap to fill in that range", code="nothing_to_fill")
+    if len(clips) < 2:
         return change_summary(
             project, operation="fill_with_room_tone", affected_tracks=[track_id], pad_samples=[]
         )
@@ -1240,11 +1243,13 @@ def fill_with_room_tone(
     new_clips: list[Clip] = []
     inserted: list[Clip] = []
     absent: SampleAbsent | None = None
+    covered = 0.0
     for i, clip in enumerate(clips):
         new_clips.append(clip)
         if i + 1 >= len(clips):
             break
-        gap_start = clip.timeline_end
+        covered = max(covered, clip.timeline_end)
+        gap_start = covered if within is not None else clip.timeline_end
         gap_end = clips[i + 1].timeline_start
         if within is not None:
             gap_start, gap_end = max(gap_start, within[0]), min(gap_end, within[1])

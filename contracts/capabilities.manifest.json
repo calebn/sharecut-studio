@@ -3115,7 +3115,7 @@
       "id": "daw.range.fillRoomTone",
       "label": "Fill range with room tone",
       "effect": "project",
-      "service": "TimelineService.fill_room_tone_range",
+      "service": "TimelineService.fill_room_tone",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
