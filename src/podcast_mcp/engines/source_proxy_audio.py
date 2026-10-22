@@ -31,6 +31,7 @@ from podcast_mcp.engines.bleed_restore import (
     restore_gains_for_frames,
     restored_pcm,
 )
+from podcast_mcp.engines.effect_filters import require_rnnoise_model
 from podcast_mcp.engines.ffmpeg import (
     FFmpegEngine,
     automatic_gain_expression,
@@ -66,7 +67,6 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.hashing import sha256_file, short_digest
-from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
     FileRevision,
@@ -738,7 +738,7 @@ class SourceProxyInputs:
                     logical = (
                         Path(str(effect.params["model"])).expanduser()
                         if effect.params.get("model")
-                        else resolve_rnnoise_model()
+                        else require_rnnoise_model()
                     )
                     sealed = logical.resolve()
                     paths += (sealed,)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
@@ -26,8 +27,16 @@ def _escape_filter_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
+def require_rnnoise_model() -> Path:
+    """The ready RNNoise model; ``ModelMissing`` (no path) when it is not downloaded."""
+    from podcast_mcp.engines.models.registry import require_model
+
+    require_model("rnnoise")
+    return resolve_rnnoise_model()
+
+
 def _arnndn(params: Mapping[str, Any]) -> str:
-    model = params.get("model") or str(resolve_rnnoise_model())
+    model = params.get("model") or str(require_rnnoise_model())
     return f"arnndn=m={_escape_filter_value(model)}"
 
 
