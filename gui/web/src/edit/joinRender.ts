@@ -165,6 +165,23 @@ export function joinVisual(
   };
 }
 
+/** Narrower than this, the crossfade X would be a smear: only the waves draw. */
+export const NARROW_OVERLAP_PX = 8;
+/** Wider than this, the overlap is drawn in full detail and the glyph is a corner tag. */
+export const WIDE_OVERLAP_PX = 24;
+
+export type JoinTier = "narrow" | "middle" | "wide";
+
+/** How much of a join the timeline draws at its drawn overlap width (px). */
+export function joinTier(drawnPx: number): JoinTier {
+  if (drawnPx < NARROW_OVERLAP_PX) return "narrow";
+  return drawnPx > WIDE_OVERLAP_PX ? "wide" : "middle";
+}
+
+export function drawnOverlapPx(visual: JoinVisual): number {
+  return visual.kind === "blend" ? visual.widthPx : 0;
+}
+
 export const MIN_JOIN_WAVE_CSS_PX = 1;
 
 export type JoinWaveSpans = {

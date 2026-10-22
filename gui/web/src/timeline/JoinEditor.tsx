@@ -92,7 +92,19 @@ function JoinEditorLive(props: JoinEditorProps) {
   const draft =
     (edit.state.kind === "pointer" && edit.state.moved) ||
     edit.state.kind === "range";
-  const projected = draft ? projectJoinDraft(left, right, edit.value) : right;
+  const projected = useMemo(
+    () => (draft ? projectJoinDraft(left, right, edit.value) : right),
+    [draft, left, right, edit.value],
+  );
+  const setJoinDraft = useDaw((s) => s.setJoinDraft);
+  useEffect(() => {
+    setJoinDraft(draft ? projected : null);
+    return () => {
+      if (useDawStore.getState().joinDraft?.id === right.id) {
+        setJoinDraft(null);
+      }
+    };
+  }, [draft, projected, right.id, setJoinDraft]);
   const visual = joinVisual(projected, zoomPxPerSec);
   const [leader, setLeader] = useState<{
     x: number;

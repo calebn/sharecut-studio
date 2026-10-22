@@ -201,15 +201,15 @@ describe("timeline styles", () => {
     const clip = rule(css, ".clip-block");
     expect(clip).toMatch(/top:\s*var\(--clip-inset-top\)/);
     expect(clip).toMatch(
-      /height:\s*calc\(var\(--lane-height\) - 2 \* var\(--clip-inset-top\)\)/,
+      /height:\s*calc\(\s*var\(--lane-height\) -\s*var\(--clip-inset-top\) -\s*var\(--clip-inset-bottom\)\s*\)/,
     );
     expect(rule(css, ".edit-mark-glyph")).toMatch(
-      /height:\s*calc\(var\(--clip-inset-top\) - 1px - 1px\)/,
+      /height:\s*calc\(var\(--clip-inset-top\) \* var\(--edit-mark-scale\) - 1px - 1px\)/,
     );
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
-    ).toMatch(/--clip-inset-top:\s*12px;/);
-    expect(rule(css, ".edit-mark--blocked")).toMatch(
+    ).toMatch(/--clip-inset-top:\s*12px;[\s\S]*--clip-inset-bottom:\s*8px;/);
+    expect(rule(css, ".edit-mark--blocked .edit-mark-face")).toMatch(
       /border-color:\s*var\(--color-warning\)/,
     );
     // Declared after `.lane-inner > *` (pointer-events: auto) so it wins at equal specificity.
@@ -233,6 +233,32 @@ describe("timeline styles", () => {
     expect(chip).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(css.indexOf(".edit-chip {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
+    );
+  });
+
+  it("shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion", () => {
+    const css = partial("timeline.css");
+    const mark = rule(css, ".edit-mark");
+    expect(mark).toMatch(/--edit-mark-scale:\s*1;/);
+    expect(mark).not.toMatch(/border:\s*1px/);
+    expect(rule(css, '.edit-mark[data-tier="middle"]')).toMatch(
+      /--edit-mark-scale:\s*0\.85;[^}]*--edit-mark-weight:\s*1\.5;[^}]*--edit-mark-ink:\s*0\.85;/,
+    );
+    expect(rule(css, '.edit-mark[data-tier="wide"]')).toMatch(
+      /--edit-mark-scale:\s*0\.75;[^}]*--edit-mark-weight:\s*1\.25;[^}]*--edit-mark-ink:\s*0\.75;/,
+    );
+    const face = rule(css, ".edit-mark-face");
+    expect(face).toMatch(
+      /width:\s*calc\(var\(--clip-inset-top\) \* var\(--edit-mark-scale\)\)/,
+    );
+    expect(face).toMatch(/opacity:\s*var\(--edit-mark-ink\)/);
+    expect(face).not.toMatch(/transition/);
+    expect(rule(css, ".edit-mark-label")).toMatch(/pointer-events:\s*none/);
+    expect(css.indexOf(".edit-mark-label {")).toBeGreaterThan(
+      css.indexOf(".lane-inner > * {"),
+    );
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: no-preference\) \{\s*\.edit-mark-face \{\s*transition:\s*width[^}]*height[^}]*opacity[^}]*\}\s*\.edit-mark-glyph \{\s*transition:[^}]*stroke-width[^}]*\}\s*\}/,
     );
   });
 

@@ -80,7 +80,11 @@
   position: absolute;
   /* The top inset is the lane's top gutter; .edit-mark fills it (same token). */
   top: var(--clip-inset-top);
-  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
+  height: calc(
+    var(--lane-height) -
+    var(--clip-inset-top) -
+    var(--clip-inset-bottom)
+  );
   border-radius: var(--radius-md);
   border: 1px solid var(--color-overlay-white-15);
   cursor: pointer;
@@ -416,7 +420,11 @@
 .lane-inner > .clip-trimmed-span {
   top: var(--clip-inset-top);
   bottom: auto;
-  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
+  height: calc(
+    var(--lane-height) -
+    var(--clip-inset-top) -
+    var(--clip-inset-bottom)
+  );
 }
 
 .trim-readout {
@@ -507,7 +515,13 @@ button.join-seam:focus-visible {
   outline-offset: var(--focus-ring-offset);
 }
 
+/* The button is the gutter-sized hit box; the face inside it is the visible
+   tag, drawn full size at the narrow tier and shrinking as the real overlap
+   grows (data-tier is the join's drawn width: edit/joinRender.ts joinTier). */
 .edit-mark {
+  --edit-mark-scale: 1;
+  --edit-mark-weight: 2;
+  --edit-mark-ink: 1;
   position: absolute;
   top: 0;
   width: var(--clip-inset-top);
@@ -520,12 +534,58 @@ button.join-seam:focus-visible {
   appearance: none;
   font: inherit;
   cursor: pointer;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
+  border: 0;
+  background: none;
   color: var(--edit-mark-color, var(--color-text-on-overlay));
   z-index: var(--z-join);
   pointer-events: auto;
+}
+
+.edit-mark[data-tier="middle"] {
+  --edit-mark-scale: 0.85;
+  --edit-mark-weight: 1.5;
+  --edit-mark-ink: 0.85;
+}
+
+.edit-mark[data-tier="wide"] {
+  --edit-mark-scale: 0.75;
+  --edit-mark-weight: 1.25;
+  --edit-mark-ink: 0.75;
+}
+
+.edit-mark-face {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: calc(var(--clip-inset-top) * var(--edit-mark-scale));
+  height: calc(var(--clip-inset-top) * var(--edit-mark-scale));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  opacity: var(--edit-mark-ink);
+}
+
+/* Decorative: the button's aria-label names the join. A sibling of the button
+   (its text would otherwise have to be part of the button's name), in the
+   gutter right of the tag; EditMarkerLayer drops it when the room to the next
+   mark cannot hold it. */
+.edit-mark-label {
+  position: absolute;
+  top: 0;
+  margin-inline-start: calc(var(--clip-inset-top) / 2 + var(--space-1));
+  height: var(--clip-inset-top);
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-micro);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  z-index: var(--z-join);
+  pointer-events: none;
+}
+
+.edit-mark-label:not([data-measured]) {
+  visibility: hidden;
 }
 
 .edit-mark--cut {
@@ -560,19 +620,35 @@ button.join-seam:focus-visible {
 }
 
 /* A crossfade render cannot blend (join_crossfade_blocked). */
-.edit-mark--blocked {
+.edit-mark--blocked .edit-mark-face {
   border-color: var(--color-warning);
 }
 
 .edit-mark-glyph {
-  /* The mark's content box: the gutter minus its two 1px borders. */
-  width: calc(var(--clip-inset-top) - 1px - 1px);
-  height: calc(var(--clip-inset-top) - 1px - 1px);
+  /* The face's content box: its size minus its two 1px borders. */
+  width: calc(var(--clip-inset-top) * var(--edit-mark-scale) - 1px - 1px);
+  height: calc(var(--clip-inset-top) * var(--edit-mark-scale) - 1px - 1px);
   fill: none;
   stroke: var(--edit-mark-color, var(--color-text-on-overlay));
-  stroke-width: 2;
+  stroke-width: var(--edit-mark-weight);
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .edit-mark-face {
+    transition:
+      width var(--motion-state) var(--motion-ease-out),
+      height var(--motion-state) var(--motion-ease-out),
+      opacity var(--motion-state) var(--motion-ease-out);
+  }
+
+  .edit-mark-glyph {
+    transition:
+      width var(--motion-state) var(--motion-ease-out),
+      height var(--motion-state) var(--motion-ease-out),
+      stroke-width var(--motion-state) var(--motion-ease-out);
+  }
 }
 
 /* Under 24 px wide at 24 px spacing between chip centres, so two chips never
@@ -1401,7 +1477,11 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 .lane-inner > .join-blend {
   position: absolute;
   top: var(--clip-inset-top);
-  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
+  height: calc(
+    var(--lane-height) -
+    var(--clip-inset-top) -
+    var(--clip-inset-bottom)
+  );
   z-index: var(--z-join);
   pointer-events: none;
   overflow: visible;
@@ -1958,7 +2038,11 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 .lane-inner > .join-blend-seam {
   position: absolute;
   top: var(--clip-inset-top);
-  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
+  height: calc(
+    var(--lane-height) -
+    var(--clip-inset-top) -
+    var(--clip-inset-bottom)
+  );
   z-index: var(--z-join);
   pointer-events: none;
 }

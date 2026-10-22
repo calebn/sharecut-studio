@@ -216,3 +216,93 @@ describe("chipLabel", () => {
     expect(chipLabel(chip(null))).toBe("3 edits: 2 cuts, 1 crossfade");
   });
 });
+
+describe("planLaneMarks tier, label and room", () => {
+  const crossfade = (sec: number, ms: number, id = `x${sec}`) =>
+    mark(
+      sec,
+      {
+        kind: "join-crossfade",
+        right: clipRow({
+          id,
+          timeline_start: sec,
+          join_in_mode: "crossfade",
+          join_crossfade_ms: ms,
+        }),
+      },
+      id,
+    );
+
+  it.each([
+    [66, "narrow", 7.92],
+    [200, "middle", 24],
+    [1000, "wide", 120],
+  ] as const)(
+    "tiers a 120 ms crossfade at %f px/s as %s from its drawn width",
+    (zoom, tier, drawnPx) => {
+      const [symbol] = planAt([crossfade(10, 120)], zoom).symbols;
+      expect(symbol.tier).toBe(tier);
+      expect(symbol.drawnPx).toBeCloseTo(drawnPx, 9);
+    },
+  );
+
+  it("tiers a point join narrow with no drawn overlap", () => {
+    const [symbol] = planAt([mark(10)], 1000).symbols;
+    expect(symbol.tier).toBe("narrow");
+    expect(symbol.drawnPx).toBe(0);
+  });
+
+  it("reads the open draft's overlap instead of the saved one", () => {
+    const saved = crossfade(10, 20);
+    const draft = { ...saved.right, join_crossfade_ms: 200 };
+    expect(planAt([saved], 200).symbols[0].tier).toBe("narrow");
+    const drafted = planLaneMarks([saved], 200, SESSION_SEC, draft);
+    expect(drafted.symbols[0].tier).toBe("wide");
+    expect(drafted.symbols[0].label).toBe("Crossfade 200 ms");
+  });
+
+  it("ignores a draft for another join", () => {
+    const other = clipRow({ id: "other", join_crossfade_ms: 400 });
+    const plan = planLaneMarks([crossfade(10, 20)], 200, SESSION_SEC, other);
+    expect(plan.symbols[0].tier).toBe("narrow");
+  });
+
+  it("labels each type from the registry with its length", () => {
+    const fade = mark(
+      30,
+      {
+        kind: "join-fade",
+        left: clipRow({ fade_out_ms: 80 }),
+        right: clipRow({ fade_in_ms: 40 }),
+      },
+      "f",
+    );
+    const labels = planAt([mark(10), fade, crossfade(50, 120)], 3).symbols.map(
+      (s) => s.label,
+    );
+    expect(labels).toEqual(["Cut", "Fade 80 ms", "Crossfade 120 ms"]);
+  });
+
+  it("allows a label on a point join and on a wide crossfade only", () => {
+    const allowed = (zoom: number, m: JoinMark) =>
+      planAt([m], zoom).symbols[0].labelAllowed;
+    expect(allowed(1, mark(10))).toBe(true);
+    expect(allowed(66, crossfade(10, 120))).toBe(false);
+    expect(allowed(200, crossfade(10, 120))).toBe(false);
+    expect(allowed(1000, crossfade(10, 120))).toBe(true);
+  });
+
+  it("measures the room to the next mark, less the glyph and gap, and to the session end for the last", () => {
+    const plan = planAt([mark(0), mark(100), mark(599)], 1);
+    expect(plan.symbols.map((s) => s.roomPx)).toEqual([
+      100 - 6 - 6 - 4,
+      499 - 6 - 6 - 4,
+      1 - 6 - 4,
+    ]);
+  });
+
+  it("reserves a chip's half width when the next group is a chip", () => {
+    const plan = planAt([mark(0), mark(100), mark(110)], 1);
+    expect(plan.symbols[0].roomPx).toBe(105 - 12 - 6 - 4);
+  });
+});

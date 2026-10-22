@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { rulerWidthPx } from "./deepZoom";
 import { postDocumentCommand } from "./documentCommand";
@@ -97,6 +98,15 @@ async function openFit(
   viewport: ViewportName,
   theme: Theme,
 ): Promise<void> {
+  await openAtFit(page, viewport, theme);
+  await expect(page.locator(`${lane} .edit-chip`).first()).toBeVisible();
+}
+
+async function openAtFit(
+  page: Page,
+  viewport: ViewportName,
+  theme: Theme,
+): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
@@ -108,7 +118,6 @@ async function openFit(
     .click({ position: { x: 4, y: 4 } });
   await page.keyboard.press("\\");
   await page.keyboard.press("Escape");
-  await expect(page.locator(`${lane} .edit-chip`).first()).toBeVisible();
 }
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -298,7 +307,6 @@ test.describe("coarse pointer", () => {
     const cdp = await page.context().newCDPSession(page);
     const at = { x: box.x - 30, y: box.y + box.height / 2 };
     await touch(cdp, "touchStart", [at]);
-    await page.waitForTimeout(900);
     await expect(page.getByRole("menu", { name: /^Create at / })).toBeVisible();
     await touch(cdp, "touchEnd");
     await expect(joinDialog(page)).toHaveCount(0);
@@ -340,4 +348,128 @@ test("a chip still zooms in blade mode", async ({ page }) => {
   await expect(page.locator(`${lane} .edit-chip`)).toHaveCount(0);
   expect(await rulerWidthPx(page)).toBeGreaterThan(before);
   await expect(page.getByRole("dialog", { name: /^Cut at / })).toHaveCount(0);
+});
+
+/**
+ * One 120 ms crossfade at 20 s, the only join, so its tag and label have the
+ * lane to themselves. Dialogue fades cap at 40 ms (`render.join_fade_max_ms`),
+ * so the track plays the music role, which is uncapped.
+ */
+async function oneCrossfade(page: Page): Promise<void> {
+  const project = JSON.parse(fs.readFileSync(projectPath, "utf8"));
+  for (const track of project.timeline.tracks) {
+    if (track.id === TRACK) track.role = "music";
+  }
+  fs.writeFileSync(projectPath, JSON.stringify(project));
+  await split(page, [20]);
+  const clips = (await projectJson(page, projectPath)).clips.tracks[TRACK];
+  const i = clips.findIndex((c) => c.timeline_start === 20);
+  await postDocumentCommand(
+    page,
+    CLIENT_ID,
+    "SetClipJoin",
+    {
+      left_clip_id: clips[i - 1].id,
+      right_clip_id: clips[i].id,
+      mode: "crossfade",
+      length_ms: 120,
+    },
+    projectPath,
+  );
+}
+
+type Rung = { tier: string; overlapPx: number; face: number; label: string };
+
+async function rung(page: Page): Promise<Rung> {
+  const mark = page.locator(`${lane} .edit-mark`);
+  await mark.scrollIntoViewIfNeeded();
+  const [blend] = await boxes(page, `${lane} .join-blend`);
+  await expect
+    .poll(async () => (await boxes(page, `${lane} .edit-mark-face`))[0].width)
+    .toBeGreaterThan(0);
+  const tier = (await mark.getAttribute("data-tier")) ?? "";
+  const target = { narrow: 12, middle: 10.2, wide: 9 }[tier] ?? 0;
+  await expect
+    .poll(async () => (await boxes(page, `${lane} .edit-mark-face`))[0].width)
+    .toBeCloseTo(target, 1);
+  const [face] = await boxes(page, `${lane} .edit-mark-face`);
+  return {
+    tier,
+    overlapPx: blend.width,
+    face: face.width,
+    label: (
+      await page.locator(`${lane} .edit-mark-label`).allTextContents()
+    ).join("|"),
+  };
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`a 120 ms crossfade climbs narrow, middle and wide as the zoom grows, and only wide names its length, in the ${theme} theme`, async ({
+    page,
+  }, info) => {
+    await oneCrossfade(page);
+    await openAtFit(page, "desktop", theme);
+    await page
+      .locator(".time-ruler")
+      .first()
+      .click({ position: { x: 4, y: 4 } });
+    const seen: Rung[] = [];
+    let middleShot = false;
+    for (let step = 0; step < 24; step += 1) {
+      seen.push(await rung(page));
+      if (seen[seen.length - 1].overlapPx > 16 && step > 0 && !middleShot) {
+        middleShot = true;
+        await page.mouse.move(0, 0);
+        await shot(info, page, `edit-markers-middle-${theme}`);
+      }
+      if (seen[seen.length - 1].tier === "wide") break;
+      await page.keyboard.press("=");
+    }
+    const last = seen[seen.length - 1];
+    expect(last.tier).toBe("wide");
+    expect(last.label).toBe("Crossfade 120 ms");
+    expect(last.overlapPx).toBeGreaterThan(24);
+    expect(last.face).toBeCloseTo(9, 1);
+    for (const r of seen) {
+      const expected =
+        r.overlapPx < 8 ? "narrow" : r.overlapPx > 24 ? "wide" : "middle";
+      expect(r.tier).toBe(expected);
+      expect(r.label).toBe(r.tier === "wide" ? "Crossfade 120 ms" : "");
+    }
+    expect(seen.map((r) => r.tier)).toContain("middle");
+    const mark = page.locator(`${lane} .edit-mark`);
+    await expect(mark).toHaveAccessibleName(/^Crossfade join at 0:20\.0$/);
+    const hitWidth = await mark.evaluate((el) =>
+      Number.parseFloat(getComputedStyle(el, "::before").width),
+    );
+    expect(hitWidth).toBeGreaterThanOrEqual(24);
+    const [button] = await boxes(page, `${lane} .edit-mark`);
+    expect(button.width).toBeCloseTo(12, 1);
+    expect(button.height).toBeCloseTo(12, 1);
+    for (let step = 0; step < 4; step += 1) await page.keyboard.press("=");
+    await expect(mark).toHaveAttribute("data-tier", "wide");
+    await expect(page.locator(`${lane} .edit-mark-label`)).toHaveText(
+      "Crossfade 120 ms",
+    );
+    await mark.evaluate((el) =>
+      el.scrollIntoView({ inline: "center", block: "nearest" }),
+    );
+    await page.mouse.move(0, 0);
+    await shot(info, page, `edit-markers-wide-label-${theme}`);
+  });
+}
+
+test("the tag's size and opacity transition snaps under reduced motion", async ({
+  page,
+}) => {
+  await oneCrossfade(page);
+  await openAtFit(page, "desktop", "dark");
+  const duration = () =>
+    page
+      .locator(`${lane} .edit-mark-face`)
+      .evaluate((el) => getComputedStyle(el).transitionDuration);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  expect(await duration()).toBe("0.25s, 0.25s, 0.25s");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect(await duration()).toBe("0s");
 });
