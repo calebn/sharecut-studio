@@ -43,6 +43,8 @@ BOOTSTRAP_SNAPSHOT_KEYS = {
     "total",
     "message",
     "error",
+    "download",
+    "failure",
     "elapsed_sec",
     "result",
 }
@@ -295,7 +297,7 @@ def test_agent_live_cap_cancels_the_oldest(monkeypatch) -> None:
 
 
 def test_bootstrap_lifecycle_event_order_and_fields(monkeypatch) -> None:
-    def fake_run(components, *, whisper_model, force, progress):
+    def fake_run(components, *, whisper_model, force, progress, **_extra):
         progress.start("bootstrap", "Downloading", total=2)
         progress.update("bootstrap", 1, message="half")
         progress.end("bootstrap", message="fin")
@@ -329,7 +331,7 @@ def test_bootstrap_failed_component_sets_error(monkeypatch) -> None:
     )
     job = Job.bootstrap("boot-2", ["whisper"])
     JobManager()._run_bootstrap_job(job)
-    assert (job.status, job.error, job.message) == ("error", "whisper: no net", "whisper: no net")
+    assert (job.status, job.error, job.message) == ("error", "no net", "no net")
 
 
 def test_bootstrap_single_flight_and_archive(monkeypatch) -> None:
@@ -344,9 +346,10 @@ def test_bootstrap_single_flight_and_archive(monkeypatch) -> None:
     with pytest.raises(
         RuntimeError, match=r"Another download is already running \(whisper, ffmpeg\)"
     ):
-        mgr.start_bootstrap()
+        mgr.start_bootstrap(components=["rnnoise"])
     live.status = "ok"
-    nxt = mgr.start_bootstrap(components=["whisper"])
+    nxt, adopted = mgr.start_bootstrap(components=["whisper"])
+    assert adopted is False
     assert nxt.id != "live"
     assert mgr.get_bootstrap_job() is nxt
     assert mgr.get_bootstrap_job("live") is live
@@ -365,11 +368,11 @@ def test_bootstrap_slot_is_independent_of_the_pipeline_slot(monkeypatch) -> None
     mgr = JobManager()
     pipeline = Job(id="p1", project_path="/tmp/p.json", status="running")
     mgr._catalog._job = pipeline
-    download = mgr.start_bootstrap(components=["whisper"])
+    download, _ = mgr.start_bootstrap(components=["whisper"])
     assert download.kind == "bootstrap"
     assert mgr.get_job() is pipeline
     assert mgr.get_bootstrap_job() is download
     download.status = "running"
     with pytest.raises(JobSlotBusyError, match="Another download is already running"):
-        mgr.start_bootstrap()
+        mgr.start_bootstrap(components=["rnnoise"])
     assert cancelled_copy("bootstrap") == "Bootstrap cancelled"

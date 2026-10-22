@@ -38,6 +38,7 @@ from podcast_mcp.engines.models.word_aligner import (
     word_aligner_model,
     word_aligner_problem,
 )
+from podcast_mcp.util.asset_sources import OnProgress
 from podcast_mcp.util.model_assets import (
     bootstrap_rnnoise_model,
     resolve_rnnoise_model,
@@ -62,7 +63,7 @@ class ModelSpec:
     size: str
     setup: SetupTier
     problem: Callable[[str | None, bool], ModelProblem | None]
-    install: Callable[[str | None, bool], dict[str, Any]]
+    install: Callable[[str | None, bool, OnProgress | None], dict[str, Any]]
     location: Callable[[], Path]
     default_variant: str | None = None
 
@@ -85,8 +86,12 @@ def _whisper_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
     )
 
 
-def _whisper_install(variant: str | None, force: bool) -> dict[str, Any]:
-    result = bootstrap_whisper_model(resolve_whisper_model(requested=variant), force=force)
+def _whisper_install(
+    variant: str | None, force: bool, on_progress: OnProgress | None
+) -> dict[str, Any]:
+    result = bootstrap_whisper_model(
+        resolve_whisper_model(requested=variant), force=force, on_progress=on_progress
+    )
     return {**result, "path": result["cache"]}
 
 
@@ -98,8 +103,10 @@ def _rnnoise_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
     return None
 
 
-def _rnnoise_install(variant: str | None, force: bool) -> dict[str, Any]:
-    return {"ok": True, "path": str(bootstrap_rnnoise_model(force=force))}
+def _rnnoise_install(
+    variant: str | None, force: bool, on_progress: OnProgress | None
+) -> dict[str, Any]:
+    return {"ok": True, "path": str(bootstrap_rnnoise_model(force=force, on_progress=on_progress))}
 
 
 def _word_aligner_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
@@ -117,11 +124,13 @@ def _word_aligner_problem(variant: str | None, memoize: bool) -> ModelProblem | 
     )
 
 
-def _word_aligner_install(variant: str | None, force: bool) -> dict[str, Any]:
+def _word_aligner_install(
+    variant: str | None, force: bool, on_progress: OnProgress | None
+) -> dict[str, Any]:
     model_id = variant or DEFAULT_WORD_ALIGNER
     if not force and word_aligner_problem(model_id) is None:
         return {"ok": True, "skipped": True, "reason": "cached", "model": model_id}
-    return bootstrap_word_aligner(model_id, force=force)
+    return bootstrap_word_aligner(model_id, force=force, on_progress=on_progress)
 
 
 def _speaker_ecapa_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
@@ -131,8 +140,10 @@ def _speaker_ecapa_problem(variant: str | None, memoize: bool) -> ModelProblem |
     return ModelProblem(f"{SPEAKER_ECAPA_LABEL} {found}", SPEAKER_ECAPA_BOOTSTRAP)
 
 
-def _speaker_ecapa_install(variant: str | None, force: bool) -> dict[str, Any]:
-    return bootstrap_speaker_ecapa(force=force)
+def _speaker_ecapa_install(
+    variant: str | None, force: bool, on_progress: OnProgress | None
+) -> dict[str, Any]:
+    return bootstrap_speaker_ecapa(force=force, on_progress=on_progress)
 
 
 _WORD_ALIGNER = word_aligner_model(DEFAULT_WORD_ALIGNER)

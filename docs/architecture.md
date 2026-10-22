@@ -113,9 +113,11 @@ consumers read. `JobCatalog` (`catalog.py`) holds job identity, live agent
 claims, the bounded finished-job lookup and the download slot. The first-run
 download is a `bootstrap` job on the same `JobManager` (`start_bootstrap`), in a
 second slot: a download never blocks a run, and the reverse. Its snapshot keeps the
-bootstrap keys the setup screen reads, a second download is refused with
-`JobSlotBusyError` and the same "Another download is already running" text, and
-its events use the one `JobProgressReporter`. Events go out through
+bootstrap keys the setup screen reads, a second request the live job already covers joins it (`start_bootstrap` returns
+`(job, adopted)`; the route adds `adopted`), any other, or a retry of a component the live job already failed, is refused with
+`BootstrapSlotBusyError` ("Another download is already running", with `running` and
+`cancelling`), its snapshot adds `download` (bytes of the file in flight) and `failure`
+(the first failed component, typed), and its events use the one `JobProgressReporter`. Events go out through
 the job-id-keyed hub in `events.py`. `gui/job_events.py` stays the SSE adapter:
 it frames those queues for `/api/pipeline/events` and `/api/bootstrap/events`
 and builds the two progress sinks `create_app` registers. `mcp/tools/pipeline.py`

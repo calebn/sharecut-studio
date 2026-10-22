@@ -8,6 +8,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.services.jobs.job import KIND_META, Job, StepTiming, short_fail_message
+from podcast_mcp.util.asset_sources import DOWNLOAD_TASK_ID
 from podcast_mcp.util.progress import PROGRESS_LAZY_CHIP_SEC, ElapsedProgressMixin, ProgressEvent
 
 if TYPE_CHECKING:
@@ -57,12 +58,18 @@ class JobProgressReporter(ElapsedProgressMixin):
         if self._closed:
             return
         self._register_task(task_id, label, total)
+        is_download = task_id == DOWNLOAD_TASK_ID
         with self._job._lock:
-            if self._owns_units(task_id) or (self._job.kind != "agent" and self._job.total is None):
-                self._job.total = total
-                self._job.current = 0
-            if self._job.kind != "agent" or self._owns_units(task_id):
-                self._job.message = label
+            if is_download:
+                self._job.download = {"component": label, "bytes": 0, "total": total}
+            else:
+                if self._owns_units(task_id) or (
+                    self._job.kind != "agent" and self._job.total is None
+                ):
+                    self._job.total = total
+                    self._job.current = 0
+                if self._job.kind != "agent" or self._owns_units(task_id):
+                    self._job.message = label
         self._emit(
             ProgressEvent(
                 kind="start",
@@ -70,7 +77,7 @@ class JobProgressReporter(ElapsedProgressMixin):
                 label=label,
                 current=0,
                 total=total,
-                elapsed_sec=0.0,
+                elapsed_sec=self._elapsed(time.monotonic()) if is_download else 0.0,
             )
         )
 
@@ -92,6 +99,8 @@ class JobProgressReporter(ElapsedProgressMixin):
                 self._job.current = current
                 if total is not None:
                     self._job.total = total
+            if task_id == DOWNLOAD_TASK_ID and self._job.download is not None:
+                self._job.download = {**self._job.download, "bytes": current, "total": total}
             if message is not None:
                 self._job.message = message
             if message and message.startswith("Completed ") and self._job.steps:
@@ -112,7 +121,9 @@ class JobProgressReporter(ElapsedProgressMixin):
                 task_id=task_id,
                 label=self._event_label(),
                 current=current,
-                total=total if total is not None else self._job.total,
+                total=total
+                if total is not None or task_id == DOWNLOAD_TASK_ID
+                else self._job.total,
                 elapsed_sec=elapsed,
                 message=message,
                 phase=phase,
@@ -149,6 +160,8 @@ class JobProgressReporter(ElapsedProgressMixin):
             return
         now = time.monotonic()
         with self._job._lock:
+            if task_id == DOWNLOAD_TASK_ID:
+                self._job.download = None
             if message is not None:
                 self._job.message = message
             if self._job.kind == "agent" and self._owns_units(task_id):
@@ -180,6 +193,8 @@ class JobProgressReporter(ElapsedProgressMixin):
         short = short_fail_message(message, phase)
         owns = self._owns_units(task_id)
         with self._job._lock:
+            if task_id == DOWNLOAD_TASK_ID:
+                self._job.download = None
             if short is not None and owns:
                 self._job.message = short
                 self._job.error = short
@@ -209,6 +224,8 @@ class JobProgressReporter(ElapsedProgressMixin):
             return
         now = time.monotonic()
         with self._job._lock:
+            if task_id == DOWNLOAD_TASK_ID:
+                self._job.download = None
             if message is not None:
                 self._job.message = message
             if self._job.kind == "agent" and self._owns_units(task_id):

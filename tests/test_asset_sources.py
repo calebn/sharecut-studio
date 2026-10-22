@@ -13,7 +13,10 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.util.asset_sources import (
+    AssetIntegrityError,
     AssetSourceError,
+    DownloadProgress,
+    NoDownloadSourceError,
     _copy_bounded,
     _download_url,
     _https_opener,
@@ -28,6 +31,43 @@ from podcast_mcp.util.asset_sources import (
     load_manifest,
     ordered_http_urls,
 )
+
+
+class _Resp:
+    def __init__(self, body: bytes, *, length: bool = True) -> None:
+        self._body = io.BytesIO(body)
+        self.headers = {"Content-Length": str(len(body))} if length else {}
+
+    def read(self, n: int) -> bytes:
+        return self._body.read(n)
+
+    def __enter__(self) -> _Resp:
+        return self
+
+    def __exit__(self, *_a: object) -> None:
+        return None
+
+
+class _Opener:
+    """Serves ``routes``: bytes become a 200 body, an exception is raised on open."""
+
+    def __init__(self, routes: dict[str, bytes | Exception], *, length: bool = True) -> None:
+        self.routes = routes
+        self.length = length
+        self.calls: list[str] = []
+
+    def open(self, req: urllib.request.Request, timeout: float = 120.0) -> _Resp:
+        del timeout
+        self.calls.append(req.full_url)
+        route = self.routes[req.full_url]
+        if isinstance(route, Exception):
+            raise route
+        return _Resp(route, length=self.length)
+
+
+def _serve(monkeypatch: pytest.MonkeyPatch, opener: _Opener) -> _Opener:
+    monkeypatch.setattr("podcast_mcp.util.asset_sources._https_opener", lambda: opener)
+    return opener
 
 
 def test_ordered_http_urls_prefers_cdn(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,26 +125,22 @@ def test_download_first_ok_falls_back(tmp_path: Path) -> None:
     assert calls[0].startswith("https://cdn.")
 
 
-def test_download_first_ok_sha_mismatch_retries_upstream(tmp_path: Path) -> None:
+def test_download_first_ok_sha_mismatch_retries_upstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     dest = tmp_path / "file.bin"
-
-    def fake_download(url: str, path: Path, **kwargs: object) -> None:
-        if "cdn" in url:
-            path.write_bytes(b"bad")
-        else:
-            path.write_bytes(b"good")
-
-    with patch("podcast_mcp.util.asset_sources._download_url", fake_download):
-        label = download_first_ok(
-            [
-                "https://cdn.example.test/file",
-                "https://upstream.example/file",
-            ],
-            dest,
-            expected_sha256=hashlib.sha256(b"good").hexdigest(),
-        )
+    opener = _Opener(
+        {"https://cdn.example.test/file": b"bad", "https://upstream.example/file": b"good"}
+    )
+    _serve(monkeypatch, opener)
+    label = download_first_ok(
+        ["https://cdn.example.test/file", "https://upstream.example/file"],
+        dest,
+        expected_sha256=hashlib.sha256(b"good").hexdigest(),
+    )
     assert label == "upstream"
     assert dest.read_bytes() == b"good"
+    assert list(tmp_path.glob("*.part")) == []
 
 
 def test_download_first_ok_all_fail(tmp_path: Path) -> None:
@@ -237,23 +273,7 @@ def test_download_uses_unique_part_name(tmp_path: Path, monkeypatch: pytest.Monk
 
     monkeypatch.setattr("podcast_mcp.util.asset_sources.uuid.uuid4", lambda: _Hex())
 
-    class _Resp:
-        def read(self, _n: int) -> bytes:
-            return b""
-
-    class _Ctx:
-        def __enter__(self) -> _Resp:
-            return _Resp()
-
-        def __exit__(self, *_a: object) -> None:
-            return None
-
-    class _Opener:
-        def open(self, req: object, timeout: float = 120.0) -> _Ctx:
-            del req, timeout
-            return _Ctx()
-
-    monkeypatch.setattr("podcast_mcp.util.asset_sources._https_opener", lambda: _Opener())
+    _serve(monkeypatch, _Opener({"https://cdn.example.test/file.bin": b""}))
     real_with_name = Path.with_name
 
     def tracking_with_name(self: Path, name: str) -> Path:
@@ -362,29 +382,7 @@ def test_download_url_sha_mismatch_leaves_dest(
     dest = tmp_path / "file.bin"
     dest.write_bytes(b"keep")
 
-    class _Resp:
-        def __init__(self) -> None:
-            self._sent = False
-
-        def read(self, _n: int) -> bytes:
-            if self._sent:
-                return b""
-            self._sent = True
-            return b"bad"
-
-    class _Ctx:
-        def __enter__(self) -> _Resp:
-            return _Resp()
-
-        def __exit__(self, *_a: object) -> None:
-            return None
-
-    class _Opener:
-        def open(self, req: object, timeout: float = 120.0) -> _Ctx:
-            del req, timeout
-            return _Ctx()
-
-    monkeypatch.setattr("podcast_mcp.util.asset_sources._https_opener", lambda: _Opener())
+    _serve(monkeypatch, _Opener({"https://cdn.example.test/file.bin": b"bad"}))
     with pytest.raises(AssetSourceError, match="sha256 mismatch"):
         _download_url(
             "https://cdn.example.test/file.bin",
@@ -426,3 +424,85 @@ def test_manifest_schema_declares_size_bytes() -> None:
     all_props = find_props(schema)
     assert all_props
     assert all(props.get("size_bytes", {}).get("type") == "integer" for props in all_props)
+
+
+MIB = 1024 * 1024
+
+
+def test_download_reports_bytes_against_content_length(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = b"x" * (2 * MIB + 5)
+    _serve(monkeypatch, _Opener({"https://up.example/m.bin": body}))
+    events: list[DownloadProgress] = []
+    download_first_ok(["https://up.example/m.bin"], tmp_path / "m.bin", on_progress=events.append)
+    size = len(body)
+    assert events == [
+        DownloadProgress(0, size),
+        DownloadProgress(MIB, size),
+        DownloadProgress(2 * MIB, size),
+        DownloadProgress(size, size),
+    ]
+    assert (tmp_path / "m.bin").read_bytes() == body
+
+
+def test_download_without_content_length_has_no_total(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _serve(monkeypatch, _Opener({"https://up.example/m.bin": b"abc"}, length=False))
+    events: list[DownloadProgress] = []
+    download_first_ok(["https://up.example/m.bin"], tmp_path / "m.bin", on_progress=events.append)
+    assert events == [DownloadProgress(0, None), DownloadProgress(3, None)]
+
+
+def test_a_failed_first_source_restarts_progress_at_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    good = b"g" * 10
+    _serve(
+        monkeypatch,
+        _Opener({"https://cdn.example.test/m": b"b" * 4, "https://up.example/m": good}),
+    )
+    events: list[DownloadProgress] = []
+    label = download_first_ok(
+        ["https://cdn.example.test/m", "https://up.example/m"],
+        tmp_path / "m.bin",
+        expected_sha256=hashlib.sha256(good).hexdigest(),
+        on_progress=events.append,
+    )
+    assert label == "upstream"
+    assert events == [
+        DownloadProgress(0, 4),
+        DownloadProgress(4, 4),
+        DownloadProgress(0, 10),
+        DownloadProgress(10, 10),
+    ]
+
+
+def test_sha_mismatch_on_every_source_leaves_no_dest_and_no_part(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _serve(monkeypatch, _Opener({"https://up.example/m": b"bad"}))
+    dest = tmp_path / "m.bin"
+    with pytest.raises(AssetSourceError) as raised:
+        download_first_ok(
+            ["https://up.example/m"], dest, expected_sha256=hashlib.sha256(b"good").hexdigest()
+        )
+    assert [type(a) for a in raised.value.attempts] == [AssetIntegrityError]
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_no_urls_is_a_typed_error_without_opening_anything(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opener = _Opener({})
+    _serve(monkeypatch, opener)
+    with pytest.raises(NoDownloadSourceError):
+        download_first_ok([], tmp_path / "m.bin")
+    assert opener.calls == []
+
+
+def test_download_progress_percent_is_derived() -> None:
+    assert DownloadProgress(50, 200).percent == 25.0
+    assert DownloadProgress(5, None).percent is None
+    assert DownloadProgress(0, 0).percent == 100.0

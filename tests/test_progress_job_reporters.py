@@ -141,8 +141,14 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     )
     out = boot.run_bootstrap(["whisper", "rnnoise"], force=True)
     assert out["ok"] is False
-    assert out["results"]["whisper"] == {"ok": False, "error": "no whisper"}
-    assert out["results"]["rnnoise"] == {"ok": False, "error": "rn"}
+    assert out["results"]["whisper"] == {
+        "ok": False,
+        "error": "Whisper speech model could not be installed.",
+    }
+    assert out["results"]["rnnoise"] == {
+        "ok": False,
+        "error": "RNNoise noise reduction could not be installed.",
+    }
 
     model = tmp_path / "rnnoise.rnnn"
     model.write_text("x")
@@ -491,7 +497,7 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
     err_job = Job.bootstrap("b4", ["whisper"])
     mgr._run_bootstrap_job(err_job)
     assert err_job.status == "error"
-    assert "exploded" in (err_job.error or "")
+    assert "exploded" not in (err_job.error or "")
 
 
 def test_job_progress_reporter_non_pipeline_task() -> None:

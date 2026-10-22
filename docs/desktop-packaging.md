@@ -107,7 +107,7 @@ typecheck and test the `cfg(windows)` arms (it builds with `--test`, which
 Home screen shows a bootstrap wizard when FFmpeg or Whisper is missing:
 
 - `GET /api/bootstrap/status` (includes `whisper_models` catalog)
-- `POST /api/bootstrap/run` with `whisper_model` → SSE `GET /api/bootstrap/events`
+- `POST /api/bootstrap/run` with `whisper_model` → `{job, adopted}` and SSE `GET /api/bootstrap/events`; a repeat of a request the live job covers joins it, any other is a 409 `bootstrap_job_running`. Job snapshots carry `download` and `failure` ([setup.md](setup.md#bootstrap-cache-downloads-podcast-bootstrap))
 
 Default speech model is **large-v3-turbo**. Users can pick a smaller size in the wizard or via `./install.sh --whisper-model` / `podcast bootstrap --whisper-model`.
 

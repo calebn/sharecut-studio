@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import io
+import urllib.error
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -47,7 +48,7 @@ def test_bootstrap_whisper_success() -> None:
         result = runner.invoke(app, ["bootstrap", "--component", "whisper"])
     assert result.exit_code == 0
     assert "[ok] whisper: /tmp/cache" in result.stdout
-    mocked.assert_called_once_with("large-v3-turbo", force=False)
+    mocked.assert_called_once_with("large-v3-turbo", force=False, on_progress=ANY)
 
 
 def test_bootstrap_whisper_model_flag() -> None:
@@ -66,7 +67,7 @@ def test_bootstrap_whisper_model_flag() -> None:
         )
     assert result.exit_code == 0
     assert "[ok] whisper: /tmp/cache" in result.stdout
-    mocked.assert_called_once_with("small.en", force=False)
+    mocked.assert_called_once_with("small.en", force=False, on_progress=ANY)
 
 
 def test_bootstrap_whisper_model_unknown() -> None:
@@ -90,11 +91,26 @@ def test_bootstrap_whisper_import_failure() -> None:
 def test_bootstrap_whisper_download_failure() -> None:
     with patch(
         "podcast_mcp.engines.models.registry.bootstrap_whisper_model",
-        side_effect=RuntimeError("network down"),
+        side_effect=urllib.error.URLError("network down"),
     ):
         result = runner.invoke(app, ["bootstrap", "--component", "whisper"])
     assert result.exit_code == 1
-    assert "network down" in result.stderr
+    assert "[fail] whisper: Couldn't reach the download server." in result.stderr
+    assert "network down" not in result.stderr
+
+
+def test_bootstrap_unexpected_error_is_reported_generically(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with patch(
+        "podcast_mcp.engines.models.registry.bootstrap_whisper_model",
+        side_effect=RuntimeError("/srv/cache exploded"),
+    ):
+        result = runner.invoke(app, ["bootstrap", "--component", "whisper"])
+    assert result.exit_code == 1
+    assert "[fail] whisper: Whisper speech model could not be installed." in result.stderr
+    assert "/srv" not in result.stderr
+    assert "/srv/cache exploded" in caplog.text
 
 
 def test_bootstrap_whisper_persist_failure_still_ok() -> None:
@@ -124,7 +140,14 @@ def test_bootstrap_whisper_upgrade_forces_download() -> None:
     ) as mocked:
         result = runner.invoke(app, ["bootstrap", "--component", "whisper", "--upgrade"])
     assert result.exit_code == 0
-    mocked.assert_called_once_with("large-v3-turbo", force=True)
+    mocked.assert_called_once_with("large-v3-turbo", force=True, on_progress=ANY)
+
+
+def _snapshot_download_stub(snap: Path):
+    def stub(*_args, dry_run: bool = False, **_kwargs):
+        return [] if dry_run else str(snap)
+
+    return stub
 
 
 def test_bootstrap_whisper_tampered_snapshot_fails_with_upgrade_hint(
@@ -137,16 +160,18 @@ def test_bootstrap_whisper_tampered_snapshot_fails_with_upgrade_hint(
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
     (snap / "vocabulary.txt").write_bytes(b"tampered")
     monkeypatch.setattr(
-        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+        "huggingface_hub.snapshot_download", _snapshot_download_stub(snap), raising=False
     )
     result = runner.invoke(
         app,
         ["bootstrap", "--component", "whisper", "--whisper-model", "small.en"],
     )
     assert result.exit_code == 1
-    assert "[fail] whisper" in result.stderr
-    assert "vocabulary.txt" in result.stderr
-    assert "--upgrade" in result.stderr
+    assert (
+        "[fail] whisper: Whisper speech model downloaded but isn't the expected version. "
+        "Run: podcast bootstrap --component whisper --whisper-model small.en --upgrade"
+    ) in result.stderr
+    assert "vocabulary.txt" not in result.stderr
 
 
 def test_bootstrap_rnnoise_success(tmp_path: Path) -> None:
@@ -172,7 +197,7 @@ def _stub_installers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     installed: list[str] = []
 
     def stub(spec):
-        def install(variant, force):
+        def install(variant, force, on_progress):
             installed.append(spec.id)
             return {"ok": True, "path": f"/stub/{spec.id}"}
 
@@ -272,11 +297,11 @@ def test_bootstrap_failure_of_one_model_does_not_skip_the_rest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     installed = _stub_installers(monkeypatch)
-    failing = replace(registry.MODELS[0], install=lambda variant, force: 1 / 0)
+    failing = replace(registry.MODELS[0], install=lambda variant, force, on_progress: 1 / 0)
     monkeypatch.setattr("podcast_mcp.cli.setup_cmd.MODELS", (failing, *registry.MODELS[1:]))
     result = runner.invoke(app, ["bootstrap", "--component", "all"])
     assert result.exit_code == 1
-    assert "[fail] whisper: division by zero" in result.stderr
+    assert "[fail] whisper: Whisper speech model could not be installed." in result.stderr
     assert installed == ["rnnoise", "word-aligner", "speaker-ecapa"]
 
 
@@ -314,7 +339,7 @@ def test_bootstrap_word_aligner_upgrade_forces_download() -> None:
     ):
         result = runner.invoke(app, ["bootstrap", "--component", "word-aligner", "--upgrade"])
     assert result.exit_code == 0
-    bootstrap.assert_called_once_with("onnx-base", force=True)
+    bootstrap.assert_called_once_with("onnx-base", force=True, on_progress=ANY)
 
 
 def test_bootstrap_word_aligner_failure_exits_1() -> None:
@@ -322,12 +347,13 @@ def test_bootstrap_word_aligner_failure_exits_1() -> None:
         patch("podcast_mcp.engines.models.registry.word_aligner_problem", return_value=object()),
         patch(
             "podcast_mcp.engines.models.registry.bootstrap_word_aligner",
-            side_effect=RuntimeError("hub down"),
+            side_effect=TimeoutError("hub down"),
         ),
     ):
         result = runner.invoke(app, ["bootstrap", "--component", "word-aligner"])
     assert result.exit_code == 1
-    assert "hub down" in result.stderr
+    assert "[fail] word-aligner: Couldn't reach the download server." in result.stderr
+    assert "hub down" not in result.stderr
 
 
 def test_bootstrap_word_aligner_tampered_snapshot_fails_with_upgrade_hint(
@@ -338,12 +364,14 @@ def test_bootstrap_word_aligner_tampered_snapshot_fails_with_upgrade_hint(
     snap = pin_word_aligner_to_fake_snapshot(tmp_path / "snap", monkeypatch)
     (snap / "vocab.json").write_bytes(b"tampered")
     monkeypatch.setattr(
-        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+        "huggingface_hub.snapshot_download", _snapshot_download_stub(snap), raising=False
     )
     result = runner.invoke(app, ["bootstrap", "--component", "word-aligner"])
     assert result.exit_code == 1
-    assert "[fail] word-aligner" in result.stderr
-    assert "--upgrade" in result.stderr
+    assert (
+        "[fail] word-aligner: wav2vec2 base (ONNX, English) downloaded but isn't the expected "
+        "version. Run: podcast bootstrap --component word-aligner --upgrade"
+    ) in result.stderr
     assert "[skip]" not in result.stdout
 
 

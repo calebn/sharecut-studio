@@ -332,7 +332,15 @@ def test_bootstrap_run_refusals(bootstrap_client):
     live = Job.bootstrap("live", ["whisper"])
     live.status = "running"
     bootstrap_client.app.state.jobs._catalog._bootstrap_job = live
-    _assert(bootstrap_client.post("/api/bootstrap/run", json={}), 409, "bootstrap_job_running")
+    _assert(
+        bootstrap_client.post("/api/bootstrap/run", json={"components": ["rnnoise"]}),
+        409,
+        "bootstrap_job_running",
+    )
+    adopted = bootstrap_client.post("/api/bootstrap/run", json={})
+    assert adopted.status_code == 200
+    assert adopted.json()["adopted"] is True
+    assert adopted.json()["job"]["id"] == "live"
 
 
 def test_diagnostics_bundle_build_failures(local, monkeypatch):

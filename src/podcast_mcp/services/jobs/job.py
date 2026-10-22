@@ -66,9 +66,17 @@ class JobSlotBusyError(CodedError, RuntimeError):
 
 
 class BootstrapSlotBusyError(JobSlotBusyError):
-    """A first-run download is still running; the download slot holds one at a time."""
+    """A first-run download is still running; the download slot holds one at a time.
+
+    ``running`` lists what it is downloading, and ``cancelling`` says it is already stopping.
+    """
 
     code = "bootstrap_job_running"
+
+    def __init__(self, message: str, *, running: list[str], cancelling: bool) -> None:
+        super().__init__(message)
+        self.running = running
+        self.cancelling = cancelling
 
 
 @dataclass(frozen=True)
@@ -149,6 +157,9 @@ class Job:
     skip_steps: list[str] = field(default_factory=list)
     config: dict[str, Any] | None = None
     cancel_requested: bool = False
+    download: dict[str, Any] | None = None
+    failure: dict[str, Any] | None = None
+    failed_components: list[str] = field(default_factory=list)
     steps: list[StepTiming] = field(default_factory=list)
     result_step: str | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -205,6 +216,8 @@ class Job:
                     "total": self.total,
                     "message": self.message,
                     "error": self.error,
+                    "download": dict(self.download) if self.download else None,
+                    "failure": dict(self.failure) if self.failure else None,
                     "elapsed_sec": round(elapsed, 2),
                     "result": self.result,
                 }

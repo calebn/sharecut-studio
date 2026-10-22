@@ -9,7 +9,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -28,7 +29,38 @@ _MAX_REDIRECTS = 5
 
 
 class AssetSourceError(RuntimeError):
-    """Bootstrap download failed across all candidate URLs."""
+    """Bootstrap download failed across all candidate URLs; ``attempts`` holds each URL's error."""
+
+    attempts: tuple[Exception, ...] = ()
+
+
+class NoDownloadSourceError(AssetSourceError):
+    """No CDN base and no upstream URL: nothing to try."""
+
+
+class AssetIntegrityError(AssetSourceError):
+    """A download whose bytes do not match its pin (sha256) or exceed the size cap."""
+
+
+@dataclass(frozen=True)
+class DownloadProgress:
+    """Absolute bytes so far and the expected total (None when the source does not say)."""
+
+    bytes: int
+    total: int | None
+
+    @property
+    def percent(self) -> float | None:
+        if self.total is None:
+            return None
+        return 100.0 if self.total == 0 else min(100.0, self.bytes * 100 / self.total)
+
+
+OnProgress = Callable[[DownloadProgress], None]
+"""Receives download progress; may raise ``CancelledProgress`` and must be thread-safe."""
+
+DOWNLOAD_TASK_ID = "bootstrap.bytes"
+"""Progress task id of the model download in flight; its label is the component id."""
 
 
 class _HttpsRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -160,16 +192,31 @@ def ordered_http_urls(asset_id: str, *, relative_path: str) -> list[str]:
     return urls
 
 
-def _copy_bounded(src: Any, dest: Any, *, max_bytes: int) -> None:
+def _copy_bounded(
+    src: Any,
+    dest: Any,
+    *,
+    max_bytes: int,
+    total: int | None = None,
+    on_progress: OnProgress | None = None,
+) -> None:
     remaining = max_bytes
     while True:
         chunk = src.read(min(1024 * 1024, remaining + 1))
         if not chunk:
             return
         if len(chunk) > remaining:
-            raise AssetSourceError(f"download exceeds {max_bytes} bytes")
+            raise AssetIntegrityError(f"download exceeds {max_bytes} bytes")
         dest.write(chunk)
         remaining -= len(chunk)
+        if on_progress is not None:
+            on_progress(DownloadProgress(max_bytes - remaining, total))
+
+
+def _content_length(resp: Any) -> int | None:
+    headers = getattr(resp, "headers", None)
+    value = headers.get("Content-Length") if headers is not None else None
+    return int(value) if value is not None and value.isdigit() else None
 
 
 def _source_label(url: str) -> str:
@@ -186,6 +233,7 @@ def _download_url(
     timeout: float = 120.0,
     expected_sha256: str | None = None,
     max_bytes: int = _MAX_DOWNLOAD_BYTES,
+    on_progress: OnProgress | None = None,
 ) -> None:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https":
@@ -200,11 +248,14 @@ def _download_url(
             _https_opener().open(req, timeout=timeout) as resp,  # nosec B310
             tmp.open("wb") as handle,
         ):
-            _copy_bounded(resp, handle, max_bytes=max_bytes)
+            total = _content_length(resp)
+            if on_progress is not None:
+                on_progress(DownloadProgress(0, total))
+            _copy_bounded(resp, handle, max_bytes=max_bytes, total=total, on_progress=on_progress)
         if expected_sha256:
             got = sha256_file(tmp)
             if got != expected_sha256.lower():
-                raise AssetSourceError(
+                raise AssetIntegrityError(
                     f"sha256 mismatch for {dest.name}: expected {expected_sha256}, got {got}"
                 )
         publish_completed_file(tmp, dest)
@@ -218,26 +269,32 @@ def download_first_ok(
     *,
     expected_sha256: str | None = None,
     timeout: float = 120.0,
+    on_progress: OnProgress | None = None,
 ) -> str:
-    """Download from the first URL that succeeds. Returns a short source label."""
-    last_error: Exception | None = None
-    errors: list[str] = []
+    """Download from the first URL that succeeds. Returns a short source label.
+
+    A URL that fails restarts progress at zero on the next one. The error raised when every
+    URL fails carries each URL's own error as ``attempts``.
+    """
+    attempts: list[Exception] = []
     url_list = list(urls)
+    if not url_list:
+        raise NoDownloadSourceError("no download URLs")
     for index, url in enumerate(url_list):
         try:
-            _download_url(url, dest, timeout=timeout, expected_sha256=expected_sha256)
-            if expected_sha256 and dest.is_file():
-                got = sha256_file(dest)
-                if got != expected_sha256.lower():
-                    dest.unlink(missing_ok=True)
-                    raise AssetSourceError(
-                        f"sha256 mismatch for {dest.name}: expected {expected_sha256}, got {got}"
-                    )
+            _download_url(
+                url,
+                dest,
+                timeout=timeout,
+                expected_sha256=expected_sha256,
+                on_progress=on_progress,
+            )
             return _source_label(url)
         except (OSError, AssetSourceError, ValueError, TimeoutError, urllib.error.URLError) as exc:
-            last_error = exc
-            errors.append(f"{url}: {exc}")
+            attempts.append(exc)
             if index == 0 and len(url_list) > 1:
                 logger.info("bootstrap CDN miss for %s (%s); trying upstream", dest.name, exc)
-    detail = "; ".join(errors) if errors else "no download URLs"
-    raise AssetSourceError(detail) from last_error
+    detail = "; ".join(f"{url}: {exc}" for url, exc in zip(url_list, attempts, strict=True))
+    error = AssetSourceError(detail)
+    error.attempts = tuple(attempts)
+    raise error from attempts[-1]

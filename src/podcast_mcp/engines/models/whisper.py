@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from podcast_mcp import settings
+from podcast_mcp.util.asset_sources import DownloadProgress, OnProgress
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
@@ -421,13 +422,16 @@ def ensure_whisper_model_cached(model: str, *, memoize: bool = False) -> str:
     return canonical
 
 
-def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str, Any]:
+def bootstrap_whisper_model(
+    model_size: str, *, force: bool = False, on_progress: OnProgress | None = None
+) -> dict[str, Any]:
     """Download weights into the cache and persist the machine preference.
 
     A catalog size downloads its pinned snapshot and verifies every file; a cached
     snapshot that fails its pin is re-fetched once even without ``force``, and a mismatch
     that survives raises ``WhisperPinMismatchError``. Any other size uses faster-whisper's
-    own unpinned download, where ``force`` has no effect.
+    own unpinned download, where ``force`` has no effect and no byte count exists: it
+    reports one ``DownloadProgress(0, None)`` before starting.
 
     No lock of our own guards the shared snapshot cache (as in ``word_aligner.py``):
     a (forced) re-download racing a load relies on huggingface_hub's per-file atomic
@@ -442,6 +446,9 @@ def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str
     if pin is None:
         from faster_whisper import WhisperModel
 
+        if on_progress is not None:
+            on_progress(DownloadProgress(0, None))
+
         # Intentional download path — the only WhisperModel construction without
         # local_files_only=True.
         WhisperModel(
@@ -452,7 +459,9 @@ def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str
         )
     else:
         # Intentional download path: the only pinned Whisper download (never local_files_only).
-        _, mismatch = download_pinned_snapshot(pin, whisper_cache_dir(), force=force)
+        _, mismatch = download_pinned_snapshot(
+            pin, whisper_cache_dir(), force=force, on_progress=on_progress
+        )
         if mismatch is not None:
             raise WhisperPinMismatchError(canonical, mismatch)
     persist_error: str | None = None
