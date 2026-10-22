@@ -1906,7 +1906,7 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
         track_id="host",
         effects=[ProcessingEffect(effect="eq", params={"gain_db": 2})],
     )
-    with patch("podcast_mcp.services.document.analysis.add_effect", return_value=chain):
+    with patch("podcast_mcp.services.document.effects.add_effect", return_value=chain):
         out = AnalysisService(ws).add_effect(
             speaker="Host",
             effect="highpass",
