@@ -210,22 +210,20 @@ def require_rustc() -> str:
     return rustc
 
 
-def compile_rust_launcher(dest: Path, *, variant: str = "sidecar") -> None:
-    """Compile ``sidecar_launcher.rs`` to ``dest``; compiler errors surface as-is."""
+def compile_rust_launcher(
+    dest: Path, *, variant: str = "sidecar", test: bool = False, optimize: bool = True
+) -> None:
+    """Compile the launcher or its Rust test harness and require the output file."""
     rustc = require_rustc()
     dest.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        rustc,
-        "--edition",
-        "2021",
-        "-C",
-        "opt-level=s",
-        "-o",
-        str(dest),
-        str(LAUNCHER_RS),
-    ]
+    cmd = [rustc, "--edition", "2021"]
+    if optimize:
+        cmd.extend(["-C", "opt-level=s"])
+    cmd.extend(["-o", str(dest), str(LAUNCHER_RS)])
     if variant != "sidecar":
         cmd.extend(["--cfg", f"{variant}_cli"])
+    if test:
+        cmd.append("--test")
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as exc:
@@ -626,6 +624,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="binaries directory (default: gui/desktop/binaries)",
     )
     p.add_argument(
+        "--check-launcher",
+        action="store_true",
+        help="Compile the native launcher and run its Rust tests without freezing a runtime",
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="Write GUI-only placeholder launcher scripts (no CPython, no web dist copy)",
@@ -709,6 +712,14 @@ def main(argv: list[str] | None = None) -> int:
     triple = args.triple or rustc_host_triple()
     if args.print_output_name:
         print(sidecar_output_name(triple))
+        return 0
+    if args.check_launcher:
+        compile_rust_launcher(binaries / sidecar_output_name(triple), optimize=False)
+        tests = binaries / (
+            "sidecar-launcher-test.exe" if is_windows_triple(triple) else "sidecar-launcher-test"
+        )
+        compile_rust_launcher(tests, test=True, optimize=False)
+        subprocess.check_call([str(tests.resolve())])
         return 0
     binaries.mkdir(parents=True, exist_ok=True)
     windows = is_windows_triple(triple)

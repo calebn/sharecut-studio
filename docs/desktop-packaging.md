@@ -235,6 +235,8 @@ notices and rebuild materials remain inside the payload. See
 
 ## Frozen sidecar
 
+Run `python scripts/build_sidecar.py --check-launcher --out <temporary-directory>` to compile the native sidecar and compile and run its Rust tests without freezing a runtime. The Windows desktop check uses this command on `windows-latest`. Both check builds use the shared `compile_rust_launcher` path with the existing unoptimized check settings. Packaged launchers retain size optimization and their GUI or console configuration.
+
 Testers do not have `podcast` on PATH. [`scripts/build_sidecar.py`](../scripts/build_sidecar.py) freezes **on each OS** (native `faster-whisper` / CTranslate2 wheels):
 
 - Standalone CPython (`uv python install 3.12`) + venv with `--extra gui` (no torch / joinqc). The pinned prebuilt FFmpeg resource is admitted before completion; first run never downloads FFmpeg. The venv is created from `uv python find --managed-python --no-project 3.12` under `UV_PYTHON_INSTALL_DIR`, not the repo `.venv`. A Homebrew/framework interpreter plus uv `PYTHONHOME` fails with `ModuleNotFoundError: math` (uv standalone keeps `math` builtin; Homebrew expects `lib-dynload/math*.so`). Freeze then imports `math`, `datetime`, `encodings`, and `uvicorn` before writing `.freeze-complete`.

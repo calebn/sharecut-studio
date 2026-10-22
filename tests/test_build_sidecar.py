@@ -227,7 +227,11 @@ def test_launcher_compile_error_is_not_reported_as_missing_rustc(
 
 
 @pytest.mark.parametrize("variant", ["sidecar", "podcast", "podcast_mcp"])
-def test_launcher_compile_contract(monkeypatch, tmp_path: Path, variant: str) -> None:
+@pytest.mark.parametrize("test", [False, True])
+@pytest.mark.parametrize("optimize", [False, True])
+def test_launcher_compile_contract(
+    monkeypatch, tmp_path: Path, variant: str, test: bool, optimize: bool
+) -> None:
     mod = _load_build_sidecar()
     dest = tmp_path / "nested" / "launcher.exe"
     commands: list[list[str]] = []
@@ -239,20 +243,16 @@ def test_launcher_compile_contract(monkeypatch, tmp_path: Path, variant: str) ->
         dest.touch()
 
     monkeypatch.setattr(mod.subprocess, "check_call", compile_output)
-    mod.compile_rust_launcher(dest, variant=variant)
+    mod.compile_rust_launcher(dest, variant=variant, test=test, optimize=optimize)
 
-    expected = [
-        "rustc",
-        "--edition",
-        "2021",
-        "-C",
-        "opt-level=s",
-        "-o",
-        str(dest),
-        str(mod.LAUNCHER_RS),
-    ]
+    expected = ["rustc", "--edition", "2021"]
+    if optimize:
+        expected.extend(["-C", "opt-level=s"])
+    expected.extend(["-o", str(dest), str(mod.LAUNCHER_RS)])
     if variant != "sidecar":
         expected.extend(["--cfg", f"{variant}_cli"])
+    if test:
+        expected.append("--test")
     assert commands == [expected]
     assert dest.is_file()
 
@@ -264,6 +264,62 @@ def test_launcher_compile_requires_output(monkeypatch, tmp_path: Path) -> None:
 
     with pytest.raises(SystemExit, match="rustc did not produce"):
         mod.compile_rust_launcher(tmp_path / "launcher")
+
+
+@pytest.mark.parametrize("triple", ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"])
+@pytest.mark.parametrize("failure_at", [None, 1, 2, 3])
+def test_check_launcher_compiles_and_runs_without_freezing(
+    monkeypatch, tmp_path: Path, triple: str, failure_at: int | None
+) -> None:
+    mod = _load_build_sidecar()
+    commands: list[list[str]] = []
+    out = tmp_path / "check output"
+    monkeypatch.setattr(mod, "require_rustc", lambda: "rustc")
+    for name in ("copy_web_dist", "freeze_python", "ensure_ffmpeg_payload", "codesign_runtime"):
+        monkeypatch.setattr(mod, name, _fail)
+
+    def execute(command: list[str]) -> None:
+        commands.append(command)
+        if len(commands) == failure_at:
+            raise subprocess.CalledProcessError(7, command)
+        if command[0] == "rustc":
+            Path(command[command.index("-o") + 1]).touch()
+
+    monkeypatch.setattr(mod.subprocess, "check_call", execute)
+    args = ["--check-launcher", "--out", str(out), "--triple", triple]
+    if failure_at in (1, 2):
+        with pytest.raises(SystemExit, match="rustc failed to compile"):
+            mod.main(args)
+    elif failure_at == 3:
+        with pytest.raises(subprocess.CalledProcessError) as exc:
+            mod.main(args)
+        assert exc.value.returncode == 7
+    else:
+        assert mod.main(args) == 0
+
+    suffix = ".exe" if "windows" in triple else ""
+    expected = [
+        [
+            "rustc",
+            "--edition",
+            "2021",
+            "-o",
+            str(out / mod.sidecar_output_name(triple)),
+            str(mod.LAUNCHER_RS),
+        ],
+        [
+            "rustc",
+            "--edition",
+            "2021",
+            "-o",
+            str(out / f"sidecar-launcher-test{suffix}"),
+            str(mod.LAUNCHER_RS),
+            "--test",
+        ],
+        [str((out / f"sidecar-launcher-test{suffix}").resolve())],
+    ]
+    assert commands == expected[:failure_at]
+    assert not (out / mod.RUNTIME_NAME).exists()
 
 
 def test_compile_launchers_selects_three_modes(
@@ -284,6 +340,7 @@ def test_compile_launchers_selects_three_modes(
         "podcast-x86_64-pc-windows-msvc.exe",
         "podcast-mcp-x86_64-pc-windows-msvc.exe",
     ]
+    assert all(cmd[1:5] == ["--edition", "2021", "-C", "opt-level=s"] for cmd in commands)
     assert "--cfg" not in commands[0]
     assert commands[1][-2:] == ["--cfg", "podcast_cli"]
     assert commands[2][-2:] == ["--cfg", "podcast_mcp_cli"]
