@@ -123,7 +123,8 @@ describe("pending document display drafts", () => {
   });
   it("lays a held preview over whatever project it is given, until it is cleared", () => {
     const before = project();
-    setPreviewDraft("k", (p) => ({
+    const owner = Symbol("k");
+    setPreviewDraft("k", owner, (p) => ({
       ...p,
       tracks: p.tracks.map((t) => ({ ...t, fader_db: -9 })),
     }));
@@ -135,8 +136,28 @@ describe("pending document display drafts", () => {
       fader_db: -9,
       label: "newer",
     });
-    expect(clearPreviewDraft("k")).toBe(true);
-    expect(clearPreviewDraft("k")).toBe(false);
+    expect(clearPreviewDraft("k", Symbol("other"))).toBe(false);
+    expect(overlayDocumentDrafts(before).tracks[0]?.fader_db).toBe(-9);
+    expect(clearPreviewDraft("k", owner)).toBe(true);
+    expect(clearPreviewDraft("k", owner)).toBe(false);
     expect(overlayDocumentDrafts(before)).toBe(before);
+  });
+  it("keeps a preview over a command draft that was begun after it", () => {
+    const base = minimalProject({
+      tracks: [sampleTrack({ id: "a", fader_db: 0 })],
+    });
+    const owner = Symbol("k");
+    setPreviewDraft("k", owner, (p) => ({
+      ...p,
+      tracks: p.tracks.map((t) => ({ ...t, fader_db: -9 })),
+    }));
+    beginDocumentDraft("cmd", "SetTrackFader", {
+      track_id: "a",
+      fader_db: -3,
+    });
+    expect(overlayDocumentDrafts(base).tracks[0]?.fader_db).toBe(-9);
+    expect(overlayDocumentDrafts(base, false).tracks[0]?.fader_db).toBe(-3);
+    clearPreviewDraft("k", owner);
+    finishDocumentDraft("cmd");
   });
 });

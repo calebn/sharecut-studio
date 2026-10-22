@@ -49,21 +49,33 @@ export function redisplayDrafts(): void {
   if (basis) show(basis);
 }
 /**
- * Hold `held` over the latest project until `endPreview(key)`, and show `now`
- * applied to what is displayed (which may already carry an earlier step).
+ * Hold `held` over the latest project until `endPreview(key, owner)`, and show
+ * `now` applied to what is displayed (which may already carry an earlier step).
+ * When newer data no longer satisfies `unchanged`, show that data instead: the
+ * held preview applies to nothing there.
  */
 export function showPreview(
   key: string,
+  owner: symbol,
   held: (project: ProjectView) => ProjectView,
   now: (project: ProjectView) => ProjectView,
+  unchanged: (underlying: ProjectView) => boolean,
 ): void {
-  setPreviewDraft(key, held);
+  setPreviewDraft(key, owner, held);
+  if (
+    documentAuthority.project &&
+    documentAuthority.path === useDawStore.getState().projectPath &&
+    !unchanged(overlayDocumentDrafts(documentAuthority.project, false))
+  ) {
+    refreshDocumentDisplay();
+    return;
+  }
   const basis = useDawStore.getState().projectEditBasis();
   if (basis) show(now(basis));
 }
 /** Drop a preview that newer authoritative data has outdated; show that data. */
-export function supersedePreview(key: string): void {
-  if (clearPreviewDraft(key)) refreshDocumentDisplay();
+export function supersedePreview(key: string, owner: symbol): void {
+  if (clearPreviewDraft(key, owner)) refreshDocumentDisplay();
 }
 /**
  * Drop the preview. With `revert`, also show the displayed project with that
@@ -72,9 +84,10 @@ export function supersedePreview(key: string): void {
  */
 export function endPreview(
   key: string,
+  owner: symbol,
   revert?: (project: ProjectView) => ProjectView,
 ): void {
-  if (!clearPreviewDraft(key) || !revert) return;
+  if (!clearPreviewDraft(key, owner) || !revert) return;
   const basis = useDawStore.getState().projectEditBasis();
   if (basis) show(revert(basis));
 }

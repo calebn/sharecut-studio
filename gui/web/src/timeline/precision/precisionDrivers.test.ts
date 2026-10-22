@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetDocumentAuthority } from "../../document/authorityState";
+import { refreshDocumentDisplay } from "../../document/applyDocumentUpdate";
+import {
+  documentAuthority,
+  resetDocumentAuthority,
+} from "../../document/authorityState";
+import { currentDocumentSeq, noteDocumentSeq } from "../../document/cursor";
 import {
   beginDocumentDraft,
   finishDocumentDraft,
@@ -108,5 +113,84 @@ describe("precision drag of an envelope level (a draft preview)", () => {
     await drag.commit();
     expect(api.setEnvelope).not.toHaveBeenCalled();
     for (const id of ids) finishDocumentDraft(id);
+  });
+
+  describe("after newer data arrives", () => {
+    const withLabel = (label: string, value = 1) =>
+      minimalProject({
+        tracks: [sampleTrack({ id: "host", label })],
+        envelopes: [
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [{ id: "e1", time: 5, value }],
+          },
+        ],
+      });
+    const push = (next: ReturnType<typeof withLabel>) => {
+      documentAuthority.project = next;
+      noteDocumentSeq(currentDocumentSeq() + 1);
+      refreshDocumentDisplay();
+    };
+    beforeEach(() => {
+      documentAuthority.project = project;
+    });
+
+    it("a cancel after an unrelated push shows the saved value", () => {
+      const drag = driver();
+      drag.begin();
+      drag.show(1.5);
+      push(withLabel("renamed"));
+      expect(level()).toBe(1.5);
+      drag.cancel();
+      expect(level()).toBe(1);
+    });
+
+    it("a refused save after an unrelated push shows the saved value", async () => {
+      api.setEnvelope.mockRejectedValueOnce(new Error("refused"));
+      const drag = driver();
+      drag.begin();
+      drag.show(1.5);
+      push(withLabel("renamed"));
+      await drag.commit();
+      expect(level()).toBe(1);
+    });
+
+    it("a frame after a push that changed the point shows the pushed value", () => {
+      const drag = driver();
+      drag.begin();
+      drag.show(1.5);
+      push(withLabel("peer", 2));
+      drag.show(1.7);
+      expect(level()).toBe(2);
+      drag.cancel();
+      expect(level()).toBe(2);
+    });
+
+    it("a newer drag stays shown through a refresh while an earlier commit is saving", async () => {
+      const saving = deferred<ReturnType<typeof parseHistoryEntryId>>();
+      api.setEnvelope.mockImplementationOnce(
+        (_path: string, track: string, points: unknown) => {
+          beginDocumentDraft("cmd1", "SetEnvelope", {
+            track_id: track,
+            points,
+          });
+          return saving.promise;
+        },
+      );
+      const first = driver();
+      first.begin();
+      first.show(1.5);
+      const committing = first.commit();
+      const second = driver();
+      second.begin();
+      second.show(1.7);
+      refreshDocumentDisplay();
+      expect(level()).toBe(1.7);
+      saving.resolve(parseHistoryEntryId("h1"));
+      await committing;
+      finishDocumentDraft("cmd1");
+      second.cancel();
+    });
   });
 });

@@ -15,7 +15,11 @@ type Draft =
   | { kind: "move"; clips: ClipMoveItem[] }
   | { kind: "fade"; clipId: string; fadeInMs: number; fadeOutMs: number }
   /** A held control's local preview, a function of the latest project (not a copy of one). */
-  | { kind: "preview"; apply: (project: ProjectView) => ProjectView }
+  | {
+      kind: "preview";
+      owner: symbol;
+      apply: (project: ProjectView) => ProjectView;
+    }
   | { kind: "order"; track: string; index: number }
   | {
       kind: "meta";
@@ -180,6 +184,7 @@ export function beginDocumentDraft(
 /** Show `apply` over the latest project until `clearPreviewDraft`; the caller redisplays. */
 export function setPreviewDraft(
   key: string,
+  owner: symbol,
   apply: (project: ProjectView) => ProjectView,
 ): void {
   const pending = current();
@@ -188,19 +193,33 @@ export function setPreviewDraft(
     throw new Error(
       "Wait for pending edits to finish before editing more tracks",
     );
-  pending.set(id, { commandId: id, draft: { kind: "preview", apply } });
+  pending.set(id, { commandId: id, draft: { kind: "preview", owner, apply } });
 }
-/** True when a preview was held, so the caller knows to redisplay. */
-export function clearPreviewDraft(key: string): boolean {
-  return current().delete(`preview:${key}`);
+/** True when `owner` held the preview, so the caller knows to redisplay. */
+export function clearPreviewDraft(key: string, owner: symbol): boolean {
+  const id = `preview:${key}`;
+  const held = current().get(id)?.draft;
+  if (held?.kind !== "preview" || held.owner !== owner) return false;
+  return current().delete(id);
 }
 export function finishDocumentDraft(commandId: string): void {
   for (const [key, value] of current())
     if (value.commandId === commandId) drafts.delete(key);
 }
-export function overlayDocumentDrafts(project: ProjectView): ProjectView {
+/** Previews go last: a preview that keeps its place in the table must still sit over a newer command draft. */
+export function overlayDocumentDrafts(
+  project: ProjectView,
+  withPreviews = true,
+): ProjectView {
   let result = project;
-  for (const { draft } of current().values()) {
+  const drafts = [...current().values()].map(({ draft }) => draft);
+  const ordered = withPreviews
+    ? [
+        ...drafts.filter((d) => d.kind !== "preview"),
+        ...drafts.filter((d) => d.kind === "preview"),
+      ]
+    : drafts.filter((d) => d.kind !== "preview");
+  for (const draft of ordered) {
     switch (draft.kind) {
       case "move":
         result = patchClipsMove(result, draft.clips);
