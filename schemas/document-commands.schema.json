@@ -5411,6 +5411,133 @@
       "title": "RestoreClipBleedPayload",
       "type": "object"
     },
+    "RippleDeleteTextCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/RippleDeleteTextPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "RippleDeleteText",
+          "default": "RippleDeleteText",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "RippleDeleteTextCommand",
+      "type": "object"
+    },
+    "RippleDeleteTextPayload": {
+      "properties": {
+        "override_audio_checks": {
+          "default": false,
+          "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+          "title": "Override Audio Checks",
+          "type": "boolean"
+        },
+        "query": {
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "use_inaudible_opt": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Use Inaudible Opt"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "title": "RippleDeleteTextPayload",
+      "type": "object"
+    },
     "RollClipJoinCommand": {
       "properties": {
         "causation_id": {
@@ -9744,6 +9871,7 @@
       "ResolveComment": "#/$defs/ResolveCommentCommand",
       "RestoreAppliedEdit": "#/$defs/RestoreAppliedEditCommand",
       "RestoreClipBleed": "#/$defs/RestoreClipBleedCommand",
+      "RippleDeleteText": "#/$defs/RippleDeleteTextCommand",
       "RollClipJoin": "#/$defs/RollClipJoinCommand",
       "SetActionDone": "#/$defs/SetActionDoneCommand",
       "SetBleedAlignmentMode": "#/$defs/SetBleedAlignmentModeCommand",
@@ -9964,6 +10092,9 @@
     },
     {
       "$ref": "#/$defs/CutRangeCommand"
+    },
+    {
+      "$ref": "#/$defs/RippleDeleteTextCommand"
     },
     {
       "$ref": "#/$defs/AddTrackCommand"

@@ -39,6 +39,7 @@ export type DocumentCommandType =
   | "ResolveComment"
   | "RestoreAppliedEdit"
   | "RestoreClipBleed"
+  | "RippleDeleteText"
   | "RollClipJoin"
   | "SetActionDone"
   | "SetBleedAlignmentMode"
@@ -111,6 +112,7 @@ export const DocumentCommand = {
   ResolveComment: "ResolveComment",
   RestoreAppliedEdit: "RestoreAppliedEdit",
   RestoreClipBleed: "RestoreClipBleed",
+  RippleDeleteText: "RippleDeleteText",
   RollClipJoin: "RollClipJoin",
   SetActionDone: "SetActionDone",
   SetBleedAlignmentMode: "SetBleedAlignmentMode",

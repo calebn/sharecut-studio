@@ -69,6 +69,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ResolveComment` | `by` (string), `comment_id` (string) | `resolved` (boolean) |
 | `RestoreAppliedEdit` | `id` (string) | — |
 | `RestoreClipBleed` | `target` (object) | — |
+| `RippleDeleteText` | `query` (string) | `override_audio_checks` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetBleedAlignmentMode` | `decision_id` (string), `mode` (auto \| manual \| declined) | `end_sec` (number \| null), `override_placement_lock` (boolean), `start_sec` (number \| null), `track_id` (string \| null) |
@@ -101,7 +102,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 69 command types._
+_Generated 70 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`
