@@ -16,7 +16,12 @@ import {
   noteDocumentSeq,
 } from "./cursor";
 import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
-import { finishDocumentDraft, overlayDocumentDrafts } from "./pendingDrafts";
+import {
+  clearPreviewDraft,
+  finishDocumentDraft,
+  overlayDocumentDrafts,
+  setPreviewDraft,
+} from "./pendingDrafts";
 import { applyProjectionDelta, parseProjectionDelta } from "./projectionDelta";
 import {
   type DocumentSnapshot,
@@ -42,6 +47,36 @@ function show(project: ProjectView): ProjectView {
 export function redisplayDrafts(): void {
   const basis = useDawStore.getState().projectEditBasis();
   if (basis) show(basis);
+}
+/**
+ * Hold `held` over the latest project until `endPreview(key)`, and show `now`
+ * applied to what is displayed (which may already carry an earlier step).
+ */
+export function showPreview(
+  key: string,
+  held: (project: ProjectView) => ProjectView,
+  now: (project: ProjectView) => ProjectView,
+): void {
+  setPreviewDraft(key, held);
+  const basis = useDawStore.getState().projectEditBasis();
+  if (basis) show(now(basis));
+}
+/** Drop a preview that newer authoritative data has outdated; show that data. */
+export function supersedePreview(key: string): void {
+  if (clearPreviewDraft(key)) refreshDocumentDisplay();
+}
+/**
+ * Drop the preview. With `revert`, also show the displayed project with that
+ * change undone (a rolled-back preview); without it the value stays shown (a
+ * saved one, held by its command's draft while queued).
+ */
+export function endPreview(
+  key: string,
+  revert?: (project: ProjectView) => ProjectView,
+): void {
+  if (!clearPreviewDraft(key) || !revert) return;
+  const basis = useDawStore.getState().projectEditBasis();
+  if (basis) show(revert(basis));
 }
 export function refreshDocumentDisplay(): void {
   if (

@@ -24,6 +24,7 @@ import {
   clampEnvelopeValue,
   findVolumeEnvelope,
   replaceEnvelopePoint,
+  sameEnvelopePoints,
   sortedVolumePoints,
   withVolumeEnvelopePoints,
 } from "../utils/envelopes";
@@ -511,6 +512,110 @@ export async function saveNudge(
 }
 
 /** The stable key of a field, for a run and a button row. */
+function sameNudgeBase(
+  project: ProjectView,
+  origin: ProjectView,
+  field: NudgeField,
+): boolean {
+  switch (field.kind) {
+    case "fade": {
+      const now = project.clips.tracks[field.trackId]?.find(
+        (c) => c.id === field.clipId,
+      );
+      const was = origin.clips.tracks[field.trackId]?.find(
+        (c) => c.id === field.clipId,
+      );
+      return (
+        now?.fade_in_ms === was?.fade_in_ms &&
+        now?.fade_out_ms === was?.fade_out_ms
+      );
+    }
+    case "envelope-time":
+    case "envelope-level": {
+      const now = findVolumeEnvelope(project.envelopes, field.trackId);
+      const was = findVolumeEnvelope(origin.envelopes, field.trackId);
+      return now && was
+        ? sameEnvelopePoints(now.points, was.points)
+        : now === was;
+    }
+    default:
+      return true;
+  }
+}
+
+/**
+ * `withNudge` for a draft preview held over the latest project: it applies only
+ * while what is under it is still what the nudge began from, so newer data
+ * (a push, a replacement curve) shows as it is and the run can see it was outdated.
+ */
+export function withNudgeIfUnchanged(
+  project: ProjectView,
+  origin: ProjectView,
+  field: NudgeField,
+  value: number,
+): ProjectView {
+  return sameNudgeBase(project, origin, field)
+    ? withNudge(project, field, value)
+    : project;
+}
+
+/**
+ * `project` with `field` put back to its value in `origin`, leaving every other
+ * change in `project` alone: what a rolled-back draft preview restores.
+ */
+export function withNudgeReverted(
+  project: ProjectView,
+  origin: ProjectView,
+  field: NudgeField,
+): ProjectView {
+  switch (field.kind) {
+    case "fade": {
+      const was = origin.clips.tracks[field.trackId]?.find(
+        (c) => c.id === field.clipId,
+      );
+      if (!was) return project;
+      return patchClip(project, field.trackId, field.clipId, (c) =>
+        field.edge === "in"
+          ? { ...c, fade_in_ms: was.fade_in_ms }
+          : { ...c, fade_out_ms: was.fade_out_ms },
+      );
+    }
+    case "envelope-time":
+    case "envelope-level": {
+      const previous = findVolumeEnvelope(origin.envelopes, field.trackId);
+      return {
+        ...project,
+        envelopes: previous
+          ? withVolumeEnvelopePoints(
+              project.envelopes,
+              field.trackId,
+              previous.points,
+            )
+          : project.envelopes.filter(
+              (envelope) =>
+                envelope.track_id !== field.trackId ||
+                envelope.parameter !== "volume",
+            ),
+      };
+    }
+    default:
+      return project;
+  }
+}
+
+/**
+ * Previews that live as a local draft over the latest project. A pending-edit
+ * nudge still sets the project: its save registers no draft to hold the value
+ * while a queued save waits, and trim is held by `heldTrim`.
+ */
+export function previewsAsDraft(field: NudgeField): boolean {
+  return (
+    field.kind === "fade" ||
+    field.kind === "envelope-level" ||
+    field.kind === "envelope-time"
+  );
+}
+
 export function nudgeKey(field: NudgeField): string {
   return Object.values(field).join(":");
 }

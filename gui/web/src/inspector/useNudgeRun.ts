@@ -24,6 +24,11 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  endPreview,
+  showPreview,
+  supersedePreview,
+} from "../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { TRIM_MODE } from "../edit/clipEdgeSave";
@@ -33,8 +38,11 @@ import {
   nudgeAxis,
   nudgeKey,
   nudgeStep,
+  previewsAsDraft,
   saveNudge,
   withNudge,
+  withNudgeIfUnchanged,
+  withNudgeReverted,
 } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
 import {
@@ -46,11 +54,7 @@ import { ownsSavingTrim } from "../state/projectSlice";
 import { isReplayed } from "../timeline/hitRouting";
 import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
-import {
-  findVolumeEnvelope,
-  sameEnvelopePoints,
-  withVolumeEnvelopePoints,
-} from "../utils/envelopes";
+import { findVolumeEnvelope, sameEnvelopePoints } from "../utils/envelopes";
 
 /** How long the bump cue shows on the value it stopped. */
 const BUMP_MS = 1200;
@@ -124,6 +128,7 @@ export function useNudgeRun() {
     );
   };
   const abandonRun = (r: Run) => {
+    if (previewsAsDraft(r.field)) supersedePreview(nudgeKey(r.field));
     if (r.input === "pointer") stalePointerClick.current = true;
     if (r.timer) clearTimeout(r.timer);
     r.timer = null;
@@ -186,7 +191,17 @@ export function useNudgeRun() {
           if (!basis) return;
           const preview = withNudge(basis, r.field, next.value);
           r.preview = preview;
-          store.setProject(preview);
+          if (previewsAsDraft(r.field)) {
+            const { field, origin } = r;
+            const at = next.value;
+            showPreview(
+              nudgeKey(field),
+              (p) => withNudgeIfUnchanged(p, origin, field, at),
+              (p) => withNudge(p, field, at),
+            );
+          } else {
+            store.setProject(preview);
+          }
         }
         r.value = next.value;
         r.moved += 1;
@@ -312,29 +327,19 @@ export function useNudgeRun() {
     if (r.moved === 0) return;
     const revert = () => {
       if (r.trimToken || !r.preview) return;
-      const state = useDawStore.getState();
-      if (isEnvelopeNudge(r)) {
-        if (!sameOwnedEnvelope(r)) return;
-        const project = state.project;
-        if (!project) return;
-        const previous = findVolumeEnvelope(
-          r.origin.envelopes,
-          r.field.trackId,
-        );
-        const envelopes = previous
-          ? withVolumeEnvelopePoints(
-              project.envelopes,
-              r.field.trackId,
-              previous.points,
-            )
-          : project.envelopes.filter(
-              (envelope) =>
-                envelope.track_id !== r.field.trackId ||
-                envelope.parameter !== "volume",
-            );
-        state.setProject({ ...project, envelopes });
+      if (previewsAsDraft(r.field)) {
+        const key = nudgeKey(r.field);
+        const shown = useDawStore.getState().project;
+        if (isEnvelopeNudge(r) && !sameOwnedEnvelope(r)) supersedePreview(key);
+        else if (
+          !isEnvelopeNudge(r) &&
+          (!shown || nudgeAxis(shown, r.field)?.value !== r.value)
+        )
+          endPreview(key);
+        else endPreview(key, (p) => withNudgeReverted(p, r.origin, r.field));
         return;
       }
+      const state = useDawStore.getState();
       if (
         state.projectPath !== r.projectPath ||
         state.projectEpoch !== r.projectEpoch ||
@@ -390,6 +395,8 @@ export function useNudgeRun() {
         });
     } finally {
       settle();
+      // A queued save keeps the value shown through its own command draft.
+      if (previewsAsDraft(r.field)) endPreview(nudgeKey(r.field));
       setSaving(false);
     }
   };

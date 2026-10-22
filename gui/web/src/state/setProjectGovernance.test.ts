@@ -46,18 +46,20 @@ const ALLOWLIST: readonly { file: string; calls: number; reason: string }[] = [
   },
   {
     file: "inspector/useNudgeRun.ts",
-    calls: 2,
-    reason: "Held nudge preview and the envelope removal.",
+    calls: 1,
+    reason:
+      "Pending-edit nudge preview; fade and envelope previews are drafts (#2009).",
   },
   {
     file: "timeline/precision/precisionDrivers.ts",
     calls: 1,
-    reason: "Precision-drag preview write.",
+    reason:
+      "Pending-edit precision preview; fade and envelope previews are drafts (#2009).",
   },
 ];
 
 const ALLOWLIST_FILES = 3;
-const ALLOWLIST_CALLS = 5;
+const ALLOWLIST_CALLS = 4;
 
 const allowedCalls = Object.fromEntries(
   ALLOWLIST.map(({ file, calls }) => [file, calls]),

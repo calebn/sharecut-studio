@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { resetDocumentAuthority } from "./authorityState";
 import {
   beginDocumentDraft,
+  clearPreviewDraft,
   finishDocumentDraft,
   overlayDocumentDrafts,
+  setPreviewDraft,
 } from "./pendingDrafts";
 
 beforeEach(() => resetDocumentAuthority("/tmp/drafts.json"));
@@ -92,6 +94,49 @@ describe("pending document display drafts", () => {
       true,
     );
     finishDocumentDraft("new");
+    expect(overlayDocumentDrafts(before)).toBe(before);
+  });
+  it("shows a queued clip fade over a snapshot that does not hold it yet", () => {
+    const base = minimalProject({
+      tracks: [sampleTrack({ id: "a" })],
+      clips: {
+        tracks: { a: [clipRow({ id: "c", track_id: "a", fade_in_ms: 5 })] },
+        clip_count: 1,
+      },
+    });
+    beginDocumentDraft("fade", "SetClipFade", {
+      clip_id: "c",
+      fade_in_ms: 40,
+      fade_out_ms: 7,
+    });
+    expect(overlayDocumentDrafts(base).clips.tracks.a?.[0]).toMatchObject({
+      fade_in_ms: 40,
+      fade_out_ms: 7,
+    });
+    beginDocumentDraft("bad", "SetClipFade", {
+      clip_id: "c",
+      fade_in_ms: Number.NaN,
+      fade_out_ms: 7,
+    });
+    finishDocumentDraft("fade");
+    expect(overlayDocumentDrafts(base)).toBe(base);
+  });
+  it("lays a held preview over whatever project it is given, until it is cleared", () => {
+    const before = project();
+    setPreviewDraft("k", (p) => ({
+      ...p,
+      tracks: p.tracks.map((t) => ({ ...t, fader_db: -9 })),
+    }));
+    expect(overlayDocumentDrafts(before).tracks[0]?.fader_db).toBe(-9);
+    const newer = minimalProject({
+      tracks: [sampleTrack({ id: "a", fader_db: 3, label: "newer" })],
+    });
+    expect(overlayDocumentDrafts(newer).tracks[0]).toMatchObject({
+      fader_db: -9,
+      label: "newer",
+    });
+    expect(clearPreviewDraft("k")).toBe(true);
+    expect(clearPreviewDraft("k")).toBe(false);
     expect(overlayDocumentDrafts(before)).toBe(before);
   });
 });

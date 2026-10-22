@@ -11,6 +11,11 @@ import {
   mergeGuestActionDone,
   mergeReturnedComment,
 } from "../document/applyDocumentUpdate";
+import { resetDocumentAuthority } from "../document/authorityState";
+import {
+  beginDocumentDraft,
+  finishDocumentDraft,
+} from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
 import type { AnnounceOptions } from "../state/types";
 import { useDaw } from "../state/useDaw";
@@ -135,6 +140,7 @@ const advance = (ms: number) => {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  resetDocumentAuthority("/tmp/p.json");
   api.setClipFade.mockReset().mockResolvedValue(FADE_HEAD);
   api.setEnvelope.mockReset().mockResolvedValue(null);
   announce.mockReset();
@@ -172,6 +178,56 @@ describe("InspectorPeek nudges", () => {
     });
     vi.useRealTimers();
     await expectNoA11yViolations(group);
+  });
+
+  it("keeps a held fade shown when a push lands that leaves the fade alone", async () => {
+    open(FADE);
+    const plus = button("Fade in 10 ms longer");
+    fireEvent.pointerDown(plus, { button: 0 });
+    expect(fadeIn()).toBe(310);
+    const pushed = structuredClone(project);
+    pushed.tracks[0]!.label = "Renamed";
+    applyDocumentSnapshot({ server_seq: 1, project: pushed });
+    expect(useDawStore.getState().project?.tracks[0]?.label).toBe("Renamed");
+    expect(fadeIn()).toBe(310);
+    fireEvent.pointerUp(plus);
+    await flush();
+    expect(api.setClipFade.mock.calls[0]?.slice(1, 4)).toEqual(["c2", 310, 0]);
+  });
+
+  it("shows a pushed fade as it is, and not the held one, when the push changed it", () => {
+    open(FADE);
+    const plus = button("Fade in 10 ms longer");
+    fireEvent.pointerDown(plus, { button: 0 });
+    const pushed = structuredClone(project);
+    pushed.clips.tracks.host![1]!.fade_in_ms = 120;
+    applyDocumentSnapshot({ server_seq: 1, project: pushed });
+    expect(fadeIn()).toBe(120);
+  });
+
+  it("keeps a queued fade shown after its save settles, until the queue finishes it", async () => {
+    api.setClipFade.mockImplementationOnce(
+      async (_path: string, clipId: string, inMs: number, outMs: number) => {
+        beginDocumentDraft("queued-fade", "SetClipFade", {
+          clip_id: clipId,
+          fade_in_ms: inMs,
+          fade_out_ms: outMs,
+        });
+        return FADE_HEAD;
+      },
+    );
+    open(FADE);
+    const plus = button("Fade in 10 ms longer");
+    fireEvent.pointerDown(plus, { button: 0 });
+    fireEvent.pointerUp(plus);
+    await flush();
+    expect(fadeIn()).toBe(310);
+    // The host replies with an older snapshot while the command waits.
+    applyDocumentSnapshot({ server_seq: 1, project: structuredClone(project) });
+    expect(fadeIn()).toBe(310);
+    act(() => finishDocumentDraft("queued-fade"));
+    applyDocumentSnapshot({ server_seq: 2, project: structuredClone(project) });
+    expect(fadeIn()).toBe(300);
   });
 
   it("retains its saved baseline and reports refusal after restored fades arrive", async () => {

@@ -1,11 +1,16 @@
+import { endPreview, showPreview } from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
 import { revertOptimisticIfUnchanged } from "../../document/optimisticRevert";
 import {
   NUDGE_KINDS,
   type NudgeField,
   nudgeAxis,
+  nudgeKey,
+  previewsAsDraft,
   saveNudge,
   withNudge,
+  withNudgeIfUnchanged,
+  withNudgeReverted,
 } from "../../edit/nudge";
 import { useDawStore } from "../../state/dawStore";
 import type { ProjectView } from "../../types/project";
@@ -44,6 +49,8 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
   let seq = 0;
   let preview: ProjectView | null = null;
   let value = Number.NaN;
+  const asDraft = previewsAsDraft(field);
+  const key = nudgeKey(field);
   const end = () => {
     const ended = { from: origin, shown: preview };
     origin = null;
@@ -51,7 +58,18 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
     return ended;
   };
   const revert = (from: ProjectView | null, shown: ProjectView | null) => {
-    if (from && shown) revertOptimisticIfUnchanged(from, seq, path, shown);
+    if (asDraft) {
+      const shown = useDawStore.getState().project;
+      if (
+        from &&
+        currentDocumentSeq() <= seq &&
+        shown &&
+        nudgeAxis(shown, field)?.value === value
+      )
+        endPreview(key, (p) => withNudgeReverted(p, from, field));
+      else endPreview(key);
+    } else if (from && shown)
+      revertOptimisticIfUnchanged(from, seq, path, shown);
   };
   return {
     begin() {
@@ -68,7 +86,14 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
       if (!origin) return;
       value = next;
       preview = withNudge(origin, field, next);
-      useDawStore.getState().setProject(preview);
+      if (asDraft) {
+        const from = origin;
+        showPreview(
+          key,
+          (p) => withNudgeIfUnchanged(p, from, field, next),
+          (p) => withNudge(p, field, next),
+        );
+      } else useDawStore.getState().setProject(preview);
     },
     async commit() {
       const { from, shown } = end();
@@ -84,6 +109,8 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
           () => undefined,
         );
         if (saved) {
+          // A queued save keeps the value shown through its own command draft.
+          if (asDraft) endPreview(key);
           store.announceStatus(NUDGE_KINDS[field.kind].saved, {
             undo: saved.undo,
           });

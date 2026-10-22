@@ -352,6 +352,33 @@ export function patchTracksOrder(
   return { ...project, tracks };
 }
 
+/** Optimistic splice for SetClipFade. */
+export function patchClipFade(
+  project: ProjectView,
+  clipId: string,
+  fadeInMs: number,
+  fadeOutMs: number,
+): ProjectView {
+  for (const [trackId, lane] of Object.entries(project.clips.tracks)) {
+    const index = lane.findIndex((c) => c.id === clipId);
+    const clip = lane[index];
+    if (!clip) continue;
+    if (clip.fade_in_ms === fadeInMs && clip.fade_out_ms === fadeOutMs)
+      return project;
+    const next = lane.map((c, i) =>
+      i === index ? { ...c, fade_in_ms: fadeInMs, fade_out_ms: fadeOutMs } : c,
+    );
+    return {
+      ...project,
+      clips: {
+        ...project.clips,
+        tracks: { ...project.clips.tracks, [trackId]: next },
+      },
+    };
+  }
+  return project;
+}
+
 export type { ClipMoveItem } from "../edit/clipMove";
 export { patchClipsMove } from "../edit/clipMove";
 
