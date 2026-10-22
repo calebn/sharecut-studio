@@ -97,10 +97,7 @@ jobs:
       # Typecheck + test the cfg(windows) arms of the standalone sidecar launcher.
       - name: Check Windows sidecar launcher
         shell: bash
-        run: |
-          rustc --edition 2021 scripts/sidecar_launcher.rs -o "$RUNNER_TEMP/sharecut-sidecar.exe"
-          rustc --edition 2021 --test scripts/sidecar_launcher.rs -o "$RUNNER_TEMP/sidecar-launcher-test.exe"
-          "$RUNNER_TEMP/sidecar-launcher-test.exe"
+        run: python scripts/build_sidecar.py --check-launcher --out "$RUNNER_TEMP/sidecar-launcher-check"
 
   # Run the Windows fallback of pinned media reads (util/pinned_media.py) on real Windows:
   # file IDs, junction checks, open-file rename blocking and seek + read without pread.

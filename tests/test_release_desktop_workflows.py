@@ -124,6 +124,13 @@ def test_desktop_workflow_compiles_windows_only_adapters() -> None:
     check = next(step for step in steps if step.get("name") == "Check Windows desktop binary")
     assert check["working-directory"] == "gui/desktop/src-tauri"
     assert check["run"] == "cargo check --bin sharecut --features app"
+    launcher = next(step for step in steps if step.get("name") == "Check Windows sidecar launcher")
+    assert launcher["shell"] == "bash"
+    assert launcher["run"] == (
+        'python scripts/build_sidecar.py --check-launcher --out "$RUNNER_TEMP/sidecar-launcher-check"'
+    )
+    assert "if" not in launcher
+    assert not launcher.get("continue-on-error")
 
 
 def test_desktop_workflow_runs_pinned_media_tests_on_windows_python_floor() -> None:
