@@ -13,6 +13,8 @@ import math
 
 import numpy as np
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 SAMPLE_RATE = 16000
 N_MELS = 80
 N_FFT = 400
@@ -53,7 +55,9 @@ def ecapa_features(samples: np.ndarray) -> np.ndarray:
     x = np.asarray(samples, dtype=np.float32)
     if x.ndim > 1:
         if sorted(x.shape)[-2] > 1:
-            raise ValueError("expected mono audio; mix the channels down first")
+            raise CodedValueError(
+                "expected mono audio; mix the channels down first", code="audio_not_mono"
+            )
         x = x.reshape(-1)
     padded = np.pad(x, (N_FFT // 2, N_FFT // 2))  # center=True, constant (zero) padding
     frames = 1 + x.size // HOP_LENGTH

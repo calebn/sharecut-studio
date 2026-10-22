@@ -23,6 +23,7 @@ from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.util.asset_sources import asset_entry, download_first_ok, ordered_http_urls
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import manifest_mismatch
 
 logger = logging.getLogger(__name__)
@@ -119,8 +120,9 @@ class EcapaOnnx:
 
     def embed(self, samples: np.ndarray) -> np.ndarray:
         if np.size(samples) < MIN_SAMPLES:
-            raise ValueError(
-                f"audio too short to embed: {np.size(samples)} samples, need {MIN_SAMPLES}"
+            raise CodedValueError(
+                f"audio too short to embed: {np.size(samples)} samples, need {MIN_SAMPLES}",
+                code="audio_too_short",
             )
         session = self._load()
         feats = ecapa_features(samples)[None]

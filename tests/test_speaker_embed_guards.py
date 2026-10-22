@@ -7,13 +7,13 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from tests.test_speaker_extended import _speaker_project
 
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
 from podcast_mcp.engines.models.speaker_ecapa import EcapaOnnx
 from podcast_mcp.engines.speaker_id import enroll_track
 from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.project.transcript_context import SpeakerIdConfig
+from test_speaker_extended import _speaker_project
 
 # The pinned network's reflect-padded convolutions reject fewer than about 700 samples.
 _NETWORK_MIN_SAMPLES = 700
