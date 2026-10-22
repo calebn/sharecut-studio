@@ -8,6 +8,7 @@ export type DocumentCommandType =
   | "AddReply"
   | "AddSocialClip"
   | "AddTrack"
+  | "ApplyFadeRecommendationList"
   | "ApplyFadeRecommendations"
   | "ApplySuggestedActions"
   | "ApplyTranscriptCleanup"
@@ -79,6 +80,7 @@ export const DocumentCommand = {
   AddReply: "AddReply",
   AddSocialClip: "AddSocialClip",
   AddTrack: "AddTrack",
+  ApplyFadeRecommendationList: "ApplyFadeRecommendationList",
   ApplyFadeRecommendations: "ApplyFadeRecommendations",
   ApplySuggestedActions: "ApplySuggestedActions",
   ApplyTranscriptCleanup: "ApplyTranscriptCleanup",

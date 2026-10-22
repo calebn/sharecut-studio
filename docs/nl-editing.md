@@ -56,7 +56,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `analyze_cleanup_tool` | Gate risk, low-audibility words, bleed flags, fade recommendations, reconciliation staleness |
 | `audibility_map_tool` / `flagged_words_tool` | Cross-track word audibility map and suppression candidates |
 | `reconciliation_status_tool` / `reconcile_transcript_tool` | Staleness check; manual reconciliation (automatic after `render_preview` by default). An applying run submits through the document plane (one History step, visible in an open Studio tab); `dry_run=true` only previews and writes nothing |
-| `recommend_fades_tool` / `apply_fade_recommendations_tool` | Harsh edit boundaries |
+| `recommend_fades_tool` / `apply_fade_recommendations_tool` | Harsh edit boundaries; applying the list submits through the document plane (one History step, visible in an open Studio tab) |
 | `low_audibility_words_tool` / `apply_low_audibility_suppression_tool` | Legacy single-track suppression (explicit apply) |
 | `gate_overreach_tool` | Noise gate clipping detection |
 | `render_preview` | Premix after edits |

@@ -1009,8 +1009,11 @@ def apply_fade_recommendations_tool(
     recommendations: JsonObjectList,
 ) -> str:
     """Apply a list of fade recommendations (from ``recommend_fades_tool``) to the project."""
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(AnalysisService(ws).apply_fade_recommendations(recommendations))
+    return to_json(
+        submit_host_command_result(
+            project_path, "ApplyFadeRecommendationList", {"recommendations": recommendations}
+        )
+    )
 
 
 def low_audibility_words_tool(
@@ -1332,6 +1335,7 @@ def register(mcp: MCPServer) -> None:
     mutating.discard(move_clips_tool)
     mutating.discard(fade_joins_tool)
     mutating.discard(crossfade_joins_tool)
+    mutating.discard(apply_fade_recommendations_tool)
     for fn in (
         inspect_clip_bleed_tool,
         restore_clip_bleed_tool,

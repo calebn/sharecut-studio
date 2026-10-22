@@ -910,6 +910,113 @@
         "title": "AddTrackPayload",
         "type": "object"
       },
+      "ApplyFadeRecommendationListCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ApplyFadeRecommendationListPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ApplyFadeRecommendationList",
+            "default": "ApplyFadeRecommendationList",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "ApplyFadeRecommendationListCommand",
+        "type": "object"
+      },
+      "ApplyFadeRecommendationListPayload": {
+        "properties": {
+          "recommendations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recommendations"
+        ],
+        "title": "ApplyFadeRecommendationListPayload",
+        "type": "object"
+      },
       "ApplyFadeRecommendationsCommand": {
         "properties": {
           "causation_id": {
@@ -10413,6 +10520,7 @@
                     "AddReply": "#/components/schemas/AddReplyCommand",
                     "AddSocialClip": "#/components/schemas/AddSocialClipCommand",
                     "AddTrack": "#/components/schemas/AddTrackCommand",
+                    "ApplyFadeRecommendationList": "#/components/schemas/ApplyFadeRecommendationListCommand",
                     "ApplyFadeRecommendations": "#/components/schemas/ApplyFadeRecommendationsCommand",
                     "ApplySuggestedActions": "#/components/schemas/ApplySuggestedActionsCommand",
                     "ApplyTranscriptCleanup": "#/components/schemas/ApplyTranscriptCleanupCommand",
@@ -10540,6 +10648,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/ApplyFadeRecommendationsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ApplyFadeRecommendationListCommand"
                   },
                   {
                     "$ref": "#/components/schemas/SetEffectBypassCommand"

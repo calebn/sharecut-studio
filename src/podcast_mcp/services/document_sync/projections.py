@@ -28,6 +28,7 @@ CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
         "SetJoinMode",
         "SetClipJoin",
         "ApplyFadeRecommendations",
+        "ApplyFadeRecommendationList",
         "FadeJoins",
         "CrossfadeJoins",
     }

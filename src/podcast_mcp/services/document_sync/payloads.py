@@ -269,6 +269,10 @@ class ApplyFadeRecommendationsPayload(BaseModel):
     track_id: str | None = None
 
 
+class ApplyFadeRecommendationListPayload(BaseModel):
+    recommendations: list[dict[str, Any]]
+
+
 class SetEffectBypassPayload(BaseModel):
     track_id: str
     effect_index: int
@@ -865,6 +869,11 @@ class RemoveEffectCommand(DocumentCommandEnvelope):
     payload: RemoveEffectPayload
 
 
+class ApplyFadeRecommendationListCommand(DocumentCommandEnvelope):
+    type: Literal["ApplyFadeRecommendationList"] = "ApplyFadeRecommendationList"
+    payload: ApplyFadeRecommendationListPayload
+
+
 class ReconcileTranscriptCommand(DocumentCommandEnvelope):
     type: Literal["ReconcileTranscript"] = "ReconcileTranscript"
     payload: ReconcileTranscriptPayload
@@ -1107,6 +1116,7 @@ DocumentCommandBody = Annotated[
     | SetJoinModeCommand
     | SetClipJoinCommand
     | ApplyFadeRecommendationsCommand
+    | ApplyFadeRecommendationListCommand
     | SetEffectBypassCommand
     | AddEffectCommand
     | ReconcileTranscriptCommand
@@ -1233,6 +1243,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "SetJoinMode": SetJoinModePayload,
     "SetClipJoin": SetClipJoinPayload,
     "ApplyFadeRecommendations": ApplyFadeRecommendationsPayload,
+    "ApplyFadeRecommendationList": ApplyFadeRecommendationListPayload,
     "SetEffectBypass": SetEffectBypassPayload,
     "AddEffect": AddEffectPayload,
     "ReconcileTranscript": ReconcileTranscriptPayload,
