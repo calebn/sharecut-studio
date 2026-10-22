@@ -267,6 +267,7 @@ type UiSlice = Pick<
   | "setTimelineFocused"
   | "markUserZoomed"
   | "applyAnchoredZoom"
+  | "zoomToSpan"
   | "setLayerVisible"
   | "setCommentMode"
   | "toggleCommentMode"
@@ -680,6 +681,34 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         scrollLeft,
         userZoomed: true,
       });
+    },
+    zoomToSpan: (startSec, endSec, nextZoom) => {
+      if (get().followingClientId) {
+        get().stopFollow("local");
+      }
+      const z = clampZoomPxPerSec(nextZoom, sessionSecOf(get()));
+      const el = timelineViewportRegistry.getTimelineElement();
+      if (!el) {
+        set({ zoomPxPerSec: z, userZoomed: true });
+        return;
+      }
+      const { timeViewportPx } = measureTimelineColumns(el);
+      const lead = timelineViewportRegistry.getLeadPx();
+      const minScrollLeft = lead > 0 ? Math.min(0, get().scrollLeft) : 0;
+      const endLimitSec = get().project?.timeline_duration_sec ?? 0;
+      const maxScrollLeft =
+        lead > 0
+          ? maxLogicalScrollLeft(endLimitSec, z)
+          : Number.POSITIVE_INFINITY;
+      const scrollLeft = Math.min(
+        maxScrollLeft,
+        Math.max(
+          minScrollLeft,
+          ((startSec + endSec) / 2) * z -
+            viewportCenterOffsetPx(timeViewportPx),
+        ),
+      );
+      set({ zoomPxPerSec: z, scrollLeft, userZoomed: true });
     },
     setLayerVisible: (key, visible) =>
       set((s) => ({ layers: { ...s.layers, [key]: visible } })),

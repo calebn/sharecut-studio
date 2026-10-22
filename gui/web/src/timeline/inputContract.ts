@@ -105,6 +105,17 @@ export const HIT_KINDS = {
     outranks: [],
     body: false,
   },
+  "edit-chip": {
+    priority: 10,
+    label: "Edit group",
+    axis: "none",
+    nudges: [],
+    soft: false,
+    keys: "activate",
+    command: null,
+    outranks: [],
+    body: false,
+  },
   "envelope-point": {
     priority: 9,
     label: "Envelope point",

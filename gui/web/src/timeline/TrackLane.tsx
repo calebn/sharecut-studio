@@ -7,7 +7,7 @@ import type {
   ClipSelectMods,
   MoveGhost,
 } from "../edit/clipMove";
-import { clipsAbut, isDrawnJoin } from "../edit/joinRender";
+import { clipsAbut } from "../edit/joinRender";
 import { laneRipple, rippleMoves, rippleTrackIds } from "../edit/ripplePreview";
 import { trimNeighborBounds } from "../edit/trimLimits";
 import {
@@ -18,6 +18,7 @@ import {
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { MUTE_STATE_ROW_CLASS } from "../tracks/muteRowClass";
 import { useTrackMuteState } from "../tracks/useTrackMuteState";
@@ -35,12 +36,19 @@ import { clipIdentityTrack, clipSpeakerLabel } from "../utils/clipLabels";
 import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
 import type { RenderInvalidationView } from "../utils/staleRender";
 import { originTrackId } from "../utils/timebase";
+import { sessionSecOf } from "../utils/zoom";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
+import {
+  clusterZoom,
+  collectJoinMarks,
+  EditMarkerLayer,
+  planLaneMarks,
+} from "./editMarkers";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { JoinEditor } from "./JoinEditor";
 import { laneColor } from "./laneColors";
@@ -49,6 +57,7 @@ import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
 import { timelineTestIds } from "./selectors";
+import { useTimelineMetrics } from "./timelineMetrics";
 
 const NOOP = () => undefined;
 
@@ -158,6 +167,7 @@ export function TrackLaneView({
     setIngestDropTrackId,
     setPointerTrackId,
     rippleTrim,
+    zoomToSpan,
   } = useDaw((s) => ({
     tracks: s.project?.tracks ?? EMPTY_ARR,
     rippleTrim: s.rippleTrim,
@@ -166,7 +176,9 @@ export function TrackLaneView({
     shareCapabilities: s.shareCapabilities,
     setIngestDropTrackId: s.setIngestDropTrackId,
     setPointerTrackId: s.setPointerTrackId,
+    zoomToSpan: s.zoomToSpan,
   }));
+  const { laneHeight } = useTimelineMetrics();
   const muteState = useTrackMuteState(track.id, track.muted);
   const [dropOver, setDropOver] = useState(false);
   const [dragFileCount, setDragFileCount] = useState(1);
@@ -239,8 +251,37 @@ export function TrackLaneView({
     [bladeMode, onSeek, selectClip],
   );
 
-  const isMoving = (id: string) =>
-    Boolean(hideClipIds?.has(id) || previewStartById[id] != null);
+  const isMoving = useCallback(
+    (id: string) =>
+      Boolean(hideClipIds?.has(id) || previewStartById[id] != null),
+    [hideClipIds, previewStartById],
+  );
+  const marks = useMemo(
+    () => collectJoinMarks(clips, rollPreview, isMoving),
+    [clips, rollPreview, isMoving],
+  );
+  const plan = useMemo(
+    () => planLaneMarks(marks, zoomPxPerSec, laneHeight),
+    [marks, zoomPxPerSec, laneHeight],
+  );
+  const clipIndexById = useMemo(
+    () => new Map(clips.map((clip, i) => [clip.id, i])),
+    [clips],
+  );
+  const onZoomToSpan = useCallback(
+    (startSec: number, endSec: number) => {
+      const chip = plan.chips.find(
+        (c) => c.startSec === startSec && c.endSec === endSec,
+      );
+      if (!chip) return;
+      zoomToSpan(
+        startSec,
+        endSec,
+        clusterZoom(chip, sessionSecOf(useDawStore.getState())),
+      );
+    },
+    [plan, zoomToSpan],
+  );
 
   const clearDrop = () => {
     setDropOver(false);
@@ -438,22 +479,17 @@ export function TrackLaneView({
             to={move.toSec * zoomPxPerSec}
           />
         ))}
-        {/* One badge per drawn join, at the top of the seam (#690); clicking it
-            opens the join popover (#691). A live roll reshapes both sides, so
-            the join rule and the seam read the rolled rows ClipBlock draws. */}
-        {clips.map((clip, i) => {
-          const prevRow = clips[i - 1];
-          if (!prevRow || isMoving(prevRow.id) || isMoving(clip.id)) {
-            return null;
-          }
-          const prev = clipRowDuringRoll(prevRow, rollPreview);
-          const right = clipRowDuringRoll(clip, rollPreview);
-          if (!isDrawnJoin(prev, right, zoomPxPerSec)) {
-            return null;
-          }
+        {/* One editor per join the plan keeps as a symbol (#690); the glyph
+            that opens its popover (#691) is drawn by EditMarkerLayer. A live
+            roll reshapes both sides, so the seam reads the rolled rows
+            ClipBlock draws. Joins too close to tell apart fold into chips. */}
+        {plan.symbols.map(({ mark, tier }) => {
+          const i = clipIndexById.get(mark.clipId)!;
+          const prev = clipRowDuringRoll(clips[i - 1], rollPreview);
+          const right = clipRowDuringRoll(clips[i], rollPreview);
           return (
             <JoinEditor
-              key={`join-${clip.id}`}
+              key={mark.id}
               left={prev}
               right={right}
               seamSec={right.timeline_start}
@@ -464,9 +500,11 @@ export function TrackLaneView({
               rightRef={clipMediaRef(right, track, "raw")}
               role={track.role}
               gainDb={trackOutputGainDb(track)}
+              tier={tier}
             />
           );
         })}
+        <EditMarkerLayer plan={plan} onZoomToSpan={onZoomToSpan} />
         {/* Move ghosts draw raw media on purpose. A stem is per lane and on
             the timeline clock, so the destination lane's stem read at the
             ghost's new timeline_start would show unrelated audio. After the

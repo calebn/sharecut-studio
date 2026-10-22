@@ -9,12 +9,13 @@ import {
 } from "react";
 import { setClipJoin } from "../api";
 import { joinLengthMaxMs } from "../edit/fadeLimits";
-import { type JoinGlyph, joinGlyph, joinLengthMs } from "../edit/joinRender";
+import { joinLengthMs } from "../edit/joinRender";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import type { ClipRow } from "../types/project";
+import type { ClipRow, JoinMode } from "../types/project";
 import { errorMessage } from "../utils/apiError";
+import { joinModeOf } from "../utils/editMarkerRegistry";
 
 interface Capture {
   stamp: string;
@@ -24,7 +25,7 @@ interface Capture {
   max: number;
   min: number;
   zoom: number;
-  mode: JoinGlyph;
+  mode: JoinMode;
 }
 export type JoinEditState =
   | { kind: "idle" }
@@ -92,7 +93,7 @@ export function useJoinEdit({
     { durationSec: right.source_end - right.source_start },
     trackFadeMaxMs,
   );
-  const mode = joinGlyph(right),
+  const mode = joinModeOf(right),
     min = mode === "crossfade" ? 1 : 0;
   const saved = Math.min(max, Math.max(min, joinLengthMs(left, right)));
   const [state, setState] = useState<JoinEditState>({ kind: "idle" });
@@ -227,7 +228,7 @@ export function useJoinEdit({
     ) &&
     !latest.current.rolling;
   const submit = async (
-    nextMode: JoinGlyph,
+    nextMode: JoinMode,
     value: number | null,
     c: Capture,
   ) => {
@@ -279,7 +280,7 @@ export function useJoinEdit({
     busy: state.kind === "submitting",
     error: state.kind === "failed" ? state.message : null,
     cancel,
-    changeMode: (next: JoinGlyph) => {
+    changeMode: (next: JoinMode) => {
       cancel();
       if (next !== mode && editable && canonical())
         void submit(next, null, capture());
