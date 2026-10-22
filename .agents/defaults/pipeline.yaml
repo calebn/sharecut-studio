@@ -31,7 +31,7 @@ gate_fill:
   # fills every track that has such holes: its recorded room-tone bed first, else
   # comfort noise matched to its own noise under its speech; never another track.
   # A track whose noise is not a floor (within 30 dB of its speech) stays silent.
-  # Holes are read from the media, so our own mutes, cuts and pads are never filled;
+  # Holes are read from the media, so our own mutes, cuts and pads are not holes;
   # a bleed-gate mute has its own fill from the lane's room (docs/audio-engineering.md
   # § Bleed mute fill). off clears every fill, bleed-mute fills included. Undo restores
   # the previous fill. See docs/pipeline.md
