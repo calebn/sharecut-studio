@@ -167,12 +167,13 @@ hits EOF.
   observed MP3 encoder padding at 8 kHz (0.152 s). Missing or malformed final
   progress evidence also fails. Progress shares the decoder's existing stderr
   temporary file, and the check reads only its last 2 KB.
-  The format duration remains `AudioProbe.duration_sec` for existing callers.
-  The audio stream's duration is carried separately for this check. An ffprobe
-  bitrate estimate, multiple audio streams, or a missing audio-stream duration
+  `AudioProbe.duration_sec` is where the first audio stream ends on the container
+  timeline (a longer video track does not count; a late audio start does, because the
+  render trims in container time); the audio stream's own duration is carried
+  separately for this check. An ffprobe
+  bitrate estimate, multiple audio streams, a failed packet scan, or a missing audio-stream duration
   makes the comparison uncertain, so those decodes are accepted on successful
-  ffmpeg exit. Container duration alone can include video or an audio start
-  offset. The check detects short tails, but does not detect interior damage
+  ffmpeg exit. The check detects short tails, but does not detect interior damage
   when decoding still reaches the declared endpoint. Window and mono decode
   do not use this whole-file check.
 
