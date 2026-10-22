@@ -497,6 +497,52 @@ def test_a_failing_final_render_with_a_delay_stays_a_process_error(tmp_path: Pat
         FFmpegEngine().render_timeline(out, _delayed(tmp_path, 48000, [(48000, 1.0)]), "anull")
 
 
+def test_multi_rate_delays_use_each_inputs_own_rate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audio = MixAudio(
+        At(0.0, _zeros(tmp_path / "head.wav", 48000, 1.0)),
+        (
+            At(0.25, _zeros(tmp_path / "slow.wav", 16000, 0.5)),
+            At(0.73, _zeros(tmp_path / "fast.wav", 48000, 0.5)),
+        ),
+    )
+    graphs: list[str] = []
+    real_run = ff.run
+
+    def capture_run(cmd, *args, **kwargs):
+        if "-map" in cmd:
+            graphs.append(cmd[cmd.index("-filter_complex") + 1])
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(ff, "run", capture_run)
+    monkeypatch.setattr(
+        ff,
+        "negotiated_rates",
+        lambda *_: {"adelay@pin_0": 16000, "adelay@pin_1": 48000},
+    )
+    FFmpegEngine().render_timeline(tmp_path / "out.wav", audio, "anull")
+    assert "aformat=sample_rates=16000,adelay=delays=4000S" in graphs[-1]
+    assert "aformat=sample_rates=48000,adelay=delays=35040S" in graphs[-1]
+
+
+def test_negotiated_rates_names_each_delay_by_its_own_input(tmp_path: Path) -> None:
+    engine = FFmpegEngine()
+    inputs = (
+        _impulse(tmp_path / "slow.wav", 16000),
+        _impulse(tmp_path / "fast.wav", 48000),
+    )
+    filters = [
+        "[0:a]adelay@pin_0=250:all=1,aresample=48000[x]",
+        "[1:a]adelay@pin_1=730:all=1[y]",
+        "[x][y]amix=inputs=2[out]",
+    ]
+    rates = render_clock.negotiated_rates(
+        engine.ffmpeg, engine.ffprobe, filters, inputs, ["adelay@pin_0", "adelay@pin_1"]
+    )
+    assert rates == {"adelay@pin_0": 16000, "adelay@pin_1": 48000}
+
+
 def _m4a(path: Path, rate: int) -> SourceAudio:
     subprocess.run(
         [
