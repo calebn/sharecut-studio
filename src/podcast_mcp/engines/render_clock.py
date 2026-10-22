@@ -3,12 +3,13 @@ from __future__ import annotations
 import errno
 import json
 import re
+import struct
 import wave
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import CalledProcessError, CompletedProcess
-from typing import Any
+from typing import Any, BinaryIO
 
 from podcast_mcp.engines.audio import (
     Audio,
@@ -36,6 +37,25 @@ _EVENT = re.compile(
 _FORMATS = frozenset(
     f"{base}{planar}" for base in ("u8", "s16", "s32", "s64", "flt", "dbl") for planar in ("", "p")
 )
+_WAV_SAMPLE_FORMATS = {
+    (1, 8): "u8",
+    (1, 16): "s16",
+    (1, 24): "s32",
+    (1, 32): "s32",
+    (3, 32): "flt",
+    (3, 64): "dbl",
+}
+_WAV_LAYOUTS = {1: "mono", 2: "stereo"}
+_WAV_EXTENSIBLE_MASKS = {1: 0x4, 2: 0x3}
+_WAV_SUBFORMATS = {
+    bytes.fromhex("0100000000001000800000aa00389b71"): 1,
+    bytes.fromhex("0300000000001000800000aa00389b71"): 3,
+}
+_WAV_EXTENSIBLE = 0xFFFE
+_WAV_MAX_CHUNKS = 64
+_WAV_MAX_FMT_BYTES = 256
+_SPDIF_SYNC = bytes.fromhex("72f81f4e")
+_SPDIF_SCAN_BYTES = 1 << 16
 
 
 class _NoDecodedFrame(ValueError):
@@ -168,10 +188,85 @@ def _native_format(ffmpeg: str, path: Path) -> ObservedAudio:
     return audio
 
 
+def _wav_format(path: Path) -> ObservedAudio | None:
+    """The format the decoder reports for a plain RIFF WAV, read from its header, or ``None``.
+
+    ``None`` sends the file to the decode probe: anything but mono or stereo integer or float PCM
+    in a well-formed RIFF, and integer PCM that carries an IEC 61937 stream (AC-3 in a WAV has an
+    s16 header and decodes to fltp, which moves the rate the graph negotiates). Zero frames still
+    give the header format, which is what a real run configures from.
+    """
+    try:
+        with path.open("rb") as stream:
+            return _parse_wav_header(stream)
+    except (OSError, struct.error):
+        return None
+
+
+def _parse_wav_header(stream: BinaryIO) -> ObservedAudio | None:
+    riff = stream.read(12)
+    if riff[:4] != b"RIFF" or riff[8:] != b"WAVE":
+        return None
+    fmt: bytes | None = None
+    for _ in range(_WAV_MAX_CHUNKS):
+        chunk = stream.read(8)
+        if len(chunk) < 8:
+            return None
+        chunk_id, size = struct.unpack("<4sI", chunk)
+        if chunk_id == b"data":
+            if fmt is None:
+                return None
+            sample = stream.read(min(size, _SPDIF_SCAN_BYTES))
+            break
+        if chunk_id == b"fmt ":
+            if fmt is not None or not 16 <= size <= _WAV_MAX_FMT_BYTES:
+                return None
+            fmt = stream.read(size)
+            if len(fmt) < size:
+                return None
+            skip = size & 1
+        else:
+            skip = size + (size & 1)
+        stream.seek(skip, 1)
+    else:
+        return None
+    tag, channels, rate, _, align, bits = struct.unpack_from("<HHIIHH", fmt)
+    if tag == _WAV_EXTENSIBLE:
+        if len(fmt) < 40:
+            return None
+        valid_bits, mask = struct.unpack_from("<HI", fmt, 18)
+        if valid_bits != bits or mask != _WAV_EXTENSIBLE_MASKS.get(channels):
+            return None
+        tag = _WAV_SUBFORMATS.get(fmt[24:40], 0)
+    sample_fmt = _WAV_SAMPLE_FORMATS.get((tag, bits))
+    layout = _WAV_LAYOUTS.get(channels)
+    if (
+        sample_fmt is None
+        or layout is None
+        or align != channels * bits // 8
+        or not 0 < rate < 2**31
+        or (tag == 1 and _SPDIF_SYNC in sample)
+    ):
+        return None
+    return ObservedAudio(rate, 0, sample_fmt, layout)
+
+
+def _input_format(ffmpeg: str, path: Path, *, header: bool) -> ObservedAudio:
+    audio = _wav_format(path) if header else None
+    return audio if audio is not None else _native_format(ffmpeg, path)
+
+
 def _configured_ports(
-    ffmpeg: str, ffprobe: str, filters: list[str], input_paths: tuple[Path, ...]
+    ffmpeg: str,
+    ffprobe: str,
+    filters: list[str],
+    input_paths: tuple[Path, ...],
+    *,
+    header: bool,
 ) -> dict[tuple[str, str], _Port]:
-    native = {path: _native_format(ffmpeg, path) for path in dict.fromkeys(input_paths)}
+    native = {
+        path: _input_format(ffmpeg, path, header=header) for path in dict.fromkeys(input_paths)
+    }
     configured = list(filters)
     for i, operation in enumerate(configured):
         match = re.match(r"\[(\d+):a\]", operation)
@@ -217,7 +312,7 @@ def negotiated_rates(
 ) -> dict[str, int]:
     """Sample rate FFmpeg negotiates on the output link of each filter instance in ``names``."""
     try:
-        ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths)
+        ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths, header=True)
         return {name: ports[name, "default"].audio.sample_rate for name in names}
     except _NoDecodedFrame as error:
         raise CodedValueError(
@@ -239,7 +334,7 @@ def configure_observers(
     names: list[str],
 ) -> tuple[dict[str, ObservedAudio], dict[str, str]]:
     try:
-        ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths)
+        ports = _configured_ports(ffmpeg, ffprobe, filters, input_paths, header=False)
     except _NoDecodedFrame as error:
         raise clock_error() from error
     formats = {}
