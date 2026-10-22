@@ -6,8 +6,8 @@ import {
   appliedKind,
   EDIT_GLYPH_PATH,
   EDIT_MARKERS,
-  EDIT_TYPES,
   type EditMarkerKind,
+  JOIN_KINDS,
   JOIN_MODE_OPTIONS,
   joinKind,
   markerLabel,
@@ -22,19 +22,22 @@ const theme = (name: string) =>
   readFileSync(join(here, "../styles/theme", name), "utf8");
 
 const KINDS = Object.keys(EDIT_MARKERS) as EditMarkerKind[];
+const TYPES = [...new Set(KINDS.map(markerType))];
 
 describe("edit marker registry", () => {
-  it("gives every kind a label, a type and a glyph", () => {
+  it("gives every kind a label and a type, and every join kind a glyph", () => {
     expect(KINDS).toHaveLength(9);
+    expect(TYPES).toHaveLength(5);
     for (const kind of KINDS) {
       expect(markerLabel(kind).length).toBeGreaterThan(0);
-      expect(EDIT_TYPES).toContain(markerType(kind));
-      expect(EDIT_GLYPH_PATH[markerType(kind)]).toMatch(/^M/);
+    }
+    for (const kind of JOIN_KINDS) {
+      expect(EDIT_GLYPH_PATH[EDIT_MARKERS[kind].type]).toMatch(/^M/);
     }
   });
 
-  it("draws one distinct glyph per type", () => {
-    expect(new Set(EDIT_TYPES.map((t) => EDIT_GLYPH_PATH[t])).size).toBe(5);
+  it("draws one distinct glyph per join type", () => {
+    expect(new Set(Object.values(EDIT_GLYPH_PATH)).size).toBe(3);
     expect(EDIT_GLYPH_PATH.cut).toBe("M6 1V11");
     expect(EDIT_GLYPH_PATH.fade).toBe("M1 2L6 10L11 2");
     expect(EDIT_GLYPH_PATH.crossfade).toBe("M1 1L11 11M11 1L1 11");
@@ -42,9 +45,13 @@ describe("edit marker registry", () => {
 
   it("derives the join mode options in cut, fade, crossfade order", () => {
     expect(JOIN_MODE_OPTIONS).toEqual([
-      { value: "cut", label: "Cut (no fade)" },
-      { value: "fade", label: "Fade at join (dip)" },
-      { value: "crossfade", label: "Crossfade (overlap both clips)" },
+      { value: "cut", label: "Cut (no fade)", short: "Cut" },
+      { value: "fade", label: "Fade at join (dip)", short: "Fade" },
+      {
+        value: "crossfade",
+        label: "Crossfade (overlap both clips)",
+        short: "Crossfade",
+      },
     ]);
   });
 
@@ -91,7 +98,7 @@ describe("edit marker registry", () => {
       [theme("theme-light.css"), 2],
     ] as const;
     for (const [css, count] of blocks) {
-      for (const type of EDIT_TYPES) {
+      for (const type of TYPES) {
         const defined = css.match(
           new RegExp(`^\\s*--color-mark-${type}:`, "gm"),
         );

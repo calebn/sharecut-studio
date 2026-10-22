@@ -37,22 +37,16 @@ interface JoinEditorProps {
   rightRef?: MediaRef;
   role?: string;
   gainDb?: number;
-  narrow: boolean;
 }
 
 function findJoinGlyph(clipId: string): HTMLElement | null {
-  for (const el of document.querySelectorAll<HTMLElement>(
-    '[data-hit-kind="join"]',
-  )) {
-    if (el.getAttribute("data-hit-id") === clipId) {
-      return el;
-    }
-  }
-  return null;
+  return document.querySelector<HTMLElement>(
+    `[data-hit-kind="join"][data-hit-id="${CSS.escape(clipId)}"]`,
+  );
 }
 
 function JoinEditorLive(props: JoinEditorProps) {
-  const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs, narrow } = props;
+  const { left, right, seamSec, zoomPxPerSec, trackFadeMaxMs } = props;
   const { leftRef, rightRef, role, gainDb } = props;
   const waves = useMemo<JoinWaveSides | undefined>(
     () =>
@@ -82,14 +76,18 @@ function JoinEditorLive(props: JoinEditorProps) {
   }, [right.id, setOpenJoinId]);
   useEffect(() => close, [close]);
   const cancelEdit = edit.cancel;
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!open) cancelEdit();
+    if (wasOpen.current && !open) cancelEdit();
+    wasOpen.current = open;
   }, [open, cancelEdit]);
   const [host, setHost] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    setHost(
-      findJoinGlyph(right.id)?.closest<HTMLElement>(".timeline-area") ?? null,
-    );
+    if (open) {
+      setHost(
+        findJoinGlyph(right.id)?.closest<HTMLElement>(".timeline-area") ?? null,
+      );
+    }
   }, [open, right.id]);
   const draft =
     (edit.state.kind === "pointer" && edit.state.moved) ||
@@ -232,7 +230,6 @@ function JoinEditorLive(props: JoinEditorProps) {
         right={right}
         waves={projected.join_crossfade_blocked ? undefined : waves}
         zoomPxPerSec={zoomPxPerSec}
-        narrow={narrow}
       />
       {rail}
       {open && leader && rail

@@ -7,6 +7,7 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { waitForDialogFocus } from "../../test/dialogFocus";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
+import { effectiveMaxZoomPxPerSec } from "../../utils/timelineZoom.generated";
 import { JoinEditor } from "../JoinEditor";
 import { EditMarkerLayer } from "./EditMarkerLayer";
 import { collectJoinMarks, planLaneMarks } from "./plan";
@@ -41,6 +42,7 @@ function planOf(clips: ClipRow[], zoom: number) {
   return planLaneMarks(
     collectJoinMarks(clips, null, () => false),
     zoom,
+    600,
   );
 }
 
@@ -60,7 +62,7 @@ describe("EditMarkerLayer glyphs", () => {
       const { container } = render(
         <EditMarkerLayer
           plan={planOf([left, right], 50)}
-          onZoomToSpan={vi.fn()}
+          onZoomChip={vi.fn()}
         />,
       );
       const glyph = screen.getByRole("button", {
@@ -84,7 +86,7 @@ describe("EditMarkerLayer glyphs", () => {
     const { container } = render(
       <EditMarkerLayer
         plan={planOf([left, blocked], 50)}
-        onZoomToSpan={vi.fn()}
+        onZoomChip={vi.fn()}
       />,
     );
     expect(
@@ -98,10 +100,7 @@ describe("EditMarkerLayer glyphs", () => {
   it("opens its join's popover on click and closes it on a second click", async () => {
     const { left, right } = pair("a", 2, "fade");
     render(
-      <EditMarkerLayer
-        plan={planOf([left, right], 50)}
-        onZoomToSpan={vi.fn()}
-      />,
+      <EditMarkerLayer plan={planOf([left, right], 50)} onZoomChip={vi.fn()} />,
     );
     const glyph = screen.getByRole("button", { name: "Fade join at 0:02.0" });
     expect(glyph).toHaveAttribute("aria-haspopup", "dialog");
@@ -118,10 +117,7 @@ describe("EditMarkerLayer glyphs", () => {
     const { left, right } = pair("a", 2, "fade");
     useDawStore.setState({ openJoinId: "a1", joinMutationInFlight: true });
     render(
-      <EditMarkerLayer
-        plan={planOf([left, right], 50)}
-        onZoomToSpan={vi.fn()}
-      />,
+      <EditMarkerLayer plan={planOf([left, right], 50)} onZoomChip={vi.fn()} />,
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Fade join at 0:02.0" }),
@@ -135,7 +131,7 @@ describe("EditMarkerLayer chips", () => {
     useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
   });
 
-  function threeJoins() {
+  function threeJoins(gapSec = 0.1) {
     const first = clipRow({
       id: "c0",
       source_end: 1,
@@ -144,14 +140,14 @@ describe("EditMarkerLayer chips", () => {
     const rows: ClipRow[] = [first];
     const modes: ClipRow["join_in_mode"][] = ["cut", "cut", "crossfade"];
     modes.forEach((mode, i) => {
-      const at = 1 + i * 0.1;
+      const at = 1 + i * gapSec;
       rows.push(
         clipRow({
           id: `c${i + 1}`,
           source_start: at,
-          source_end: at + 0.1,
+          source_end: at + gapSec,
           timeline_start: at,
-          timeline_end: at + 0.1,
+          timeline_end: at + gapSec,
           join_left_clip_id: `c${i}`,
           join_in_mode: mode,
         }),
@@ -161,12 +157,12 @@ describe("EditMarkerLayer chips", () => {
   }
 
   it("names the group by count and type, and zooms to its span on click", async () => {
-    const onZoomToSpan = vi.fn();
+    const onZoomChip = vi.fn();
     const plan = planOf(threeJoins(), 10);
     expect(plan.chips).toHaveLength(1);
     expect(plan.symbols).toHaveLength(0);
     const { container } = render(
-      <EditMarkerLayer plan={plan} onZoomToSpan={onZoomToSpan} />,
+      <EditMarkerLayer plan={plan} onZoomChip={onZoomChip} />,
     );
     const chip = screen.getByRole("button", {
       name: "3 edits: 2 cuts, 1 crossfade. Zoom in",
@@ -175,7 +171,52 @@ describe("EditMarkerLayer chips", () => {
     expect(chip).toHaveAttribute("data-hit-kind", "edit-chip");
     await expectNoA11yViolations(container);
     fireEvent.click(chip);
-    expect(onZoomToSpan).toHaveBeenCalledExactlyOnceWith(1, 1.2);
+    expect(onZoomChip).toHaveBeenCalledExactlyOnceWith(plan.chips[0]);
+  });
+
+  it("draws a chip that cannot split as a count with no button to press", async () => {
+    const max = effectiveMaxZoomPxPerSec(600);
+    const plan = planOf(threeJoins(0.0001), max);
+    expect(plan.chips).toHaveLength(1);
+    const { container } = render(
+      <EditMarkerLayer plan={plan} onZoomChip={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    const chip = screen.getByRole("img", {
+      name: "3 edits: 2 cuts, 1 crossfade",
+    });
+    expect(chip).toHaveTextContent("3");
+    expect(chip).not.toHaveAttribute("data-hit-kind");
+    await expectNoA11yViolations(container);
+  });
+
+  it("moves focus to the first member's glyph when the zoom splits the chip", () => {
+    const clips = threeJoins();
+    const view = render(
+      <EditMarkerLayer plan={planOf(clips, 10)} onZoomChip={vi.fn()} />,
+    );
+    const chip = screen.getByRole("button", { name: /^3 edits/ });
+    chip.focus();
+    fireEvent.click(chip);
+    view.rerender(
+      <EditMarkerLayer plan={planOf(clips, 300)} onZoomChip={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: /^3 edits/ })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Cut join at 0:01.0" }),
+    ).toHaveFocus();
+  });
+
+  it("leaves focus alone when a plan changes with no chip pressed", () => {
+    const clips = threeJoins();
+    const view = render(
+      <EditMarkerLayer plan={planOf(clips, 10)} onZoomChip={vi.fn()} />,
+    );
+    screen.getByRole("button", { name: /^3 edits/ }).focus();
+    view.rerender(
+      <EditMarkerLayer plan={planOf(clips, 300)} onZoomChip={vi.fn()} />,
+    );
+    expect(document.body).toHaveFocus();
   });
 });
 
@@ -202,7 +243,7 @@ describe("EditMarkerLayer with its join editors", () => {
     const plan = planOf([a.left, a.right, b.left, b.right], 50);
     return (
       <main className="timeline-area">
-        {plan.symbols.map(({ mark, narrow }) => {
+        {plan.symbols.map(({ mark }) => {
           const pairOf = mark.clipId === "a1" ? a : b;
           return (
             <JoinEditor
@@ -212,11 +253,10 @@ describe("EditMarkerLayer with its join editors", () => {
               seamSec={pairOf.right.timeline_start}
               zoomPxPerSec={50}
               trackFadeMaxMs={null}
-              narrow={narrow}
             />
           );
         })}
-        <EditMarkerLayer plan={plan} onZoomToSpan={vi.fn()} />
+        <EditMarkerLayer plan={plan} onZoomChip={vi.fn()} />
       </main>
     );
   }

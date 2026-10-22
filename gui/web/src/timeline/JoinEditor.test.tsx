@@ -53,11 +53,12 @@ function JoinWithGlyph(props: typeof base) {
   const plan = planLaneMarks(
     collectJoinMarks([props.left, props.right], null, () => false),
     props.zoomPxPerSec,
+    600,
   );
   return (
     <>
-      <JoinEditor {...props} narrow={false} />
-      <EditMarkerLayer plan={plan} onZoomToSpan={vi.fn()} />
+      <JoinEditor {...props} />
+      <EditMarkerLayer plan={plan} onZoomChip={vi.fn()} />
     </>
   );
 }
@@ -155,6 +156,21 @@ describe("JoinEditor coupled length", () => {
     });
     await act(async () => {});
     await expectNoA11yViolations(document.body);
+  });
+  it("draws the X from the dragged width, not the saved one", () => {
+    const { container } = mount();
+    const xPaths = () => container.querySelectorAll(".join-blend path").length;
+    expect(xPaths()).toBe(0);
+    move();
+    expect(container.querySelector(".join-blend")).toHaveStyle({
+      width: "21px",
+    });
+    expect(xPaths()).toBe(1);
+    move(1000);
+    expect(container.querySelector(".join-blend")).toHaveStyle({
+      width: "1px",
+    });
+    expect(xPaths()).toBe(0);
   });
   it("caps the draft box at the render headroom and draws no waves for a blocked join", () => {
     const tight = { ...right, source_start: 0.05, source_end: 10 };
@@ -426,7 +442,7 @@ describe("JoinEditor coupled length", () => {
       view.rerender(
         <main className="timeline-area">
           <div className="lane-row">
-            <JoinEditor {...base} narrow={false} rolling />
+            <JoinEditor {...base} rolling />
           </div>
         </main>,
       );

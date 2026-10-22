@@ -399,11 +399,11 @@ export interface DawState {
   /** Tighten tab Apply-eligible scope for keyboard shortcuts. */
   tightenApplyScope: { ids: string[] };
   setTightenApplyScope: (scope: { ids: string[] }) => void;
-  /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/JoinBadge.tsx). */
+  /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/editMarkers/EditMarkerLayer.tsx). */
   openJoinId: string | null;
   /**
    * A join popover's SetClipJoin is in flight: no join popover dismisses, opens or switches until it settles
-   * (timeline/JoinPopover.tsx); a project switch clears it. Store state lets sibling JoinBadges render from it.
+   * (timeline/JoinPopover.tsx); a project switch clears it. Store state lets the edit marker glyphs render from it.
    */
   joinMutationInFlight: boolean;
   /**

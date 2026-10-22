@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClipBleedSnapshot } from "../edit/clipBleedSession";
-import { clipRowDuringRoll, type RollPreview } from "../edit/clipEdgePreview";
+import type { RollPreview } from "../edit/clipEdgePreview";
 import { TRIM_MODE } from "../edit/clipEdgeSave";
 import type {
   ClipMovePointerInfo,
@@ -18,7 +18,6 @@ import {
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { MUTE_STATE_ROW_CLASS } from "../tracks/muteRowClass";
 import { useTrackMuteState } from "../tracks/useTrackMuteState";
@@ -44,9 +43,9 @@ import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import {
-  clusterZoom,
   collectJoinMarks,
   EditMarkerLayer,
+  type PlacedChip,
   planLaneMarks,
 } from "./editMarkers";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
@@ -167,6 +166,7 @@ export function TrackLaneView({
     setPointerTrackId,
     rippleTrim,
     zoomToSpan,
+    sessionSec,
   } = useDaw((s) => ({
     tracks: s.project?.tracks ?? EMPTY_ARR,
     rippleTrim: s.rippleTrim,
@@ -176,6 +176,7 @@ export function TrackLaneView({
     setIngestDropTrackId: s.setIngestDropTrackId,
     setPointerTrackId: s.setPointerTrackId,
     zoomToSpan: s.zoomToSpan,
+    sessionSec: sessionSecOf(s),
   }));
   const muteState = useTrackMuteState(track.id, track.muted);
   const [dropOver, setDropOver] = useState(false);
@@ -259,26 +260,16 @@ export function TrackLaneView({
     [clips, rollPreview, isMoving],
   );
   const plan = useMemo(
-    () => planLaneMarks(marks, zoomPxPerSec),
-    [marks, zoomPxPerSec],
+    () => planLaneMarks(marks, zoomPxPerSec, sessionSec),
+    [marks, zoomPxPerSec, sessionSec],
   );
-  const clipIndexById = useMemo(
-    () => new Map(clips.map((clip, i) => [clip.id, i])),
-    [clips],
-  );
-  const onZoomToSpan = useCallback(
-    (startSec: number, endSec: number) => {
-      const chip = plan.chips.find(
-        (c) => c.startSec === startSec && c.endSec === endSec,
-      );
-      if (!chip) return;
-      zoomToSpan(
-        startSec,
-        endSec,
-        clusterZoom(chip, sessionSecOf(useDawStore.getState())),
-      );
+  const onZoomChip = useCallback(
+    (chip: PlacedChip) => {
+      if (chip.zoomTo != null) {
+        zoomToSpan(chip.startSec, chip.endSec, chip.zoomTo);
+      }
     },
-    [plan, zoomToSpan],
+    [zoomToSpan],
   );
 
   const clearDrop = () => {
@@ -479,28 +470,22 @@ export function TrackLaneView({
         ))}
         {/* A live roll reshapes both sides, so the seam reads the rolled rows
             ClipBlock draws. */}
-        {plan.symbols.map(({ mark, narrow }) => {
-          const i = clipIndexById.get(mark.clipId)!;
-          const prev = clipRowDuringRoll(clips[i - 1], rollPreview);
-          const right = clipRowDuringRoll(clips[i], rollPreview);
-          return (
-            <JoinEditor
-              key={mark.id}
-              left={prev}
-              right={right}
-              seamSec={right.timeline_start}
-              zoomPxPerSec={zoomPxPerSec}
-              trackFadeMaxMs={track.fade_max_ms ?? null}
-              rolling={rollPreview != null}
-              leftRef={clipMediaRef(prev, track, "raw")}
-              rightRef={clipMediaRef(right, track, "raw")}
-              role={track.role}
-              gainDb={trackOutputGainDb(track)}
-              narrow={narrow}
-            />
-          );
-        })}
-        <EditMarkerLayer plan={plan} onZoomToSpan={onZoomToSpan} />
+        {plan.symbols.map(({ mark: { id, left, right } }) => (
+          <JoinEditor
+            key={id}
+            left={left}
+            right={right}
+            seamSec={right.timeline_start}
+            zoomPxPerSec={zoomPxPerSec}
+            trackFadeMaxMs={track.fade_max_ms ?? null}
+            rolling={rollPreview != null}
+            leftRef={clipMediaRef(left, track, "raw")}
+            rightRef={clipMediaRef(right, track, "raw")}
+            role={track.role}
+            gainDb={trackOutputGainDb(track)}
+          />
+        ))}
+        <EditMarkerLayer plan={plan} onZoomChip={onZoomChip} />
         {/* Move ghosts draw raw media on purpose. A stem is per lane and on
             the timeline clock, so the destination lane's stem read at the
             ghost's new timeline_start would show unrelated audio. After the

@@ -5,12 +5,7 @@ import { joinModeLabel, joinRenderNote } from "../edit/joinRender";
 import type { ClipRow, JoinMode } from "../types/project";
 import { InlineError, SegmentedControl, ToggleButton } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
-import {
-  JOIN_MODE_OPTIONS,
-  joinKindOfMode,
-  joinModeOf,
-  markerLabel,
-} from "../utils/editMarkerRegistry";
+import { JOIN_MODE_OPTIONS, joinModeOf } from "../utils/editMarkerRegistry";
 
 export interface JoinPopoverViewProps {
   /** Committed rows either side of the seam (left may be rolled by a live roll). */
@@ -59,7 +54,7 @@ export function JoinPopoverView({
     <>
       {editable ? (
         <SegmentedControl label="Join mode" className="join-popover-modes">
-          {JOIN_MODE_OPTIONS.map(({ value: m }) => (
+          {JOIN_MODE_OPTIONS.map(({ value: m, short }) => (
             <ToggleButton
               key={m}
               quiet
@@ -78,7 +73,7 @@ export function JoinPopoverView({
                 }
               }}
             >
-              {markerLabel(joinKindOfMode(m))}
+              {short}
             </ToggleButton>
           ))}
         </SegmentedControl>

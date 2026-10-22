@@ -17,9 +17,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useDawStore } from "../state/dawStore";
+import type { JoinMode } from "../types/project";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
 import { useTopLayerPanel } from "../ui/useTopLayerPanel";
-import { EDIT_GLYPH_PATH, type EditType } from "../utils/editMarkerRegistry";
+import { EDIT_GLYPH_PATH } from "../utils/editMarkerRegistry";
 import { formatTime } from "../utils/time";
 import {
   type ChooserBounds,
@@ -133,7 +134,7 @@ function TargetGlyph({
             <svg x="7" y="7" width="10" height="10" viewBox="0 0 12 12">
               <path
                 className="target-glyph-badge-path"
-                d={EDIT_GLYPH_PATH[detail as EditType] ?? ""}
+                d={EDIT_GLYPH_PATH[detail as JoinMode] ?? ""}
               />
             </svg>
           </>
