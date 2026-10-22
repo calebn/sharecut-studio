@@ -28,6 +28,7 @@
     "ingest_import_folder_tool",
     "master_loudness",
     "mix_with_music",
+    "model_download",
     "mute_off_speaker_tool",
     "pipeline",
     "pipeline.analyze",

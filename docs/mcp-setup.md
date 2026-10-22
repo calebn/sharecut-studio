@@ -268,6 +268,25 @@ connectors are cloud-connected and cannot reach `127.0.0.1`; use the stdio mode
 for this local GUI, or a publicly reachable remote MCP connector when that is
 appropriate.
 
+## Downloading a missing model
+
+When an action needs a model that is not installed, its tool refuses with
+`error_code: "model_needed"`. The `structuredContent.model` object names the model
+(`id`, `label`, `size`, `command`, `state`), and the text ends with the next step.
+Ask the user before downloading: models are large (Whisper up to about 3 GB), and the
+download is never started for you.
+
+- `model_download(component, whisper_model=None, upgrade=False)` downloads one model, only
+  after the user agrees. With ShareCut Studio running it starts a download job and returns
+  `job_id`; without Studio it downloads inside the call, which can take minutes for
+  Whisper, and reports progress while it runs. A download already running for another model
+  is refused as `bootstrap_job_running`.
+- `model_download_status(job_id=None)` reads a Studio download job: `status`, the current
+  `download` (`component`, `bytes`, `total`) and any `failure`. Without Studio it returns
+  `{"running": false}`.
+
+Both tools are for the owner's agent only; a share guest's remote MCP does not list them.
+
 ## Troubleshooting
 
 - **Command not found / `spawn ENOENT`:** use an absolute venv executable path,

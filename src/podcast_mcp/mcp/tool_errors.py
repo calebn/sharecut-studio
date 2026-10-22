@@ -26,9 +26,20 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import UnexpectedToolError
 
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
-from podcast_mcp.util.tool_refusal import refusal_tool_result, tool_refusal
+from podcast_mcp.util.tool_refusal import ToolRefusal, refusal_tool_result, tool_refusal
 
 logger = logging.getLogger(__name__)
+
+
+def with_download_hint(refusal: ToolRefusal) -> ToolRefusal:
+    """Tell the owner's agent how a ``model_needed`` refusal is resolved: ask, then download."""
+    extra = refusal.extra
+    if refusal.code != "model_needed" or extra is None:
+        return refusal
+    hint = f'Ask the user first; then call model_download(component="{extra["model"]["id"]}")'
+    return ToolRefusal(
+        f"{refusal.message}\n{hint}", refusal.code, {**extra, "download_tool": "model_download"}
+    )
 
 
 def install_tool_errors(server: Any) -> None:
@@ -50,7 +61,7 @@ def install_tool_errors(server: Any) -> None:
                 raise
             # %r keeps caller-supplied text on one line, like the SDK's own ToolError log.
             logger.info("Tool %r refused (%s): %r", name, refusal.code, refusal.message)
-            return refusal_tool_result(refusal)
+            return refusal_tool_result(with_download_hint(refusal))
 
     wrap_call_tool(server, around)
     server._podcast_tool_errors_installed = True
