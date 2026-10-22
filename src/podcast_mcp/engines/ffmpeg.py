@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import threading
 from collections.abc import Callable, Generator, Iterable
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 from itertools import pairwise
 from pathlib import Path
@@ -56,6 +57,7 @@ from podcast_mcp.engines.render_clock import (
     clock_error,
     configure_observers,
     format_filter,
+    graph_file,
     negotiated_rates,
     observed_clock,
     spawn_or_too_long,
@@ -1073,20 +1075,22 @@ class FFmpegEngine:
             final_chain += f",apad=whole_dur={seconds},atrim=duration={seconds}"
         filters.append(f"{combined}{final_chain}{observer('output')}[out]")
 
-        cmd = [self.ffmpeg, "-y"]
+        input_args: list[str] = []
         for path, (_start, end) in source_ranges.items():
-            cmd.extend([*seeks[path].input_args(end), "-i", str(path)])
-        cmd.extend(fill_args)
-        cmd.extend(
-            [
-                "-filter_complex",
-                ";".join(filters),
-                "-map",
-                "[out]",
-                str(output_path),
-            ]
+            input_args.extend([*seeks[path].input_args(end), "-i", str(path)])
+        input_args.extend(fill_args)
+        input_paths = tuple(
+            Path(input_args[i + 1]) for i, option in enumerate(input_args) if option == "-i"
         )
-        input_paths = tuple(Path(cmd[i + 1]) for i, option in enumerate(cmd) if option == "-i")
+
+        def render_command(scratch: ExitStack | Path) -> list[str]:
+            graph = ";".join(filters)
+            file = graph_file(graph, scratch)
+            graph_args = (
+                ["-filter_complex", graph] if file is None else ["-/filter_complex", str(file)]
+            )
+            return [self.ffmpeg, "-y", *input_args, *graph_args, "-map", "[out]", str(output_path)]
+
         if delays:
             pinned = negotiated_rates(
                 self.ffmpeg,
@@ -1099,9 +1103,9 @@ class FFmpegEngine:
                 filters[index] = (
                     f"{inputs}{_delay_filter(start_sec, pinned[f'adelay@pin_{k}'])}{observed}{label}"
                 )
-            cmd[cmd.index("-filter_complex") + 1] = ";".join(filters)
         if clock_path is None:
-            spawn_or_too_long(run, cmd, check=True, capture_output=True)
+            with ExitStack() as stack:
+                spawn_or_too_long(run, render_command(stack), check=True, capture_output=True)
         else:
             clock_path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(
@@ -1159,7 +1163,7 @@ class FFmpegEngine:
                     filters[filter_index] = filters[filter_index].replace(
                         "val(ch)*(1)", f"val(ch)*({gain})"
                     )
-                cmd[cmd.index("-filter_complex") + 1] = ";".join(filters)
+                cmd = render_command(Path(directory))
                 observed_cmd = [
                     cmd[0],
                     "-print_graphs_file",

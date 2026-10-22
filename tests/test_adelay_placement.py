@@ -697,3 +697,30 @@ def test_small_graph_argv_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert renders == [
         [FFmpegEngine().ffmpeg, "-y", *inputs, "-filter_complex", graph, "-map", "[out]", str(out)]
     ]
+
+
+def test_negotiated_inputs_follow_the_render_input_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audio, main = _room_tone(tmp_path, 16000)
+    dry_run: list[tuple[Path, ...]] = []
+    renders: list[list[str]] = []
+    real_rates = ff.negotiated_rates
+    real_run = ff.run
+
+    def capture_rates(ffmpeg, ffprobe, filters, input_paths, names):
+        dry_run.append(input_paths)
+        return real_rates(ffmpeg, ffprobe, filters, input_paths, names)
+
+    def capture_run(cmd, *args, **kwargs):
+        renders.append([str(part) for part in cmd])
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(ff, "negotiated_rates", capture_rates)
+    monkeypatch.setattr(ff, "run", capture_run)
+    FFmpegEngine().render_timeline(tmp_path / "out.wav", audio, "anull")
+    argv = renders[-1]
+    inputs = tuple(Path(argv[i + 1]) for i, option in enumerate(argv) if option == "-i")
+    assert dry_run == [inputs]
+    assert len(inputs) == 2
+    assert inputs[0] == main.resolve()
