@@ -64,7 +64,7 @@ def test_default_and_explicit_primary_keep_legacy_command(
     )
     assert run.call_args == legacy
     inputs = ["-i", str(tmp_path / "primary.wav")]
-    filters = ["-af", "anull"]
+    filters = ["-map", "0:a:0", "-af", "anull"]
     if filled:
         inputs += ["-i", str(fill)]
         filters = [
