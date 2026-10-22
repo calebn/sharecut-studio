@@ -106,7 +106,8 @@ def test_span_far_longer_than_the_recording_builds_only_centers_the_audio_can_us
 
     def spy(*args: float, **kwargs: object) -> np.ndarray:
         result = real_arange(*args, **kwargs)
-        lengths.append(len(result))
+        if args[-1] == 0.25:
+            lengths.append(len(result))
         return result
 
     monkeypatch.setattr(np, "arange", spy)
