@@ -200,6 +200,71 @@ describe("JoinEditor coupled length", () => {
     ).toBeInTheDocument();
     expect(container.querySelector(".join-blend")).toBeNull();
   });
+  it.each(["no_headroom", "not_abutting"] as const)(
+    "keeps a saved %s join blocked and unblended mid-drag, and still commits on release",
+    (reason) => {
+      const { container } = mount({
+        right: {
+          ...right,
+          join_crossfade_ms: 0,
+          join_crossfade_blocked: reason,
+        },
+      });
+      move();
+      expect(screen.queryByText(/Draft overlap [1-9]/)).toBeNull();
+      expect(screen.getByText(/overlap 0 ms/)).toBeInTheDocument();
+      expect(container.querySelector(".join-blend")).toBeNull();
+      expect(screen.getByText(/Crossfade will not blend/)).toBeInTheDocument();
+      expect(screen.queryByText(/Renders as a \d+ ms crossfade/)).toBeNull();
+      pointer(grip(), "pointerup", 1010);
+      expect(setClipJoin).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("still projects a saved no_fade_in join mid-drag (a drag cures it)", () => {
+    const { container } = mount({
+      right: {
+        ...right,
+        join_crossfade_ms: 0,
+        join_crossfade_blocked: "no_fade_in",
+      },
+    });
+    move();
+    expect(screen.getByText(/Draft overlap 420 ms/)).toBeInTheDocument();
+    expect(container.querySelector(".join-blend")).not.toBeNull();
+    expect(screen.queryByText(/Crossfade will not blend/)).toBeNull();
+    pointer(grip(), "pointerup", 1010);
+    expect(setClipJoin).toHaveBeenCalledTimes(1);
+  });
+  it("draws waves mid-drag for a saved no_fade_in join, not for a saved no_headroom one", () => {
+    const sel = ".join-blend-waves, .join-blend-seam";
+    const props = {
+      leftRef: "source:a",
+      rightRef: "source:b",
+      role: "dialogue",
+      gainDb: 0,
+    } as Partial<typeof base>;
+    const fade = mount({
+      right: {
+        ...right,
+        join_crossfade_ms: 0,
+        join_crossfade_blocked: "no_fade_in",
+      },
+      ...props,
+    });
+    move();
+    expect(fade.container.querySelector(sel)).not.toBeNull();
+    fade.unmount();
+    const room = mount({
+      right: {
+        ...right,
+        join_crossfade_ms: 0,
+        join_crossfade_blocked: "no_headroom",
+      },
+      ...props,
+    });
+    move();
+    expect(room.container.querySelector(sel)).toBeNull();
+  });
   it("uses final release coordinates even without a move event", () => {
     mount();
     pointer(grip(), "pointerdown", 1000);
