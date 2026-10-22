@@ -37,7 +37,7 @@ from podcast_mcp.util.progress import CancelledProgress, bind_progress
 
 logger = logging.getLogger(__name__)
 
-EXPORT_PREVIEW_WAIT_S = 300.0
+EXPORT_PREVIEW_WAIT_S = 120.0
 SLOT_BUSY = "Another job is still running. Try again when it finishes."
 MIX_STILL_UPDATING = "The mix is still updating. Try again when it finishes."
 
@@ -244,17 +244,22 @@ class JobManager:
         A mix rebuild of the same project (the automatic refresh after an edit, Undo or Redo)
         holds the slot only briefly, so the export queues behind it instead of refusing.
         """
-        self._wait_out_mix_rebuild(project_path)
-        return self._spawn(
-            project_path,
-            kind="export",
-            label="Export deliverables",
-            config={"formats": formats},
-        )
-
-    def _wait_out_mix_rebuild(self, project_path: Path) -> None:
         deadline = time.monotonic() + EXPORT_PREVIEW_WAIT_S
         scope = str(project_path.resolve())
+        while True:
+            self._wait_out_mix_rebuild(scope, deadline)
+            try:
+                return self._spawn(
+                    project_path,
+                    kind="export",
+                    label="Export deliverables",
+                    config={"formats": formats},
+                )
+            except JobSlotBusyError:
+                if self._live_mix_rebuild(scope) is None:
+                    raise
+
+    def _wait_out_mix_rebuild(self, scope: str, deadline: float) -> None:
         while (rebuild := self._live_mix_rebuild(scope)) is not None:
             try:
                 self.wait(rebuild, timeout=max(0.0, deadline - time.monotonic()))
