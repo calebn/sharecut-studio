@@ -19,10 +19,7 @@ from podcast_mcp.config.defaults import EffectiveConfig, bounded_float
 from podcast_mcp.engines.models.word_aligner import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,
-    WordAlignerMissingError,
-    WordAlignerPinMismatchError,
     word_aligner_installed,
-    word_aligner_problem,
 )
 from podcast_mcp.util.dicts import get_by_path
 
@@ -73,23 +70,16 @@ class ForcedAlignment:
         return f"unavailable: {missing}"
 
     def require(self) -> None:
-        """An explicit ``true`` needs a verified model: raise the download or ``--upgrade`` hint.
+        """An explicit ``true`` needs a verified model: raise ``ModelMissing`` (download or ``--upgrade``).
 
         Only the explicit flag pays for the pin hash (seconds on the 360 MB ONNX); the default
         keeps the presence check and lets a corrupt snapshot fail at load, reported per job.
         """
         if self.requested is not True:
             return
-        problem = word_aligner_problem(self.model)
-        if problem is None:
-            return
-        if not self.installed or not isinstance(problem, WordAlignerPinMismatchError):
-            raise WordAlignerMissingError(
-                self.model,
-                "transcribe.forced_alignment.enabled is true; unset it to follow the "
-                "installed model or set it to false for Whisper's times",
-            )
-        raise problem
+        from podcast_mcp.engines.models.registry import require_model
+
+        require_model("word-aligner", self.model, memoize=False)
 
     def report(self) -> dict[str, Any]:
         """The ``forced_alignment`` block of ``artifacts/transcript_timing.json`` and the config payload."""

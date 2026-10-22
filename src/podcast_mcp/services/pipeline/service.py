@@ -136,11 +136,18 @@ class PipelineService:
     ) -> PipelineRunResult:
         from podcast_mcp.services.pipeline.config import (
             ensure_whisper_cached_for_run,
+            ensure_word_aligner_for_run,
             merge_pipeline_config,
         )
 
         ensure_whisper_cached_for_run(
             config=config,
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+        )
+        ensure_word_aligner_for_run(
+            config if config is not None else self._run_defaults(),
             from_step=from_step,
             only_step=only_step,
             skip_steps=skip_steps,

@@ -26,6 +26,7 @@ from podcast_mcp.services.pipeline import (
     build_config_payload,
     config_store,
     ensure_whisper_cached_for_run,
+    ensure_word_aligner_for_run,
     merge_pipeline_config,
     skip_steps_from_enabled,
     transcribe_run_config,
@@ -177,6 +178,9 @@ def pipeline_run(
         only_step=req.only_step,
         skip_steps=skip_steps,
         memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
+    )
+    ensure_word_aligner_for_run(
+        run_config, from_step=req.from_step, only_step=req.only_step, skip_steps=skip_steps
     )
 
     try:

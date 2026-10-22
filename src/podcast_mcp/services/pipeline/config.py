@@ -269,12 +269,34 @@ def ensure_whisper_cached_for_run(
     ``PipelineService.run`` re-checks uncached before its checkpoint.
     """
     from podcast_mcp.engines.models.registry import require_model
+
+    if _transcribes(from_step, only_step, skip_steps):
+        require_model("whisper", _selected_whisper_model(config), memoize=memoize)
+
+
+def ensure_word_aligner_for_run(
+    config: dict[str, Any] | None = None,
+    *,
+    from_step: str | None = None,
+    only_step: str | None = None,
+    skip_steps: list[str] | None = None,
+) -> None:
+    """Raise ``ModelMissing`` when the run transcribes with forced alignment explicitly on.
+
+    An unset flag falls back to Whisper's times and never raises. No-op when
+    ``transcribe_tracks`` is not among the steps that would run.
+    """
+    if _transcribes(from_step, only_step, skip_steps):
+        AsrOptions.from_defaults(merge_pipeline_config(config)).forced_alignment.require()
+
+
+def _transcribes(
+    from_step: str | None, only_step: str | None, skip_steps: list[str] | None
+) -> bool:
     from podcast_mcp.pipeline.runner import TRANSCRIBE_STEP, select_pipeline_steps
 
     selected = select_pipeline_steps(from_step, only_step, set(skip_steps or []))
-    if TRANSCRIBE_STEP not in {name for name, _ in selected}:
-        return
-    require_model("whisper", _selected_whisper_model(config), memoize=memoize)
+    return TRANSCRIBE_STEP in {name for name, _ in selected}
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
