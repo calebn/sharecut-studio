@@ -686,6 +686,18 @@ class TimelineService(CutMutatingService):
             lambda p: fill_with_room_tone(p, tid, defaults=self.ws.effective_config()),
         )
 
+    def fill_room_tone_range(self, *, track_id: str, start_sec: float, end_sec: float) -> dict:
+        return self.ws.mutate(
+            "before fill room tone",
+            "after fill room tone",
+            lambda p: fill_with_room_tone(
+                p,
+                track_id,
+                within=(start_sec, end_sec),
+                defaults=self.ws.effective_config(),
+            ),
+        )
+
     def add_chapter(self, at_time: float, title: str) -> dict:
         def mutate(p) -> dict:
             ch = add_chapter(p, at_time, title)

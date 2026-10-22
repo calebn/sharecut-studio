@@ -311,6 +311,12 @@ def insert_gap(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).insert_gap(float(p["at_time"]), float(p.get("duration_sec", 1.0)))
 
 
+def fill_room_tone(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return TimelineService(ws).fill_room_tone_range(
+        track_id=str(p["track_id"]), start_sec=float(p["start_sec"]), end_sec=float(p["end_sec"])
+    )
+
+
 def fade_joins(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).fade_joins(
         track_id=p.get("track_id"), speaker=p.get("speaker"), fade_ms=p.get("fade_ms")

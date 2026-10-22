@@ -639,6 +639,12 @@ class InsertGapPayload(BaseModel):
     duration_sec: float = Field(default=1.0, allow_inf_nan=False)
 
 
+class FillRoomTonePayload(BaseModel):
+    track_id: str
+    start_sec: float = Field(ge=0, allow_inf_nan=False)
+    end_sec: float = Field(ge=0, allow_inf_nan=False)
+
+
 class FadeJoinsPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
@@ -1049,6 +1055,11 @@ class InsertGapCommand(DocumentCommandEnvelope):
     payload: InsertGapPayload
 
 
+class FillRoomToneCommand(DocumentCommandEnvelope):
+    type: Literal["FillRoomTone"] = "FillRoomTone"
+    payload: FillRoomTonePayload
+
+
 class FadeJoinsCommand(DocumentCommandEnvelope):
     type: Literal["FadeJoins"] = "FadeJoins"
     payload: FadeJoinsPayload
@@ -1166,6 +1177,7 @@ DocumentCommandBody = Annotated[
     | DuplicateSegmentCommand
     | MoveSegmentCommand
     | InsertGapCommand
+    | FillRoomToneCommand
     | FadeJoinsCommand
     | CrossfadeJoinsCommand
     | MoveByTextCommand
@@ -1294,6 +1306,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "DuplicateSegment": DuplicateSegmentPayload,
     "MoveSegment": MoveSegmentPayload,
     "InsertGap": InsertGapPayload,
+    "FillRoomTone": FillRoomTonePayload,
     "FadeJoins": FadeJoinsPayload,
     "CrossfadeJoins": CrossfadeJoinsPayload,
     "MoveByText": MoveByTextPayload,

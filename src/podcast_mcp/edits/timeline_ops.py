@@ -1210,9 +1210,14 @@ def fill_with_room_tone(
     *,
     sample_duration_sec: float = 0.25,
     min_gap_sec: float = JOIN_GAP_TOLERANCE_SEC,
+    within: tuple[float, float] | None = None,
     defaults: EffectiveConfig,
 ) -> dict:
     """Fill timeline gaps between clips with the track's room tone (``engines/room_tone.py``).
+
+    ``within`` limits the fill to the clip-free time inside ``[start, end)``; clips are
+    never touched, and a range that fills nothing raises ``no_source`` or
+    ``nothing_to_fill``.
 
     Only gaps wider than ``min_gap_sec`` are filled; the default is the shared join
     tolerance, so pairs that already render as a join are left alone. A gap with no
@@ -1220,6 +1225,8 @@ def fill_with_room_tone(
     """
     clips = clips_for_track(project, track_id)
     if len(clips) < 2:
+        if within is not None:
+            raise CodedValueError("no gap to fill in that range", code="nothing_to_fill")
         return change_summary(
             project, operation="fill_with_room_tone", affected_tracks=[track_id], pad_samples=[]
         )
@@ -1232,12 +1239,15 @@ def fill_with_room_tone(
 
     new_clips: list[Clip] = []
     inserted: list[Clip] = []
+    absent: SampleAbsent | None = None
     for i, clip in enumerate(clips):
         new_clips.append(clip)
         if i + 1 >= len(clips):
             break
         gap_start = clip.timeline_end
         gap_end = clips[i + 1].timeline_start
+        if within is not None:
+            gap_start, gap_end = max(gap_start, within[0]), min(gap_end, within[1])
         gap = gap_end - gap_start
         if gap <= min_gap_sec:
             continue
@@ -1248,6 +1258,7 @@ def fill_with_room_tone(
             duration_sec=min(sample_duration_sec, gap),
         )
         if isinstance(span, SampleAbsent):
+            absent = span
             continue
         if isinstance(span, OwnQuietSample):
             sample_src, src_end, source_id = span.sample.start, span.sample.end, None
@@ -1276,6 +1287,10 @@ def fill_with_room_tone(
             if use <= 0:  # pragma: no cover
                 break
 
+    if within is not None and not inserted:
+        if absent is not None:
+            raise CodedValueError(f"no room tone available ({absent.cause})", code="no_source")
+        raise CodedValueError("no gap to fill in that range", code="nothing_to_fill")
     set_track_clips(project, track_id, sorted(new_clips, key=lambda c: c.timeline_start))
     update_timeline_duration(project)
     # Fill clips duplicate existing source audio; word times are untouched.

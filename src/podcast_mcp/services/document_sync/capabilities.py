@@ -43,6 +43,7 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
         "MoveSegment",
         "MoveClips",
         "PasteSegment",
+        "FillRoomTone",
         "CutRange",
         "AddTrack",
         "SetTrackMedia",

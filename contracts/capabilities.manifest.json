@@ -3112,6 +3112,29 @@
       }
     },
     {
+      "id": "daw.range.fillRoomTone",
+      "label": "Fill range with room tone",
+      "effect": "project",
+      "service": "TimelineService.fill_room_tone_range",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "mcp": [
+          "fill_with_room_tone_tool"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Range action reached through the MCP tool until the context menu entry lands"
+      },
+      "tooltip": "Fill the clip-free time in a range with the track's room tone",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.range.moveSpeakerLaneSpan",
       "label": "Move to speaker",
       "effect": "project",
