@@ -42,10 +42,13 @@ export function useBootstrapDownload(subject: string) {
           return true;
         } catch (e: unknown) {
           const raw = errorMessage(e);
+          const internal =
+            plainError(raw) !== raw || /^[a-z][a-z0-9-]*:\s/.test(raw);
+          setProgress(null);
           setError(
-            plainError(raw) === raw
-              ? raw
-              : `Couldn't download ${subject}. Export diagnostics from the command palette and try again.`,
+            internal
+              ? `Couldn't download ${subject}. Export diagnostics from the command palette and try again.`
+              : raw,
           );
           return false;
         }
