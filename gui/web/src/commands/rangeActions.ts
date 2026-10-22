@@ -268,10 +268,13 @@ export async function runRangeAction(
   }
 }
 
-const ROOM_TONE_NO_FILL: Record<string, string> = {
-  no_source: "No usable room tone on this track to fill with",
-  nothing_to_fill: "No gap between clips in this range",
-};
+const NO_GAP_REASON = "No gap between clips in this range";
+const ROOM_TONE_REFUSALS = new Map([
+  ["no_source", "No usable room tone on this track to fill with"],
+  ["nothing_to_fill", NO_GAP_REASON],
+  ["track_has_no_media", "This track has no audio to take room tone from"],
+  ["unknown_track", "This track is no longer in the project"],
+]);
 
 async function fillRoomToneInRange(
   projectPath: string,
@@ -279,53 +282,62 @@ async function fillRoomToneInRange(
   target: ExactRangeTarget,
   epoch: number,
 ): Promise<ExecuteResult> {
-  const gaps = roomToneGaps(project, target);
-  const pairs = new Set(gaps.map((g) => g.track_id));
+  const sends = new Map(
+    roomToneGaps(project, target).map((g) => [
+      `${g.track_id}:${g.interval}`,
+      g,
+    ]),
+  );
   let filled = 0;
   let head: ReturnType<typeof replyHistoryHead> = null;
-  const unfilled = new Set<string>();
-  for (const trackId of pairs) {
-    for (const interval of target.intervals) {
-      try {
-        const result = await submitDocumentCommand(
-          projectPath,
-          DocumentCommand.FillRoomTone,
-          {
-            track_id: trackId,
-            start_sec: interval.start,
-            end_sec: interval.end,
-          },
-        );
-        if (result.queued === true) {
-          useDawStore
-            .getState()
-            .announceStatus("Fill queued. Reconnect to send it.");
-          return { status: "ok" };
-        }
-        filled += 1;
-        head = replyHistoryHead(result) ?? head;
-      } catch (error) {
-        const code = error instanceof ApiError ? error.code : null;
-        if (code === "nothing_to_fill") continue;
-        if (code !== null && code in ROOM_TONE_NO_FILL)
-          unfilled.add(ROOM_TONE_NO_FILL[code]!);
-        else throw error;
+  const skipped = new Set<string>();
+  let stopped: string | null = null;
+  for (const { track_id, interval } of sends.values()) {
+    if (useDawStore.getState().projectEpoch !== epoch) return { status: "ok" };
+    const { start, end } = target.intervals[interval]!;
+    try {
+      const result = await submitDocumentCommand(
+        projectPath,
+        DocumentCommand.FillRoomTone,
+        { track_id, start_sec: start, end_sec: end },
+      );
+      if (result.queued === true) {
+        useDawStore
+          .getState()
+          .announceStatus("Fill queued. Reconnect to send it.");
+        return { status: "ok" };
       }
+      filled += 1;
+      head = replyHistoryHead(result) ?? head;
+    } catch (error) {
+      const reason = ROOM_TONE_REFUSALS.get(
+        error instanceof ApiError ? (error.code ?? "") : "",
+      );
+      if (reason === undefined) {
+        stopped = errorMessage(error);
+        break;
+      }
+      skipped.add(reason);
     }
   }
   const live = useDawStore.getState();
   if (live.projectEpoch !== epoch) return { status: "ok" };
   if (filled === 0) {
-    const reason = [...unfilled][0] ?? "No gap between clips in this range";
+    const reason = stopped ?? [...skipped][0] ?? NO_GAP_REASON;
     live.announceStatus(reason, { tone: "error" });
     return { status: "disabled", reason };
   }
-  live.announceStatus(
-    unfilled.size
-      ? `Filled ${filled} ${filled === 1 ? "gap" : "gaps"} with room tone. ${[...unfilled][0]} in the rest.`
-      : `Filled ${filled} ${filled === 1 ? "gap" : "gaps"} with room tone. Use Undo to restore it.`,
-    { undo: head },
-  );
+  const done = `Filled room tone in ${filled} ${filled === 1 ? "place" : "places"}`;
+  const note = stopped
+    ? `Then it stopped: ${stopped}`
+    : skipped.size
+      ? `Not everywhere: ${[...skipped].join("; ")}`
+      : null;
+  const undo =
+    filled === 1 ? "Use Undo to restore it." : "Undo restores the last one.";
+  live.announceStatus(`${done}. ${note ? `${note}. ` : ""}${undo}`, {
+    undo: head,
+  });
   return { status: "ok" };
 }
 
