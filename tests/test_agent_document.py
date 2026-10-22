@@ -342,6 +342,32 @@ def test_move_by_text_journals_through_the_document_plane(tmp_path, sample_wav):
     assert _journal_types(path) == ["MoveByText"]
 
 
+def test_transcript_batch_tools_journal_and_keep_their_codes(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_transcribed(path, sample_wav)
+    transcript_refine_waive_tool(path, "probe")
+    cleaned = json.loads(
+        mcp_timeline.apply_transcript_cleanup_tool(
+            path, "host", {"words": [{"word_index": 0, "text": "hi"}]}
+        )
+    )
+    verified = json.loads(
+        mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "text": "earth"}])
+    )
+    assert cleaned == {"track_id": "host", "applied": 1}
+    assert verified == {"verified": 1}
+    assert _journal_types(path) == ["ApplyTranscriptCleanup", "VerifyTranscript"]
+    with pytest.raises(ValueError) as caught:
+        mcp_timeline.apply_transcript_cleanup_tool(
+            path, "host", {"words": [{"word_index": 99, "text": "x"}]}
+        )
+    assert caught.value.code == "word_index_out_of_range"
+    with pytest.raises(ValueError) as bad_item:
+        mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1}])
+    assert "text" in str(bad_item.value)
+    assert _journal_types(path) == ["ApplyTranscriptCleanup", "VerifyTranscript"]
+
+
 def test_ripple_delete_keeps_its_coded_errors(tmp_path, ten_second_silence_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_clips(path, ten_second_silence_wav)

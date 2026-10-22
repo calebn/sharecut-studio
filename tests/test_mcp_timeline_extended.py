@@ -252,7 +252,6 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         svc.split_clip.return_value = {"operation": "split_clip", "clip_id": "c1"}
         svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone", "filled_sec": 0.2}
         svc.check_loudness.return_value = {"integrated_lufs": -16.0}
-        svc.verify_transcript.return_value = 2
         svc.analyze_cleanup.return_value = {"tracks": ["host"], "issues": []}
         svc.audio_diagnostics.return_value = {
             "track_id": "host",
@@ -291,7 +290,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     assert split["operation"] == "split_clips_at"
     assert fill["operation"] == "fill_with_room_tone"
     assert loud["integrated_lufs"] == pytest.approx(-16.0)
-    assert verified["verified"] == 2
+    assert verified["verified"] == 1
     assert removed["track_id"] == "host"
     assert removed["removed"] == 0
     assert analyzed["tracks"] == ["host"]
@@ -306,7 +305,6 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         min_duration_sec=0.4,
         use_inaudible_opt=None,
     )
-    svc.verify_transcript.assert_called_once()
     svc.apply_fade_recommendations.assert_called_once()
 
 
@@ -513,14 +511,13 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
     ):
         svc = svc_cls.return_value
         svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone"}
-        svc.verify_transcript.return_value = 1
         svc.analyze_cleanup.return_value = {"tracks": ["host"]}
         svc.recommend_fades.return_value = []
         svc.apply_fade_recommendations.return_value = {"applied_fade_updates": 0}
 
         json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
         json.loads(
-            mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "verified": True}])
+            mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "text": "there"}])
         )
         json.loads(mcp_timeline.remove_effect_tool(path, speaker="Host"))
         json.loads(mcp_timeline.analyze_cleanup_tool(path, track_id="host"))

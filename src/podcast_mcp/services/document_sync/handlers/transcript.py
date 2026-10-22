@@ -105,10 +105,25 @@ def set_transcript_word_timing(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[
     )
 
 
+def apply_transcript_cleanup(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    track_id = str(p["track_id"])
+    applied = TranscriptService(ws).apply_transcript_cleanup(
+        track_id, words=p.get("words"), phrases=p.get("phrases")
+    )
+    return {"track_id": track_id, "applied": applied}
+
+
+def verify_transcript(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    verified = TranscriptService(ws).verify_transcript(str(p["track_id"]), list(p["corrections"]))
+    return {"verified": verified}
+
+
 HANDLERS: dict[str, Handler] = {
     "SetTranscriptWordTiming": set_transcript_word_timing,
     "ReplaceTranscriptMatches": replace_transcript_matches,
     "CorrectTranscriptWord": correct_transcript_word,
+    "ApplyTranscriptCleanup": apply_transcript_cleanup,
+    "VerifyTranscript": verify_transcript,
     "CorrectTranscriptPhrase": correct_transcript_phrase,
     "SetTranscriptWordSuppressed": set_transcript_word_suppressed,
     "SetTranscriptWordAutomatic": set_transcript_word_automatic,

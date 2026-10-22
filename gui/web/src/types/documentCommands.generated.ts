@@ -10,6 +10,7 @@ export type DocumentCommandType =
   | "AddTrack"
   | "ApplyFadeRecommendations"
   | "ApplySuggestedActions"
+  | "ApplyTranscriptCleanup"
   | "ApproveEdits"
   | "CorrectTranscriptPhrase"
   | "CorrectTranscriptWord"
@@ -63,7 +64,8 @@ export type DocumentCommandType =
   | "UpdateChapter"
   | "UpdateComment"
   | "UpdatePendingEdit"
-  | "UpdateSocialClip";
+  | "UpdateSocialClip"
+  | "VerifyTranscript";
 
 /** Wire names, so a call site spells `DocumentCommand.MoveClips`, never a string. */
 export const DocumentCommand = {
@@ -76,6 +78,7 @@ export const DocumentCommand = {
   AddTrack: "AddTrack",
   ApplyFadeRecommendations: "ApplyFadeRecommendations",
   ApplySuggestedActions: "ApplySuggestedActions",
+  ApplyTranscriptCleanup: "ApplyTranscriptCleanup",
   ApproveEdits: "ApproveEdits",
   CorrectTranscriptPhrase: "CorrectTranscriptPhrase",
   CorrectTranscriptWord: "CorrectTranscriptWord",
@@ -130,4 +133,5 @@ export const DocumentCommand = {
   UpdateComment: "UpdateComment",
   UpdatePendingEdit: "UpdatePendingEdit",
   UpdateSocialClip: "UpdateSocialClip",
+  VerifyTranscript: "VerifyTranscript",
 } as const satisfies Record<DocumentCommandType, DocumentCommandType>;

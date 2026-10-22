@@ -39,6 +39,8 @@ DocumentCommandType = Literal[
     "RemoveEffect",
     "ReplaceTranscriptMatches",
     "CorrectTranscriptWord",
+    "ApplyTranscriptCleanup",
+    "VerifyTranscript",
     "CorrectTranscriptPhrase",
     "SetTranscriptWordSuppressed",
     "SetTranscriptWordAutomatic",

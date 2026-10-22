@@ -848,11 +848,17 @@ def apply_transcript_cleanup_tool(
 
     ``corrections``: ``{"words": [{word_index, text}], "phrases": [{start_word_index, end_word_index, text}]}``
     """
-    ws = ProjectWorkspace.open(project_path)
-    n = TranscriptService(ws).apply_transcript_cleanup(
-        track_id, words=corrections.get("words"), phrases=corrections.get("phrases")
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "ApplyTranscriptCleanup",
+            {
+                "track_id": track_id,
+                "words": corrections.get("words"),
+                "phrases": corrections.get("phrases"),
+            },
+        )
     )
-    return to_json({"track_id": track_id, "applied": n})
 
 
 def low_confidence_words_tool(project_path: str, threshold: float = 0.7) -> str:
@@ -867,9 +873,13 @@ def verify_transcript_tool(
     corrections: JsonObjectList,
 ) -> str:
     """Apply bulk corrections and mark words verified on a track's transcript."""
-    ws = ProjectWorkspace.open(project_path)
-    n = TranscriptService(ws).verify_transcript(track_id, corrections)
-    return to_json({"verified": n})
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "VerifyTranscript",
+            {"track_id": track_id, "corrections": corrections},
+        )
+    )
 
 
 def add_effect_tool(
