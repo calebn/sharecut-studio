@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import errno
 import gc
 import json
@@ -9,8 +10,10 @@ import subprocess
 import sys
 import time
 import weakref
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
+from contextlib import closing, contextmanager
+from contextvars import Context
 from threading import Event, get_ident
 from typing import Literal
 
@@ -41,6 +44,46 @@ from podcast_mcp.services.session_sync.viewer import (
     publish_viewer_snapshot,
 )
 from sync_helpers import _foreign_session_write, receive_host_plane
+
+
+@contextmanager
+def _hub_delivery_fence(
+    loop: asyncio.AbstractEventLoop, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Callable[[], None]]:
+    scheduled: list[asyncio.Future[None]] = []
+    call_soon_threadsafe = loop.call_soon_threadsafe
+
+    def schedule(
+        callback: Callable[..., object], *args: object, context: Context | None = None
+    ) -> asyncio.Handle:
+        completed = loop.create_future()
+
+        def deliver() -> None:
+            try:
+                callback(*args)
+            except BaseException as error:
+                completed.set_exception(error)
+            else:
+                completed.set_result(None)
+
+        handle = call_soon_threadsafe(deliver, context=context)
+        scheduled.append(completed)
+        return handle
+
+    def delivered() -> None:
+        batch = tuple(scheduled)
+        scheduled.clear()
+        assert batch, "no hub delivery was scheduled"
+        marker = loop.create_future()
+        loop.call_soon(marker.set_result, None)
+        loop.run_until_complete(marker)
+        for completed in batch:
+            assert completed.done(), "scheduled hub delivery did not complete"
+            completed.result()
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(loop, "call_soon_threadsafe", schedule)
+        yield delivered
 
 
 def test_play_os_vs_audition_commands(minimal_project) -> None:
@@ -637,9 +680,9 @@ def test_empty_snapshot_and_replay_without_store(minimal_project) -> None:
     assert svc.meta()["exists"] is False
 
 
-def test_hub_unsubscribe_and_full_queue(minimal_project) -> None:
-    import asyncio
-
+def test_hub_unsubscribe_idempotence_queue_overflow_and_closed_loop_publish(
+    minimal_project, monkeypatch
+) -> None:
     from podcast_mcp.services.session_sync.hub import SessionHub
 
     hub = SessionHub()
@@ -647,15 +690,14 @@ def test_hub_unsubscribe_and_full_queue(minimal_project) -> None:
     key = "k-full"
     q = hub.subscribe(key, loop)
     hub.unsubscribe(key, q)
-    hub.unsubscribe(key, q)  # idempotent
-    # Fill beyond maxsize so put_nowait hits QueueFull drop path
+    hub.unsubscribe(key, q)
     q2 = hub.subscribe(key, loop)
-    for i in range(300):
-        hub.publish(key, {"n": i})
-        loop.run_until_complete(asyncio.sleep(0))
-    assert q2.qsize() == 256
+    with _hub_delivery_fence(loop, monkeypatch) as delivered:
+        for i in range(300):
+            hub.publish(key, {"n": i})
+            delivered()
+        assert q2.qsize() == 256
     hub.unsubscribe(key, q2)
-    # Publish with closed loop is swallowed
     q3 = hub.subscribe(key, loop)
     loop.close()
     hub.publish(key, {"n": 1})
@@ -918,10 +960,7 @@ def test_submit_publishes_under_the_session_publish_lock(minimal_project, monkey
     assert recorded == [True]
 
 
-def test_hub_publish_only_schedules_delivery() -> None:
-    """Document submit publishes under the project and sqlite write locks: publish must not block."""
-    import asyncio
-
+def test_hub_publish_only_schedules_delivery(monkeypatch) -> None:
     from podcast_mcp.services.session_sync.hub import SessionHub
 
     hub = SessionHub()
@@ -929,10 +968,11 @@ def test_hub_publish_only_schedules_delivery() -> None:
     key = "k-schedule"
     try:
         queue = hub.subscribe(key, loop)
-        hub.publish(key, {"n": 1})  # the loop is not running: a blocking publish would hang
-        assert queue.qsize() == 0
-        loop.run_until_complete(asyncio.sleep(0))
-        assert queue.get_nowait() == {"n": 1}
+        with _hub_delivery_fence(loop, monkeypatch) as delivered:
+            hub.publish(key, {"n": 1})
+            assert queue.qsize() == 0
+            delivered()
+            assert queue.get_nowait() == {"n": 1}
         hub.unsubscribe(key, queue)
     finally:
         loop.close()
@@ -1761,9 +1801,7 @@ def test_playback_materializer_exact_fields_and_order(ctype, playing, dry_run) -
     )
 
 
-def test_hub_fanout_delivers_applied(minimal_project) -> None:
-    import asyncio
-
+def test_hub_fanout_delivers_applied(minimal_project, monkeypatch) -> None:
     from podcast_mcp.services.session_sync.hub import get_hub
 
     proj = load_project(minimal_project)
@@ -1772,13 +1810,12 @@ def test_hub_fanout_delivers_applied(minimal_project) -> None:
     loop = asyncio.new_event_loop()
     queue = get_hub().subscribe(key, loop)
     try:
-        svc.submit_control("SetPlayhead", {"playhead_sec": 9.0}, client_id="agent-b")
-        # Drain call_soon_threadsafe onto this loop
-        loop.call_soon(lambda: None)
-        loop.run_until_complete(asyncio.sleep(0))
-        event = queue.get_nowait()
-        assert event["type"] == "Applied"
-        assert event["snapshot"]["playhead_sec"] == 9.0
+        with _hub_delivery_fence(loop, monkeypatch) as delivered:
+            svc.submit_control("SetPlayhead", {"playhead_sec": 9.0}, client_id="agent-b")
+            delivered()
+            event = queue.get_nowait()
+            assert event["type"] == "Applied"
+            assert event["snapshot"]["playhead_sec"] == 9.0
     finally:
         get_hub().unsubscribe(key, queue)
         loop.close()
@@ -2027,77 +2064,75 @@ def test_document_overflow_resync_keeps_incoming_seq() -> None:
     assert out["snapshot"]["server_seq"] == 9
 
 
-def test_document_hub_overflow_drains_and_tags_resync() -> None:
-    import asyncio
-
+def test_document_hub_overflow_drains_and_tags_resync(monkeypatch) -> None:
     from podcast_mcp.services.session_sync.hub import SessionHub
 
     hub = SessionHub()
     loop = asyncio.new_event_loop()
     key = "k-doc-full"
     q = hub.subscribe(key, loop)
-    hub.publish(
-        key,
-        {
-            "type": "Applied",
-            "plane": "document",
-            "snapshot": {"patch": {"clips": {"stale": True}}, "server_seq": 1},
-        },
-    )
-    loop.run_until_complete(asyncio.sleep(0))
-    for i in range(255):
+    with _hub_delivery_fence(loop, monkeypatch) as delivered:
         hub.publish(
             key,
             {
                 "type": "Applied",
                 "plane": "document",
-                "snapshot": {"patch": {"fx": i}, "server_seq": i + 2},
+                "snapshot": {"patch": {"clips": {"stale": True}}, "server_seq": 1},
             },
         )
-        loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    hub.publish(
-        key,
-        {
-            "type": "Applied",
-            "plane": "document",
-            "snapshot": {"patch": {"envelopes": 1}, "server_seq": 300},
-        },
-    )
-    loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 1
-    got = q.get_nowait()
-    assert got["snapshot"]["resync"] is True
-    assert got["snapshot"]["server_seq"] == 300
-    assert got["snapshot"].get("patch") == {"envelopes": 1}
+        delivered()
+        for i in range(255):
+            hub.publish(
+                key,
+                {
+                    "type": "Applied",
+                    "plane": "document",
+                    "snapshot": {"patch": {"fx": i}, "server_seq": i + 2},
+                },
+            )
+            delivered()
+        assert q.qsize() == 256
+        hub.publish(
+            key,
+            {
+                "type": "Applied",
+                "plane": "document",
+                "snapshot": {"patch": {"envelopes": 1}, "server_seq": 300},
+            },
+        )
+        delivered()
+        assert q.qsize() == 1
+        got = q.get_nowait()
+        assert got["snapshot"]["resync"] is True
+        assert got["snapshot"]["server_seq"] == 300
+        assert got["snapshot"].get("patch") == {"envelopes": 1}
     hub.unsubscribe(key, q)
     loop.close()
 
 
-def test_hub_overflow_drops_signal_not_record_applied() -> None:
-    import asyncio
-
+def test_hub_overflow_drops_signal_not_record_applied(monkeypatch) -> None:
     from podcast_mcp.services.session_sync.hub import SessionHub
 
     hub = SessionHub()
     loop = asyncio.new_event_loop()
     key = "k-signal-full"
     q = hub.subscribe(key, loop)
-    for i in range(200):
-        hub.publish(key, {"plane": "record", "type": "Applied", "n": i})
-        loop.run_until_complete(asyncio.sleep(0))
-    for i in range(56):
-        hub.publish(key, {"plane": "record", "type": "Signal", "n": i})
-        loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    hub.publish(key, {"plane": "record", "type": "Signal", "n": 99})
-    loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    kinds = []
-    while q.qsize():
-        kinds.append(q.get_nowait()["type"])
-    assert kinds.count("Applied") == 200
-    assert kinds.count("Signal") == 56
+    with _hub_delivery_fence(loop, monkeypatch) as delivered:
+        for i in range(200):
+            hub.publish(key, {"plane": "record", "type": "Applied", "n": i})
+            delivered()
+        for i in range(56):
+            hub.publish(key, {"plane": "record", "type": "Signal", "n": i})
+            delivered()
+        assert q.qsize() == 256
+        hub.publish(key, {"plane": "record", "type": "Signal", "n": 99})
+        delivered()
+        assert q.qsize() == 256
+        kinds = []
+        while q.qsize():
+            kinds.append(q.get_nowait()["type"])
+        assert kinds.count("Applied") == 200
+        assert kinds.count("Signal") == 56
     hub.unsubscribe(key, q)
     loop.close()
 
