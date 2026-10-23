@@ -112,3 +112,18 @@
   --shadow-transport-timecode: 0 0 0.75rem var(--color-transport-play-glow);
   --shadow-transport-chip: inset 0 1px 0 var(--color-transport-highlight-chip);
 }
+
+:root {
+  /* The ShareCut mark follows the theme, and the system text colour under
+     forced colors: Chromium leaves SVG fill authored, so the cream ink would
+     vanish on a white Canvas. */
+  --color-brand-mark-ink: var(--color-text-primary);
+  --color-brand-mark-accent: var(--color-accent);
+}
+
+@media (forced-colors: active) {
+  :root {
+    --color-brand-mark-ink: CanvasText;
+    --color-brand-mark-accent: CanvasText;
+  }
+}

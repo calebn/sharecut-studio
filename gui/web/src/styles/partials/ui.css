@@ -1202,12 +1202,12 @@ html[data-shell] .ui-toast-region--inspector-flow {
 
 .brand-lockup .brand-tone-ink,
 .brand-symbol .brand-tone-ink {
-  fill: var(--color-text-primary);
+  fill: var(--color-brand-mark-ink);
 }
 
 .brand-lockup .brand-tone-accent,
 .brand-symbol .brand-tone-accent {
-  fill: var(--color-accent);
+  fill: var(--color-brand-mark-accent);
 }
 
 .brand-lockup-name {

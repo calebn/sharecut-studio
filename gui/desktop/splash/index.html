@@ -32,6 +32,12 @@
       .mark .accent {
         fill: var(--color-accent);
       }
+      @media (forced-colors: active) {
+        .mark .ink,
+        .mark .accent {
+          fill: CanvasText;
+        }
+      }
       p {
         margin: 0;
         max-width: min(100%, var(--measure));
