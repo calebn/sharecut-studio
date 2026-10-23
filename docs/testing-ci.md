@@ -408,6 +408,11 @@ with axe before the collected results are asserted.
 | 914x331 with the envelope sheet open: the status line, its live region and the save state stay | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 914x331 with a failed save and the envelope sheet open: the status line keeps the save state and the sheet rests on it | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a soloed track keeps Clear solo tappable at the top of the timeline at 914x331 while the envelope sheet is open | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| fresh short landscape exposes both tracks and explicit panel access | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| adaptive Panels leaves tool rail targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a native guest Mute center tap stays at scrollTop zero while acknowledgment is pending | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Close keeps fresh adaptive panels stowed | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 844x390: Close keeps an explicitly maximized timeline collapsed | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a clip's Inspector is a column beside a whole timeline, and Close returns the shell | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an envelope point's lane stays whole and uncovered beside the column | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a pending edit's Approve and Reject float beside the column, not under it | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |

@@ -108,6 +108,15 @@ held sideways) compact the editor:
 - The tablet timeline row takes all spare height and the tool rail keeps its
   own (`grid-template-rows: minmax(0, 1fr) auto`), with 2px of block padding
   (`@container app (max-height: 40rem)`).
+- A fresh session without a saved collapsed-panel preference uses adaptive
+  layout. On a tablet with a coarse primary pointer in landscape at most
+  35rem tall, panels stow and give their row to the timeline. The transport's
+  **Panels** button opens them through `layout.default`, with the accessible
+  name **Show editor panels**. Automatic stowing has no overlaid drawer handle
+  and does not save `sharecut.tabsCollapsed`. Above that height the panels
+  return. An explicit panel or layout command ends adaptation for the session.
+  The saved collapsed preference remains binary, and entering the phone shell
+  keeps its existing reset to default. See [Responsive shells](gui-viewer.md#responsive-shells).
 - **The Inspector is a column (#1696).** On a coarse primary pointer at most
   40rem tall and at least 40rem wide (a phone held sideways at 667×375, 844×390
   or 932×430; one rule, `useInspectorColumn`, whichever shell the width puts it
@@ -121,7 +130,10 @@ held sideways) compact the editor:
   (`clamp(16rem, 32vw, 22rem)`). Transport, banners and the status line keep
   the whole width; the timeline keeps the whole main row; the tablet's bottom
   tabs row and the phone's mode nav give way while the column is open and
-  return when it closes. It has the title, **Close**, Escape and focus
+  return when the current layout permits after it closes. Close leaves layout
+  intent unchanged. Adaptive panels stay stowed in a short tablet, explicitly
+  open panels return, and an explicitly maximized timeline stays collapsed.
+  Phone navigation returns. It has the title, **Close**, Escape and focus
   restore of any sheet, and none of the sheet's other parts: no scrim, no
   drawer or detents, no Expand or Collapse, no slide-up, and no compact strip
   (the strip and its Undo and Redo header belong to the sheet; the tool rail

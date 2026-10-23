@@ -65,6 +65,9 @@ Held sideways on a phone wide enough for it (at least 40rem, such as 667, 844 or
 keeps its full height beside it, the bottom tabs or mode bar step aside while it
 is open, and the on-screen keyboard only shortens the column, so its title and
 **Close** stay in view. Narrower screens and portrait keep the bottom sheet.
+Closing the inspector returns the phone's mode bar. On a tablet, panels return
+only when the current layout allows them. Closing the inspector keeps your
+layout choice.
 Selecting a word in Text can open a word sheet. The Listen comment list seeks to
 the comment; use **More → Comments** for comment actions.
 
@@ -189,6 +192,10 @@ The phone layout groups controls by task so they fit a smaller screen.
 - **Listen mode** is the fastest way to review. Play through and open **More → Comments** to use the comment tools.
 - **Text mode** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
 - **Undo and Redo** sit at the right end of the Timeline tool row. On a phone held upright, + Track and Import are in the Menu (under Media) and More instead, to keep that row to one line. A **two-finger tap** also undoes your last action, and History is under More.
+
+On a fresh short landscape tablet, editor panels stow to leave room for the
+tracks. Tap **Panels** in the transport to open them. The button leaves the
+editing tools clear. A panel or layout choice stays in effect for the session.
 
 ### Full screen on iPhone
 

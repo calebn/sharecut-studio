@@ -469,28 +469,28 @@ for (const {
 } of withAppearance(
   Object.entries(COLUMN).filter(([, view]) => view.shell === "tablet"),
 )) {
-  test(`${name}: Close keeps fresh adaptive panels stowed`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({
-      reducedMotion: reducedMotion ? "reduce" : "no-preference",
+  test.describe(name, () => {
+    test("Close keeps fresh adaptive panels stowed", async ({ page }) => {
+      await page.emulateMedia({
+        reducedMotion: reducedMotion ? "reduce" : "no-preference",
+      });
+      await open(page, view, false);
+      await setTheme(page, theme);
+      const panels = page.getByRole("region", { name: "Editor panels" });
+      const toggle = page.locator(".layout-toggle-btn");
+      await expect(panels).toBeHidden();
+      await expect(toggle).toHaveAccessibleName("Show editor panels");
+      const before = await geometry(page);
+      await page.locator(".clip-hit").first().tap();
+      await expectColumn(page, view, name);
+      await expectCloseWorks(page, name);
+      await expect(panels).toBeHidden();
+      await expect(toggle).toHaveAccessibleName("Show editor panels");
+      expect((await geometry(page)).timeline!.width).toBeCloseTo(
+        before.timeline!.width,
+        0,
+      );
     });
-    await open(page, view, false);
-    await setTheme(page, theme);
-    const panels = page.getByRole("region", { name: "Editor panels" });
-    const toggle = page.locator(".layout-toggle-btn");
-    await expect(panels).toBeHidden();
-    await expect(toggle).toHaveAccessibleName("Show editor panels");
-    const before = await geometry(page);
-    await page.locator(".clip-hit").first().tap();
-    await expectColumn(page, view, name);
-    await expectCloseWorks(page, name);
-    await expect(panels).toBeHidden();
-    await expect(toggle).toHaveAccessibleName("Show editor panels");
-    expect((await geometry(page)).timeline!.width).toBeCloseTo(
-      before.timeline!.width,
-      0,
-    );
   });
 }
 
