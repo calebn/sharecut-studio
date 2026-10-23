@@ -1598,14 +1598,11 @@ describe("single pending review feedback", () => {
       ["Approve", "ApproveEdits", "Approved 1 pending edit"],
       ["Reject", "RejectEdits", "Rejected 1 pending edit"],
     ])(
-      "%s reports the reply's history head and Undo restores the edit",
+      "%s clears selection before document adoption and Undo restores the edit",
       async (label, command, message) => {
         const user = userEvent.setup();
-        vi.mocked(submitQueuedDocumentCommand).mockImplementation(async () => {
-          const reply = reviewReply(1, head);
-          applyDocumentResult(reply, activateDocumentScope(path));
-          return reply;
-        });
+        const reply = reviewReply(1, head);
+        vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(reply);
         mountReview(entrypoint);
         await waitFor(() =>
           expect(screen.getByRole("button", { name: label })).toBeEnabled(),
@@ -1621,6 +1618,11 @@ describe("single pending review feedback", () => {
             ? { refineRecoveryInline: true }
             : undefined,
         );
+        expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
+        expect(useDawStore.getState().selection).toBeNull();
+        act(() => {
+          applyDocumentResult(reply, activateDocumentScope(path));
+        });
         expect(useDawStore.getState().project?.pending_edits).toEqual([]);
         expect(useDawStore.getState().selection).toBeNull();
         await user.click(screen.getByRole("button", { name: "Undo" }));
