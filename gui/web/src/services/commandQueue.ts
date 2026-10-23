@@ -42,6 +42,7 @@ import {
   isRetryLater,
   refusalReason,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
+  writeFailureReason,
 } from "../utils/apiError";
 import {
   documentClientId,
@@ -458,16 +459,10 @@ async function submitLiveHistoryIntent(
           await settleCommandOutcome(
             projectPath,
             cmd,
-            commandOutcome(
-              cmd,
-              "unknown",
-              "Undo or Redo may have been applied. Check History before trying again.",
-            ),
+            commandOutcome(cmd, "unknown", historyUnknownReason(reply.failure)),
             true,
           );
-          throw new Error(
-            "Undo or Redo may have been applied. Check History before trying again.",
-          );
+          throw new Error(historyUnknownReason(reply.failure));
         }
         await settleCommandOutcome(
           projectPath,
@@ -540,16 +535,10 @@ async function submitLiveHistoryIntent(
         await settleCommandOutcome(
           projectPath,
           cmd,
-          commandOutcome(
-            cmd,
-            "unknown",
-            "Undo or Redo may have been applied. Check History before trying again.",
-          ),
+          commandOutcome(cmd, "unknown", historyUnknownReason(reply.failure)),
           true,
         );
-        throw new Error(
-          "Undo or Redo may have been applied. Check History before trying again.",
-        );
+        throw new Error(historyUnknownReason(reply.failure));
       }
       await settleCommandOutcome(
         projectPath,
@@ -608,6 +597,12 @@ async function submitCommand(
 
 const RETRY_REASON =
   "The server may have applied this edit. Retrying will reuse the same command.";
+const HISTORY_UNKNOWN_REASON =
+  "Undo or Redo may have been applied. Check History before trying again.";
+
+function historyUnknownReason(failure: ApiError): string {
+  return writeFailureReason(failure) ?? HISTORY_UNKNOWN_REASON;
+}
 
 /**
  * What differs between the host and share-guest submit paths. Everything else
@@ -788,7 +783,12 @@ async function submitThroughQueue(
       await settleCommandOutcome(
         projectPath,
         cmd,
-        commandOutcome(cmd, "unknown", RETRY_REASON, admitted.persisted),
+        commandOutcome(
+          cmd,
+          "unknown",
+          writeFailureReason(failure) ?? RETRY_REASON,
+          admitted.persisted,
+        ),
         false,
       );
       if (staysQueued) return queuedResult(command_id, client_seq);
