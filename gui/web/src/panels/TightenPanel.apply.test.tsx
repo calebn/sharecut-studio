@@ -6,6 +6,7 @@ import {
   _resetSingleFlightsForTests,
   registerDawCommands,
 } from "../commands/register";
+import { resetDocumentAuthority } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import { answerQuestions } from "../test/ask";
 import { minimalProject, pendingEditView } from "../test/fixtures";
@@ -164,4 +165,41 @@ it("keeps activity with its project and leaves a reopened project's selection an
   expect(useDawStore.getState().feedbackToast?.message).toBe(
     "Reopened project",
   );
+});
+
+it("does not announce an old result after the same path starts a new document opening", async () => {
+  type Outcome = Awaited<ReturnType<typeof applySuggestedActions>>;
+  let finish!: (outcome: Outcome) => void;
+  vi.mocked(applySuggestedActions).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<TightenPanel />);
+  let command!: ReturnType<typeof execute>;
+  await act(async () => {
+    command = execute("tighten.applySuggested");
+  });
+  act(() => {
+    resetDocumentAuthority("/tmp/tighten.json");
+    useDawStore.getState().hydrate("/tmp/tighten.json", project);
+    useDawStore
+      .getState()
+      .setSelection({ kind: "pending", id: "hit1", trackId: "mira-voice" });
+    useDawStore.getState().announceStatus("New opening");
+  });
+  await act(async () => {
+    finish({
+      queued: false,
+      summary: "Old apply completed",
+      historyHead: null,
+    });
+    await command;
+  });
+  expect(useDawStore.getState().selection).toMatchObject({
+    kind: "pending",
+    id: "hit1",
+  });
+  expect(useDawStore.getState().feedbackToast?.message).toBe("New opening");
 });

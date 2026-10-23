@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applySuggestedActions, approveEdits, rejectEdits } from "../api";
 import { hostFetch } from "../api/documentTransport";
+import { resetDocumentAuthority } from "../document/authorityState";
 import type { Answer, Question } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { answerQuestions } from "../test/ask";
@@ -123,6 +124,31 @@ describe("tighten commands", () => {
       reason: "The project changed. Apply again.",
     });
     expect(applySuggestedActions).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch a confirmation from an earlier opening of the same path", async () => {
+    confirmReply.mockImplementationOnce(() => {
+      resetDocumentAuthority("/tmp/p.json");
+      return true;
+    });
+    expect(await execute("tighten.applySuggested", { ids: ["e1"] })).toEqual({
+      status: "disabled",
+      reason: "The project changed. Apply again.",
+    });
+    expect(applySuggestedActions).not.toHaveBeenCalled();
+  });
+
+  it("still revalidates current hits after a same-path project refresh", async () => {
+    confirmReply.mockImplementationOnce(() => {
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [pending()] }));
+      return true;
+    });
+    expect(
+      await execute("tighten.applySuggested", { ids: ["e1", "e2"] }),
+    ).toEqual({ status: "ok" });
+    expect(applySuggestedActions).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);
   });
 
   it("applyHit and skipHit call the matching document commands", async () => {
