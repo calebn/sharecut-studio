@@ -157,6 +157,8 @@ There are three overlay primitives.
    does not keep its own list of dialogs.
 4. **Dismissal is the same everywhere.** Escape, the Close button and a tap on
    the scrim all cancel. Focus returns to the control that opened the overlay.
+   Closing a selection Inspector leaves layout intent unchanged. Current intent
+   and viewport determine whether editor panels return or remain stowed.
 5. **One confirm primitive each.** `askConfirm` is the confirm dialog and
    `InlineConfirm` the in-place confirm; the one confirm-shaped dialog that
    is not `askConfirm` is listed under Shipped gaps. The blade cut confirms

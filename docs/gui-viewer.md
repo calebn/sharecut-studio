@@ -244,10 +244,11 @@ The phone and tablet selection sheets render one body from `SELECTION_SURFACES` 
 A fresh desktop or tablet session without a saved collapsed-panel preference
 starts in the adaptive layout. On the tablet shell, a coarse primary pointer
 in landscape at most 35rem tall hides the editor panels and gives their row
-to the timeline. Above that height, the panels return. The labeled **Show
-editor panels** handle restores them with one tap, and the transport offers
-the same action while they are hidden. In a spacious adaptive layout the
-transport offers **Maximize timeline** instead. The View menu marks the
+to the timeline. Above that height, the panels return. The transport's
+**Panels** button opens them with one tap. Its accessible name is **Show
+editor panels**. The automatic presentation has no overlaid drawer handle.
+In a spacious adaptive layout the transport offers **Maximize timeline**
+instead. The View menu marks the
 layout currently shown.
 
 An explicit layout or panel command, including reopening the active panel,
@@ -257,7 +258,9 @@ value starts maximized, and reopening removes the value. A reload without
 the value returns to adaptive behavior. Entering the phone shell resets the
 layout to default as before, including after returning to tablet. Selection
 Inspectors keep their column, compact-sheet, and lane-band placement. The
-panel handle yields while an Inspector is open.
+handle for an explicitly collapsed drawer yields while an Inspector is open.
+Closing the Inspector leaves layout intent unchanged. The current intent and
+viewport determine whether panels return or remain stowed.
 
 `useSelectionSheet` also decides where that body sits (`SelectionSheet.placement`): a bottom sheet, or, on a coarse pointer at most 40rem tall and at least 40rem wide (a phone held sideways), a column on the inline end of the shell in place of the sheet (#1696, `useInspectorColumn`; `BottomSheet` `placement="column"`, class `daw-shell--inspector-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 

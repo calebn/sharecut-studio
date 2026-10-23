@@ -97,7 +97,9 @@ for (const size of SIZES) {
         ? DOCUMENTED_EXCEPTIONS
         : [...DOCUMENTED_EXCEPTIONS, ...TABLET_EXCEPTIONS]
     ).join(", ");
-    const found: string[] = [];
+    const found: string[] = (await undersized(page, exceptions)).map(
+      (row) => `[Fresh] ${row}`,
+    );
     const nav = page.getByRole("navigation", { name: "Primary" });
     if (size.phone) {
       await expect(nav).toBeVisible();
@@ -111,6 +113,15 @@ for (const size of SIZES) {
       }
     } else {
       const tabs = page.getByRole("tablist", { name: "Panel tabs" });
+      if (await tabs.isHidden()) {
+        const showPanels = page.getByRole("button", {
+          name: "Show editor panels",
+          exact: true,
+        });
+        await expect(showPanels).toBeVisible();
+        await showPanels.click();
+      }
+      await expect(tabs).toBeVisible();
       for (const name of PANEL_TABS) {
         await tabs.getByRole("tab", { name, exact: true }).click();
         found.push(
