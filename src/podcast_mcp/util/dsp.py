@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Protocol
 
 import numpy as np
@@ -292,6 +293,55 @@ def frame_rms_db_stream(
     )[0]
 
 
+_AUTOCORR_CHUNK = 256
+
+
+@lru_cache(maxsize=64)
+def _fft_size(n: int) -> int:
+    best = 1 << max(0, (n - 1).bit_length())
+    p5 = 1
+    while p5 < best:
+        p35 = p5
+        while p35 < best:
+            p = p35
+            while p < n:
+                p *= 2
+            best = min(best, p)
+            p35 *= 3
+        p5 *= 5
+    return best
+
+
+def _autocorr_peaks(
+    frames: np.ndarray, sample_rate: int, *, fmin: float, fmax: float, interior: bool
+) -> tuple[np.ndarray, np.ndarray]:
+    count, size = frames.shape
+    lags = np.zeros(count, dtype=np.int64)
+    peaks = np.zeros(count, dtype=np.float64)
+    min_lag = max(1, int(sample_rate / fmax))
+    max_lag = min(int(sample_rate / fmin), size // 2)
+    if size == 0 or max_lag <= min_lag + 2:
+        return lags, peaks
+    nfft = _fft_size(size + max_lag)
+    for lo in range(0, count, _AUTOCORR_CHUNK):
+        x = frames[lo : lo + _AUTOCORR_CHUNK].astype(np.float64)
+        x -= x.mean(axis=1, keepdims=True)
+        energy = np.einsum("ij,ij->i", x, x)
+        spectrum = np.fft.rfft(x, nfft, axis=1)
+        corr = np.fft.irfft(spectrum.real**2 + spectrum.imag**2, nfft, axis=1)[:, : max_lag + 1]
+        seg = corr[:, min_lag:max_lag]
+        valid = energy > 1e-12
+        if interior:
+            around = corr[:, min_lag - 1 : max_lag + 1]
+            seg = np.where((seg > around[:, :-2]) & (seg >= around[:, 2:]), seg, -np.inf)
+            valid &= np.isfinite(seg).any(axis=1)
+        lag = np.argmax(seg, axis=1) + min_lag
+        peak = np.take_along_axis(corr, lag[:, None], axis=1)[:, 0]
+        lags[lo : lo + x.shape[0]] = np.where(valid, lag, 0)
+        peaks[lo : lo + x.shape[0]] = np.where(valid, peak / np.where(valid, energy, 1.0), 0.0)
+    return lags, peaks
+
+
 def autocorr_peak(
     samples: np.ndarray,
     sample_rate: int,
@@ -312,24 +362,37 @@ def autocorr_peak(
     shortest lag and reads as a high-pitched voice; a periodic signal has a true peak.
     ``None`` when no lag is one.
     """
-    x = samples.astype(np.float64, copy=True)
-    x -= np.mean(x) if x.size else 0.0
-    energy = float(np.dot(x, x))
-    if energy <= 1e-12:
+    lags, peaks = _autocorr_peaks(
+        samples.reshape(1, -1), sample_rate, fmin=fmin, fmax=fmax, interior=interior
+    )
+    if lags[0] == 0:
         return None
-    min_lag = max(1, int(sample_rate / fmax))
-    max_lag = min(int(sample_rate / fmin), x.size // 2)
-    if max_lag <= min_lag + 2:
-        return None
-    corr = np.correlate(x, x, mode="full")[x.size - 1 :]
-    seg = corr[min_lag:max_lag]
-    if interior:
-        around = corr[min_lag - 1 : max_lag + 1]
-        seg = np.where((seg > around[:-2]) & (seg >= around[2:]), seg, -np.inf)
-        if not np.isfinite(seg).any():
-            return None
-    lag = int(np.argmax(seg)) + min_lag
-    return float(sample_rate) / float(lag), float(corr[lag]) / energy
+    return float(sample_rate) / float(lags[0]), float(peaks[0])
+
+
+def voicing_pitch_probes(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    probe_sec: float,
+    hop_sec: float,
+    fmin: float,
+    fmax: float,
+    interior: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """``(f0_hz, normalized_peak)`` of each ``probe_sec`` frame every ``hop_sec``.
+
+    Per frame this is :func:`autocorr_peak`; a frame it cannot score reads ``(0.0, 0.0)``.
+    Input shorter than one probe is scored as a single frame; empty input yields empty arrays.
+    """
+    if samples.size == 0:
+        return np.empty(0, dtype=np.float64), np.empty(0, dtype=np.float64)
+    frame = min(samples.size, max(1, round(sample_rate * probe_sec)))
+    hop = max(1, round(sample_rate * hop_sec))
+    frames = np.lib.stride_tricks.sliding_window_view(samples, frame)[::hop]
+    lags, peaks = _autocorr_peaks(frames, sample_rate, fmin=fmin, fmax=fmax, interior=interior)
+    f0 = np.divide(float(sample_rate), lags, out=np.zeros(lags.size), where=lags > 0)
+    return f0, peaks
 
 
 def voicing_probes(
@@ -348,17 +411,15 @@ def voicing_probes(
     with ``interior`` no true peak) scores 0.0. Input shorter than one probe is scored as
     a single frame; empty input yields an empty array.
     """
-    if samples.size == 0:
-        return np.empty(0, dtype=np.float64)
-    frame = min(samples.size, max(1, round(sample_rate * probe_sec)))
-    hop = max(1, round(sample_rate * hop_sec))
-    scores = []
-    for start in range(0, samples.size - frame + 1, hop):
-        peak = autocorr_peak(
-            samples[start : start + frame], sample_rate, fmin=fmin, fmax=fmax, interior=interior
-        )
-        scores.append(peak[1] if peak is not None else 0.0)
-    return np.asarray(scores, dtype=np.float64)
+    return voicing_pitch_probes(
+        samples,
+        sample_rate,
+        probe_sec=probe_sec,
+        hop_sec=hop_sec,
+        fmin=fmin,
+        fmax=fmax,
+        interior=interior,
+    )[1]
 
 
 def high_band_energy_fraction(

@@ -28,6 +28,7 @@ from podcast_mcp.util.dsp import (
     rms_db,
     valley_basins,
     valley_depth_db,
+    voicing_pitch_probes,
     voicing_probes,
 )
 
@@ -333,3 +334,147 @@ def test_valley_basin_is_the_lower_half_of_the_valley_in_every_recording_level()
     assert np.flatnonzero(basin).tolist() == [3, 4, 5, 6, 7]
     assert np.array_equal(valley_basins(levels + 40.0, 10.0), basin)
     assert not valley_basins(levels, 21.0).any()
+
+
+def _reference_autocorr_peak(
+    samples: np.ndarray, sample_rate: int, *, fmin: float, fmax: float, interior: bool = False
+) -> tuple[float, float] | None:
+    x = samples.astype(np.float64, copy=True)
+    x -= np.mean(x) if x.size else 0.0
+    energy = float(np.dot(x, x))
+    if energy <= 1e-12:
+        return None
+    min_lag = max(1, int(sample_rate / fmax))
+    max_lag = min(int(sample_rate / fmin), x.size // 2)
+    if max_lag <= min_lag + 2:
+        return None
+    corr = np.correlate(x, x, mode="full")[x.size - 1 :]
+    seg = corr[min_lag:max_lag]
+    if interior:
+        around = corr[min_lag - 1 : max_lag + 1]
+        seg = np.where((seg > around[:-2]) & (seg >= around[2:]), seg, -np.inf)
+        if not np.isfinite(seg).any():
+            return None
+    lag = int(np.argmax(seg)) + min_lag
+    return float(sample_rate) / float(lag), float(corr[lag]) / energy
+
+
+def _reference_voicing_probes(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    probe_sec: float,
+    hop_sec: float,
+    fmin: float,
+    fmax: float,
+    interior: bool = False,
+) -> np.ndarray:
+    if samples.size == 0:
+        return np.empty(0, dtype=np.float64)
+    frame = min(samples.size, max(1, round(sample_rate * probe_sec)))
+    hop = max(1, round(sample_rate * hop_sec))
+    scores = []
+    for start in range(0, samples.size - frame + 1, hop):
+        peak = _reference_autocorr_peak(
+            samples[start : start + frame], sample_rate, fmin=fmin, fmax=fmax, interior=interior
+        )
+        scores.append(peak[1] if peak is not None else 0.0)
+    return np.asarray(scores, dtype=np.float64)
+
+
+def _voiced(seconds: float, sr: int, seed: int) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    t = np.arange(round(seconds * sr)) / sr
+    f0 = 140 + 40 * np.sin(2 * np.pi * 0.7 * t)
+    phase = 2 * np.pi * np.cumsum(f0) / sr
+    voiced = sum(np.sin(h * phase) / h for h in range(1, 9))
+    gate = np.clip(np.sin(2 * np.pi * 1.3 * t), 0, 1)
+    return (0.3 * gate * voiced + 0.02 * rng.normal(size=t.size)).astype(np.float32)
+
+
+def _single_frame_cases(sr: int) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(7)
+    t = np.arange(round(sr * 0.04)) / sr
+    return {
+        "random": rng.normal(size=t.size),
+        "tone": np.sin(2 * np.pi * 200 * t),
+        "harmonic": np.sin(2 * np.pi * 120 * t) + 0.5 * np.sin(2 * np.pi * 240 * t + 0.4),
+        "rumble": np.sin(2 * np.pi * 30 * t) + 0.3 * np.sin(2 * np.pi * 45 * t + 1.0),
+        "dc_offset": 0.5 + 0.1 * np.sin(2 * np.pi * 150 * t),
+        "silent": np.zeros(t.size),
+        "constant": np.full(t.size, 0.25),
+        "too_short": np.sin(2 * np.pi * 200 * t[:40]),
+        "float32": _voiced(0.04, sr, 3),
+        "empty": np.zeros(0),
+    }
+
+
+@pytest.mark.parametrize("interior", [False, True])
+@pytest.mark.parametrize("sr", [8_000, 16_000, 44_100, 48_000])
+def test_autocorr_peak_matches_full_correlation_reference(sr: int, interior: bool) -> None:
+    for name, frame in _single_frame_cases(sr).items():
+        expected = _reference_autocorr_peak(frame, sr, fmin=70, fmax=350, interior=interior)
+        actual = autocorr_peak(frame, sr, fmin=70, fmax=350, interior=interior)
+        if expected is None:
+            assert actual is None, name
+            continue
+        assert actual is not None, name
+        assert actual[0] == expected[0], name
+        assert actual[1] == pytest.approx(expected[1], abs=1e-9), name
+
+
+@pytest.mark.parametrize("interior", [False, True])
+@pytest.mark.parametrize("seed", range(6))
+def test_autocorr_peak_matches_reference_on_random_frames(seed: int, interior: bool) -> None:
+    rng = np.random.default_rng(seed)
+    sr = 16_000
+    for size in (37, 150, 640, 641, 1000):
+        frame = rng.normal(size=size)
+        expected = _reference_autocorr_peak(frame, sr, fmin=70, fmax=400, interior=interior)
+        actual = autocorr_peak(frame, sr, fmin=70, fmax=400, interior=interior)
+        assert (actual is None) == (expected is None)
+        if expected is not None and actual is not None:
+            assert actual[0] == expected[0]
+            assert actual[1] == pytest.approx(expected[1], abs=1e-9)
+
+
+@pytest.mark.parametrize("interior", [False, True])
+@pytest.mark.parametrize("sr", [16_000, 48_000])
+def test_voicing_probes_match_per_frame_reference(sr: int, interior: bool) -> None:
+    kwargs = {"probe_sec": 0.04, "hop_sec": 0.01, "fmin": 70.0, "fmax": 350.0}
+    silent = np.zeros(sr // 4, dtype=np.float32)
+    mixed = np.concatenate([_voiced(1.2, sr, 1), silent, _voiced(0.3, sr, 2)])
+    for samples in (mixed, _voiced(0.03, sr, 4), silent, np.zeros(0, dtype=np.float32)):
+        actual = voicing_probes(samples, sr, interior=interior, **kwargs)
+        expected = _reference_voicing_probes(samples, sr, interior=interior, **kwargs)
+        assert actual.shape == expected.shape
+        np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-9)
+
+
+def test_voicing_probes_span_more_than_one_chunk() -> None:
+    sr = 16_000
+    samples = _voiced(5.0, sr, 5)
+    kwargs = {"probe_sec": 0.04, "hop_sec": 0.01, "fmin": 70.0, "fmax": 350.0}
+    actual = voicing_probes(samples, sr, **kwargs)
+    assert actual.size > 256
+    np.testing.assert_allclose(
+        actual, _reference_voicing_probes(samples, sr, **kwargs), rtol=0.0, atol=1e-9
+    )
+
+
+def test_voicing_pitch_probes_report_each_frames_f0_and_peak() -> None:
+    sr = 16_000
+    t = np.arange(sr // 5) / sr
+    samples = np.concatenate([np.sin(2 * np.pi * 200 * t), np.zeros(sr // 10)])
+    kwargs = {"probe_sec": 0.04, "hop_sec": 0.02, "fmin": 70.0, "fmax": 350.0}
+    f0, peak = voicing_pitch_probes(samples, sr, **kwargs)
+    frame = round(sr * 0.04)
+    hop = round(sr * 0.02)
+    for index, start in enumerate(range(0, samples.size - frame + 1, hop)):
+        expected = _reference_autocorr_peak(
+            samples[start : start + frame], sr, fmin=70.0, fmax=350.0
+        )
+        assert (f0[index], peak[index]) == pytest.approx(expected or (0.0, 0.0), abs=1e-9)
+    assert peak[-1] == 0.0
+    assert f0[-1] == 0.0
+    assert voicing_pitch_probes(np.zeros(0), sr, **kwargs)[0].size == 0
