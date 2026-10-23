@@ -21,6 +21,8 @@ export type ModelsApi = {
     options?: DownloadOptions,
   ) => Promise<DownloadOutcome>;
   cancel: () => Promise<void>;
+  /** Re-read installed state; a gate does this before it asks, so a stale row cannot skip `force`. */
+  refresh: () => Promise<void>;
 };
 
 export const ModelsContext = createContext<ModelsApi | null>(null);
@@ -38,6 +40,7 @@ export const INERT_MODELS: ModelsApi = {
   whisper: { variant: "", variants: [], choose: () => undefined },
   download: () => Promise.resolve({ kind: "cancelled" }),
   cancel: () => Promise.resolve(),
+  refresh: () => Promise.resolve(),
 };
 
 export function useModels(): ModelsApi {

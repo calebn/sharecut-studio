@@ -31,6 +31,7 @@ export function modelsApi(fixture: ModelsFixture): ModelsApi {
       fixture.download ??
       vi.fn(async (): Promise<DownloadOutcome> => ({ kind: "ok" })),
     cancel: vi.fn(async () => undefined),
+    refresh: vi.fn(async () => undefined),
   };
 }
 

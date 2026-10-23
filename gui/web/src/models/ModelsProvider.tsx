@@ -201,6 +201,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     }
   }, [reload]);
 
+  const refresh = useCallback(async () => {
+    await reload();
+  }, [reload]);
+
   const choose = useCallback(
     (variant: string) => {
       dispatch({ type: "variantChosen", variant });
@@ -226,8 +230,9 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       },
       download,
       cancel,
+      refresh,
     }),
-    [state, choose, download, cancel],
+    [state, choose, download, cancel, refresh],
   );
 
   return (
