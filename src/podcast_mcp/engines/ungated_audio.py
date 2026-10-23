@@ -22,6 +22,7 @@ from podcast_mcp.models import ClipJoinMode, EpisodeProject
 from podcast_mcp.util.batch_scope import scoped_by_file
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError, popen, run
 from podcast_mcp.util.tracks import track_audio_path
@@ -179,15 +180,15 @@ def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
 
 def _ffmpeg_build_id() -> tuple[object, ...]:
     pair = resolve_ffmpeg_pair()
-    stat = Path(pair.ffmpeg).stat()
-    return (pair.ffmpeg, pair.version, stat.st_size, stat.st_mtime_ns)
+    return (pair.ffmpeg, pair.version, file_stamp(Path(pair.ffmpeg)).content)
 
 
 def _restart_matches(
     signal: np.ndarray, reference: np.ndarray, grid: int, rate: int, warm_up: int
 ) -> bool:
-    if warm_up > _LOCALITY_RESTART_AT:
-        raise ValueError(f"warm_up {warm_up} reaches before the start of the signal")
+    assert warm_up <= _LOCALITY_RESTART_AT, (
+        f"warm_up {warm_up} reaches before the start of the signal"
+    )
     restarted = _resample_array(signal[_LOCALITY_RESTART_AT - warm_up :], rate)
     return _same_bits(restarted[warm_up // grid :], reference[_LOCALITY_RESTART_AT // grid :])
 

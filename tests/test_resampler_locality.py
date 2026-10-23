@@ -146,7 +146,7 @@ def test_a_warm_up_before_the_start_of_the_signal_is_refused():
     samples = SIGNALS["noise"]
     whole = _resample(samples, 8000)
 
-    with pytest.raises(ValueError, match="before the start"):
+    with pytest.raises(AssertionError, match="before the start"):
         ungated_audio._restart_matches(samples, whole, 6, 8000, 12006)
 
 
