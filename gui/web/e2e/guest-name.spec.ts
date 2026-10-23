@@ -346,3 +346,64 @@ for (const size of [
     });
   });
 }
+
+for (const size of [
+  { width: 667, height: 375 },
+  { width: 568, height: 320 },
+]) {
+  test(`a named guest not typing keeps Play in view and the 35% dock at ${size.width}x${size.height}`, async ({
+    browser,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [
+          {},
+          {
+            viewport: size,
+            reducedMotion: "reduce",
+            hasTouch: true,
+            isMobile: true,
+          },
+        ],
+        async ([host, guest]) => {
+          await openHostShare(host, projectPath);
+          const token = await createReviewShare(host, projectPath, "commenter");
+          await openGuestShare(guest, token);
+          const dock = guest.getByRole("region", { name: "Add a comment" });
+          const field = dock.getByRole("textbox", {
+            name: "Comment",
+            exact: true,
+          });
+          await field.fill("First");
+          await dock.getByRole("button", { name: "Post comment" }).tap();
+          await dock.getByRole("textbox", { name: "Your name" }).fill("Riley");
+          await dock.getByRole("button", { name: "Post comment" }).tap();
+          await expect(dock.locator(".comment-author-line strong")).toHaveText(
+            "Riley",
+          );
+          await expect(field).not.toBeFocused();
+          const shellDock = guest.locator(".mobile-dock");
+          await expect(async () => {
+            const box = await shellDock.boundingBox();
+            expect(box?.height ?? 0).toBeLessThanOrEqual(size.height * 0.35);
+            const play = guest.getByRole("button", {
+              name: "Play",
+              exact: true,
+            });
+            const p = await play.boundingBox();
+            expect(p).not.toBeNull();
+            if (!p || !box) return;
+            expect(p.y).toBeGreaterThanOrEqual(0);
+            expect(p.y + p.height).toBeLessThanOrEqual(box.y + 0.5);
+            const hit = await play.evaluate(
+              (el, { x, y }) => el.contains(document.elementFromPoint(x, y)),
+              { x: p.x + p.width / 2, y: p.y + p.height / 2 },
+            );
+            expect(hit).toBe(true);
+          }).toPass();
+        },
+      );
+    });
+  });
+}
