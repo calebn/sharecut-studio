@@ -286,7 +286,8 @@ function StudioShellAdapter({
         activeTab,
         pipelineRunning,
         splitter: <BottomTabsSplitter />,
-        reopenHandle: <CollapsedDrawerHandle />,
+        reopenHandle:
+          layoutMode === "adaptive" ? null : <CollapsedDrawerHandle />,
         content: panelContent,
         onTabChange: (tab) => runPointerCommand("view.setTab", { tab }),
       }}

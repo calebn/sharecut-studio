@@ -11,11 +11,9 @@ export function LayoutToggle() {
   const effectiveLayout = useEffectiveLayout();
   const maximized = effectiveLayout !== "default";
   const commandId = maximized ? "layout.default" : "layout.timeline";
+  const showPanels = layoutMode === "adaptive" && maximized;
   // The name says what a click does, so no aria-pressed (it would contradict it).
-  const label =
-    layoutMode === "adaptive" && maximized
-      ? "Show editor panels"
-      : COMMANDS[commandId].label;
+  const label = showPanels ? "Show editor panels" : COMMANDS[commandId].label;
   return (
     <CommandButton
       bare
@@ -25,7 +23,11 @@ export function LayoutToggle() {
       aria-keyshortcuts={ariaKeyShortcutsFor(commandId)}
       title={titleWithShortcut(label, commandId)}
     >
-      <Icon name={maximized ? "restore" : "maximize"} />
+      {showPanels ? (
+        "Panels"
+      ) : (
+        <Icon name={maximized ? "restore" : "maximize"} />
+      )}
     </CommandButton>
   );
 }

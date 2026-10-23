@@ -1,11 +1,11 @@
 import type { DragEventHandler, ReactNode, Ref, RefCallback } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab, studioTabIds } from "../presence/followSync";
+import type { EffectiveLayoutMode } from "../state/layoutPresentation";
 import type { PresenceTab } from "../types/session";
 import { BottomSheet } from "../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../ui/compactSheet";
 import { Tab, TabList } from "../ui/Tabs";
-import type { EffectiveLayoutMode } from "./layoutPresentation";
 import {
   INSPECTOR_COLUMN_SHELL_CLASS,
   type SheetPresentation,

@@ -1,8 +1,4 @@
 import {
-  readShortTouchLandscape,
-  resolveLayoutMode,
-} from "../layout/layoutPresentation";
-import {
   canApplyPass12,
   canComment,
   canEditEnvelopes,
@@ -13,6 +9,10 @@ import {
   canSuggestStructural,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import {
+  readShortTouchLandscape,
+  resolveLayoutMode,
+} from "../state/layoutPresentation";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
