@@ -55,18 +55,21 @@ for (const phone of PHONES) {
     const waive = banner.getByRole("button", { name: "Waive with reason" });
     await expect(waive).toBeVisible();
     await expect(waive).toBeInViewport();
-    const nav = await page
-      .getByRole("navigation", { name: "Primary" })
-      .boundingBox();
-    const field = await banner.getByLabel("Waiver reason").boundingBox();
-    const button = await waive.boundingBox();
-    expect(nav && field && button).toBeTruthy();
-    expect((field?.y ?? 0) + (field?.height ?? 0)).toBeLessThanOrEqual(
-      nav?.y ?? 0,
-    );
-    expect((button?.y ?? 0) + (button?.height ?? 0)).toBeLessThanOrEqual(
-      nav?.y ?? 0,
-    );
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    const field = banner.getByLabel("Waiver reason");
+    await expect(field).toBeInViewport();
+    await expect
+      .poll(async () => {
+        const navBox = await nav.boundingBox();
+        const fieldBox = await field.boundingBox();
+        const buttonBox = await waive.boundingBox();
+        if (!navBox || !fieldBox || !buttonBox) return false;
+        return (
+          fieldBox.y + fieldBox.height <= navBox.y &&
+          buttonBox.y + buttonBox.height <= navBox.y
+        );
+      })
+      .toBe(true);
     await expect(banner).not.toContainText(
       /podcast transcript|ApproveEdits|refine-waive|transcript_refine/,
     );
