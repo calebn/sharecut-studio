@@ -1,5 +1,10 @@
 import { applySuggestedActions, approveEdits, rejectEdits } from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
+import {
+  activateDocumentScope,
+  type DocumentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
 import { askConfirm } from "../feedback/ask";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -49,13 +54,16 @@ function publishApplyingSuggested(operation: ApplyingSuggested | null): void {
   for (const listener of [...applyListeners]) listener();
 }
 
-type ApplyScope = Pick<ApplyingSuggested, "projectPath" | "projectEpoch">;
+type ApplyScope = Pick<ApplyingSuggested, "projectPath" | "projectEpoch"> & {
+  document: DocumentScope;
+};
 
 function isCurrentApplyScope(scope: ApplyScope): boolean {
   const current = useDawStore.getState();
   return (
     current.projectPath === scope.projectPath &&
-    current.projectEpoch === scope.projectEpoch
+    current.projectEpoch === scope.projectEpoch &&
+    isCurrentDocumentScope(scope.document)
   );
 }
 
@@ -183,7 +191,8 @@ async function runApplySuggested(
       };
     }
     const operation: ApplyingSuggested = {
-      ...scope,
+      projectPath: scope.projectPath,
+      projectEpoch: scope.projectEpoch,
       ids: [...ids],
       startedAtSec: Date.now() / 1000,
     };
@@ -313,7 +322,11 @@ export function registerTightenCommands(): void {
     if (!s.project) {
       return { status: "disabled", reason: "No project" };
     }
-    const scope = { projectPath: s.projectPath, projectEpoch: s.projectEpoch };
+    const scope = {
+      projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
+      document: activateDocumentScope(s.projectPath),
+    };
     const { listedIds } = resolveApplyAllArgs(args);
     const hits = hitsForApplyAll(s.project, listedIds);
     if (hits.length === 0) {
