@@ -391,6 +391,67 @@ describe("queued command identity and landed history", () => {
     ]);
   });
 
+  describe("a history command the server answered with a failure", () => {
+    const fail = (status: number, code: string, detail: string) =>
+      new Response(JSON.stringify({ detail }), {
+        status,
+        headers: { "X-Sharecut-Error-Code": code },
+      });
+    const outcomeOf = () => {
+      const [, , outcome] = settleHostCommandOutcome.mock.calls.at(-1) ?? [];
+      return outcome;
+    };
+
+    it.each([
+      ["project_unreadable", 500, "damaged"],
+      ["project_not_found", 404, "missing"],
+    ])(
+      "turns a %s answer into a save-blocking refusal with plain words",
+      async (code, status, word) => {
+        const { execute } = await laggingHistory();
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async () => fail(status, code, "raw /secret/path text")),
+        );
+        await expect(execute("history.undo")).rejects.toThrow(word);
+        expect(outcomeOf()).toMatchObject({
+          kind: "refused",
+          blocksSave: true,
+        });
+        expect(outcomeOf().reason).not.toContain("/secret/path");
+      },
+    );
+
+    it("keeps the server's words for a full disk and asks to check History", async () => {
+      const { execute } = await laggingHistory();
+      const words =
+        "The disk is full, so the project could not be written. Free some space, then try again.";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => fail(507, "project_write_failed", words)),
+      );
+      await expect(execute("history.undo")).rejects.toThrow(
+        `${words} Check History before trying again.`,
+      );
+      expect(outcomeOf()).toMatchObject({
+        kind: "unknown",
+        recovery: "inspect-history",
+        reason: `${words} Check History before trying again.`,
+      });
+    });
+
+    it("still records a plain 400 as a refusal", async () => {
+      const { execute } = await laggingHistory();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => fail(400, "invalid_request", "Nothing to undo")),
+      );
+      await expect(execute("history.undo")).rejects.toThrow("Nothing to undo");
+      expect(outcomeOf()).toMatchObject({ kind: "refused" });
+      expect(outcomeOf().blocksSave).toBeUndefined();
+    });
+  });
+
   it("records a replay's landed head while posting its original identity", async () => {
     const fetchSpy = vi.fn(
       async () =>

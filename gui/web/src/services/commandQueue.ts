@@ -182,6 +182,51 @@ async function clearBlockingOutcomes(projectPath: string): Promise<void> {
   }
 }
 
+const HISTORY_UNKNOWN_REASON =
+  "Undo or Redo may have been applied. Check History before trying again.";
+
+/** Settle a history command the server answered with a failure, and return what to throw. */
+async function settleHistoryFailure(
+  projectPath: string,
+  cmd: QueuedCommand,
+  reply: Extract<DocumentCommandReply, { ok: false }>,
+): Promise<Error> {
+  const { failure, status } = reply;
+  const unavailable = projectUnavailableReason(
+    failure,
+    isShareProjectKey(projectPath),
+  );
+  if (unavailable) {
+    await settleCommandOutcome(
+      projectPath,
+      cmd,
+      blockingRefusal(cmd, unavailable),
+      true,
+    );
+    return new Error(unavailable);
+  }
+  const written = writeFailureReason(failure);
+  if (written || status >= 500 || isRetryLater(failure)) {
+    const reason = written
+      ? `${written} Check History before trying again.`
+      : HISTORY_UNKNOWN_REASON;
+    await settleCommandOutcome(
+      projectPath,
+      cmd,
+      commandOutcome(cmd, "unknown", reason),
+      true,
+    );
+    return new Error(reason);
+  }
+  await settleCommandOutcome(
+    projectPath,
+    cmd,
+    commandOutcome(cmd, "refused", failure.message),
+    true,
+  );
+  return failure;
+}
+
 export async function reconcileCommandBeforeReplay(
   projectPath: string,
   command: QueuedCommand,
@@ -484,28 +529,7 @@ async function submitLiveHistoryIntent(
         );
       }
       if (!reply.ok) {
-        if (reply.status >= 500 || isRetryLater(reply.failure)) {
-          await settleCommandOutcome(
-            projectPath,
-            cmd,
-            commandOutcome(
-              cmd,
-              "unknown",
-              "Undo or Redo may have been applied. Check History before trying again.",
-            ),
-            true,
-          );
-          throw new Error(
-            "Undo or Redo may have been applied. Check History before trying again.",
-          );
-        }
-        await settleCommandOutcome(
-          projectPath,
-          cmd,
-          commandOutcome(cmd, "refused", reply.failure.message),
-          true,
-        );
-        throw reply.failure;
+        throw await settleHistoryFailure(projectPath, cmd, reply);
       }
       await settleCommandOutcome(projectPath, cmd, null, true);
       const data = reply.data;
@@ -566,28 +590,7 @@ async function submitLiveHistoryIntent(
       );
     }
     if (!reply.ok) {
-      if (reply.status >= 500 || isRetryLater(reply.failure)) {
-        await settleCommandOutcome(
-          projectPath,
-          cmd,
-          commandOutcome(
-            cmd,
-            "unknown",
-            "Undo or Redo may have been applied. Check History before trying again.",
-          ),
-          true,
-        );
-        throw new Error(
-          "Undo or Redo may have been applied. Check History before trying again.",
-        );
-      }
-      await settleCommandOutcome(
-        projectPath,
-        cmd,
-        commandOutcome(cmd, "refused", reply.failure.message),
-        true,
-      );
-      throw reply.failure;
+      throw await settleHistoryFailure(projectPath, cmd, reply);
     }
     await settleCommandOutcome(projectPath, cmd, null, true);
     if (useDawStore.getState().projectPath === projectPath) {
