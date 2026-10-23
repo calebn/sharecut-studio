@@ -569,7 +569,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
-- 2026-10-23 Tighten's confirmed **Apply suggested actions** shows an in-place **Applying N suggested actions…** line, a pulse and elapsed time after two seconds. Apply is busy and disabled until the command returns; submitted rows say **Applying…**. The result keeps its toast and Undo. A queued outcome leaves **Still sending**, without claiming the server applied it (#2165).
+- 2026-10-23 Tighten's confirmed **Apply suggested actions** shows an in-place **Applying N suggested actions…** line, a pulse and elapsed time after two seconds. Apply is busy and disabled until the command returns. Submitted rows say **Applying…** where the Status column is visible; on phones the working line and disabled Apply and Skip controls show the work in progress. The result keeps its toast and Undo. A queued outcome leaves **Still sending**, without claiming the server applied it (#2165).
 
 - 2026-10-22 — Added "Edit marker" and "Edit group" (#2076): joins show as a typed symbol at any zoom, and joins that crowd each other fold into a count that zooms in on tap.
 - 2026-09-21 — Initial draft from the 6-surface interaction audit.
