@@ -225,6 +225,37 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
   });
 });
 
+describe("toastDockBottomPx on a window too short for the fields (#2221)", () => {
+  const short = {
+    viewportHeight: 300,
+    ceilingPx: 40,
+    floorTopsPx: [250],
+    restTopPx: 250,
+    toastHeightPx: 56,
+    gapPx: 8,
+  };
+
+  it("sits flush with the top edge when that clears a field the gap would not", () => {
+    expect(
+      toastDockBottomPx({ ...short, protectPx: [{ top: 60, bottom: 250 }] }),
+    ).toBe(300 - 56);
+  });
+
+  it("covers as little of the field as it can when no spot clears it", () => {
+    expect(
+      toastDockBottomPx({ ...short, protectPx: [{ top: 20, bottom: 250 }] }),
+    ).toBe(300 - 56);
+  });
+
+  it("never trades the field for the mode nav when nothing clears it", () => {
+    const bottom = toastDockBottomPx({
+      ...short,
+      protectPx: [{ top: 0, bottom: 240 }],
+    });
+    expect(300 - bottom).toBeLessThanOrEqual(250);
+  });
+});
+
 describe("useToastDock", () => {
   const boxes: Element[] = [];
   afterEach(() => {
@@ -232,16 +263,22 @@ describe("useToastDock", () => {
     delete document.documentElement.dataset.shell;
   });
 
-  function box(className: string, top: number, bottom: number): HTMLElement {
+  function box(
+    className: string,
+    top: number,
+    bottom: number,
+    left = 0,
+    right = 390,
+  ): HTMLElement {
     const el = document.createElement("div");
     el.className = className;
     el.getBoundingClientRect = () =>
       ({
         top,
         bottom,
-        left: 0,
-        right: 390,
-        width: 390,
+        left,
+        right,
+        width: right - left,
         height: bottom - top,
       }) as DOMRect;
     document.body.append(el);
@@ -326,7 +363,14 @@ describe("useToastDock", () => {
     const region = document.createElement("div");
     const card = document.createElement("div");
     card.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+      ({
+        top: 0,
+        bottom: 62,
+        height: 62,
+        left: 64,
+        right: 326,
+        width: 262,
+      }) as DOMRect;
     region.append(card);
     document.body.append(region);
     boxes.push(region);
@@ -361,5 +405,23 @@ describe("useToastDock", () => {
     panel.style.overflowY = "auto";
     panel.append(box("comment-compose", H - 60, H - 10));
     expect(readBottom()).toBe(28 + 8);
+  });
+
+  it("stays at rest for a composer beside the toast, not under it (#2221)", () => {
+    document.documentElement.dataset.shell = "tablet";
+    const H = window.innerHeight;
+    const { readBottom } = mountRegion();
+    box("status-bar", H - 28, H);
+    box("comment-compose", H - 300, H - 36, 330, 390);
+    expect(readBottom()).toBe(28 + 8);
+  });
+
+  it("still moves above a composer that overlaps the toast's span (#2221)", () => {
+    document.documentElement.dataset.shell = "tablet";
+    const H = window.innerHeight;
+    const { readBottom } = mountRegion();
+    box("status-bar", H - 28, H);
+    box("comment-compose", H - 84, H - 36, 300, 390);
+    expect(readBottom()).toBe(H - (H - 84) + 8);
   });
 });

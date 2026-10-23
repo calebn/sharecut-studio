@@ -13,10 +13,12 @@ const PHONES = [
   { name: "landscape", width: 844, height: 390 },
   { name: "small", width: 360, height: 640 },
   { name: "keyboard-open", width: 390, height: 340 },
+  { name: "shortest", width: 320, height: 300 },
 ] as const;
 
 const COMPOSER =
   ".comment-compose, .comment-author-line, .comment-author-edit, .comment-name-step";
+const PLAY_ROW = ".listen-hero-controls";
 
 async function settle(page: Page) {
   await page.evaluate(
@@ -53,6 +55,38 @@ async function overlaps(page: Page): Promise<string[]> {
     }
     return hits;
   }, COMPOSER);
+}
+
+/**
+ * An oracle that shares no arithmetic with the dock: hide the toast, hit-test a
+ * grid over its box, and report each point where the browser finds a comment
+ * field or the Play row underneath. Clipped and scrolled-away parts of a field
+ * never hit, so only what a finger could reach counts.
+ */
+async function coveredControls(page: Page): Promise<string[]> {
+  return page.evaluate(
+    ({ composer, playRow }) => {
+      const toast = document.querySelector<HTMLElement>(
+        ".ui-toast-region--app .ui-toast",
+      );
+      if (!toast) return ["no toast"];
+      const box = toast.getBoundingClientRect();
+      toast.style.visibility = "hidden";
+      const covered = new Set<string>();
+      for (let x = box.left + 1; x < box.right; x += 6) {
+        for (let y = box.top + 1; y < box.bottom; y += 6) {
+          if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
+          const under = document
+            .elementFromPoint(x, y)
+            ?.closest(`${composer}, ${playRow}`);
+          if (under) covered.add(String(under.className));
+        }
+      }
+      toast.style.visibility = "";
+      return [...covered];
+    },
+    { composer: COMPOSER, playRow: PLAY_ROW },
+  );
 }
 
 for (const { cell: phone, theme } of withAppearance(PHONES)) {
@@ -106,6 +140,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           await settle(guest);
           await shot("posted");
           expect(await overlaps(guest)).toEqual([]);
+          expect(await coveredControls(guest)).toEqual([]);
 
           await field.tap();
           await expect(field).toBeFocused();
@@ -113,6 +148,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           await settle(guest);
           await shot("posted-focused");
           expect(await overlaps(guest)).toEqual([]);
+          expect(await coveredControls(guest)).toEqual([]);
 
           await dock
             .getByRole("button", { name: "Change your comment name" })
@@ -124,6 +160,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           await settle(guest);
           await shot("changing-name");
           expect(await overlaps(guest)).toEqual([]);
+          expect(await coveredControls(guest)).toEqual([]);
         },
       );
     });
