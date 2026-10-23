@@ -16,6 +16,7 @@ shorter than the lag, so at the same instant one track is silent where the other
 from __future__ import annotations
 
 import shutil
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -36,11 +37,18 @@ from podcast_mcp.models import (
     Clip,
     EpisodeProject,
     MediaAsset,
+    ProcessingChain,
+    ProcessingEffect,
     Track,
     TrackRole,
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.project.io import resolve_project_path
+from podcast_mcp.project.store import ProjectStore
+from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.util import project_state
+from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.project_state import project_state_lock
 
 QUIET = (99.0, 131.0)
@@ -352,3 +360,63 @@ def test_a_worker_inside_a_mutation_measures_a_gated_track_without_the_project_l
         lag = pool.submit(lags.sec, "audra", "caleb", defaults=load_defaults()).result(timeout=30)
 
     assert lag == pytest.approx(0.25, abs=0.02)
+
+
+class _BoundedRLock:
+    """The project lock, except that a wait over ``LOCK_WAIT_SEC`` is recorded and raised, not endless."""
+
+    LOCK_WAIT_SEC = 10
+
+    def __init__(self, stalled: list[str]) -> None:
+        self._lock = threading.RLock()
+        self._stalled = stalled
+
+    def __enter__(self) -> None:
+        if not self._lock.acquire(timeout=self.LOCK_WAIT_SEC):
+            self._stalled.append(threading.current_thread().name)
+            raise TimeoutError("waited on the project lock held by the mutating thread")
+
+    def __exit__(self, *_exc: object) -> None:
+        self._lock.release()
+
+
+def test_proposing_inside_a_mutation_finishes_on_a_project_with_active_effects_chains(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pool worker measuring the copy lag reads the chained tracks' evidence while the mutating
+    thread holds the project lock; it must not wait for that lock (#2214)."""
+    stalled: list[str] = []
+    monkeypatch.setattr(project_state, "_locks", KeyedLocks(lambda: _BoundedRLock(stalled)))
+    project = _project(tmp_path, Scene(), owner="audra")
+    project.processing_chains = [
+        ProcessingChain(
+            track_id=track.id,
+            effects=[
+                ProcessingEffect(effect="acompressor", params={"threshold_db": -24, "ratio": 4})
+            ],
+        )
+        for track in project.tracks
+    ]
+    path = resolve_project_path(tmp_path)
+    ProjectStore(path).commit(project)
+    workspace = ProjectWorkspace.open(path)
+    defaults = {"tighten": {"edit_mode": "mute", "filler_words": ["uh"], "discourse_markers": []}}
+    outcome: list[object] = []
+
+    def propose(live: EpisodeProject) -> None:
+        with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
+            outcome.append(propose_tighten_edits(live, defaults, intensity="aggressive"))
+
+    def mutate() -> None:
+        try:
+            workspace.mutate("before propose", "after propose", propose)
+        except BaseException as exc:
+            outcome.append(exc)
+
+    runner = threading.Thread(target=mutate, daemon=True)
+    runner.start()
+    runner.join(timeout=120)
+
+    assert not runner.is_alive()
+    assert stalled == []
+    assert [type(item).__name__ for item in outcome] == ["TightenProposal"]
