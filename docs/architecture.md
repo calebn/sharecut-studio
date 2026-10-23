@@ -37,21 +37,9 @@ Each layer owns one concern. Per-module ownership notes, caches and the FFmpeg p
 
 ### Durable storage
 
-Host-local durable stores beyond the episode JSON (session sync sqlite, share
-token registry, review sidecars) are cataloged in [persistence.md](persistence.md).
-Share token algorithm (coolname, active + cooldown pools): [share-tokens.md](share-tokens.md).
-**Extend an existing store** instead of inventing a parallel JSON index or DB.
-Recording sessions reuse the share registry (`kind`) and prefixed session-sync
-sqlite tables (`record_*`) rather than a new plane — see [recording-session.md](recording-session.md).
-`TimelineService.list_clips` acquires the host-local recording-key secret from the
-share registry once per call; `edits.timeline_ops.list_clips` passes it to pure
-HMAC derivation in `edits.clips_ops.recording_key`. Every SQLite store (session sync, share identity, share registry, relay reports) opens through
-`util/sqlite_open.open_sqlite`: WAL by way of the bounded `util/sqlite_wal.ensure_wal`
-transition, then a busy timeout (5 s unless the store passes another); persistent owners
-use its per-connection lifetime cleanup as described in [persistence.md](persistence.md).
-Session setup retains its per-path locks and timing controls. A failed registry secret transaction closes
-its connection. The process-wide getter and each registry operation recover from
-durable state before token lookup, including directly injected registry owners.
+Host-local durable stores beyond episode JSON (session sync sqlite, share-token registry, review sidecars) are cataloged in [persistence.md](persistence.md). [Share tokens](share-tokens.md) describes coolname generation and active/cooldown pools. Extend an existing store instead of adding a parallel JSON index or DB. Recording sessions reuse the share registry (`kind`) and prefixed session-sync tables (`record_*`), as described in [recording-session.md](recording-session.md). `TimelineService.list_clips` acquires the host-local recording-key secret from the share registry once per call; `edits.timeline_ops.list_clips` passes it to pure HMAC derivation in `edits.clips_ops.recording_key`.
+
+Every SQLite store (session sync, share identity, share registry, relay reports) opens through `util/sqlite_open.open_sqlite`. It uses the bounded `util/sqlite_wal.ensure_wal` transition, then a busy timeout (5 s unless overridden). Persistent owners use its per-connection lifetime cleanup described in [persistence.md](persistence.md). Session setup retains its per-path locks and timing controls. Failed registry secret transactions close their connections. The process-wide getter and each registry operation, including directly injected owners, recover from durable state before token lookup.
 
 ### Progress
 
@@ -328,30 +316,11 @@ than its timeline after applied edits; an overlong stem is stale.
 
 ### Audio extent admission
 
-`FFmpegEngine.probe` reports where the selected first audio stream ends on the
-container timeline. A leading audio gap counts after subtracting the container
-origin. `AudioProbe.duration_estimated` describes uncertainty in that endpoint.
-Multiple audio streams alone do not make the selected first stream uncertain.
-Source and media duration writers, source edits, and implicit full-span render
-bounds use `AudioProbe.require_duration_sec()` before storing or trimming with an
-extent. This rejects uncertain, nonpositive,
-non-finite, and missing-audio results. Upload finalization also limits known
-extents to seven days and removes rejected files.
+`FFmpegEngine.probe` reports the selected first audio stream's endpoint on the container timeline, including leading gaps after subtracting the container origin. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.
 
-Pipeline ingest admits every track before updating any media metadata or creating
-dialogue clips. Strip silence admits the source extent before rebuilding clips.
-Full-track and segment rendering also require a known extent when they construct
-an implicit full-span clip. Refusal uses `invalid_audio` and leaves the project
-and existing render output unchanged.
+`AudioProbe.require_duration_sec()` rejects uncertain, nonpositive, non-finite, and missing-audio results before source and media duration writes, source edits, or implicit full-span render bounds. Pipeline ingest preflights every track before metadata updates or dialogue clip creation. Strip silence admits extent before rebuilding clips. Full-track and segment renderers admit implicit clip extent before rendering. These boundaries return `invalid_audio` without changing project state or existing output. Upload finalization additionally caps known extents at seven days and removes rejected files.
 
-Packet recovery scans Ogg, MPEG-TS, and other containers whose declarations
-cannot establish the extent. It reads bounded records under one 120-second
-deadline, discards stderr, and kills and reaps the child on an incomplete scan.
-Backward or repeated packet timestamps leave the result uncertain. A complete
-scan can verify a bitrate-derived header estimate. The separate
-`audio_duration_sec` declaration remains available for PCM shortfall checks
-unless bitrate estimation invalidated it. Declaration consumers still require
-exactly one audio stream and a known extent.
+Packet recovery scans Ogg, MPEG-TS, and other containers whose declarations cannot establish extent. It reads bounded records under one 120-second deadline, discards stderr, and kills and reaps the child on incomplete scans. Backward or repeated timestamps remain uncertain. A complete scan can verify a bitrate-derived estimate. `audio_duration_sec` remains available for PCM shortfall checks unless bitrate estimation invalidates it. Declaration consumers require exactly one audio stream and known extent.
 
 ### Derived-value caches
 
@@ -363,13 +332,7 @@ Three idioms cache a value derived from project data; pick by how the input chan
 
 Never key a cache on object identity (`id()`) of mutable project data.
 
-The engine's packet-scan LRU retains at most 1024 successful endpoints. Its key
-includes canonical media path and file revision, admitted FFprobe path and
-binary revision, and the untrusted-input flag. A trusted scan cannot answer an
-untrusted request. Changed revisions during a scan and failed scans are retried
-on later calls. This cache stores only immutable floats. The metadata cache in
-`engines/media_probe.py` separately returns copies of complete probe results.
-Same-stat replacements remain outside these revision caches' guarantees.
+The packet-scan LRU holds at most 1024 successful immutable float endpoints, keyed by canonical media path and revision, admitted FFprobe path and revision, and untrusted-input flag. Trusted scans cannot answer untrusted requests. Failed scans and revisions changed during scanning are retried on later calls. The separate `engines/media_probe.py` metadata cache returns copies of complete results. Same-stat replacements remain outside both caches' guarantees.
 
 A process-wide memo that outlives one call and is not one of these three (an admitted binary pair, a parsed defaults file, a probe answer, the waveform index, pyramid header and PCM block LRUs) is a module-level `util.bounded_cache.BoundedCache`: a hard entry bound, its own reentrant lock (hold `cache.lock` across get, compute and put for single flight) and `clear()`. Register it in `tests/process_caches.py` ([testing.md § Host config isolation](testing.md#host-config-isolation)). Registries of live objects stay as they are: the weak-value sync store cache (`session_sync/log.py`, persistence.md) is lifetime management, not a value cache, and `SnapshotCache` bounds by bytes as well as entries.
 
