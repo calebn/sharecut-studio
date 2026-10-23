@@ -268,7 +268,7 @@ describe("SaveStateDot", () => {
     banner.remove();
   });
 
-  it("fails on a refused edit and the Needs attention banner gives the reason", async () => {
+  it("stays saved on a refused edit and the Needs attention banner gives the reason", async () => {
     offlineStore.loadHostConflicts.mockResolvedValue([
       offlineConflict({ reason: "The clip moved" }),
     ]);
@@ -279,16 +279,14 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    const dot = screen.getByRole("img", {
-      name: "Save failed · The clip moved. Edit and submit again.",
-    });
-    expect(dot).toHaveAttribute("data-save-state", "failed");
+    const dot = screen.getByRole("img", { name: "Saved to project" });
+    expect(dot).toHaveAttribute("data-save-state", "saved");
     const banner = screen.getByRole("region", { name: /Needs attention/ });
     openDetails();
     expect(banner).toHaveTextContent("The clip moved");
   });
 
-  it("uses a newer volatile outcome as the latest Save failed reason", async () => {
+  it("stays saved when a newer volatile refusal replaces an unknown outcome", async () => {
     const path = "/tmp/save-state-newest-volatile.json";
     const earlier = offlineConflict({
       kind: "unknown",
@@ -316,102 +314,20 @@ describe("SaveStateDot", () => {
     act(() => recordVolatileOutcome(path, replacement));
 
     expect(
-      screen.getByRole("img", {
-        name: "Save failed · The newer result was refused. Edit and submit again.",
-      }),
+      screen.getByRole("img", { name: "Saved to project" }),
     ).toBeInTheDocument();
   });
 
-  it("reveals a dismissed refusal from the failed dot and focuses its explanation", async () => {
+  it("stays saved after a refusal is dismissed", async () => {
     const refused = offlineConflict({ reason: "The clip moved." });
-    const dismissed = { ...refused, dismissed: true };
-    offlineStore.loadHostCommandCount.mockResolvedValue(1);
-    offlineStore.loadHostConflicts.mockResolvedValue([refused]);
-    offlineStore.dismissHostConflicts.mockResolvedValue({
-      pending: 0,
-      conflicts: [dismissed],
-    });
-    const rendered = render(
-      <>
-        <SaveStateDot />
-        <GuestAttentionBanner />
-      </>,
-    );
-    await settle();
-
-    fireEvent.click(getActionButton("Dismiss all"));
+    offlineStore.loadHostConflicts.mockResolvedValue([
+      { ...refused, dismissed: true },
+    ]);
+    render(<SaveStateDot />);
     await settle();
     expect(
-      screen.queryByRole("region", { name: /Needs attention/ }),
-    ).not.toBeInTheDocument();
-    rendered.unmount();
-    offlineStore.loadHostConflicts.mockResolvedValue([dismissed]);
-    offlineStore.loadHostCommandCount.mockResolvedValue(0);
-    render(
-      <>
-        <SaveStateDot />
-        <GuestAttentionBanner />
-      </>,
-    );
-    await settle();
-    expect(
-      screen.queryByRole("region", { name: /Needs attention/ }),
-    ).not.toBeInTheDocument();
-    const dot = screen.getByRole("button", {
-      name: "Save failed · The clip moved. Edit and submit again.",
-    });
-    fireEvent.click(dot);
-
-    const banner = screen.getByRole("region", { name: /Needs attention/ });
-    expect(banner).toHaveTextContent("The clip moved.");
-    expect(banner).toHaveFocus();
-    const summary = banner.querySelector("summary")!;
-    vi.useRealTimers();
-    const user = userEvent.setup();
-    await user.click(summary);
-    expect(summary.closest("details")).not.toHaveAttribute("open");
-    await user.click(dot);
-    expect(banner).toHaveFocus();
-    expect(summary.closest("details")).toHaveAttribute("open");
-    expect(
-      screen.queryByRole("button", { name: "Dismiss all" }),
-    ).not.toBeInTheDocument();
-    expect(offlineStore.dismissHostConflicts).toHaveBeenCalledTimes(1);
-    expect(drain.requestHostDrain).not.toHaveBeenCalled();
-  });
-
-  it("reveals a dismissed refusal when Save failed is activated with Enter", async () => {
-    const refused = offlineConflict({
-      reason: "The server rejected this edit.",
-    });
-    offlineStore.loadHostCommandCount.mockResolvedValue(1);
-    offlineStore.loadHostConflicts.mockResolvedValue([refused]);
-    offlineStore.dismissHostConflicts.mockResolvedValue({
-      pending: 0,
-      conflicts: [{ ...refused, dismissed: true }],
-    });
-    render(
-      <>
-        <SaveStateDot />
-        <GuestAttentionBanner />
-      </>,
-    );
-    await settle();
-    fireEvent.click(getActionButton("Dismiss all"));
-    await settle();
-
-    const dot = screen.getByRole("button", {
-      name: "Save failed · The server rejected this edit. Edit and submit again.",
-    });
-    dot.focus();
-    vi.useRealTimers();
-    await userEvent.setup().keyboard("{Enter}");
-
-    const banner = screen.getByRole("region", { name: /Needs attention/ });
-    expect(banner).toHaveTextContent("The server rejected this edit.");
-    expect(banner).toHaveFocus();
-    expect(banner.querySelector("details")).toHaveAttribute("open");
-    expect(banner).toHaveTextContent("Edit the change and submit it again.");
+      screen.getByRole("img", { name: "Saved to project" }),
+    ).toBeInTheDocument();
   });
 
   it("reveals dismissed History as inspect-only and keeps its queue reservation", async () => {
@@ -578,9 +494,7 @@ describe("SaveStateDot", () => {
 
     expect(offlineStore.loadHostAttention).toHaveBeenCalledTimes(2);
     expect(
-      screen.getByRole("button", {
-        name: "Save failed · The clip moved. Edit and submit again.",
-      }),
+      screen.getByRole("img", { name: "Saved to project" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("img", { name: "Saving to project…" }),
