@@ -47,7 +47,10 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
       job={chipJob}
       jobAction={
         guestShare ? null : (
-          <JobModelDownload job={chipJob} className="status-chip" />
+          <JobModelDownload
+            job={chipJob}
+            className="status-chip status-chip-action"
+          />
         )
       }
       runningCount={activityRunningCount}

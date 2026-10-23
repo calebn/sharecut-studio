@@ -1791,10 +1791,12 @@ describe("PipelinePanel", () => {
       only_step: null,
       kind: "pipeline",
       status: "error",
-      message: null,
       current: null,
       total: null,
-      error: "needs Noise reduction (RNNoise) (~0.3 MB)",
+      error:
+        "needs Noise reduction (RNNoise) (~0.3 MB); run `podcast bootstrap --component rnnoise`",
+      message:
+        "needs Noise reduction (RNNoise) (~0.3 MB); run `podcast bootstrap --component rnnoise`",
       error_code: "model_needed",
       error_model: {
         id: "rnnoise",
@@ -1819,6 +1821,12 @@ describe("PipelinePanel", () => {
       }),
     ).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("main").textContent).toContain(
+      "Noise reduction (RNNoise) is not downloaded.",
+    );
+    expect(screen.getByRole("main").textContent).not.toMatch(
+      /podcast bootstrap/,
+    );
   });
 
   it("shows alignment leave-gate waiting copy", async () => {

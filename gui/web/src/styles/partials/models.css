@@ -179,3 +179,19 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
 }
+
+.pipeline-model-download {
+  align-self: flex-start;
+}
+
+/* A short landscape screen keeps the gate's choices in view: the purpose line
+   repeats the sentence above the row, and the choices share one line. */
+@media (max-height: 30rem) {
+  .model-gate-body .model-row-purpose {
+    display: none;
+  }
+
+  .model-gate-actions .ui-control:not(.linkish) {
+    flex: 0 1 auto;
+  }
+}

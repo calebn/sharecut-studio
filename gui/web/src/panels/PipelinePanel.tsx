@@ -41,7 +41,11 @@ import type {
 } from "../types/pipeline";
 import { Button, Dialog, EmptyState, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
-import { errorMessage } from "../utils/apiError";
+import {
+  errorMessage,
+  jobErrorText,
+  modelNeededOfJob,
+} from "../utils/apiError";
 import { getByPath, setByPath } from "../utils/configPath";
 import {
   isAnalyzeJob,
@@ -1321,7 +1325,9 @@ export function PipelinePanel() {
               {job.message ? (
                 <span className="pipeline-headline">
                   {job.status === "error"
-                    ? plainError(job.message)
+                    ? modelNeededOfJob(job)
+                      ? jobErrorText(job)
+                      : plainError(job.message)
                     : job.message}
                 </span>
               ) : null}
@@ -1358,8 +1364,12 @@ export function PipelinePanel() {
               <div className="pipeline-bar-fill" style={{ width: `${pct}%` }} />
             </div>
           ) : null}
-          <InlineError origin="state" message={job.error} />
-          <JobModelDownload job={job} />
+          <InlineError origin="state" message={jobErrorText(job)} />
+          <JobModelDownload
+            job={job}
+            variant="primary"
+            className="pipeline-model-download"
+          />
           {analyzeJob == null && (
             <table className="pipeline-steps">
               <thead>
