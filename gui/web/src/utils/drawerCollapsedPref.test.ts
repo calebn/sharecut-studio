@@ -44,6 +44,13 @@ describe("drawer collapsed preference", () => {
     expect(() => writeDrawerCollapsed(false)).not.toThrow();
   });
 
+  it("starts without a saved choice in adaptive layout without saving a collapse", async () => {
+    vi.resetModules();
+    const { useDawStore } = await import("../state/dawStore");
+    expect(useDawStore.getState().layoutMode).toBe("adaptive");
+    expect(localStorage.getItem(DRAWER_COLLAPSED_STORAGE_KEY)).toBeNull();
+  });
+
   it("opens a new session in the timeline layout when it was left collapsed", async () => {
     localStorage.setItem(DRAWER_COLLAPSED_STORAGE_KEY, "1");
     vi.resetModules();
