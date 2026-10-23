@@ -419,3 +419,125 @@ for (const size of [
     });
   });
 }
+
+const DOCK_SIZES = [
+  { width: 390, height: 340 },
+  { width: 320, height: 300 },
+  { width: 667, height: 375 },
+  { width: 568, height: 320 },
+  { width: 320, height: 568 },
+] as const;
+
+async function withNamedGuest(
+  browser: import("@playwright/test").Browser,
+  size: { width: number; height: number },
+  name: string,
+  run: (guest: Page, dock: Locator, field: Locator) => Promise<void>,
+) {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {},
+        {
+          viewport: size,
+          reducedMotion: "reduce",
+          hasTouch: true,
+          isMobile: true,
+        },
+      ],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "commenter");
+        await openGuestShare(guest, token);
+        const dock = guest.getByRole("region", { name: "Add a comment" });
+        const field = dock.getByRole("textbox", {
+          name: "Comment",
+          exact: true,
+        });
+        await field.fill("First");
+        await dock.getByRole("button", { name: "Post comment" }).tap();
+        await dock.getByRole("textbox", { name: "Your name" }).fill(name);
+        await dock.getByRole("button", { name: "Post comment" }).tap();
+        await expect(dock.locator(".comment-author-line strong")).toHaveText(
+          name,
+        );
+        await run(guest, dock, field);
+      },
+    );
+  });
+}
+
+async function tapCentre(guest: Page, control: Locator) {
+  const box = await control.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  await guest.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+for (const size of DOCK_SIZES) {
+  const label = `${size.width}x${size.height}`;
+
+  test(`one tap on Change opens the rename field and one tap on Post comment posts, at ${label}`, async ({
+    browser,
+  }) => {
+    await withNamedGuest(browser, size, "Riley", async (guest, dock, field) => {
+      await tapCentre(
+        guest,
+        dock.getByRole("button", { name: "Change your comment name" }),
+      );
+      const rename = dock.getByRole("textbox", { name: "Your name" });
+      await expect(rename).toBeVisible();
+      await rename.press("Escape");
+      await expect(rename).toHaveCount(0);
+
+      await field.focus();
+      await field.fill("Second");
+      await tapCentre(
+        guest,
+        dock.getByRole("button", { name: "Post comment" }),
+      );
+      await expect(field).toHaveValue("");
+    });
+  });
+
+  test(`a 40-character unbroken name stays inside the dock and its Change editor stays in its column, at ${label}`, async ({
+    browser,
+  }) => {
+    const longName = "W".repeat(40);
+    await withNamedGuest(browser, size, longName, async (guest, dock) => {
+      await expectNoHorizontalScroll(guest, size.width);
+      const scrolls = await guest
+        .locator(".mobile-dock")
+        .evaluate((el) => el.scrollWidth <= el.clientWidth);
+      expect(scrolls, "dock scrolls sideways").toBe(true);
+      const strong = await dock
+        .locator(".comment-author-line strong")
+        .boundingBox();
+      const compose = await dock.locator(".comment-compose").boundingBox();
+      expect(strong).not.toBeNull();
+      expect(compose).not.toBeNull();
+      if (strong && compose && size.width >= 480 && size.height < 384) {
+        expect(strong.x + strong.width).toBeLessThanOrEqual(compose.x + 0.5);
+      }
+      await dock
+        .getByRole("button", { name: "Change your comment name" })
+        .tap();
+      const edit = await dock.locator(".comment-author-edit").boundingBox();
+      const input = await dock
+        .getByRole("textbox", { name: "Your name" })
+        .boundingBox();
+      expect(edit).not.toBeNull();
+      expect(input).not.toBeNull();
+      if (edit && input) {
+        expect(input.x + input.width).toBeLessThanOrEqual(
+          edit.x + edit.width + 0.5,
+        );
+        if (compose && size.width >= 480 && size.height < 384) {
+          expect(input.x + input.width).toBeLessThanOrEqual(compose.x + 0.5);
+        }
+      }
+      await expectNoHorizontalScroll(guest, size.width);
+    });
+  });
+}
