@@ -1,0 +1,11 @@
+{
+  "2149-next-gate-safety-check.cjs": "07a6bc7b55afdead1ada5fae9f0efb3a65f42f97da6d0f219223b25be0242c41",
+  "2149-next-manifest-snapshot.js": "636025244b03f1abd531eca33578ce3bfcfbf3dc2b02a6552caf1c3e7aca4fc5",
+  "2149-next-nav-gate.js": "9ef86e0a336278a55df6bde8a8b45c40babfe6970e2b44ce8b81e47b74da49d9",
+  "2149-transport-bridge.js": "76a69dc25bcc34347531353b3fcf25983c06e60e356faaac2ad9884ec888c4d2",
+  "2149-transport-check.cjs": "21dc1b22a58ec626cbc8b8fd1de55314b67fe5660338ecf9d35638b207bfdfec",
+  "2149-transport-check.py": "94035fab13ccbe20a021890d5bb421353b4f4f878ebfa9d1ab811b74f70b57d5",
+  "2149-transport-handoff.md": "7e7414370cd2ca13debb526587ab853c8cd9ba88c42312e91babac3ab1c94707",
+  "2149-transport-host.py": "7f7a48204de559596c56eadfbbcd0768459cdb01b53d341c0ed17d8c7485608b",
+  "2149-transport-stage.py": "a6f3ddaee5aa1e41079d2608d981b51dd126128b8690d22bdc74538357644b62"
+}
