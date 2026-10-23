@@ -543,7 +543,12 @@ Other workflows retain the existing floating dock. On phones
 Play row (the card moves above it, or below when there is no room, on a short phone such
 as 320x460 where the dock spot would land on Play, #1960);
 its full-sheet fallback can cover scrolling content in those other workflows.
-Desktop and ordinary tablet feedback stays above the status bar.
+Desktop and ordinary tablet feedback rests above the status bar.
+On every shell the toast also stays off the comment composer, the **Commenting as**
+line, its **Change** field and the guest name step, whatever part of them the person can
+see: it moves just above them, or just below when there is no room above, and on a window
+too short for a free band it covers the content above them rather than the field (#2199,
+proven at 844x390 and 390x340 in `e2e/comment-toast-clearance.spec.ts`).
 
 Compact half and full detents keep the same outer height when feedback appears.
 The shared body scroller exposes feedback without taking more timeline room.

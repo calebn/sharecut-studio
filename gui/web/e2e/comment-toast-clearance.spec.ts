@@ -37,15 +37,17 @@ async function overlaps(page: Page): Promise<string[]> {
     for (const el of document.querySelectorAll(selector)) {
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
+      let { top, bottom } = r;
+      for (let a = el.parentElement; a; a = a.parentElement) {
+        if (getComputedStyle(a).overflowY === "visible") continue;
+        const box = a.getBoundingClientRect();
+        top = Math.max(top, box.top);
+        bottom = Math.min(bottom, box.bottom);
+      }
       const w = Math.min(t.right, r.right) - Math.max(t.left, r.left);
-      const h = Math.min(t.bottom, r.bottom) - Math.max(t.top, r.top);
+      const h = Math.min(t.bottom, bottom) - Math.max(t.top, top);
       if (w > 1 && h > 1) {
-        const box: Box = {
-          left: r.left,
-          top: r.top,
-          right: r.right,
-          bottom: r.bottom,
-        };
+        const box: Box = { left: r.left, top, right: r.right, bottom };
         hits.push(`${el.className} ${JSON.stringify(box)}`);
       }
     }
