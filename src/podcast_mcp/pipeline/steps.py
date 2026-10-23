@@ -1187,18 +1187,8 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     mastered = ensure_current_master(project, defaults)
     eng = ffmpeg()
-    export_cfg = defaults.get("export", {})
-    from podcast_mcp.export.audio import export_episode_audio
+    from podcast_mcp.export.episode import export_episode_deliverables
     from podcast_mcp.export.names import sanitize_export_stem
-
-    caption_limits = None
-    if project.combined_transcript:
-        from podcast_mcp.export.transcript import resolve_caption_limits
-
-        # Validate export.captions before any file is written (#816): a bad value
-        # (e.g. min_duration_sec > max_duration_sec) should fail before audio export,
-        # not after it, when caption writing is reached.
-        caption_limits = resolve_caption_limits(export_cfg)
 
     with resolve_progress_task(
         "export_deliverables",
@@ -1206,12 +1196,11 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
         prefer_parent=True,
     ) as prog:
         prog.set_phase("audio", "Writing audio formats…")
-        written = export_episode_audio(
+        written = export_episode_deliverables(
             project,
             eng,
             mastered,
-            export_cfg,
-            max_workers=defaults.get("performance", {}).get("max_workers"),
+            defaults,
             cancel_check=current_cancel_check(),
         )
         extras: list[str] = []
@@ -1226,24 +1215,12 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             )
             extras.append(f"{len(project.chapters)} chapters")
 
-        if project.combined_transcript:
-            from podcast_mcp.export.transcript import (
-                utterances_to_srt,
-                write_combined_transcript_markdown,
-            )
-
-            prog.set_phase("transcript", "Writing transcript exports…")
-            write_combined_transcript_markdown(project, defaults)
-            srt = project.export_dir() / f"{sanitize_export_stem(project.name)}.srt"
-            srt.write_text(
-                utterances_to_srt(project, limits=caption_limits),
-                encoding="utf-8",
-            )
+        if any(path.suffix == ".srt" for path in written):
             extras.append("SRT+MD")
 
         prog.set_phase("qc", "Writing export QC…")
         qc = write_export_qc(project, defaults=defaults)
-    parts = [f"{len(written)} audio files"]
+    parts = [f"{sum(path.suffix not in {'.srt', '.md'} for path in written)} audio files"]
     parts.extend(extras)
     if qc.get("ok"):
         parts.append("QC ok")

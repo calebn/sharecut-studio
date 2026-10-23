@@ -164,7 +164,7 @@ def _export(ws: ProjectWorkspace, eng: MagicMock) -> MagicMock:
     with (
         patch.object(steps, "ffmpeg", return_value=eng),
         patch("podcast_mcp.services.pipeline.service.ffmpeg", return_value=eng),
-        patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]) as export,
+        patch("podcast_mcp.export.episode.export_episode_deliverables", return_value=[]) as export,
     ):
         PipelineService(ws).export_audio([{"ext": "mp3"}])
     return export
@@ -1327,7 +1327,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project):
     with (
         patch.object(steps, "ffmpeg", return_value=eng),
         patch("podcast_mcp.services.pipeline.service.ffmpeg", return_value=eng),
-        patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
+        patch("podcast_mcp.export.episode.export_episode_deliverables", return_value=[]),
         patch.object(steps, "schedule_stem_waveforms"),
         patch("podcast_mcp.services.pipeline.preview.maybe_auto_reconcile", return_value={}),
         render_contention_signal(ws.project.workspace_path()) as contended,

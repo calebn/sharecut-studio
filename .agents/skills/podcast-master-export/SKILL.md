@@ -111,6 +111,13 @@ stale audio.
 
 Same `PipelineService.export_audio` / `render_final` path as Sharecut Studio **Menu → Export deliverables…** / `Mod+Shift+E` (a dialog that picks formats, shows progress with Cancel export, then lists the written files) and the Pipeline tab’s `export_deliverables` step.
 
+Studio, CLI `export-audio`, MCP `export_audio_tool`, and the pipeline export step
+refresh the current edited-timeline SRT and Markdown whenever transcripts exist.
+Those paths appear alongside the audio paths in the result. Caption validation,
+transcript preparation, and all temporary writes complete before publication, so a
+failed preparation or encode, or cancellation before publication, keeps the earlier
+audio and transcripts. Final file replacements are not a crash-atomic transaction.
+
 ```bash
 podcast pipeline run --project episode.project.json --from master_loudness
 ```

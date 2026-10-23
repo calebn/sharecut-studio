@@ -263,7 +263,7 @@ def test_mcp_pipeline_export_audio(tmp_path, sample_wav):
     with (
         patch("podcast_mcp.services.pipeline.service.pipeline_steps.master_loudness"),
         patch(
-            "podcast_mcp.export.audio.export_episode_audio",
+            "podcast_mcp.export.episode.export_episode_deliverables",
             return_value=[ws / "export" / "demo.mp3"],
         ),
     ):

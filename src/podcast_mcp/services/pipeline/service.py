@@ -289,10 +289,9 @@ class PipelineService:
         cancel_check: Callable[[], bool] | None = None,
     ) -> AudioExportResult:
         defaults = self._run_defaults()
-        export_cfg = dict(defaults.get("export", {}))
         if formats is not None:
-            export_cfg["formats"] = formats
-        from podcast_mcp.export.audio import export_episode_audio
+            defaults = {**defaults, "export": {**defaults.get("export", {}), "formats": formats}}
+        from podcast_mcp.export.episode import export_episode_deliverables
         from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 
         with resolve_progress_task(
@@ -311,12 +310,11 @@ class PipelineService:
                 prog.advance(1, message="Mastered WAV ready")
                 raise_if_cancel_requested(cancel_check, EXPORT_CANCELLED)
                 prog.set_phase("encode", "Writing deliverables…")
-                paths = export_episode_audio(
+                paths = export_episode_deliverables(
                     self.ws.project,
                     ffmpeg(),
                     mastered,
-                    export_cfg,
-                    max_workers=defaults.get("performance", {}).get("max_workers"),
+                    defaults,
                     cancel_check=cancel_check,
                 )
             self.ws.save_merged()

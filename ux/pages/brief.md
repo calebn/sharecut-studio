@@ -63,7 +63,7 @@ Propose tighten/focus/transcript fixes via host MCP/CLI → same project file th
 | Episode feels slow | Tighten / focus without losing meaning | Dense dialogue, natural joins |
 | About to approve a cut | Hear before commit | Audition Full mix / Edited stems / Original around the decision |
 | Collaborator has no DAW | Review with others | Comments / actions; optional suggest or edit |
-| Ready to publish | Export for hosts | Masters + transcripts for Spotify / Apple / etc. |
+| Ready to publish | Export for hosts | Masters with current edited-timeline SRT captions and Markdown transcripts. The export dialog names their inclusion before starting and lists all written files afterward. |
 
 ---
 

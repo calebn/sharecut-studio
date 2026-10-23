@@ -765,7 +765,7 @@ def test_pipeline_service_export_audio_creates_master(minimal_project, sample_wa
             "podcast_mcp.services.pipeline.service.pipeline_steps.master_loudness",
             side_effect=_master,
         ),
-        patch("podcast_mcp.export.audio.export_episode_audio") as export,
+        patch("podcast_mcp.export.episode.export_episode_deliverables") as export,
     ):
         export.return_value = [ws.project.export_dir() / "demo.mp3"]
         paths = PipelineService(ws).export_audio([{"ext": "mp3"}]).paths
@@ -785,7 +785,7 @@ def test_pipeline_service_export_audio_emits_progress(minimal_project):
     with (
         patch("podcast_mcp.services.pipeline.service.pipeline_steps.master_loudness"),
         patch(
-            "podcast_mcp.export.audio.export_episode_audio",
+            "podcast_mcp.export.episode.export_episode_deliverables",
             return_value=[ws.project.export_dir() / "demo.wav"],
         ),
         bind_progress(rec),
