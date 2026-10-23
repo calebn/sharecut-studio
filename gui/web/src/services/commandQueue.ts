@@ -205,7 +205,7 @@ async function settleHistoryFailure(
     return new Error(unavailable);
   }
   const written = writeFailureReason(failure);
-  if (written || status >= 500 || isRetryLater(failure)) {
+  if (status >= 500 || isRetryLater(failure)) {
     const reason = written
       ? `${written} Check History before trying again.`
       : HISTORY_UNKNOWN_REASON;
