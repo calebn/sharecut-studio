@@ -43,6 +43,7 @@ from podcast_mcp.export.transcript import CaptionLimits, write_combined_transcri
 from podcast_mcp.models import CombinedTranscript, EpisodeProject, Transcript
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import WorkspaceService
+from podcast_mcp.util.project_state import render_lock
 
 from .transcript_timing import word_timing_media
 
@@ -141,7 +142,7 @@ class TranscriptService(WorkspaceService):
         return json.dumps([t.model_dump() for t in p.transcripts], indent=2)
 
     def export_markdown(self) -> Path:
-        with self.ws.transaction() as p:
+        with render_lock(self.ws.project), self.ws.transaction() as p:
             if not p.combined_transcript:
                 p.combined_transcript = self._engine.merge_transcripts(p)
             out = write_combined_transcript_markdown(p, self.ws.effective_config())
@@ -152,7 +153,7 @@ class TranscriptService(WorkspaceService):
         from podcast_mcp.export.names import sanitize_export_stem
         from podcast_mcp.export.transcript import utterances_to_srt, utterances_to_vtt
 
-        with self.ws.transaction() as p:
+        with render_lock(self.ws.project), self.ws.transaction() as p:
             if not p.combined_transcript:
                 p.combined_transcript = self._engine.merge_transcripts(p)
             p.export_dir().mkdir(parents=True, exist_ok=True)

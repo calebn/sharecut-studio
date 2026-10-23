@@ -338,6 +338,16 @@ MCP: `export_audio_tool` with optional `formats` (same array shape).
 
 Both print `{"paths": [...], "master": {...}}`: the written files and `master_qc.json`, so the configured `target_integrated_lufs` / `target_true_peak_db` sit next to what the master measured.
 
+Studio **Export deliverables**, CLI `export-audio`, MCP `export_audio_tool`, and the
+pipeline export step use the same episode exporter. When transcripts exist, each
+export refreshes SRT captions and Markdown alongside the selected audio formats.
+They use the current edited timeline, so removed words and their old timestamps do
+not survive a re-export. The returned paths and Studio's result include these files.
+Caption limits are validated and transcripts are serialized before audio encoding.
+Audio and transcripts are staged before any export file is replaced. A preparation
+or encode failure, or cancellation before publication, preserves the previous files.
+The final replacements do not form a crash-atomic transaction across files.
+
 A running export can be cancelled from either one, the way Studio's **Cancel export** does (#1164). Both pass a `cancel_check` to `PipelineService.export_audio`, which checks it before mastering, before encoding and while ffmpeg encodes (the running encode is stopped). Deliverables replace `export/` only after every file is written, so a cancelled export leaves an earlier one untouched and leaves no temp files. Mastering is not interrupted: a cancel during it takes effect once the master is ready. An encode that exits nonzero after a cancel was requested reports the cancel, not a failure.
 
 - **CLI.** The first Ctrl+C (SIGINT) cancels (`cli/cancel.py::sigint_cancel`). A terminal Ctrl+C signals the whole foreground process group, so every child the command starts inside that block (mastering and encode ffmpeg, ffprobe) runs in its own session (`util/process.py::detached_children`): the terminal's SIGINT reaches only the CLI, and the cancel check stops the encode. The command prints `Export cancelled. Files from an earlier export are unchanged.` to stderr, writes nothing to stdout and exits 130. A second Ctrl+C kills those children's process groups (`kill_detached_children`) and quits at once with exit 130, also during mastering. A signal that ends the command (SIGHUP when the terminal closes, SIGTERM from `kill`, SIGQUIT from Ctrl+\) kills them the same way, then passes the signal on, so the command still ends by that signal; a signal ignored on entry (`nohup`) stays ignored. The block also kills any child still running when it exits, so no ffmpeg is left behind. SIGKILL to the CLI is the exception, since no handler runs. After a signal ends the command, the earlier export is unchanged; the stopped encode's `.partial` temp stays in `export/` until the next export of that format removes it. A Ctrl+C that lands after the files were written prints `Cancel came too late. Exported N files to export/.` to stderr, then the usual JSON, and exits 0.

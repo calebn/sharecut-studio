@@ -89,9 +89,10 @@ function ExportSettingsForm({ stage, onToggleFormat }: ExportDialogViewProps) {
   return (
     <>
       <p className="export-dialog-lead">
-        Writes the mastered episode to the project's export/ folder. Files with
-        the same names from an earlier export are replaced only once every file
-        is written.
+        Writes the mastered episode to the project's export/ folder. Includes
+        current SRT captions and a Markdown transcript when available. Files
+        with the same names from an earlier export are replaced only once every
+        file is written.
       </p>
       {settingsError ? (
         <InlineError

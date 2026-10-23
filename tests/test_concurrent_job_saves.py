@@ -317,7 +317,7 @@ def test_export_audio_keeps_an_edit_saved_during_export(minimal_project, tmp_pat
 
     with (
         patch("podcast_mcp.services.pipeline.service.pipeline_steps.ensure_current_master", master),
-        patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
+        patch("podcast_mcp.export.episode.export_episode_deliverables", return_value=[]),
         patch("podcast_mcp.services.pipeline.service.ffmpeg", return_value=MagicMock()),
     ):
         PipelineService(ws).export_audio([{"ext": "mp3"}])
@@ -344,7 +344,7 @@ def test_export_audio_checkpoints_inside_the_render_lock(minimal_project, tmp_pa
             "podcast_mcp.services.pipeline.service.pipeline_steps.ensure_current_master",
             return_value=tmp_path / "mastered.wav",
         ),
-        patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
+        patch("podcast_mcp.export.episode.export_episode_deliverables", return_value=[]),
         patch("podcast_mcp.services.pipeline.service.ffmpeg", return_value=MagicMock()),
     ):
         PipelineService(ws).export_audio([{"ext": "mp3"}])
