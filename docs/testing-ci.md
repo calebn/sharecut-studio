@@ -89,6 +89,21 @@ remain availability risks. Browser and npm downloads retain their own transports
 The installation step keeps its ten-minute bound and the job its 60-minute bound.
 There is no browser cache or install retry.
 
+### Pipeline result geometry
+
+`e2e/pipeline-results-fit.spec.ts` renders completed pipeline status responses
+in the built app with a loaded fixture project. Its compact acceptance matrix
+covers 320×568 in light theme, 390×844 in dark theme with reduced motion, and
+1440×900 in light theme with reduced motion. It checks the complete alignment
+warning, an error with a long unbroken filename, error precedence, and every
+table cell's text bounds. The table stays inside its panel without horizontal
+scrolling or clipped text. Headers, statuses, and elapsed times occupy one line.
+Table axe checks include color contrast. Each case
+attaches geometry JSON, a table screenshot, and a viewport screenshot.
+Run it from `gui/web` with
+`npm run test:e2e -- e2e/pipeline-results-fit.spec.ts`.
+The routed terminal response tests result rendering, not audio processing.
+
 ### Storybook browser geometry
 
 `npm run test:e2e:storybook` in `gui/web` builds the static Storybook catalog,
