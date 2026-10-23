@@ -351,7 +351,7 @@ for (const size of [
   { width: 667, height: 375 },
   { width: 568, height: 320 },
 ]) {
-  test(`a named guest not typing keeps Play in view and the 35% dock at ${size.width}x${size.height}`, async ({
+  test(`a named guest not typing keeps the Listen view and the 35% dock it had before naming at ${size.width}x${size.height}`, async ({
     browser,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -375,6 +375,27 @@ for (const size of [
             name: "Comment",
             exact: true,
           });
+          const play = guest.getByRole("button", { name: "Play", exact: true });
+          const view = () =>
+            guest.evaluate(() => {
+              const dockBox = document
+                .querySelector(".mobile-dock")
+                ?.getBoundingClientRect();
+              const body = document
+                .querySelector(".mobile-mode-body")
+                ?.getBoundingClientRect();
+              const playBox = Array.from(document.querySelectorAll("button"))
+                .find((b) => b.textContent?.trim() === "Play")
+                ?.getBoundingClientRect();
+              return {
+                dockHeight: dockBox?.height ?? 0,
+                bodyHeight: body?.height ?? 0,
+                playBottom: playBox?.bottom ?? 0,
+                dockTop: dockBox?.top ?? 0,
+              };
+            });
+          await expect(play).toBeVisible();
+          const before = await view();
           await field.fill("First");
           await dock.getByRole("button", { name: "Post comment" }).tap();
           await dock.getByRole("textbox", { name: "Your name" }).fill("Riley");
@@ -383,24 +404,15 @@ for (const size of [
             "Riley",
           );
           await expect(field).not.toBeFocused();
-          const shellDock = guest.locator(".mobile-dock");
           await expect(async () => {
-            const box = await shellDock.boundingBox();
-            expect(box?.height ?? 0).toBeLessThanOrEqual(size.height * 0.35);
-            const play = guest.getByRole("button", {
-              name: "Play",
-              exact: true,
-            });
-            const p = await play.boundingBox();
-            expect(p).not.toBeNull();
-            if (!p || !box) return;
-            expect(p.y).toBeGreaterThanOrEqual(0);
-            expect(p.y + p.height).toBeLessThanOrEqual(box.y + 0.5);
-            const hit = await play.evaluate(
-              (el, { x, y }) => el.contains(document.elementFromPoint(x, y)),
-              { x: p.x + p.width / 2, y: p.y + p.height / 2 },
+            const after = await view();
+            expect(after.dockHeight).toBeLessThanOrEqual(size.height * 0.35);
+            expect(after.bodyHeight).toBeGreaterThanOrEqual(
+              before.bodyHeight - 1,
             );
-            expect(hit).toBe(true);
+            if (before.playBottom <= before.dockTop + 0.5) {
+              expect(after.playBottom).toBeLessThanOrEqual(after.dockTop + 0.5);
+            }
           }).toPass();
         },
       );

@@ -40,12 +40,13 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
     if (focused instanceof HTMLElement && dockRef.current?.contains(focused)) {
       focused.blur();
     }
-    const result = await post({ body, author });
+    const posted = body;
+    const result = await post({ body: posted, author });
     if (!result.ok) {
       bodyRef.current?.focus();
       return;
     }
-    setBody("");
+    setBody((now) => (now === posted ? "" : now));
     announceStatus(commentPostedStatus(result.comment));
   };
 
