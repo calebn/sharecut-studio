@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -487,17 +487,21 @@ describe("GuestAttentionBannerView", () => {
           .closest("details") as HTMLDetailsElement;
       }
 
-      it("brings the waiver form into view and leaves focus on the summary", () => {
+      it("brings the waiver form into view and leaves focus on the summary", async () => {
         const details = renderGated();
+        const summary = screen.getByLabelText(
+          "Needs attention details and recovery actions",
+        );
+        summary.focus();
         scrollIntoView.mockClear();
         details.open = true;
-        fireEvent(details, new Event("toggle"));
+        await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
         expect(scrollIntoView).toHaveBeenCalledOnce();
         expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
         expect(scrollIntoView.mock.contexts[0]).toBe(
           details.querySelector(".transcript-refine-recovery"),
         );
-        expect(details.contains(document.activeElement)).toBe(false);
+        expect(summary).toHaveFocus();
       });
 
       it("does not scroll when the details close", () => {
