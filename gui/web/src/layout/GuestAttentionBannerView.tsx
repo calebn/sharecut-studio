@@ -194,7 +194,15 @@ export function GuestAttentionBannerView({
           tabIndex={-1}
           aria-label={regionLabel}
         >
-          <details className="guest-attention-details">
+          <details
+            className="guest-attention-details"
+            onToggle={(event) => {
+              if (!event.currentTarget.open) return;
+              event.currentTarget
+                .querySelector(".transcript-refine-recovery")
+                ?.scrollIntoView?.({ block: "nearest" });
+            }}
+          >
             <summary
               className="guest-attention-head"
               aria-label={ATTENTION_DETAILS_LABEL}

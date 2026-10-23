@@ -101,7 +101,7 @@ code to show recovery guidance without exposing the CLI-oriented server hint.
 The waiver route is host-origin protected and serializes its project save with
 document commands.
 
-An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `DOCUMENT_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector, the Impact panel and the Tighten Apply / Skip commands show a **Still sending** status instead of treating it as done (it clears once the project's command queue is empty), and a refusal of the later replay appears in the **Needs attention** banner, where a transcript-refine refusal offers the host **Waive with reason**.
+An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `DOCUMENT_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector, the Impact panel and the Tighten Apply / Skip commands show a **Still sending** status instead of treating it as done (it clears once the project's command queue is empty), and a refusal of the later replay appears in the **Needs attention** banner, where a transcript-refine refusal offers the host **Waive with reason** (opening the details scrolls the form into view on short phones).
 
 ## Busy project (503)
 

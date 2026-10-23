@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { offlineConflict } from "../test/fixtures";
 import { DocumentCommand } from "../types/documentCommands.generated";
@@ -454,6 +454,75 @@ describe("GuestAttentionBannerView", () => {
         reason: TRANSCRIPT_REFINE_REFUSAL,
         command: { type: DocumentCommand.ApproveEdits },
       });
+
+    describe("when the details open", () => {
+      const scrollIntoView = vi.fn();
+      const original = Object.getOwnPropertyDescriptor(
+        Element.prototype,
+        "scrollIntoView",
+      );
+      beforeEach(() => {
+        scrollIntoView.mockReset();
+        Element.prototype.scrollIntoView = scrollIntoView;
+      });
+      afterEach(() => {
+        if (original) {
+          Object.defineProperty(Element.prototype, "scrollIntoView", original);
+        } else {
+          Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+        }
+      });
+
+      function renderGated(conflict = gated(), project: string | null = "/p") {
+        render(
+          <GuestAttentionBannerView
+            pending={0}
+            conflicts={[conflict]}
+            onDismissAll={vi.fn()}
+            refineWaiverProject={project ?? undefined}
+          />,
+        );
+        return screen
+          .getByLabelText("Needs attention details and recovery actions")
+          .closest("details") as HTMLDetailsElement;
+      }
+
+      it("brings the waiver form into view and leaves focus on the summary", () => {
+        const details = renderGated();
+        scrollIntoView.mockClear();
+        details.open = true;
+        fireEvent(details, new Event("toggle"));
+        expect(scrollIntoView).toHaveBeenCalledOnce();
+        expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+        expect(scrollIntoView.mock.contexts[0]).toBe(
+          details.querySelector(".transcript-refine-recovery"),
+        );
+        expect(details.contains(document.activeElement)).toBe(false);
+      });
+
+      it("does not scroll when the details close", () => {
+        const details = renderGated();
+        scrollIntoView.mockClear();
+        details.open = false;
+        fireEvent(details, new Event("toggle"));
+        expect(scrollIntoView).not.toHaveBeenCalled();
+      });
+
+      it("does not scroll when there is no waiver form", () => {
+        const details = renderGated(gated(), null);
+        scrollIntoView.mockClear();
+        details.open = true;
+        fireEvent(details, new Event("toggle"));
+        expect(scrollIntoView).not.toHaveBeenCalled();
+      });
+
+      it("copes with a browser that cannot scroll an element into view", () => {
+        const details = renderGated();
+        Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+        details.open = true;
+        expect(() => fireEvent(details, new Event("toggle"))).not.toThrow();
+      });
+    });
 
     it("lets the host waive from the banner and says to approve again", async () => {
       waive.mockResolvedValue({});
