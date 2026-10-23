@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { startBounceJob } from "../api";
+import { ModelGateHint, useModelGate } from "../models";
 import { runAnnouncedJob } from "../state/runAnnouncedJob";
 import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
@@ -35,8 +36,11 @@ export function BounceDialog() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const gate = useModelGate();
+  const resetGate = gate.reset;
 
   useEffect(() => {
+    resetGate();
     if (!bounceDialogOpen) {
       abortRef.current?.abort();
       abortRef.current = null;
@@ -47,7 +51,7 @@ export function BounceDialog() {
     setUseRegion(false);
     setError(null);
     setBusy(false);
-  }, [bounceDialogOpen]);
+  }, [bounceDialogOpen, resetGate]);
 
   const selectedTrackIds = selectedTrackIdsOf(selection);
   const selectedCount = selectedTrackIds.length;
@@ -78,29 +82,34 @@ export function BounceDialog() {
     setBusy(true);
     setError(null);
     try {
-      await runAnnouncedJob(
-        () =>
-          startBounceJob(projectPath, {
-            track_ids: trackIds,
-            start_s: useRegion && region ? region.start_sec : null,
-            end_s: useRegion && region ? region.end_sec : null,
-            formats,
-            ...(bounceRangeTarget
-              ? {
-                  exact_range: bounceRangeTarget,
-                  track_ids: null,
-                  start_s: null,
-                  end_s: null,
-                }
-              : {}),
-          }),
-        {
-          failLabel: "Bounce failed",
-          resultCopy: (paths) =>
-            `Bounced ${paths.length} file(s) to export/bounces/`,
-          signal: ac.signal,
-        },
-      );
+      const ran = await gate.run(async () => {
+        await runAnnouncedJob(
+          () =>
+            startBounceJob(projectPath, {
+              track_ids: trackIds,
+              start_s: useRegion && region ? region.start_sec : null,
+              end_s: useRegion && region ? region.end_sec : null,
+              formats,
+              ...(bounceRangeTarget
+                ? {
+                    exact_range: bounceRangeTarget,
+                    track_ids: null,
+                    start_s: null,
+                    end_s: null,
+                  }
+                : {}),
+            }),
+          {
+            failLabel: "Bounce failed",
+            resultCopy: (paths) =>
+              `Bounced ${paths.length} file(s) to export/bounces/`,
+            signal: ac.signal,
+          },
+        );
+      });
+      if (ran.kind === "declined") {
+        return;
+      }
       setBounceDialogOpen(false);
     } catch (err) {
       if (isAbortError(err)) {
@@ -118,7 +127,13 @@ export function BounceDialog() {
   return (
     <BounceDialogView
       open={bounceDialogOpen && !!project}
-      onClose={() => setBounceDialogOpen(false)}
+      onClose={() => {
+        if (gate.prompt) {
+          gate.decline();
+          return;
+        }
+        setBounceDialogOpen(false);
+      }}
       rangeSummary={
         bounceRangeTarget
           ? `${bounceRangeTarget.intervals.map((r) => `${r.start.toFixed(2)}–${r.end.toFixed(2)} s`).join(" · ")} on ${bounceRangeTarget.track_ids.join(", ")}`
@@ -135,6 +150,8 @@ export function BounceDialog() {
       onIncludeMp3Change={setIncludeMp3}
       busy={busy}
       error={error}
+      modelGate={gate}
+      modelHint={<ModelGateHint gate={gate} actionLabel="Bounce" />}
       onBounce={() => void onBounce()}
     />
   );

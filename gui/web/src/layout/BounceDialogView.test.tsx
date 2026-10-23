@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { ModelGate } from "../models";
 import { expectNoA11yViolations } from "../test/a11y";
 import { SRC_ROOT } from "../test/sourceFiles";
 import { BounceDialogView } from "./BounceDialogView";
@@ -27,6 +28,43 @@ function baseProps(): Parameters<typeof BounceDialogView>[0] {
 }
 
 describe("BounceDialogView", () => {
+  it("shows the model prompt in place of the form and its footer", async () => {
+    const user = userEvent.setup();
+    const gate = {
+      prompt: {
+        need: { id: "rnnoise" },
+        label: "Noise reduction (RNNoise)",
+        purpose: "noise reduction",
+        size: "~0.3 MB",
+        phase: "ask",
+        blockedReason: undefined,
+        view: {
+          id: "rnnoise",
+          label: "Noise reduction (RNNoise)",
+          purpose: "noise reduction",
+          tier: "recommended",
+          size: "~0.3 MB",
+          sizeBytes: null,
+          variant: null,
+          state: { kind: "missing" },
+        },
+      },
+      accept: vi.fn(),
+      decline: vi.fn(),
+      openModels: vi.fn(),
+    } as unknown as ModelGate;
+    const { baseElement } = render(
+      <BounceDialogView {...baseProps()} modelGate={gate} />,
+    );
+
+    expect(screen.queryByLabelText("Entire mix")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Bounce" })).toBeNull();
+    expect(screen.getByText(/stored on this computer/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    expect(gate.accept).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(baseElement);
+  });
+
   it("renders production source options from props; axe-clean", async () => {
     const props = baseProps();
     const { baseElement: container } = render(<BounceDialogView {...props} />);

@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
+import { type ModelGate, ModelGateBody, ModelGateFooter } from "../models";
 import { Button, Dialog, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 
@@ -21,6 +22,10 @@ export type BounceDialogViewProps = {
   busy: boolean;
   error: string | null;
   onBounce: () => void;
+  /** Passed by the adapter; its prompt stands in for the form and footer. */
+  modelGate?: ModelGate | null;
+  /** Shown beside the form after the person declined a model download. */
+  modelHint?: ReactNode;
 };
 
 /**
@@ -44,33 +49,53 @@ export function BounceDialogView(props: BounceDialogViewProps) {
     busy,
     error,
     onBounce,
+    modelGate,
+    modelHint,
   } = props;
   const sourceName = useId();
+  const downloadRef = useRef<HTMLButtonElement>(null);
+  const prompt = modelGate?.prompt ?? null;
+  const asking = prompt !== null;
+  useEffect(() => {
+    if (asking) {
+      downloadRef.current?.focus();
+    }
+  }, [asking]);
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="Bounce…"
+      closeDisabled={prompt?.phase === "downloading"}
       panelClassName="bounce-dialog-panel"
       footer={
         <div className="bounce-dialog-footer">
-          <InlineError message={error} />
-          <div className="bounce-dialog-actions">
-            <Button
-              variant="primary"
-              type="button"
-              disabledReason={busy ? BUSY_REASON : undefined}
-              onClick={onBounce}
-            >
-              {busy ? "Bouncing…" : "Bounce"}
-            </Button>
-          </div>
+          {modelGate && prompt ? (
+            <ModelGateFooter gate={modelGate} primaryRef={downloadRef} />
+          ) : (
+            <>
+              <InlineError message={error} />
+              {modelHint}
+              <div className="bounce-dialog-actions">
+                <Button
+                  variant="primary"
+                  type="button"
+                  disabledReason={busy ? BUSY_REASON : undefined}
+                  onClick={onBounce}
+                >
+                  {busy ? "Bouncing…" : "Bounce"}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       }
     >
       <div className="bounce-dialog-body">
-        {rangeSummary ? (
+        {prompt ? (
+          <ModelGateBody prompt={prompt} />
+        ) : rangeSummary ? (
           <p>
             Selected range · {rangeSummary}. This selection is fixed for this
             export.

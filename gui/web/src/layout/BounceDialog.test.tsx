@@ -5,7 +5,13 @@ import { followJobToOk, startBounceJob } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { setChrome } from "../test/chrome";
+import {
+  modelStatus,
+  registryRows,
+  renderWithModels,
+} from "../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { ApiError } from "../utils/apiError";
 import { BounceDialog } from "./BounceDialog";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -135,6 +141,128 @@ describe("BounceDialog", () => {
     expect(useDawStore.getState().pendingJobResults).toEqual({
       b1: "Bounced 2 file(s) to export/bounces/",
     });
+  });
+});
+
+describe("BounceDialog model gate", () => {
+  const needed = (id = "rnnoise") =>
+    new ApiError("needs RNNoise", "model_needed", 409, {
+      id,
+      variant: null,
+      label: "Noise reduction (RNNoise)",
+      purpose: "noise reduction",
+      size: "~0.3 MB",
+      sizeBytes: null,
+      state: "missing",
+    });
+  const downloadModel = vi.fn();
+  const renderGated = () =>
+    renderWithModels(<BounceDialog />, {
+      status: modelStatus(registryRows()),
+      download: downloadModel,
+    });
+  const bounce = async (user: ReturnType<typeof userEvent.setup>) => {
+    useDawStore.getState().setBounceDialogOpen(true);
+    await user.click(await screen.findByRole("button", { name: "Bounce" }));
+  };
+
+  beforeEach(() => {
+    setChrome({ bounceDialogOpen: false });
+    useDawStore.setState({
+      bounceRangeTarget: null,
+      projectPath: "/tmp/ep.project.json",
+      project: projectStub,
+      selection: null,
+      soloTracks: {},
+      sessionRegion: null,
+      pendingJobResults: {},
+    });
+    vi.mocked(startBounceJob).mockReset().mockResolvedValue(bounceJobSnapshot);
+    vi.mocked(followJobToOk).mockReset();
+    downloadModel.mockReset().mockResolvedValue({ kind: "ok" });
+  });
+
+  it("asks inside the dialog and bounces once more after the download", async () => {
+    const user = userEvent.setup();
+    vi.mocked(followJobToOk)
+      .mockRejectedValueOnce(needed())
+      .mockResolvedValue(bounced("export/bounces/a.wav"));
+    const { api } = renderGated();
+    await bounce(user);
+
+    expect(await screen.findByText(/stored on this computer/)).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(api.download).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Download" }));
+
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.bounceDialogOpen).toBe(false),
+    );
+    expect(api.download).toHaveBeenCalledWith(["rnnoise"], undefined);
+    expect(startBounceJob).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the form and a hint when the person declines", async () => {
+    const user = userEvent.setup();
+    vi.mocked(followJobToOk).mockRejectedValue(needed());
+    renderGated();
+    await bounce(user);
+    await user.click(await screen.findByRole("button", { name: "Not now" }));
+
+    expect(await screen.findByRole("button", { name: "Bounce" })).toBeEnabled();
+    expect(screen.getByText(/Bounce will ask again/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(startBounceJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not loop when the same model is still missing after the download", async () => {
+    const user = userEvent.setup();
+    vi.mocked(followJobToOk).mockRejectedValue(needed());
+    renderGated();
+    await bounce(user);
+    await user.click(await screen.findByRole("button", { name: "Download" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "needs RNNoise",
+    );
+    expect(startBounceJob).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the dialog open when Escape declines the prompt", async () => {
+    const user = userEvent.setup();
+    vi.mocked(followJobToOk).mockRejectedValue(needed());
+    renderGated();
+    await bounce(user);
+    await screen.findByRole("button", { name: "Download" });
+    await user.keyboard("{Escape}");
+
+    expect(await screen.findByRole("button", { name: "Bounce" })).toBeTruthy();
+    expect(useDawStore.getState().chrome.bounceDialogOpen).toBe(true);
+  });
+
+  it("cannot be closed while the model downloads", async () => {
+    const user = userEvent.setup();
+    vi.mocked(followJobToOk).mockRejectedValue(needed());
+    downloadModel.mockReturnValue(new Promise(() => undefined));
+    renderGated();
+    await bounce(user);
+    await user.click(await screen.findByRole("button", { name: "Download" }));
+    await screen.findByRole("button", { name: "Cancel download" });
+    await user.keyboard("{Escape}");
+
+    expect(useDawStore.getState().chrome.bounceDialogOpen).toBe(true);
+  });
+
+  it("shows a plain failure for any other error", async () => {
+    const user = userEvent.setup();
+    vi.mocked(followJobToOk).mockRejectedValue(new Error("ffmpeg exited 1"));
+    renderGated();
+    await bounce(user);
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "ffmpeg exited 1",
+    );
+    expect(screen.queryByText(/stored on this computer/)).toBeNull();
   });
 });
 

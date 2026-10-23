@@ -12,10 +12,16 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { setChrome } from "../test/chrome";
 import { minimalProject } from "../test/fixtures";
+import {
+  modelStatus,
+  registryRows,
+  renderWithModels,
+} from "../test/renderWithModels";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
 } from "../types/pipeline";
+import { ApiError } from "../utils/apiError";
 import { ExportDialog } from "./ExportDialog";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -339,5 +345,148 @@ describe("ExportDialog", () => {
     );
     act(() => useDawStore.setState({ projectPath: PATH }));
     expect(await screen.findByRole("button", { name: "Export" })).toBeTruthy();
+  });
+
+  describe("model gate", () => {
+    const needed = (id = "rnnoise") =>
+      new ApiError("needs RNNoise", "model_needed", 409, {
+        id,
+        variant: null,
+        label: "Noise reduction (RNNoise)",
+        purpose: "noise reduction",
+        size: "~0.3 MB",
+        sizeBytes: null,
+        state: "missing",
+      });
+    const downloadModel = vi.fn();
+    const renderGated = () =>
+      renderWithModels(<ExportDialog />, {
+        status: modelStatus(registryRows()),
+        download: downloadModel,
+      });
+
+    beforeEach(() => {
+      downloadModel.mockReset().mockResolvedValue({ kind: "ok" });
+    });
+
+    it("asks inside the same dialog and exports once more after the download", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk)
+        .mockRejectedValueOnce(needed())
+        .mockResolvedValue(finished);
+      const { api } = renderGated();
+      await openAndExport(user);
+
+      expect(await screen.findByText(/stored on this computer/)).toBeTruthy();
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+      expect(screen.getByRole("dialog")).toHaveAccessibleName(
+        "Export deliverables",
+      );
+      expect(api.download).not.toHaveBeenCalled();
+      expect(startExportJob).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByRole("button", { name: "Download" }));
+      expect(
+        await screen.findByText("Exported 2 files to export/"),
+      ).toBeTruthy();
+      expect(api.download).toHaveBeenCalledWith(["rnnoise"], undefined);
+      expect(startExportJob).toHaveBeenCalledTimes(2);
+    });
+
+    it("fails with a hint when the person declines", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk).mockRejectedValue(needed());
+      renderGated();
+      await openAndExport(user);
+      await user.click(await screen.findByRole("button", { name: "Not now" }));
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Export failed: Noise reduction (RNNoise) is not downloaded.",
+      );
+      expect(screen.getByText(/Export will ask again/)).toBeTruthy();
+      expect(startExportJob).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not loop when the same model is still missing after the download", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk).mockRejectedValue(needed());
+      renderGated();
+      await openAndExport(user);
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+
+      expect((await screen.findByRole("alert")).textContent).toContain(
+        "Export failed:",
+      );
+      expect(startExportJob).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the dialog open when Escape declines the prompt", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk).mockRejectedValue(needed());
+      renderGated();
+      await openAndExport(user);
+      await screen.findByRole("button", { name: "Download" });
+      await user.keyboard("{Escape}");
+
+      expect(
+        await screen.findByRole("button", { name: "Try again" }),
+      ).toBeTruthy();
+      expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true);
+    });
+
+    it("cannot be closed while the model downloads", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk).mockRejectedValue(needed());
+      downloadModel.mockReturnValue(new Promise(() => undefined));
+      renderGated();
+      await openAndExport(user);
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+      await screen.findByRole("button", { name: "Cancel download" });
+      await user.keyboard("{Escape}");
+
+      expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true);
+      expect(
+        screen.getByRole("button", { name: "Cancel download" }),
+      ).toBeTruthy();
+    });
+
+    it("opens no prompt when the dialog was closed before the job failed", async () => {
+      const user = userEvent.setup();
+      const settle = heldFollow();
+      renderGated();
+      await openAndExport(user);
+      await screen.findByRole("button", { name: "Cancel export" });
+      act(() => useDawStore.getState().setExportDialogOpen(false));
+      await act(async () => settle().fail(needed()));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      act(() => useDawStore.getState().setExportDialogOpen(true));
+      expect(
+        await screen.findByRole("button", { name: "Export" }),
+      ).toBeTruthy();
+      expect(screen.queryByText(/stored on this computer/)).toBeNull();
+      expect(downloadModel).not.toHaveBeenCalled();
+    });
+
+    it("shows a plain failure for any other error", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk).mockRejectedValue(new Error("ffmpeg exited 1"));
+      renderGated();
+      await openAndExport(user);
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Export failed: ffmpeg exited 1",
+      );
+      expect(screen.queryByText(/stored on this computer/)).toBeNull();
+    });
+
+    it("is axe-clean while asking", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk).mockRejectedValue(needed());
+      const { baseElement } = renderGated();
+      await openAndExport(user);
+      await screen.findByRole("button", { name: "Download" });
+      await expectNoA11yViolations(baseElement);
+    });
   });
 });
