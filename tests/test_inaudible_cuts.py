@@ -21,6 +21,7 @@ from podcast_mcp.edits.inaudible_cuts import (
 )
 from podcast_mcp.edits.strip_silence import strip_silence
 from podcast_mcp.edits.transcript_cuts import cut_time_range
+from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.engines.level_profile import SILENT, file_level_profile
 from podcast_mcp.models import (
     Clip,
@@ -413,7 +414,7 @@ def test_strip_silence_ignores_inaudible_opt_flag(tmp_path):
         patch("podcast_mcp.edits.strip_silence.file_level_profile", return_value=SILENT),
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
     ):
-        eng_cls.return_value.probe.return_value = type("Probe", (), {"duration_sec": 2.0})()
+        eng_cls.return_value.probe.return_value = AudioProbe(2.0, 16000, 1)
         out_default = strip_silence(p, "host", defaults=load_defaults())
         out_false = strip_silence(p, "host", use_inaudible_opt=False, defaults=load_defaults())
         out_true = strip_silence(p, "host", use_inaudible_opt=True, defaults=load_defaults())
