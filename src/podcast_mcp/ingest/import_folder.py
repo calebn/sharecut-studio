@@ -128,7 +128,8 @@ def scan_recorder_folder(
     total_duration = 0.0
     for index, path in enumerate(kept, start=1):
         probe = _probe_audio(probe_engine, path)
-        total_duration += probe.duration_sec
+        duration = probe.require_duration_sec()
+        total_duration += duration
         if total_duration > max_total_duration_sec:
             raise ValueError(
                 f"probed duration {total_duration:.1f}s exceeds bound {max_total_duration_sec:.1f}s"
@@ -138,7 +139,7 @@ def scan_recorder_folder(
                 path=path,
                 filename=path.name,
                 speaker_label=derive_speaker_label(path.name, fallback_index=index),
-                duration_sec=probe.duration_sec,
+                duration_sec=duration,
                 sample_rate=probe.sample_rate,
                 channels=probe.channels,
             )

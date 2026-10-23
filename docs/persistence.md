@@ -57,6 +57,14 @@ another selected recording does not inherit it. Legacy decisions use their
 existing source/primary references. The field adds no plaintext host path to
 project metadata or editable snapshots.
 
+Source duration and clip geometry are admitted through
+`AudioProbe.require_duration_sec()` before import or consolidation writes them.
+An uncertain probe fallback cannot become a numeric source or media duration.
+Consolidation checks source and rendered-track extents before changing project
+state. Packet scans use a bounded process-local revision cache, described in
+[architecture.md](architecture.md#audio-extent-admission), with no new sidecar
+or project schema field.
+
 ## Balance measurement provenance
 
 Each `timeline.tracks[]` entry may store `balance_basis` beside `gain_db`. The record contains the digest of the measured media revision, ordered FX chain, exact kept speech intervals, and measurement semantics revision (plus a first-audio-stream term for media with several audio streams), plus `measured_lufs` and `speech_gated`. It is saved in the existing project JSON and its history snapshots. A missing record means balance has not been measured; current or stale is derived from the live project and is not persisted. The record does not change render hashes or invalidate premix state by itself.

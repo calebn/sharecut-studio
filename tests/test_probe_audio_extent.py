@@ -6,11 +6,13 @@ mpeg4/ffv1; ``.mkv`` is not an importable suffix for add-track, so those are cop
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import shutil
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -18,6 +20,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines import ffmpeg as ffmpeg_module
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.track_media import media_asset_from_path
 
 TOL = 0.05
 _OUT_TIME = re.compile(r"out_time_us=(\d+)")
@@ -213,6 +216,12 @@ def test_audio_only_late_start_matches_decoded_length(eng, tmp_path, suffix, cod
     assert eng.probe(path).duration_sec == pytest.approx(decoded_extent(eng, path), abs=TOL)
 
 
+def test_large_audio_only_container_origin_is_normalized_before_the_extent_bound(eng, tmp_path):
+    path = tmp_path / "late-origin.mkv"
+    _ff(eng, "-itsoffset", 700000, *_sine(2), "-c:a", "pcm_s16le", path)
+    assert eng.probe(path).require_duration_sec() == pytest.approx(2, abs=TOL)
+
+
 @pytest.mark.parametrize("video_s,audio_s", [(10, 6), (0, 2), (0, 10)])
 def test_mpegts_matches_decoded_length(eng, tmp_path, video_s, audio_s):
     # the packet scan decides; AAC in TS still decodes ~0.09 s past its last packet
@@ -266,6 +275,31 @@ def test_audio_only_m4a_unchanged(eng, tmp_path):
     assert eng.probe(path).duration_sec == pytest.approx(decoded_extent(eng, path), abs=TOL)
 
 
+def test_ordinary_ogg_has_a_known_extent(eng, tmp_path):
+    path = tmp_path / "single.ogg"
+    _ff(eng, *_sine(2), "-c:a", "flac", path)
+    assert eng.probe(path).require_duration_sec() == pytest.approx(2, abs=TOL)
+
+
+def test_multistream_import_uses_known_first_audio_extent(eng, tmp_path):
+    path = tmp_path / "multi.m4a"
+    _ff(eng, *_sine(2), *_sine(3), "-map", "0:a", "-map", "1:a", "-c:a", "aac", path)
+    info = eng.probe(path)
+    assert info.audio_stream_count == 2
+    assert info.require_duration_sec() == pytest.approx(2, abs=TOL)
+    ws = tmp_path / "ep"
+    assert (
+        runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "multi"]).exit_code == 0
+    )
+    project = ws / "episode.project.json"
+    result = runner.invoke(
+        app, ["episode", "add-track", "--project", str(project), "--id", "t1", "--file", str(path)]
+    )
+    assert result.exit_code == 0, result.stdout
+    doc = json.loads(project.read_text())
+    assert doc["timeline"]["tracks"][0]["media"]["duration_sec"] == pytest.approx(2, abs=TOL)
+
+
 @pytest.mark.parametrize("suffix,codec", [("m4a", "aac"), ("mp3", "libmp3lame")])
 def test_cover_art_audio_unchanged(eng, tmp_path, suffix, codec):
     path = tmp_path / f"cover.{suffix}"
@@ -306,18 +340,20 @@ def test_file_without_audio_keeps_format_duration(eng, tmp_path):
 
 def _patch_packet_scan(monkeypatch, *, stdout: str | None = None):
     """Answer the packet scan with *stdout*, or fail it when *stdout* is None."""
-    real_run = ffmpeg_module.run
+    real_popen = ffmpeg_module.popen
     calls = {"scan": 0}
 
-    def fake_run(cmd, *args, **kwargs):
+    def fake_popen(cmd, *args, **kwargs):
         if "packet=pts_time,duration_time" not in cmd:
-            return real_run(cmd, *args, **kwargs)
+            return real_popen(cmd, *args, **kwargs)
         calls["scan"] += 1
         if stdout is None:
-            raise subprocess.CalledProcessError(1, cmd, output="", stderr="boom")
-        return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+            raise OSError("packet scan unavailable")
+        return SimpleNamespace(
+            stdout=io.BytesIO(stdout.encode()), wait=lambda: 0, poll=lambda: 0, kill=lambda: None
+        )
 
-    monkeypatch.setattr(ffmpeg_module, "run", fake_run)
+    monkeypatch.setattr(ffmpeg_module, "popen", fake_popen)
     return calls
 
 
@@ -333,8 +369,10 @@ def test_scan_failure_falls_back_to_format_duration(eng, tmp_path, monkeypatch):
             ).stdout
         )["format"]["duration"]
     )
-    _patch_packet_scan(monkeypatch)
+    calls = _patch_packet_scan(monkeypatch)
     info = eng.probe(path)  # must not raise
+    assert calls["scan"] == 1
+    assert info.duration_estimated is True
     assert info.duration_sec == pytest.approx(fmt, abs=TOL)
 
 
@@ -379,8 +417,8 @@ def test_forged_packet_times_fail_the_scan(eng, tmp_path, monkeypatch):
 
 def test_short_container_duration_does_not_clip_the_scan(eng, tmp_path, monkeypatch):
     path = _av(eng, tmp_path, "stale.mkv", 5, 2, vcodec="ffv1", acodec="pcm_s16le")
-    _patch_packet_scan(monkeypatch, stdout="0.0,1.0\n1.0,4.0\n")
-    assert eng.probe(path).duration_sec == pytest.approx(5.0, abs=1e-6)
+    _patch_packet_scan(monkeypatch, stdout="0.0,1.0\n1.0,6.0\n")
+    assert eng.probe(path).duration_sec == pytest.approx(7.0, abs=1e-6)
 
 
 def test_estimated_container_duration_does_not_clamp_the_scan(eng, tmp_path):
@@ -393,5 +431,9 @@ def test_estimated_container_duration_does_not_clamp_the_scan(eng, tmp_path):
         "-c:a", "libmp3lame", "-q:a", "0", "-write_xing", "0", path,
     )  # fmt: skip
     info = eng.probe(path)
-    assert info.duration_estimated is True
+    assert info.duration_estimated is False
+    assert info.audio_duration_sec is None
     assert info.duration_sec == pytest.approx(decoded_extent(eng, path), abs=0.1)
+    assert media_asset_from_path(path, store_path="raw/no-xing.mp3").duration_sec == pytest.approx(
+        info.duration_sec, abs=TOL
+    )

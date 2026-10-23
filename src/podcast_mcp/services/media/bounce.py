@@ -209,7 +209,7 @@ class BounceService:
                     source = trimmed
                 else:
                     start = float(req.start_s) if req.start_s is not None else 0.0
-                    mixed_dur = float(eng.probe(mixed).duration_sec)
+                    mixed_dur = eng.probe(mixed).require_duration_sec()
                     if req.end_s is not None:
                         end = float(req.end_s)
                     else:

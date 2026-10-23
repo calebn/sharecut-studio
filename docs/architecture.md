@@ -326,6 +326,26 @@ than its timeline after applied edits; an overlong stem is stale.
 
 **Long jobs merge their saves:** a pipeline run, `render_final`, `export_audio`, the play premix re-render (`PlayService._ensure_premix`) and `HistoryService.undo` / `redo` / `goto` with `rerender=True` keep their own workspace copy for seconds to minutes. They call `ProjectWorkspace.checkpoint()` first and `save_merged()` instead of `save()`. `save_merged()` three-way merges (base = the one read of the saved file that checkpoint() also uses to decide whether its copy is current, ours = the job copy, including unsaved edits it already had only while the file is unchanged since the workspace loaded it (if another writer committed first, checkpoint() adopts the saved file and those unsaved edits are dropped), theirs = the file now) through `project.merge.merge_project_data`: dicts merge key by key, lists of objects by `id`, else `track_id`+`parameter`, else `track_id`, and history entries are unioned. Other lists (such as transcript words) merge as one value, so both sides changing one conflicts. The merge is adopted in place so later steps see it and is recorded as an `after merging concurrent edits` history entry. If both sides changed the same value, `ProjectMergeConflict` fails the job, saves nothing and asks for a re-run (a history move's conflict says to re-render the preview instead, since the move is already saved, or to check `history_status` first when another undo or redo moved the cursor). The job's own history entries go into the same locked commit (`save_merged(history_label=...)`); rollback on failure and the undo/redo conflict (`history.lineage`) are described in [history.md § Storage layout](history.md#storage-layout). The premix hash stays truthful: it records the gains the WAV was mixed with, so a volume saved mid-mix leaves the premix stale and the next Refresh or `master_loudness` re-mixes. Refresh renders inside `mutate()`, which re-reads the saved project under the cross-process lock.
 
+### Audio extent admission
+
+`FFmpegEngine.probe` reports where the selected first audio stream ends on the
+container timeline. A leading audio gap counts after subtracting the container
+origin. `AudioProbe.duration_estimated` describes uncertainty in that endpoint.
+Multiple audio streams alone do not make the selected first stream uncertain.
+Writers and extraction bounds use `AudioProbe.require_duration_sec()` before
+storing or trimming with an extent. This rejects uncertain, nonpositive,
+non-finite, and missing-audio results. Upload finalization also limits known
+extents to seven days and removes rejected files.
+
+Packet recovery scans Ogg, MPEG-TS, and other containers whose declarations
+cannot establish the extent. It reads bounded records under one 120-second
+deadline, discards stderr, and kills and reaps the child on an incomplete scan.
+Backward or repeated packet timestamps leave the result uncertain. A complete
+scan can verify a bitrate-derived header estimate. The separate
+`audio_duration_sec` declaration remains available for PCM shortfall checks
+unless bitrate estimation invalidated it. Declaration consumers still require
+exactly one audio stream and a known extent.
+
 ### Derived-value caches
 
 Three idioms cache a value derived from project data; pick by how the input changes:
@@ -335,6 +355,14 @@ Three idioms cache a value derived from project data; pick by how the input chan
 - **Large in-memory data edited in place** — stamp against a bump-on-mutation revision and memo on the object (`Transcript.memoize_words` over `models/words_revision.py`, #729). Hashing the content would cost as much as the value. A path key is wrong here because loads and deep copies build new words without moving the revision. Memoized values must be immutable.
 
 Never key a cache on object identity (`id()`) of mutable project data.
+
+The engine's packet-scan LRU retains at most 1024 successful endpoints. Its key
+includes canonical media path and file revision, admitted FFprobe path and
+binary revision, and the untrusted-input flag. A trusted scan cannot answer an
+untrusted request. Changed revisions during a scan and failed scans are retried
+on later calls. This cache stores only immutable floats. The metadata cache in
+`engines/media_probe.py` separately returns copies of complete probe results.
+Same-stat replacements remain outside these revision caches' guarantees.
 
 A process-wide memo that outlives one call and is not one of these three (an admitted binary pair, a parsed defaults file, a probe answer, the waveform index, pyramid header and PCM block LRUs) is a module-level `util.bounded_cache.BoundedCache`: a hard entry bound, its own reentrant lock (hold `cache.lock` across get, compute and put for single flight) and `clear()`. Register it in `tests/process_caches.py` ([testing.md § Host config isolation](testing.md#host-config-isolation)). Registries of live objects stay as they are: the weak-value sync store cache (`session_sync/log.py`, persistence.md) is lifetime management, not a value cache, and `SnapshotCache` bounds by bytes as well as entries.
 

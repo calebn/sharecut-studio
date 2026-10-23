@@ -22,7 +22,6 @@ from podcast_mcp.engines.session_timeline import (
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
 )
-from podcast_mcp.engines.track_media import apply_full_span_media
 from podcast_mcp.ingest.consolidate import (
     ConsolidateResult,
     consolidate_speakers,
@@ -338,16 +337,34 @@ class IngestService:
         )
 
     def apply_consolidated_tracks(self, result: ConsolidateResult) -> AppliedConsolidation:
+        from podcast_mcp.engines.ffmpeg import FFmpegEngine
+        from podcast_mcp.engines.track_media import media_asset_from_path
+
         warnings: list[str] = []
+        engine = FFmpegEngine()
+        source_durations = {
+            source.source: engine.probe(source.source).require_duration_sec()
+            for alignment in result.alignments
+            for source in alignment.sources
+        }
+        ws_path = self.ws.project.workspace_path().resolve()
+        media_by_speaker = {}
+        for name, wav in result.speaker_tracks.items():
+            try:
+                resolved = resolve_within(ws_path, str(wav))
+            except ValueError:
+                raise CodedValueError(
+                    f"consolidated track must be under workspace: {wav}",
+                    code="ingest_track_outside_workspace",
+                ) from None
+            rel = str(resolved.relative_to(ws_path)).replace("\\", "/")
+            media_by_speaker[name] = media_asset_from_path(resolved, store_path=rel)
 
         def mutate(p) -> None:
             warnings.clear()
             from podcast_mcp.edits.ingest_placement import place_ingest_sources
             from podcast_mcp.engines.clips_ops import new_clip_id, set_track_clips
-            from podcast_mcp.engines.track_media import (
-                media_asset_from_path,
-                refresh_timeline_duration,
-            )
+            from podcast_mcp.engines.track_media import full_span_clip, refresh_timeline_duration
 
             ws_path = p.workspace_path().resolve()
             p.sources = []
@@ -365,13 +382,6 @@ class IngestService:
                         rel = src_path.name
                     sid = f"{_track_id(alignment.name)}_src{i}"
                     content = result.cross_speaker_offsets.get(alignment.name, 0.0)
-                    dur = None
-                    try:
-                        from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
-                        dur = FFmpegEngine().probe(src_path).duration_sec
-                    except Exception:
-                        dur = None
                     p.sources.append(
                         SourceRecording(
                             id=sid,
@@ -379,20 +389,12 @@ class IngestService:
                             speaker=alignment.name,
                             label=src_path.name,
                             offset_sec=content,
-                            duration_sec=dur,
+                            duration_sec=source_durations[src_path],
                         )
                     )
 
-            for name, wav in result.speaker_tracks.items():
+            for name, media in media_by_speaker.items():
                 tid = _track_id(name)
-                try:
-                    wav = resolve_within(ws_path, str(wav))
-                except ValueError:
-                    raise CodedValueError(
-                        f"consolidated track must be under workspace: {wav}",
-                        code="ingest_track_outside_workspace",
-                    ) from None
-                rel = str(wav.relative_to(ws_path)).replace("\\", "/")
                 track = Track(
                     id=tid,
                     label=name,
@@ -400,18 +402,12 @@ class IngestService:
                     speaker=name,
                 )
                 p.timeline.tracks.append(track)
-                media = media_asset_from_path(wav, store_path=rel)
                 track.media = media
 
                 speaker_sources = [s for s in p.sources if s.speaker == name]
                 durations: list[float] = []
                 for src in speaker_sources:
-                    src_path = ws_path / src.path
                     dur = float(src.duration_sec or 0.0)
-                    if dur <= 0 and src_path.is_file():
-                        from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
-                        dur = float(FFmpegEngine().probe(src_path).duration_sec)
                     durations.append(dur)
                 recorded = SpeakerIngestAlignment(
                     session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),
@@ -441,7 +437,9 @@ class IngestService:
                     meta_key = ingest_alignment_meta_key(p, track, clip, multi_clip=multi)
                     align_meta[meta_key] = recorded.model_copy()
                 if not clips:
-                    apply_full_span_media(p, track, store_path=rel, audio_path=wav)
+                    assert media.duration_sec is not None
+                    set_track_clips(p, tid, [full_span_clip(tid, media.duration_sec)])
+                    refresh_timeline_duration(p)
                     align_meta[name] = recorded.model_copy()
                 else:
                     set_track_clips(p, tid, clips)

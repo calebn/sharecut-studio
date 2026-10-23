@@ -198,7 +198,7 @@ def consolidate_speakers(
                 out = output_dir / f"{_slug(name)}{suffix}.wav"
                 outs.append(out)
                 file_session_start = session_starts.get(name, 0.0)
-                duration = eng.probe(src_path).duration_sec
+                duration = eng.probe(src_path).require_duration_sec()
                 if i == 0 and extract_start_sec is not None:
                     trim_start = file_time_for_session(
                         file_session_start,

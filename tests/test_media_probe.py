@@ -73,6 +73,18 @@ def test_estimated_audio_extent_refuses_after_cached_container_lookup(
     assert probe_first_audio_duration_sec(path) is None
 
 
+def test_multistream_declared_extent_remains_conservative(tmp_path, monkeypatch):
+    path = tmp_path / "multi.m4a"
+    path.write_bytes(b"mock media")
+    monkeypatch.setattr(
+        FFmpegEngine,
+        "probe",
+        lambda *_: AudioProbe(3, 48000, 1, audio_duration_sec=3, audio_stream_count=2),
+    )
+    assert probe_media(path).require_duration_sec() == 3
+    assert probe_first_audio_duration_sec(path) is None
+
+
 def test_failed_shared_probe_retries_on_later_calls(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
