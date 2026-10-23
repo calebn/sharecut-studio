@@ -10,7 +10,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { runRangeAction } from "../commands/rangeActions";
 import { seekTransport } from "../commands/seek";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
-import { useModel } from "../models";
+import { ModelGateHint, useModel, useModelGate } from "../models";
 import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
 import { seedStudioJob } from "../state/seedStudioJob";
@@ -97,6 +97,7 @@ export function SplitSpeakersDialog() {
     useState<SpeakerReadiness>("checking");
   const [readinessCheck, setReadinessCheck] = useState(0);
   const speakerModel = useModel(SPEAKER_MODEL_COMPONENT);
+  const gate = useModelGate();
   const open = trackId != null && project != null;
   useEffect(() => {
     if (!open) return;
@@ -223,21 +224,28 @@ export function SplitSpeakersDialog() {
     const scope = projectScopedSignal(projectPath);
     let jobId: string | null = null;
     const label = trackLabel;
-    setFlow({
-      kind: "running",
-      trackId,
-      label,
-      jobId: null,
-      cancelling: false,
-      cancelError: null,
-    });
     try {
-      const job = await startSplitSpeakersJob(projectPath, {
-        trackId,
-        speakerCount: count,
-        names,
-        enrollment,
-      });
+      const started = await gate.run(async () => {
+        setFlow({
+          kind: "running",
+          trackId,
+          label,
+          jobId: null,
+          cancelling: false,
+          cancelError: null,
+        });
+        return startSplitSpeakersJob(projectPath, {
+          trackId,
+          speakerCount: count,
+          names,
+          enrollment,
+        });
+      }, [{ id: SPEAKER_MODEL_COMPONENT }]);
+      if (started.kind === "declined") {
+        setFlow({ kind: "configure" });
+        return;
+      }
+      const job = started.value;
       jobId = job.id;
       if (scope.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
@@ -321,8 +329,9 @@ export function SplitSpeakersDialog() {
     }
   }
 
-  const stage: SplitSpeakersStage =
-    flow.kind === "configure" || (flow.kind === "done" && !doneMatchesProject)
+  const stage: SplitSpeakersStage = gate.prompt
+    ? { kind: "needsModel", gate }
+    : flow.kind === "configure" || (flow.kind === "done" && !doneMatchesProject)
       ? {
           kind: "configure",
           count: settings.count,
@@ -408,6 +417,10 @@ export function SplitSpeakersDialog() {
     <SplitSpeakersDialogView
       open={open}
       onClose={() => {
+        if (gate.prompt) {
+          gate.decline();
+          return;
+        }
         if (
           flow.kind === "done" &&
           stage.kind === "done" &&
@@ -424,6 +437,7 @@ export function SplitSpeakersDialog() {
       }}
       trackLabel={trackLabel}
       stage={stage}
+      modelHint={<ModelGateHint gate={gate} actionLabel="Split speakers" />}
       speakerModel={{ row: speakerModel.row, busy: speakerModel.busy }}
       onDownloadSpeakerModel={() =>
         void speakerModel.download().then((outcome) => {

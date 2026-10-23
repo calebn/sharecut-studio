@@ -30,13 +30,21 @@ import {
 } from "../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { HistoryEntryId } from "../types/project";
+import { ApiError } from "../utils/apiError";
 import { SplitSpeakersDialog } from "./SplitSpeakersDialog";
 
 const downloadModel = vi.fn();
 
-function render(ui: ReactElement) {
+/** The speaker model is installed unless a test is about it missing. */
+function render(ui: ReactElement, speakerInstalled = true) {
   return renderWithModels(ui, {
-    status: modelStatus(registryRows()),
+    status: modelStatus(
+      registryRows().map((r) =>
+        speakerInstalled && r.id === "speaker-ecapa"
+          ? { ...r, state: "installed" }
+          : r,
+      ),
+    ),
     download: downloadModel,
   });
 }
@@ -757,6 +765,90 @@ describe("SplitSpeakersDialog", () => {
     expect(
       await screen.findByRole("button", { name: "Split speakers" }),
     ).toBeTruthy();
+  });
+
+  describe("model gate", () => {
+    const needed = () =>
+      new ApiError("Needs the speaker model.", "model_needed", 409, {
+        id: "speaker-ecapa",
+        variant: null,
+        label: "Speaker model",
+        purpose: "speaker recognition and split",
+        size: "~25 MB",
+        sizeBytes: null,
+        state: "missing",
+      });
+
+    it("asks inside the same dialog when the speaker model is missing", async () => {
+      const user = userEvent.setup();
+      const { api } = render(<SplitSpeakersDialog />, false);
+      await splitTwo(user);
+
+      expect(await screen.findByText(/stored on this computer/)).toBeTruthy();
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+      expect(startSplitSpeakersJob).not.toHaveBeenCalled();
+      expect(api.download).not.toHaveBeenCalled();
+    });
+
+    it("downloads on accept and then starts the split once", async () => {
+      const user = userEvent.setup();
+      downloadModel.mockResolvedValue({ kind: "ok" });
+      heldFollow();
+      const { api } = render(<SplitSpeakersDialog />, false);
+      await splitTwo(user);
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+
+      expect(api.download).toHaveBeenCalledWith(["speaker-ecapa"], undefined);
+      expect(await screen.findByText("Finding who is talking…")).toBeTruthy();
+      expect(startSplitSpeakersJob).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks on a model_needed 409 and restarts the split after the download", async () => {
+      const user = userEvent.setup();
+      downloadModel.mockResolvedValue({ kind: "ok" });
+      vi.mocked(startSplitSpeakersJob)
+        .mockReset()
+        .mockRejectedValueOnce(needed())
+        .mockResolvedValue(started);
+      heldFollow();
+      render(<SplitSpeakersDialog />);
+      await splitTwo(user);
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+
+      expect(await screen.findByText("Finding who is talking…")).toBeTruthy();
+      expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns to the settings with a hint and no failure when declined", async () => {
+      const user = userEvent.setup();
+      render(<SplitSpeakersDialog />, false);
+      await splitTwo(user);
+      await user.click(await screen.findByRole("button", { name: "Not now" }));
+
+      expect(
+        await screen.findByRole("button", { name: "Split speakers" }),
+      ).toBeEnabled();
+      expect(
+        screen.getByText(
+          /Speaker model is not downloaded. Split speakers will ask again./,
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(startSplitSpeakersJob).not.toHaveBeenCalled();
+    });
+
+    it("keeps the dialog open when Escape declines the prompt", async () => {
+      const user = userEvent.setup();
+      render(<SplitSpeakersDialog />, false);
+      await splitTwo(user);
+      await screen.findByRole("button", { name: "Download" });
+      await user.keyboard("{Escape}");
+
+      expect(
+        await screen.findByRole("button", { name: "Split speakers" }),
+      ).toBeTruthy();
+      expect(useDawStore.getState().splitSpeakersTrackId).toBe("room");
+    });
   });
 
   it("names a failure mid-job and lets the chip speak it", async () => {

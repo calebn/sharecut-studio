@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loadPipelineConfig,
@@ -13,16 +14,19 @@ import {
 } from "../api";
 import { execute } from "../commands/execute";
 import type { Answer, Question } from "../feedback/ask";
+import { ModelsContext } from "../models/useModels";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { answerQuestions } from "../test/ask";
 import { COMMENTER_CAPABILITIES, minimalProject } from "../test/fixtures";
+import { modelStatus, modelsApi, registryRows } from "../test/renderWithModels";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
 } from "../types/pipeline";
 import { HISTORY_ROOT_ID, type PendingEditView } from "../types/project";
+import { ApiError } from "../utils/apiError";
 import { TightenPanel } from "./TightenPanel";
 
 const confirmReply = vi.fn<(question: Question) => Answer>();
@@ -584,6 +588,86 @@ describe("TightenPanel", () => {
         }),
       ),
     );
+  });
+
+  describe("model gate", () => {
+    const needed = () =>
+      new ApiError("Needs the model.", "model_needed", 409, {
+        id: "whisper",
+        variant: null,
+        label: "Whisper",
+        purpose: "transcription",
+        size: "~1.6 GB",
+        sizeBytes: null,
+        state: "missing",
+      });
+
+    function renderGated() {
+      const api = modelsApi({ status: modelStatus(registryRows()) });
+      render(
+        <ModelsContext.Provider value={api}>
+          <DawProvider
+            projectPath="/tmp/p.json"
+            initialProject={projectWithHits()}
+          >
+            <TightenPanel />
+          </DawProvider>
+        </ModelsContext.Provider>,
+      );
+      return api;
+    }
+
+    it("asks on a model_needed 409, downloads on accept and starts the run again", async () => {
+      const user = userEvent.setup();
+      vi.mocked(startPipelineRun)
+        .mockRejectedValueOnce(needed())
+        .mockResolvedValue(job());
+      const api = renderGated();
+      await screen.findByRole("option", { name: "Light" });
+      await user.click(screen.getByRole("button", { name: "Find hits" }));
+      await screen.findByRole("dialog", { name: "Download Whisper?" });
+      expect(api.download).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Download" }));
+      expect(api.download).toHaveBeenCalledWith(["whisper"], undefined);
+      await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(useDawStore.getState().pipelineJob?.id).toBe("job1"),
+      );
+    });
+
+    it("shows no error banner after Not now and asks again on the next press", async () => {
+      const user = userEvent.setup();
+      vi.mocked(startPipelineRun).mockRejectedValue(needed());
+      renderGated();
+      await screen.findByRole("option", { name: "Light" });
+      await user.click(screen.getByRole("button", { name: "Find hits" }));
+      await user.click(await screen.findByRole("button", { name: "Not now" }));
+      expect(
+        await screen.findByText(/Find hits will ask again/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Needs the model.")).toBeNull();
+      expect(screen.getByRole("button", { name: "Find hits" })).toBeEnabled();
+      await user.click(screen.getByRole("button", { name: "Find hits" }));
+      expect(
+        await screen.findByRole("dialog", { name: "Download Whisper?" }),
+      ).toBeInTheDocument();
+    });
+
+    it("drops the resumed run when the project changed during the download", async () => {
+      const user = userEvent.setup();
+      vi.mocked(startPipelineRun)
+        .mockRejectedValueOnce(needed())
+        .mockImplementation(async () => {
+          useDawStore.setState({ projectPath: "/tmp/other.json" });
+          return job();
+        });
+      renderGated();
+      await screen.findByRole("option", { name: "Light" });
+      await user.click(screen.getByRole("button", { name: "Find hits" }));
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+      await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(2));
+      expect(useDawStore.getState().pipelineJob).toBeNull();
+    });
   });
 
   it("shows a config load error with Retry", async () => {

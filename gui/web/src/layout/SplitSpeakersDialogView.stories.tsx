@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import type { ModelGate } from "../models";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
@@ -31,6 +32,33 @@ const runningJob = {
   last_progress_at: 1_000,
   steps: [],
 } satisfies PipelineJobSnapshot;
+
+const needsModelGate: ModelGate = {
+  run: () => Promise.reject(new Error("Not used in a preview")),
+  prompt: {
+    need: { id: "speaker-ecapa" },
+    label: "Speaker model",
+    purpose: "speaker recognition and split",
+    size: "~25 MB",
+    phase: "ask",
+    blockedReason: undefined,
+    view: {
+      id: "speaker-ecapa",
+      label: "Speaker model",
+      purpose: "speaker recognition and split",
+      tier: "offered",
+      size: "~25 MB",
+      sizeBytes: null,
+      variant: null,
+      state: { kind: "missing" },
+    },
+  },
+  declined: null,
+  accept: fn(),
+  decline: fn(),
+  cancelDownload: fn(),
+  openModels: fn(),
+};
 
 const result: SplitSpeakersResult = {
   split_id: "split_1",
@@ -252,6 +280,21 @@ export const SplitNoLongerLatest: Story = {
     await expect(
       within(dialog).getByText(/Something else changed since the split/),
     ).toBeVisible();
+  },
+};
+
+export const NeedsModel: Story = {
+  args: { stage: { kind: "needsModel", gate: needsModelGate } },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText(/stored on this computer/),
+    ).toBeVisible();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Download" }),
+    );
+    await expect(needsModelGate.accept).toHaveBeenCalledOnce();
   },
 };
 
