@@ -299,6 +299,12 @@ export function PipelinePanel() {
   const { cfg } = workingSet;
   const { models } = useModels();
   const gate = useModelGate();
+  const latestProject = useRef(projectPath);
+  const resetGate = gate.reset;
+  useEffect(() => {
+    latestProject.current = projectPath;
+    resetGate();
+  }, [projectPath, resetGate]);
   const installedModels = models
     ? models
         .filter((m) => m.state.kind === "installed")
@@ -706,8 +712,11 @@ export function PipelinePanel() {
         const current = afterDownload
           ? ((await refreshConfig()) ?? (await refreshConfig()))
           : cfg;
-        if (!current) {
+        if (latestProject.current !== projectPath) {
           return null;
+        }
+        if (!current) {
+          throw new Error("Could not reload settings. Press Run again.");
         }
         setStarting(true);
         try {

@@ -1500,6 +1500,65 @@ describe("PipelinePanel", () => {
     ).toBeInTheDocument();
   });
 
+  describe("project change around the model gate", () => {
+    const uncachedConfig = () =>
+      withTranscribeEnabled({
+        config: {
+          ...baseConfig.config,
+          transcribe: { model: "large-v3-turbo" },
+        },
+      });
+
+    it("closes the prompt and forgets the decline hint when the project changes", async () => {
+      const user = userEvent.setup();
+      loadPipelineConfig.mockResolvedValue(uncachedConfig());
+      const ui = () => (
+        <main>
+          <PipelinePanel />
+        </main>
+      );
+      const { rerender } = render(ui());
+      const run = await screen.findByRole("button", { name: "Run pipeline" });
+      await waitFor(() => expect(run).toBeEnabled());
+      await user.click(run);
+      await screen.findByRole("dialog", { name: "Download Whisper?" });
+      mockState.projectPath = "/tmp/other.project.json";
+      rerender(ui());
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Download Whisper?" }),
+        ).toBeNull(),
+      );
+      expect(screen.queryByText(/will ask again/)).toBeNull();
+      expect(startPipelineRun).not.toHaveBeenCalled();
+    });
+
+    it("does not start a run for the old project when it changed before the resume", async () => {
+      const user = userEvent.setup();
+      const turbo = uncachedConfig();
+      loadPipelineConfig.mockResolvedValue(turbo);
+      const ui = () => (
+        <main>
+          <PipelinePanel />
+        </main>
+      );
+      const { rerender } = render(ui());
+      loadPipelineConfig.mockImplementation(async () => {
+        mockState.projectPath = "/tmp/other.project.json";
+        rerender(ui());
+        return turbo;
+      });
+      const run = await screen.findByRole("button", { name: "Run pipeline" });
+      await waitFor(() => expect(run).toBeEnabled());
+      await user.click(run);
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+      await waitFor(() => expect(downloadModel).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 50));
+      expect(startPipelineRun).not.toHaveBeenCalled();
+      expect(setPipelineJob).not.toHaveBeenCalled();
+    });
+  });
+
   it("opens the same prompt when a stale cache gets a model_needed 409, then resumes the run", async () => {
     const user = userEvent.setup();
     startPipelineRun
