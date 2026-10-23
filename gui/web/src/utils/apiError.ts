@@ -73,8 +73,17 @@ export function writeFailureReason(failure: ApiError): string | null {
 export const PROJECT_NOT_FOUND_CODE = "project_not_found";
 export const PROJECT_UNREADABLE_CODE = "project_unreadable";
 
-/** The words for a project file that is gone or damaged: nothing can be saved until it is back. */
-export function projectUnavailableReason(failure: ApiError): string | null {
+export function projectUnavailableReason(
+  failure: ApiError,
+  guest: boolean,
+): string | null {
+  if (
+    guest &&
+    (failure.code === PROJECT_UNREADABLE_CODE ||
+      failure.code === PROJECT_NOT_FOUND_CODE)
+  ) {
+    return "The project can't be saved right now. Ask the project owner to check it.";
+  }
   if (failure.code === PROJECT_UNREADABLE_CODE) {
     return "The project file is damaged, so nothing can be saved. Restore it from a backup, or open a copy of the project.";
   }

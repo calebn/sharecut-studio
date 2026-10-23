@@ -6,6 +6,7 @@ import {
   isModelNeeded,
   isPermanentRejection,
   isServerTimeoutError,
+  projectUnavailableReason,
   readApiError,
   readApiFailure,
   refusalReason,
@@ -250,5 +251,22 @@ describe("refusalReason", () => {
     );
     expect(reason).toMatch(/waive it with a reason/);
     expect(reason).not.toMatch(/podcast|--reason/);
+  });
+});
+
+describe("projectUnavailableReason", () => {
+  const damaged = new ApiError("raw", "project_unreadable", 500);
+
+  it("tells the host how to recover and a guest to ask the owner", () => {
+    expect(projectUnavailableReason(damaged, false)).toContain("backup");
+    const guest = projectUnavailableReason(damaged, true);
+    expect(guest).toContain("Ask the project owner");
+    expect(guest).not.toContain("backup");
+  });
+
+  it("is null for any other failure", () => {
+    expect(
+      projectUnavailableReason(new ApiError("x", "bad", 400), false),
+    ).toBeNull();
   });
 });

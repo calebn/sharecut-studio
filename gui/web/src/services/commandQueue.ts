@@ -814,7 +814,10 @@ async function submitThroughQueue(
   if (!reply.ok) {
     const { failure, status } = reply;
     const cmd = queued();
-    const unavailable = projectUnavailableReason(failure);
+    const unavailable = projectUnavailableReason(
+      failure,
+      isShareProjectKey(projectPath),
+    );
     if (unavailable) {
       await settleCommandOutcome(
         projectPath,
