@@ -290,3 +290,59 @@ test("the name step's buttons stay uncovered while the comment field is focused 
     );
   });
 });
+
+for (const size of [
+  { width: 390, height: 340 },
+  { width: 320, height: 300 },
+]) {
+  test(`a named guest's Post comment stays whole above the tab bar with the keyboard up at ${size.width}x${size.height}`, async ({
+    browser,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [
+          {},
+          {
+            viewport: size,
+            reducedMotion: "reduce",
+            hasTouch: true,
+            isMobile: true,
+          },
+        ],
+        async ([host, guest]) => {
+          await openHostShare(host, projectPath);
+          const token = await createReviewShare(host, projectPath, "commenter");
+          await openGuestShare(guest, token);
+          const dock = guest.getByRole("region", { name: "Add a comment" });
+          const field = dock.getByRole("textbox", {
+            name: "Comment",
+            exact: true,
+          });
+          await field.fill("First");
+          await dock.getByRole("button", { name: "Post comment" }).tap();
+          await dock.getByRole("textbox", { name: "Your name" }).fill("Riley");
+          await dock.getByRole("button", { name: "Post comment" }).tap();
+          await expect(dock.locator(".comment-author-line strong")).toHaveText(
+            "Riley",
+          );
+          await field.focus();
+          await field.fill("Second");
+          const nav = guest.getByRole("navigation", { name: "Primary" });
+          await expect(nav).toBeInViewport({ ratio: 1 });
+          const post = dock.getByRole("button", { name: "Post comment" });
+          await expect(post).toBeInViewport({ ratio: 1 });
+          const reached = await post.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              r.left + r.width / 2,
+              r.top + r.height / 2,
+            );
+            return hit !== null && el.contains(hit);
+          });
+          expect(reached, "Post comment is covered").toBe(true);
+        },
+      );
+    });
+  });
+}
