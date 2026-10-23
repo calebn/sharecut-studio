@@ -46,9 +46,9 @@ describe("saveStateOf", () => {
   it.each(["UndoHistory", "RedoHistory"])(
     "is not a failed save when only a refused %s is listed",
     (type) => {
-      const refusedMove: SaveStateInput["conflicts"][number] = {
+      const refusedHistory: SaveStateInput["conflicts"][number] = {
         command: {
-          command_id: "move",
+          command_id: "history-move",
           client_id: "client",
           client_seq: 1,
           type,
@@ -59,13 +59,13 @@ describe("saveStateOf", () => {
         reason: "Nothing to undo",
         recovery: "edit-and-resubmit",
       };
-      expect(saveStateOf({ ...quiet, conflicts: [refusedMove] })).toEqual({
+      expect(saveStateOf({ ...quiet, conflicts: [refusedHistory] })).toEqual({
         kind: "saved",
       });
       expect(
         saveStateOf({
           ...quiet,
-          conflicts: [{ ...refusedMove, dismissed: true }],
+          conflicts: [{ ...refusedHistory, dismissed: true }],
         }),
       ).toEqual({ kind: "saved" });
     },
