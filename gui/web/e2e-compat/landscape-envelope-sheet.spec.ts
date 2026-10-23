@@ -291,7 +291,18 @@ test("the bottom panel splitter can shrink a short window's default panel", asyn
   await withShareableProject(async (projectPath) => {
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
     await expect(page.locator(".daw-shell--tablet")).toBeVisible();
-    const separator = page.getByRole("separator").first();
+    const panels = page.getByRole("region", { name: "Editor panels" });
+    const showPanels = page.getByRole("button", {
+      name: "Show editor panels",
+      exact: true,
+    });
+    await expect(panels).toBeHidden();
+    await expect(showPanels).toBeVisible();
+    await showPanels.tap();
+    await expect(panels).toBeVisible();
+    const separator = panels.getByRole("separator", {
+      name: "Resize editor panels",
+    });
     await expect(separator).toBeVisible();
     const tabs = page.locator(".bottom-tabs");
     const before = (await tabs.boundingBox())!.height;
@@ -304,6 +315,7 @@ test("the bottom panel splitter can shrink a short window's default panel", asyn
     await page.keyboard.press("ArrowDown");
     const after = (await tabs.boundingBox())!.height;
     expect(after).toBeLessThan(before);
+    await expect(panels).toBeVisible();
   });
 });
 
