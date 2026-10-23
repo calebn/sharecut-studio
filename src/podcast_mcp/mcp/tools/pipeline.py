@@ -15,6 +15,7 @@ from podcast_mcp.services.pipeline import (
     format_export_qc_lines,
     stale_stream_notices,
 )
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import current_cancel_check
 
 
@@ -111,6 +112,8 @@ def pipeline_run(
         )
         jobs.wait(job)
         if job.status == "error":
+            if job.error_model is not None:
+                raise ModelMissing(**job.error_model)
             raise RuntimeError(job.error or job.message or "Pipeline failed")
         if job.status == "cancelled":
             raise RuntimeError(job.message or "Pipeline cancelled")

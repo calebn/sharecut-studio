@@ -53,6 +53,12 @@ class ModelMissing(CodedError, RuntimeError):
             state=rec["state"],
         )
 
+    def plain(self) -> str:
+        """The one line for a screen: no command, which stays in ``str(self)`` and ``payload``."""
+        if self.state == "update_needed":
+            return f"{self.label} needs an update."
+        return f"{self.label} is not downloaded."
+
     def payload(self) -> dict[str, Any]:
         return {
             "id": self.id,
