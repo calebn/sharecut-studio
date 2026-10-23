@@ -7,6 +7,7 @@ import {
   type Job,
   type Mock,
   mockBootstrap,
+  mockModelFailingJob,
   prepare,
   ROWS,
   row,
@@ -14,7 +15,7 @@ import {
   THEMES,
   VIEWPORTS,
 } from "./modelsMock";
-import { openHostProject } from "./overlayReachability";
+import { openDialogFromMenu, openHostProject } from "./overlayReachability";
 
 /**
  * The model gate against a mocked `/api/bootstrap/*` and a mocked 409 `model_needed` on the Run
@@ -503,6 +504,164 @@ for (const viewport of VIEWPORTS) {
         await expectSurfaceAxeClean(page, '[role="dialog"]');
         await shot(page, viewport.name, theme, "split-declined");
       });
+
+      test("Export asks inside its own dialog, then exports once more", async ({
+        page,
+      }) => {
+        await prepare(page, theme, true);
+        let downloaded = false;
+        const mock = await mockBootstrap(page, {
+          events: progressFrames("rnnoise", () => {
+            downloaded = true;
+          }),
+        });
+        const exports = await mockModelFailingJob(page, {
+          kind: "export",
+          post: "**/api/export/deliverables",
+          projectPath: e2eProjectPath,
+          modelId: "rnnoise",
+          ready: () => downloaded,
+        });
+        await openHostProject(page);
+        await openDialogFromMenu(page, "Export deliverables…");
+        const dialog = page.getByRole("dialog", {
+          name: "Export deliverables",
+        });
+        await dialog
+          .getByRole("button", { name: "Export", exact: true })
+          .click();
+
+        await expect(dialog.getByText(/stored on this computer/)).toBeVisible();
+        await expect(page.getByRole("dialog")).toHaveCount(1);
+        const download = dialog.getByRole("button", {
+          name: "Download",
+          exact: true,
+        });
+        await expect(download).toBeInViewport();
+        await expect(download).toBeFocused();
+        expect(mock.runs).toEqual([]);
+        expect(exports.posts()).toBe(1);
+        await expectNoHorizontalScroll(page);
+        await expectTouchTargets(dialog);
+        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await shot(page, viewport.name, theme, "export-idle");
+
+        await download.click();
+        await expect.poll(() => mock.runs.length).toBe(1);
+        expect(mock.runs[0]).toMatchObject({ components: ["rnnoise"] });
+        const cancel = dialog.getByRole("button", { name: "Cancel download" });
+        await expect(cancel).toBeInViewport();
+        await expect(cancel).toBeFocused();
+        await expect(dialog.getByRole("progressbar")).toHaveAttribute(
+          "aria-valuetext",
+          "420 MB of 1.6 GB",
+        );
+        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await shot(page, viewport.name, theme, "export-downloading");
+
+        await expect(dialog.getByRole("status")).toContainText(/exported/i);
+        expect(exports.posts()).toBe(2);
+        await expectSurfaceAxeClean(page, '[role="dialog"]');
+      });
+
+      test("Export declined leaves a hint, and Download waits beside the Activity chip", async ({
+        page,
+      }) => {
+        await prepare(page, theme, true);
+        const mock = await mockBootstrap(page);
+        const exports = await mockModelFailingJob(page, {
+          kind: "export",
+          post: "**/api/export/deliverables",
+          projectPath: e2eProjectPath,
+          modelId: "rnnoise",
+          ready: () => false,
+        });
+        await openHostProject(page);
+        await openDialogFromMenu(page, "Export deliverables…");
+        const dialog = page.getByRole("dialog", {
+          name: "Export deliverables",
+        });
+        await dialog
+          .getByRole("button", { name: "Export", exact: true })
+          .click();
+        await dialog
+          .getByRole("button", { name: "Not now", exact: true })
+          .click();
+
+        await expect(dialog.getByRole("alert")).toHaveText(
+          "Export failed: Noise reduction (RNNoise) is not downloaded.",
+        );
+        await expect(dialog.getByText(/Export will ask again/)).toBeVisible();
+        await expectNoHorizontalScroll(page);
+        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await shot(page, viewport.name, theme, "export-declined");
+
+        await page.keyboard.press("Escape");
+        await expect(dialog).toBeHidden();
+        const chipDownload = page.getByRole("button", {
+          name: "Download Noise reduction (RNNoise)",
+        });
+        await expect(chipDownload).toBeVisible();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expectSurfaceAxeClean(page, "body");
+        await shot(page, viewport.name, theme, "export-chip");
+
+        await chipDownload.click();
+        await expect(
+          page.getByRole("dialog", {
+            name: "Download Noise reduction (RNNoise)?",
+          }),
+        ).toBeVisible();
+        expect(mock.runs).toEqual([]);
+        expect(exports.posts()).toBe(1);
+      });
+
+      test("a failed Refresh mix opens nothing until Download, then refreshes once", async ({
+        page,
+      }) => {
+        await prepare(page, theme, true);
+        let downloaded = false;
+        const mock = await mockBootstrap(page, {
+          events: progressFrames("rnnoise", () => {
+            downloaded = true;
+          }),
+        });
+        const renders = await mockModelFailingJob(page, {
+          kind: "render_preview",
+          post: "**/api/pipeline/render-preview",
+          projectPath: e2eProjectPath,
+          modelId: "rnnoise",
+          ready: () => downloaded,
+        });
+        await openHostProject(page);
+        await page.locator("body").click({ position: { x: 1, y: 1 } });
+        await page.keyboard.press("ControlOrMeta+b");
+
+        const chipDownload = page.getByRole("button", {
+          name: "Download Noise reduction (RNNoise)",
+        });
+        await expect(chipDownload).toBeVisible();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        expect(renders.posts()).toBe(1);
+        expect(mock.runs).toEqual([]);
+
+        await chipDownload.click();
+        const gate = page.getByRole("dialog", {
+          name: "Download Noise reduction (RNNoise)?",
+        });
+        await expect(gate).toBeVisible();
+        await expectNoHorizontalScroll(page);
+        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await gate
+          .getByRole("button", { name: "Download", exact: true })
+          .click();
+        await expect.poll(() => mock.runs.length).toBe(1);
+        await expect(
+          gate.getByRole("button", { name: "Cancel download" }),
+        ).toBeFocused();
+        await expect(gate).toBeHidden();
+        await expect.poll(renders.posts).toBe(2);
+      });
     });
   }
 }
@@ -535,6 +694,9 @@ test.describe("model gate guest share", () => {
         await openGuestShare(guest, token);
         await expect(
           guest.getByRole("dialog", { name: /^Download / }),
+        ).toHaveCount(0);
+        await expect(
+          guest.getByRole("button", { name: /^Download / }),
         ).toHaveCount(0);
         expect(bootstrap).toEqual([]);
       } finally {
