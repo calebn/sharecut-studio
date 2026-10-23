@@ -298,6 +298,16 @@ async function sweepCell(
       .getByRole("button", { name: "Text" })
       .click();
   } else {
+    const panels = page.getByRole("region", { name: "Editor panels" });
+    if (await panels.isHidden()) {
+      const showPanels = page.getByRole("button", {
+        name: "Show editor panels",
+        exact: true,
+      });
+      await expect(showPanels).toBeVisible();
+      await showPanels.click();
+    }
+    await expect(panels).toBeVisible();
     await page
       .getByRole("tab", { name: "Transcript", exact: true })
       .first()
