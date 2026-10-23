@@ -512,7 +512,6 @@ def _write_source_remove(
     pads: list[cut_effects.PadEffect],
     defaults: EffectiveConfig,
 ) -> tuple[float, float, list[str], dict]:
-
     scope = edit.scope or "session"
     tl_start, tl_end = map(float, span)
     pause = prepared_pause is not None
