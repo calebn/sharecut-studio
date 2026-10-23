@@ -523,8 +523,19 @@ describe("GuestAttentionBannerView", () => {
       it("copes with a browser that cannot scroll an element into view", () => {
         const details = renderGated();
         Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-        details.open = true;
-        expect(() => fireEvent(details, new Event("toggle"))).not.toThrow();
+        const errors: unknown[] = [];
+        const onError = (event: ErrorEvent) => {
+          event.preventDefault();
+          errors.push(event.error);
+        };
+        window.addEventListener("error", onError);
+        try {
+          details.open = true;
+          fireEvent(details, new Event("toggle"));
+        } finally {
+          window.removeEventListener("error", onError);
+        }
+        expect(errors).toEqual([]);
       });
     });
 
