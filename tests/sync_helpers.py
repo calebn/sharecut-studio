@@ -1,3 +1,9 @@
+"""Shared sync-test helpers.
+
+Foreign-write helpers open fresh ``SyncStore`` connections so they do not notify the
+in-process hub, matching writes from another process.
+"""
+
 from __future__ import annotations
 
 import asyncio
