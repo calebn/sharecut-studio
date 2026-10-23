@@ -312,8 +312,8 @@ the empty state, not a separate discovery task.
   two seconds, how long it has run. It shows no percent unless the host reports
   a real total ([progress.md](progress.md)). The control stays disabled with
   the busy reason, and the status clears when the command ends, leaving the
-  result toast and its Undo. Impact's Approve all and Reject all are the
-  reference (#1491). A job that outlives the panel belongs on the Activity chip.
+  result toast and its Undo. Impact's Approve all and Reject all, and Tighten's Apply suggested actions, use
+  this working line (#1491, #2165). A job that outlives the panel belongs on the Activity chip.
 - **Destructive list actions get toast-with-undo.** Approve, reject,
   skip, blade, trim: after the mutation, a transient confirmation
   with an Undo action. The History tab is the backstop, not the
@@ -569,6 +569,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
+- 2026-10-23 Tighten's confirmed **Apply suggested actions** shows an in-place **Applying N suggested actions…** line, a pulse and elapsed time after two seconds. Apply is busy and disabled until the command returns; submitted rows say **Applying…**. The result keeps its toast and Undo. A queued outcome leaves **Still sending**, without claiming the server applied it (#2165).
+
 - 2026-10-22 — Added "Edit marker" and "Edit group" (#2076): joins show as a typed symbol at any zoom, and joins that crowd each other fold into a count that zooms in on tap.
 - 2026-09-21 — Initial draft from the 6-surface interaction audit.
 - 2026-10-06 — Landed as canon (#1025). Reconciled with the UI philosophy,
@@ -652,7 +654,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-16 The envelope-point select, the effect Bypass toggles and the comment composer's fields and track picks hold the 44 px floor on touch (#1445); the reachability sweep also covers the clip sheet, the Comments panel and a track with an envelope and an effect chain.
 - 2026-10-16 The phone Mix sheet shows **Plays at {dB}** over a fader whose track has a volume envelope (#1645), so a phone host can read the level at the playhead without opening the inspector. It stays plain text.
 - 2026-10-16 The track header's **Out** readout follows the volume envelope at the playhead (#1642): it is the gain the mix plays (staging, saved volume and envelope), and silence reads `−∞ dB`. It stays plain text, so playback does not announce it.
-- 2026-10-16 Tighten shows **Just applied (N)** after Apply suggested actions (#1607): the sounds of the latest batch, each with its action in a select. Changing one keeps the others and stays one undo step; the list goes away once another edit follows, and it is host-only. No progress indicator: the change lands like any other edit.
+- 2026-10-16 Tighten shows **Just applied (N)** after Apply suggested actions (#1607): the sounds of the latest batch, each with its action in a select. Changing one keeps the others and stays one undo step; the list goes away once another edit follows, and it is host-only. The result retains the existing toast and Undo.
 - 2026-10-15 Panel interiors hold the touch floor and stay clear of sticky chrome (#1445): on touch the Pipeline panel's selects, From / Only shortcuts row and the More hub's back button are 44 px; at large text or in a short window the Pipeline toolbar stops sticking and the Transcript panel scrolls as a whole; the reachability sweep now covers both panels.
 - 2026-10-18 The Pipeline toolbar always scrolls now to preserve reachability (#1033); viewport-resize retention does not require one browser-specific scroll anchor.
 - 2026-10-15 Split speakers (#1319): each speaker in the dialog has **Use selection** to keep the selected range as a **voice sample**, with **Listen** and **Clear**; the done view suggests undoing and marking samples when two tracks sound like one person. Added "Voice sample".

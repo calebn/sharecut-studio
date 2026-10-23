@@ -29,6 +29,21 @@ describe("BulkReviewWorking", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Rejecting 1 edit…");
   });
 
+  it.each([1, 4])("names %i suggested actions as applying", (count) => {
+    render(
+      <BulkReviewWorking
+        verb="Applying"
+        count={count}
+        startedAtSec={started}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      count === 1
+        ? "Applying 1 suggested action…"
+        : "Applying 4 suggested actions…",
+    );
+  });
+
   it("adds the elapsed time once it is not instant", () => {
     render(
       <BulkReviewWorking verb="Approving" count={86} startedAtSec={started} />,

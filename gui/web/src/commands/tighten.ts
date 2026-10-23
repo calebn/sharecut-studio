@@ -23,6 +23,42 @@ import type { ExecuteResult } from "./types";
 
 const tightenFlight = createSingleFlight();
 
+export type ApplyingSuggested = Readonly<{
+  projectPath: string;
+  projectEpoch: number;
+  ids: readonly string[];
+  startedAtSec: number;
+}>;
+
+let applyingSuggested: ApplyingSuggested | null = null;
+const applyListeners = new Set<() => void>();
+
+export function getApplyingSuggested(): ApplyingSuggested | null {
+  return applyingSuggested;
+}
+
+export function subscribeApplyingSuggested(listener: () => void): () => void {
+  applyListeners.add(listener);
+  return () => {
+    applyListeners.delete(listener);
+  };
+}
+
+function publishApplyingSuggested(operation: ApplyingSuggested | null): void {
+  applyingSuggested = operation;
+  for (const listener of [...applyListeners]) listener();
+}
+
+type ApplyScope = Pick<ApplyingSuggested, "projectPath" | "projectEpoch">;
+
+function isCurrentApplyScope(scope: ApplyScope): boolean {
+  const current = useDawStore.getState();
+  return (
+    current.projectPath === scope.projectPath &&
+    current.projectEpoch === scope.projectEpoch
+  );
+}
+
 export function resolveTightenHitId(
   args: Record<string, unknown>,
 ): string | null {
@@ -131,17 +167,33 @@ async function runReject(id: string): Promise<ExecuteResult> {
     : { status: "disabled", reason: "Tighten action in progress" };
 }
 
-async function runApplySuggested(ids: string[]): Promise<ExecuteResult> {
+async function runApplySuggested(
+  scope: ApplyScope,
+  ids: string[],
+): Promise<ExecuteResult> {
   const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
     const s = useDawStore.getState();
     if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
       return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
     }
+    if (!isCurrentApplyScope(scope)) {
+      return {
+        status: "disabled",
+        reason: "The project changed. Apply again.",
+      };
+    }
+    const operation: ApplyingSuggested = {
+      ...scope,
+      ids: [...ids],
+      startedAtSec: Date.now() / 1000,
+    };
+    publishApplyingSuggested(operation);
     try {
       const { queued, summary, historyHead } = await applySuggestedActions(
-        useDawStore.getState().projectPath,
+        scope.projectPath,
         ids,
       );
+      if (!isCurrentApplyScope(scope)) return { status: "ok" };
       const next = useDawStore.getState();
       if (queued) {
         next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
@@ -154,10 +206,14 @@ async function runApplySuggested(ids: string[]): Promise<ExecuteResult> {
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore
-        .getState()
-        .announceStatus(`Apply failed: ${msg}`, { tone: "error" });
+      if (isCurrentApplyScope(scope)) {
+        useDawStore
+          .getState()
+          .announceStatus(`Apply failed: ${msg}`, { tone: "error" });
+      }
       return { status: "disabled", reason: msg };
+    } finally {
+      if (applyingSuggested === operation) publishApplyingSuggested(null);
     }
   });
   return result.ran
@@ -257,6 +313,7 @@ export function registerTightenCommands(): void {
     if (!s.project) {
       return { status: "disabled", reason: "No project" };
     }
+    const scope = { projectPath: s.projectPath, projectEpoch: s.projectEpoch };
     const { listedIds } = resolveApplyAllArgs(args);
     const hits = hitsForApplyAll(s.project, listedIds);
     if (hits.length === 0) {
@@ -266,6 +323,12 @@ export function registerTightenCommands(): void {
       return { status: "disabled", reason: "Cancelled" };
     }
     const fresh = useDawStore.getState();
+    if (!isCurrentApplyScope(scope)) {
+      return {
+        status: "disabled",
+        reason: "The project changed. Apply again.",
+      };
+    }
     if (!fresh.project) {
       return { status: "disabled", reason: "No project" };
     }
@@ -273,7 +336,7 @@ export function registerTightenCommands(): void {
     if (ids.length === 0) {
       return { status: "disabled", reason: "Nothing to apply" };
     }
-    return runApplySuggested(ids);
+    return runApplySuggested(scope, ids);
   });
 
   registerCommand("tighten.reviseSuggested", async (args) => {

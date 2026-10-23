@@ -21,6 +21,28 @@ Export and Split speakers render their dialog progress through
 unit count, elapsed time, and stale status. Each dialog owns its starting and
 cancel copy, close guidance, errors, and outcomes.
 
+## Reviewed edit batches
+
+Tighten shows `Applying N suggested actions…` beside its bulk Apply control as
+soon as the confirmed, revalidated command starts. The control is busy and
+disabled with its reason. Submitted rows show `Applying…`; their Apply and Skip
+controls wait too. The shared `BulkReviewWorking` pulse and elapsed companion
+follow Impact's bulk review pattern. Elapsed appears after two seconds and stays
+outside the static live headline. There is no percentage or phase estimate.
+
+The command owns the project path, submitted hit IDs and start time, so filtering
+or remounting the panel does not restart or recount the work. An accepted request
+remains associated with its file while its API promise is outstanding. Another
+project shows none of that activity; returning to the same file can show it until
+the promise settles. Selection changes and result announcements belong to the
+opening that started the request and do not affect a later project opening.
+
+A server acknowledgment clears the working line and leaves the result toast and
+Undo. A refusal clears it and leaves the error. A locally queued result clears it
+and leaves the existing `Still sending` notice, because delivery is still unknown.
+The existing document queue owns persistence and replay. This line does not turn
+queued delivery into a server success or add another job or save queue.
+
 ## Editor pipeline geometry
 
 The editor's determinate pipeline bar keeps its 0.5rem height (8 px at the
