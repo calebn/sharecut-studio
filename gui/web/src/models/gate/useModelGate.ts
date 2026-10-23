@@ -48,6 +48,8 @@ export type ModelGate = {
   decline: () => void;
   cancelDownload: () => void;
   openModels: () => void;
+  /** Drops an open prompt and the decline hint without recording a decline: the context they belong to is gone. */
+  reset: () => void;
 };
 
 type NeedInfo = { label: string; purpose: string; size: string };
@@ -136,6 +138,7 @@ export function useModelGate(): ModelGate {
     sessionRef.current = session;
   }, [session]);
   const waiter = useRef<Waiter | null>(null);
+  const resets = useRef(0);
 
   const patch = useCallback((token: object, change: Partial<Session>) => {
     setSession((s) => (s && s.token === token ? { ...s, ...change } : s));
@@ -191,6 +194,7 @@ export function useModelGate(): ModelGate {
         return { kind: "ran", value: await action({ afterDownload: false }) };
       }
       setDeclined(null);
+      const epoch = resets.current;
       const accepted = new Set<string>();
       let prompts = 0;
       let afterDownload = false;
@@ -200,7 +204,9 @@ export function useModelGate(): ModelGate {
       ): Promise<GateResult<never> | null> => {
         prompts += 1;
         if (!(await ask(need, info))) {
-          setDeclined({ id: need.id, label: info.label });
+          if (resets.current === epoch) {
+            setDeclined({ id: need.id, label: info.label });
+          }
           return { kind: "declined", id: need.id, label: info.label };
         }
         accepted.add(need.id);
@@ -367,6 +373,12 @@ export function useModelGate(): ModelGate {
     setManageRequested(true);
   }, [settle]);
 
+  const reset = useCallback(() => {
+    resets.current += 1;
+    setDeclined(null);
+    settle(false);
+  }, [settle]);
+
   useEffect(() => {
     if (manageRequested && session === null) {
       setManageRequested(false);
@@ -383,7 +395,8 @@ export function useModelGate(): ModelGate {
       decline,
       cancelDownload,
       openModels,
+      reset,
     }),
-    [run, prompt, declined, accept, decline, cancelDownload, openModels],
+    [run, prompt, declined, accept, decline, cancelDownload, openModels, reset],
   );
 }
