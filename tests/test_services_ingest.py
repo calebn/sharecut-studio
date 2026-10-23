@@ -8,7 +8,7 @@ import pytest
 
 from podcast_mcp.engines.align import AlignmentResult
 from podcast_mcp.engines.alignment_audit import DriftReport, SessionStartScore, WaveformRenderResult
-from podcast_mcp.engines.ffmpeg import AudioProbe
+from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.ingest.consolidate import ConsolidateResult, SpeakerAlignment
 from podcast_mcp.ingest.manifest import IngestManifest
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project
@@ -293,6 +293,45 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
     assert proj.sources and proj.sources[0].offset_sec == -0.5
     assert proj.meta.ingest_alignment is not None
     assert proj.meta.ingest_alignment["Host"].content_align_sec == 0.5
+
+
+@pytest.mark.parametrize("uncertain_source", [True, False])
+def test_apply_preflights_all_required_extents_before_mutating(
+    minimal_project, sample_wav, monkeypatch, uncertain_source
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    root = ws.project.workspace_path()
+    source = root / "raw" / "source.wav"
+    rendered = root / "raw" / "rendered.wav"
+    source.write_bytes(sample_wav.read_bytes())
+    rendered.write_bytes(sample_wav.read_bytes())
+    result = ConsolidateResult(
+        speaker_tracks={"Host": rendered},
+        alignments=[
+            SpeakerAlignment(
+                name="Host",
+                reference=source,
+                sources=[
+                    AlignmentResult(
+                        reference=source, source=source, offset_sec=0, correlation_peak=1
+                    )
+                ],
+            )
+        ],
+        cross_speaker_offsets={},
+    )
+    before = ws.project.model_dump()
+    saved = minimal_project.read_bytes()
+
+    def probe(_self, path):
+        uncertain = path == (source if uncertain_source else rendered)
+        return AudioProbe(700002 if uncertain else 2, 48000, 1, duration_estimated=uncertain)
+
+    monkeypatch.setattr(FFmpegEngine, "probe", probe)
+    with pytest.raises(ValueError, match="duration is unavailable"):
+        IngestService(ws).apply_consolidated_tracks(result)
+    assert ws.project.model_dump() == before
+    assert minimal_project.read_bytes() == saved
 
 
 def test_apply_consolidated_extra_clips_sequential(minimal_project: Path, sample_wav: Path) -> None:

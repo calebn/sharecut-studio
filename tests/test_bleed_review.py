@@ -739,7 +739,7 @@ def test_review_requires_selected_audio_extent_with_other_longer_streams(
     assert 0.65 < probe.duration_sec < 0.8
     assert probe.audio_duration_sec is not None
     assert 0.65 < probe.audio_duration_sec < 0.8
-    assert probe.duration_estimated is (container == "m4a")
+    assert probe.duration_estimated is False
     track = ws.project.track_by_id(tid)
     assert track is not None
     track.media = MediaAsset(path=f"raw/selected.{container}", duration_sec=3)

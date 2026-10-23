@@ -45,12 +45,11 @@ def has_several_audio_streams(path: Path) -> bool:
 def probe_first_audio_duration_sec(path: Path) -> float | None:
     """Declared first-audio extent, refusing unknown, estimated or multistream media.
 
-    The probe's duration_estimated flag includes multiple audio streams. No
-    container duration substitutes for the selected audio's declared extent.
+    No container duration substitutes for the selected audio's declared extent.
     This check does not certify continuous or decodable PCM throughout the file.
     """
     info = probe_media(path)
-    if info is None or info.duration_estimated:
+    if info is None or info.duration_estimated or info.audio_stream_count != 1:
         return None
     duration = info.audio_duration_sec
     return duration if duration is not None and isfinite(duration) and duration > 0 else None

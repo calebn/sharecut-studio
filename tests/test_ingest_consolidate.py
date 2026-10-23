@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.engines.align import AlignmentResult
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.engines.transcript_align import TranscriptAlignResult
 from podcast_mcp.ingest.consolidate import (
     _alignment_confidence,
@@ -56,6 +56,24 @@ def test_consolidate_full_file_without_extract_window(
     )
     assert set(result.speaker_tracks) == {"Ref", "Guest"}
     assert all(p.is_file() for p in result.speaker_tracks.values())
+
+
+def test_consolidate_never_extracts_using_unverified_extent(sample_wav, tmp_path, monkeypatch):
+    audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
+    monkeypatch.setattr(
+        FFmpegEngine, "probe", lambda *_: AudioProbe(700002, 48000, 1, duration_estimated=True)
+    )
+    with (
+        patch(
+            "podcast_mcp.ingest.consolidate._resolve_cross_speaker_offsets",
+            return_value=({}, {}, {}, {}),
+        ),
+        patch.object(FFmpegEngine, "extract_segment") as extract,
+        pytest.raises(ValueError, match="duration is unavailable"),
+    ):
+        consolidate_speakers(manifest, audio_dir, tmp_path / "raw")
+    extract.assert_not_called()
+    assert list((tmp_path / "raw").iterdir()) == []
 
 
 def test_consolidate_manual_session_offset(sample_wav: Path, tmp_path: Path) -> None:

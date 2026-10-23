@@ -710,7 +710,8 @@ def test_estimated_vbr_mp3_remains_buildable(tmp_path):
         timeout=60,
     )
     probe = eng.probe(audio)
-    assert probe.duration_estimated is True
+    assert probe.duration_estimated is False
+    assert probe.audio_duration_sec is None
     assert 3.9 < probe.duration_sec < 4.2
     key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
     out = pyramid_path(tmp_path, "track-estimated", key)

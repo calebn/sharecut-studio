@@ -16,7 +16,7 @@ def media_asset_from_path(audio_path: Path, *, store_path: str) -> MediaAsset:
     probe = FFmpegEngine().probe(Path(audio_path))
     return MediaAsset(
         path=store_path,
-        duration_sec=probe.duration_sec,
+        duration_sec=probe.require_duration_sec(),
         sample_rate=probe.sample_rate,
         channels=probe.channels,
     )

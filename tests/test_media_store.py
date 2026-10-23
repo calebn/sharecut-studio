@@ -326,7 +326,10 @@ def test_guest_media_upload_requires_edit(minimal_project, sample_wav, tmp_works
     assert ok.json()["rel_path"].startswith("raw/")
 
 
-def test_write_upload_chunk_rejects_and_deletes_unverified_duration(minimal_project, tmp_path):
+@pytest.mark.parametrize("total_chunks", [1, 2])
+def test_write_upload_chunk_rejects_and_deletes_unverified_duration(
+    minimal_project, tmp_path, total_chunks
+):
     engine = FFmpegEngine()
     if not engine.check_available()[0]:
         pytest.skip("ffmpeg not available")
@@ -357,18 +360,51 @@ def test_write_upload_chunk_rejects_and_deletes_unverified_duration(minimal_proj
         capture_output=True,
     )
     root = ProjectWorkspace.open(minimal_project).project.workspace_path()
+    data = source.read_bytes()
+    split = len(data) // total_chunks
+    upload_id = None
 
     with pytest.raises(CodedValueError):
-        write_upload_chunk(
-            root,
-            filename="forged.m4a",
-            data=source.read_bytes(),
-            upload_id=None,
-            chunk_index=0,
-            total_chunks=1,
-        )
+        for index in range(total_chunks):
+            result = write_upload_chunk(
+                root,
+                filename="forged.m4a",
+                data=data[index * split :] if index == total_chunks - 1 else data[:split],
+                upload_id=upload_id,
+                chunk_index=index,
+                total_chunks=total_chunks,
+            )
+            upload_id = result["upload_id"]
 
     assert list((root / "raw").glob("forged*.m4a")) == []
+
+
+def test_upload_rejects_over_cap_declaration_without_a_packet_scan(
+    minimal_project, sample_wav, monkeypatch
+):
+    from types import SimpleNamespace
+
+    engine = FFmpegEngine()
+    metadata = {
+        "format": {"duration": "700002", "format_name": "mov,mp4,m4a"},
+        "streams": [
+            {"codec_type": "audio", "duration": "700002", "sample_rate": "48000", "channels": 1}
+        ],
+    }
+    monkeypatch.setattr(
+        "podcast_mcp.engines.ffmpeg.run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout=json.dumps(metadata), stderr=""),
+    )
+
+    def forbidden_scan(*_args, **_kwargs):
+        pytest.fail("This fixture has a declared duration and must exercise the upload cap")
+
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.popen", forbidden_scan)
+    assert engine.probe(sample_wav).duration_estimated is False
+    root = ProjectWorkspace.open(minimal_project).project.workspace_path()
+    with pytest.raises(CodedValueError):
+        write_complete_upload(root, filename="overcap.m4a", data=sample_wav.read_bytes())
+    assert list((root / "raw").glob("overcap*.m4a")) == []
 
 
 def test_guest_upload_media_mcp_requires_edit(
@@ -451,15 +487,17 @@ def test_write_complete_rejects_unreadable_audio(minimal_project):
 
 
 def test_write_complete_rejects_zero_duration(minimal_project, sample_wav, monkeypatch):
-    from types import SimpleNamespace
+    from podcast_mcp.engines.ffmpeg import AudioProbe
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.media_store.FFmpegEngine.probe",
-        lambda self, path, untrusted=False: SimpleNamespace(duration_sec=0),
+        lambda self, path, untrusted=False: AudioProbe(
+            duration_sec=0, sample_rate=48000, channels=1
+        ),
     )
     ws = ProjectWorkspace.open(minimal_project)
     root = ws.project.workspace_path()
-    with pytest.raises(ValueError, match="zero duration"):
+    with pytest.raises(CodedValueError, match="not a playable audio file"):
         write_complete_upload(root, filename="silent.wav", data=sample_wav.read_bytes())
 
 

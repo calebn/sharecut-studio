@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.engines.track_media import (
     apply_full_span_media,
     clip_media_duration,
@@ -32,6 +33,20 @@ def test_media_asset_from_path(sample_wav):
     assert media.duration_sec is not None and media.duration_sec > 0
     assert media.sample_rate
     assert media.channels
+
+
+def test_unverified_extent_cannot_change_track_geometry(minimal_project, sample_wav, monkeypatch):
+    ws = ProjectWorkspace.open(minimal_project)
+    project = ws.project
+    track = Track(id="host", label="Host")
+    project.tracks = [track]
+    before = project.model_dump()
+    monkeypatch.setattr(
+        FFmpegEngine, "probe", lambda *_: AudioProbe(700002, 48000, 1, duration_estimated=True)
+    )
+    with pytest.raises(ValueError, match="duration is unavailable"):
+        apply_full_span_media(project, track, store_path="raw/forged.m4a", audio_path=sample_wav)
+    assert project.model_dump() == before
 
 
 def test_apply_full_span_media_and_store_path(minimal_project, sample_wav, tmp_path):

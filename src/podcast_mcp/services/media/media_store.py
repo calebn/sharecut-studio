@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import MAX_PROBED_AUDIO_EXTENT_SEC, FFmpegEngine
 from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.body_limits import env_max_bytes
 from podcast_mcp.util.coded_error import CodedValueError
@@ -180,6 +180,7 @@ def write_complete_upload_from_parts(
 def _finalize_upload(workspace_dir: Path, dest: Path) -> dict[str, Any]:
     try:
         probe = FFmpegEngine().probe(dest, untrusted=True)
+        duration = probe.require_duration_sec(maximum_sec=MAX_PROBED_AUDIO_EXTENT_SEC)
     except (CalledProcessError, ValueError) as exc:
         dest.unlink(missing_ok=True)
         # ffprobe's own error names the upload's host path; keep it in the log.
@@ -188,15 +189,12 @@ def _finalize_upload(workspace_dir: Path, dest: Path) -> dict[str, Any]:
     except Exception:
         dest.unlink(missing_ok=True)
         raise
-    if not probe.duration_sec or probe.duration_sec <= 0:
-        dest.unlink(missing_ok=True)
-        raise CodedValueError("ffprobe returned zero duration", code="invalid_audio")
     rel = str(dest.relative_to(workspace_dir.resolve()))
     return {
         "rel_path": rel,
         "filename": dest.name,
         "bytes": dest.stat().st_size,
-        "duration_sec": float(probe.duration_sec),
+        "duration_sec": duration,
     }
 
 

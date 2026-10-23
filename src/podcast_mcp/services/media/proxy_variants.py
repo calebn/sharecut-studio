@@ -301,7 +301,7 @@ def _prepare(
                 )
     wav = temporary / f"{len(list(temporary.iterdir()))}.wav"
     render_source_proxy_inputs(project, inputs, wav, engine=engine, defaults=defaults)
-    duration = float(engine.probe(wav).duration_sec)
+    duration = engine.probe(wav).require_duration_sec()
     count = proxy_media.chunk_count_for(duration, chunk_sec=proxy_media.CHUNK_SEC)
     descriptor = TrackProxy(
         hash="0" * 64,

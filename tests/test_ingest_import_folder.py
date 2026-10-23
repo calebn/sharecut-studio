@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.ingest import _parse_speaker_overrides
 from podcast_mcp.cli.main import app
-from podcast_mcp.engines.ffmpeg import AudioProbe
+from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.ingest.import_folder import derive_speaker_label, scan_recorder_folder
 from podcast_mcp.ingest.manifest import IngestManifest
 from podcast_mcp.mcp import server as mcp_server
@@ -122,6 +122,22 @@ def test_scan_duration_bound(tmp_path: Path) -> None:
             engine=_HugeProbe(),  # type: ignore[arg-type]
             max_total_duration_sec=60,
         )
+
+
+def test_unverified_folder_extent_writes_no_manifest(tmp_path, monkeypatch):
+    audio = tmp_path / "rec"
+    _write_wav(audio / "host.wav")
+    manifest = tmp_path / "ingest.yaml"
+    monkeypatch.setattr(
+        FFmpegEngine,
+        "probe",
+        lambda *_args, **_kwargs: AudioProbe(700002, 48000, 1, duration_estimated=True),
+    )
+    with pytest.raises(ValueError, match="duration is unavailable"):
+        scan_recorder_folder(audio)
+    with pytest.raises(ValueError, match="duration is unavailable"):
+        IngestService.import_recorder_folder(audio, out_manifest=manifest)
+    assert not manifest.exists()
 
 
 def test_scan_refuses_symlink_escape(tmp_path: Path) -> None:

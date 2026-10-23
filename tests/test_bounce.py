@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.bounce import BounceRequest, BounceService, _slug
@@ -70,7 +71,7 @@ def _ffmpeg_mock(*, mix_duration: float = 2.0) -> MagicMock:
 
     eng.render_dialogue_track.side_effect = _render
     eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(b"RIFFMIX") or out
-    eng.probe.return_value = MagicMock(duration_sec=mix_duration)
+    eng.probe.return_value = AudioProbe(duration_sec=mix_duration, sample_rate=48000, channels=1)
     eng.export_audio.side_effect = lambda *a, **k: Path(a[1])
     eng.extract_segment.side_effect = lambda src, out, start, end: (
         out.write_bytes(b"RIFFTRIM") or out

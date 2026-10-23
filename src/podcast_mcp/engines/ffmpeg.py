@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import threading
 from collections.abc import Callable, Generator, Iterable
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 from dataclasses import asdict, dataclass
 from itertools import pairwise
 from pathlib import Path
@@ -82,6 +82,7 @@ from podcast_mcp.util.process import (
     run,
 )
 from podcast_mcp.util.progress import raise_if_cancel_requested
+from podcast_mcp.util.project_state import FileRevision, file_revision
 
 # Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows). The
 # timeouts are watchdogs armed only while waiting on ffmpeg for one chunk, so
@@ -96,7 +97,8 @@ ENCODE_CANCELLED = "Encoding cancelled"
 # Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
 _UNTRUSTED_PROTOCOLS = "file,crypto,data"
 _PACKET_SCAN_TIMEOUT_SEC = 120.0
-_MAX_SCAN_EXTENT_SEC = 7 * 24 * 3600.0
+MAX_PROBED_AUDIO_EXTENT_SEC = 7 * 24 * 3600.0
+_PACKET_RECORD_BYTES = 4096
 # Audio starting this much after the container start is a leading gap, not codec priming. Over-
 # counting a start offset is harmless; under-counting makes the render clip real audio.
 _AUDIO_START_GAP_SEC = 0.02
@@ -391,6 +393,20 @@ class AudioProbe:
     # lacked the fields to tell. The packet-count term of FFmpeg's score is not modelled.
     legacy_default_audio_index: int | None = 0
 
+    def require_duration_sec(self, *, maximum_sec: float | None = None) -> float:
+        """Return a known positive first-audio extent suitable for stored geometry."""
+        if (
+            self.duration_estimated
+            or self.audio_stream_count < 1
+            or not math.isfinite(self.duration_sec)
+            or self.duration_sec <= 0
+            or (maximum_sec is not None and self.duration_sec > maximum_sec)
+        ):
+            raise CodedValueError(
+                "audio duration is unavailable or outside its bound", code="invalid_audio"
+            )
+        return self.duration_sec
+
 
 def _legacy_audio_pick(audio_streams: list[dict[str, Any]]) -> int | None:
     scores: list[tuple[int, int]] = []
@@ -413,9 +429,9 @@ def _seconds(value: Any) -> float | None:
 
 
 def _stream_duration_unreliable(probe_json: dict[str, Any]) -> bool:
-    """MPEG-TS, or Matroska/WebM with a real video track: per-stream durations can clip audio."""
+    """Containers whose declarations can omit packets or later logical streams."""
     names = str(probe_json.get("format", {}).get("format_name", ""))
-    if "mpegts" in names:
+    if "mpegts" in names or "ogg" in names:
         return True
     if "matroska" not in names and "webm" not in names:
         return False
@@ -423,6 +439,89 @@ def _stream_duration_unreliable(probe_json: dict[str, Any]) -> bool:
         s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")
         for s in probe_json.get("streams", [])
     )
+
+
+class _AudioExtentUnavailable(Exception):
+    pass
+
+
+def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> float:
+    cmd = [
+        ffprobe,
+        "-v",
+        "error",
+        "-select_streams",
+        "a:0",
+        "-show_entries",
+        "packet=pts_time,duration_time",
+        "-of",
+        "csv=p=0",
+    ]
+    if untrusted:
+        cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
+    cmd.append(path)
+    proc = popen(cmd, stdout=PIPE, stderr=DEVNULL)
+    lock = threading.Lock()
+    expired = False
+    finished = False
+
+    def expire() -> None:
+        nonlocal expired
+        with lock:
+            if not finished:
+                expired = True
+                with suppress(OSError):
+                    proc.kill()
+
+    timer = threading.Timer(_PACKET_SCAN_TIMEOUT_SEC, expire)
+    timer.daemon = True
+    end = 0.0
+    previous_pts: float | None = None
+    try:
+        timer.start()
+        assert proc.stdout is not None
+        while line := proc.stdout.readline(_PACKET_RECORD_BYTES):
+            if len(line) == _PACKET_RECORD_BYTES and not line.endswith(b"\n"):
+                raise _AudioExtentUnavailable
+            fields = line.split(b",")
+            pts = _seconds(fields[0])
+            if pts is None:
+                continue
+            if previous_pts is not None and pts <= previous_pts:
+                raise _AudioExtentUnavailable
+            previous_pts = pts
+            duration = _seconds(fields[1]) if len(fields) > 1 else None
+            if duration is not None and duration < 0:
+                raise _AudioExtentUnavailable
+            packet_end = pts + (duration or 0.0)
+            if not math.isfinite(packet_end):
+                raise _AudioExtentUnavailable
+            end = max(end, packet_end)
+        rc = proc.wait()
+        with lock:
+            finished = True
+            if expired or rc or end <= 0:
+                raise _AudioExtentUnavailable
+        return end
+    finally:
+        with lock:
+            finished = True
+        timer.cancel()
+        if proc.poll() is None:
+            proc.kill()
+        if proc.stdout is not None:
+            proc.stdout.close()
+        proc.wait()
+
+
+@functools.lru_cache(maxsize=1024)
+def _cached_audio_extent(
+    ffprobe: str, binary_revision: FileRevision, path: str, revision: FileRevision, untrusted: bool
+) -> float:
+    end = _read_audio_extent(ffprobe, path, untrusted=untrusted)
+    if file_revision(Path(path)) != revision or file_revision(Path(ffprobe)) != binary_revision:
+        raise _AudioExtentUnavailable
+    return end
 
 
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
@@ -529,12 +628,11 @@ class FFmpegEngine:
         stream: dict[str, Any] = audio_streams[0] if audio_streams else {}
         fmt = data.get("format", {})
         container = _seconds(fmt.get("duration"))
-        duration = container or float(stream.get("duration") or 0)
-        try:
-            audio_duration = float(stream["duration"])
-        except (KeyError, TypeError, ValueError):
-            audio_duration = None
+        audio_duration = _seconds(stream.get("duration"))
+        duration = container or audio_duration or 0.0
         bitrate_estimated = "estimating duration from bitrate" in (r.stderr or "").lower()
+        if bitrate_estimated:
+            audio_duration = None
         scan_failed = False
         if audio_streams:
             # The renderer trims in container time: the stored extent is where a:0 ends there. A
@@ -549,7 +647,7 @@ class FFmpegEngine:
                 extent = None if end is None else end - container_start
                 # Container headers can be stale or short, so they never bound the scan; only an
                 # impossible value (a forged pts) fails it.
-                if extent is None or not 0 < extent <= _MAX_SCAN_EXTENT_SEC:
+                if extent is None or not 0 < extent <= MAX_PROBED_AUDIO_EXTENT_SEC:
                     scan_failed = True
                 else:
                     duration = extent
@@ -560,7 +658,7 @@ class FFmpegEngine:
             duration_sec=duration,
             sample_rate=int(stream.get("sample_rate") or 48000),
             channels=int(stream.get("channels") or 1),
-            duration_estimated=bitrate_estimated or len(audio_streams) != 1 or scan_failed,
+            duration_estimated=not audio_streams or scan_failed or not math.isfinite(duration),
             audio_duration_sec=audio_duration,
             sample_fmt=stream.get("sample_fmt") or None,
             audio_stream_count=len(audio_streams),
@@ -569,35 +667,18 @@ class FFmpegEngine:
 
     def _scan_audio_extent(self, path: Path, *, untrusted: bool) -> float | None:
         """End of a:0's last packet (pts + duration), or None when the scan fails."""
-        cmd = [
-            self.ffprobe,
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-show_entries",
-            "packet=pts_time,duration_time",
-            "-of",
-            "csv=p=0",
-        ]
-        if untrusted:
-            cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
-        cmd.append(str(path))
         try:
-            r = run(
-                cmd, capture_output=True, text=True, check=True, timeout=_PACKET_SCAN_TIMEOUT_SEC
+            resolved = path.resolve()
+            binary = Path(self.ffprobe).resolve()
+            return _cached_audio_extent(
+                str(binary),
+                file_revision(binary),
+                str(resolved),
+                file_revision(resolved),
+                untrusted,
             )
-        except (CalledProcessError, TimeoutExpired, OSError):
+        except (OSError, _AudioExtentUnavailable):
             return None
-        end = 0.0
-        for line in r.stdout.splitlines():
-            fields = line.split(",")
-            pts = _seconds(fields[0])
-            if pts is None:
-                continue
-            dur = _seconds(fields[1]) if len(fields) > 1 else None
-            end = max(end, pts + (dur or 0.0))
-        return end or None
 
     def stream_pcm_f32(
         self, path: Path, *, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES
@@ -620,7 +701,12 @@ class FFmpegEngine:
         sample_rate, channels = info.sample_rate, max(1, info.channels)
         argv = self._pcm_f32_argv(path, sample_rate, channels)
         expected_duration = info.audio_duration_sec
-        if info.duration_estimated or expected_duration is None or expected_duration <= 0:
+        if (
+            info.duration_estimated
+            or info.audio_stream_count != 1
+            or expected_duration is None
+            or expected_duration <= 0
+        ):
             expected_duration = None
         return (
             sample_rate,
