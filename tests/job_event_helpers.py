@@ -17,7 +17,9 @@ class JobEventTap:
         self._queue = job_events_hub().subscribe(job_id, self._loop)
 
     def drain(self) -> list[dict[str, Any]]:
-        self._loop.run_until_complete(asyncio.sleep(0))
+        delivered = self._loop.create_future()
+        self._loop.call_soon(delivered.set_result, None)
+        self._loop.run_until_complete(delivered)
         items: list[dict[str, Any]] = []
         while True:
             try:
