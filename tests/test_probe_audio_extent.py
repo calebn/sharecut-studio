@@ -223,6 +223,43 @@ def test_mpegts_matches_decoded_length(eng, tmp_path, video_s, audio_s):
     assert eng.probe(path).duration_sec == pytest.approx(decoded_extent(eng, path), abs=0.15)
 
 
+@pytest.mark.parametrize("suffix,codec", [("ts", "aac"), ("ogg", "flac")])
+def test_concatenated_audio_does_not_report_an_undercount_as_reliable(eng, tmp_path, suffix, codec):
+    parts = []
+    for index, seconds in enumerate((2, 3)):
+        part = tmp_path / f"part{index}.{suffix}"
+        _ff(eng, *_sine(seconds), "-c:a", codec, part)
+        parts.append(part)
+    path = tmp_path / f"joined.{suffix}"
+    path.write_bytes(b"".join(part.read_bytes() for part in parts))
+    decoded = subprocess.run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-i",
+            str(path),
+            "-map",
+            "0:a:0",
+            "-f",
+            "s16le",
+            "-ac",
+            "1",
+            "-ar",
+            "48000",
+            "-",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    decoded_seconds = len(decoded.stdout) / (48000 * 2)
+    assert decoded_seconds == pytest.approx(5.0, abs=0.15)
+
+    info = eng.probe(path)
+
+    assert info.duration_estimated or info.duration_sec == pytest.approx(decoded_seconds, abs=0.15)
+
+
 def test_audio_only_m4a_unchanged(eng, tmp_path):
     path = tmp_path / "audio_only.m4a"
     _ff(eng, *_sine(2), "-c:a", "aac", path)

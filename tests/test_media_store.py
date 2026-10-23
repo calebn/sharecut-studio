@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
@@ -322,6 +324,51 @@ def test_guest_media_upload_requires_edit(minimal_project, sample_wav, tmp_works
     assert ok.status_code == 200, ok.text
     assert ok.json()["complete"] is True
     assert ok.json()["rel_path"].startswith("raw/")
+
+
+def test_write_upload_chunk_rejects_and_deletes_unverified_duration(minimal_project, tmp_path):
+    engine = FFmpegEngine()
+    if not engine.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    source = tmp_path / "forged.mkv"
+    subprocess.run(
+        [
+            engine.ffmpeg,
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=s=16x16:r=1:d=1",
+            "-itsoffset",
+            "700000",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=f=440:r=48000:duration=2",
+            "-c:v",
+            "ffv1",
+            "-c:a",
+            "pcm_s16le",
+            str(source),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    root = ProjectWorkspace.open(minimal_project).project.workspace_path()
+
+    with pytest.raises(CodedValueError):
+        write_upload_chunk(
+            root,
+            filename="forged.m4a",
+            data=source.read_bytes(),
+            upload_id=None,
+            chunk_index=0,
+            total_chunks=1,
+        )
+
+    assert list((root / "raw").glob("forged*.m4a")) == []
 
 
 def test_guest_upload_media_mcp_requires_edit(
