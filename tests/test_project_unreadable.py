@@ -1,5 +1,3 @@
-"""A damaged project file answers in plain words that name no path."""
-
 from __future__ import annotations
 
 import json

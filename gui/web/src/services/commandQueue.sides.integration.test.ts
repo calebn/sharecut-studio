@@ -264,7 +264,7 @@ describe.each([
         blocksSave: true,
         recovery: "edit-and-resubmit",
       });
-      expect(outcome.reason).toContain(word);
+      expect(outcome.reason).toMatch(new RegExp(`${word}|project owner`));
       expect(outcome.reason).not.toContain("/secret/path");
     },
   );

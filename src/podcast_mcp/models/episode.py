@@ -1378,7 +1378,7 @@ def project_not_found(path: Path | str) -> CodedFileNotFoundError:
 
 
 class ProjectUnreadableError(CodedError, ValueError):
-    """The project file exists but is not valid project JSON (damaged, truncated, wrong shape)."""
+    """The project file exists but is not valid project JSON (damaged or truncated)."""
 
     code = "project_unreadable"
 

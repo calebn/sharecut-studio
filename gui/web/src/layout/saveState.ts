@@ -11,11 +11,8 @@ export type SaveState =
       reason: string;
       recovery: "retry-same-command" | "inspect-history";
     }
-  | {
-      kind: "failed";
-      cause: "unreadable" | "project-unavailable";
-      reason?: string;
-    };
+  | { kind: "failed"; cause: "unreadable" }
+  | { kind: "failed"; cause: "project-unavailable"; reason: string };
 
 export type SaveStateInput = {
   /** A save, send or replay is in flight in this tab. */
@@ -97,7 +94,7 @@ export function saveStateText(state: SaveState): string {
       return SAVE_DOT_COPY.waiting(state.count);
     case "failed":
       return state.cause === "project-unavailable"
-        ? `Not saved · ${reason(state.reason ?? "The project file is missing or damaged")}.`
+        ? `Not saved · ${reason(state.reason)}.`
         : "Saved edits could not be read · Retry to read them";
     case "unknown":
       return state.recovery === "inspect-history"
