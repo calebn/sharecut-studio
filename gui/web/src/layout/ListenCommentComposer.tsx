@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   CommentAnchorChip,
   CommentAuthorLine,
@@ -37,6 +37,36 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   const fromField = useRef(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
+  useEffect(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const onFocusIn = (e: FocusEvent) => {
+      if (e.target && isTextField(e.target)) {
+        fromField.current = false;
+        setFieldFocus(true);
+      } else {
+        const keep = fromField.current;
+        fromField.current = false;
+        setFieldFocus((was) => keep && was);
+      }
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget;
+      const staysInDock = next instanceof Node && dock.contains(next);
+      if (staysInDock && e.target && isTextField(e.target)) {
+        fromField.current = true;
+      } else if (!staysInDock) {
+        setFieldFocus(false);
+      }
+    };
+    dock.addEventListener("focusin", onFocusIn);
+    dock.addEventListener("focusout", onFocusOut);
+    return () => {
+      dock.removeEventListener("focusin", onFocusIn);
+      dock.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     if (guest.asking) dockRef.current?.scrollIntoView?.({ block: "end" });
   }, [guest.asking]);
@@ -67,22 +97,6 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
       className="listen-comment-dock"
       aria-label="Add a comment"
       data-field-focus={fieldFocus || undefined}
-      onFocus={(e) => {
-        if (isTextField(e.target)) {
-          fromField.current = false;
-          setFieldFocus(true);
-        } else {
-          setFieldFocus(fromField.current && fieldFocus);
-          fromField.current = false;
-        }
-      }}
-      onBlur={(e) => {
-        const next = e.relatedTarget;
-        const staysInDock =
-          next instanceof Node && dockRef.current?.contains(next);
-        if (staysInDock && isTextField(e.target)) fromField.current = true;
-        else if (!staysInDock) setFieldFocus(false);
-      }}
     >
       <InlineError message={error} />
       {guest.showLine ? (
