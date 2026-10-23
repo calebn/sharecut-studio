@@ -1,4 +1,10 @@
-import { type ReactNode, type RefObject, useId, useRef } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 import {
   type ModelGate,
   ModelGateBody,
@@ -108,6 +114,13 @@ export type SplitSpeakersDialogViewProps = {
 export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
   const { open, onClose, stage } = props;
   const countRef = useRef<HTMLInputElement>(null);
+  const downloadRef = useRef<HTMLButtonElement>(null);
+  const needsModel = stage.kind === "needsModel";
+  useEffect(() => {
+    if (needsModel) {
+      downloadRef.current?.focus();
+    }
+  }, [needsModel]);
   return (
     <Dialog
       open={open}
@@ -119,7 +132,7 @@ export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
       }
       panelClassName="bounce-dialog-panel split-speakers-panel"
       initialFocusRef={stage.kind === "configure" ? countRef : undefined}
-      footer={<SplitSpeakersFooter {...props} />}
+      footer={<SplitSpeakersFooter {...props} downloadRef={downloadRef} />}
     >
       <div className="bounce-dialog-body">
         {stage.kind === "configure" ? (
@@ -460,7 +473,10 @@ function SplitSpeakersFooter({
   onCancelSplit,
   onUndo,
   onRestart,
-}: SplitSpeakersDialogViewProps) {
+  downloadRef,
+}: SplitSpeakersDialogViewProps & {
+  downloadRef: RefObject<HTMLButtonElement | null>;
+}) {
   return (
     <div className="bounce-dialog-footer">
       {stage.kind === "configure" &&
@@ -506,7 +522,7 @@ function SplitSpeakersFooter({
           </>
         ) : null}
         {stage.kind === "needsModel" ? (
-          <ModelGateFooter gate={stage.gate} />
+          <ModelGateFooter gate={stage.gate} primaryRef={downloadRef} />
         ) : null}
         {stage.kind === "failed" ? (
           <Button variant="primary" type="button" onClick={onRestart}>
