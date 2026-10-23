@@ -121,6 +121,20 @@ describe("SaveStateDot", () => {
     ).toBeInTheDocument();
   });
 
+  it("stays Saved when the only refusal is an Undo with nothing to undo", async () => {
+    offlineStore.loadHostConflicts.mockResolvedValue([
+      offlineConflict({
+        command: { type: "UndoHistory" },
+        reason: "Nothing to undo",
+      }),
+    ]);
+    render(<SaveStateDot />);
+    await settle();
+    expect(
+      screen.getByRole("img", { name: "Saved to project" }),
+    ).toBeInTheDocument();
+  });
+
   it("reads Saving while a send is in flight and Saved once it ends", async () => {
     render(<SaveStateDot />);
     await settle();
