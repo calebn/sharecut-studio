@@ -217,10 +217,9 @@ describe("CommentsPanel", () => {
     await user.click(
       screen.getByRole("button", { name: "Change your comment name" }),
     );
-    await user.type(
-      screen.getByRole("textbox", { name: "Your name" }),
-      "Alex{Enter}",
-    );
+    const field = screen.getByRole("textbox", { name: "Your name" });
+    await user.clear(field);
+    await user.type(field, "Alex{Enter}");
     await user.type(screen.getByRole("textbox", { name: "Comment" }), "Note");
     await user.click(screen.getByRole("button", { name: "Post comment" }));
     expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();

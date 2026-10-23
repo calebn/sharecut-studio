@@ -7,20 +7,20 @@ type Props = {
   name: string;
   onNameChange: (name: string) => void;
   onConfirm: () => void;
-  onSkip: () => void;
+  onPostAsGuest: () => void;
   busy: boolean;
   postDisabledReason?: string;
 };
 
 /**
  * The one-time "who is commenting" step a guest sees on their first Post:
- * a name field that takes focus, and Skip to stay Guest. Enter in the field or Post comment posts.
+ * a name field that takes focus, and Post as Guest to post under Guest. Enter in the field or Post comment posts.
  */
 export function GuestNameStep({
   name,
   onNameChange,
   onConfirm,
-  onSkip,
+  onPostAsGuest,
   busy,
   postDisabledReason,
 }: Props) {
@@ -38,6 +38,9 @@ export function GuestNameStep({
         onConfirm();
       }}
     >
+      <p className="sr-only" role="status">
+        Add your name to post your comment, or choose Post as Guest.
+      </p>
       <label>
         Your name
         <input
@@ -49,7 +52,12 @@ export function GuestNameStep({
           onChange={(e) => onNameChange(limitCommentName(e.target.value))}
         />
       </label>
-      <Button onClick={onSkip}>Skip</Button>
+      <Button
+        disabledReason={busy ? BUSY_REASON : postDisabledReason}
+        onClick={onPostAsGuest}
+      >
+        Post as Guest
+      </Button>
       <Button
         type="submit"
         variant="primary"

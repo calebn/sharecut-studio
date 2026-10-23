@@ -318,10 +318,7 @@ describe("phone share link, a guest names themselves", () => {
     await user.clear(within(dock()).getByRole("textbox", { name: "Comment" }));
     expect(
       within(dock()).getByRole("button", { name: "Post as Guest" }),
-    ).toHaveAttribute("aria-disabled", "true");
-    await user.click(
-      within(dock()).getByRole("button", { name: "Post as Guest" }),
-    );
+    ).toBeDisabled();
     expect(createComment).not.toHaveBeenCalled();
     expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBeNull();
     expect(

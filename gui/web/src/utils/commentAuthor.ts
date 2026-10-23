@@ -44,6 +44,11 @@ export function saveCommentAuthor(
   writeLocal(STORAGE_KEY, name || DEFAULT_AUTHOR);
 }
 
+/** The name this browser's guest saved, or "" when none (never asked, or skipped). */
+export function savedGuestName(): string {
+  return capCommentName(readLocal(GUEST_NAME_KEY) ?? "");
+}
+
 /** Whether this browser's guest has already named themselves or skipped. */
 export function guestNameChosen(): boolean {
   return readLocal(GUEST_NAME_KEY) !== null;

@@ -29,6 +29,7 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   const [body, setBody] = useState("");
   const { busy, error, post } = usePostComment();
   const dockRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   useLayoutEffect(() => {
     if (guest.asking) dockRef.current?.scrollIntoView?.({ block: "end" });
@@ -40,7 +41,10 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
       focused.blur();
     }
     const result = await post({ body, author });
-    if (!result.ok) return;
+    if (!result.ok) {
+      bodyRef.current?.focus();
+      return;
+    }
     setBody("");
     announceStatus(commentPostedStatus(result.comment));
   };
@@ -63,6 +67,7 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
       <CommentCompose
         className="comment-compose comment-compose--dock"
         body={body}
+        bodyRef={bodyRef}
         onBodyChange={setBody}
         busy={busy}
         onSubmit={onPost}
@@ -76,7 +81,7 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
             name={guest.draft}
             onNameChange={guest.setDraft}
             onConfirm={onPost}
-            onSkip={() => void send(guest.choose(""))}
+            onPostAsGuest={() => void send(guest.choose(""))}
             busy={busy}
             postDisabledReason={
               body.trim() ? undefined : "Write a comment to post."
