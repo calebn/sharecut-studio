@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { applySuggestedActions } from "../api";
 import { clearRegisteredCommands, execute } from "../commands/execute";
@@ -55,11 +55,7 @@ it("shows a confirmed command working until its acknowledgment across a panel re
     expect(screen.getByRole("status")).toHaveTextContent(
       "Applying 1 suggested action…",
     );
-    expect(
-      within(screen.getByRole("row", { name: /Filler word/ })).getByText(
-        "Applying…",
-      ),
-    ).toBeVisible();
+    expect(screen.getByRole("cell", { name: "Applying…" })).toBeVisible();
     first.unmount();
     render(<TightenPanel />);
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -81,4 +77,91 @@ it("shows a confirmed command working until its acknowledgment across a panel re
     screen.queryByText("Applying 1 suggested action…"),
   ).not.toBeInTheDocument();
   expect(useDawStore.getState().feedbackToast?.message).toBe("Applied 1 cut");
+});
+
+it.each(["queued", "error"] as const)(
+  "clears working feedback on a %s outcome",
+  async (kind) => {
+    let finish!: () => void;
+    vi.mocked(applySuggestedActions).mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = () =>
+            kind === "queued"
+              ? resolve({ queued: true, summary: null, historyHead: null })
+              : reject(new Error("Connection lost. Try again."));
+        }),
+    );
+    render(<TightenPanel />);
+    let command!: ReturnType<typeof execute>;
+    await act(async () => {
+      command = execute("tighten.applySuggested", { ids: ["hit1"] });
+    });
+    expect(
+      screen.getByRole("button", { name: "Apply suggested actions (1)" }),
+    ).toBeDisabled();
+    await act(async () => {
+      finish();
+      await command;
+    });
+    expect(
+      screen.queryByText("Applying 1 suggested action…"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Apply suggested actions (1)" }),
+    ).toBeEnabled();
+    expect(useDawStore.getState().feedbackToast?.message).toMatch(
+      kind === "queued" ? /Still sending/ : /Apply failed/,
+    );
+  },
+);
+
+it("keeps activity with its project and leaves a reopened project's selection and status alone", async () => {
+  type Outcome = Awaited<ReturnType<typeof applySuggestedActions>>;
+  let finish!: (outcome: Outcome) => void;
+  vi.mocked(applySuggestedActions).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<TightenPanel />);
+  let command!: ReturnType<typeof execute>;
+  await act(async () => {
+    command = execute("tighten.applySuggested");
+  });
+  act(() => {
+    useDawStore.getState().hydrate("/tmp/other.json", project);
+  });
+  expect(
+    screen.queryByText("Applying 1 suggested action…"),
+  ).not.toBeInTheDocument();
+  act(() => {
+    useDawStore.getState().hydrate("/tmp/tighten.json", project);
+    useDawStore
+      .getState()
+      .setSelection({ kind: "pending", id: "hit1", trackId: "mira-voice" });
+    useDawStore.getState().announceStatus("Reopened project");
+  });
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Applying 1 suggested action…",
+  );
+  await act(async () => {
+    finish({
+      queued: false,
+      summary: "Old apply completed",
+      historyHead: null,
+    });
+    await command;
+  });
+  expect(
+    screen.queryByText("Applying 1 suggested action…"),
+  ).not.toBeInTheDocument();
+  expect(useDawStore.getState().selection).toMatchObject({
+    kind: "pending",
+    id: "hit1",
+  });
+  expect(useDawStore.getState().feedbackToast?.message).toBe(
+    "Reopened project",
+  );
 });

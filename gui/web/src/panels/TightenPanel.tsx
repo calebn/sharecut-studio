@@ -1,7 +1,17 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { startPipelineRun } from "../api";
 import { commandLabel } from "../commands/labels";
 import { runPointerCommand } from "../commands/pointer";
+import {
+  getApplyingSuggested,
+  subscribeApplyingSuggested,
+} from "../commands/tighten";
 import { askConfirm } from "../feedback/ask";
 import { useTightenIntensityConfig } from "../hooks/useTightenIntensityConfig";
 import { canApplyPass12 } from "../shareMode";
@@ -37,6 +47,7 @@ import {
 } from "../utils/tightenIntensity";
 import { formatTimeShort } from "../utils/time";
 import { AppliedSoundsList } from "./AppliedSoundsList";
+import { BulkReviewWorking } from "./BulkReviewWorking";
 
 const CLASS_FILTERS: { id: "all" | TightenClass; label: string }[] = [
   { id: "all", label: "All" },
@@ -77,6 +88,12 @@ export function TightenPanel() {
     setPipelineJob: s.setPipelineJob,
     announceStatus: s.announceStatus,
   }));
+  const operation = useSyncExternalStore(
+    subscribeApplyingSuggested,
+    getApplyingSuggested,
+  );
+  const applying = operation?.projectPath === projectPath ? operation : null;
+  const applyingIds = useMemo(() => new Set(applying?.ids ?? []), [applying]);
   const headingId = useId();
   const harshId = useId();
   const statusId = useId();
@@ -177,9 +194,11 @@ export function TightenPanel() {
   }, [filtered]);
   const applyAllReason = !canApply
     ? "Only the host or an Editor can apply edits."
-    : filtered.length === 0
-      ? "Nothing to apply with the current filters."
-      : undefined;
+    : applying
+      ? BUSY_REASON
+      : filtered.length === 0
+        ? "Nothing to apply with the current filters."
+        : undefined;
   const selectedId = selection?.kind === "pending" ? selection.id : null;
   const appliedSounds = useMemo(
     () =>
@@ -307,9 +326,17 @@ export function TightenPanel() {
           variant="primary"
           args={{ ids: filtered.map((h) => h.id) }}
           disabledReason={applyAllReason}
+          aria-busy={applying ? true : undefined}
         >
           {`${commandLabel("tighten.applySuggested")} (${filtered.length})`}
         </CommandButton>
+        {applying ? (
+          <BulkReviewWorking
+            verb="Applying"
+            count={applying.ids.length}
+            startedAtSec={applying.startedAtSec}
+          />
+        ) : null}
       </div>
 
       <AppliedSoundsList
@@ -412,7 +439,7 @@ export function TightenPanel() {
                         {BADGE_LABEL[hit.riskBadge]}
                       </span>
                     </td>
-                    <td>Pending</td>
+                    <td>{applyingIds.has(hit.id) ? "Applying…" : "Pending"}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="tighten-row-actions">
                         {canApply ? (
@@ -420,6 +447,9 @@ export function TightenPanel() {
                             <CommandButton
                               commandId="tighten.applyHit"
                               args={{ id: hit.id }}
+                              disabledReason={
+                                applying ? BUSY_REASON : undefined
+                              }
                               className="tighten-decide"
                               aria-label={`Apply ${rowLabel}`}
                               short
@@ -427,6 +457,9 @@ export function TightenPanel() {
                             <CommandButton
                               commandId="tighten.skipHit"
                               args={{ id: hit.id }}
+                              disabledReason={
+                                applying ? BUSY_REASON : undefined
+                              }
                               className="tighten-decide"
                               aria-label={`Skip ${rowLabel}`}
                               short

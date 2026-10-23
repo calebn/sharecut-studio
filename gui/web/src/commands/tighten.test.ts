@@ -110,6 +110,21 @@ describe("tighten commands", () => {
     confirmReply.mockReset();
   });
 
+  it("does not retarget a confirmed batch after switching away and back", async () => {
+    confirmReply.mockImplementationOnce(() => {
+      useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [pending()] }));
+      return true;
+    });
+    expect(await execute("tighten.applySuggested", { ids: ["e1"] })).toEqual({
+      status: "disabled",
+      reason: "The project changed. Apply again.",
+    });
+    expect(applySuggestedActions).not.toHaveBeenCalled();
+  });
+
   it("applyHit and skipHit call the matching document commands", async () => {
     expect(await execute("tighten.applyHit", { id: "e1" })).toEqual({
       status: "ok",
