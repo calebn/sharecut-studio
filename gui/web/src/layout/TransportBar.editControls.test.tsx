@@ -391,7 +391,7 @@ describe("TransportBar desktop edit controls", () => {
   );
 
   it.each([{ compact: true }, { menuOnly: true }])(
-    "leaves compact and menu-only controls unchanged for %j",
+    "keeps audio error details available for %j",
     async (props) => {
       const user = userEvent.setup();
       useDawStore.setState({ audioError: "Failed to load audio (mix)" });
@@ -399,7 +399,12 @@ describe("TransportBar desktop edit controls", () => {
       expect(screen.queryByRole("group", { name: "Undo and redo" })).toBeNull();
       expect(screen.queryByRole("group", { name: "Zoom" })).toBeNull();
       const menu = screen.getByRole("button", { name: "Menu" });
-      expect(menu).toHaveAttribute("title", "Layers, zoom, theme, and more");
+      expect(menu).toHaveAttribute(
+        "title",
+        props.menuOnly
+          ? "Project, audition, and more"
+          : "Layers, zoom, theme, and more",
+      );
       await user.click(menu);
       expect(
         screen.queryByRole("group", { name: "Timeline tools" }),
