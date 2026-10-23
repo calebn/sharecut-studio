@@ -1,5 +1,6 @@
 import { SAVE_STATE_COPY } from "../record";
 import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
+import { DocumentCommand } from "../types/documentCommands.generated";
 
 /** What a host can say about the last change, derived from the send and queue state. */
 export type SaveState =
@@ -30,6 +31,22 @@ export type SaveStateInput = {
 };
 
 /**
+ * The newest outcome that says something about a save. A refused Undo or Redo
+ * changed nothing and lost no edit, so it stays in Needs attention but never
+ * turns the light red.
+ */
+export function latestSaveOutcome(
+  conflicts: readonly OfflineConflict[],
+): OfflineConflict | undefined {
+  return conflicts.findLast(
+    (conflict) =>
+      conflict.kind !== "refused" ||
+      (conflict.command.type !== DocumentCommand.UndoHistory &&
+        conflict.command.type !== DocumentCommand.RedoHistory),
+  );
+}
+
+/**
  * Busy or settling wins because an edit on its way, or one whose outcome is not
  * yet read back, is the freshest fact. Then an unreadable queue, a refused
  * edit, and edits waiting; the rest is saved. Null until the queue has been
@@ -39,7 +56,7 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
   if (!input.loaded) return null;
-  const latestOutcome = input.conflicts.at(-1);
+  const latestOutcome = latestSaveOutcome(input.conflicts);
   if (latestOutcome?.kind === "unknown") {
     return {
       kind: "unknown",

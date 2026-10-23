@@ -43,6 +43,64 @@ describe("saveStateOf", () => {
     });
   });
 
+  it.each(["UndoHistory", "RedoHistory"])(
+    "is not a failed save when only a refused %s is listed",
+    (type) => {
+      const refusedMove: SaveStateInput["conflicts"][number] = {
+        command: {
+          command_id: "move",
+          client_id: "client",
+          client_seq: 1,
+          type,
+          payload: {},
+          created_at: 0,
+        },
+        kind: "refused",
+        reason: "Nothing to undo",
+        recovery: "edit-and-resubmit",
+      };
+      expect(saveStateOf({ ...quiet, conflicts: [refusedMove] })).toEqual({
+        kind: "saved",
+      });
+      expect(
+        saveStateOf({
+          ...quiet,
+          conflicts: [{ ...refusedMove, dismissed: true }],
+        }),
+      ).toEqual({ kind: "saved" });
+    },
+  );
+
+  it("still fails on an earlier refused edit when a later Undo was refused", () => {
+    const command = (id: string, type: string) => ({
+      command_id: id,
+      client_id: "client",
+      client_seq: 1,
+      type,
+      payload: {},
+      created_at: 0,
+    });
+    expect(
+      saveStateOf({
+        ...quiet,
+        conflicts: [
+          {
+            command: command("edit", "MoveClips"),
+            kind: "refused",
+            reason: "The clip moved.",
+            recovery: "edit-and-resubmit",
+          },
+          {
+            command: command("undo", "UndoHistory"),
+            kind: "refused",
+            reason: "Nothing to undo",
+            recovery: "edit-and-resubmit",
+          },
+        ],
+      }),
+    ).toEqual({ kind: "failed", cause: "refused", reason: "The clip moved." });
+  });
+
   it("names the newest refusal as the reason a save failed", () => {
     expect(
       saveStateOf({

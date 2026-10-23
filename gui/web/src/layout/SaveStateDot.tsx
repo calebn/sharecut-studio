@@ -11,7 +11,7 @@ import {
 import { useDaw } from "../state/useDaw";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { SaveStateDotView } from "./SaveStateDotView";
-import { saveStateOf } from "./saveState";
+import { latestSaveOutcome, saveStateOf } from "./saveState";
 
 function focusAttention() {
   const banner = document.getElementById(ATTENTION_BANNER_ID);
@@ -46,7 +46,7 @@ export function SaveStateDot() {
           loaded: attention.loaded,
           settling: attention.settling,
         });
-  const latest = attention.conflicts.at(-1);
+  const latest = latestSaveOutcome(attention.conflicts);
   const showsDismissedOutcome =
     latest?.dismissed &&
     ((state?.kind === "failed" &&
