@@ -106,8 +106,7 @@ def carries_quiet_speech_pitch(
         fmax=_F0_MAX_HZ,
         interior=interior,
     )
-    full_probes = samples.size >= max(1, round(sample_rate * PROBE_SEC))
-    f0_hz = f0_all[probes >= _QUIET_VOICED_PEAK] if full_probes else f0_all[:0]
+    f0_hz = f0_all[probes >= _QUIET_VOICED_PEAK]
     if len(f0_hz) < _MIN_VOICED_FRAMES:
         return False if probes.size >= _MIN_VOICED_FRAMES else None
     median = float(np.median(f0_hz))

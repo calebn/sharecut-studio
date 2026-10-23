@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Protocol
 
 import numpy as np
@@ -296,22 +295,6 @@ def frame_rms_db_stream(
 _AUTOCORR_CHUNK = 256
 
 
-@lru_cache(maxsize=64)
-def _fft_size(n: int) -> int:
-    best = 1 << max(0, (n - 1).bit_length())
-    p5 = 1
-    while p5 < best:
-        p35 = p5
-        while p35 < best:
-            p = p35
-            while p < n:
-                p *= 2
-            best = min(best, p)
-            p35 *= 3
-        p5 *= 5
-    return best
-
-
 def _autocorr_peaks(
     frames: np.ndarray, sample_rate: int, *, fmin: float, fmax: float, interior: bool
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -322,7 +305,7 @@ def _autocorr_peaks(
     max_lag = min(int(sample_rate / fmin), size // 2)
     if size == 0 or max_lag <= min_lag + 2:
         return lags, peaks
-    nfft = _fft_size(size + max_lag)
+    nfft = next_fast_len(size + max_lag)
     for lo in range(0, count, _AUTOCORR_CHUNK):
         x = frames[lo : lo + _AUTOCORR_CHUNK].astype(np.float64)
         x -= x.mean(axis=1, keepdims=True)
