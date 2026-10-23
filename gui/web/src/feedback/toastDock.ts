@@ -34,6 +34,11 @@ const CEILING_SELECTORS = [
   ".daw-shell--phone .mobile-status-row",
 ] as const;
 
+type VerticalSpan = Readonly<{ top: number; bottom: number }>;
+type HorizontalSpan = Readonly<{ left: number; right: number }>;
+type MeasuredRect = VerticalSpan & HorizontalSpan;
+
+/** Movable-control spans already intersect the card horizontally. */
 export type ToastDockInput = {
   viewportHeight: number;
   /** Bottom of the lowest top-docked control row (transport, status row). */
@@ -52,12 +57,12 @@ export type ToastDockInput = {
   pressedPx?: { top: number; bottom: number } | null;
   /** Vertical extents of body controls the toast must clear (Listen's Play row). */
   keepClearPx?: readonly { top: number; bottom: number }[];
-  /** Fields the toast must never cover. Unlike keepClearPx they win over the ceiling. */
+  /** Fields take priority over the ceiling and other controls when a clear position fits. */
   protectPx?: readonly { top: number; bottom: number }[];
 };
 
 /**
- * Where the phone toast's bottom edge goes, as a distance from the viewport
+ * Where the toast's bottom edge goes, as a distance from the viewport
  * bottom. It docks just above the highest bottom chrome (an open sheet, the
  * tool rail, or the mode nav) when the band between that and the top
  * transport fits it, so it covers neither controls nor sheet fields. A
@@ -65,7 +70,8 @@ export type ToastDockInput = {
  * chrome, over the sheet's scrolling body, which the person can scroll past. If that spot covers the control just pressed or a
  * control that must stay clear (Listen's Play row on a short phone), the toast
  * moves just above it, or just below it when there is no room above; the first
- * spot that covers none of them wins.
+ * spot that covers none of them wins. If no position fits, it keeps the original
+ * resting position.
  */
 export function toastDockBottomPx({
   viewportHeight,
@@ -142,23 +148,37 @@ function restTop(chrome: HTMLElement): number {
   return rect.height > 0 ? rect.top : window.innerHeight;
 }
 
-/** Extents clipped by scrolling ancestors, so a field scrolled out of its panel does not count. */
-function visibleExtents(
-  selectors: readonly string[],
-): { top: number; bottom: number }[] {
+function spansAcrossCard(
+  rects: readonly MeasuredRect[],
+  card: HorizontalSpan,
+): VerticalSpan[] {
+  return rects
+    .filter((rect) => rect.left < card.right && rect.right > card.left)
+    .map(({ top, bottom }) => ({ top, bottom }));
+}
+
+function visibleRects(selectors: readonly string[]): MeasuredRect[] {
   return selectors.flatMap((selector) =>
     Array.from(document.querySelectorAll<HTMLElement>(selector)).flatMap(
       (el) => {
         const rect = el.getBoundingClientRect();
         if (rect.height <= 0 || rect.width <= 0) return [];
-        let { top, bottom } = rect;
+        let { top, bottom, left, right } = rect;
         for (let a = el.parentElement; a; a = a.parentElement) {
-          if (getComputedStyle(a).overflowY === "visible") continue;
+          const style = getComputedStyle(a);
           const box = a.getBoundingClientRect();
-          top = Math.max(top, box.top);
-          bottom = Math.min(bottom, box.bottom);
+          if (style.overflowX !== "visible") {
+            left = Math.max(left, box.left);
+            right = Math.min(right, box.right);
+          }
+          if (style.overflowY !== "visible") {
+            top = Math.max(top, box.top);
+            bottom = Math.min(bottom, box.bottom);
+          }
         }
-        return bottom > top ? [{ top, bottom }] : [];
+        return bottom > top && right > left
+          ? [{ top, bottom, left, right }]
+          : [];
       },
     ),
   );
@@ -195,6 +215,8 @@ export function useToastDock(
       // The same gap the CSS placement uses: var(--space-3), in rem.
       const gapRem =
         Number.parseFloat(rootStyle.getPropertyValue("--space-3")) || 0.5;
+      const cardRect = card.getBoundingClientRect();
+      const pressed = phone ? pressedExtent() : null;
       const phoneOnly = phone
         ? {
             ceilingPx: Math.max(
@@ -202,17 +224,21 @@ export function useToastDock(
               ...shownRects(CEILING_SELECTORS).map((rect) => rect.bottom),
             ),
             floorTopsPx: shownRects(FLOOR_SELECTORS).map((rect) => rect.top),
-            pressedPx: pressedExtent(),
-            keepClearPx: shownRects(KEEP_CLEAR_SELECTORS),
+            pressedPx:
+              spansAcrossCard(pressed ? [pressed] : [], cardRect)[0] ?? null,
+            keepClearPx: spansAcrossCard(
+              shownRects(KEEP_CLEAR_SELECTORS),
+              cardRect,
+            ),
           }
         : { ceilingPx: 0, floorTopsPx: [], pressedPx: null, keepClearPx: [] };
       const bottomPx = toastDockBottomPx({
         viewportHeight: window.innerHeight,
         restTopPx: restTop(rest),
-        toastHeightPx: card.getBoundingClientRect().height,
+        toastHeightPx: cardRect.height,
         gapPx: gapRem * rootPx,
         ...phoneOnly,
-        protectPx: visibleExtents(PROTECT_SELECTORS),
+        protectPx: spansAcrossCard(visibleRects(PROTECT_SELECTORS), cardRect),
       });
       const value = `${bottomPx / rootPx}rem`;
       if (region.style.getPropertyValue("--toast-dock-bottom") !== value) {
