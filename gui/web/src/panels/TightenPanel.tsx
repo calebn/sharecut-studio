@@ -107,6 +107,10 @@ export function TightenPanel() {
   const [findRun, setFindRun] = useState<FindRun | null>(null);
 
   const gate = useModelGate();
+  const resetGate = gate.reset;
+  useEffect(() => {
+    resetGate();
+  }, [projectPath, resetGate]);
   const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const intensityCfg = useTightenIntensityConfig(projectPath, canApply);
   const pipelineCfg = intensityCfg.cfg;
@@ -146,14 +150,16 @@ export function TightenPanel() {
     setProposing(true);
     setFindRun({ path, jobId: null, error: null });
     try {
+      const onPath = () => useDawStore.getState().projectPath === path;
       const result = await gate.run(async () => {
+        if (!onPath()) return null;
         const fresh = await intensityCfg.fetchFresh();
-        if (!fresh) return null;
+        if (!fresh || !onPath()) return null;
         const started = await startPipelineRun(
           path,
           tightenProposeRunOptions(fresh, tier),
         );
-        return useDawStore.getState().projectPath === path ? started : null;
+        return onPath() ? started : null;
       });
       if (result.kind !== "ran" || !result.value) return;
       const job = result.value;
