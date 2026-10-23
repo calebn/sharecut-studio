@@ -1,0 +1,19 @@
+{
+  "pr": 2180,
+  "issue": 2165,
+  "tested_head": "cff52e86fd5e34cb8ef9c6be629777d0db52c294",
+  "final_implementation_head": "8f16b8e2ae16aadcc7ea3e3f353cdb19e8a72d73",
+  "base": "732a1258ff2251620635620082e91ca74721d087",
+  "source_and_build_parity": {
+    "gui_web_src_tree": "95ae3eeff07d7e2f9b77bde37e7cf17d7672cf7f",
+    "dist_files": 50,
+    "all_dist_bytes_identical": true
+  },
+  "proof": "Actual Studio with committed microphone fixture copies. Controlled request and native response barriers. Host saved before reply release. One native200 Apply request per desktop and phone case. No duration speedup, physical device or listening claim.",
+  "phone": "Status column is hidden by the inherited narrow layout. Visible feedback is the working line, busy Apply and disabled row Apply/Skip controls.",
+  "screenshots_sha256": {
+    "desktop-response-held.png": "601acf1f5a438a065a1113a495f943c9050d7c8cf032d95dde78955f69afd1a4",
+    "phone-response-held.png": "7f487a74981ba43eeadd4bf40db93b8725497853c08ee4e91af89c2080dc5d87"
+  },
+  "publication": "Separate unmerged proof branch. Connected tools cannot upload PR attachments."
+}
