@@ -1,9 +1,9 @@
-"""Restarting the ffmpeg resampler at a grid point reproduces the continuous run bit for bit (#1958).
+"""Restarting the ffmpeg resampler at a grid point reproduces the continuous run bit for bit.
 
 ``resample_streams`` is a polyphase FIR with an integer ratio, so an output sample depends
-on a finite window of input. ``resampler_warm_up_and_guard`` measures that window on the
-running build; these tests check what it reports on other signals, at a start, an end and
-across back-to-back blocks.
+on a finite window of input. ``resampler_locality`` measures that window on the running
+build; these tests check what it reports on other signals, at a start, an end and across
+back-to-back blocks.
 """
 
 from __future__ import annotations
@@ -20,11 +20,10 @@ from podcast_mcp.engines.ungated_audio import (
     load_mono_full,
     resample_streams,
     resampler_locality,
-    resampler_warm_up_and_guard,
 )
 
 SOURCE_RATE = 48000
-RATES = {8000: 6, 16000: 3}
+RATES = (8000, 16000)
 SECONDS = 4
 SPEECH_WAV = os.environ.get("PODCAST_LAB_SPEECH_WAV")
 SPEECH_SECONDS = 30
@@ -46,7 +45,7 @@ def _chirp() -> np.ndarray:
 
 
 def _speech_like(seed: int) -> np.ndarray:
-    """Noise under a syllable-rate envelope with silences, as speech is gated."""
+    """Noise under a syllable-rate envelope with silences."""
     rng = np.random.default_rng(seed)
     t = np.arange(SECONDS * SOURCE_RATE) / SOURCE_RATE
     envelope = np.clip(np.sin(2 * np.pi * 4 * t) * np.sin(2 * np.pi * 0.7 * t), 0, None)
@@ -64,75 +63,97 @@ def _resample(samples: np.ndarray, rate: int) -> np.ndarray:
     return resample_streams(iter([samples]), SOURCE_RATE, [rate])[rate]
 
 
-def _first_difference(got: np.ndarray, want: np.ndarray) -> int | None:
-    if got.size != want.size:
-        return min(got.size, want.size)
-    differing = np.flatnonzero(got != want)
-    return int(differing[0]) if differing.size else None
+def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
+    return got.shape == want.shape and np.array_equal(got.view(np.uint32), want.view(np.uint32))
 
 
 def _restart(samples: np.ndarray, rate: int, start: int, warm_up: int) -> np.ndarray:
-    """Output from input index ``start`` on, from a run begun ``warm_up`` samples earlier."""
-    grid = RATES[rate]
+    grid = SOURCE_RATE // rate
     return _resample(samples[start - warm_up :], rate)[warm_up // grid :]
 
 
 def _check_locality(samples: np.ndarray, rate: int) -> None:
-    grid = RATES[rate]
-    found = resampler_warm_up_and_guard(SOURCE_RATE, rate)
+    grid = SOURCE_RATE // rate
+    found = resampler_locality(SOURCE_RATE, rate)
     assert found is not None
     warm_up, guard = found
     whole = _resample(samples, rate)
 
-    for start in (warm_up, 6 * grid * 100, 6 * grid * 1001, 6 * grid * 4999):
+    for start in (600, 6006, 36036, 150000):
         got = _restart(samples, rate, start, warm_up)
-        want = whole[start // grid :]
-        assert _first_difference(got, want) is None, f"restart at {start}"
+        assert _same_bits(got, whole[start // grid :]), f"restart at {start}"
 
-    for end in (6 * grid * 2000, 6 * grid * 6001, samples.size - 6 * grid * 7):
+    for end in (12000, 36006, samples.size - 42):
         cut = _resample(samples[:end], rate)
         kept = (end - guard) // grid
-        assert _first_difference(cut[:kept], whole[:kept]) is None, f"truncation at {end}"
+        assert _same_bits(cut[:kept], whole[:kept]), f"truncation at {end}"
 
-    edges = [6 * grid * 150, 6 * grid * 1500, 6 * grid * 1501, 6 * grid * 4000, samples.size - 600]
-    edges = [edge // grid * grid for edge in edges]
+    edges = (900, 9000, 9006, 24000, samples.size - 600)
     joined = [
         _resample(samples[begin - warm_up : end + guard], rate)[
             warm_up // grid : warm_up // grid + (end - begin) // grid
         ]
         for begin, end in itertools.pairwise(edges)
     ]
-    assert (
-        _first_difference(np.concatenate(joined), whole[edges[0] // grid : edges[-1] // grid])
-        is None
-    )
+    assert _same_bits(np.concatenate(joined), whole[edges[0] // grid : edges[-1] // grid])
 
 
-@pytest.mark.parametrize("rate", sorted(RATES))
+@pytest.mark.parametrize("rate", RATES)
 @pytest.mark.parametrize("name", sorted(SIGNALS))
 def test_restarting_at_a_grid_point_gives_the_continuous_samples(name, rate):
     _check_locality(SIGNALS[name], rate)
 
 
-@pytest.mark.parametrize("rate", sorted(RATES))
+@pytest.mark.parametrize("rate", RATES)
 def test_the_widths_are_whole_grids_and_short(rate):
-    warm_up, guard = resampler_warm_up_and_guard(SOURCE_RATE, rate)
+    warm_up, guard = resampler_locality(SOURCE_RATE, rate)
 
-    assert warm_up % RATES[rate] == 0 and guard % RATES[rate] == 0
+    assert warm_up % (SOURCE_RATE // rate) == 0 and guard % (SOURCE_RATE // rate) == 0
     assert 0 < warm_up <= 1024 and 0 < guard <= 1024
-    assert resampler_locality(SOURCE_RATE, rate) == max(warm_up, guard)
 
 
-@pytest.mark.parametrize("rate", sorted(RATES))
-def test_one_grid_less_warm_up_differs(rate):
-    """The measured width is the smallest that works, not a loose bound the signals never test."""
-    grid = RATES[rate]
-    warm_up, _guard = resampler_warm_up_and_guard(SOURCE_RATE, rate)
+@pytest.mark.parametrize("rate", RATES)
+def test_warm_up_is_minimal(rate):
+    grid = SOURCE_RATE // rate
+    warm_up, _guard = resampler_locality(SOURCE_RATE, rate)
     samples = SIGNALS["noise"]
-    start = 6 * grid * 1001
+    start = 36036
 
     got = _restart(samples, rate, start, warm_up - grid)
-    assert _first_difference(got, _resample(samples, rate)[start // grid :]) is not None
+    assert not _same_bits(got, _resample(samples, rate)[start // grid :])
+
+
+@pytest.mark.parametrize("rate", RATES)
+def test_guard_is_minimal(rate):
+    grid = SOURCE_RATE // rate
+    _warm_up, guard = resampler_locality(SOURCE_RATE, rate)
+    samples = SIGNALS["noise"]
+    end = 60000
+
+    cut = _resample(samples[:end], rate)
+    kept = (end - guard + grid) // grid
+    assert not _same_bits(cut[:kept], _resample(samples, rate)[:kept])
+
+
+def test_bit_identity_tells_signed_zeros_apart():
+    positive = np.zeros(4, dtype=np.float32)
+
+    assert not _same_bits(positive, -positive)
+    assert _same_bits(positive, positive.copy())
+
+
+def test_a_warm_up_before_the_start_of_the_signal_is_refused():
+    samples = SIGNALS["noise"]
+    whole = _resample(samples, 8000)
+
+    with pytest.raises(ValueError, match="before the start"):
+        ungated_audio._restart_matches(samples, whole, 6, 8000, 12006)
+
+
+def test_the_search_reaches_the_documented_ceiling():
+    assert ungated_audio._smallest_passing(6, lambda width: width >= 8190) == 8190
+    assert ungated_audio._smallest_passing(3, lambda width: width >= 8190) == 8190
+    assert ungated_audio._smallest_passing(6, lambda width: False) is None
 
 
 @pytest.mark.parametrize(("source", "rate"), [(44100, 8000), (44100, 16000), (48000, 12345)])
@@ -141,7 +162,7 @@ def test_other_grids_have_no_locality(source, rate):
 
 
 def test_a_build_is_calibrated_once(monkeypatch):
-    resampler_warm_up_and_guard(SOURCE_RATE, 8000)
+    resampler_locality(SOURCE_RATE, 8000)
     calls = []
     monkeypatch.setattr(
         ungated_audio,
@@ -149,13 +170,13 @@ def test_a_build_is_calibrated_once(monkeypatch):
         lambda *args, **kwargs: calls.append(args) or {},
     )
 
-    resampler_warm_up_and_guard(SOURCE_RATE, 8000)
+    resampler_locality(SOURCE_RATE, 8000)
 
     assert calls == []
 
 
 def test_a_different_build_is_calibrated_again(monkeypatch):
-    resampler_warm_up_and_guard(SOURCE_RATE, 8000)
+    resampler_locality(SOURCE_RATE, 8000)
     build = ungated_audio._ffmpeg_build_id()
     monkeypatch.setattr(ungated_audio, "_ffmpeg_build_id", lambda: (*build, "other"))
     calls = []
@@ -166,19 +187,16 @@ def test_a_different_build_is_calibrated_again(monkeypatch):
         lambda *args, **kwargs: calls.append(args) or real(*args, **kwargs),
     )
 
-    resampler_warm_up_and_guard(SOURCE_RATE, 8000)
+    resampler_locality(SOURCE_RATE, 8000)
 
     assert calls
 
 
 @real_speech
-@pytest.mark.parametrize("rate", sorted(RATES))
+@pytest.mark.parametrize("rate", RATES)
 def test_real_speech_restarts_exactly(rate):
-    """The Mac lab check: a recording's speech, with its silences and plosives, at the calibrated width."""
-    assert SPEECH_WAV is not None
-    samples = load_mono_full(Path(SPEECH_WAV), sample_rate=SOURCE_RATE)[
+    """Real speech restarts exactly at the calibrated width."""
+    samples = load_mono_full(Path(os.environ["PODCAST_LAB_SPEECH_WAV"]), sample_rate=SOURCE_RATE)[
         : SPEECH_SECONDS * SOURCE_RATE
     ]
-    found = resampler_warm_up_and_guard(SOURCE_RATE, rate)
-    print(f"ffmpeg build {ungated_audio._ffmpeg_build_id()} {rate}: W, G = {found}")
     _check_locality(samples, rate)
