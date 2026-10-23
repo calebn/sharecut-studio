@@ -12,7 +12,7 @@ import { commentRole } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { InlineError } from "../ui";
 
-function isTextField(el: EventTarget): boolean {
+function isTextField(el: Element): boolean {
   return el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement;
 }
 
@@ -33,38 +33,27 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   const [body, setBody] = useState("");
   const { busy, error, post } = usePostComment();
   const dockRef = useRef<HTMLElement>(null);
-  const [fieldFocus, setFieldFocus] = useState(false);
-  const fromField = useRef(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
+  // A tap on a dock button keeps the text field focused (the keyboard and the
+  // dock's height stay put), so the button does not move before the click.
   useEffect(() => {
     const dock = dockRef.current;
     if (!dock) return;
-    const onFocusIn = (e: FocusEvent) => {
-      if (e.target && isTextField(e.target)) {
-        fromField.current = false;
-        setFieldFocus(true);
-      } else {
-        const keep = fromField.current;
-        fromField.current = false;
-        setFieldFocus((was) => keep && was);
+    const keepFieldFocus = (e: MouseEvent) => {
+      const active = document.activeElement;
+      if (
+        e.target instanceof Element &&
+        e.target.closest("button") &&
+        active &&
+        isTextField(active) &&
+        dock.contains(active)
+      ) {
+        e.preventDefault();
       }
     };
-    const onFocusOut = (e: FocusEvent) => {
-      const next = e.relatedTarget;
-      const staysInDock = next instanceof Node && dock.contains(next);
-      if (staysInDock && e.target && isTextField(e.target)) {
-        fromField.current = true;
-      } else if (!staysInDock) {
-        setFieldFocus(false);
-      }
-    };
-    dock.addEventListener("focusin", onFocusIn);
-    dock.addEventListener("focusout", onFocusOut);
-    return () => {
-      dock.removeEventListener("focusin", onFocusIn);
-      dock.removeEventListener("focusout", onFocusOut);
-    };
+    dock.addEventListener("mousedown", keepFieldFocus);
+    return () => dock.removeEventListener("mousedown", keepFieldFocus);
   }, []);
 
   useLayoutEffect(() => {
@@ -87,6 +76,18 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   };
 
   const onPost = () => {
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLInputElement &&
+      active.closest(".comment-author-edit")
+    ) {
+      const renamed = active.value.trim();
+      active.blur();
+      if (renamed) {
+        void send(renamed);
+        return;
+      }
+    }
     const author = guest.authorForPost();
     if (author !== null) void send(author);
   };
@@ -96,7 +97,6 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
       ref={dockRef}
       className="listen-comment-dock"
       aria-label="Add a comment"
-      data-field-focus={fieldFocus || undefined}
     >
       <InlineError message={error} />
       {guest.showLine ? (

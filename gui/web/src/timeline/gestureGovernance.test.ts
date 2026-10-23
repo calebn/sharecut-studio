@@ -228,6 +228,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "splitter: a drag resizes the bottom tabs; arrow keys and the size buttons do the same by key",
   "layout/useRailLabelPeek.ts":
     "rail label: a touch long press on an icon-only rail control names it for a moment without activating it (useLongPress timing)",
+  "layout/ListenCommentComposer.tsx":
+    "a press on a dock button keeps the focused comment or name field focused, so the keyboard and the dock height hold through the tap; it starts no gesture",
   "layout/ListenPlayhead.tsx":
     "Listen scrub: a native range input seeks the playhead; it is not a timeline target",
   "tracks/TrackFaderView.tsx":

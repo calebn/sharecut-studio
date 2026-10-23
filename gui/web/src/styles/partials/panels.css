@@ -106,6 +106,10 @@ html[data-shell="phone"] .impact-pending-select {
 }
 
 .comment-author-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
   margin: 0;
   align-self: center;
   color: var(--color-text-secondary);
@@ -116,8 +120,8 @@ html[data-shell="phone"] .impact-pending-select {
   overflow-wrap: anywhere;
 }
 
-.comment-author-line .comment-author-change {
-  white-space: nowrap;
+.comment-author-line > span {
+  min-width: 0;
 }
 
 .comment-author-edit {
@@ -128,6 +132,12 @@ html[data-shell="phone"] .impact-pending-select {
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
+}
+
+@media (pointer: coarse) {
+  .comment-author-edit input {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .comments-toolbar > button,
