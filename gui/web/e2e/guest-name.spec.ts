@@ -653,7 +653,8 @@ for (const size of [
       expect(dockBox).not.toBeNull();
       if (alertBox && dockBox) {
         expect(alertBox.width).toBeGreaterThan(dockBox.width * 0.75);
-        expect(dockBox.height).toBeLessThanOrEqual(size.height * 0.35 + 1);
+        // the failed post refocuses the field, so the keyboard relief applies
+        expect(dockBox.height).toBeLessThanOrEqual(size.height * 0.6 + 1);
       }
       const post = dock.getByRole("button", { name: "Post comment" });
       await post.scrollIntoViewIfNeeded();

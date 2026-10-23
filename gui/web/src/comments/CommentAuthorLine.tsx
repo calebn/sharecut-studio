@@ -49,18 +49,17 @@ export function CommentAuthorLine({ name, onChange }: Props) {
 
   return (
     <p className="comment-author-line">
-      Commenting as <strong>{name}</strong>{" "}
-      <span className="comment-author-change">
-        ·{" "}
-        <Button
-          ref={changeRef}
-          variant="link"
-          aria-label="Change your comment name"
-          onClick={() => setEditing(true)}
-        >
-          Change
-        </Button>
+      <span>
+        Commenting as <strong>{name}</strong>
       </span>
+      <Button
+        ref={changeRef}
+        variant="link"
+        aria-label="Change your comment name"
+        onClick={() => setEditing(true)}
+      >
+        Change
+      </Button>
     </p>
   );
 }
