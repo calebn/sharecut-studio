@@ -47,12 +47,7 @@ export function SaveStateDot() {
           settling: attention.settling,
         });
   const latest = latestSaveOutcome(attention.conflicts);
-  const showsDismissedOutcome =
-    latest?.dismissed &&
-    state?.kind === "unknown" &&
-    latest.kind === "unknown" &&
-    latest.reason === state.reason &&
-    latest.recovery === state.recovery;
+  const showsDismissedOutcome = latest?.dismissed && latest.kind === "unknown";
 
   useEffect(() => {
     if (attention.recoverySelection) {

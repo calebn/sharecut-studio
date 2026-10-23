@@ -98,6 +98,46 @@ describe("saveStateOf", () => {
     });
   });
 
+  it("keeps the newest unknown outcome when a refusal comes after it", () => {
+    const command = (id: string, type: string) => ({
+      command_id: id,
+      client_id: "client",
+      client_seq: 1,
+      type,
+      payload: {},
+      created_at: 0,
+    });
+    expect(
+      saveStateOf({
+        ...quiet,
+        conflicts: [
+          {
+            command: command("first", "MoveClips"),
+            kind: "unknown",
+            reason: "The first result was uncertain.",
+            recovery: "retry-same-command",
+          },
+          {
+            command: command("second", "MoveClips"),
+            kind: "unknown",
+            reason: "The second result was uncertain.",
+            recovery: "retry-same-command",
+          },
+          {
+            command: command("refused", "SplitAtTime"),
+            kind: "refused",
+            reason: "No clip at that time.",
+            recovery: "edit-and-resubmit",
+          },
+        ],
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "The second result was uncertain.",
+      recovery: "retry-same-command",
+    });
+  });
+
   it("still counts queued edits behind a refused one", () => {
     expect(
       saveStateOf({
