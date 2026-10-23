@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commandLocks } from "../test/commandLocks";
+import type { DocumentCommandType } from "../types/documentCommands.generated";
 import { ApiError } from "../utils/apiError";
 
 const enqueueHostCommand = vi.fn();
@@ -72,12 +73,15 @@ describe.each([
     client_seq: 3,
   };
 
-  async function run(replaying: boolean) {
+  async function run(
+    replaying: boolean,
+    type: DocumentCommandType = "SetTrackMeta",
+  ) {
     const { submitDocumentCommand } = await import("../api");
     try {
       const result = await submitDocumentCommand(
         path,
-        "SetTrackMeta",
+        type,
         { label: "x" },
         replaying ? { ...identity, replaying: true } : identity,
       );
@@ -198,15 +202,6 @@ describe.each([
       ],
       [
         "refine gate 409",
-        false,
-        () => post.mockResolvedValue(refineGate),
-        [
-          { kind: null, remove: true, end: "throws" },
-          { kind: null, remove: true, end: "throws" },
-        ],
-      ],
-      [
-        "refine gate 409",
         true,
         () => post.mockResolvedValue(refineGate),
         [
@@ -231,12 +226,28 @@ describe.each([
       ],
     ];
 
+  it("answers a live ApproveEdits refine-gate refusal inline on the host only", async () => {
+    post.mockResolvedValue(refineGate);
+    const { thrown } = await run(false, "ApproveEdits");
+    expect(thrown).toBeInstanceOf(Error);
+    expect(settled()).toEqual({
+      kind: col === 0 ? null : "refused",
+      remove: true,
+    });
+  });
+
+  it("records a live refine-gate refusal of any other command", async () => {
+    post.mockResolvedValue(refineGate);
+    await run(false, "SetTrackMeta");
+    expect(settled()).toEqual({ kind: "refused", remove: true });
+  });
+
   it("tells a replayed refine-gate refusal in plain words, without commands", async () => {
     post.mockResolvedValue(refineGate);
     await run(true);
     const outcome = settle.mock.calls[0]?.[2];
     expect(outcome?.reason).toBe(
-      "Approving is blocked until transcript refinement is done. Review the transcript or waive it with a reason.",
+      "This is blocked until transcript refinement is done. A host can review the transcript or waive it with a reason.",
     );
   });
 
