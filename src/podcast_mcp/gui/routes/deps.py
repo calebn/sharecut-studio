@@ -29,7 +29,6 @@ from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.tool_refusal import tool_refusal
-from podcast_mcp.util.write_failure import project_write_failed
 
 ERROR_CODE_HEADER = "X-Sharecut-Error-Code"
 NO_STORE = {"Cache-Control": "no-store"}
@@ -45,14 +44,6 @@ def coded_http_error(
         detail=detail,
         headers={**(headers or {}), ERROR_CODE_HEADER: code},
     )
-
-
-def project_write_failure(exc: BaseException) -> HTTPException | None:
-    """Plain-words 5xx for a command that could not write the project, or ``None`` for any other error."""
-    failed = project_write_failed(exc)
-    if failed is None:
-        return None
-    return coded_http_error(failed.status, str(failed), code=failed.code)
 
 
 def document_conflict_error(exc: DocumentConflictError) -> HTTPException:
