@@ -623,3 +623,149 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+for (const size of [
+  { width: 667, height: 375 },
+  { width: 568, height: 320 },
+]) {
+  test(`a failed post shows its alert full width in the named dock and Post stays reachable at ${size.width}x${size.height}`, async ({
+    browser,
+  }) => {
+    await withNamedGuest(browser, size, "Riley", async (guest, dock, field) => {
+      await guest.route(/\/comments(\?|$)/, (route) =>
+        route.request().method() === "POST"
+          ? route.fulfill({
+              status: 500,
+              contentType: "application/json",
+              body: JSON.stringify({
+                detail: "The server could not save this comment right now.",
+              }),
+            })
+          : route.continue(),
+      );
+      await field.fill("Will fail");
+      await dock.getByRole("button", { name: "Post comment" }).tap();
+      const alert = dock.getByRole("alert");
+      await expect(alert).toBeVisible();
+      const alertBox = await alert.boundingBox();
+      const dockBox = await guest.locator(".mobile-dock").boundingBox();
+      expect(alertBox).not.toBeNull();
+      expect(dockBox).not.toBeNull();
+      if (alertBox && dockBox) {
+        expect(alertBox.width).toBeGreaterThan(dockBox.width * 0.75);
+        expect(dockBox.height).toBeLessThanOrEqual(size.height * 0.35 + 1);
+      }
+      const post = dock.getByRole("button", { name: "Post comment" });
+      await post.scrollIntoViewIfNeeded();
+      await expect(post).toBeInViewport({ ratio: 1 });
+      await expect(field).toHaveValue("Will fail");
+    });
+  });
+}
+
+for (const size of [
+  { width: 320, height: 300 },
+  { width: 390, height: 340 },
+]) {
+  const label = `${size.width}x${size.height}`;
+  const longName = "W".repeat(40);
+
+  test(`one tap on Post comment lands while the rename field is focused with a long name, at ${label}`, async ({
+    browser,
+  }) => {
+    await withNamedGuest(
+      browser,
+      size,
+      longName,
+      async (guest, dock, field) => {
+        await field.fill("From rename state");
+        await tapCentre(
+          guest,
+          dock.getByRole("button", { name: "Change your comment name" }),
+        );
+        const rename = dock.getByRole("textbox", { name: "Your name" });
+        await expect(rename).toBeFocused();
+        expect(
+          (await rename.boundingBox())?.height ?? 0,
+        ).toBeGreaterThanOrEqual(TOUCH_MIN - 0.5);
+        await rename.fill("Kit");
+        await tapCentre(
+          guest,
+          dock.getByRole("button", { name: "Post comment" }),
+        );
+        await expect(field).toHaveValue("");
+        await expect(dock.locator(".comment-author-line strong")).toHaveText(
+          "Kit",
+        );
+      },
+    );
+  });
+
+  test(`one tap on Post comment lands in the name step with a long name, at ${label}`, async ({
+    browser,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [
+          {},
+          {
+            viewport: size,
+            reducedMotion: "reduce",
+            hasTouch: true,
+            isMobile: true,
+          },
+        ],
+        async ([host, guest]) => {
+          await openHostShare(host, projectPath);
+          const token = await createReviewShare(host, projectPath, "commenter");
+          await openGuestShare(guest, token);
+          const dock = guest.getByRole("region", { name: "Add a comment" });
+          const field = dock.getByRole("textbox", {
+            name: "Comment",
+            exact: true,
+          });
+          await field.fill("Long name note");
+          await dock.getByRole("button", { name: "Post comment" }).tap();
+          await dock.getByRole("textbox", { name: "Your name" }).fill(longName);
+          await tapCentre(
+            guest,
+            dock.getByRole("button", { name: "Post comment" }),
+          );
+          await expect(field).toHaveValue("");
+          await expect(dock.locator(".comment-author-line strong")).toHaveText(
+            longName,
+          );
+        },
+      );
+    });
+  });
+}
+
+for (const size of [
+  { width: 667, height: 375 },
+  { width: 568, height: 320 },
+  { width: 320, height: 568 },
+]) {
+  test(`the Commenting as line has no separator dot and Change is its own element at ${size.width}x${size.height}`, async ({
+    browser,
+  }) => {
+    await withNamedGuest(
+      browser,
+      size,
+      size.width < 400 ? "W".repeat(40) : "Riley Okafor",
+      async (_guest, dock) => {
+        const line = dock.locator(".comment-author-line");
+        expect(await line.evaluate((el) => el.textContent ?? "")).not.toContain(
+          "·",
+        );
+        const change = dock.getByRole("button", {
+          name: "Change your comment name",
+        });
+        expect(await change.evaluate((el) => el.parentElement?.tagName)).toBe(
+          "P",
+        );
+      },
+    );
+  });
+}
