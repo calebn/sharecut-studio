@@ -307,7 +307,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     await run(async () => {
       const outcome =
         action === "approve"
-          ? await approveEdits(projectPath, [edit.id])
+          ? await approveEdits(projectPath, [edit.id], false, true)
           : await rejectEdits(projectPath, [edit.id]);
       const current = useDawStore.getState();
       if (

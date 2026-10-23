@@ -20,6 +20,7 @@ import { useDawStore } from "../state/dawStore";
 import { ApiError } from "../utils/apiError";
 import {
   applySuggestedActions,
+  approveEdits,
   correctTranscriptPhrase,
   correctTranscriptWord,
   loadPendingCutSuggestion,
@@ -616,5 +617,27 @@ describe("moveClips reply history", () => {
       .mockResolvedValueOnce({ command_id: "retry", idempotent: true });
     expect(await moveClips("/tmp/ep", clips)).toBe("move-first");
     expect(await moveClips("/tmp/ep", clips)).toBeNull();
+  });
+});
+
+describe("approveEdits", () => {
+  it("tells the queue only when the caller shows the Waive form", async () => {
+    vi.mocked(submitQueuedDocumentCommand)
+      .mockResolvedValueOnce({ queued: true })
+      .mockResolvedValueOnce({ queued: true });
+    await approveEdits("/tmp/ep", ["e1"]);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "ApproveEdits",
+      { ids: ["e1"] },
+      undefined,
+    );
+    await approveEdits("/tmp/ep", ["e1"], false, true);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "ApproveEdits",
+      { ids: ["e1"] },
+      { refineRecoveryInline: true },
+    );
   });
 });

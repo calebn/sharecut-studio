@@ -1616,8 +1616,10 @@ describe("single pending review feedback", () => {
         expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
           path,
           command,
-          command === "ApproveEdits" ? { ids: [edit.id] } : { ids: [edit.id] },
-          undefined,
+          { ids: [edit.id] },
+          command === "ApproveEdits"
+            ? { refineRecoveryInline: true }
+            : undefined,
         );
         expect(useDawStore.getState().project?.pending_edits).toEqual([]);
         expect(useDawStore.getState().selection).toBeNull();

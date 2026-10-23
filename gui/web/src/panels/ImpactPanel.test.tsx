@@ -361,6 +361,7 @@ describe("ImpactPanel bulk review", () => {
       "/tmp/p.json",
       ["e1", "e2", "e3"],
       true,
+      true,
     ]);
     expect(vi.mocked(approveEdits).mock.calls[0]?.[2]).toBe(true);
     expect(asked).toEqual([
