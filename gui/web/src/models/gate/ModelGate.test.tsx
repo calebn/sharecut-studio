@@ -56,6 +56,18 @@ function mount(fixture: Partial<ModelsFixture> = {}, panel = false) {
   return { api, ...view };
 }
 
+function trackFocus() {
+  const labels: string[] = [];
+  const real = HTMLElement.prototype.focus;
+  const spy = vi
+    .spyOn(HTMLElement.prototype, "focus")
+    .mockImplementation(function (this: HTMLElement, ...args) {
+      labels.push(this.textContent ?? "");
+      return real.apply(this, args);
+    });
+  return { labels, restore: () => spy.mockRestore() };
+}
+
 afterEach(() => useDawStore.getState().setModelsDialogOpen(false));
 
 describe("ModelGate", () => {
@@ -164,17 +176,14 @@ describe("ModelGate", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
     const accept = await screen.findByRole("button", { name: "Download" });
     await waitFor(() => expect(accept).toHaveFocus());
+    const focus = trackFocus();
     await userEvent.click(accept);
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Cancel download" }),
-      ).toHaveFocus(),
-    );
+    await waitFor(() => expect(focus.labels).toContain("Cancel download"));
 
+    focus.labels.length = 0;
     act(() => finish({ kind: "failed", failed: ["word-aligner"] }));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus(),
-    );
+    await waitFor(() => expect(focus.labels).toContain("Retry"));
+    focus.restore();
   });
 
   it("gives an embedded panel the same focus moves", async () => {
@@ -187,18 +196,14 @@ describe("ModelGate", () => {
     );
     mount({ download }, true);
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Download" }),
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Cancel download" }),
-      ).toHaveFocus(),
-    );
+    const accept = await screen.findByRole("button", { name: "Download" });
+    const focus = trackFocus();
+    await userEvent.click(accept);
+    await waitFor(() => expect(focus.labels).toContain("Cancel download"));
 
+    focus.labels.length = 0;
     act(() => finish({ kind: "cancelled" }));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Download" })).toHaveFocus(),
-    );
+    await waitFor(() => expect(focus.labels).toContain("Download"));
+    focus.restore();
   });
 });

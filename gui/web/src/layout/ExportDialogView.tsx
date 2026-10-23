@@ -55,7 +55,6 @@ export type ExportDialogViewProps = {
   onCancelExport: () => void;
   /** Back to settings after a failure or cancel. */
   onRestart: () => void;
-  /** Shown under a failure after the person declined a model download. */
   modelHint?: ReactNode;
   /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
   nowSec?: number;

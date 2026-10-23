@@ -6,7 +6,7 @@ import { Button } from "../../ui";
 import { modelNeededFromPayload } from "../../utils/apiError";
 import { useModels } from "../useModels";
 import { ModelGateDialog } from "./ModelGate";
-import { useModelGate } from "./useModelGate";
+import { rowInstalled, useModelGate } from "./useModelGate";
 
 const TRY_AGAIN: Record<string, string> = {
   pipeline: "Press Run again; From step skips the steps that finished.",
@@ -42,11 +42,11 @@ export function JobModelDownload({
   if (!need || !models) {
     return null;
   }
-  const row = models.find((m) => m.id === need.id);
-  const installed =
-    row?.state.kind === "installed" &&
-    (need.id !== "whisper" || !need.variant || row.variant === need.variant);
-  if (installed && !gate.prompt) {
+  const row = models.find((m) => m.id === need.id) ?? null;
+  if (
+    rowInstalled(row, { id: need.id, variant: need.variant ?? undefined }) &&
+    !gate.prompt
+  ) {
     return null;
   }
   const kind = job?.kind ?? "";

@@ -22,9 +22,7 @@ export type BounceDialogViewProps = {
   busy: boolean;
   error: string | null;
   onBounce: () => void;
-  /** Passed by the adapter; its prompt stands in for the form and footer. */
   modelGate?: ModelGate | null;
-  /** Shown beside the form after the person declined a model download. */
   modelHint?: ReactNode;
 };
 

@@ -72,7 +72,7 @@ function rowFor(api: ModelsApi, need: ModelNeed): ModelView | null {
   return api.models?.find((m) => m.id === need.id) ?? null;
 }
 
-function rowInstalled(row: ModelView | null, need: ModelNeed): boolean {
+export function rowInstalled(row: ModelView | null, need: ModelNeed): boolean {
   return (
     row?.state.kind === "installed" &&
     (need.id !== "whisper" || !need.variant || row.variant === need.variant)
