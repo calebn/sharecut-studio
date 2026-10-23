@@ -58,7 +58,7 @@
     "tests/test_registry_lifecycle_actors.py": 0,
     "tests/test_relay_ws.py": 0,
     "tests/test_remote_mcp_executor.py": 2,
-    "tests/test_review_share.py": 3,
+    "tests/test_review_share.py": 2,
     "tests/test_services_extended.py": 0,
     "tests/test_session_sync.py": 2,
     "tests/test_session_sync_presence_delta.py": 3,

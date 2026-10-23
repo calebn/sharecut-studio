@@ -952,7 +952,6 @@ def test_guest_render_preview_conflict_when_host_job_running(
 ) -> None:
     pytest.importorskip("fastapi")
     import threading
-    import time
 
     from fastapi.testclient import TestClient
 
@@ -989,9 +988,7 @@ def test_guest_render_preview_conflict_when_host_job_running(
         assert denied.status_code == 409
     finally:
         release.set()
-        deadline = time.monotonic() + 5.0
-        while job.status in ("queued", "running") and time.monotonic() < deadline:
-            time.sleep(0.05)
+        app.state.jobs.wait(job, timeout=5)
 
 
 def test_sanitize_guest_session_snapshot_strips_wav():
