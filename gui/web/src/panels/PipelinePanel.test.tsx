@@ -1415,6 +1415,89 @@ describe("PipelinePanel", () => {
     expect(downloadModel).not.toHaveBeenCalled();
   });
 
+  describe("Run asks only for models the selected steps use", () => {
+    const missingWhisper = () =>
+      withTranscribeEnabled({
+        config: {
+          ...baseConfig.config,
+          transcribe: { model: "large-v3-turbo" },
+        },
+        components: {
+          ffmpeg: { state: "installed" },
+          whisper: { state: "missing", hint: "not downloaded" },
+          rnnoise: { state: "installed" },
+        },
+      });
+
+    async function runWith(
+      user: ReturnType<typeof userEvent.setup>,
+      selection: { from?: string; only?: string },
+    ) {
+      render(
+        <main>
+          <PipelinePanel />
+        </main>,
+      );
+      const run = await screen.findByRole("button", { name: "Run pipeline" });
+      await waitFor(() => expect(run).toBeEnabled());
+      await user.click(screen.getByText("From / Only shortcuts"));
+      if (selection.from) {
+        await user.selectOptions(
+          screen.getByRole("combobox", { name: "From step" }),
+          selection.from,
+        );
+      }
+      if (selection.only) {
+        await user.selectOptions(
+          screen.getByRole("combobox", { name: "Only step" }),
+          selection.only,
+        );
+      }
+      await user.click(run);
+    }
+
+    it.each([
+      ["from a step after transcription", { from: "balance_tracks" }],
+      ["only a step other than transcription", { only: "export_deliverables" }],
+    ])("does not ask for Whisper when running %s", async (_name, selection) => {
+      const user = userEvent.setup();
+      loadPipelineConfig.mockResolvedValue(missingWhisper());
+      startPipelineRun.mockResolvedValue({ id: "job-1" });
+      await runWith(user, selection);
+
+      await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it.each([
+      ["from the first step", { from: "ingest_tracks" }],
+      ["only transcription", { only: "transcribe_tracks" }],
+    ])("asks for Whisper when running %s", async (_name, selection) => {
+      const user = userEvent.setup();
+      loadPipelineConfig.mockResolvedValue(missingWhisper());
+      await runWith(user, selection);
+
+      expect(
+        await screen.findByRole("dialog", { name: "Download Whisper?" }),
+      ).toBeInTheDocument();
+      expect(startPipelineRun).not.toHaveBeenCalled();
+    });
+
+    it("does not ask for the word aligner when the run starts after transcription", async () => {
+      const user = userEvent.setup();
+      const cfg = alignerConfig(true, false);
+      loadPipelineConfig.mockResolvedValue({
+        ...cfg,
+        enabled_steps: [...cfg.enabled_steps, "transcribe_tracks"],
+      });
+      startPipelineRun.mockResolvedValue({ id: "job-1" });
+      await runWith(user, { from: "balance_tracks" });
+
+      await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
   it("downloads via bootstrap then persists the selected model", async () => {
     const user = userEvent.setup();
     putPipelineConfig.mockImplementation(async (_path, body) => ({
@@ -1639,7 +1722,11 @@ describe("PipelinePanel", () => {
 
   it("prompts for the word aligner when Precise word boundaries is requested without it", async () => {
     const user = userEvent.setup();
-    loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
+    const cfg = alignerConfig(true, false);
+    loadPipelineConfig.mockResolvedValue({
+      ...cfg,
+      enabled_steps: [...cfg.enabled_steps, "transcribe_tracks"],
+    });
     render(
       <main>
         <PipelinePanel />
