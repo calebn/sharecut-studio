@@ -195,6 +195,9 @@ describe("ExportDialog", () => {
       ),
     ).toBeNull();
     expect(cancel).not.toHaveAttribute("aria-describedby");
+    expect(
+      document.querySelector(".bounce-dialog-footer .export-dialog-note"),
+    ).toBeNull();
 
     await user.click(cancel);
     const cancelling = await screen.findByRole("button", {
