@@ -221,6 +221,10 @@ describe("TransportBar collapsed", () => {
       </DawProvider>,
     );
     expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute(
+      "title",
+      "Project, audition, and more",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(
       within(screen.getByRole("menu")).getByRole("menuitem", {

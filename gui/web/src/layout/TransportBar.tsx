@@ -437,9 +437,11 @@ export function TransportBar({
         "Menu",
         desktopError
           ? `${audioErrorLabel(desktopError)}. Open Menu for details.`
-          : collapsed
-            ? "Layers, zoom, theme, and more"
-            : transportMenuTitle({ mayManage, mayIngest }),
+          : menuOnly
+            ? "Project, audition, and more"
+            : collapsed
+              ? "Layers, zoom, theme, and more"
+              : transportMenuTitle({ mayManage, mayIngest }),
         desktopError ? (
           <Icon
             name="warning"
