@@ -167,6 +167,47 @@ describe("ExportDialog", () => {
     expect(useDawStore.getState().chrome.exportDialogOpen).toBe(false);
   });
 
+  it("shows why Cancel is disabled as text until the export has started", async () => {
+    const user = userEvent.setup();
+    let startResolve!: (job: PipelineJobSnapshot) => void;
+    vi.mocked(startExportJob).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          startResolve = resolve;
+        }),
+    );
+    heldFollow();
+    render(<ExportDialog />);
+    await openAndExport(user);
+
+    const cancel = await screen.findByRole("button", { name: "Cancel export" });
+    expect(cancel).toBeDisabled();
+    const note = screen.getByText(
+      "The export is still starting. Cancel once it has started.",
+    );
+    expect(note).toBeVisible();
+    expect(note).not.toHaveAttribute("role");
+    expect(cancel).toHaveAttribute("aria-describedby", note.id);
+    expect(cancel).toHaveAccessibleDescription(note.textContent ?? "");
+
+    await act(async () => startResolve(started));
+    await waitFor(() => expect(cancel).toBeEnabled());
+    expect(
+      screen.queryByText(
+        "The export is still starting. Cancel once it has started.",
+      ),
+    ).toBeNull();
+    expect(cancel).not.toHaveAttribute("aria-describedby");
+
+    await user.click(cancel);
+    const cancelling = await screen.findByRole("button", {
+      name: "Cancelling…",
+    });
+    const cancellingNote = screen.getByText("Already cancelling the export.");
+    expect(cancellingNote).toBeVisible();
+    expect(cancelling).toHaveAttribute("aria-describedby", cancellingNote.id);
+  });
+
   it("cancels the running job and says so", async () => {
     const user = userEvent.setup();
     const settle = heldFollow();

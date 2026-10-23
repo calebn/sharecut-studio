@@ -698,6 +698,45 @@ describe("SplitSpeakersDialog", () => {
     expect(screen.getByRole("button", { name: "Split speakers" })).toBeTruthy();
   });
 
+  it("shows why Cancel is disabled as text until the split has started", async () => {
+    const user = userEvent.setup();
+    let startResolve!: (job: typeof started) => void;
+    vi.mocked(startSplitSpeakersJob).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          startResolve = resolve;
+        }),
+    );
+    heldFollow();
+    render(<SplitSpeakersDialog />);
+    await splitTwo(user);
+
+    const cancel = await screen.findByRole("button", { name: "Cancel split" });
+    expect(cancel).toBeDisabled();
+    const note = screen.getByText(
+      "The split is still starting. Cancel once it has started.",
+    );
+    expect(note).toBeVisible();
+    expect(note).not.toHaveAttribute("role");
+    expect(cancel).toHaveAttribute("aria-describedby", note.id);
+
+    await act(async () => startResolve(started));
+    await waitFor(() => expect(cancel).toBeEnabled());
+    expect(
+      screen.queryByText(
+        "The split is still starting. Cancel once it has started.",
+      ),
+    ).toBeNull();
+    expect(cancel).not.toHaveAttribute("aria-describedby");
+
+    await user.click(cancel);
+    const cancelling = await screen.findByRole("button", {
+      name: "Cancelling…",
+    });
+    const cancellingNote = screen.getByText("Already cancelling the split.");
+    expect(cancelling).toHaveAttribute("aria-describedby", cancellingNote.id);
+  });
+
   it("cancels the running job and says nothing changed", async () => {
     const user = userEvent.setup();
     const settle = heldFollow();

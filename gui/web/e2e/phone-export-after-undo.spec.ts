@@ -115,7 +115,14 @@ for (const viewport of PHONE_VIEWPORTS) {
         ).toBeVisible();
         const cancel = dialog.getByRole("button", { name: "Cancel export" });
         await expect(cancel).toBeDisabled();
-        await expect(cancel).toHaveAttribute("title", CANCEL_REASON);
+        const reason = dialog.getByText(CANCEL_REASON);
+        await expect(reason).toBeVisible();
+        await expect(cancel).toHaveAttribute(
+          "aria-describedby",
+          (await reason.getAttribute("id")) ?? "",
+        );
+        await expectFitsViewport(page, cancel);
+        await expectFitsViewport(page, reason);
         const panel = dialog.locator(".command-palette-panel");
         await expectFitsViewport(page, panel);
         await expect

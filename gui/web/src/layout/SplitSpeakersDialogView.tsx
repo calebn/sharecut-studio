@@ -15,7 +15,7 @@ import {
 } from "../models";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, Field, InlineError } from "../ui";
-import { BUSY_REASON } from "../ui/disabledReason";
+import { BUSY_REASON, useDisabledReasonNote } from "../ui/disabledReason";
 import {
   MAX_SPLIT_SPEAKERS,
   MIN_SPLIT_SPEAKERS,
@@ -477,6 +477,9 @@ function SplitSpeakersFooter({
 }: SplitSpeakersDialogViewProps & {
   downloadRef: RefObject<HTMLButtonElement | null>;
 }) {
+  const cancelNote = useDisabledReasonNote(
+    stage.kind === "running" ? stage.cancelReason : null,
+  );
   return (
     <div className="bounce-dialog-footer">
       {stage.kind === "configure" &&
@@ -485,6 +488,7 @@ function SplitSpeakersFooter({
       stage.speakerReadiness === "available" ? (
         <p className="export-dialog-note">{stage.blocker}</p>
       ) : null}
+      {cancelNote.note}
       <div className="bounce-dialog-actions split-speakers-actions">
         {stage.kind === "configure" ? (
           <Button
@@ -500,6 +504,7 @@ function SplitSpeakersFooter({
           <Button
             type="button"
             disabledReason={stage.cancelReason ?? undefined}
+            {...cancelNote.describedBy}
             onClick={onCancelSplit}
           >
             {stage.cancelling ? "Cancelling…" : "Cancel split"}
