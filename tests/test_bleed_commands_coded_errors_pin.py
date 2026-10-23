@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 from urllib.parse import quote
 
 import pytest
@@ -95,6 +94,24 @@ def test_host_path_malformed_word_item_is_invalid_payload(tmp_path, command_type
     with pytest.raises(CodedValueError) as excinfo:
         submit_host_document_command(ws.path, command_type, {"words": BAD_WORD})
     _invalid_payload(excinfo, "words.0")
+    assert _journal_types(ws.path) == []
+
+
+@pytest.mark.parametrize(
+    ("item", "field"),
+    [
+        ({"track_id": "uncertain", "word_index": 2.7}, "word_index"),
+        ({"track_id": "uncertain", "word_index": -1}, "word_index"),
+        ({"track_id": 7, "word_index": 0}, "track_id"),
+    ],
+    ids=["fractional-index", "negative-index", "numeric-track-id"],
+)
+def test_word_item_type_checks_refuse_with_invalid_payload(tmp_path, item, field):
+    ws = _workspace(tmp_path)
+    with pytest.raises(CodedValueError) as excinfo:
+        submit_host_document_command(ws.path, "SuppressBleed", {"words": [item]})
+    assert excinfo.value.code == "invalid_payload"
+    assert f"words.0.{field}:" in str(excinfo.value)
     assert _journal_types(ws.path) == []
 
 
@@ -284,27 +301,20 @@ def test_gap_fill_set_bleed_alignment_mode_journals_one_row_through_the_plane(tm
     assert _journal_types(ws.path) == ["SetBleedAlignmentMode"]
 
 
-def test_gap_fill_suppress_bleed_dry_run_returns_the_preview_unchanged(tmp_path):
+def test_cli_suppress_bleed_dry_run_with_a_real_word_key_previews_without_journaling(tmp_path):
     ws = _workspace(tmp_path)
-    expected = {"dry_run": True, "would_suppress": 3, "candidates": [{"word_index": 0}]}
-    with patch("podcast_mcp.mcp.tools.timeline.AnalysisService") as svc_cls:
-        svc_cls.return_value.preview_suppress_bleed.return_value = expected
-        for kwargs in ({"dry_run": True}, {"apply": False}):
-            reply = json.loads(
-                timeline.apply_bleed_suppression_tool(
-                    str(ws.path), speaker="Host", words=GOOD_WORD, **kwargs
-                )
-            )
-            assert reply == expected
-        assert svc_cls.return_value.preview_suppress_bleed.call_count == 2
-        svc_cls.return_value.preview_suppress_bleed.assert_called_with(
-            track_id=None,
-            speaker="Host",
-            word_keys=GOOD_WORD,
-            exclude_word_keys=None,
-            start_sec=None,
-            end_sec=None,
-        )
+    before = ws.path.read_bytes()
+    result = _invoke(
+        "suppress-bleed",
+        "--project",
+        str(ws.path),
+        "--words-json",
+        json.dumps(GOOD_WORD),
+        "--dry-run",
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["dry_run"] is True
+    assert ws.path.read_bytes() == before
     assert _journal_types(ws.path) == []
 
 
@@ -369,6 +379,7 @@ def test_host_http_malformed_word_item_is_a_422_and_mode_x_stays_a_422(tmp_path)
     )
     assert bad_word.status_code == 422
     assert "track_id" in bad_word.text
+    assert "invalid_request" in bad_word.text
     bad_mode = client.post(
         url,
         json={
@@ -404,6 +415,7 @@ def test_guest_mcp_malformed_word_item_is_invalid_arguments(
         },
     )
     assert out["error"]["code"] == -32602
+    assert out["error"]["data"]["error_code"] == "invalid_arguments"
     assert "words.0.track_id" in out["error"]["message"]
 
 
