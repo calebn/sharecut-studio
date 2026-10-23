@@ -170,3 +170,35 @@ def test_action_done_label_is_a_display_name_too(minimal_project, sample_wav, tm
     done = client.post(path, json={"done": True, "by": "  Host "})
     assert done.status_code == 200, done.text
     assert done.json()["action_item"]["completed_by"] == "Host (guest)"
+
+
+@pytest.mark.parametrize(
+    "spoof",
+    [
+        "\uff28\uff4f\uff53\uff54",
+        "\uff21\uff27\uff25\uff2e\uff34",
+        "\uff24aw",
+        "\uff28ost",
+        "Host.",
+        "host!",
+        "  Agent \u3002",
+        "Host...",
+    ],
+)
+def test_compatibility_forms_and_trailing_punctuation_of_reserved_names_are_suffixed(
+    commenter_link, spoof
+):
+    client, token = commenter_link
+    assert _post(client, token, spoof)["author"].endswith(" (guest)")
+
+
+def test_lookalike_that_is_not_the_reserved_name_stays_as_typed(commenter_link):
+    client, token = commenter_link
+    assert _post(client, token, "Host 2")["author"] == "Host 2"
+    assert _post(client, token, "Hostess")["author"] == "Hostess"
+
+
+def test_huge_remote_name_is_bounded_before_sanitising():
+    from podcast_mcp.services.session_sync import guest_display_name
+
+    assert guest_display_name("a" * 5_000_000) == "a" * 40

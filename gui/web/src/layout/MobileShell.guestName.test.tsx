@@ -108,7 +108,9 @@ describe("phone share link, a guest names themselves", () => {
     expect(createComment).not.toHaveBeenCalled();
     const name = within(dock()).getByRole("textbox", { name: "Your name" });
     expect(name).toHaveFocus();
-    expect(within(dock()).getByRole("button", { name: "Skip" })).toBeVisible();
+    expect(
+      within(dock()).getByRole("button", { name: "Post as Guest" }),
+    ).toBeVisible();
     expect(
       within(dock()).getByRole("textbox", { name: "Comment" }),
     ).toHaveValue("Love this");
@@ -161,12 +163,14 @@ describe("phone share link, a guest names themselves", () => {
     expect(lastAuthor()).toBe("Kit");
   });
 
-  it("Skip posts as Guest and is not asked again", async () => {
+  it("Post as Guest posts under Guest and is not asked again", async () => {
     const user = userEvent.setup();
     openGuest();
     await typeComment(user, "One");
     await post(user);
-    await user.click(within(dock()).getByRole("button", { name: "Skip" }));
+    await user.click(
+      within(dock()).getByRole("button", { name: "Post as Guest" }),
+    );
     expect(lastAuthor()).toBe("Guest");
     expect(within(dock()).getByText("Guest")).toBeVisible();
 
@@ -304,5 +308,54 @@ describe("phone share link, a guest names themselves", () => {
     ).toBeNull();
     expect(createComment).toHaveBeenCalledTimes(1);
     expect(lastAuthor()).toBe("Host");
+  });
+
+  it("Post as Guest is not available while the comment is empty and stores nothing", async () => {
+    const user = userEvent.setup();
+    openGuest();
+    await typeComment(user, "Draft");
+    await post(user);
+    await user.clear(within(dock()).getByRole("textbox", { name: "Comment" }));
+    expect(
+      within(dock()).getByRole("button", { name: "Post as Guest" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    await user.click(
+      within(dock()).getByRole("button", { name: "Post as Guest" }),
+    );
+    expect(createComment).not.toHaveBeenCalled();
+    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBeNull();
+    expect(
+      within(dock()).getByRole("textbox", { name: "Your name" }),
+    ).toBeVisible();
+  });
+
+  it("announces the name prompt politely when it appears", async () => {
+    const user = userEvent.setup();
+    openGuest();
+    await typeComment(user, "Hi");
+    expect(within(dock()).queryByText(/Add your name/)).toBeNull();
+    await post(user);
+    const note = within(dock()).getByText(/Add your name/);
+    expect(note.closest("[role='status']")).not.toBeNull();
+  });
+
+  it("after a failed post that followed the name step, focus returns to the comment field and the error shows", async () => {
+    const user = userEvent.setup();
+    createComment.mockRejectedValueOnce(new Error("Server said no"));
+    openGuest();
+    await typeComment(user, "Try");
+    await post(user);
+    await user.click(
+      within(dock()).getByRole("button", { name: "Post as Guest" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Server said no",
+    );
+    expect(
+      within(dock()).getByRole("textbox", { name: "Comment" }),
+    ).toHaveFocus();
+    expect(
+      within(dock()).getByRole("textbox", { name: "Comment" }),
+    ).toHaveValue("Try");
   });
 });
