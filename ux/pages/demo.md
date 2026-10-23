@@ -54,6 +54,11 @@ make ux-demo-screens   # refresh Pages screenshots
 
 Audio is **symlinked** from `aligned_dialogue/raw` so the demo stays on the same stems as CI smoke.
 
+In the phone's **Text** tab, double-tap a word to open its **Correct** sheet.
+The text field and **Apply** fit in the initial sheet, including at 320×568.
+Scroll for Suppress, Ignore, timing, and Play. **End index** still supports
+phrase correction. **Select** keeps its range actions first.
+
 ## Screenshots — host
 
 ![Phone Listen mode](../assets/screens/phone-listen.png)

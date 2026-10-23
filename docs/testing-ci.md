@@ -123,6 +123,13 @@ Storybook UI.
 
 ### Shared live project in Playwright
 
+`e2e/transcript-inline-edit.spec.ts` includes one 320×568 touch correction case.
+It measures Corrected text and Apply before either control receives focus or
+scrolling, checks the 44px floor and inline validation, then saves and undoes a
+word correction against the copied live project. Browser geometry is necessary
+for this regression; component tests cannot detect a control below the sheet.
+The case adds one Chromium run, alongside the existing desktop inline-edit tests.
+
 Specs share one live project with `workers: 1`, so rows from earlier specs (for
 example `guest:suggest` pending edits) are still present. A spec that acts on a
 row it just created must wait for its own mutation's response and select the row by the id it returns

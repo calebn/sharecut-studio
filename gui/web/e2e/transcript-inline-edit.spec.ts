@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
-import { postHistoryMove } from "./documentCommand";
+import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
   openTranscriptPanel,
@@ -141,20 +141,64 @@ test.describe("Phone word correction", () => {
     }
     await expectPageAxeClean(page, ".bottom-sheet");
 
-    let committed = false;
+    await field.fill("");
+    await apply.click();
+    await expect(sheet.getByRole("alert")).toHaveText("Text cannot be empty");
+    await expect(sheet.getByRole("alert")).toBeInViewport({ ratio: 1 });
+
+    let savedHead: string | null = null;
+    let failed = false;
+    let failure: unknown;
     try {
       await field.fill("My");
+      const saving = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          response.url().includes("/api/document/command") &&
+          response.request().postDataJSON()?.type === "CorrectTranscriptWord",
+      );
       await apply.click();
-      committed = true;
+      const reply = await saving;
+      expect(reply.ok()).toBe(true);
+      const result = (await reply.json()) as { history_head_id?: string };
+      savedHead = result.history_head_id ?? null;
+      expect(savedHead).not.toBeNull();
       await expect(
         list.getByRole("button", { name: "My", exact: true }).first(),
       ).toBeVisible();
-      await postHistoryMove(page, "e2e-phone-correct", "UndoHistory");
-      committed = false;
+      await page
+        .locator(".ui-toast-region--app")
+        .getByRole("button", { name: "Undo", exact: true })
+        .click();
       await expect(word).toBeVisible();
-    } finally {
-      if (committed)
-        await postHistoryMove(page, "e2e-phone-correct", "UndoHistory");
+      savedHead = null;
+    } catch (error) {
+      failed = true;
+      failure = error;
     }
+    if (savedHead) {
+      try {
+        await postDocumentCommand(
+          page,
+          "e2e-phone-correct-cleanup",
+          "UndoHistory",
+          {
+            rerender: false,
+            expected_head_id: savedHead,
+          },
+        );
+      } catch (error) {
+        if (failed) {
+          test.info().annotations.push({
+            type: "Correction cleanup failure",
+            description: String(error),
+          });
+        } else {
+          failed = true;
+          failure = error;
+        }
+      }
+    }
+    if (failed) throw failure;
   });
 });
