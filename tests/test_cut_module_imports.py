@@ -8,9 +8,8 @@ from pathlib import Path
 _SRC = Path(__file__).resolve().parents[1] / "src"
 _EDITS = _SRC / "podcast_mcp" / "edits"
 
-# Modules whose function-level imports are all gone. cut_application and decisions keep a few
-# until the edit-speed work in cut_application settles (decisions.update_pending_edit calls up
-# into cut_application, which imports decisions at the top).
+# Modules whose function-level imports are all gone. decisions keeps a few (update_pending_edit
+# calls up into cut_application, which imports decisions at the top); cut_application keeps one.
 _NO_INLINE_IMPORTS = (
     "cut_effects",
     "cut_placement",
@@ -93,3 +92,18 @@ def test_cut_modules_have_no_function_level_imports() -> None:
     assert not offenders, "move these imports to the top of the file:\n" + "\n".join(
         sorted(set(offenders))
     )
+
+
+_CUT_APPLICATION_LAZY = {"podcast_mcp.edits.transcript_cuts"}
+
+
+def test_cut_application_keeps_only_the_transcript_cuts_import_lazy() -> None:
+    # transcript_cuts imports cut_application at the top, so this one cannot move up yet.
+    tree = ast.parse((_EDITS / "cut_application.py").read_text(encoding="utf-8"))
+    lazy: set[str] = set()
+    for fn in ast.walk(tree):
+        if isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef):
+            lazy.update(
+                node.module or "" for node in ast.walk(fn) if isinstance(node, ast.ImportFrom)
+            )
+    assert lazy == _CUT_APPLICATION_LAZY
