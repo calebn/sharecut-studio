@@ -1,0 +1,540 @@
+{
+  "issue": 2163,
+  "productHead": "ab220eca5bf6aa92987f1130027f73e62369c796",
+  "baselineHead": "11ba91f3bc88995eb84c600df90ea60f23fbb3b2",
+  "viewport": {
+    "width": 320,
+    "height": 568,
+    "touch": true
+  },
+  "measurement": "Initial Correct-mode Inspector after two real touchscreen taps; before textbox focus, sheet scroll, or locator-driven scroll. All coordinates are CSS pixels.",
+  "limits": [
+    "Chromium desktop emulation; no claim for iOS Safari, physical hardware, or software keyboard.",
+    "Long case is a disposable copy with synthetic long word and track identity.",
+    "Other controls were subsequently scrolled into view for reachability checks; initial geometry is measured beforehand.",
+    "Baseline disabled:null came from reading absent aria-disabled; it is a collector limitation. The baseline raw DOM had native disabled attributes. Candidate uses native button.disabled."
+  ],
+  "baseline": {
+    "sheet": {
+      "x": 0,
+      "y": 190,
+      "width": 320,
+      "height": 326,
+      "bottom": 516
+    },
+    "field": {
+      "x": 16,
+      "y": 1156,
+      "width": 288,
+      "height": 44,
+      "bottom": 1200
+    },
+    "apply": {
+      "x": 112,
+      "y": 1230,
+      "width": 54,
+      "height": 44,
+      "bottom": 1274
+    },
+    "assets": [
+      {
+        "file": "rolldown-runtime-hePW80VL.js",
+        "status": 200,
+        "bytes": 716,
+        "sha256": "580ad8c58061a4dde99bde0a56905e382f0568516ee2f5b84dbfb52085709021"
+      },
+      {
+        "file": "useMountedRef-COQ8PmOL.js",
+        "status": 200,
+        "bytes": 120654,
+        "sha256": "3ead2c7d136bc2b26643e9485128cc7810eb94a849893476b4333b7915c48ef7"
+      },
+      {
+        "file": "params-BQzy1Glu.js",
+        "status": 200,
+        "bytes": 93258,
+        "sha256": "aba47d55bba11f3d0690fb4c5e4593a18dd457d6f5e54ec88c52afca0ce33c42"
+      },
+      {
+        "file": "index-ByqN0A_N.css",
+        "status": 200,
+        "bytes": 248309,
+        "sha256": "c3342b019ffaf5886dbf85131259a208c357b02b4a1423cd6db15b887995c012"
+      },
+      {
+        "file": "index-Du63j-CK.js",
+        "status": 200,
+        "bytes": 307370,
+        "sha256": "f90d2f842fe5ecdac7fe2fe65302b8837e43d241aa6ab9d5582bb8e4a2e0c5f6"
+      },
+      {
+        "file": "dawApp-BoxN2tNG.css",
+        "status": 200,
+        "bytes": 1859,
+        "sha256": "95eeff8b1cd16c2e15486df72feada288de1ab8b50becfca214c1240fb9b1d93"
+      },
+      {
+        "file": "drainOfflineQueue-CimTSUCR.js",
+        "status": 200,
+        "bytes": 2089,
+        "sha256": "4cbb8d0001a538510ccaa3c00d05cf2793cd48f9abf29ac0764b5c729cd5f163"
+      },
+      {
+        "file": "useTakeClipping-CEMyDzU_.js",
+        "status": 200,
+        "bytes": 97392,
+        "sha256": "0613ccba43508c912ef1c448201406222d57f707426a34184c0377db43c40d47"
+      },
+      {
+        "file": "dawApp-ZnRStW8J.js",
+        "status": 200,
+        "bytes": 867210,
+        "sha256": "4eb6c27a050e121d931afd3db472fbd1fbd75d7461478b91bc39ec9daa1f00c6"
+      }
+    ],
+    "pageErrors": []
+  },
+  "candidate": {
+    "ordinary": {
+      "initial": {
+        "sheet": {
+          "x": 0,
+          "y": 190,
+          "width": 320,
+          "height": 326,
+          "bottom": 516
+        },
+        "field": {
+          "x": 16,
+          "y": 338,
+          "width": 288,
+          "height": 44,
+          "bottom": 382
+        },
+        "apply": {
+          "x": 112,
+          "y": 412,
+          "width": 54,
+          "height": 44,
+          "bottom": 456
+        },
+        "heading": "uncle",
+        "headingWhiteSpace": "nowrap",
+        "scrollTops": [
+          {
+            "className": "bottom-sheet bottom-sheet--half bottom-sheet--inspector",
+            "scrollTop": 0
+          }
+        ],
+        "disabledRange": [
+          {
+            "text": "Play",
+            "disabled": true
+          },
+          {
+            "text": "Cut",
+            "disabled": true
+          },
+          {
+            "text": "Mute",
+            "disabled": true
+          },
+          {
+            "text": "Fill room tone",
+            "disabled": true
+          },
+          {
+            "text": "Comment",
+            "disabled": true
+          },
+          {
+            "text": "Bounce",
+            "disabled": true
+          },
+          {
+            "text": "Clear range",
+            "disabled": false
+          }
+        ]
+      },
+      "validation": {
+        "message": "Text cannot be empty",
+        "box": {
+          "x": 16,
+          "y": 468,
+          "width": 288,
+          "height": 15
+        },
+        "commandsSent": 0
+      },
+      "commandTypes": [
+        "CorrectTranscriptWord",
+        "UndoHistory",
+        "CorrectTranscriptPhrase",
+        "UndoHistory"
+      ],
+      "exactWordRestored": true,
+      "wordTimingUnchanged": true,
+      "visibleUiUndoBox": {
+        "x": 163,
+        "y": 129,
+        "width": 50,
+        "height": 44
+      },
+      "phrase": {
+        "command": "CorrectTranscriptPhrase",
+        "restoredExactWordsAndTiming": true
+      },
+      "retainedControls": [
+        {
+          "name": "Suppress",
+          "box": {
+            "x": 16,
+            "y": 468,
+            "width": 74,
+            "height": 44
+          },
+          "disabled": false
+        },
+        {
+          "name": "Ignore",
+          "box": {
+            "x": 98,
+            "y": 468,
+            "width": 58,
+            "height": 44
+          },
+          "disabled": false
+        },
+        {
+          "name": "Adjust timing",
+          "box": {
+            "x": 16,
+            "y": 331,
+            "width": 101,
+            "height": 44
+          },
+          "disabled": false
+        },
+        {
+          "name": "Play word",
+          "box": {
+            "x": 95,
+            "y": 454,
+            "width": 98,
+            "height": 44
+          },
+          "disabled": false
+        }
+      ],
+      "selectMode": {
+        "rangeTop": 226,
+        "wordTop": 647,
+        "cutDisabled": false
+      },
+      "assets": [
+        {
+          "file": "rolldown-runtime-hePW80VL.js",
+          "status": 200,
+          "bytes": 716,
+          "sha256": "580ad8c58061a4dde99bde0a56905e382f0568516ee2f5b84dbfb52085709021"
+        },
+        {
+          "file": "index-BtWNbvlS.css",
+          "status": 200,
+          "bytes": 248592,
+          "sha256": "64226c78255c6ca2c100132b97b2bcba16e9a806c32701373ccb661fce2f6406"
+        },
+        {
+          "file": "useMountedRef-COQ8PmOL.js",
+          "status": 200,
+          "bytes": 120654,
+          "sha256": "3ead2c7d136bc2b26643e9485128cc7810eb94a849893476b4333b7915c48ef7"
+        },
+        {
+          "file": "params-BQzy1Glu.js",
+          "status": 200,
+          "bytes": 93258,
+          "sha256": "aba47d55bba11f3d0690fb4c5e4593a18dd457d6f5e54ec88c52afca0ce33c42"
+        },
+        {
+          "file": "index-BXmjPlp3.js",
+          "status": 200,
+          "bytes": 307370,
+          "sha256": "f19af2e404091b46ed71db322f9f1db44eff9fe4b473d76180bd158c6c653977"
+        },
+        {
+          "file": "dawApp-BoxN2tNG.css",
+          "status": 200,
+          "bytes": 1859,
+          "sha256": "95eeff8b1cd16c2e15486df72feada288de1ab8b50becfca214c1240fb9b1d93"
+        },
+        {
+          "file": "drainOfflineQueue-DN-0oTh9.js",
+          "status": 200,
+          "bytes": 2089,
+          "sha256": "4576357a2db9c6b2143929165716012472edef90185e083e6b319f18de0a7510"
+        },
+        {
+          "file": "useTakeClipping-CEMyDzU_.js",
+          "status": 200,
+          "bytes": 97392,
+          "sha256": "0613ccba43508c912ef1c448201406222d57f707426a34184c0377db43c40d47"
+        },
+        {
+          "file": "dawApp-DQCCTPxj.js",
+          "status": 200,
+          "bytes": 868011,
+          "sha256": "fac093b3ee5b2d43a1b3d16c5d71aa4639a27a9c350d40e94e00407ed82b6c5d"
+        }
+      ],
+      "allResponseBodiesMatchBuild": true,
+      "pageErrors": []
+    },
+    "long": {
+      "initial": {
+        "sheet": {
+          "x": 0,
+          "y": 210,
+          "width": 320,
+          "height": 306,
+          "bottom": 516
+        },
+        "field": {
+          "x": 16,
+          "y": 358,
+          "width": 288,
+          "height": 44,
+          "bottom": 402
+        },
+        "apply": {
+          "x": 112,
+          "y": 432,
+          "width": 54,
+          "height": 44,
+          "bottom": 476
+        },
+        "heading": "pneumonoultramicroscopicsilicovolcanoconiosis-with-the-complete-original-recognized-word",
+        "headingWhiteSpace": "nowrap",
+        "scrollTops": [
+          {
+            "className": "bottom-sheet bottom-sheet--half bottom-sheet--inspector",
+            "scrollTop": 0
+          }
+        ],
+        "disabledRange": [
+          {
+            "text": "Play",
+            "disabled": true
+          },
+          {
+            "text": "Cut",
+            "disabled": true
+          },
+          {
+            "text": "Mute",
+            "disabled": true
+          },
+          {
+            "text": "Fill room tone",
+            "disabled": true
+          },
+          {
+            "text": "Comment",
+            "disabled": true
+          },
+          {
+            "text": "Bounce",
+            "disabled": true
+          },
+          {
+            "text": "Clear range",
+            "disabled": false
+          }
+        ]
+      },
+      "validation": {
+        "message": "Text cannot be empty",
+        "box": {
+          "x": 16,
+          "y": 488,
+          "width": 288,
+          "height": 15
+        },
+        "commandsSent": 0
+      },
+      "commandTypes": [
+        "CorrectTranscriptWord",
+        "UndoHistory"
+      ],
+      "exactWordRestored": true,
+      "wordTimingUnchanged": true,
+      "visibleUiUndoBox": {
+        "x": 163,
+        "y": 149,
+        "width": 50,
+        "height": 44
+      },
+      "phrase": null,
+      "retainedControls": [
+        {
+          "name": "Suppress",
+          "box": {
+            "x": 16,
+            "y": 472,
+            "width": 74,
+            "height": 44
+          },
+          "disabled": false
+        },
+        {
+          "name": "Ignore",
+          "box": {
+            "x": 98,
+            "y": 472,
+            "width": 58,
+            "height": 44
+          },
+          "disabled": false
+        },
+        {
+          "name": "Adjust timing",
+          "box": {
+            "x": 16,
+            "y": 341,
+            "width": 101,
+            "height": 44
+          },
+          "disabled": false
+        },
+        {
+          "name": "Play word",
+          "box": {
+            "x": 95,
+            "y": 464,
+            "width": 98,
+            "height": 44
+          },
+          "disabled": false
+        }
+      ],
+      "selectMode": {
+        "rangeTop": 230,
+        "wordTop": 719,
+        "cutDisabled": false
+      },
+      "assets": [
+        {
+          "file": "rolldown-runtime-hePW80VL.js",
+          "status": 200,
+          "bytes": 716,
+          "sha256": "580ad8c58061a4dde99bde0a56905e382f0568516ee2f5b84dbfb52085709021"
+        },
+        {
+          "file": "params-BQzy1Glu.js",
+          "status": 200,
+          "bytes": 93258,
+          "sha256": "aba47d55bba11f3d0690fb4c5e4593a18dd457d6f5e54ec88c52afca0ce33c42"
+        },
+        {
+          "file": "useMountedRef-COQ8PmOL.js",
+          "status": 200,
+          "bytes": 120654,
+          "sha256": "3ead2c7d136bc2b26643e9485128cc7810eb94a849893476b4333b7915c48ef7"
+        },
+        {
+          "file": "index-BtWNbvlS.css",
+          "status": 200,
+          "bytes": 248592,
+          "sha256": "64226c78255c6ca2c100132b97b2bcba16e9a806c32701373ccb661fce2f6406"
+        },
+        {
+          "file": "index-BXmjPlp3.js",
+          "status": 200,
+          "bytes": 307370,
+          "sha256": "f19af2e404091b46ed71db322f9f1db44eff9fe4b473d76180bd158c6c653977"
+        },
+        {
+          "file": "dawApp-BoxN2tNG.css",
+          "status": 200,
+          "bytes": 1859,
+          "sha256": "95eeff8b1cd16c2e15486df72feada288de1ab8b50becfca214c1240fb9b1d93"
+        },
+        {
+          "file": "drainOfflineQueue-DN-0oTh9.js",
+          "status": 200,
+          "bytes": 2089,
+          "sha256": "4576357a2db9c6b2143929165716012472edef90185e083e6b319f18de0a7510"
+        },
+        {
+          "file": "useTakeClipping-CEMyDzU_.js",
+          "status": 200,
+          "bytes": 97392,
+          "sha256": "0613ccba43508c912ef1c448201406222d57f707426a34184c0377db43c40d47"
+        },
+        {
+          "file": "dawApp-DQCCTPxj.js",
+          "status": 200,
+          "bytes": 868011,
+          "sha256": "fac093b3ee5b2d43a1b3d16c5d71aa4639a27a9c350d40e94e00407ed82b6c5d"
+        }
+      ],
+      "allResponseBodiesMatchBuild": true,
+      "pageErrors": []
+    }
+  },
+  "inputHashes": {
+    "committedFixture": {
+      "sha256": "090231042de4250092de40fa7d6048c046377ab76f1043eb4adf0a770700edaf",
+      "bytes": 50339,
+      "point": "after proof and exact word Undo",
+      "gitBlob": "6eea55090793a5e968dc75afd1064898f635e717"
+    },
+    "ordinaryCopiedProject": {
+      "sha256": "1a1048cf6c3008f39a23665fd3a253e741c0253ffc4780c5801346f40c8c9cd2",
+      "bytes": 51863,
+      "point": "after proof and exact word Undo"
+    },
+    "longCopiedProject": {
+      "sha256": "c7b94671980d605cb332a151625bc86707f64c8cb6d8c3ed062ea1f6f6336e52",
+      "bytes": 53179,
+      "point": "after proof and exact word Undo"
+    }
+  },
+  "sourceGitBlobs": {
+    "gui/web/src/inspector/selectionSurface.tsx": {
+      "baseline": "47776b09d63ac170e321edcce341f137122628bf",
+      "candidate": "4b89224ef4cf210a3612beb76126ca790012187f"
+    },
+    "gui/web/src/inspector/OneWordEditor.tsx": {
+      "baseline": "9aa7478fe17d2d3e89bf92cdcd4d4cb089f45444",
+      "candidate": "34cef4569193e9c6ce4448afcd39a62cac2869c8"
+    },
+    "gui/web/src/inspector/ModifierInspector.tsx": {
+      "baseline": "563fd05990f0767c86f936acb51e023ade2937c1",
+      "candidate": "e7f3dc9183d728895860055f4673547cc6399248"
+    },
+    "gui/web/src/inspector/views/TranscriptWordInspector.tsx": {
+      "baseline": "d6e9002e5f6e719f1d65822c997273329dc77afc",
+      "candidate": "cd0674808dd6f56df8ccc95419bc14c1cf1c8441"
+    },
+    "gui/web/src/styles/partials/inspector.css": {
+      "baseline": "683222d03037f5220801037d428a7c2dfe7a7e35",
+      "candidate": "c7504f9fafdcb499e7b589feddb340d5d4be7196"
+    }
+  },
+  "screenshots": {
+    "before.png": {
+      "bytes": 30758,
+      "sha256": "8726caa0be5e03193a54b76a0d0e99ced1d6d091548d404aa0795a0fe2b45752"
+    },
+    "after.png": {
+      "bytes": 27769,
+      "sha256": "7f72c0eae662db228f38b8bfd4ee4aa8868e832c69a16872025210cd27b6157f"
+    },
+    "long-word.png": {
+      "bytes": 31487,
+      "sha256": "5be39fb1f0975b1d56ffca5bf198e078e91c8696772b29b9044eb940da7fff33"
+    }
+  }
+}
