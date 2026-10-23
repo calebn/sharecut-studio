@@ -1,0 +1,151 @@
+{
+  "issue": 2166,
+  "pull_request": 2189,
+  "parent_main": "bf03b87e7c3da56570675de1346e9b3d6343c5fd",
+  "pr_head": "1d69ce1e25f7edf41502d492aafb6060dc0c8c57",
+  "pr_rebase_base": "c6ab5488f9a644192d7b30cc64779ad9750c1af2",
+  "candidate_composition_commit": "2dfd72f6efc1eebf85244b4692ab0e1949fbb9e5",
+  "candidate_composition_tree": "a45b69ac31b9314c0b309be018a4d7c375adc720",
+  "stable_patch_id": "524077ccfbfef59fdd6da6309f09861365237687",
+  "build_scope": "Parent bf03b versus composed candidate bf03b+PRhead1d69; not an exact-PR-head-only build.",
+  "fixture": "tests/fixtures/lab_tighten/caleb_um_pause",
+  "driver": "Independent official Playwright Chromium on actual local Studio",
+  "reported_files": {
+    "parent": [
+      "lab-2166.wav",
+      "lab-2166.mp3"
+    ],
+    "candidate": [
+      "lab-2166.wav",
+      "lab-2166.mp3",
+      "lab-2166.md",
+      "lab-2166.srt"
+    ]
+  },
+  "edited_timeline_duration": 22.96351875,
+  "outputs": {
+    "parent": {
+      "lab-2166.md": {
+        "bytes": 343,
+        "sha256": "265df2b368e966a289441947cdc4fb0d9385c80daf9f6f40d2976cc8a530b7b9"
+      },
+      "lab-2166.mp3": {
+        "bytes": 368340,
+        "sha256": "088e513c4aa77c29298b6fdf75683b1be82fe9429fe6837727af159f2b901261"
+      },
+      "lab-2166.srt": {
+        "bytes": 426,
+        "sha256": "06a61e3499613db48601834af042781e67a0253705fcb9b3dcab5659bfc4d6c1"
+      },
+      "lab-2166.wav": {
+        "bytes": 4408998,
+        "sha256": "50fb638e4d7ba670adaee7ced0237c1b1c68dbb6f534d9a02acdb208bd722144"
+      }
+    },
+    "candidate": {
+      "lab-2166.md": {
+        "bytes": 294,
+        "sha256": "54adc2ec9d2a857cdcab4e7a88b3f191a9a7511d75e76c4a6b31fb8f1df1a479"
+      },
+      "lab-2166.mp3": {
+        "bytes": 368340,
+        "sha256": "088e513c4aa77c29298b6fdf75683b1be82fe9429fe6837727af159f2b901261"
+      },
+      "lab-2166.srt": {
+        "bytes": 350,
+        "sha256": "805eabebc77e25f369f8067b7263444b036ed2f0c429f248077f157392b8dfd0"
+      },
+      "lab-2166.wav": {
+        "bytes": 4408998,
+        "sha256": "50fb638e4d7ba670adaee7ced0237c1b1c68dbb6f534d9a02acdb208bd722144"
+      }
+    }
+  },
+  "raw_sha256_unchanged": {
+    "caleb.flac": "80b5a968b86d16ee2cc71f0a74fd18ab8acfe4d090cbf27b2ef1cb3e2b3347af",
+    "audra.flac": "16690528ba572bfe787bfa9890d0044fa0a3ace11feb6a7e345e7d85025aa0d1",
+    "lana.flac": "1fdd8ddb5ba682af488bceec6baab174a633f57fc0e5dac7fc99e95fd75c1bb3"
+  },
+  "checks": {
+    "both_actual_gui_complete": true,
+    "identical_edited_project_input": true,
+    "identical_rendered_master_input": true,
+    "identical_premix_input": true,
+    "same_old_exports": true,
+    "audio_parity": {
+      "lab-2166.wav": true,
+      "lab-2166.mp3": true
+    },
+    "parent_transcripts_stayed_stale": true,
+    "head_transcripts_changed": true,
+    "head_srt_is_current_serializer": true,
+    "head_markdown_is_current_full_defaults_serializer": true,
+    "head_removed_um": true,
+    "head_current_lastcue": true,
+    "parent_stale_lastcue": true,
+    "raw_unchanged": true,
+    "no_browser_errors": true,
+    "job_status_ok": true,
+    "audio_metadata_equal": true,
+    "positive_actual_loaded_js_css_body_identity": true,
+    "native_cancel_fourfiles_preserved_no_partials": true
+  },
+  "loaded_asset_identity": {
+    "base": {
+      "all_captured_assets": 22,
+      "js": 8,
+      "css": 2,
+      "script_and_style_sha256": {
+        "/assets/rolldown-runtime-hePW80VL.js": "580ad8c58061a4dde99bde0a56905e382f0568516ee2f5b84dbfb52085709021",
+        "/assets/index-ByqN0A_N.css": "c3342b019ffaf5886dbf85131259a208c357b02b4a1423cd6db15b887995c012",
+        "/assets/params-DLaAq0EB.js": "4eb6ff697df9045533fee2f3a2dd0788845158c4a4eb11f4f09c0d26cfea212d",
+        "/assets/useMountedRef-BJDxn8vp.js": "f281a418f0eae258039f280f4f9239467ee50e898c0c2605792a1316ebb18d5d",
+        "/assets/index-wouit_PL.js": "05aee26d9d44a9cd18ed910a8e63406f9497db1b94c1fc60f9e350ac39a34e8f",
+        "/assets/dawApp-BoxN2tNG.css": "95eeff8b1cd16c2e15486df72feada288de1ab8b50becfca214c1240fb9b1d93",
+        "/assets/drainOfflineQueue-Df6esAV1.js": "7beef6d8324e89e7d98d8c48a1c5b3e7b4b5eb358b5a3558856ecbcf2e167c77",
+        "/assets/useTakeClipping-jUvGxP8e.js": "2ed33941c979ca808934f34966133292979b1411082cb51d01b05c41dea8ac15",
+        "/assets/dawApp-CVgquFUR.js": "412d487ba302c9db9abfdcabad549c6866f7a933f4a86a00d992545eff4dbde6",
+        "/assets/raster.worker-D2yskosN.js": "64af8293093a77f83d2862abb26017920a85acc757a87eba29939ea91890ff54"
+      }
+    },
+    "head": {
+      "all_captured_assets": 22,
+      "js": 8,
+      "css": 2,
+      "script_and_style_sha256": {
+        "/assets/rolldown-runtime-hePW80VL.js": "580ad8c58061a4dde99bde0a56905e382f0568516ee2f5b84dbfb52085709021",
+        "/assets/params-DLaAq0EB.js": "4eb6ff697df9045533fee2f3a2dd0788845158c4a4eb11f4f09c0d26cfea212d",
+        "/assets/index-ByqN0A_N.css": "c3342b019ffaf5886dbf85131259a208c357b02b4a1423cd6db15b887995c012",
+        "/assets/useMountedRef-BJDxn8vp.js": "f281a418f0eae258039f280f4f9239467ee50e898c0c2605792a1316ebb18d5d",
+        "/assets/index-BvgOTNrb.js": "53c3e505b0b0aa7388534d30e968daf2f76274db8b9b87f6b8e4560f4daebd93",
+        "/assets/dawApp-BoxN2tNG.css": "95eeff8b1cd16c2e15486df72feada288de1ab8b50becfca214c1240fb9b1d93",
+        "/assets/drainOfflineQueue-1dY9CLlT.js": "1a6d70cdd41a758e7025c7ab6594ea2f695afc45e8ee086d5cf0e219ccbc5449",
+        "/assets/useTakeClipping-jUvGxP8e.js": "2ed33941c979ca808934f34966133292979b1411082cb51d01b05c41dea8ac15",
+        "/assets/dawApp-BVP1rcG1.js": "c8f18e720e433fd27ed23425788a79db5b3265ce37d1818909b81942c7312304",
+        "/assets/raster.worker-D2yskosN.js": "64af8293093a77f83d2862abb26017920a85acc757a87eba29939ea91890ff54"
+      }
+    }
+  },
+  "asset_method": "Original-run browser response bodies matched pinned production build bytes; root independently recomputed hashes.",
+  "local_checks": {
+    "python_passed": 262,
+    "frontend_passed": 321,
+    "frontend_files": 13,
+    "phone_single_run_passed": 2
+  },
+  "limits": [
+    "New exact-head hosted CI and refreshed public Shipping verdict still pending at publication.",
+    "First author portrait test-gate timeout remains unexplained before backend export; not proven baseline or flaky. Separate exact-main control and one fresh author candidate passed both viewports.",
+    "No subjective listening approval, overall fixture QC pass, or cross-file crash atomicity claimed."
+  ],
+  "screenshots": {
+    "shipping-bf03b-parent-export.png": {
+      "sha256": "eb0c0faa8e3193989cf3718594bbdb56ed124296fb0672eaf5401d12f2c18bf6",
+      "bytes": 127865
+    },
+    "shipping-2dfd72-composition-export.png": {
+      "sha256": "38eea4c1d9c125111ab49e27cbdccf7bac3e403100d7ed9da17bbb8a04fd1b49",
+      "bytes": 134665
+    }
+  }
+}
