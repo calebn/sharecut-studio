@@ -19,7 +19,6 @@ type Props = {
   saveState?: ReactNode;
   reconcileHighlight?: boolean;
   job?: PipelineJobSnapshot | null;
-  /** Rendered right after the job chip, for example a model download. */
   jobAction?: ReactNode;
   runningCount?: number;
   onJobClick?: () => void;
