@@ -103,7 +103,7 @@ export function ImpactPanel() {
     await run(async () => {
       const outcome =
         action === "approve"
-          ? await approveEdits(projectPath, ids, true)
+          ? await approveEdits(projectPath, ids, true, true)
           : await rejectEdits(projectPath, ids);
       const { queued } = outcome;
       setQueued(queued);

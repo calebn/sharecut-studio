@@ -104,7 +104,7 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
     const capture = capturePendingReview(action, capturedPath, current);
     const result =
       action === "approve"
-        ? approveEdits(capturedPath, [editId])
+        ? approveEdits(capturedPath, [editId], false, true)
         : rejectEdits(capturedPath, [editId]);
     const outcome = await result;
     if (!outcome.queued) finishPendingReview(capture, outcome);

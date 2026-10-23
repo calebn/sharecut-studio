@@ -80,6 +80,8 @@ type CommandIdentity = Pick<
 type CommandSettings = {
   structural_mode?: "propose" | "apply";
   offline?: boolean;
+  /** The caller shows the transcript-refine Waive form, so a gate refusal needs no Needs attention item. */
+  refineRecoveryInline?: boolean;
 };
 export type DocumentCommandOptions = CommandSettings &
   (
@@ -796,7 +798,7 @@ async function submitThroughQueue(
     // tapped it (the Waive form), so it is not a Needs attention item too.
     const answeredInline =
       failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE &&
-      type === DocumentCommand.ApproveEdits &&
+      opts.refineRecoveryInline === true &&
       !opts.replaying &&
       !isShareProjectKey(projectPath);
     await settleCommandOutcome(

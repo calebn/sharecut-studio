@@ -76,6 +76,7 @@ describe.each([
   async function run(
     replaying: boolean,
     type: DocumentCommandType = "SetTrackMeta",
+    refineRecoveryInline = false,
   ) {
     const { submitDocumentCommand } = await import("../api");
     try {
@@ -83,7 +84,9 @@ describe.each([
         path,
         type,
         { label: "x" },
-        replaying ? { ...identity, replaying: true } : identity,
+        replaying
+          ? { ...identity, replaying: true, refineRecoveryInline }
+          : { ...identity, refineRecoveryInline },
       );
       return { result, thrown: null as unknown };
     } catch (thrown) {
@@ -228,7 +231,7 @@ describe.each([
 
   it("answers a live ApproveEdits refine-gate refusal inline on the host only", async () => {
     post.mockResolvedValue(refineGate);
-    const { thrown } = await run(false, "ApproveEdits");
+    const { thrown } = await run(false, "ApproveEdits", true);
     expect(thrown).toBeInstanceOf(Error);
     expect(settled()).toEqual({
       kind: col === 0 ? null : "refused",
@@ -236,15 +239,15 @@ describe.each([
     });
   });
 
-  it("records a live refine-gate refusal of any other command", async () => {
+  it("records a live refine-gate refusal when the caller shows no Waive form", async () => {
     post.mockResolvedValue(refineGate);
-    await run(false, "SetTrackMeta");
+    await run(false, "ApproveEdits");
     expect(settled()).toEqual({ kind: "refused", remove: true });
   });
 
   it("records a replayed ApproveEdits refine-gate refusal instead of dropping it", async () => {
     post.mockResolvedValue(refineGate);
-    await run(true, "ApproveEdits");
+    await run(true, "ApproveEdits", true);
     expect(settled()).toEqual({ kind: "refused", remove: true });
   });
 
