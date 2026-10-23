@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { recordVolatileOutcome } from "../services/offlineQueue/offlineAttention";
+import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
 import { useDawStore } from "../state/dawStore";
 import { beginDocumentSend } from "../state/documentSendOrder";
 import { minimalProject, offlineConflict } from "../test/fixtures";
@@ -265,6 +266,18 @@ describe("SaveStateDot", () => {
     expect(banner).toHaveFocus();
     expect(drain.requestHostDrain).not.toHaveBeenCalled();
     banner.remove();
+  });
+
+  it("turns red and opens Needs attention when the project file is unavailable", async () => {
+    const blocking: OfflineConflict = {
+      ...offlineConflict({ reason: "The project file is missing." }),
+      blocksSave: true,
+    } as OfflineConflict;
+    offlineStore.loadHostConflicts.mockResolvedValue([blocking]);
+    render(<SaveStateDot />);
+    await settle();
+    const dot = screen.getByRole("button", { name: /^Not saved ·/ });
+    expect(dot).toHaveAttribute("data-save-state", "failed");
   });
 
   it("stays saved on a refused edit and the Needs attention banner gives the reason", async () => {

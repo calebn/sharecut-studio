@@ -576,6 +576,12 @@ describe("dismissal transaction", () => {
     });
   });
 
+  it("keeps the save-blocking flag when a refusal is read back", async () => {
+    const blocking = { ...conflict, blocksSave: true };
+    rows.set("host-conflicts:bucket", [blocking]);
+    expect(await loadHostConflicts("bucket")).toEqual([blocking]);
+  });
+
   it("keeps the queue and refusal when either write in dismissal fails", async () => {
     rows.set("host-queue:bucket", [command]);
     rows.set("host-conflicts:bucket", [conflict]);
