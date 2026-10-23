@@ -1,5 +1,6 @@
 /**
- * Fixed tier: color roles that do NOT change with the theme.
+ * Fixed tier: color roles that do NOT change with the theme, plus the
+ * forced-colors override of the brand mark roles at the end.
  *
  * The transport strip (and the phone Listen card that shares its paint) is
  * dark in both themes, so its roles map primitives once here instead of in

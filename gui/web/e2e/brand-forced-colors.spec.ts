@@ -46,3 +46,14 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
   });
 }
+
+test.describe("brand marks outside forced colors", () => {
+  test.use({ forcedColors: "none", colorScheme: "dark" });
+
+  test("the splash mark keeps its brand colours", async ({ page }) => {
+    await page.goto(splashUrl);
+    const { canvasText, fills } = await markFills(page, ".mark path");
+    expect(new Set(fills).size).toBe(2);
+    expect(fills).not.toContain(canvasText);
+  });
+});
