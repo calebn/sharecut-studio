@@ -133,7 +133,7 @@ def run_doctor_checks(
                 "warn",
                 f"whisper model {preferred} not cached "
                 f"(run `{whisper_bootstrap_command(preferred)}`; "
-                "pipeline and transcribe runs never download it)",
+                "a CLI run asks before downloading it on a terminal and never otherwise)",
                 err=True,
             )
         )

@@ -225,6 +225,8 @@ def _root_flags(ctx: Any) -> list[str]:
         flags.append("--no-progress")
     if ctx.params.get("json_progress"):
         flags.append("--json-progress")
+    if ctx.params.get("no_input"):
+        flags.append("--no-input")
     return flags
 
 

@@ -461,6 +461,22 @@ def test_plan_makes_paths_absolute_and_keeps_everything_else(tmp_path: Path) -> 
     assert plan.argv[5:] == ["--body=x", "--author", "a", "--start", "-1.5"]
 
 
+def test_no_input_is_forwarded_to_studio(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from podcast_mcp.cli.handoff import _root_flags
+
+    flags = _root_flags(SimpleNamespace(params={"progress": True, "no_input": True}))
+    assert flags == ["--no-input"]
+    plan = plan_handoff(
+        typer.main.get_command(cli_app),
+        [*flags, "comment", "add", "--project", "ep/episode.project.json", "--body=x"],
+        tmp_path.resolve(),
+    )
+    assert plan is not None
+    assert plan.argv[0] == "--no-input"
+
+
 def test_plan_resolves_symlinks_before_dotdot(tmp_path: Path) -> None:
     tmp_path = tmp_path.resolve()
     (tmp_path / "real").mkdir()
