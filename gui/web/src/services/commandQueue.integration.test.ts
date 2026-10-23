@@ -443,6 +443,28 @@ describe("queued command identity and landed history", () => {
       });
     });
 
+    it.each([
+      [500, "internal_error"],
+      [429, "rate_limited"],
+    ])(
+      "treats a plain %s answer as an unknown outcome and asks to check History",
+      async (status, code) => {
+        const { execute } = await laggingHistory();
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async () => fail(status, code, "try later")),
+        );
+        await expect(execute("history.undo")).rejects.toThrow(
+          "Undo or Redo may have been applied. Check History before trying again.",
+        );
+        expect(outcomeOf()).toMatchObject({
+          kind: "unknown",
+          recovery: "inspect-history",
+        });
+        expect(settleHostCommandOutcome.mock.calls.at(-1)?.[3]).toBe(true);
+      },
+    );
+
     describe("as a guest", () => {
       const guestPath = "share:guest-history";
       const guestOutcome = () => {
@@ -481,6 +503,28 @@ describe("queued command identity and landed history", () => {
             kind: "refused",
             blocksSave: true,
             reason: guestWords,
+          });
+          expect(settleGuestCommandOutcome.mock.calls.at(-1)?.[3]).toBe(true);
+        },
+      );
+
+      it.each([
+        [500, "internal_error"],
+        [429, "rate_limited"],
+      ])(
+        "treats a plain %s answer as an unknown outcome and asks to check History",
+        async (status, code) => {
+          const { execute } = await guestHistory();
+          vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => fail(status, code, "try later")),
+          );
+          await expect(execute("history.undo")).rejects.toThrow(
+            "Undo or Redo may have been applied. Check History before trying again.",
+          );
+          expect(guestOutcome()).toMatchObject({
+            kind: "unknown",
+            recovery: "inspect-history",
           });
           expect(settleGuestCommandOutcome.mock.calls.at(-1)?.[3]).toBe(true);
         },
