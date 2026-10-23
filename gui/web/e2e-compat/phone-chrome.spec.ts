@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { rulerWidthPx } from "../e2e/deepZoom";
 import { postDocumentCommand } from "../e2e/documentCommand";
+import { openTransportMenu } from "../e2e/overlayReachability";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 
@@ -61,7 +62,13 @@ test("a phone held sideways keeps three compact lanes and Undo in reach", async 
     await expect(page.locator(".daw-shell--tablet")).toBeVisible();
     await addTracks(page, projectPath, 3);
     await expect(page.locator(".lane-row")).toHaveCount(5);
-    await page.getByRole("button", { name: "Maximize timeline" }).tap();
+    const menu = await openTransportMenu(page);
+    await menu
+      .getByRole("menuitemradio", { name: "Maximize timeline", exact: true })
+      .tap();
+    await expect(page.locator(".layout-toggle-btn")).toHaveAccessibleName(
+      "Restore layout",
+    );
 
     await expect.poll(() => visibleLanes(page)).toMatchObject({ height: 72 });
     expect((await visibleLanes(page))!.full).toBeGreaterThanOrEqual(3);

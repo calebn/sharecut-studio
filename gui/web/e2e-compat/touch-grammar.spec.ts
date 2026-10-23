@@ -15,6 +15,7 @@ import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
+import { openTransportMenu } from "../e2e/overlayReachability";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
@@ -797,9 +798,13 @@ test("a create menu taller than 90% of the screen, with room beside the finger, 
     width: 844,
     height: 390,
   });
-  await page
-    .getByRole("button", { name: "Maximize timeline", exact: true })
+  const menu = await openTransportMenu(page);
+  await menu
+    .getByRole("menuitemradio", { name: "Maximize timeline", exact: true })
     .click();
+  await expect(page.locator(".layout-toggle-btn")).toHaveAccessibleName(
+    "Restore layout",
+  );
   const finger = await newFinger(context, page, browserName);
   const rows: MenuRow[] = [];
   for (const rootPx of [24, 26, 28, 30, 32, 34, 36]) {
