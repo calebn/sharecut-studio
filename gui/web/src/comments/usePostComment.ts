@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createComment } from "../api";
-import { NETWORK_ERROR_CODE } from "../api/http";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
@@ -78,8 +77,7 @@ export function usePostComment(): {
       useDawStore.getState().setCommentDraft(null);
       return { ok: true, comment };
     } catch (e) {
-      unreachable.current =
-        e instanceof ApiError && e.code === NETWORK_ERROR_CODE;
+      unreachable.current = e instanceof ApiError && e.code === "network_error";
       setError(errorMessage(e));
       return { ok: false };
     } finally {

@@ -76,7 +76,6 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
             onNameChange={guest.setDraft}
             onConfirm={onPost}
             onSkip={() => void send(guest.choose(""))}
-            onCancel={guest.cancel}
           />
         ) : null}
       </CommentCompose>

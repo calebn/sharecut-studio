@@ -7,20 +7,17 @@ type Props = {
   onNameChange: (name: string) => void;
   onConfirm: () => void;
   onSkip: () => void;
-  onCancel: () => void;
 };
 
 /**
  * The one-time "who is commenting" step a guest sees on their first Post:
- * a name field that takes focus, and Skip to stay Guest. Enter posts, Escape
- * goes back to the comment.
+ * a name field that takes focus, and Skip to stay Guest. Enter in the field posts.
  */
 export function GuestNameStep({
   name,
   onNameChange,
   onConfirm,
   onSkip,
-  onCancel,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -29,7 +26,13 @@ export function GuestNameStep({
   }, []);
 
   return (
-    <div className="comment-name-step">
+    <form
+      className="comment-name-step"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onConfirm();
+      }}
+    >
       <label>
         Your name
         <input
@@ -40,18 +43,9 @@ export function GuestNameStep({
           enterKeyHint="send"
           placeholder="Optional"
           onChange={(e) => onNameChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              onConfirm();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              onCancel();
-            }
-          }}
         />
       </label>
       <Button onClick={onSkip}>Skip</Button>
-    </div>
+    </form>
   );
 }

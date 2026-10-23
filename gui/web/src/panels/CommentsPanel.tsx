@@ -210,7 +210,6 @@ export function CommentsPanel({
               onNameChange={guestName.setDraft}
               onConfirm={() => void onCreate()}
               onSkip={() => void createAs(guestName.choose(""))}
-              onCancel={guestName.cancel}
             />
           ) : null}
           {!guestShare && body.trim() !== "" && (

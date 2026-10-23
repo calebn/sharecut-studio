@@ -54,7 +54,6 @@ export function useGuestName(role: CommentRole) {
     asking,
     draft,
     setDraft,
-    cancel: () => setAsking(false),
     choose,
     authorForPost,
   };
