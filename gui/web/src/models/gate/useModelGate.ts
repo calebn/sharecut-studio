@@ -77,6 +77,15 @@ function rowInstalled(row: ModelView | null, need: ModelNeed): boolean {
   );
 }
 
+function otherVariant(row: ModelView | null, need: ModelNeed): boolean {
+  return (
+    row !== null &&
+    need.id === "whisper" &&
+    !!need.variant &&
+    row.variant !== need.variant
+  );
+}
+
 function infoFor(api: ModelsApi, need: ModelNeed): NeedInfo {
   const row = rowFor(api, need);
   const variant =
@@ -139,17 +148,22 @@ export function useModelGate(): ModelGate {
     w?.resolve(accepted);
   }, []);
 
-  useEffect(
-    () => () => {
+  const unmounted = useRef(false);
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
       waiter.current?.resolve(false);
       waiter.current = null;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const ask = useCallback(
     (need: ModelNeed, info: NeedInfo): Promise<boolean> => {
       waiter.current?.resolve(false);
+      if (unmounted.current) {
+        return Promise.resolve(false);
+      }
       const token = {};
       const live = rowFor(apiRef.current, need);
       return new Promise<boolean>((resolve) => {
@@ -258,7 +272,9 @@ export function useModelGate(): ModelGate {
       return null;
     }
     const { need, info } = session;
-    const live = api.models?.find((m) => m.id === need.id) ?? null;
+    const row = api.models?.find((m) => m.id === need.id) ?? null;
+    const foreign = !session.downloading && otherVariant(row, need);
+    const live = foreign ? null : row;
     const activity = modelActivity(live, api.busy);
     const isMatched = rowInstalled(live, need);
     let phase: GatePhase = "ask";
