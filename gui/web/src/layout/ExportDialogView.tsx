@@ -1,4 +1,11 @@
-import { useId } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
+import { type ModelGate, ModelGateBody, ModelGateFooter } from "../models";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, InlineError } from "../ui";
 import { useDisabledReasonNote } from "../ui/disabledReason";
@@ -32,6 +39,8 @@ export type ExportStage =
       cancelling: boolean;
       cancelError: string | null;
     }
+  /** The export failed for a missing model; the gate's prompt stands in for the dialog body. */
+  | { kind: "needsModel"; gate: ModelGate }
   | { kind: "done"; paths: readonly string[]; measured: string | null }
   | { kind: "failed"; reason: string }
   /** `paths`: files the job wrote before the cancel reached it. */
@@ -46,6 +55,8 @@ export type ExportDialogViewProps = {
   onCancelExport: () => void;
   /** Back to settings after a failure or cancel. */
   onRestart: () => void;
+  /** Shown under a failure after the person declined a model download. */
+  modelHint?: ReactNode;
   /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
   nowSec?: number;
 };
@@ -57,22 +68,39 @@ export type ExportDialogViewProps = {
  */
 export function ExportDialogView(props: ExportDialogViewProps) {
   const { open, onClose, stage } = props;
+  const downloadRef = useRef<HTMLButtonElement>(null);
+  const needsModel = stage.kind === "needsModel";
+  useEffect(() => {
+    if (needsModel) {
+      downloadRef.current?.focus();
+    }
+  }, [needsModel]);
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="Export deliverables"
+      closeDisabled={
+        stage.kind === "needsModel" &&
+        stage.gate.prompt?.phase === "downloading"
+      }
       panelClassName="bounce-dialog-panel"
-      footer={<ExportDialogFooter {...props} />}
+      footer={<ExportDialogFooter {...props} downloadRef={downloadRef} />}
     >
       <div className="bounce-dialog-body">
         {stage.kind === "configure" ? <ExportSettingsForm {...props} /> : null}
         {stage.kind === "running" ? (
           <ExportProgress stage={stage} nowSec={props.nowSec} />
         ) : null}
+        {stage.kind === "needsModel" && stage.gate.prompt ? (
+          <ModelGateBody prompt={stage.gate.prompt} />
+        ) : null}
         {stage.kind === "done" ? <ExportOutcome stage={stage} /> : null}
         {stage.kind === "failed" ? (
-          <InlineError message={`Export failed: ${stage.reason}`} />
+          <>
+            <InlineError message={`Export failed: ${stage.reason}`} />
+            {props.modelHint}
+          </>
         ) : null}
         {stage.kind === "cancelled" ? <ExportCancelled stage={stage} /> : null}
       </div>
@@ -240,7 +268,10 @@ function ExportDialogFooter({
   onExport,
   onCancelExport,
   onRestart,
-}: ExportDialogViewProps) {
+  downloadRef,
+}: ExportDialogViewProps & {
+  downloadRef: RefObject<HTMLButtonElement | null>;
+}) {
   const cancelNote = useDisabledReasonNote(
     stage.kind === "running" ? stage.cancelReason : null,
   );
@@ -276,6 +307,9 @@ function ExportDialogFooter({
           >
             {stage.cancelling ? "Cancelling…" : "Cancel export"}
           </Button>
+        ) : null}
+        {stage.kind === "needsModel" ? (
+          <ModelGateFooter gate={stage.gate} primaryRef={downloadRef} />
         ) : null}
         {stage.kind === "done" ? (
           <Button variant="primary" type="button" onClick={onClose}>

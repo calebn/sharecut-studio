@@ -5,10 +5,12 @@ import {
   loadPipelineConfig,
   startExportJob,
 } from "../api";
+import { ModelGateHint, useModelGate } from "../models";
+import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
 import { runAnnouncedJob } from "../state/runAnnouncedJob";
 import { useDaw } from "../state/useDaw";
-import { errorMessage, isAbortError } from "../utils/apiError";
+import { errorMessage, isAbortError, isModelNeeded } from "../utils/apiError";
 import { jobResultPaths } from "../utils/pipeline";
 import { ExportDialogView, type ExportStage } from "./ExportDialogView";
 import {
@@ -53,6 +55,11 @@ export function ExportDialog() {
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [wasOpen, setWasOpen] = useState(false);
+  const gate = useModelGate();
+  const resetGate = gate.reset;
+  useEffect(() => {
+    resetGate();
+  }, [projectPath, resetGate]);
   // Opening shows a running export's progress; anything finished starts over
   // from freshly loaded settings (its outcome was already announced).
   if (open !== wasOpen) {
@@ -96,18 +103,35 @@ export function ExportDialog() {
       cancelError: null,
     });
     try {
-      const done = await runAnnouncedJob(
-        () => startExportJob(projectPath, formats),
-        {
-          failLabel: "Export failed",
-          resultCopy: exportResultCopy,
-          signal: scope.signal,
-          onStart: (job) =>
-            setFlow((f) =>
-              f.kind === "running" ? { ...f, jobId: job.id } : f,
-            ),
-        },
-      );
+      const ran = await gate.run(async () => {
+        try {
+          return await runAnnouncedJob(
+            () => startExportJob(projectPath, formats),
+            {
+              failLabel: "Export failed",
+              resultCopy: exportResultCopy,
+              signal: scope.signal,
+              onStart: (job) =>
+                setFlow((f) =>
+                  f.kind === "running" ? { ...f, jobId: job.id } : f,
+                ),
+            },
+          );
+        } catch (err) {
+          if (
+            isModelNeeded(err) &&
+            !useDawStore.getState().chrome.exportDialogOpen
+          ) {
+            throw new Error(`${err.model.label} is not downloaded.`);
+          }
+          throw err;
+        }
+      });
+      if (ran.kind === "declined") {
+        setFlow({ kind: "failed", reason: `${ran.label} is not downloaded.` });
+        return;
+      }
+      const done = ran.value;
       setFlow({
         kind: "done",
         paths: jobResultPaths(done),
@@ -142,8 +166,9 @@ export function ExportDialog() {
     }
   }
 
-  const stage: ExportStage =
-    flow.kind === "configure"
+  const stage: ExportStage = gate.prompt
+    ? { kind: "needsModel", gate }
+    : flow.kind === "configure"
       ? {
           kind: "configure",
           settings,
@@ -171,8 +196,15 @@ export function ExportDialog() {
   return (
     <ExportDialogView
       open={open && project != null}
-      onClose={() => setOpen(false)}
+      onClose={() => {
+        if (gate.prompt) {
+          gate.decline();
+          return;
+        }
+        setOpen(false);
+      }}
       stage={stage}
+      modelHint={<ModelGateHint gate={gate} actionLabel="Export" />}
       onToggleFormat={(key, on) =>
         setSelected((prev) =>
           on
