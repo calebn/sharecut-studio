@@ -8755,8 +8755,7 @@
           "anyOf": [
             {
               "items": {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/$defs/WordKeyItem"
               },
               "type": "array"
             },
@@ -8807,8 +8806,7 @@
           "anyOf": [
             {
               "items": {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/$defs/WordKeyItem"
               },
               "type": "array"
             },
@@ -8949,8 +8947,7 @@
           "anyOf": [
             {
               "items": {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/$defs/WordKeyItem"
               },
               "type": "array"
             },
@@ -9911,6 +9908,37 @@
         "text"
       ],
       "title": "WordCorrectionItem",
+      "type": "object"
+    },
+    "WordKeyItem": {
+      "properties": {
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        },
+        "word_index": {
+          "minimum": 0,
+          "title": "Word Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "track_id",
+        "word_index"
+      ],
+      "title": "WordKeyItem",
       "type": "object"
     },
     "WordTimingTargetPayload": {

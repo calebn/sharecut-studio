@@ -9,7 +9,16 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializerFunctionWrapHandler,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
@@ -306,13 +315,26 @@ class ReconcileTranscriptPayload(BaseModel):
     )
 
 
+class WordKeyItem(BaseModel):
+    track_id: str
+    source_id: str | None = None
+    word_index: int = Field(ge=0)
+
+    @model_serializer(mode="wrap")
+    def _keep_source_id_absent(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        out = handler(self)
+        if "source_id" not in self.model_fields_set:
+            out.pop("source_id", None)
+        return out
+
+
 class SuppressBleedPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
-    words: list[dict[str, Any]] | None = Field(
+    words: list[WordKeyItem] | None = Field(
         default=None, description="Limit to these word keys; omit for every bleed word in scope."
     )
-    exclude_words: list[dict[str, Any]] | None = None
+    exclude_words: list[WordKeyItem] | None = None
     start_sec: float | None = None
     end_sec: float | None = None
 
@@ -320,7 +342,7 @@ class SuppressBleedPayload(BaseModel):
 class SuppressLowAudibilityPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
-    words: list[dict[str, Any]] | None = Field(
+    words: list[WordKeyItem] | None = Field(
         default=None, description="Limit to these word keys; omit for every low-audibility word."
     )
 
@@ -1330,6 +1352,23 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
 }
 
 
+_CODED_PAYLOAD_TYPES = frozenset(
+    {"SuppressBleed", "SuppressLowAudibility", "SetBleedAlignmentMode"}
+)
+
+
+def _coded_payload_error(command_type: str, exc: ValidationError) -> CodedValueError:
+    errors = exc.errors(include_input=False, include_url=False, include_context=False)
+    if command_type == "SetBleedAlignmentMode" and any(err["loc"] == ("mode",) for err in errors):
+        return CodedValueError(
+            "alignment mode must be auto, manual, or declined", code="invalid_mode"
+        )
+    problems = "; ".join(
+        f"{'.'.join(str(part) for part in err['loc']) or 'payload'}: {err['msg']}" for err in errors
+    )
+    return CodedValueError(f"{command_type}: {problems}", code="invalid_payload")
+
+
 def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[str, Any]:
     """Validate a payload dict for a known command type; return dumped dict."""
     model = _PAYLOAD_BY_TYPE.get(command_type)
@@ -1337,7 +1376,12 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
         raise CodedValueError(
             f"unknown document command: {command_type}", code="document_command_unknown"
         )
-    validated = model.model_validate(payload or {})
+    try:
+        validated = model.model_validate(payload or {})
+    except ValidationError as exc:
+        if command_type not in _CODED_PAYLOAD_TYPES:
+            raise
+        raise _coded_payload_error(command_type, exc) from exc
     out = validated.model_dump(mode="python")
     if "extracts" in out and isinstance(out["extracts"], list):
         out["extracts"] = [

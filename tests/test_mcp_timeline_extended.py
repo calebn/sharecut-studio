@@ -375,7 +375,7 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
             mcp_timeline.apply_bleed_suppression_tool(
                 path,
                 speaker="Host",
-                words=[{"word_index": 0}],
+                words=[{"track_id": "host", "word_index": 0}],
                 dry_run=True,
             )
         )
@@ -460,7 +460,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         json.loads(
             mcp_timeline.apply_bleed_suppression_tool(
                 path,
-                exclude_words=[{"word_index": 1}],
+                exclude_words=[{"track_id": "host", "word_index": 1}],
                 apply=False,
             )
         )
