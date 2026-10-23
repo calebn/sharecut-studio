@@ -144,9 +144,15 @@ async function arrive(
 }
 
 async function settle(page: Page) {
-  await page.evaluate(() =>
-    Promise.all(document.getAnimations().map((a) => a.finished)),
-  );
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document
+          .getAnimations()
+          .every((a) => a.playState === "finished" || a.playState === "idle"),
+      ),
+    )
+    .toBe(true);
 }
 
 /** Rows the tool rail's visible controls sit on, by vertical centre. */
