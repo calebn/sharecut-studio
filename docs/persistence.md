@@ -58,7 +58,9 @@ existing source/primary references. The field adds no plaintext host path to
 project metadata or editable snapshots.
 
 Source duration and clip geometry are admitted through
-`AudioProbe.require_duration_sec()` before import or consolidation writes them.
+`AudioProbe.require_duration_sec()` before import, consolidation, or pipeline
+ingest writes them. Pipeline ingest validates every track before updating any
+media metadata or constructing clips.
 An uncertain probe fallback cannot become a numeric source or media duration.
 Consolidation checks source and rendered-track extents before changing project
 state. Packet scans use a bounded process-local revision cache, described in

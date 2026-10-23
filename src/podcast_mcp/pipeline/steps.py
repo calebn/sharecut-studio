@@ -85,7 +85,7 @@ def require_align_accept(project: EpisodeProject, defaults: dict[str, Any]) -> S
 def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     project.ensure_dirs()
     eng = ffmpeg()
-    probed = 0
+    admitted = []
     for track in project.tracks:
         if not track.media:
             continue
@@ -95,16 +95,17 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
         if not path.is_file():
             raise FileNotFoundError(path)
         probe = eng.probe(path)
-        track.media.duration_sec = probe.duration_sec
-        track.media.sample_rate = probe.sample_rate
-        track.media.channels = probe.channels
-        probed += 1
+        admitted.append((track.media, probe, probe.require_duration_sec()))
+    for media, probe, duration in admitted:
+        media.duration_sec = duration
+        media.sample_rate = probe.sample_rate
+        media.channels = probe.channels
     ensure_dialogue_clips(project)
     # After clips exist, so each track's clip sources get their pyramids too.
     waveforms = ensure_project_waveforms(project, defaults=defaults)
     ensure_room_tone_pools(project, [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE])
     dialogue = sum(1 for t in project.tracks if t.role == TrackRole.DIALOGUE)
-    return f"{probed} tracks probed, {waveforms} waveforms, {dialogue} dialogue"
+    return f"{len(admitted)} tracks probed, {waveforms} waveforms, {dialogue} dialogue"
 
 
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

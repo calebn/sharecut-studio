@@ -89,7 +89,7 @@ def strip_silence(
 
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
-    probe = FFmpegEngine().probe(src)
+    duration = FFmpegEngine().probe(src).require_duration_sec()
     levels = frame_levels_db(
         load_mono_full(src, sample_rate=PROFILE_SAMPLE_RATE), PROFILE_SAMPLE_RATE
     )
@@ -97,7 +97,7 @@ def strip_silence(
     silences = quiet_intervals(
         levels, under_db=floor_db + over_voice_floor_db, min_duration_sec=min_duration_sec
     )
-    kept = _kept_source_ranges(probe.duration_sec, silences, keep_padding_sec)
+    kept = _kept_source_ranges(duration, silences, keep_padding_sec)
 
     timeline_cursor = 0.0
     new_clips: list[Clip] = []
@@ -126,11 +126,11 @@ def strip_silence(
         if src_start > cursor + 1e-6:
             removed_ranges.append((cursor, src_start))
         cursor = max(cursor, src_end)
-    if cursor < probe.duration_sec - 1e-6:
-        removed_ranges.append((cursor, probe.duration_sec))
+    if cursor < duration - 1e-6:
+        removed_ranges.append((cursor, duration))
     apply_source_transcript_removes(project, {track_id: removed_ranges}, defaults=defaults)
 
-    removed_sec = probe.duration_sec - sum(e - s for s, e in kept)
+    removed_sec = duration - sum(e - s for s, e in kept)
     return {
         "track_id": track_id,
         "silence_intervals": len(silences),

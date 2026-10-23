@@ -7,6 +7,7 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.strip_silence import _kept_source_ranges, strip_silence
+from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.engines.silence import SilenceInterval
 from podcast_mcp.models import (
     Clip,
@@ -112,7 +113,7 @@ def _strip(tmp_path, samples: np.ndarray) -> dict:
         patch("podcast_mcp.edits.strip_silence.load_mono_full", return_value=samples),
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
     ):
-        eng_cls.return_value.probe.return_value = type("Probe", (), {"duration_sec": duration})()
+        eng_cls.return_value.probe.return_value = AudioProbe(duration, _RATE, 1)
         return strip_silence(p, "host", defaults=load_defaults())
 
 
