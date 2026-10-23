@@ -242,6 +242,12 @@ describe.each([
     expect(settled()).toEqual({ kind: "refused", remove: true });
   });
 
+  it("records a replayed ApproveEdits refine-gate refusal instead of dropping it", async () => {
+    post.mockResolvedValue(refineGate);
+    await run(true, "ApproveEdits");
+    expect(settled()).toEqual({ kind: "refused", remove: true });
+  });
+
   it("tells a replayed refine-gate refusal in plain words, without commands", async () => {
     post.mockResolvedValue(refineGate);
     await run(true);
