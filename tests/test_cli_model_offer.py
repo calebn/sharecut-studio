@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import errno
+import io
+import sys
 from collections.abc import Iterator
 from dataclasses import replace
 
@@ -17,6 +19,7 @@ from podcast_mcp.engines.models import registry
 from podcast_mcp.engines.models.registry import ModelProblem, model_spec, require_model
 from podcast_mcp.util.asset_sources import DOWNLOAD_TASK_ID, DownloadProgress
 from podcast_mcp.util.progress import (
+    CliProgressReporter,
     RecordingProgress,
     clear_progress_sinks,
     register_progress_sink,
@@ -179,3 +182,22 @@ def test_a_model_that_needs_an_upgrade_is_not_offered(
     assert result.exit_code == 1
     assert missing.installs == 0
     assert "Download" not in result.stderr
+
+
+class _Tty(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+def test_prompt_hides_the_live_bar_and_draws_it_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "stderr", _Tty())
+    reporter = CliProgressReporter()
+    try:
+        reporter.start("download", "Downloading", total=10)
+        live = reporter._progress.live
+        assert live.is_started
+        with reporter.paused():
+            assert not live.is_started
+        assert live.is_started
+    finally:
+        reporter.close()
