@@ -126,8 +126,10 @@ adoption and reply-head Undo through both entry points.
    command: over the focused target, else at the playhead on the selected
    track).
 4. **Menu items name the command.** The item label is `CommandDef.label` and
-   the item shows the shortcut from the keymap. A disabled item carries its
-   reason the same way a button does.
+   the item shows the shortcut from the keymap outside the phone shell. Phone
+   menus hide the visible keyboard hint while keeping the shortcut available
+   to keyboard users. A disabled item carries its reason the same way a button
+   does.
 5. **Menus hold choices, not state.** A menu does not host inputs or
    long-lived toggles. Those are a sheet or a panel.
 

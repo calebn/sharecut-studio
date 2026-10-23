@@ -143,7 +143,10 @@ behind it. A compact-to-regular inspector remount keeps a waiver reason
 field focused.
 
 Tap outside a confirmation sheet to dismiss it. Audition modes and export
-controls are in the compact transport Menu on Timeline, Text, or More.
+controls are in the Listen card's Menu and the compact transport Menu on
+Timeline, Text, or More. The Listen Menu keeps project actions such as Share,
+but leaves timeline selection, track order, waveform, and zoom controls in
+Timeline. Phone menu rows are at least 44 CSS px tall and hide keyboard hints.
 
 ## Gestures
 
@@ -175,7 +178,7 @@ A few things live in different places on mobile:
 - **Gestures** has a reference list under More
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
 - **Solo on · Clear solo** sits above every tab while a track is soloed, so you can see why other voices are silent and turn solo off in one tap
-- **Audition and export** are in the compact transport Menu outside Listen
+- **Audition and export** are in the Listen card's Menu and the compact transport Menu in other modes
 - **Safari page zoom** wraps Play, time, and Comment onto another row instead of covering History
 - **Undo and Redo** are the two arrow buttons at the right end of the tool row above the Timeline tabs. When there's nothing to undo or redo, the button is dimmed, and tapping it says why. That feedback ends after 3.5 seconds, when the action becomes available, or when the history controls disappear. Tap again if they return unavailable.
 

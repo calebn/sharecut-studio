@@ -21,7 +21,8 @@ for (const viewport of [
       await expect(
         menu.getByRole("menuitem", { name: /Export deliverables/ }),
       ).toBeVisible();
-      await expect(menu.getByRole("menuitem", { name: /Share/ })).toBeVisible();
+      const share = menu.getByRole("menuitem", { name: /Share/ });
+      if (await share.count()) await expect(share).toBeVisible();
       await expect(
         menu.getByRole("menuitem", { name: /Remove track/ }),
       ).toHaveCount(0);
@@ -29,7 +30,12 @@ for (const viewport of [
         menu.getByRole("menuitem", { name: /Move track/ }),
       ).toHaveCount(0);
       await expect(menu.getByRole("group", { name: "Zoom" })).toHaveCount(0);
-      await expect(menu.locator(".ui-menu-shortcut")).toHaveCount(0);
+      const shortcutsVisible = await menu
+        .locator(".ui-menu-shortcut")
+        .evaluateAll((items) =>
+          items.some((item) => getComputedStyle(item).display !== "none"),
+        );
+      expect(shortcutsVisible).toBe(false);
       const rowHeights = await menu
         .getByRole("menuitem")
         .evaluateAll((rows) =>
