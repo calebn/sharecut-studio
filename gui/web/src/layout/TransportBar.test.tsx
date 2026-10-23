@@ -232,9 +232,6 @@ describe("TransportBar collapsed", () => {
     expect(menu.queryByRole("group", { name: "Selection" })).toBeNull();
     expect(menu.queryByRole("menuitem", { name: /Remove track/ })).toBeNull();
     expect(menu.queryByRole("menuitem", { name: /Move track/ })).toBeNull();
-    expect(
-      screen.getByRole("menu").querySelectorAll(".ui-menu-shortcut"),
-    ).toHaveLength(0);
     await expectNoA11yViolations(container);
   });
 

@@ -339,42 +339,46 @@ export function TransportBar({
 
   const viewSections = (close: () => void) => (
     <>
-      <MenuSection label="Layers">
-        <OverlayLegend menu />
-      </MenuSection>
-      <WaveformViewSections />
-      <MenuSection label="Zoom">
-        <div className="transport-controls" role="none">
-          <CommandMenuItem commandId="view.zoomOut" showShortcut={false} />
-          <CommandMenuItem commandId="view.zoomIn" showShortcut={false} />
-        </div>
-        <div className="transport-controls" role="none">
-          <CommandMenuItem
-            commandId="view.trackHeightDecrease"
-            showShortcut={false}
-            short
-          />
-          <CommandMenuItem
-            commandId="view.trackHeightIncrease"
-            showShortcut={false}
-            short
-          />
-        </div>
-        <div className="overlay-legend" role="none">
-          <LegendCheckbox
-            menu
-            checked={fitTracks}
-            onChange={() => runPointerCommand("view.fitTracksHeight")}
-          >
-            {capabilityLabel("daw.view.fitTracksHeight")}
-          </LegendCheckbox>
-        </div>
-        {!showFit ? (
-          <CommandMenuItem commandId="view.fit" onSelect={close}>
-            {capabilityLabel("daw.view.fit")}
-          </CommandMenuItem>
-        ) : null}
-      </MenuSection>
+      {!menuOnly ? (
+        <>
+          <MenuSection label="Layers">
+            <OverlayLegend menu />
+          </MenuSection>
+          <WaveformViewSections />
+          <MenuSection label="Zoom">
+            <div className="transport-controls" role="none">
+              <CommandMenuItem commandId="view.zoomOut" showShortcut={false} />
+              <CommandMenuItem commandId="view.zoomIn" showShortcut={false} />
+            </div>
+            <div className="transport-controls" role="none">
+              <CommandMenuItem
+                commandId="view.trackHeightDecrease"
+                showShortcut={false}
+                short
+              />
+              <CommandMenuItem
+                commandId="view.trackHeightIncrease"
+                showShortcut={false}
+                short
+              />
+            </div>
+            <div className="overlay-legend" role="none">
+              <LegendCheckbox
+                menu
+                checked={fitTracks}
+                onChange={() => runPointerCommand("view.fitTracksHeight")}
+              >
+                {capabilityLabel("daw.view.fitTracksHeight")}
+              </LegendCheckbox>
+            </div>
+            {!showFit ? (
+              <CommandMenuItem commandId="view.fit" onSelect={close}>
+                {capabilityLabel("daw.view.fit")}
+              </CommandMenuItem>
+            ) : null}
+          </MenuSection>
+        </>
+      ) : null}
       {showLayout ? (
         <MenuSection label="Layout">
           <SegmentedControl role="none" className="layout-modes">
@@ -521,21 +525,25 @@ export function TransportBar({
         <MenuSection label="Media">
           <CommandMenuItem commandId="media.import" onSelect={closeMenu} />
           <CommandMenuItem commandId="track.add" onSelect={closeMenu} />
-          <CommandMenuItem
-            commandId="track.remove"
-            respectWhen
-            onSelect={closeMenu}
-          />
-          <CommandMenuItem
-            commandId="track.moveUp"
-            respectWhen
-            onSelect={closeMenu}
-          />
-          <CommandMenuItem
-            commandId="track.moveDown"
-            respectWhen
-            onSelect={closeMenu}
-          />
+          {!menuOnly ? (
+            <>
+              <CommandMenuItem
+                commandId="track.remove"
+                respectWhen
+                onSelect={closeMenu}
+              />
+              <CommandMenuItem
+                commandId="track.moveUp"
+                respectWhen
+                onSelect={closeMenu}
+              />
+              <CommandMenuItem
+                commandId="track.moveDown"
+                respectWhen
+                onSelect={closeMenu}
+              />
+            </>
+          ) : null}
         </MenuSection>
       ) : null}
       {mayManage ? (
@@ -547,7 +555,7 @@ export function TransportBar({
           />
         </MenuSection>
       ) : null}
-      {timelineToolsInMenu ? null : (
+      {timelineToolsInMenu || menuOnly ? null : (
         <MenuSection label="Selection">
           <CommandMenuItem commandId="range.arm" onSelect={closeMenu} />
         </MenuSection>

@@ -390,7 +390,9 @@ the empty state, not a separate discovery task.
   no duplicated paths to the same action ("Open room panel" twice in
   one dialog — Surface 2); the overflow "Project" section keeps New /
   Open, then the Export pair adjacent, then Share / Record room, with
-  Help under View. (Surface 5 — Apple HIG menu grouping.)
+  Help under View. In the phone Listen hero, timeline-only actions stay in
+  the Timeline menu and keyboard hints are hidden. (Surface 5 — Apple HIG
+  menu grouping.)
 - **Announce what happened + what changed:** "Review link created and
   copied", "Record room ended", "Exported 3 files". The toast text
   and the `announceStatus` text are the same string. (Surface 6.)

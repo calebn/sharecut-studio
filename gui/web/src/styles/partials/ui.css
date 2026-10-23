@@ -615,15 +615,18 @@ button.pill.pill--info {
   text-align: left;
 }
 
-/* Menu is nested in .transport (container: transport / inline-size). */
 @container transport (inline-size < 68.75rem) {
   .ui-menu-root {
     --menu-item-min-block-size: var(--touch-min);
   }
 }
 
-html[data-shell="phone"] .modifier-footer-actions .ui-menu-root {
+html[data-shell="phone"] .ui-menu-root {
   --menu-item-min-block-size: var(--touch-min);
+}
+
+html[data-shell="phone"] .ui-menu-shortcut {
+  display: none;
 }
 
 .ui-menu-panel
