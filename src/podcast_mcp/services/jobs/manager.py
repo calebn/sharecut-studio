@@ -505,7 +505,13 @@ class JobManager:
                     )
                     job.status = "cancelled" if cancelled else "error"
                     job.finished_at = time.monotonic()
-                    short = None if cancelled else short_fail_message(str(exc))
+                    short = (
+                        None
+                        if cancelled
+                        else exc.plain()
+                        if isinstance(exc, ModelMissing)
+                        else short_fail_message(str(exc))
+                    )
                     job.error = short
                     if not cancelled:
                         job.error_code = exc.code if isinstance(exc, CodedError) else None

@@ -76,8 +76,9 @@ def _assert_model_needed(snap: dict[str, Any], project: Path) -> None:
     assert set(snap["error_model"]) == MODEL_FIELDS
     assert snap["error_model"]["id"] == "rnnoise"
     model = snap["error_model"]
-    assert snap["error"] == f"needs {model['label']} ({model['size']}); run `{model['command']}`"
+    assert snap["error"] == snap["message"] == f"{model['label']} is not downloaded."
     assert model["command"] == COMMAND
+    assert "bootstrap" not in repr([snap["error"], snap["message"], snap["steps"]])
     failure = (snap["error"], snap["message"], snap["error_model"])
     assert str(project.parent) not in repr(failure)
 
@@ -246,3 +247,32 @@ def test_guest_and_diagnostics_views_never_carry_the_model(
     rows = _sanitize_job_snapshots([snap], home=minimal_project.parent, workspace=None)
     assert set(rows[0]) == {"kind", "status", "phase", "elapsed_sec", "message"}
     assert "error_model" not in repr(rows)
+
+
+def test_an_update_needed_model_reads_as_needing_an_update(
+    minimal_project: Path, monkeypatch
+) -> None:
+    exc = _missing()
+    exc.state = "update_needed"
+    monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", _raise(exc))
+    mgr = JobManager()
+    snap = _run(mgr, mgr.start(minimal_project))
+    assert snap["error"] == snap["message"] == "RNNoise needs an update."
+    assert snap["error_model"]["state"] == "update_needed"
+
+
+def test_the_mcp_run_keeps_the_command_in_its_refusal(minimal_project: Path, monkeypatch) -> None:
+    from unittest.mock import patch
+
+    from podcast_mcp.mcp.tools.pipeline import pipeline_run
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", _raise(_missing()))
+    mgr = JobManager()
+    with (
+        patch("podcast_mcp.services.jobs.studio_job_manager", return_value=mgr),
+        patch("podcast_mcp.mcp.tools.pipeline.ensure_whisper_cached_for_run"),
+        patch("podcast_mcp.mcp.tools.pipeline.ensure_word_aligner_for_run"),
+        pytest.raises(ModelMissing) as caught,
+    ):
+        pipeline_run(str(minimal_project), use_working_set=False)
+    assert COMMAND in str(caught.value)
