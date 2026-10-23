@@ -50,9 +50,7 @@ def test_open_project_bad_paths(local, tmp_path):
     missing = tmp_path / "episode.project.json"
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 404, "project_not_found")
     missing.write_text("not json")
-    _assert(
-        local.post("/api/project/open", json={"path": str(missing)}), 400, "project_open_failed"
-    )
+    _assert(local.post("/api/project/open", json={"path": str(missing)}), 400, "project_unreadable")
 
 
 def test_create_project_failure(local, tmp_path):

@@ -11,6 +11,8 @@ const settleHostCommandOutcome = vi.fn();
 const settleGuestCommandOutcome = vi.fn();
 const postHostDocumentCommand = vi.fn();
 const postGuestDocumentCommand = vi.fn();
+const removeHostConflictsWhere = vi.fn();
+const removeConflictsWhere = vi.fn();
 const requestHostDrainLazy = vi.fn();
 const requestGuestDrainLazy = vi.fn();
 
@@ -31,6 +33,8 @@ vi.mock("./offlineQueue/offlineStore", () => ({
   loadCommandQueue,
   enqueueHostCommand,
   enqueueCommand,
+  removeHostConflictsWhere,
+  removeConflictsWhere,
   removeHostQueuedCommand: vi.fn(),
   removeQueuedCommand: vi.fn(),
   settleHostCommandOutcome,
@@ -244,6 +248,27 @@ describe.each([
       reason: words,
       recovery: "retry-same-command",
     });
+  });
+
+  it("clears an earlier save-blocking outcome once a command saves", async () => {
+    post.mockResolvedValue(ok);
+    removeHostConflictsWhere.mockResolvedValue(undefined);
+    removeConflictsWhere.mockResolvedValue(undefined);
+    await run(false);
+    const clear =
+      side === "host" ? removeHostConflictsWhere : removeConflictsWhere;
+    expect(clear).toHaveBeenCalledTimes(1);
+    const matches = clear.mock.calls[0]?.[1] as (c: unknown) => boolean;
+    expect(matches({ kind: "refused", blocksSave: true })).toBe(true);
+    expect(matches({ kind: "refused" })).toBe(false);
+    expect(matches({ kind: "unknown", blocksSave: true })).toBe(false);
+  });
+
+  it("keeps a save-blocking outcome when the command is refused", async () => {
+    post.mockResolvedValue(refused);
+    await run(false);
+    expect(removeHostConflictsWhere).not.toHaveBeenCalled();
+    expect(removeConflictsWhere).not.toHaveBeenCalled();
   });
 
   it.each([

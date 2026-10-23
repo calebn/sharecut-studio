@@ -656,3 +656,29 @@ describe("GuestAttentionBannerView", () => {
     });
   });
 });
+
+describe("a refusal that blocks saving", () => {
+  const blocking = {
+    ...offlineConflict({ reason: "The project file is missing." }),
+    blocksSave: true,
+  } as ReturnType<typeof offlineConflict>;
+
+  it.each([
+    [false, "Fix the project file first; this change was not saved."],
+    [true, "Ask the project owner to check the project."],
+  ])("for guest=%s says %s", (guest, words) => {
+    render(
+      <GuestAttentionBannerView
+        pending={0}
+        conflicts={[blocking]}
+        onDismissAll={vi.fn()}
+        guest={guest}
+      />,
+    );
+    expandDetails();
+    expect(screen.getByText(words)).toBeVisible();
+    expect(
+      screen.queryByText("Edit the change and submit it again."),
+    ).not.toBeInTheDocument();
+  });
+});
