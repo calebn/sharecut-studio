@@ -4,6 +4,7 @@ export {
   modelActivity,
 } from "./activity";
 export { formatBytes } from "./format";
+export { JobModelDownload } from "./gate/JobModelDownload";
 export {
   ModelGateBody,
   ModelGateDialog,

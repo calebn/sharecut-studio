@@ -1695,6 +1695,45 @@ describe("PipelinePanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("offers Download under a run that failed for a model", async () => {
+    loadPipelineConfig.mockResolvedValue(structuredClone(baseConfig));
+    dawState.pipelineJob = {
+      id: "j-model",
+      project_path: "/tmp/p.json",
+      from_step: null,
+      only_step: null,
+      kind: "pipeline",
+      status: "error",
+      message: null,
+      current: null,
+      total: null,
+      error: "needs Noise reduction (RNNoise) (~0.3 MB)",
+      error_code: "model_needed",
+      error_model: {
+        id: "rnnoise",
+        model: "rnnoise",
+        label: "Noise reduction (RNNoise)",
+        purpose: "noise reduction",
+        size: "~0.3 MB",
+        size_bytes: 297646,
+        state: "missing",
+      },
+      elapsed_sec: 2,
+      steps: [],
+    };
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    expect(
+      await screen.findByRole("button", {
+        name: "Download Noise reduction (RNNoise)",
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("shows alignment leave-gate waiting copy", async () => {
     loadPipelineConfig.mockResolvedValue({
       ...structuredClone(baseConfig),

@@ -22,6 +22,7 @@ import { usePipelineWorkingSet } from "../hooks/usePipelineWorkingSet";
 import { useSingleFlight } from "../hooks/useSingleFlight";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
 import {
+  JobModelDownload,
   ModelGateDialog,
   ModelGateHint,
   type ModelNeed,
@@ -1341,6 +1342,7 @@ export function PipelinePanel() {
             </div>
           ) : null}
           <InlineError origin="state" message={job.error} />
+          <JobModelDownload job={job} />
           {analyzeJob == null && (
             <table className="pipeline-steps">
               <thead>

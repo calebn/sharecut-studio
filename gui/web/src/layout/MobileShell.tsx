@@ -14,6 +14,7 @@ import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
+import { JobModelDownload } from "../models";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
 import { ImpactPanel } from "../panels/ImpactPanel";
@@ -332,6 +333,9 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
                 : undefined
             }
           />
+        ) : null}
+        {!guestShare ? (
+          <JobModelDownload job={chipJob} className="status-chip" />
         ) : null}
       </div>
       <div className="mobile-comment-list">

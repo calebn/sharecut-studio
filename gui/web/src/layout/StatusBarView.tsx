@@ -19,6 +19,8 @@ type Props = {
   saveState?: ReactNode;
   reconcileHighlight?: boolean;
   job?: PipelineJobSnapshot | null;
+  /** Rendered right after the job chip, for example a model download. */
+  jobAction?: ReactNode;
   runningCount?: number;
   onJobClick?: () => void;
   nowSec?: number;
@@ -37,6 +39,7 @@ export function StatusBarView({
   saveState,
   reconcileHighlight,
   job,
+  jobAction,
   runningCount,
   onJobClick,
   nowSec,
@@ -121,6 +124,7 @@ export function StatusBarView({
           nowSec={nowSec}
         />
       )}
+      {jobAction}
       <button
         type="button"
         className={`ui-control status-chip status-bar-end${narrow ? " status-bar-secondary" : ""}`}

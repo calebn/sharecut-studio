@@ -1,6 +1,7 @@
 import { runPointerCommand } from "../commands/pointer";
 import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
+import { JobModelDownload } from "../models";
 import { useDaw } from "../state/useDaw";
 import { pipelineChipOpensPanel } from "../utils/pipeline";
 import { PresenceStatus } from "./PresenceStatus";
@@ -44,6 +45,11 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
       saveState={<SaveStateDot />}
       reconcileHighlight={highlightStaleRender && render.reconcileStale}
       job={chipJob}
+      jobAction={
+        guestShare ? null : (
+          <JobModelDownload job={chipJob} className="status-chip" />
+        )
+      }
       runningCount={activityRunningCount}
       onJobClick={
         chipJob && !guestShare && pipelineChipOpensPanel(chipJob)
