@@ -530,6 +530,25 @@ def test_measure_loudness_full_parses_summary(tmp_path: Path):
     assert "peak=true" in af, "ebur128 must request peak=true or no True peak section is printed"
 
 
+@pytest.mark.parametrize("progress", [False, True])
+def test_measure_loudness_full_discards_summary_from_failed_run(tmp_path: Path, progress: bool):
+    eng = FFmpegEngine()
+    wav = tmp_path / "x.wav"
+    if progress:
+
+        def failed_run(*_args, check=True, **_kwargs):
+            if check:
+                raise subprocess.CalledProcessError(1, [eng.ffmpeg], stderr=_EBUR128_SUMMARY)
+            return _EBUR128_SUMMARY
+
+        with patch.object(eng, "_run_with_progress", side_effect=failed_run):
+            assert eng.measure_loudness_full(wav, on_progress=lambda *_: None, total_sec=2) is None
+    else:
+        with patch("podcast_mcp.engines.ffmpeg.run") as run:
+            run.return_value = subprocess.CompletedProcess([], 1, stderr=_EBUR128_SUMMARY)
+            assert eng.measure_loudness_full(wav) is None
+
+
 def test_measure_loudness_full_returns_none_without_integrated(tmp_path: Path):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"

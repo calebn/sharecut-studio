@@ -121,17 +121,30 @@ KEY_SPOOF = (
 )
 
 
-def test_forged_tag_key_lines_are_ignored(tmp_path: Path) -> None:
+@pytest.mark.parametrize("progress", [False, True])
+def test_forged_tag_key_lines_are_ignored(tmp_path: Path, progress: bool) -> None:
     engine = FFmpegEngine()
     clean = _encode_raw(tmp_path / "clean.m4a", *AUDIO, "-c:a", "aac")
     tagged = _encode_raw(tmp_path / "tagged.m4a", *AUDIO, "-c:a", "aac", *KEY_SPOOF)
     assert engine.measure_loudness(tagged) == engine.measure_loudness(clean)
     assert engine.measure_loudness_blocks(tagged) == engine.measure_loudness_blocks(clean)
     assert measure_astats(tagged) == measure_astats(clean)
+    kwargs = {"on_progress": lambda *_: None, "total_sec": 2.0} if progress else {}
+    full = engine.measure_loudness_full(clean, **kwargs)
+    assert full is not None and full["integrated_lufs"] == pytest.approx(CLEAN_LUFS, abs=0.5)
+    assert engine.measure_loudness_full(tagged, **kwargs) == full
     video = _encode_raw(tmp_path / "video.mp4", *VIDEO, *KEY_SPOOF)
     assert engine.measure_loudness(video) is None
+    assert engine.measure_loudness_full(video, **kwargs) is None
     assert engine.measure_loudness_blocks(video) == []
     assert all(value is None for value in measure_astats(video).values())
+
+
+@pytest.mark.parametrize("progress", [False, True])
+def test_full_loudness_without_audio_returns_none(tmp_path: Path, progress: bool) -> None:
+    video = _encode_raw(tmp_path / "plain.mp4", *VIDEO)
+    kwargs = {"on_progress": lambda *_: None, "total_sec": 1.0} if progress else {}
+    assert FFmpegEngine().measure_loudness_full(video, **kwargs) is None
 
 
 def test_zero_frame_file_with_forged_key_measures_nothing(tmp_path: Path) -> None:
