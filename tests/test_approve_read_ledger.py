@@ -1,10 +1,7 @@
-"""Approving a cut reads only the local audio and the whole-track level profile (#1958).
+"""Approving a cut reads only the local audio and the whole-track level profile.
 
-The bleed path (``path_samples``, ``echo_pairs``, ``copy_path``, ``lane_lag_steps``,
-``leak_paths``) is a whole-timeline measurement per track. A cut's verdict on approve does
-not read it, so evidence for a cut can be rebuilt from a window and a profile. A verdict
-that starts reading it fails here instead of silently turning a local edit into a
-whole-track one.
+A verdict that starts reading one of ``BLEED_PATH_READS`` fails here instead of silently
+turning a local edit into a whole-track one.
 """
 
 from __future__ import annotations
@@ -24,7 +21,6 @@ from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.models import ClipMuteRegion, EpisodeProject
 
 BLEED_PATH_READS = ("path_samples", "echo_pairs", "copy_path", "lane_lag_steps", "leak_paths")
-# A pause every voice leaves open: 50.39 s to 51.34 s in bleed_helpers' scene.
 MUTE = (50.45, 50.8)
 CUT = (50.6, 51.1)
 
@@ -55,7 +51,7 @@ def _project(tmp_path: Path) -> EpisodeProject:
 def _approve_reading(project: EpisodeProject) -> tuple[dict[str, list[str]], list[str]]:
     """Approve the cut; return who called each bleed-path read, and the evidence reads that ran."""
     reads: dict[str, list[str]] = {}
-    heard: list[str] = []
+    tracks_heard: list[str] = []
 
     def spy(name: str):
         original = getattr(TrackRmsCacheSet, name)
@@ -72,7 +68,7 @@ def _approve_reading(project: EpisodeProject) -> tuple[dict[str, list[str]], lis
     original_heard = track_evidence.heard
 
     def spied_heard(*args, **kwargs):
-        heard.append(args[1])
+        tracks_heard.append(args[1])
         return original_heard(*args, **kwargs)
 
     defaults = load_defaults()
@@ -81,23 +77,21 @@ def _approve_reading(project: EpisodeProject) -> tuple[dict[str, list[str]], lis
         patch.object(track_evidence, "heard", spied_heard),
     ):
         assert approve_edits(project, ["pause"], defaults=defaults) == 1
-    return reads, heard
+    return reads, tracks_heard
 
 
 def test_approving_a_cut_never_reads_the_bleed_path(tmp_path):
     project = _project(tmp_path)
 
-    reads, heard = _approve_reading(project)
+    reads, tracks_heard = _approve_reading(project)
 
-    # The accepted mute made the verdict hear the track, so the local read ran.
-    assert heard == ["caleb"]
+    assert tracks_heard == ["caleb"]
     assert reads == {}, "a verdict on approve read the whole-track bleed path:\n" + "\n".join(
         f"{name}: {where[0]}" for name, where in reads.items()
     )
 
 
-def test_the_scene_has_a_bleed_path_to_read(tmp_path):
-    """Without measured pairs the ledger would pass for want of anything to read."""
+def test_the_scene_has_bleed_pairs_so_the_ledger_is_not_vacuous(tmp_path):
     project = _project(tmp_path)
     caches = shared_timeline_rms_caches(project, defaults=load_defaults())
 
@@ -120,7 +114,7 @@ def test_a_verdict_that_reads_the_bleed_path_fails_the_ledger(tmp_path):
         return real(*args, **kwargs)
 
     with patch.object(cut_safety, "observe_source_cut", reading):
-        reads, _heard = _approve_reading(project)
+        reads, _tracks_heard = _approve_reading(project)
 
     assert set(reads) == set(BLEED_PATH_READS)
     assert all("reading" in where[0] for where in reads.values())
