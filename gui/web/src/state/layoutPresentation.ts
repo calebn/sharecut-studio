@@ -1,4 +1,4 @@
-import type { LayoutMode, ShellBreakpoint } from "../state/types";
+import type { LayoutMode, ShellBreakpoint } from "./types";
 
 export type EffectiveLayoutMode = Exclude<LayoutMode, "adaptive">;
 

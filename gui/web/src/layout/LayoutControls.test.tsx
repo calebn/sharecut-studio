@@ -35,7 +35,9 @@ describe("layout controls", () => {
       });
       renderControls();
       expect(screen.getAllByRole("button")).toHaveLength(1);
-      await userEvent.click(screen.getByRole("button", { name: label }));
+      const toggle = screen.getByRole("button", { name: label });
+      if (short) expect(toggle).toHaveTextContent("Panels");
+      await userEvent.click(toggle);
       expect(useDawStore.getState().layoutMode).toBe(expected);
     },
   );

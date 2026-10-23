@@ -2,11 +2,11 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildCommandContext } from "../commands/context";
 import { useDawStore } from "../state/dawStore";
-import { stubMatchMedia } from "../test/matchMedia";
 import {
   resolveLayoutMode,
   SHORT_TOUCH_LANDSCAPE_MQ,
-} from "./layoutPresentation";
+} from "../state/layoutPresentation";
+import { stubMatchMedia } from "../test/matchMedia";
 import { useEffectiveLayout } from "./useEffectiveLayout";
 
 afterEach(() => vi.unstubAllGlobals());

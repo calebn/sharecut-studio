@@ -6,6 +6,7 @@ import {
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { setTheme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, isMobile: true });
 
@@ -32,7 +33,7 @@ async function expectTouchable(page: Page, control: Locator) {
   ).toBe(true);
 }
 
-for (const theme of ["light", "dark"] as const) {
+for (const { theme, reducedMotion } of withAppearance([0, 1])) {
   test(`${theme} fresh short landscape exposes both tracks and explicit panel access`, async ({
     page,
   }) => {
@@ -44,11 +45,15 @@ for (const theme of ["light", "dark"] as const) {
     try {
       await switchE2eProject(fixture.projectPath);
       await page.setViewportSize({ width: 844, height: 390 });
+      await page.emulateMedia({
+        reducedMotion: reducedMotion ? "reduce" : "no-preference",
+      });
       await page.addInitScript((selectedTheme) => {
         localStorage.setItem("daw_theme", selectedTheme);
         localStorage.setItem("sharecut.homeScreenHintDismissed", "1");
       }, theme);
       await page.goto(`/?project=${encodeURIComponent(fixture.projectPath)}`);
+      await setTheme(page, theme);
       await expect(page.locator(".daw-shell--tablet")).toBeVisible();
       await expect(page.locator(".track-header-row")).toHaveCount(2);
       await page.evaluate(() => document.fonts.ready);
@@ -66,8 +71,8 @@ for (const theme of ["light", "dark"] as const) {
         }),
       ).toHaveAttribute("aria-checked", "true");
       await page.keyboard.press("Escape");
-      await expect(handle).toHaveText("Show editor panels");
-      await expect(handle).toBeVisible();
+      await expect(toggle).toHaveText("Panels");
+      await expect(handle).toHaveCount(0);
       await expect(scroller).toHaveJSProperty("scrollTop", 0);
       for (const track of ["reference", "guest"]) {
         const identity = page
@@ -116,8 +121,8 @@ for (const theme of ["light", "dark"] as const) {
         ),
       ).toBeNull();
       await page.setViewportSize({ width: 844, height: 390 });
-      await expect(handle).toBeVisible();
-      await handle.tap();
+      await expect(toggle).toHaveText("Panels");
+      await toggle.tap();
       await expect(panels).toBeVisible();
       await expect(toggle).toHaveAccessibleName("Maximize timeline");
       await page.setViewportSize({ width: 844, height: 600 });
@@ -132,6 +137,73 @@ for (const theme of ["light", "dark"] as const) {
       await expect(panels).toBeVisible();
       await page.reload();
       await expect(toggle).toHaveAccessibleName("Show editor panels");
+    } finally {
+      await switchE2eProject(e2eProjectPath);
+      removeRelocatedE2eProject(fixture.workspaceDir);
+    }
+  });
+}
+
+for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
+  test(`adaptive Panels leaves tool rail targets clear at root${rootPx} ${theme}`, async ({
+    page,
+  }) => {
+    const fixture = createRelocatedE2eProject(
+      "sharecut-e2e-adaptive-rail-",
+      undefined,
+      path.join(repoRoot, "tests/fixtures/sharecut_ux_demo"),
+    );
+    try {
+      await switchE2eProject(fixture.projectPath);
+      await page.setViewportSize({ width: 844, height: 390 });
+      await page.emulateMedia({
+        reducedMotion: reducedMotion ? "reduce" : "no-preference",
+      });
+      await page.addInitScript(() =>
+        localStorage.setItem("sharecut.homeScreenHintDismissed", "1"),
+      );
+      await page.goto(`/?project=${encodeURIComponent(fixture.projectPath)}`);
+      await setTheme(page, theme);
+      await expect(page.locator(".track-header-row")).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      await page.locator("html").evaluate((html, size) => {
+        html.style.fontSize = `${size}px`;
+      }, rootPx);
+      const controls = page.locator(
+        ".layout-toggle-btn,.tool-rail button,.editing-tool-rail button",
+      );
+      let visible = 0;
+      for (const control of await controls.all()) {
+        if (!(await control.isVisible())) continue;
+        visible++;
+        expect(
+          await control.evaluate((element) => {
+            const box = element.getBoundingClientRect();
+            return [0.1, 0.5, 0.9].every((x) =>
+              [0.1, 0.5, 0.9].every((y) =>
+                element.contains(
+                  document.elementFromPoint(
+                    box.x + box.width * x,
+                    box.y + box.height * y,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ).toBe(true);
+      }
+      expect(visible).toBeGreaterThan(1);
+      const toggle = page.locator(".layout-toggle-btn");
+      await expect(toggle).toHaveAccessibleName("Show editor panels");
+      await expect(toggle).toHaveText("Panels");
+      await expect(page.locator(".drawer-reopen-handle")).toHaveCount(0);
+      const box = await toggle.boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual((44 * rootPx) / 16);
+      expect(box!.height).toBeGreaterThanOrEqual((44 * rootPx) / 16);
+      await toggle.tap();
+      await expect(
+        page.getByRole("region", { name: "Editor panels" }),
+      ).toBeVisible();
     } finally {
       await switchE2eProject(e2eProjectPath);
       removeRelocatedE2eProject(fixture.workspaceDir);

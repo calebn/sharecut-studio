@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type DragEvent, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import type { EffectiveLayoutMode } from "../state/layoutPresentation";
 import { desktopStoryParameters } from "../storybook/storyLayout";
 import type { PresenceTab } from "../types/session";
 import { BottomTabsSplitterView } from "./BottomTabsSplitterView";
 import { FollowBannerView } from "./FollowBannerView";
-import type { EffectiveLayoutMode } from "./layoutPresentation";
 import { StatusBarView } from "./StatusBarView";
 import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
 import {

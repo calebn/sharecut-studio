@@ -2,12 +2,12 @@ import {
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "../hooks/useMediaQueryStore";
-import { useDaw } from "../state/useDaw";
 import {
   readShortTouchLandscape,
   resolveLayoutMode,
   SHORT_TOUCH_LANDSCAPE_MQ,
-} from "./layoutPresentation";
+} from "../state/layoutPresentation";
+import { useDaw } from "../state/useDaw";
 
 const subscribe = mediaQuerySubscription([SHORT_TOUCH_LANDSCAPE_MQ]);
 const serverSnapshot = () => false;
