@@ -1,0 +1,12 @@
+{
+  "base": "58a3391cbb5b18441531d6d887958db9c5d61a5b",
+  "productHeadUnchanged": "60d4c3099750f95113f55b97637b6e4eb9145b97",
+  "diagnosticOnly": true,
+  "hashAlgorithm": "SHA-256",
+  "files": {
+    "2149-resume-passive-probe.js": "b6473e9fbb8efffc2b05903dfb9f29fc8d16c9b6ec6c5031a6e6516fb675931f",
+    "2149-resume-diagnostic-handoff.md": "20cf76bcd9fb7eafdd6bbc6b637a6df9bccee4e0451c3760aed15bbc0bd99a84",
+    "2149-resume-probe-safety-check.cjs": "b2ce6c97fd2f75c72d30e9ac42d8190373fe367f3652ea94b24b1b8fee075251"
+  },
+  "validation": "node --check; mocked lifecycle safety; not browser/native efficacy"
+}
