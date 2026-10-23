@@ -49,14 +49,10 @@ export function SaveStateDot() {
   const latest = latestSaveOutcome(attention.conflicts);
   const showsDismissedOutcome =
     latest?.dismissed &&
-    ((state?.kind === "failed" &&
-      state.cause === "refused" &&
-      latest.kind === "refused" &&
-      latest.reason === state.reason) ||
-      (state?.kind === "unknown" &&
-        latest.kind === "unknown" &&
-        latest.reason === state.reason &&
-        latest.recovery === state.recovery));
+    state?.kind === "unknown" &&
+    latest.kind === "unknown" &&
+    latest.reason === state.reason &&
+    latest.recovery === state.recovery;
 
   useEffect(() => {
     if (attention.recoverySelection) {
@@ -69,7 +65,7 @@ export function SaveStateDot() {
     <SaveStateDotView
       state={state}
       attention={
-        state.kind === "failed" && !showsDismissedOutcome
+        state.kind === "failed"
           ? { kind: "passive" }
           : {
               kind: "button",

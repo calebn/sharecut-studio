@@ -49,17 +49,6 @@ export const WaitingToSend: Story = {
   },
 };
 
-export const Refused: Story = {
-  args: {
-    state: {
-      kind: "failed",
-      cause: "refused",
-      reason: "Envelope changed since this edit was queued",
-    },
-    attention: { kind: "passive" },
-  },
-};
-
 export const Unreadable: Story = {
   args: {
     state: { kind: "failed", cause: "unreadable" },

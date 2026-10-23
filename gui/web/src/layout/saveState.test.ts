@@ -43,12 +43,12 @@ describe("saveStateOf", () => {
     });
   });
 
-  it.each(["UndoHistory", "RedoHistory"])(
+  it.each(["UndoHistory", "RedoHistory", "MoveClips"])(
     "is not a failed save when only a refused %s is listed",
     (type) => {
-      const refusedHistory: SaveStateInput["conflicts"][number] = {
+      const refused: SaveStateInput["conflicts"][number] = {
         command: {
-          command_id: "history-move",
+          command_id: "refused-command",
           client_id: "client",
           client_seq: 1,
           type,
@@ -59,13 +59,13 @@ describe("saveStateOf", () => {
         reason: "Nothing to undo",
         recovery: "edit-and-resubmit",
       };
-      expect(saveStateOf({ ...quiet, conflicts: [refusedHistory] })).toEqual({
+      expect(saveStateOf({ ...quiet, conflicts: [refused] })).toEqual({
         kind: "saved",
       });
       expect(
         saveStateOf({
           ...quiet,
-          conflicts: [{ ...refusedHistory, dismissed: true }],
+          conflicts: [{ ...refused, dismissed: true }],
         }),
       ).toEqual({ kind: "saved" });
     },
@@ -98,37 +98,7 @@ describe("saveStateOf", () => {
     });
   });
 
-  it("still fails on an earlier refused edit when a later Undo was refused", () => {
-    const command = (id: string, type: string) => ({
-      command_id: id,
-      client_id: "client",
-      client_seq: 1,
-      type,
-      payload: {},
-      created_at: 0,
-    });
-    expect(
-      saveStateOf({
-        ...quiet,
-        conflicts: [
-          {
-            command: command("edit", "MoveClips"),
-            kind: "refused",
-            reason: "The clip moved.",
-            recovery: "edit-and-resubmit",
-          },
-          {
-            command: command("undo", "UndoHistory"),
-            kind: "refused",
-            reason: "Nothing to undo",
-            recovery: "edit-and-resubmit",
-          },
-        ],
-      }),
-    ).toEqual({ kind: "failed", cause: "refused", reason: "The clip moved." });
-  });
-
-  it("names the newest refusal as the reason a save failed", () => {
+  it("still counts queued edits behind a refused one", () => {
     expect(
       saveStateOf({
         ...quiet,
@@ -149,35 +119,7 @@ describe("saveStateOf", () => {
           },
         ],
       }),
-    ).toEqual({ kind: "failed", cause: "refused", reason: "The clip moved" });
-  });
-
-  it("keeps a dismissed refusal as terminal save truth", () => {
-    expect(
-      saveStateOf({
-        ...quiet,
-        conflicts: [
-          {
-            command: {
-              command_id: "dismissed",
-              client_id: "client",
-              client_seq: 1,
-              type: "SetTrackMeta",
-              payload: {},
-              created_at: 0,
-            },
-            kind: "refused",
-            reason: "The server refused this edit.",
-            recovery: "edit-and-resubmit",
-            dismissed: true,
-          },
-        ],
-      }),
-    ).toEqual({
-      kind: "failed",
-      cause: "refused",
-      reason: "The server refused this edit.",
-    });
+    ).toEqual({ kind: "waiting", count: 1 });
   });
 
   it("keeps unknown delivery distinct from a known refusal", () => {
@@ -222,10 +164,6 @@ describe("saveStateText", () => {
     [{ kind: "saved" }, "Saved to project"],
     [{ kind: "waiting", count: 1 }, "Not saved yet · 1 waiting to send"],
     [{ kind: "waiting", count: 4 }, "Not saved yet · 4 waiting to send"],
-    [
-      { kind: "failed", cause: "refused", reason: "x." },
-      "Save failed · x. Edit and submit again.",
-    ],
     [
       { kind: "failed", cause: "unreadable" },
       "Saved edits could not be read · Retry to read them",

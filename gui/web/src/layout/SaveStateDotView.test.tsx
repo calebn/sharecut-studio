@@ -47,13 +47,13 @@ describe("SaveStateDotView", () => {
   it("keeps an active failure truthful without an extra activation control", () => {
     const { container } = render(
       <SaveStateDotView
-        state={{ kind: "failed", cause: "refused", reason: "The clip moved" }}
+        state={{ kind: "failed", cause: "unreadable" }}
         attention={{ kind: "passive" }}
       />,
     );
     expect(
       screen.getByRole("img", {
-        name: "Save failed · The clip moved. Edit and submit again.",
+        name: "Saved edits could not be read · Retry to read them",
       }),
     ).toBeInTheDocument();
     expect(container.querySelector("button")).not.toBeInTheDocument();
@@ -61,10 +61,6 @@ describe("SaveStateDotView", () => {
 
   it.each([
     [{ kind: "waiting", count: 3 }, "Not saved yet · 3 waiting to send"],
-    [
-      { kind: "failed", cause: "refused", reason: "The clip moved" },
-      "Save failed · The clip moved. Edit and submit again.",
-    ],
     [
       { kind: "failed", cause: "unreadable" },
       "Saved edits could not be read · Retry to read them",

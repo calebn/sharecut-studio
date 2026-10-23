@@ -1,13 +1,11 @@
 import { SAVE_STATE_COPY } from "../record";
 import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
-import { DocumentCommand } from "../types/documentCommands.generated";
 
 /** What a host can say about the last change, derived from the send and queue state. */
 export type SaveState =
   | { kind: "saving" }
   | { kind: "saved" }
   | { kind: "waiting"; count: number }
-  | { kind: "failed"; cause: "refused"; reason: string }
   | {
       kind: "unknown";
       reason: string;
@@ -20,7 +18,7 @@ export type SaveStateInput = {
   busy: boolean;
   /** Edits in the offline queue, not yet applied. */
   pending: number;
-  /** Reasons for the edits the server refused, newest last. */
+  /** Outcomes the Needs attention banner lists, newest last. */
   conflicts: readonly OfflineConflict[];
   /** The saved edits on this device could not be read. */
   unreadable: boolean;
@@ -31,25 +29,20 @@ export type SaveStateInput = {
 };
 
 /**
- * The newest outcome that says something about a save. A refused Undo or Redo
- * changed nothing and lost no edit, so it stays in Needs attention but never
- * turns the light red.
+ * The newest outcome that says something about a save. A refused command wrote
+ * nothing and lost no edit, so it stays in Needs attention but never turns the
+ * light red.
  */
 export function latestSaveOutcome(
   conflicts: readonly OfflineConflict[],
 ): OfflineConflict | undefined {
-  return conflicts.findLast(
-    (conflict) =>
-      conflict.kind !== "refused" ||
-      (conflict.command.type !== DocumentCommand.UndoHistory &&
-        conflict.command.type !== DocumentCommand.RedoHistory),
-  );
+  return conflicts.findLast((conflict) => conflict.kind !== "refused");
 }
 
 /**
  * Busy or settling wins because an edit on its way, or one whose outcome is not
- * yet read back, is the freshest fact. Then an unreadable queue, a refused
- * edit, and edits waiting; the rest is saved. Null until the queue has been
+ * yet read back, is the freshest fact. Then an unreadable queue, an unknown
+ * outcome, and edits waiting; the rest is saved. Null until the queue has been
  * read once, so a project never claims "Saved" before it knows.
  */
 export function saveStateOf(input: SaveStateInput): SaveState | null {
@@ -63,9 +56,6 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
       reason: latestOutcome.reason,
       recovery: latestOutcome.recovery,
     };
-  }
-  if (latestOutcome?.kind === "refused") {
-    return { kind: "failed", cause: "refused", reason: latestOutcome.reason };
   }
   if (input.pending > 0) return { kind: "waiting", count: input.pending };
   return { kind: "saved" };
@@ -88,9 +78,7 @@ export function saveStateText(state: SaveState): string {
     case "waiting":
       return SAVE_DOT_COPY.waiting(state.count);
     case "failed":
-      return state.cause === "refused"
-        ? `Save failed · ${reason(state.reason)}. Edit and submit again.`
-        : "Saved edits could not be read · Retry to read them";
+      return "Saved edits could not be read · Retry to read them";
     case "unknown":
       return state.recovery === "inspect-history"
         ? `Outcome unknown · ${reason(state.reason)}. Inspect History before trying again.`
