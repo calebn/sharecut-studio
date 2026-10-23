@@ -395,4 +395,62 @@ describe("useModelGate", () => {
     expect(await screen.findByText("done")).toBeInTheDocument();
     expect(view.api.download).not.toHaveBeenCalled();
   });
+
+  it("does not offer Cancel for another Whisper size's download", async () => {
+    const job = {
+      id: "j",
+      kind: "bootstrap",
+      status: "running",
+      components: ["whisper"],
+      download: { component: "whisper", bytes: 10, total: 100 },
+    } as never;
+    mount(ok(), [{ id: "whisper", variant: "small.en", installed: false }], {
+      status: modelStatus(rows()),
+      job,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    const download = await screen.findByRole("button", { name: "Download" });
+    expect(download).toBeDisabled();
+    expect(download).toHaveAttribute("title", ANOTHER_DOWNLOAD_REASON);
+    expect(
+      screen.queryByRole("button", { name: "Cancel download" }),
+    ).toBeNull();
+  });
+
+  it("settles a 409 that arrives after the host unmounted as declined", async () => {
+    let fail: (e: unknown) => void = () => undefined;
+    const action: Action = vi.fn(
+      () =>
+        new Promise<string>((_, reject) => {
+          fail = reject;
+        }),
+    );
+    let settled: GateResult<string> | null = null;
+    function Once() {
+      const gate = useModelGate();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            void gate.run(action).then((r) => {
+              settled = r;
+            })
+          }
+        >
+          Go
+        </button>
+      );
+    }
+    const view = render(
+      <ModelsContext.Provider value={modelsApi(fixture())}>
+        <Once />
+      </ModelsContext.Provider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    view.unmount();
+    fail(modelNeeded());
+    await waitFor(() =>
+      expect(settled).toMatchObject({ kind: "declined", id: "word-aligner" }),
+    );
+  });
 });
