@@ -1089,6 +1089,56 @@ describe("PipelinePanel", () => {
     expect(startPipelineRun).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["Not now", "decline"],
+    ["Download", "accept"],
+  ])(
+    "does not reopen the phone Step parameters sheet after the model prompt (%s)",
+    async (button) => {
+      shellBreakpoint = "phone";
+      const user = userEvent.setup();
+      const cfg = alignerConfig(true, true);
+      cfg.config = {
+        ...cfg.config,
+        transcribe: {
+          ...(cfg.config.transcribe as Record<string, unknown>),
+          model: "large-v3-turbo",
+        },
+      };
+      loadPipelineConfig.mockResolvedValue(cfg);
+      loadTranscriptVocabulary.mockResolvedValue({
+        terms: [],
+        guest_names: [],
+        revision: "r1",
+        needs_retranscription: false,
+        edited_tracks: [],
+      });
+      answerQuestions(confirmReply.mockReturnValue(true));
+      render(
+        <main>
+          <PipelinePanel />
+        </main>,
+      );
+      await user.click(
+        await screen.findByRole("button", { name: "Transcribe tracks" }),
+      );
+      await user.click(screen.getByRole("button", { name: "Show advanced" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Re-time words" }),
+      );
+      await user.click(await screen.findByRole("button", { name: button }));
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Download Whisper?" }),
+        ).toBeNull(),
+      );
+      expect(
+        screen.queryByRole("dialog", { name: "Step parameters" }),
+      ).toBeNull();
+      confirmReply.mockReset();
+    },
+  );
+
   it("Re-time words ignores a second click while the first is still loading", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(true, true));

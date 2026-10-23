@@ -691,6 +691,7 @@ export function PipelinePanel() {
     if (!cfg) {
       return;
     }
+    setDetailOpen(false);
     const needs: ModelNeed[] = [];
     // Re-time words needs Whisper too: its run still transcribes any dialogue track that
     // has no stored transcript yet (only reused transcripts are re-timed from the ASR cache).
