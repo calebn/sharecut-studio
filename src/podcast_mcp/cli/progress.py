@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from typing import Any
 
 from podcast_mcp.cli.context import get_progress
+from podcast_mcp.cli.model_offer import offer_download
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
     ProgressTask,
     adapter_progress_sinks,
@@ -43,7 +45,15 @@ def install_cli_progress(app: Any) -> None:
         @functools.wraps(callback)
         def wrapped(*args: Any, **kwargs: Any) -> Any:
             with cli_progress_task(op_id):
-                return callback(*args, **kwargs)
+                offered: set[tuple[str, str]] = set()
+                while True:
+                    try:
+                        return callback(*args, **kwargs)
+                    except ModelMissing as missing:
+                        asked = (missing.id, missing.model)
+                        if asked in offered or not offer_download(missing):
+                            raise
+                        offered.add(asked)
 
         wrapped._podcast_progress_wrapped = True  # type: ignore[attr-defined]
         return wrapped

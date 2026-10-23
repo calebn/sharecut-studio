@@ -11,6 +11,7 @@ Long-running CLI operations report progress on **stderr** so stdout stays clean 
 | `--progress` / `--no-progress` | Rich bar/spinner when stderr is a TTY (default: on) |
 | `--json-progress` | One JSON object per line on stderr (for automation / GUI) |
 | `PODCAST_PROGRESS=0` | Disable progress (same as `--no-progress`) |
+| `--no-input` | Never prompt; a command that needs a missing model prints its install command and exits 1 (see [A missing model](#a-missing-model)) |
 
 When stderr is **not** a TTY and `--json-progress` is off, there is no CLI consumer → `NullProgress` (progress stays silent). Use `--json-progress` in pipes when you want machine-readable events. A command handed to a running Studio (`docs/gui-integration.md`) is not on a TTY either, so it draws no bars; `--json-progress` events still reach the caller.
 
@@ -92,6 +93,10 @@ Common ids in the table are **child** ids when nested. They collapse onto the wr
 ## `podcast bootstrap`
 
 Each model downloads under a `bootstrap.bytes` child of the command task, so the Rich bar on a TTY counts bytes with no extra code. Off a TTY the rule above holds and no bar is drawn. Instead the command prints a line before each model, `[get] <id> (<size>)`, and one after it, `[ok] <id>: <path>` or `[fail] <id>: <reason>`, on stdout and stderr as before. The `[get]` line prints only for a model that will install (not for one already cached unless `--upgrade`). The `[fail]` reason is plain text and never names a path, URL or environment variable (the `[ok]` line still prints the install path); `--json-progress` still carries the byte events. A pipe gets component-level updates only: a byte-level line stream would be a new non-TTY sink for every command.
+
+## A missing model
+
+A command that needs a model that is not installed stops with `Error: needs <label> (<size>); run `podcast bootstrap --component <id>` (code model_needed)`. When stdin and stderr are both a terminal and `--no-input` is not given, it first asks `Download <label> (<size>)? [y/N]:` on stderr. Only `y` downloads: the model installs the way `podcast bootstrap --component <id>` installs it (the same byte bar on the command task, and the same `[ok]` or `[fail]` line), then the command runs again from its start. Enter, `n`, end of input or Ctrl+C declines, and the command ends with the line above and exit 1. A failed download prints its `[fail]` line and then the same line. A pipe, a redirected stdin or `--no-input` gets that one line with no prompt and no download. A model that is installed but out of date (`update_needed`) is not offered; its line names the `--upgrade` command (`cli/model_offer.py`).
 
 ## Domain code
 

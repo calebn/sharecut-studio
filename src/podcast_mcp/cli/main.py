@@ -52,8 +52,13 @@ def main_callback(
         "--json-progress",
         help="Emit structured progress events as JSON lines on stderr.",
     ),
+    no_input: bool = typer.Option(
+        False,
+        "--no-input",
+        help="Never prompt: a missing model prints its install command instead of offering the download.",
+    ),
 ) -> None:
-    cli_context.configure(progress=progress, json_progress=json_progress)
+    cli_context.configure(progress=progress, json_progress=json_progress, no_input=no_input)
     # Scope the reporter to this invocation: it may hold the caller's stderr
     # (``--json-progress``), which in-process callers such as CliRunner close
     # once the command returns. Leaving it bound would leak a dead stream into
