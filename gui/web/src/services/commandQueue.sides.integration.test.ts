@@ -231,7 +231,7 @@ describe.each([
 
   it("keeps the server's plain words when a write failure is the unknown outcome", async () => {
     const words =
-      "The disk is full, so this edit was not saved. Free some space, then try again.";
+      "The disk is full, so the project could not be written. Free some space, then try again.";
     post.mockResolvedValue({
       ok: false,
       status: 507,

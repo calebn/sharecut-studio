@@ -32,6 +32,7 @@ from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.tool_refusal import tool_refusal
 
 ERROR_CODE_HEADER = "X-Sharecut-Error-Code"
+PROJECT_WRITE_FAILED_CODE = "project_write_failed"
 NO_STORE = {"Cache-Control": "no-store"}
 SHARE_LOGIN_PATH = "/auth/login"
 
@@ -47,19 +48,19 @@ def coded_http_error(
     )
 
 
-PROJECT_WRITE_FAILED_CODE = "project_write_failed"
-
 _DISK_FULL_ERRNOS = {errno.ENOSPC, errno.EDQUOT}
 _NOT_WRITABLE_ERRNOS = {errno.EACCES, errno.EPERM, errno.EROFS}
-_SQLITE_READONLY, _SQLITE_IOERR, _SQLITE_FULL = 8, 10, 13
 
-_DISK_FULL_TEXT = "The disk is full, so this edit was not saved. Free some space, then try again."
+_DISK_FULL_TEXT = (
+    "The disk is full, so the project could not be written. Free some space, then try again."
+)
 _NOT_WRITABLE_TEXT = (
-    "Studio is not allowed to write to the project folder, so this edit was not saved. "
-    "Check that the folder is not read-only, then try again."
+    "Studio could not write to the project folder. "
+    "Check that it is not read-only and that Studio may use it, then try again."
 )
 _DISK_ERROR_TEXT = (
-    "The disk reported an error, so this edit was not saved. Check the drive, then try again."
+    "The disk reported an error, so the project could not be written. "
+    "Check the drive, then try again."
 )
 
 
@@ -75,9 +76,9 @@ def project_write_failure(exc: BaseException) -> HTTPException | None:
     if isinstance(exc, sqlite3.OperationalError):
         code = getattr(exc, "sqlite_errorcode", None)
         base = (code & 0xFF) if code is not None else None
-        full = base == _SQLITE_FULL
-        not_writable = base == _SQLITE_READONLY
-        disk_error = base == _SQLITE_IOERR
+        full = base == sqlite3.SQLITE_FULL
+        not_writable = base == sqlite3.SQLITE_READONLY
+        disk_error = base == sqlite3.SQLITE_IOERR
     elif isinstance(exc, OSError):
         full = exc.errno in _DISK_FULL_ERRNOS
         not_writable = exc.errno in _NOT_WRITABLE_ERRNOS

@@ -459,10 +459,16 @@ async function submitLiveHistoryIntent(
           await settleCommandOutcome(
             projectPath,
             cmd,
-            commandOutcome(cmd, "unknown", historyUnknownReason(reply.failure)),
+            commandOutcome(
+              cmd,
+              "unknown",
+              "Undo or Redo may have been applied. Check History before trying again.",
+            ),
             true,
           );
-          throw new Error(historyUnknownReason(reply.failure));
+          throw new Error(
+            "Undo or Redo may have been applied. Check History before trying again.",
+          );
         }
         await settleCommandOutcome(
           projectPath,
@@ -535,10 +541,16 @@ async function submitLiveHistoryIntent(
         await settleCommandOutcome(
           projectPath,
           cmd,
-          commandOutcome(cmd, "unknown", historyUnknownReason(reply.failure)),
+          commandOutcome(
+            cmd,
+            "unknown",
+            "Undo or Redo may have been applied. Check History before trying again.",
+          ),
           true,
         );
-        throw new Error(historyUnknownReason(reply.failure));
+        throw new Error(
+          "Undo or Redo may have been applied. Check History before trying again.",
+        );
       }
       await settleCommandOutcome(
         projectPath,
@@ -597,12 +609,6 @@ async function submitCommand(
 
 const RETRY_REASON =
   "The server may have applied this edit. Retrying will reuse the same command.";
-const HISTORY_UNKNOWN_REASON =
-  "Undo or Redo may have been applied. Check History before trying again.";
-
-function historyUnknownReason(failure: ApiError): string {
-  return writeFailureReason(failure) ?? HISTORY_UNKNOWN_REASON;
-}
 
 /**
  * What differs between the host and share-guest submit paths. Everything else
