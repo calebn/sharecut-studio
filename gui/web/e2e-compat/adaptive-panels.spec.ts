@@ -1,14 +1,64 @@
 import path from "node:path";
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Request,
+  test,
+} from "@playwright/test";
 import { e2eProjectPath, repoRoot } from "../e2e/env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
+import { hostOfflineQueueCount } from "../e2e/offlineQueue";
 import { switchE2eProject } from "../e2e/shareableProject";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, isMobile: true });
+
+function isMuteRequest(
+  request: Request,
+  projectPath: string,
+  trackId: string,
+  muted: boolean,
+) {
+  const url = new URL(request.url());
+  if (
+    request.method() !== "POST" ||
+    url.pathname !== "/api/document/command" ||
+    url.searchParams.get("path") !== projectPath
+  )
+    return false;
+  const command = request.postDataJSON();
+  return (
+    command.type === "SetTrackMute" &&
+    command.payload.track_id === trackId &&
+    command.payload.muted === muted
+  );
+}
+
+function muteAcknowledgment(
+  page: Page,
+  projectPath: string,
+  trackId: string,
+  muted: boolean,
+) {
+  return page.waitForResponse((response) =>
+    isMuteRequest(response.request(), projectPath, trackId, muted),
+  );
+}
+
+async function expectMixSettled(page: Page, projectPath: string) {
+  await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(0);
+  await expect(page.locator(".save-dot")).toHaveAttribute(
+    "data-save-state",
+    "saved",
+  );
+  await expect(
+    page.getByRole("region", { name: /Needs attention/ }),
+  ).toBeHidden();
+}
 
 async function expectTouchable(page: Page, control: Locator) {
   const bounds = await control.boundingBox();
@@ -96,12 +146,23 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
             name: `${action} ${track}`,
             exact: true,
           });
-          await expectTouchable(page, button);
-          await button.tap();
-          await expect(button).toHaveAttribute("aria-pressed", "true");
-          await button.tap();
-          await expect(button).toHaveAttribute("aria-pressed", "false");
-          await expect(scroller).toHaveJSProperty("scrollTop", 0);
+          for (const pressed of [true, false]) {
+            await expectTouchable(page, button);
+            const acknowledgment =
+              action === "Mute"
+                ? muteAcknowledgment(page, fixture.projectPath, track, pressed)
+                : null;
+            await button.tap();
+            await expect(button).toHaveAttribute(
+              "aria-pressed",
+              String(pressed),
+            );
+            if (acknowledgment) {
+              expect((await acknowledgment).ok()).toBe(true);
+              await expectMixSettled(page, fixture.projectPath);
+            }
+            await expect(scroller).toHaveJSProperty("scrollTop", 0);
+          }
         }
       }
       await page.setViewportSize({ width: 844, height: 600 });
@@ -205,6 +266,129 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         page.getByRole("region", { name: "Editor panels" }),
       ).toBeVisible();
     } finally {
+      await switchE2eProject(e2eProjectPath);
+      removeRelocatedE2eProject(fixture.workspaceDir);
+    }
+  });
+}
+
+for (const { theme, reducedMotion } of withAppearance([0], 3)) {
+  test(`${theme} a native guest Mute center tap stays at scrollTop zero while acknowledgment is pending`, async ({
+    page,
+  }) => {
+    const fixture = createRelocatedE2eProject(
+      "sharecut-e2e-adaptive-pending-",
+      undefined,
+      path.join(repoRoot, "tests/fixtures/sharecut_ux_demo"),
+    );
+    let releaseResponse!: () => void;
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    let responseHeld!: () => void;
+    const heldResponse = new Promise<void>((resolve) => {
+      responseHeld = resolve;
+    });
+    let held = false;
+    try {
+      await switchE2eProject(fixture.projectPath);
+      await page.setViewportSize({ width: 844, height: 390 });
+      await page.emulateMedia({
+        reducedMotion: reducedMotion ? "reduce" : "no-preference",
+      });
+      await page.addInitScript((selectedTheme) => {
+        localStorage.setItem("daw_theme", selectedTheme);
+        localStorage.setItem("sharecut.homeScreenHintDismissed", "1");
+      }, theme);
+      await page.route("**/api/document/command?*", async (route) => {
+        if (
+          !held &&
+          isMuteRequest(route.request(), fixture.projectPath, "guest", true)
+        ) {
+          held = true;
+          const response = await route.fetch();
+          expect(response.ok()).toBe(true);
+          responseHeld();
+          await responseGate;
+          await route.fulfill({ response });
+        } else await route.continue();
+      });
+      await page.goto(`/?project=${encodeURIComponent(fixture.projectPath)}`);
+      await setTheme(page, theme);
+      await expect(page.locator(".track-header-row")).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      await expectMixSettled(page, fixture.projectPath);
+      const scroller = page.locator(".timeline-scroll");
+      const button = page.getByRole("button", {
+        name: "Mute guest",
+        exact: true,
+      });
+      await expectTouchable(page, button);
+      await expect(button).toHaveAttribute("aria-pressed", "false");
+      await expect(scroller).toHaveJSProperty("scrollTop", 0);
+      const onAcknowledgment = muteAcknowledgment(
+        page,
+        fixture.projectPath,
+        "guest",
+        true,
+      );
+      await button.tap();
+      await heldResponse;
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        page.getByRole("region", { name: /Needs attention/ }),
+      ).toBeVisible();
+      await expect
+        .poll(() => hostOfflineQueueCount(page, fixture.projectPath))
+        .toBe(1);
+      const center = await button.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const scrollport = document
+          .querySelector(".timeline-scroll")!
+          .getBoundingClientRect();
+        const x = box.x + box.width / 2;
+        const y = box.y + box.height / 2;
+        return {
+          x,
+          y,
+          inViewport: x >= 0 && x <= innerWidth && y >= 0 && y <= innerHeight,
+          inScrollport:
+            x >= scrollport.left &&
+            x <= scrollport.right &&
+            y >= scrollport.top &&
+            y <= scrollport.bottom,
+          ownsHit: element.contains(document.elementFromPoint(x, y)),
+        };
+      });
+      expect(center).toMatchObject({
+        inViewport: true,
+        inScrollport: true,
+        ownsHit: true,
+      });
+      expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
+      const offAcknowledgment = muteAcknowledgment(
+        page,
+        fixture.projectPath,
+        "guest",
+        false,
+      );
+      await page.touchscreen.tap(center.x, center.y);
+      expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
+      await expect(button).toHaveAttribute("aria-pressed", "false");
+      await expect(
+        page.getByRole("region", { name: /Needs attention/ }),
+      ).toBeVisible();
+      releaseResponse();
+      expect((await onAcknowledgment).ok()).toBe(true);
+      expect((await offAcknowledgment).ok()).toBe(true);
+      expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
+      await expectMixSettled(page, fixture.projectPath);
+      await expect(button).toHaveAttribute("aria-pressed", "false");
+      expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
+      await expectTouchable(page, button);
+    } finally {
+      releaseResponse();
+      await page.unrouteAll({ behavior: "wait" });
       await switchE2eProject(e2eProjectPath);
       removeRelocatedE2eProject(fixture.workspaceDir);
     }

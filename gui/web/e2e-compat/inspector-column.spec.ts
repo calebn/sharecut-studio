@@ -8,6 +8,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { setTheme, withAppearance } from "../e2e/theme";
 import {
   buildFixture,
   type CaseFixtures,
@@ -264,6 +265,16 @@ for (const [name, view] of Object.entries(COLUMN)) {
       page,
     }) => {
       await open(page, view, false);
+      if (view.shell === "tablet") {
+        await page
+          .getByRole("button", { name: "Show editor panels", exact: true })
+          .tap();
+        const panels = page.getByRole("region", { name: "Editor panels" });
+        await expect(panels).toBeVisible();
+        await expect(
+          panels.getByRole("separator", { name: "Resize editor panels" }),
+        ).toBeVisible();
+      }
       const before = await geometry(page);
       await page.locator(".clip-hit").first().tap();
       await expectColumn(page, view, name);
@@ -303,7 +314,16 @@ for (const [name, view] of Object.entries(COLUMN)) {
       await expect(heading).toBeVisible();
       await expectCloseWorks(page, name);
       const closed = await geometry(page);
-      expect(closed.tabsHidden && closed.navHidden).toBe(false);
+      if (view.shell === "tablet") {
+        await expect(
+          page.getByRole("region", { name: "Editor panels" }),
+        ).toBeVisible();
+        expect(closed.tabsHidden).toBe(before.tabsHidden);
+      } else {
+        await expect(page.locator(".mobile-nav")).toBeVisible();
+        expect(closed.navHidden).toBe(before.navHidden);
+      }
+      expect(closed.timeline!.width).toBeCloseTo(before.timeline!.width, 0);
     });
 
     test("an envelope point's lane stays whole and uncovered beside the column", async ({
@@ -441,6 +461,64 @@ for (const [name, view] of Object.entries(COLUMN)) {
     });
   });
 }
+
+for (const {
+  cell: [name, view],
+  theme,
+  reducedMotion,
+} of withAppearance(
+  Object.entries(COLUMN).filter(([, view]) => view.shell === "tablet"),
+)) {
+  test(`${name}: Close keeps fresh adaptive panels stowed`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({
+      reducedMotion: reducedMotion ? "reduce" : "no-preference",
+    });
+    await open(page, view, false);
+    await setTheme(page, theme);
+    const panels = page.getByRole("region", { name: "Editor panels" });
+    const toggle = page.locator(".layout-toggle-btn");
+    await expect(panels).toBeHidden();
+    await expect(toggle).toHaveAccessibleName("Show editor panels");
+    const before = await geometry(page);
+    await page.locator(".clip-hit").first().tap();
+    await expectColumn(page, view, name);
+    await expectCloseWorks(page, name);
+    await expect(panels).toBeHidden();
+    await expect(toggle).toHaveAccessibleName("Show editor panels");
+    expect((await geometry(page)).timeline!.width).toBeCloseTo(
+      before.timeline!.width,
+      0,
+    );
+  });
+}
+
+test("844x390: Close keeps an explicitly maximized timeline collapsed", async ({
+  page,
+}) => {
+  const view = COLUMN["844x390 tablet shell"];
+  await open(page, view, false);
+  const panels = page.getByRole("region", { name: "Editor panels" });
+  const toggle = page.locator(".layout-toggle-btn");
+  await toggle.tap();
+  await expect(panels).toBeVisible();
+  await expect(toggle).toHaveAccessibleName("Maximize timeline");
+  await toggle.tap();
+  await expect(panels).toBeHidden();
+  await expect(toggle).toHaveAccessibleName("Restore layout");
+  const before = await geometry(page);
+  await page.locator(".clip-hit").first().tap();
+  await expectColumn(page, view, "explicit timeline");
+  await expectCloseWorks(page, "explicit timeline");
+  await expect(panels).toBeHidden();
+  await expect(toggle).toHaveAccessibleName("Restore layout");
+  await expect(page.locator(".drawer-reopen-handle")).toBeVisible();
+  expect((await geometry(page)).timeline!.width).toBeCloseTo(
+    before.timeline!.width,
+    0,
+  );
+});
 
 test("with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice", async ({
   page,
