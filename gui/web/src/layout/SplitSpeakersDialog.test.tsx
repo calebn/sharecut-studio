@@ -837,6 +837,48 @@ describe("SplitSpeakersDialog", () => {
       expect(startSplitSpeakersJob).not.toHaveBeenCalled();
     });
 
+    it("moves focus to Download when the prompt replaces the settings", async () => {
+      const user = userEvent.setup();
+      render(<SplitSpeakersDialog />, false);
+      await splitTwo(user);
+
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Download" })).toHaveFocus(),
+      );
+    });
+
+    it("drops the prompt when the dialog closes and does not bring it back on reopen", async () => {
+      const user = userEvent.setup();
+      render(<SplitSpeakersDialog />, false);
+      await splitTwo(user);
+      await screen.findByRole("button", { name: "Download" });
+
+      act(() => useDawStore.getState().setSplitSpeakersTrackId(null));
+      openFor("room");
+
+      expect(
+        await screen.findByRole("button", { name: "Split speakers" }),
+      ).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Download" })).toBeNull();
+      expect(screen.queryByText(/will ask again/)).toBeNull();
+      expect(startSplitSpeakersJob).not.toHaveBeenCalled();
+    });
+
+    it("does not start the split when the project changed during the download", async () => {
+      const user = userEvent.setup();
+      downloadModel.mockImplementation(async () => {
+        useDawStore.setState({ projectPath: "/tmp/other.project.json" });
+        return { kind: "ok" };
+      });
+      render(<SplitSpeakersDialog />, false);
+      await splitTwo(user);
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+      await waitFor(() => expect(downloadModel).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(startSplitSpeakersJob).not.toHaveBeenCalled();
+    });
+
     it("keeps the dialog open when Escape declines the prompt", async () => {
       const user = userEvent.setup();
       render(<SplitSpeakersDialog />, false);

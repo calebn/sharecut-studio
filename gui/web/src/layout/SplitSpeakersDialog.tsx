@@ -99,6 +99,10 @@ export function SplitSpeakersDialog() {
   const speakerModel = useModel(SPEAKER_MODEL_COMPONENT);
   const gate = useModelGate();
   const open = trackId != null && project != null;
+  const resetGate = gate.reset;
+  useEffect(() => {
+    resetGate();
+  }, [open, trackId, projectPath, resetGate]);
   useEffect(() => {
     if (!open) return;
     let current = true;
@@ -226,6 +230,9 @@ export function SplitSpeakersDialog() {
     const label = trackLabel;
     try {
       const started = await gate.run(async () => {
+        if (scope.signal.aborted) {
+          throw new DOMException("Aborted", "AbortError");
+        }
         setFlow({
           kind: "running",
           trackId,
