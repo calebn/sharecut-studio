@@ -1,0 +1,19 @@
+{
+  "base": "7f85f9a5502486c25d84577904f8c1c0c5cc09b2",
+  "productHeadUnchanged": "60d4c3099750f95113f55b97637b6e4eb9145b97",
+  "priorProofsUnchanged": [
+    "627a6ad2ec9ffd91aa434346e39ac64485701efd",
+    "c1b113c186729680715006f368bca878ab70cfaf"
+  ],
+  "diagnosticOnly": true,
+  "hashAlgorithm": "SHA-256",
+  "files": {
+    "2149-external-native-handoff.md": "2badc913322ee79cdf737f51398626e1c897772361caaf90bd6ba803b269a8e9",
+    "2149-external-stage-document.py": "39e6273cb3b98bbf21069cd3e861a82582cc5b6faa367acf0cf5a49fb2325e5a",
+    "2149-external-staging-safety-check.py": "c8f15d702f42c1cabc86092e3a2dee4cb7e2c2ed7986aba3823a8b94a88a92ed",
+    "2149-next-gate-safety-check.cjs": "07a6bc7b55afdead1ada5fae9f0efb3a65f42f97da6d0f219223b25be0242c41",
+    "2149-next-manifest-snapshot.js": "636025244b03f1abd531eca33578ce3bfcfbf3dc2b02a6552caf1c3e7aca4fc5",
+    "2149-next-nav-gate.js": "9ef86e0a336278a55df6bde8a8b45c40babfe6970e2b44ce8b81e47b74da49d9"
+  },
+  "validation": "Luna code review, syntax/mock/staging fixtures and independent root Chromium CSP delivery only; no revised native Safari efficacy"
+}
