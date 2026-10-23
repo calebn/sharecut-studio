@@ -164,16 +164,22 @@ def install_model(
     whisper_model: str,
     force: bool = False,
     cancel_check: Callable[[], bool] | None = None,
+    persist_preference: bool = True,
 ) -> dict[str, Any]:
     """Install one registry model; ``whisper_model`` is the variant only Whisper takes.
+
+    ``persist_preference=False`` leaves the saved Whisper default alone (a one-run choice).
 
     Download progress runs as a ``bootstrap.bytes`` child of the current progress task.
     A known failure raises ``InstallFailure`` (the only place it is classified) after logging
     its cause with the traceback; anything else is a bug and raises as it was. ``cancel_check`` stops a download mid-stream.
     """
+    install = spec.install
+    if not persist_preference and spec.install_without_preference is not None:
+        install = spec.install_without_preference
     with _ByteRelay(spec.id, spec.label, cancel_check) as relay:
         try:
-            return spec.install(whisper_model if spec.id == "whisper" else None, force, relay)
+            return install(whisper_model if spec.id == "whisper" else None, force, relay)
         except CancelledProgress:
             raise
         except Exception as exc:

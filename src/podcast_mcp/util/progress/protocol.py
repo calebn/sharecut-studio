@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
@@ -89,3 +90,5 @@ class ProgressReporter(Protocol):
     ) -> None: ...  # pragma: no cover
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None: ...  # pragma: no cover
+
+    def paused(self) -> AbstractContextManager[None]: ...  # pragma: no cover
