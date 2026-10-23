@@ -167,8 +167,8 @@ function ExportProgress({
         nowSec={nowSec}
       />
       <p className="export-dialog-note">
-        You can close this window. The export keeps going, and the status bar
-        shows its progress.
+        You can close this window. The export keeps going, and once it starts the
+        status bar shows its progress.
       </p>
       {cancelError ? (
         <InlineError message={`Cancel failed: ${cancelError}`} />
