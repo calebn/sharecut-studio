@@ -30,6 +30,7 @@ from podcast_mcp.services.document_sync import (
 )
 from podcast_mcp.util.project_state import ProjectBusyError
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
+from podcast_mcp.util.write_failure import ProjectWriteFailedError
 
 router = APIRouter()
 
@@ -115,6 +116,8 @@ def post_document_command(
         )
     except DocumentConflictError as exc:
         raise document_conflict_error(exc) from exc
+    except ProjectWriteFailedError as exc:
+        raise coded_http_error(exc.status, str(exc), code=exc.code) from exc
     except TranscriptRefineRequiredError as exc:
         raise coded_http_error(409, str(exc), code=exc.code) from exc
     except sqlite3.OperationalError as exc:

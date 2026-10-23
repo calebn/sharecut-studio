@@ -14,6 +14,7 @@ from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError, coded_cau
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
 from podcast_mcp.util.tool_refusal import ToolRefusal, tool_refusal
+from podcast_mcp.util.write_failure import ProjectWriteFailedError
 
 
 def _refusal(exc: BaseException, logger: logging.Logger, operation: str) -> ToolRefusal | None:
@@ -44,6 +45,8 @@ def guest_http_error(
         status = 409
     elif isinstance(cause, HostSetupError):
         status = 500
+    elif isinstance(cause, ProjectWriteFailedError):
+        status = cause.status
     elif isinstance(cause, PermissionError):
         status = 403
     elif isinstance(cause, (KeyError, LookupError, FileNotFoundError)):

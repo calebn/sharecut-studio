@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -62,6 +63,7 @@ from podcast_mcp.services.session_sync import (
 from podcast_mcp.util.coded_error import CodedError, CodedPermissionError
 from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
+from podcast_mcp.util.write_failure import project_write_failed
 
 log = logging.getLogger(__name__)
 
@@ -524,6 +526,33 @@ class DocumentSyncService:
         author: str | None = None,
         audience: str = "host",
         trusted_context: TrustedCommandContext = PROGRAMMATIC_COMMAND,
+    ) -> dict[str, Any]:
+        """Apply ``command``; a disk-full, read-only or I/O failure raises ``ProjectWriteFailedError``."""
+        try:
+            return self._submit(
+                command,
+                capabilities=capabilities,
+                range_policy=range_policy,
+                structural_mode=structural_mode,
+                author=author,
+                audience=audience,
+                trusted_context=trusted_context,
+            )
+        except (OSError, sqlite3.OperationalError) as exc:
+            if (failure := project_write_failed(exc)) is not None:
+                raise failure from exc
+            raise
+
+    def _submit(
+        self,
+        command: DocumentCommand,
+        *,
+        capabilities: list[str] | None,
+        range_policy: str,
+        structural_mode: str | None,
+        author: str | None,
+        audience: str,
+        trusted_context: TrustedCommandContext,
     ) -> dict[str, Any]:
         if capabilities is not None:
             from podcast_mcp.services.document_sync.capabilities import (

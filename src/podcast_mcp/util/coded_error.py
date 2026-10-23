@@ -42,6 +42,7 @@ _GUEST_MESSAGES = {
     "pending_edit_changed": "This edit changed since you reviewed it. Review the updated edit before trying again.",
     "pending_preview_unavailable": "This preview isn't available right now. Ask the host to check the project.",
     "project_busy": "This project is busy; try again.",
+    "project_write_failed": "Your change could not be saved on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.",
     "project_unreadable": "This project can't be opened right now; ask the host to check it.",
     "project_not_found": "This link isn't available right now; ask the host to check it.",
     "registry_not_private": "The host's sharing setup needs attention; ask the host to check it.",

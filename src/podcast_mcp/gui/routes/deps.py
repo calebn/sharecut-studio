@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import errno
-import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -31,9 +29,9 @@ from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.tool_refusal import tool_refusal
+from podcast_mcp.util.write_failure import project_write_failed
 
 ERROR_CODE_HEADER = "X-Sharecut-Error-Code"
-PROJECT_WRITE_FAILED_CODE = "project_write_failed"
 NO_STORE = {"Cache-Control": "no-store"}
 SHARE_LOGIN_PATH = "/auth/login"
 
@@ -49,50 +47,12 @@ def coded_http_error(
     )
 
 
-_DISK_FULL_ERRNOS = {errno.ENOSPC, errno.EDQUOT}
-_NOT_WRITABLE_ERRNOS = {errno.EACCES, errno.EPERM, errno.EROFS}
-
-_DISK_FULL_TEXT = (
-    "The disk is full, so the project could not be written. Free some space, then try again."
-)
-_NOT_WRITABLE_TEXT = (
-    "Studio could not write to the project folder. "
-    "Check that it is not read-only and that Studio may use it, then try again."
-)
-_DISK_ERROR_TEXT = (
-    "The disk reported an error, so the project could not be written. "
-    "Check the drive, then try again."
-)
-
-
 def project_write_failure(exc: BaseException) -> HTTPException | None:
-    """Plain-words 5xx for a command that could not write the project (disk full, read-only,
-    permission denied, I/O error), or ``None`` for any other error.
-
-    A coded refusal (``CodedError``) is a policy answer, never a write failure. The text names
-    the cause and the fix and never the file path.
-    """
-    if isinstance(exc, CodedError):
+    """Plain-words 5xx for a command that could not write the project, or ``None`` for any other error."""
+    failed = project_write_failed(exc)
+    if failed is None:
         return None
-    if isinstance(exc, sqlite3.OperationalError):
-        code = getattr(exc, "sqlite_errorcode", None)
-        base = (code & 0xFF) if code is not None else None
-        full = base == sqlite3.SQLITE_FULL
-        not_writable = base == sqlite3.SQLITE_READONLY
-        disk_error = base == sqlite3.SQLITE_IOERR
-    elif isinstance(exc, OSError):
-        full = exc.errno in _DISK_FULL_ERRNOS
-        not_writable = exc.errno in _NOT_WRITABLE_ERRNOS
-        disk_error = exc.errno == errno.EIO
-    else:
-        return None
-    if full:
-        return coded_http_error(507, _DISK_FULL_TEXT, code=PROJECT_WRITE_FAILED_CODE)
-    if not_writable:
-        return coded_http_error(500, _NOT_WRITABLE_TEXT, code=PROJECT_WRITE_FAILED_CODE)
-    if disk_error:
-        return coded_http_error(500, _DISK_ERROR_TEXT, code=PROJECT_WRITE_FAILED_CODE)
-    return None
+    return coded_http_error(failed.status, str(failed), code=failed.code)
 
 
 def document_conflict_error(exc: DocumentConflictError) -> HTTPException:
