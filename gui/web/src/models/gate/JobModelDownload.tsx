@@ -34,11 +34,13 @@ export function JobModelDownload({
   const need = job ? modelNeededOfJob(job) : null;
   const jobId = job?.id;
   const resetGate = gate.reset;
-  const [downloaded, setDownloaded] = useState<string | null>(null);
+  const [done, setDone] = useState<{ jobId?: string; label: string } | null>(
+    null,
+  );
+  const downloaded = done && done.jobId === jobId ? done.label : null;
   const doneRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     resetGate();
-    setDownloaded(null);
   }, [jobId, resetGate]);
   useEffect(() => {
     if (downloaded) doneRef.current?.focus();
@@ -71,7 +73,7 @@ export function JobModelDownload({
       [{ id: need.id, variant: need.variant ?? undefined, installed: false }],
     );
     if (ran.kind !== "ran" || !ran.value) return;
-    setDownloaded(need.label);
+    setDone({ jobId, label: need.label });
     if (
       kind === "render_preview" &&
       useDawStore.getState().projectEpoch === epoch

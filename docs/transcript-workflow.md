@@ -659,4 +659,6 @@ not match its pin) they refuse with `model_needed`, naming the model, its size a
 `podcast bootstrap --component whisper`; the Run route answers 409 with the same fields.
 A model that goes missing after that check (such as RNNoise in a mix step) fails the job; `pipeline_run`
 re-raises it as the same `model_needed` refusal with the command, while the Studio job text stays the plain
-"{label} is not downloaded." line.
+"{label} is not downloaded." line. That holds for every job text, including the live progress message, a failed step's error and an agent job's message: they
+all take the exception's plain line, and only `error_model.command` carries the command. (An agent job
+has no `error_code`, so the Activity chip shows the plain line without a Download button.)

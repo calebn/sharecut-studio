@@ -21,10 +21,12 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services.jobs import Job, JobManager, guest_render_job
+from podcast_mcp.pipeline import runner
+from podcast_mcp.services.jobs import AgentJobFanInReporter, Job, JobManager, guest_render_job
 from podcast_mcp.services.support.diagnostics import _sanitize_job_snapshots
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.model_missing import ModelMissing
+from podcast_mcp.util.progress import bind_progress, progress_task
 
 COMMAND = "podcast bootstrap --component rnnoise"
 MODEL_FIELDS = {
@@ -276,3 +278,88 @@ def test_the_mcp_run_keeps_the_command_in_its_refusal(minimal_project: Path, mon
     ):
         pipeline_run(str(minimal_project), use_working_set=False)
     assert COMMAND in str(caught.value)
+
+
+def _frames(monkeypatch) -> list[dict[str, Any]]:
+    seen: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.job.publish_job_event",
+        lambda _job_id, event: seen.append(json.loads(json.dumps(event))),
+    )
+    return seen
+
+
+def _assert_plain_everywhere(snap: dict[str, Any], frames: list[dict[str, Any]]) -> None:
+    assert any(f["type"] == "progress" for f in frames)
+    shown = [snap["error"], snap["message"], [s["error"] for s in snap["steps"]]]
+    shown += [
+        {k: v for k, v in f["job"].items() if k != "error_model"} for f in frames if "job" in f
+    ]
+    assert "bootstrap" not in repr(shown)
+
+
+def test_an_export_failing_in_its_progress_task_never_publishes_the_command(
+    minimal_project: Path, monkeypatch
+) -> None:
+    frames = _frames(monkeypatch)
+    monkeypatch.setattr(
+        "podcast_mcp.pipeline.steps.ensure_current_master",
+        _raise(_missing()),
+    )
+    mgr = JobManager()
+    snap = _run(mgr, mgr.start_export(minimal_project))
+    _assert_model_needed(snap, minimal_project)
+    _assert_plain_everywhere(snap, frames)
+
+
+def test_a_render_preview_failing_in_its_progress_task_never_publishes_the_command(
+    minimal_project: Path, monkeypatch
+) -> None:
+    frames = _frames(monkeypatch)
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    proj.processing_chains = [
+        ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="arnndn", params={})])
+    ]
+    save_project(proj, minimal_project)
+    mgr = JobManager()
+    snap = _run(mgr, mgr.start_render_preview(minimal_project))
+    _assert_model_needed(snap, minimal_project)
+    _assert_plain_everywhere(snap, frames)
+
+
+def test_a_pipeline_step_failing_keeps_its_step_error_plain(
+    minimal_project: Path, monkeypatch
+) -> None:
+    frames = _frames(monkeypatch)
+    monkeypatch.setitem(runner._STEP_MAP, "normalize", _raise(_missing()))
+    mgr = JobManager()
+    snap = _run(mgr, mgr.start(minimal_project, only_step="normalize"))
+    _assert_model_needed(snap, minimal_project)
+    assert snap["steps"][-1]["error"].endswith("is not downloaded.")
+    _assert_plain_everywhere(snap, frames)
+
+
+def test_an_agent_job_failing_with_a_model_refusal_is_plain() -> None:
+    mgr = JobManager()
+    sink = AgentJobFanInReporter(mgr)
+    with (
+        pytest.raises(ModelMissing),
+        bind_progress(sink),
+        progress_task("transcribe", "Transcribe", reporter=sink) as task,
+    ):
+        task.advance(1, message="Working")
+        raise _missing()
+    job = sink._job
+    assert job is not None
+    snap = job.snapshot()
+    assert snap["status"] == "error"
+    assert "bootstrap" not in repr([snap["message"], snap["error"]])
+    assert snap["error"].endswith("RNNoise is not downloaded.")
