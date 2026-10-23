@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { rememberPressedControl } from "../ui/pressedControl";
 import { toastDockBottomPx, useToastDock } from "./toastDock";
 
 /** 390×844 phone: transport 0–52, mode nav 792–844, toast 62 tall, 12px gap. */
@@ -215,6 +216,24 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
     ).toBe(400 - (200 - 8));
   });
 
+  it("relaxes other controls only after no position clears them with the protected field", () => {
+    expect(
+      toastDockBottomPx({
+        viewportHeight: 400,
+        ceilingPx: 150,
+        floorTopsPx: [],
+        restTopPx: 380,
+        toastHeightPx: 62,
+        gapPx: 8,
+        keepClearPx: [
+          { top: 0, bottom: 300 },
+          { top: 380, bottom: 400 },
+        ],
+        protectPx: [{ top: 300, bottom: 380 }],
+      }),
+    ).toBe(400 - (300 - 8));
+  });
+
   it("keeps the resting spot when no side of the field has room", () => {
     expect(
       toastDockBottomPx({
@@ -230,18 +249,26 @@ describe("useToastDock", () => {
   afterEach(() => {
     for (const el of boxes.splice(0)) el.remove();
     delete document.documentElement.dataset.shell;
+    rememberPressedControl(null);
+    vi.restoreAllMocks();
   });
 
-  function box(className: string, top: number, bottom: number): HTMLElement {
+  function box(
+    className: string,
+    top: number,
+    bottom: number,
+    left = 0,
+    right = 390,
+  ): HTMLElement {
     const el = document.createElement("div");
     el.className = className;
     el.getBoundingClientRect = () =>
       ({
         top,
         bottom,
-        left: 0,
-        right: 390,
-        width: 390,
+        left,
+        right,
+        width: right - left,
         height: bottom - top,
       }) as DOMRect;
     document.body.append(el);
@@ -254,8 +281,7 @@ describe("useToastDock", () => {
     const shell = box("daw-shell--phone", 0, 844);
     const region = document.createElement("div");
     const card = document.createElement("div");
-    card.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    card.getBoundingClientRect = () => new DOMRect(40, 0, 310, 62);
     region.append(card);
     document.body.append(region);
     boxes.push(region);
@@ -279,8 +305,7 @@ describe("useToastDock", () => {
     document.documentElement.dataset.shell = "phone";
     const region = document.createElement("div");
     const card = document.createElement("div");
-    card.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    card.getBoundingClientRect = () => new DOMRect(40, 0, 310, 62);
     region.append(card);
     document.body.append(region);
     boxes.push(region);
@@ -305,8 +330,7 @@ describe("useToastDock", () => {
     document.documentElement.dataset.shell = "phone";
     const region = document.createElement("div");
     const card = document.createElement("div");
-    card.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    card.getBoundingClientRect = () => new DOMRect(40, 0, 310, 62);
     region.append(card);
     document.body.append(region);
     boxes.push(region);
@@ -325,8 +349,7 @@ describe("useToastDock", () => {
   function mountRegion() {
     const region = document.createElement("div");
     const card = document.createElement("div");
-    card.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    card.getBoundingClientRect = () => new DOMRect(40, 0, 310, 62);
     region.append(card);
     document.body.append(region);
     boxes.push(region);
@@ -340,7 +363,7 @@ describe("useToastDock", () => {
       unmount();
       return bottom * 16;
     };
-    return { readBottom };
+    return { readBottom, region, card };
   }
 
   it("moves above a comment field the resting spot would cover on a tablet (#2199)", () => {
@@ -361,5 +384,128 @@ describe("useToastDock", () => {
     panel.style.overflowY = "auto";
     panel.append(box("comment-compose", H - 60, H - 10));
     expect(readBottom()).toBe(28 + 8);
+  });
+
+  it.each([
+    ["disjoint", 1177, 1424, 36],
+    ["overlapping", 600, 847, 900 - 588.78125 + 8],
+    ["partially overlapping", 862, 1109, 900 - 588.78125 + 8],
+    ["touching the right edge", 862.5, 1109.5, 36],
+    ["touching the left edge", 330.5, 577.5, 36],
+  ])(
+    "keeps only %s side composers in the card's path",
+    (_name, left, right, expected) => {
+      vi.spyOn(window, "innerHeight", "get").mockReturnValue(900);
+      document.documentElement.dataset.shell = "desktop";
+      const { readBottom, card, region } = mountRegion();
+      card.getBoundingClientRect = () => new DOMRect(577.5, 537, 285, 43.59375);
+      region.getBoundingClientRect = () => new DOMRect(16, 537, 1408, 43.59375);
+      box("status-bar", 872, 900, 0, 1440);
+      const inspector = box("inspector", 57, 871, 0, 1440);
+      inspector.style.overflowY = "auto";
+      inspector.append(
+        box("comment-compose", 588.78125, 901.78125, left, right),
+      );
+      expect(readBottom()).toBe(expected);
+    },
+  );
+
+  it.each([
+    "comment-compose",
+    "comment-author-line",
+    "comment-author-edit",
+    "comment-name-step",
+  ])("ignores a disjoint protected %s", (className) => {
+    const H = window.innerHeight;
+    const { readBottom } = mountRegion();
+    box("status-bar", H - 28, H);
+    box(className, H - 84, H - 36, 360, 390);
+    expect(readBottom()).toBe(36);
+  });
+
+  it.each(["pressed", "play"])(
+    "projects the %s control against the card",
+    (kind) => {
+      document.documentElement.dataset.shell = "phone";
+      const H = window.innerHeight;
+      const { readBottom } = mountRegion();
+      box("mobile-nav", H - 52, H);
+      const control = box(
+        kind === "play" ? "listen-hero-controls" : "",
+        H - 110,
+        H - 60,
+        360,
+        390,
+      );
+      if (kind === "pressed") {
+        control.tabIndex = 0;
+        rememberPressedControl(control);
+      }
+      expect(readBottom()).toBe(60);
+      control.getBoundingClientRect = () => new DOMRect(340, H - 110, 50, 50);
+      expect(readBottom()).toBe(118);
+    },
+  );
+
+  it.each([
+    ["horizontal", "hidden", "visible", 360, 390, 0, 768, 36],
+    ["empty horizontal", "hidden", "visible", 380, 390, 0, 768, 36],
+    ["empty vertical", "visible", "auto", 0, 390, 732, 768, 36],
+    ["vertical", "visible", "auto", 0, 390, 0, 600, 36],
+    ["partly horizontal", "auto", "visible", 340, 390, 0, 768, 92],
+    ["partly vertical", "visible", "hidden", 0, 390, 700, 768, 76],
+    ["both axes", "hidden", "auto", 340, 390, 700, 768, 76],
+  ])(
+    "clips protected fields on %s ancestors",
+    (_name, overflowX, overflowY, left, right, top, bottom, expected) => {
+      vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+      const { readBottom } = mountRegion();
+      box("status-bar", 740, 768);
+      const panel = box("panel", top, bottom, left, right);
+      panel.style.overflowX = overflowX;
+      panel.style.overflowY = overflowY;
+      panel.append(box("comment-compose", 684, 732, 300, 380));
+      expect(readBottom()).toBe(expected);
+    },
+  );
+
+  it.each([
+    [0, 48],
+    [80, 0],
+  ])(
+    "ignores a protected field with width %s and height %s",
+    (width, height) => {
+      const H = window.innerHeight;
+      const { readBottom } = mountRegion();
+      box("status-bar", H - 28, H);
+      box("comment-compose", H - 84, H - 84 + height, 40, 40 + width);
+      expect(readBottom()).toBe(36);
+    },
+  );
+
+  it("remeasures card width on the next frame without using its current vertical position", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const H = window.innerHeight;
+    const { region, card } = mountRegion();
+    box("status-bar", H - 28, H);
+    box("comment-compose", H - 84, H - 36, 360, 390);
+    const { unmount } = renderHook(() =>
+      useToastDock({ current: region }, true),
+    );
+    const bottom = () =>
+      Number.parseFloat(region.style.getPropertyValue("--toast-dock-bottom")) *
+      16;
+    expect(bottom()).toBe(36);
+    card.getBoundingClientRect = () => new DOMRect(40, -500, 340, 62);
+    frames.shift()?.(0);
+    expect(bottom()).toBe(92);
+    card.getBoundingClientRect = () => new DOMRect(40, 2000, 310, 62);
+    frames.shift()?.(1);
+    expect(bottom()).toBe(36);
+    unmount();
   });
 });
