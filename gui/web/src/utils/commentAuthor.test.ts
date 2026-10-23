@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  COMMENT_NAME_MAX,
   commitCommentActor,
   GUEST_SESSION_LABEL,
+  guestNameChosen,
   HOST_SESSION_LABEL,
+  markGuestNameChosen,
   resolveCommentActor,
   saveCommentAuthor,
   sessionDisplayName,
@@ -82,5 +85,29 @@ describe("commitCommentActor", () => {
   it("a blank name commits the role's session label without a show callback", () => {
     expect(commitCommentActor("", "guest")).toBe(GUEST_SESSION_LABEL);
     expect(sessionDisplayName("host")).toBe(HOST_SESSION_LABEL);
+  });
+});
+
+describe("guestNameChosen", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("is false until a name is saved or the guest skipped", () => {
+    expect(guestNameChosen()).toBe(false);
+    saveCommentAuthor("Guest");
+    expect(guestNameChosen()).toBe(false);
+    markGuestNameChosen();
+    expect(guestNameChosen()).toBe(true);
+  });
+
+  it("is true once a real name is saved", () => {
+    saveCommentAuthor("Rae");
+    expect(guestNameChosen()).toBe(true);
+  });
+
+  it("caps a saved name", () => {
+    saveCommentAuthor("x".repeat(COMMENT_NAME_MAX + 20));
+    expect(sessionDisplayName("guest")).toBe("x".repeat(COMMENT_NAME_MAX));
   });
 });

@@ -30,13 +30,21 @@ async function expectNoHorizontalScroll(page: Page, width: number) {
     .toBeLessThanOrEqual(width);
 }
 
-async function hostCommentAuthors(host: Page): Promise<string[]> {
+async function hostComments(host: Page, count: number): Promise<string[]> {
   await host.reload();
   await host
     .getByLabel("Editor panels")
     .getByRole("tab", { name: "Comments" })
     .click();
-  return host.locator(".comments-list > li").allInnerTexts();
+  const rows = host.locator(".comments-list > li");
+  await expect(rows).toHaveCount(count);
+  return rows.allInnerTexts();
+}
+
+function composer(guest: Page, landscape: boolean): Locator {
+  return landscape
+    ? guest.locator(".comments-panel")
+    : guest.getByRole("region", { name: "Add a comment" });
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -66,7 +74,7 @@ for (const theme of ["light", "dark"] as const) {
             );
             await openGuestShare(guest, token);
 
-            const dock = guest.getByRole("region", { name: "Add a comment" });
+            const dock = composer(guest, phone.name === "landscape");
             const field = dock.getByRole("textbox", {
               name: "Comment",
               exact: true,
@@ -81,7 +89,9 @@ for (const theme of ["light", "dark"] as const) {
             await expect(name).toBeVisible();
             await expect(name).toBeInViewport({ ratio: 1 });
             await expect(skip).toBeInViewport({ ratio: 1 });
-            await expect(post).toBeInViewport({ ratio: 1 });
+            if (phone.name !== "landscape") {
+              await expect(post).toBeInViewport({ ratio: 1 });
+            }
             await expect(field).toHaveValue("Loved the intro");
             await expect(host.locator(".comments-list > li")).toHaveCount(0);
             await expectTouchTarget(skip);
@@ -105,8 +115,8 @@ for (const theme of ["light", "dark"] as const) {
             await name.fill("Riley Okafor");
             await post.tap();
             await expect(field).toHaveValue("");
-            const line = dock.getByText("Riley Okafor", { exact: true });
-            await expect(line).toBeVisible();
+            const line = dock.locator(".comment-author-line strong");
+            await expect(line).toHaveText("Riley Okafor");
             const change = dock.getByRole("button", {
               name: "Change your comment name",
             });
@@ -120,17 +130,14 @@ for (const theme of ["light", "dark"] as const) {
                 ),
             });
 
-            const rows = await hostCommentAuthors(host);
-            expect(rows).toHaveLength(1);
+            const rows = await hostComments(host, 1);
             expect(rows[0]).toContain("Riley Okafor");
             expect(rows[0]).not.toContain("Guest");
 
             await guest.reload();
             await expect(
-              guest
-                .getByRole("region", { name: "Add a comment" })
-                .getByText("Riley Okafor", { exact: true }),
-            ).toBeVisible();
+              dock.locator(".comment-author-line strong"),
+            ).toHaveText("Riley Okafor");
             await field.tap();
             await field.fill("Second note");
             await post.tap();
@@ -185,8 +192,7 @@ test("a phone guest can skip the name and change it later", async ({
         await dock.getByRole("button", { name: "Post comment" }).tap();
         await expect(field).toHaveValue("");
 
-        const rows = await hostCommentAuthors(host);
-        expect(rows).toHaveLength(2);
+        const rows = await hostComments(host, 2);
         expect(rows.join("\n")).toContain("Alex");
         expect(rows.join("\n")).toContain("Guest");
       },

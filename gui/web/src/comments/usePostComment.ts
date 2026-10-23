@@ -1,8 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createComment } from "../api";
+import { NETWORK_ERROR_CODE } from "../api/http";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { saveCommentAuthor } from "../utils/commentAuthor";
 import { resolveCommentAnchor } from "./commentAnchor";
 import { commentTimeLabel } from "./commentTimeLabel";
@@ -38,8 +39,20 @@ export function usePostComment(): {
 } {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const unreachable = useRef(false);
+
+  useEffect(() => {
+    const onOnline = () => {
+      if (!unreachable.current) return;
+      unreachable.current = false;
+      setError(null);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, []);
 
   const post = useCallback(async (input: CommentInput): Promise<PostResult> => {
+    unreachable.current = false;
     setError(null);
     const author = input.author.trim();
     const body = input.body.trim();
@@ -65,6 +78,8 @@ export function usePostComment(): {
       useDawStore.getState().setCommentDraft(null);
       return { ok: true, comment };
     } catch (e) {
+      unreachable.current =
+        e instanceof ApiError && e.code === NETWORK_ERROR_CODE;
       setError(errorMessage(e));
       return { ok: false };
     } finally {

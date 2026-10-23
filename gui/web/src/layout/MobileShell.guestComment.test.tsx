@@ -82,6 +82,7 @@ function storedSession(selection: SessionState["selection"]): SessionState {
 describe("phone share link, first load", () => {
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem("podcast-mcp-comment-name-asked", "1");
     clearRegisteredCommands();
     registerDawCommands();
     createComment.mockReset();

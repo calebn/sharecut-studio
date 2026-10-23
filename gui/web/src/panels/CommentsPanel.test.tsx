@@ -162,6 +162,28 @@ describe("CommentsPanel", () => {
     expect(screen.getByText("Guest")).toBeInTheDocument();
   });
 
+  it("asks a guest for a name on the first post, once, in the panel too", async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    createComment.mockResolvedValue(sampleComment());
+    renderPanel({ guestShare: true });
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment" }),
+      "From landscape",
+    );
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(createComment).not.toHaveBeenCalled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Your name" }),
+      "Dana{Enter}",
+    );
+    expect(createComment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ author: "Dana" }),
+    );
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+  });
+
   it("Change then a new name saves it and is used on the next post", async () => {
     const user = userEvent.setup();
     renderPanel();

@@ -2165,3 +2165,42 @@ button.history-row {
     }
   }
 }
+
+.comment-name-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.comment-name-step label {
+  display: flex;
+  flex: 1 1 8rem;
+  flex-direction: column;
+  gap: var(--space-0);
+  color: var(--color-text-secondary);
+}
+
+.comment-name-step input {
+  background: var(--color-field);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--font-size-review);
+}
+
+@container app (max-height: 24rem) {
+  .comment-name-step label {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    white-space: nowrap;
+  }
+
+  .comment-compose .comment-name-step input {
+    flex: 1 1 6rem;
+    inline-size: auto;
+  }
+}
