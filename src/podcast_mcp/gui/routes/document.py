@@ -28,7 +28,6 @@ from podcast_mcp.services.document_sync import (
     command_context_for_role,
     document_command_from_body,
 )
-from podcast_mcp.util.coded_error import CodedPermissionError
 from podcast_mcp.util.project_state import ProjectBusyError
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
@@ -126,7 +125,9 @@ def post_document_command(
         raise
     except ValueError as exc:
         raise bad_request_error(exc) from exc
-    except CodedPermissionError as exc:
+    except PermissionError as exc:
+        if (failure := project_write_failure(exc)) is not None:
+            raise failure from exc
         raise coded_exception_error(403, exc, code="document_command_not_permitted") from exc
     except OSError as exc:
         if (failure := project_write_failure(exc)) is not None:

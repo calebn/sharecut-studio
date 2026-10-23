@@ -82,3 +82,10 @@ def test_an_os_error_that_is_not_a_write_failure_is_left_alone(minimal_project, 
     response = _post(minimal_project, monkeypatch, FileNotFoundError(errno.ENOENT, "gone", PATH))
     assert response.status_code == 500
     assert "project_write_failed" not in response.headers.get("x-sharecut-error-code", "")
+
+
+def test_a_bare_permission_error_without_an_errno_stays_a_403(minimal_project, monkeypatch):
+    response = _post(minimal_project, monkeypatch, PermissionError("viewer cannot"))
+    assert response.status_code == 403
+    assert response.headers["x-sharecut-error-code"] == "document_command_not_permitted"
+    assert response.json() == {"detail": "viewer cannot"}
