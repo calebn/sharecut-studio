@@ -213,7 +213,7 @@ def render_track_from_timeline(
                 id=f"clip_{track.id}_full",
                 track_id=track.id,
                 source_start=0.0,
-                source_end=probe.duration_sec,
+                source_end=probe.require_duration_sec(),
                 timeline_start=0.0,
             )
         ]
@@ -833,7 +833,7 @@ def render_track_segment(
                 id=f"clip_{track.id}_full",
                 track_id=track.id,
                 source_start=0.0,
-                source_end=probe.duration_sec,
+                source_end=probe.require_duration_sec(),
                 timeline_start=0.0,
             )
         ]

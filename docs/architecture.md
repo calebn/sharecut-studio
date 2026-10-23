@@ -332,10 +332,17 @@ than its timeline after applied edits; an overlong stem is stale.
 container timeline. A leading audio gap counts after subtracting the container
 origin. `AudioProbe.duration_estimated` describes uncertainty in that endpoint.
 Multiple audio streams alone do not make the selected first stream uncertain.
-Writers and extraction bounds use `AudioProbe.require_duration_sec()` before
-storing or trimming with an extent. This rejects uncertain, nonpositive,
+Source and media duration writers, source edits, and implicit full-span render
+bounds use `AudioProbe.require_duration_sec()` before storing or trimming with an
+extent. This rejects uncertain, nonpositive,
 non-finite, and missing-audio results. Upload finalization also limits known
 extents to seven days and removes rejected files.
+
+Pipeline ingest admits every track before updating any media metadata or creating
+dialogue clips. Strip silence admits the source extent before rebuilding clips.
+Full-track and segment rendering also require a known extent when they construct
+an implicit full-span clip. Refusal uses `invalid_audio` and leaves the project
+and existing render output unchanged.
 
 Packet recovery scans Ogg, MPEG-TS, and other containers whose declarations
 cannot establish the extent. It reads bounded records under one 120-second

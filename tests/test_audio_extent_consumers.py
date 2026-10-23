@@ -32,23 +32,43 @@ def chained_ogg(tmp_path_factory) -> Path:
         subprocess.run(
             [
                 engine.ffmpeg,
-                "-v", "error", "-y", "-f", "lavfi", "-i",
-                f"sine=r=48000:duration={seconds}", "-c:a", "flac", str(part),
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                f"sine=r=48000:duration={seconds}",
+                "-c:a",
+                "flac",
+                str(part),
             ],
             check=True,
             capture_output=True,
-        )  # fmt: skip
+        )
         parts.append(part)
     path = root / "joined.ogg"
     path.write_bytes(b"".join(part.read_bytes() for part in parts))
     decoded = subprocess.run(
         [
-            engine.ffmpeg, "-v", "error", "-i", str(path), "-map", "0:a:0",
-            "-f", "s16le", "-ac", "1", "-ar", "48000", "-",
+            engine.ffmpeg,
+            "-v",
+            "error",
+            "-i",
+            str(path),
+            "-map",
+            "0:a:0",
+            "-f",
+            "s16le",
+            "-ac",
+            "1",
+            "-ar",
+            "48000",
+            "-",
         ],
         check=True,
         capture_output=True,
-    )  # fmt: skip
+    )
     assert len(decoded.stdout) / 96000 == pytest.approx(5.0)
     assert engine.probe(path).duration_estimated
     return path
