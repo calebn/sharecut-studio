@@ -71,6 +71,33 @@ describe("saveStateOf", () => {
     },
   );
 
+  it("still reports an unknown Undo outcome", () => {
+    expect(
+      saveStateOf({
+        ...quiet,
+        conflicts: [
+          {
+            command: {
+              command_id: "undo",
+              client_id: "client",
+              client_seq: 1,
+              type: "UndoHistory",
+              payload: {},
+              created_at: 0,
+            },
+            kind: "unknown",
+            reason: "Undo or Redo may have been applied.",
+            recovery: "inspect-history",
+          },
+        ],
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "Undo or Redo may have been applied.",
+      recovery: "inspect-history",
+    });
+  });
+
   it("still fails on an earlier refused edit when a later Undo was refused", () => {
     const command = (id: string, type: string) => ({
       command_id: id,
