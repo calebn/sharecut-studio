@@ -3,9 +3,8 @@ export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
 const TRANSCRIPT_REFINE_REFUSAL =
   "This is blocked until transcript refinement is done. A host can review the transcript or waive it with a reason.";
 
-export const MODEL_NEEDED_CODE = "model_needed";
+const MODEL_NEEDED_CODE = "model_needed";
 
-/** The model a host 409 asks to download; the install command is never kept. */
 export type ModelNeeded = {
   id: string;
   variant: string | null;
@@ -35,7 +34,6 @@ export class ApiError extends Error {
   }
 }
 
-/** A host 409 naming the model to download; a guest 409 carries no model. */
 export function isModelNeeded(
   error: unknown,
 ): error is ApiError & { model: ModelNeeded } {

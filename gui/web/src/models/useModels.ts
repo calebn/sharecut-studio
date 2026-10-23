@@ -21,7 +21,6 @@ export type ModelsApi = {
     options?: DownloadOptions,
   ) => Promise<DownloadOutcome>;
   cancel: () => Promise<void>;
-  /** Re-read installed state; a gate does this before it asks, so a stale row cannot skip `force`. */
   refresh: () => Promise<void>;
 };
 
