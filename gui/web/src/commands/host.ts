@@ -1,5 +1,6 @@
 import {
   hostLandRecord,
+  jobFailure,
   listHostShares,
   loadHostRecordState,
   startRenderPreview,
@@ -27,7 +28,7 @@ import {
 import { canManageProjects, canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { seedStudioJob } from "../state/seedStudioJob";
-import { errorMessage } from "../utils/apiError";
+import { errorMessage, isModelNeeded } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
@@ -121,7 +122,11 @@ export function registerHostCommands(): void {
         seedStudioJob(started.job);
         const done = await waitForPipelineJob(started.job.id);
         if (done.status === "error") {
-          const reason = done.error ?? "Render preview failed";
+          seedStudioJob(done);
+          const failure = jobFailure(done, "Render preview failed");
+          const reason = isModelNeeded(failure)
+            ? `${failure.model.label} is not downloaded.`
+            : failure.message;
           if (isCurrentProject()) {
             useDawStore
               .getState()

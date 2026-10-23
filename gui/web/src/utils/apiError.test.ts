@@ -6,6 +6,7 @@ import {
   isModelNeeded,
   isPermanentRejection,
   isServerTimeoutError,
+  modelNeededFromPayload,
   projectUnavailableReason,
   readApiError,
   readApiFailure,
@@ -268,5 +269,29 @@ describe("projectUnavailableReason", () => {
     expect(
       projectUnavailableReason(new ApiError("x", "bad", 400), false),
     ).toBeNull();
+  });
+});
+
+describe("modelNeededFromPayload", () => {
+  it("reads the model fields of a failed job snapshot", () => {
+    expect(
+      modelNeededFromPayload({
+        id: "whisper",
+        model: "small",
+        label: "Whisper small",
+        size: "~480 MB",
+        size_bytes: 480_000_000,
+        state: "missing",
+      }),
+    ).toMatchObject({
+      id: "whisper",
+      variant: "small",
+      sizeBytes: 480_000_000,
+    });
+  });
+
+  it("rejects a payload without the fields a prompt needs", () => {
+    expect(modelNeededFromPayload(null)).toBeNull();
+    expect(modelNeededFromPayload({ id: "whisper" })).toBeNull();
   });
 });

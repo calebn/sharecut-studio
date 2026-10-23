@@ -201,6 +201,11 @@ function pickModelNeeded(body: unknown): ModelNeeded | null {
   };
 }
 
+/** The `model` object of a 409 body, as a failed job snapshot carries it. */
+export function modelNeededFromPayload(raw: unknown): ModelNeeded | null {
+  return pickModelNeeded({ model: raw });
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)

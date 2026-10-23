@@ -6,6 +6,7 @@ import type {
   PipelineJobSnapshot,
   PipelineStatusResponse,
 } from "../types/pipeline";
+import { ApiError, modelNeededFromPayload } from "../utils/apiError";
 import { isTerminalJobStatus, jobResultPaths } from "../utils/pipeline";
 import { apiFetch, HOST_KEY } from "./http";
 import { openJobStream } from "./jobStream";
@@ -124,7 +125,7 @@ export async function analyzePipeline(
   if (done.status === "cancelled") {
     return null;
   }
-  throw new Error(done.error || "Analyze failed");
+  throw jobFailure(done, "Analyze failed");
 }
 
 export async function loadPipelineStatus(init?: {
@@ -303,6 +304,23 @@ export class JobCancelledError extends Error {
 }
 
 /**
+ * The error a failed job raises: a `model_needed` ApiError when the snapshot
+ * names the missing model, so a model gate can offer the download.
+ */
+export function jobFailure(
+  done: PipelineJobSnapshot,
+  failLabel: string,
+): Error {
+  const model =
+    done.error_code === "model_needed"
+      ? modelNeededFromPayload(done.error_model)
+      : null;
+  return model
+    ? new ApiError(done.error || failLabel, "model_needed", 409, model)
+    : new Error(done.error || done.message || failLabel);
+}
+
+/**
  * Follow a job to its terminal snapshot. Resolves only on `ok`; a cancelled job
  * throws `JobCancelledError`, a failed one an `Error` with its message.
  */
@@ -316,7 +334,7 @@ export async function followJobToOk(
     throw new JobCancelledError(done, done.message || failLabel);
   }
   if (done.status !== "ok") {
-    throw new Error(done.error || done.message || failLabel);
+    throw jobFailure(done, failLabel);
   }
   return done;
 }
