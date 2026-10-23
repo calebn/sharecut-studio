@@ -14,6 +14,7 @@ import {
 } from "../commands/tighten";
 import { askConfirm } from "../feedback/ask";
 import { useTightenIntensityConfig } from "../hooks/useTightenIntensityConfig";
+import { ModelGateDialog, ModelGateHint, useModelGate } from "../models";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
@@ -105,6 +106,7 @@ export function TightenPanel() {
   const [proposing, setProposing] = useState(false);
   const [findRun, setFindRun] = useState<FindRun | null>(null);
 
+  const gate = useModelGate();
   const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const intensityCfg = useTightenIntensityConfig(projectPath, canApply);
   const pipelineCfg = intensityCfg.cfg;
@@ -144,13 +146,17 @@ export function TightenPanel() {
     setProposing(true);
     setFindRun({ path, jobId: null, error: null });
     try {
-      const fresh = await intensityCfg.fetchFresh();
-      if (!fresh) return;
-      const job = await startPipelineRun(
-        path,
-        tightenProposeRunOptions(fresh, tier),
-      );
-      if (useDawStore.getState().projectPath !== path) return;
+      const result = await gate.run(async () => {
+        const fresh = await intensityCfg.fetchFresh();
+        if (!fresh) return null;
+        const started = await startPipelineRun(
+          path,
+          tightenProposeRunOptions(fresh, tier),
+        );
+        return useDawStore.getState().projectPath === path ? started : null;
+      });
+      if (result.kind !== "ran" || !result.value) return;
+      const job = result.value;
       setPipelineJob(job);
       setFindRun({ path, jobId: job.id, error: null });
       announceStatus(`Finding tighten hits (${tightenIntensityLabel(tier)})…`);
@@ -307,6 +313,7 @@ export function TightenPanel() {
             message={intensityCfg.saveError ? null : runError}
           />
         </div>
+        <ModelGateHint gate={gate} actionLabel="Find hits" />
         <InlineError
           origin="state"
           message={
@@ -499,6 +506,7 @@ export function TightenPanel() {
           </table>
         </div>
       )}
+      <ModelGateDialog gate={gate} />
     </section>
   );
 }

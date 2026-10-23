@@ -1,5 +1,12 @@
-import { type RefObject, useId, useRef } from "react";
-import { ModelProgress, type ModelView, modelActivity } from "../models";
+import { type ReactNode, type RefObject, useId, useRef } from "react";
+import {
+  type ModelGate,
+  ModelGateBody,
+  ModelGateFooter,
+  ModelProgress,
+  type ModelView,
+  modelActivity,
+} from "../models";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, Field, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -58,6 +65,7 @@ export type SplitSpeakersStage =
       undoing: boolean;
       undoError: string | null;
     }
+  | { kind: "needsModel"; gate: ModelGate }
   | { kind: "failed"; reason: string }
   | { kind: "cancelled" };
 
@@ -85,6 +93,8 @@ export type SplitSpeakersDialogViewProps = {
   };
   /** Omit where the model cannot be downloaded (catalog previews). */
   onDownloadSpeakerModel?: () => void;
+  /** Shown with the settings after the person declined a model download. */
+  modelHint?: ReactNode;
   /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
   nowSec?: number;
 };
@@ -103,6 +113,10 @@ export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
       open={open}
       onClose={onClose}
       title="Split speakers"
+      closeDisabled={
+        stage.kind === "needsModel" &&
+        stage.gate.prompt?.phase === "downloading"
+      }
       panelClassName="bounce-dialog-panel split-speakers-panel"
       initialFocusRef={stage.kind === "configure" ? countRef : undefined}
       footer={<SplitSpeakersFooter {...props} />}
@@ -120,6 +134,9 @@ export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
             trackLabel={props.trackLabel}
             onGoTo={props.onGoTo}
           />
+        ) : null}
+        {stage.kind === "needsModel" && stage.gate.prompt ? (
+          <ModelGateBody prompt={stage.gate.prompt} />
         ) : null}
         {stage.kind === "failed" ? (
           <InlineError message={`Split failed: ${stage.reason}`} />
@@ -144,6 +161,7 @@ function SplitSpeakersForm({
   onListenSample,
   speakerModel,
   onDownloadSpeakerModel,
+  modelHint,
   countRef,
 }: SplitSpeakersDialogViewProps & {
   countRef: RefObject<HTMLInputElement | null>;
@@ -211,6 +229,7 @@ function SplitSpeakersForm({
           try again.
         </p>
       ) : null}
+      {modelHint}
       <p className="export-dialog-lead">
         Splits {trackLabel} into one track per speaker. You can undo it.
       </p>
@@ -485,6 +504,9 @@ function SplitSpeakersFooter({
               Done
             </Button>
           </>
+        ) : null}
+        {stage.kind === "needsModel" ? (
+          <ModelGateFooter gate={stage.gate} />
         ) : null}
         {stage.kind === "failed" ? (
           <Button variant="primary" type="button" onClick={onRestart}>
