@@ -1680,6 +1680,8 @@ class FFmpegEngine:
             self.ffmpeg,
             "-i",
             str(path),
+            "-map",
+            "0:a:0",
             "-af",
             "ebur128=framelog=verbose:peak=true,astats=metadata=1",
             "-f",
@@ -1688,13 +1690,29 @@ class FFmpegEngine:
         ]
         if on_progress is None:
             r = run(cmd, capture_output=True)
+            if r.returncode != 0:
+                return None
             text = r.stderr
         else:
             duration = total_sec if total_sec is not None else self.probe(path).duration_sec
-            # Best-effort like the run() path above: a failed measure parses to None, not an error.
-            text = self._run_with_progress(
-                cmd, total_sec=duration, on_progress=on_progress, check=False
-            )
+            callback_failed = False
+
+            def report(done: float, total: float) -> None:
+                nonlocal callback_failed
+                try:
+                    on_progress(done, total)
+                except CalledProcessError:
+                    callback_failed = True
+                    raise
+
+            try:
+                text = self._run_with_progress(
+                    cmd, total_sec=duration, on_progress=report, check=True
+                )
+            except CalledProcessError:
+                if callback_failed:
+                    raise
+                return None
         text = ebur128_summary_text(text)
         i_m = re.search(r"\bI:\s*(-?\d+\.?\d*)\s*LUFS", text)
         tp_m = re.search(r"Peak:\s*(-?\d+\.?\d*)\s*dBFS", text)
