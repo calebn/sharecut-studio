@@ -696,6 +696,52 @@ describe("MobileShell", () => {
     expect(chip.getAttribute("aria-busy")).toBe("true");
   });
 
+  it("offers Download beside a chip that failed for a model, and not to guests", () => {
+    useDawStore.getState().setActivityJob({
+      id: "j-model",
+      project_path: "/tmp/p.json",
+      from_step: null,
+      only_step: null,
+      kind: "export",
+      status: "error",
+      message: null,
+      current: null,
+      total: null,
+      error: "needs Noise reduction (RNNoise) (~0.3 MB)",
+      error_code: "model_needed",
+      error_model: {
+        id: "rnnoise",
+        model: "rnnoise",
+        label: "Noise reduction (RNNoise)",
+        purpose: "noise reduction",
+        size: "~0.3 MB",
+        size_bytes: 297646,
+        state: "missing",
+      },
+      elapsed_sec: 2,
+      steps: [],
+    });
+    const { unmount } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Download Noise reduction (RNNoise)",
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    unmount();
+
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell guestShare />
+      </DawProvider>,
+    );
+    expect(screen.queryByRole("button", { name: /^Download / })).toBeNull();
+  });
+
   it("shows an activity count badge for MCP fan-in without opening Pipeline", () => {
     act(() => {
       useDawStore.getState().setActivityJob({

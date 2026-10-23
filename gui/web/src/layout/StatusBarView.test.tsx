@@ -212,6 +212,23 @@ describe("StatusBarView", () => {
     expect(screen.getByRole("button", { name: /^Pipeline / })).toBeTruthy();
   });
 
+  it("renders the job action right after the job chip", () => {
+    render(
+      <StatusBarView
+        summary={summaryOf(minimalProject())}
+        narrow={false}
+        job={pipelineJobSnapshot()}
+        jobAction={<button type="button">Download RNNoise</button>}
+        statusAnnouncement=""
+        onOpenTab={vi.fn()}
+      />,
+    );
+    const action = screen.getByRole("button", { name: "Download RNNoise" });
+    expect(action.previousElementSibling?.className).toContain(
+      "status-pipeline",
+    );
+  });
+
   it("renders a PresenceStatusView block via the presence slot", () => {
     render(
       <StatusBarView
