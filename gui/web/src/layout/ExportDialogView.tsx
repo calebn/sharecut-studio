@@ -1,6 +1,7 @@
 import { useId } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, InlineError } from "../ui";
+import { useDisabledReasonNote } from "../ui/disabledReason";
 import { lateCancelCopy } from "../utils/pipeline";
 import {
   type ExportSettings,
@@ -239,11 +240,15 @@ function ExportDialogFooter({
   onCancelExport,
   onRestart,
 }: ExportDialogViewProps) {
+  const cancelNote = useDisabledReasonNote(
+    stage.kind === "running" ? stage.cancelReason : null,
+  );
   return (
     <div className="bounce-dialog-footer">
       {stage.kind === "configure" && stage.blocker ? (
         <p className="export-dialog-note">{stage.blocker}</p>
       ) : null}
+      {cancelNote.note}
       <div className="bounce-dialog-actions">
         {stage.kind === "configure" ? (
           <Button
@@ -265,6 +270,7 @@ function ExportDialogFooter({
           <Button
             type="button"
             disabledReason={stage.cancelReason ?? undefined}
+            {...cancelNote.describedBy}
             onClick={onCancelExport}
           >
             {stage.cancelling ? "Cancelling…" : "Cancel export"}
