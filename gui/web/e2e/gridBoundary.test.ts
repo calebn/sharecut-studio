@@ -15,6 +15,11 @@ const specDirectories = [here, path.join(here, "..", "e2e-compat")];
  * (docs/testing.md, "Appearance grids").
  */
 const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
+  "brand-forced-colors.spec.ts": {
+    loops: 1,
+    reason:
+      "the forced light and dark palettes resolve CanvasText differently, so both are the subject",
+  },
   "design-polish.spec.ts": {
     loops: 5,
     reason: "each test reads computed colors, which differ per theme",
