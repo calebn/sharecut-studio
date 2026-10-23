@@ -873,11 +873,16 @@ html[data-shell="phone"] .modifier-footer-actions .ui-menu-root {
 
 /* The app-wide toast (feedback/FeedbackToast): one at a time, centred at the
    bottom where Undo is in reach, above the status bar or the phone mode nav.
-   The region lets clicks through; only the card takes them. */
+   feedback/toastDock.ts moves it off the comment composer and name step with
+   --toast-dock-bottom on every shell. The region lets clicks through; only the
+   card takes them. */
 .ui-toast-region--app {
   position: fixed;
   inset-inline: var(--space-4);
-  inset-block-end: calc(var(--status-height) + var(--space-3));
+  inset-block-end: var(
+    --toast-dock-bottom,
+    calc(var(--status-height) + var(--space-3))
+  );
   z-index: var(--z-toast);
   display: flex;
   justify-content: center;

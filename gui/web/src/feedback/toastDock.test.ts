@@ -1,12 +1,12 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { toastDockBottomPx, usePhoneToastDock } from "./toastDock";
+import { toastDockBottomPx, useToastDock } from "./toastDock";
 
 /** 390×844 phone: transport 0–52, mode nav 792–844, toast 62 tall, 12px gap. */
 const phone = {
   viewportHeight: 844,
   ceilingPx: 52,
-  navTopPx: 792,
+  restTopPx: 792,
   toastHeightPx: 62,
   gapPx: 12,
 };
@@ -95,7 +95,7 @@ describe("toastDockBottomPx keeps body controls clear (#1960)", () => {
     viewportHeight: 460,
     ceilingPx: 20,
     floorTopsPx: [408, 295],
-    navTopPx: 408,
+    restTopPx: 408,
     toastHeightPx: 62,
     gapPx: 8,
   };
@@ -113,7 +113,7 @@ describe("toastDockBottomPx keeps body controls clear (#1960)", () => {
         ...short,
         viewportHeight: 520,
         floorTopsPx: [468, 355],
-        navTopPx: 468,
+        restTopPx: 468,
         keepClearPx: [playRow],
       }),
     ).toBe(520 - 355 + 8);
@@ -150,7 +150,70 @@ describe("toastDockBottomPx keeps body controls clear (#1960)", () => {
   });
 });
 
-describe("usePhoneToastDock", () => {
+describe("toastDockBottomPx keeps the comment field and name step clear (#2199)", () => {
+  /** 844x390 tablet: status bar 362-390, toast 62 tall, 8px gap, composer visible 306-354. */
+  const landscape = {
+    viewportHeight: 390,
+    ceilingPx: 0,
+    floorTopsPx: [],
+    restTopPx: 362,
+    toastHeightPx: 62,
+    gapPx: 8,
+  };
+  const composer = { top: 306, bottom: 354 };
+
+  it("rests above the status bar when no field is under it", () => {
+    expect(toastDockBottomPx(landscape)).toBe(390 - 362 + 8);
+  });
+
+  it("moves above the composer when the resting spot would cover it", () => {
+    const bottom = toastDockBottomPx({ ...landscape, protectPx: [composer] });
+    expect(bottom).toBe(390 - (306 - 8));
+  });
+
+  it("moves below the composer when there is no room above it", () => {
+    const bottom = toastDockBottomPx({
+      ...landscape,
+      protectPx: [{ top: 20, bottom: 300 }],
+    });
+    expect(bottom).toBe(390 - (300 + 8 + 62));
+  });
+
+  it("clears the composer even when that passes the ceiling", () => {
+    // A 300 px phone: status row to 90, name step 120-250, nav 288. No free band fits.
+    const bottom = toastDockBottomPx({
+      viewportHeight: 340,
+      ceilingPx: 90,
+      floorTopsPx: [288, 120],
+      restTopPx: 288,
+      toastHeightPx: 62,
+      gapPx: 8,
+      protectPx: [{ top: 120, bottom: 250 }],
+    });
+    expect(bottom).toBe(340 - (120 - 8));
+    expect(340 - bottom - 62).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps the resting spot when the field is clear of it", () => {
+    expect(
+      toastDockBottomPx({
+        ...landscape,
+        protectPx: [{ top: 100, bottom: 200 }],
+      }),
+    ).toBe(390 - 362 + 8);
+  });
+
+  it("keeps the resting spot when no side of the field has room", () => {
+    expect(
+      toastDockBottomPx({
+        ...landscape,
+        protectPx: [{ top: 10, bottom: 380 }],
+      }),
+    ).toBe(390 - 362 + 8);
+  });
+});
+
+describe("useToastDock", () => {
   const boxes: Element[] = [];
   afterEach(() => {
     for (const el of boxes.splice(0)) el.remove();
@@ -191,7 +254,7 @@ describe("usePhoneToastDock", () => {
     box("daw-shell-transport", 0, 52);
     shell.append(...document.querySelectorAll(".daw-shell-transport"));
     const { unmount } = renderHook(() =>
-      usePhoneToastDock({ current: region }, true),
+      useToastDock({ current: region }, true),
     );
     const bottom = Number.parseFloat(
       region.style.getPropertyValue("--toast-dock-bottom"),
@@ -217,7 +280,7 @@ describe("usePhoneToastDock", () => {
       window.innerHeight - 199,
     );
     const { unmount } = renderHook(() =>
-      usePhoneToastDock({ current: region }, true),
+      useToastDock({ current: region }, true),
     );
     const bottom = Number.parseFloat(
       region.style.getPropertyValue("--toast-dock-bottom"),
@@ -238,7 +301,7 @@ describe("usePhoneToastDock", () => {
     box("mobile-nav", 792, 844);
     box("mobile-dock", 690, 792);
     const { unmount } = renderHook(() =>
-      usePhoneToastDock({ current: region }, true),
+      useToastDock({ current: region }, true),
     );
     const bottom = Number.parseFloat(
       region.style.getPropertyValue("--toast-dock-bottom"),
@@ -259,12 +322,36 @@ describe("usePhoneToastDock", () => {
     box("status-bar", H - 28, H);
     box("comment-compose", H - 84, H - 36);
     const { unmount } = renderHook(() =>
-      usePhoneToastDock({ current: region }, true),
+      useToastDock({ current: region }, true),
     );
     const bottom = Number.parseFloat(
       region.style.getPropertyValue("--toast-dock-bottom"),
     );
     unmount();
     expect(bottom * 16).toBe(H - (H - 84) + 8);
+  });
+  it("ignores a comment field scrolled out of its panel", () => {
+    document.documentElement.dataset.shell = "tablet";
+    const H = window.innerHeight;
+    const region = document.createElement("div");
+    const card = document.createElement("div");
+    card.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    region.append(card);
+    document.body.append(region);
+    boxes.push(region);
+    box("status-bar", H - 28, H);
+    const panel = box("panel", H - 200, H - 100);
+    panel.style.overflowY = "auto";
+    const field = box("comment-compose", H - 60, H - 10);
+    panel.append(field);
+    const { unmount } = renderHook(() =>
+      useToastDock({ current: region }, true),
+    );
+    const bottom = Number.parseFloat(
+      region.style.getPropertyValue("--toast-dock-bottom"),
+    );
+    unmount();
+    expect(bottom * 16).toBe(28 + 8);
   });
 });

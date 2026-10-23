@@ -33,7 +33,7 @@ import {
   hasValidFocusedFeedbackAction,
   isValidFeedbackAction,
 } from "./feedbackActionFocus";
-import { usePhoneToastDock } from "./toastDock";
+import { useToastDock } from "./toastDock";
 
 /** Safari reports a fully shown card a hair under 1 at fractional zoom or toolbar heights. */
 const VISIBLE_RATIO = 0.95;
@@ -73,7 +73,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const remembered = portal.querySelector<HTMLElement>(
     `[${FEEDBACK_FOCUS_ATTRIBUTE}]`,
   );
-  usePhoneToastDock(regionRef, toast != null && host == null);
+  useToastDock(regionRef, toast != null && host == null);
   const floating = toast != null && host == null;
   useLayoutEffect(() => {
     const region = regionRef.current;
