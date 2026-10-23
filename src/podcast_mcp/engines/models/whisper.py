@@ -431,9 +431,13 @@ def ensure_whisper_model_cached(model: str, *, memoize: bool = False) -> str:
 
 
 def bootstrap_whisper_model(
-    model_size: str, *, force: bool = False, on_progress: OnProgress | None = None
+    model_size: str,
+    *,
+    force: bool = False,
+    on_progress: OnProgress | None = None,
+    persist: bool = True,
 ) -> dict[str, Any]:
-    """Download weights into the cache and persist the machine preference.
+    """Download weights into the cache and, unless ``persist`` is false, save the machine preference.
 
     A catalog size downloads its pinned snapshot and verifies every file; a cached
     snapshot that fails its pin is re-fetched once even without ``force``, and a mismatch
@@ -473,10 +477,11 @@ def bootstrap_whisper_model(
         if mismatch is not None:
             raise WhisperPinMismatchError(canonical, mismatch)
     persist_error: str | None = None
-    try:
-        persist_whisper_model(canonical)
-    except (OSError, yaml.YAMLError) as exc:
-        persist_error = str(exc)
+    if persist:
+        try:
+            persist_whisper_model(canonical)
+        except (OSError, yaml.YAMLError) as exc:
+            persist_error = str(exc)
     return {
         "ok": True,
         "model": canonical,

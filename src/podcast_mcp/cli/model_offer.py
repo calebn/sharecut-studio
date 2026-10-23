@@ -1,22 +1,22 @@
 """Offer to download a missing model when a CLI command needs one (#2197).
 
-Only a person at a terminal is asked. A pipe, a redirected stdin or ``--no-input`` keeps the
-refusal as it was: one ``Error: needs ...`` line with the install command, no prompt and no
-download. The download is the ``podcast bootstrap`` one, on the same progress reporter.
+Only a person at a terminal is asked. A pipe, a redirected stdin, ``--no-input`` or
+``--json-progress`` keeps the refusal as it was: one ``Error: needs ...`` line with the
+install command, no prompt and no download. The download is the ``podcast bootstrap`` one,
+on the same progress reporter, but a one-run choice such as ``--model tiny.en`` is not saved
+as the machine's Whisper default.
 """
 
 from __future__ import annotations
 
 import sys
-from contextlib import nullcontext
 
 import typer
 
-from podcast_mcp.cli.context import get_progress, no_input
+from podcast_mcp.cli.context import get_progress, prompts_allowed
 from podcast_mcp.cli.setup_cmd import install_and_report
 from podcast_mcp.services.pipeline import model_spec
 from podcast_mcp.util.model_missing import ModelMissing
-from podcast_mcp.util.progress import CliProgressReporter
 
 
 def is_interactive() -> bool:
@@ -25,14 +25,19 @@ def is_interactive() -> bool:
 
 def offer_download(missing: ModelMissing) -> bool:
     """Ask, and on yes install; True means the command can run again."""
-    if missing.state != "missing" or no_input() or not is_interactive():
+    if missing.state != "missing" or not prompts_allowed() or not is_interactive():
         return False
     reporter = get_progress()
-    with reporter.paused() if isinstance(reporter, CliProgressReporter) else nullcontext():
+    with reporter.paused():
         try:
             agreed = typer.confirm(
                 f"Download {missing.label} ({missing.size})?", default=False, err=True
             )
         except typer.Abort:
             return False
-    return agreed and install_and_report(model_spec(missing.id), whisper_model=missing.model)
+    return agreed and install_and_report(
+        model_spec(missing.id),
+        whisper_model=missing.model,
+        persist_preference=False,
+        lines=reporter.paused,
+    )

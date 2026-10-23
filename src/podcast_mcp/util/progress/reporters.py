@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from typing import Any, TextIO
 
 from podcast_mcp.util.progress.protocol import ProgressEvent, ProgressReporter
@@ -120,6 +120,11 @@ class ElapsedProgressMixin:
     def _finish_task(self, task_id: str) -> None:
         with self._lock:
             self._tasks.pop(task_id, None)
+
+    @contextmanager
+    def paused(self) -> Iterator[None]:
+        """Hide any live display while the terminal is used for a prompt or plain lines."""
+        yield
 
     def close(self) -> None:
         self._stop.set()
@@ -243,6 +248,13 @@ class MultiProgress(ElapsedProgressMixin):
     def _fan(self, method: str, *args: Any, **kwargs: Any) -> None:
         for reporter in self._reporters:
             getattr(reporter, method)(*args, **kwargs)
+
+    @contextmanager
+    def paused(self) -> Iterator[None]:
+        with ExitStack() as stack:
+            for reporter in self._reporters:
+                stack.enter_context(reporter.paused())
+            yield
 
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
         self._fan("start", task_id, label, total=total)

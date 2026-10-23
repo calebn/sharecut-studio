@@ -67,6 +67,9 @@ class ModelSpec:
     problem: Callable[[str | None, bool], ModelProblem | None]
     install: Callable[[str | None, bool, OnProgress | None], dict[str, Any]]
     location: Callable[[], Path]
+    install_without_preference: (
+        Callable[[str | None, bool, OnProgress | None], dict[str, Any]] | None
+    ) = None
     default_variant: str | None = None
     variant_sizes: Callable[[str | None], tuple[str | None, int | None]] = field(
         default=lambda variant: (None, None)
@@ -102,6 +105,18 @@ def _whisper_install(
 ) -> dict[str, Any]:
     result = bootstrap_whisper_model(
         resolve_whisper_model(requested=variant), force=force, on_progress=on_progress
+    )
+    return {**result, "path": result["cache"]}
+
+
+def _whisper_install_without_preference(
+    variant: str | None, force: bool, on_progress: OnProgress | None
+) -> dict[str, Any]:
+    result = bootstrap_whisper_model(
+        resolve_whisper_model(requested=variant),
+        force=force,
+        on_progress=on_progress,
+        persist=False,
     )
     return {**result, "path": result["cache"]}
 
@@ -187,6 +202,7 @@ MODELS: tuple[ModelSpec, ...] = (
         setup="required",
         problem=_whisper_problem,
         install=_whisper_install,
+        install_without_preference=_whisper_install_without_preference,
         location=whisper_cache_dir,
         variant_sizes=_whisper_sizes,
     ),

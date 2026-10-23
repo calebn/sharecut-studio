@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 
 import typer
@@ -177,8 +177,18 @@ def _cause_stays_in_the_log() -> Iterator[None]:
         package.removeHandler(quiet)
 
 
-def install_and_report(spec: ModelSpec, *, whisper_model: str, upgrade: bool = False) -> bool:
-    """Install one model and print its ``[get]`` / ``[ok]`` / ``[fail]`` lines; False on failure."""
+def install_and_report(
+    spec: ModelSpec,
+    *,
+    whisper_model: str,
+    upgrade: bool = False,
+    persist_preference: bool = True,
+    lines: Callable[[], AbstractContextManager[None]] = nullcontext,
+) -> bool:
+    """Install one model and print its ``[get]`` / ``[ok]`` / ``[fail]`` lines; False on failure.
+
+    ``lines`` wraps each printed line, so a caller with a live bar can stop it first.
+    """
     variant = whisper_model if spec.id == "whisper" else None
     if not sys.stderr.isatty() and (
         upgrade or model_status(spec.id, variant)["state"] != "installed"
@@ -186,24 +196,32 @@ def install_and_report(spec: ModelSpec, *, whisper_model: str, upgrade: bool = F
         typer.echo(f"[get] {spec.id} ({spec.size})")
     with _cause_stays_in_the_log():
         try:
-            result = install_model(spec, whisper_model=whisper_model, force=upgrade)
+            result = install_model(
+                spec,
+                whisper_model=whisper_model,
+                force=upgrade,
+                persist_preference=persist_preference,
+            )
         except InstallFailure as failure:
-            typer.echo(f"[fail] {spec.id}: {failure.plain}", err=True)
+            with lines():
+                typer.echo(f"[fail] {spec.id}: {failure.plain}", err=True)
             return False
         except Exception:
             logger.exception("bootstrap of %s failed", spec.id)
-            typer.echo(f"[fail] {spec.id}: {unexpected_text(spec.label)}", err=True)
+            with lines():
+                typer.echo(f"[fail] {spec.id}: {unexpected_text(spec.label)}", err=True)
             return False
     verb = "[skip]" if result.get("skipped") else "[ok]"
     detail = str(result.get("path") or result.get("reason", ""))
     if model := result.get("model"):
         detail = f"{detail} ({model})"
-    typer.echo(f"{verb} {spec.id}: {detail}")
-    if result.get("persist_error"):
-        typer.echo(
-            f"[warn] could not persist Whisper preference: {result['persist_error']}",
-            err=True,
-        )
+    with lines():
+        typer.echo(f"{verb} {spec.id}: {detail}")
+        if result.get("persist_error"):
+            typer.echo(
+                f"[warn] could not persist Whisper preference: {result['persist_error']}",
+                err=True,
+            )
     return True
 
 
