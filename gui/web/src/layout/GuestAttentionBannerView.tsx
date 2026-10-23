@@ -279,6 +279,12 @@ export function GuestAttentionBannerView({
                             )
                           }
                         />
+                      ) : c.kind === "refused" && c.blocksSave ? (
+                        <span>
+                          {guest
+                            ? "Ask the project owner to check the project."
+                            : "Fix the project file first; this change was not saved."}
+                        </span>
                       ) : c.kind === "refused" ? (
                         <span>Edit the change and submit it again.</span>
                       ) : c.recovery === "inspect-history" ? (

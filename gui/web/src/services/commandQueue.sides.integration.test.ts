@@ -246,6 +246,29 @@ describe.each([
     });
   });
 
+  it.each([
+    ["project_not_found", 404, "missing"],
+    ["project_unreadable", 500, "damaged"],
+  ])(
+    "records a %s answer as a save-blocking refusal in plain words",
+    async (code, status, word) => {
+      post.mockResolvedValue({
+        ok: false,
+        status,
+        failure: new ApiError("raw /secret/path text", code, status),
+      });
+      await run(false);
+      const [, , outcome] = settle.mock.calls[0] ?? [];
+      expect(outcome).toMatchObject({
+        kind: "refused",
+        blocksSave: true,
+        recovery: "edit-and-resubmit",
+      });
+      expect(outcome.reason).toContain(word);
+      expect(outcome.reason).not.toContain("/secret/path");
+    },
+  );
+
   it("keeps the generic retry text for a 5xx without a write-failure code", async () => {
     post.mockResolvedValue({
       ok: false,

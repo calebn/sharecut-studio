@@ -40,6 +40,7 @@ import { parseHistoryEntryId } from "../types/project";
 import {
   ApiError,
   isRetryLater,
+  projectUnavailableReason,
   refusalReason,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
   writeFailureReason,
@@ -63,6 +64,8 @@ import {
   type OfflineConflict,
   type QueueAdmission,
   type QueuedCommand,
+  removeConflictsWhere,
+  removeHostConflictsWhere,
   removeHostQueuedCommand,
   removeQueuedCommand,
   settleGuestCommandOutcome,
@@ -121,6 +124,19 @@ function commandOutcome(
       };
 }
 
+function blockingRefusal(
+  command: QueuedCommand,
+  reason: string,
+): OfflineConflict {
+  return {
+    command,
+    kind: "refused",
+    reason,
+    recovery: "edit-and-resubmit",
+    blocksSave: true,
+  };
+}
+
 async function settleCommandOutcome(
   projectPath: string,
   command: QueuedCommand,
@@ -150,6 +166,19 @@ async function settleCommandOutcome(
       recordVolatileOutcome(projectPath, outcome);
       if (removeFromQueue) throw new Error(outcome.reason);
     } else clearVolatileOutcome(projectPath, command.command_id);
+  }
+}
+
+/** A command saved, so an earlier "project file missing or damaged" outcome no longer holds. */
+async function clearBlockingOutcomes(projectPath: string): Promise<void> {
+  const blocking = (c: OfflineConflict) =>
+    c.kind === "refused" && c.blocksSave === true;
+  const token = shareTokenFromKey(projectPath);
+  try {
+    if (token) await removeConflictsWhere(token, blocking);
+    else await removeHostConflictsWhere(projectPath, blocking);
+  } catch {
+    // The light stays red until the outcome is dismissed; the save itself succeeded.
   }
 }
 
@@ -785,6 +814,16 @@ async function submitThroughQueue(
   if (!reply.ok) {
     const { failure, status } = reply;
     const cmd = queued();
+    const unavailable = projectUnavailableReason(failure);
+    if (unavailable) {
+      await settleCommandOutcome(
+        projectPath,
+        cmd,
+        blockingRefusal(cmd, unavailable),
+        side.ownsQueueRow || admitted.persisted,
+      );
+      throw failure;
+    }
     if (isRetryLater(failure) || status >= 500) {
       await settleCommandOutcome(
         projectPath,
@@ -823,6 +862,7 @@ async function submitThroughQueue(
     null,
     side.ownsQueueRow || (admitted.persisted && !opts.replaying),
   );
+  await clearBlockingOutcomes(projectPath);
   const data = reply.data;
   if (useDawStore.getState().projectPath === projectPath) {
     applyDocumentResult(data, body.scope);

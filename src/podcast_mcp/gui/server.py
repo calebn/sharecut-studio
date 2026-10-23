@@ -48,6 +48,7 @@ from podcast_mcp.gui.routes.deps import (
     host_setup_exception_handler,
     model_missing_exception_handler,
     project_busy_exception_handler,
+    project_unreadable_exception_handler,
     require_host,
 )
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
@@ -58,6 +59,7 @@ from podcast_mcp.gui.static_assets import (
     static_bundle_ready,
 )
 from podcast_mcp.gui.validation_errors import format_validation_errors
+from podcast_mcp.models.episode import ProjectUnreadableError
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
@@ -271,6 +273,7 @@ def create_app(
     # The one busy mapping (#488, #1810): routes let a lock timeout propagate to it.
     app.add_exception_handler(Timeout, project_busy_exception_handler)
     app.add_exception_handler(TranscriptContextBusyError, project_busy_exception_handler)
+    app.add_exception_handler(ProjectUnreadableError, project_unreadable_exception_handler)
     app.add_exception_handler(GuardRefusal, guard_exception_handler)
     app.add_exception_handler(HostSetupError, host_setup_exception_handler)
     app.add_exception_handler(ModelMissing, model_missing_exception_handler)

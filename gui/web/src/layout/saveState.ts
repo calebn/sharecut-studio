@@ -11,7 +11,11 @@ export type SaveState =
       reason: string;
       recovery: "retry-same-command" | "inspect-history";
     }
-  | { kind: "failed"; cause: "unreadable" };
+  | {
+      kind: "failed";
+      cause: "unreadable" | "project-unavailable";
+      reason?: string;
+    };
 
 export type SaveStateInput = {
   /** A save, send or replay is in flight in this tab. */
@@ -40,6 +44,10 @@ export function latestSaveOutcome(
 }
 
 /**
+ * A refused command lost no edit, except when the project file itself is missing or
+ * damaged: then nothing can be saved, so that refusal turns the light red until it is
+ * dismissed or a later command saves.
+ *
  * Busy or settling wins because an edit on its way, or one whose outcome is not
  * yet read back, is the freshest fact. Then an unreadable queue, an unknown
  * outcome, and edits waiting; the rest is saved. Null until the queue has been
@@ -49,6 +57,16 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
   if (!input.loaded) return null;
+  const blocked = input.conflicts.findLast(
+    (c) => c.kind === "refused" && c.blocksSave === true && !c.dismissed,
+  );
+  if (blocked) {
+    return {
+      kind: "failed",
+      cause: "project-unavailable",
+      reason: blocked.reason,
+    };
+  }
   const latestOutcome = latestSaveOutcome(input.conflicts);
   if (latestOutcome?.kind === "unknown") {
     return {
@@ -78,7 +96,9 @@ export function saveStateText(state: SaveState): string {
     case "waiting":
       return SAVE_DOT_COPY.waiting(state.count);
     case "failed":
-      return "Saved edits could not be read · Retry to read them";
+      return state.cause === "project-unavailable"
+        ? `Not saved · ${reason(state.reason ?? "The project file is missing or damaged")}.`
+        : "Saved edits could not be read · Retry to read them";
     case "unknown":
       return state.recovery === "inspect-history"
         ? `Outcome unknown · ${reason(state.reason)}. Inspect History before trying again.`

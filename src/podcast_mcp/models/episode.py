@@ -11,6 +11,7 @@ from pydantic import (
     BaseModel,
     Field,
     SerializerFunctionWrapHandler,
+    ValidationError,
     field_validator,
     model_serializer,
     model_validator,
@@ -24,7 +25,7 @@ from podcast_mcp.models.words_revision import (
     words_revision,
 )
 from podcast_mcp.util.batch_scope import scoped
-from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.coded_error import CodedError, CodedFileNotFoundError
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
 
@@ -1376,17 +1377,38 @@ def project_not_found(path: Path | str) -> CodedFileNotFoundError:
     )
 
 
+class ProjectUnreadableError(CodedError, ValueError):
+    """The project file exists but is not valid project JSON (damaged, truncated, wrong shape)."""
+
+    code = "project_unreadable"
+
+
+def _unreadable_project(reason: str) -> ProjectUnreadableError:
+    return ProjectUnreadableError(
+        f"The project file is damaged and could not be read ({reason}). "
+        "Restore it from a backup, or open a copy of the project."
+    )
+
+
 def load_project(path: Path) -> EpisodeProject:
     path = Path(path)
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise project_not_found(path) from exc
-    data = json.loads(text)
+    except UnicodeDecodeError as exc:
+        raise _unreadable_project("not text") from exc
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise _unreadable_project("not valid JSON") from exc
     if not isinstance(data, dict):
-        raise ValueError("project file must be a JSON object")
+        raise _unreadable_project("not a JSON object")
     require_v2_document(data)
-    project = EpisodeProject.model_validate(data)
+    try:
+        project = EpisodeProject.model_validate(data)
+    except ValidationError as exc:
+        raise _unreadable_project("unexpected contents") from exc
     # Workspace is always the directory that contains episode.project.json.
     # Do not trust committed absolute paths (machine-specific / portable clones).
     project.meta.workspace_dir = str(path.parent.resolve())

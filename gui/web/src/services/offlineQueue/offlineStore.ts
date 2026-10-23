@@ -30,6 +30,8 @@ export type OfflineConflict =
       reason: string;
       recovery: "edit-and-resubmit";
       dismissed?: boolean;
+      /** The project file itself is missing or damaged, so nothing can be saved until it is back. */
+      blocksSave?: boolean;
     }
   | {
       command: QueuedCommand;
@@ -242,6 +244,7 @@ function parseConflictList(value: unknown): OfflineConflict[] {
         ...(typeof conflict.dismissed === "boolean"
           ? { dismissed: conflict.dismissed }
           : {}),
+        ...(conflict.blocksSave === true ? { blocksSave: true } : {}),
       };
     }
     if (kind === "unknown") {
