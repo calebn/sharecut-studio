@@ -404,15 +404,40 @@ html[data-shell="tablet"] {
   }
 
   /* The name step is a form that must show whole, buttons included, while
-     the comment field above it has focus, and so does the named dock with its
-     Commenting as line (#2164): they get more of the shell. */
+     the comment field above it has focus (#2164): it gets more of the shell.
+     A named guest's Commenting as line gets the same only while a field in
+     the dock has focus (keyboard up), so Play stays in view otherwise. */
+  .daw-shell--phone > .mobile-dock:has(.comment-name-step),
   .daw-shell--phone
-  > .mobile-dock:has(
-    .comment-name-step,
-    .comment-author-line,
-    .comment-author-edit
-  ) {
+    > .mobile-dock:focus-within:has(
+      .comment-author-line,
+      .comment-author-edit
+    ) {
     max-block-size: 60cqb;
+  }
+}
+
+/* A named guest's Commenting as line sits beside the field in a wide short
+   window (a phone held sideways), so it adds no height and Play stays in view
+   (#1982, #2164). */
+@container app (max-height: 24rem) and (min-width: 30rem) {
+  .daw-shell--phone
+    .listen-comment-dock:has(> .comment-author-line, > .comment-author-edit) {
+    display: grid;
+    grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr);
+    column-gap: var(--space-3);
+    align-items: center;
+  }
+
+  .daw-shell--phone .listen-comment-dock > .comment-author-line,
+  .daw-shell--phone .listen-comment-dock > .comment-author-edit {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .daw-shell--phone .listen-comment-dock > .comment-compose {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 

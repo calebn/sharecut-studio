@@ -113,8 +113,9 @@ export function CommentsPanel({
   }, [comments, filter]);
 
   const createAs = async (who: string) => {
+    const posted = body;
     const result = await post({
-      body,
+      body: posted,
       author: who,
       trackIds,
       actionTexts: actionLine
@@ -126,7 +127,7 @@ export function CommentsPanel({
       bodyRef.current?.focus();
       return;
     }
-    setBody("");
+    setBody((now) => (now === posted ? "" : now));
     setActionLine("");
     announceStatus(commentPostedStatus(result.comment));
     bodyRef.current?.focus();

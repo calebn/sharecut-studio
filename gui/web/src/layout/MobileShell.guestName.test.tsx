@@ -372,4 +372,26 @@ describe("phone share link, a guest names themselves", () => {
       within(dock()).getByRole("textbox", { name: "Comment" }),
     ).toHaveValue("Try");
   });
+
+  it("text typed while the post is in flight survives the post's clear", async () => {
+    const user = userEvent.setup();
+    let release: (c: unknown) => void = () => {};
+    createComment.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    openGuest();
+    await typeComment(user, "One");
+    await post(user);
+    await user.click(
+      within(dock()).getByRole("button", { name: "Post as Guest" }),
+    );
+    await typeComment(user, " more");
+    release(sampleComment({ id: "c9" }));
+    await within(dock()).findByRole("button", { name: "Post comment" });
+    expect(
+      within(dock()).getByRole("textbox", { name: "Comment" }),
+    ).toHaveValue("One more");
+  });
 });
