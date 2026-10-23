@@ -40,7 +40,7 @@ in dark (`#f1efe8`, `#ff6d48`) and light (`#1a211e`, `#df4b28`).
 Under forced colors (Windows high contrast) the app lockup and the desktop splash mark
 fill every shape with `CanvasText`, because Chromium keeps authored SVG fills and the
 cream ink would vanish on a white Canvas. The app reads this through
-`--color-brand-mark-ink` and `--color-brand-mark-accent` in `theme-fixed.css`.
+`--color-brand-mark-ink` and `--color-brand-mark-accent` in `theme/tokens.css`.
 
 ## Regenerating icon bitmaps
 

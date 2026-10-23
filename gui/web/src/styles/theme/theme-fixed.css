@@ -1,6 +1,5 @@
 /**
- * Fixed tier: color roles that do NOT change with the theme, plus the
- * forced-colors override of the brand mark roles at the end.
+ * Fixed tier: color roles that do NOT change with the theme.
  *
  * The transport strip (and the phone Listen card that shares its paint) is
  * dark in both themes, so its roles map primitives once here instead of in
@@ -112,19 +111,4 @@
     0 0 1.25rem var(--color-transport-play-glow);
   --shadow-transport-timecode: 0 0 0.75rem var(--color-transport-play-glow);
   --shadow-transport-chip: inset 0 1px 0 var(--color-transport-highlight-chip);
-}
-
-:root {
-  /* The ShareCut mark follows the theme, and the system text colour under
-     forced colors: Chromium leaves SVG fill authored, so the cream ink would
-     vanish on a white Canvas. */
-  --color-brand-mark-ink: var(--color-text-primary);
-  --color-brand-mark-accent: var(--color-accent);
-}
-
-@media (forced-colors: active) {
-  :root {
-    --color-brand-mark-ink: CanvasText;
-    --color-brand-mark-accent: CanvasText;
-  }
 }
