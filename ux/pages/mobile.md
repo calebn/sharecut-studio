@@ -234,6 +234,22 @@ inspector Close. Navigating to another selection or project ends that focus
 intent; a selection the agent makes or one you follow does not (no other client's selection reaches your phone). If a peer's edit removes the
 focused Undo, focus goes to the sheet Close. An open modal keeps its own focus.
 
+## Floating feedback
+
+Outside the compact inspector, feedback floats above the bottom chrome when
+there is room. Its position accounts for the card's width, so a comment composer
+beside the card does not push it upward. Visible comment and guest-name fields
+that overlap the card horizontally take priority when a clear position fits.
+On phones, the card also moves clear of Play when space allows.
+
+A very short window can leave no clear position. At a tested 320×300 viewport,
+the 62 px failure card cannot fit in the 53 px gap between Play and the comment
+composer, and the fallback can cover a control. Choose **Dismiss** or enlarge
+the window before using the covered control. The
+[feedback placement contract](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md#feedback-toast)
+describes the measured limits. These viewport checks do not establish native
+keyboard or Safari behavior.
+
 ## Move clips without dragging
 
 Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
