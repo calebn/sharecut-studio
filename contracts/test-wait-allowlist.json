@@ -38,7 +38,7 @@
     "tests/job_event_helpers.py": 0,
     "tests/test_cross_process_sync.py": 12,
     "tests/test_document_submit_crash_recovery.py": 0,
-    "tests/test_document_sync.py": 4,
+    "tests/test_document_sync.py": 3,
     "tests/test_edits.py": 0,
     "tests/test_export_cancel.py": 3,
     "tests/test_fanout_hub.py": 0,

@@ -51,7 +51,7 @@ from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RenderBusyError
 from sqlite_helpers import FailingConnection
-from sync_helpers import _foreign_document_write
+from sync_helpers import _foreign_document_write, _hub_delivery_fence
 
 
 def _current_projection(svc, reply):
@@ -2192,7 +2192,9 @@ def test_external_mutate_rows_advance_server_seq_in_order(minimal_project):
     assert [row["role"] for row in journal[1:3]] == ["viewer", "agent"]
 
 
-def test_external_mutate_comments_event_carries_comments_at_the_new_seq(minimal_project):
+def test_external_mutate_comments_event_carries_comments_at_the_new_seq(
+    minimal_project, monkeypatch
+):
     import asyncio
 
     from podcast_mcp.services.document import CommentService
@@ -2211,9 +2213,10 @@ def test_external_mutate_comments_event_carries_comments_at_the_new_seq(minimal_
             ws,
             lambda: CommentService(ws).add(body="hi", author="viewer", timeline_start=1.0),
         )
-        notify_comments_changed(minimal_project, file_revisions=file_revisions)
-        loop.call_soon(lambda: None)
-        loop.run_until_complete(asyncio.sleep(0))
+        with _hub_delivery_fence(loop, monkeypatch) as delivered:
+            notify_comments_changed(minimal_project, file_revisions=file_revisions)
+            loop.call_soon(lambda: None)
+            delivered()
         event = queue.get_nowait()
         assert event["server_seq"] == 1
         assert len(event["snapshot"]["comments"]) == 1
