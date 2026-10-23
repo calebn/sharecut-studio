@@ -64,7 +64,7 @@ export function refusalReason(failure: ApiError): string {
 
 /**
  * The server's plain words when a command could not write the project (disk full, folder not
- * writable): that edit was not saved, so no "may have been applied" guess is made.
+ * writable): the server could not write, so no "may have been applied" guess is made.
  */
 export function writeFailureReason(failure: ApiError): string | null {
   return failure.code === PROJECT_WRITE_FAILED_CODE ? failure.message : null;

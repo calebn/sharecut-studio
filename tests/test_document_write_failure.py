@@ -1,4 +1,4 @@
-"""A command that cannot write the project answers in plain words (#2195)."""
+"""A command that cannot write the project answers in plain words."""
 
 from __future__ import annotations
 
@@ -37,8 +37,16 @@ def _post(minimal_project, monkeypatch, exc):
     [
         (OSError(errno.ENOSPC, "No space left on device", PATH), 507, "disk is full"),
         (OSError(errno.EDQUOT, "Disk quota exceeded", PATH), 507, "disk is full"),
-        (PermissionError(errno.EACCES, "Permission denied", PATH), 500, "not allowed to write"),
-        (OSError(errno.EROFS, "Read-only file system", PATH), 500, "not allowed to write"),
+        (
+            PermissionError(errno.EACCES, "Permission denied", PATH),
+            500,
+            "could not write to the project folder",
+        ),
+        (
+            OSError(errno.EROFS, "Read-only file system", PATH),
+            500,
+            "could not write to the project folder",
+        ),
         (OSError(errno.EIO, "Input/output error", PATH), 500, "disk reported an error"),
     ],
 )
