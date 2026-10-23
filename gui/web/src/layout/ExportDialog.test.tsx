@@ -407,6 +407,26 @@ describe("ExportDialog", () => {
       expect(startExportJob).toHaveBeenCalledTimes(1);
     });
 
+    it("returns to settings, not a failure, when the project changes during the ask", async () => {
+      const user = userEvent.setup();
+      vi.mocked(followJobToOk).mockRejectedValue(needed());
+      renderGated();
+      await openAndExport(user);
+      await screen.findByRole("button", { name: "Not now" });
+
+      act(() =>
+        useDawStore.setState({ projectPath: "/tmp/other.project.json" }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole("button", { name: "Not now" })).toBeNull(),
+      );
+      act(() => useDawStore.setState({ projectPath: PATH }));
+      expect(
+        await screen.findByRole("button", { name: "Export" }),
+      ).toBeTruthy();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
     it("does not loop when the same model is still missing after the download", async () => {
       const user = userEvent.setup();
       vi.mocked(followJobToOk).mockRejectedValue(needed());

@@ -10,7 +10,12 @@ import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
 import { runAnnouncedJob } from "../state/runAnnouncedJob";
 import { useDaw } from "../state/useDaw";
-import { errorMessage, isAbortError, isModelNeeded } from "../utils/apiError";
+import {
+  errorMessage,
+  isAbortError,
+  isModelNeeded,
+  notDownloadedLine,
+} from "../utils/apiError";
 import { jobResultPaths } from "../utils/pipeline";
 import { ExportDialogView, type ExportStage } from "./ExportDialogView";
 import {
@@ -122,12 +127,16 @@ export function ExportDialog() {
             isModelNeeded(err) &&
             !useDawStore.getState().chrome.exportDialogOpen
           ) {
-            throw new Error(`${err.model.label} is not downloaded.`);
+            throw new Error(notDownloadedLine(err.model));
           }
           throw err;
         }
       });
       if (ran.kind === "declined") {
+        if (scope.signal.aborted) {
+          setFlow({ kind: "configure" });
+          return;
+        }
         setFlow({ kind: "failed", reason: `${ran.label} is not downloaded.` });
         return;
       }

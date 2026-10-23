@@ -130,30 +130,32 @@ export function BounceDialogView(props: BounceDialogViewProps) {
             </label>
           </fieldset>
         )}
-        <div className="bounce-dialog-options">
-          {!rangeSummary ? (
+        {prompt ? null : (
+          <div className="bounce-dialog-options">
+            {!rangeSummary ? (
+              <label className="bounce-dialog-check">
+                <input
+                  type="checkbox"
+                  checked={useRegion}
+                  disabled={!hasRegion}
+                  onChange={(e) => onUseRegionChange(e.target.checked)}
+                />
+                <span>
+                  Limit to session region
+                  {!hasRegion ? " (no region set)" : ""}
+                </span>
+              </label>
+            ) : null}
             <label className="bounce-dialog-check">
               <input
                 type="checkbox"
-                checked={useRegion}
-                disabled={!hasRegion}
-                onChange={(e) => onUseRegionChange(e.target.checked)}
+                checked={includeMp3}
+                onChange={(e) => onIncludeMp3Change(e.target.checked)}
               />
-              <span>
-                Limit to session region
-                {!hasRegion ? " (no region set)" : ""}
-              </span>
+              <span>Also write MP3</span>
             </label>
-          ) : null}
-          <label className="bounce-dialog-check">
-            <input
-              type="checkbox"
-              checked={includeMp3}
-              onChange={(e) => onIncludeMp3Change(e.target.checked)}
-            />
-            <span>Also write MP3</span>
-          </label>
-        </div>
+          </div>
+        )}
       </div>
     </Dialog>
   );

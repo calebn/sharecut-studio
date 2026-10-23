@@ -202,6 +202,17 @@ describe("BounceDialog model gate", () => {
     expect(startBounceJob).toHaveBeenCalledTimes(2);
   });
 
+  it("replaces the options with the prompt while it asks", async () => {
+    const user = userEvent.setup();
+    vi.mocked(followJobToOk).mockRejectedValue(needed());
+    renderGated();
+    await bounce(user);
+    await screen.findByRole("button", { name: "Not now" });
+
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
+  });
+
   it("keeps the form and a hint when the person declines", async () => {
     const user = userEvent.setup();
     vi.mocked(followJobToOk).mockRejectedValue(needed());
