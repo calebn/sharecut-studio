@@ -1,0 +1,16 @@
+{
+  "base": "7f85f9a5502486c25d84577904f8c1c0c5cc09b2",
+  "productHeadUnchanged": "60d4c3099750f95113f55b97637b6e4eb9145b97",
+  "oldProofUnchanged": "627a6ad2ec9ffd91aa434346e39ac64485701efd",
+  "diagnosticOnly": true,
+  "hashAlgorithm": "SHA-256",
+  "files": {
+    "2149-next-gate-safety-check.cjs": "07a6bc7b55afdead1ada5fae9f0efb3a65f42f97da6d0f219223b25be0242c41",
+    "2149-next-manifest-snapshot.js": "636025244b03f1abd531eca33578ce3bfcfbf3dc2b02a6552caf1c3e7aca4fc5",
+    "2149-next-native-handoff.md": "618f329a42606090897c498eeb507335a438e2a46912c57bfbec9273bf88796c",
+    "2149-next-nav-gate.js": "9ef86e0a336278a55df6bde8a8b45c40babfe6970e2b44ce8b81e47b74da49d9",
+    "2149-next-stage-document.py": "7bf7c5698ab3828c9d7d1f00a27ffe5b5a44982cb01c62f4e9d87bfe9e696762",
+    "2149-next-staging-safety-check.py": "4a6f460c56bc041dfe6412169714b9a0dd775059d74c877d00db2793428cf1cd"
+  },
+  "validation": "syntax, mock gate lifecycle and fixture HTML staging only; not browser/native efficacy"
+}
