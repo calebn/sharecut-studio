@@ -67,10 +67,10 @@ export function JobModelDownload({
     if (!need) return;
     const epoch = useDawStore.getState().projectEpoch;
     const ran = await gate.run(
-      async () => true,
+      async ({ afterDownload }) => afterDownload,
       [{ id: need.id, variant: need.variant ?? undefined, installed: false }],
     );
-    if (ran.kind !== "ran") return;
+    if (ran.kind !== "ran" || !ran.value) return;
     setDownloaded(need.label);
     if (
       kind === "render_preview" &&

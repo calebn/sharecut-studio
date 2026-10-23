@@ -1,4 +1,5 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { modelNeededOfJob, notDownloadedLine } from "./apiError";
 import { isAnalyzeJob, isPipelineKindJob, isPipelineRunning } from "./pipeline";
 import { plainError } from "./plainError";
 
@@ -112,9 +113,10 @@ export function pipelineChromeLabel(
 ): string {
   const parts = [pipelineStateSentence(job)];
   if (job.status === "cancelled") return parts[0]!;
-  const text = job.message || job.label;
+  const model = modelNeededOfJob(job);
+  const text = model ? notDownloadedLine(model) : job.message || job.label;
   const headline = truncateHeadline(
-    text && job.status === "error" ? plainError(text) : text,
+    text && job.status === "error" && !model ? plainError(text) : text,
     options?.headlineMax ?? 48,
   );
   if (headline) {
