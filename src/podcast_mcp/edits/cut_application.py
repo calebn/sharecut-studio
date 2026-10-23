@@ -9,10 +9,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
+from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety, suggested_actions
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
-from podcast_mcp.edits.cut_placement import CutScopeHold
+from podcast_mcp.edits.cut_placement import CutScopeHold, pending_pad_source_spans
+from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
@@ -32,6 +33,7 @@ from podcast_mcp.edits.decisions import (
     _speaker_name,
     edit_timeline_range,
     pre_pad_fade_out_ms,
+    reject_edits,
     unplayed_pending_ids,
 )
 from podcast_mcp.edits.edit_log import archive_decision
@@ -42,8 +44,9 @@ from podcast_mcp.edits.source_removals import (
     STALE_REASON,
     ScopeChangedAtApproval,
     cut_label,
+    record_suggested_cut_speech,
 )
-from podcast_mcp.edits.suggested_actions import SuggestedActionsResult
+from podcast_mcp.edits.suggested_actions import SuggestedActionsResult, record_sound_action
 from podcast_mcp.edits.timeline_ops import (
     _write_punch_delete,
     _write_punch_delete_clips,
@@ -69,6 +72,8 @@ from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speak
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
 )
+from podcast_mcp.engines.timeline_render import timeline_duration_sec
+from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     MUTE_FADE_MS,
@@ -84,6 +89,7 @@ from podcast_mcp.models import (
     EpisodeProject,
 )
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
+from podcast_mcp.project import merge as project_merge
 from podcast_mcp.project.merge import adopt_project_state
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 from podcast_mcp.util.coded_error import CodedValueError
@@ -344,8 +350,6 @@ def _apply_replace_gap_pad(
         else _nearest_ripple_join_time(project, tl_start)
     )
     if filler_pad_mode(defaults=defaults) == "room_tone":
-        from podcast_mcp.edits.cut_placement import pending_pad_source_spans
-
         plan = room_tone_pad(
             project,
             pad_start_sec,
@@ -429,8 +433,6 @@ def _apply_source_remove(
     completes every source, pad and edge write before policy can publish the copy.
     """
 
-    from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
-
     candidate = _cut_copy(project)
     pads: list[cut_effects.PadEffect] = []
     manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
@@ -510,7 +512,6 @@ def _write_source_remove(
     pads: list[cut_effects.PadEffect],
     defaults: EffectiveConfig,
 ) -> tuple[float, float, list[str], dict]:
-    from podcast_mcp.engines.track_media import full_span_clip
 
     scope = edit.scope or "session"
     tl_start, tl_end = map(float, span)
@@ -789,7 +790,6 @@ def approve_edits(
     A partial batch that relied on a held removal is refused unless its caller explicitly
     supplies ``accept_leaned_on``. Services retain persistence and history ownership.
     """
-    from podcast_mcp.project.merge import adopt_project_state
 
     published = project
     project = project.model_copy(deep=True)
@@ -1003,7 +1003,7 @@ def approve_edits(
     )
     if receipts:
         raise ScopeChangedAtApproval(receipts, {})
-    adopt_project_state(published, project)
+    project_merge.adopt_project_state(published, project)
     return before - len(project.edit_decisions)
 
 
@@ -1154,7 +1154,6 @@ def apply_prefix_edits(
         if effects_held:
             held.update(h.edit_id for h in effects_held)
             continue
-        from podcast_mcp.project.merge import adopt_project_state
 
         project = working
         break
@@ -1168,7 +1167,7 @@ def apply_prefix_edits(
     )
     if receipts:
         raise ScopeChangedAtApproval(receipts, {})
-    adopt_project_state(published, project)
+    project_merge.adopt_project_state(published, project)
     return before - len(project.edit_decisions)
 
 
@@ -1195,8 +1194,6 @@ def _range_candidate(
             code="no_audible_media",
         )
     if any(edit.type == EditDecisionType.REMOVE for edit, _target in plans):
-        from podcast_mcp.engines.timeline_render import timeline_duration_sec
-
         project.timeline.duration_sec = max(
             project.timeline.duration_sec or 0.0,
             timeline_duration_sec(project),
@@ -1450,9 +1447,6 @@ def apply_suggested_to_project(
     undo step.  Lowers go first (a laugh nobody talks over becomes a leave), then leaves,
     then every cut together so the speech guard sees one batch.
     """
-    from podcast_mcp.edits.decisions import reject_edits, unplayed_pending_ids
-    from podcast_mcp.edits.source_removals import record_suggested_cut_speech
-    from podcast_mcp.edits.suggested_actions import another_speaker_over, record_sound_action
 
     published = project
     project = project.model_copy(deep=True)
@@ -1461,7 +1455,7 @@ def apply_suggested_to_project(
     done: set[str] = set()
     for edit_id in [i for i, a in actions.items() if a == "lower" and i in by_id]:
         decision = by_id[edit_id]
-        peer = another_speaker_over(project, decision, defaults=defaults)
+        peer = suggested_actions.another_speaker_over(project, decision, defaults=defaults)
         if peer is None:
             result.held.append(edit_id)  # unreadable, so neither lowered nor recorded as left
         elif not peer:
