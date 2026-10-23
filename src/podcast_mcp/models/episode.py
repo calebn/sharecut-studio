@@ -1408,7 +1408,8 @@ def load_project(path: Path) -> EpisodeProject:
     try:
         project = EpisodeProject.model_validate(data)
     except ValidationError as exc:
-        raise _unreadable_project("unexpected contents") from exc
+        where = ".".join(str(part) for part in exc.errors()[0]["loc"])
+        raise _unreadable_project(f"unexpected contents at {where}") from exc
     # Workspace is always the directory that contains episode.project.json.
     # Do not trust committed absolute paths (machine-specific / portable clones).
     project.meta.workspace_dir = str(path.parent.resolve())
