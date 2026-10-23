@@ -377,3 +377,36 @@ def test_export_does_not_wait_for_another_projects_mix_rebuild(
 
     assert res.status_code == 409
     assert "Another job is still running" in res.text
+
+
+def test_export_retakes_the_slot_when_another_rebuild_slips_in_before_it_spawns(
+    minimal_project, monkeypatch
+) -> None:
+    order: list[str] = []
+    release = threading.Event()
+    _wire_ordered_slot(monkeypatch, order, release)
+    client = TestClient(create_app())
+    jobs = client.app.state.jobs
+    real_spawn = JobManager._spawn
+    real_wait = JobManager.wait
+    slipped_in: list[Job] = []
+
+    def spawn_after_a_rebuild_slips_in(self, project_path, **kwargs):
+        if kwargs["kind"] == "export" and not slipped_in:
+            slipped_in.append(self.start_render_preview(Path(project_path)))
+        return real_spawn(self, project_path, **kwargs)
+
+    def wait_for_preview(self, job, **kwargs):
+        release.set()
+        return real_wait(self, job, **kwargs)
+
+    monkeypatch.setattr(JobManager, "_spawn", spawn_after_a_rebuild_slips_in)
+    monkeypatch.setattr(JobManager, "wait", wait_for_preview)
+
+    res = client.post("/api/export/deliverables", json={"path": str(minimal_project)})
+
+    assert res.status_code == 200, res.text
+    export = jobs.get_job(res.json()["job_id"])
+    jobs.wait(export, timeout=5)
+    assert (slipped_in[0].status, export.status) == ("ok", "ok")
+    assert order == ["preview", "export"]
