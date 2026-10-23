@@ -577,7 +577,7 @@ def build_reconciliation_caches(
 
     ``private_copy`` says ``project`` is a copy only the caller holds (``snapshot_project``),
     so the build takes no project lock: a pool worker inside a mutation, whose thread
-    does not own the lock, can run it (#1471).
+    does not own the lock, can run it, for a gated track (#1471) and a chained one (#2214).
     """
     if any(track.transcript_gate for track in project.tracks):
         return build_track_rms_caches(
@@ -587,7 +587,9 @@ def build_reconciliation_caches(
             unprocessed=True,
             defaults=defaults,
         )
-    return build_track_rms_caches(project, unprocessed=True, defaults=defaults)
+    return build_track_rms_caches(
+        project, private_copy=private_copy, unprocessed=True, defaults=defaults
+    )
 
 
 def build_track_rms_caches(
