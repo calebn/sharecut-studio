@@ -10,7 +10,7 @@ type Props = {
   "aria-label"?: string;
   className?: string;
   size?: number;
-  maxLength?: number;
+  normalize?: (text: string) => string;
 };
 
 /**
@@ -27,7 +27,7 @@ export function InlineEditInput({
   "aria-label": ariaLabel,
   className,
   size,
-  maxLength,
+  normalize,
 }: Props) {
   const [draft, setDraft] = useState(initial);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,11 +53,12 @@ export function InlineEditInput({
       className={className}
       aria-label={ariaLabel}
       size={size}
-      maxLength={maxLength}
       autoComplete="off"
       enterKeyHint="done"
       value={draft}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(e) =>
+        setDraft(normalize ? normalize(e.target.value) : e.target.value)
+      }
       onBlur={() => close(true, false)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {

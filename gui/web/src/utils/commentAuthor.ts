@@ -2,7 +2,7 @@ import type { CommentRole } from "../shareMode";
 import { readLocal, writeLocal } from "./storage";
 
 const STORAGE_KEY = "podcast-mcp-comment-author";
-const NAME_ASKED_KEY = "podcast-mcp-comment-name-asked";
+const GUEST_NAME_KEY = "podcast-mcp-guest-comment-name";
 const DEFAULT_AUTHOR = "viewer";
 
 export const COMMENT_NAME_MAX = 40;
@@ -14,38 +14,57 @@ const PLACEHOLDER_NAMES = new Set([
   HOST_SESSION_LABEL,
   GUEST_SESSION_LABEL,
 ]);
+const INVISIBLE_OR_MARKUP = /[\p{Cc}\p{Cf}\p{Cs}<>]/gu;
 
-export function saveCommentAuthor(author: string): void {
-  writeLocal(
-    STORAGE_KEY,
-    author.trim().slice(0, COMMENT_NAME_MAX) || DEFAULT_AUTHOR,
-  );
+/** Keep at most `COMMENT_NAME_MAX` code points, as the server does. */
+export function limitCommentName(raw: string): string {
+  return Array.from(raw.replace(INVISIBLE_OR_MARKUP, ""))
+    .slice(0, COMMENT_NAME_MAX)
+    .join("");
+}
+
+/** The display name the server will store: no markup, controls or zero-width characters, trimmed, capped. */
+export function capCommentName(raw: string): string {
+  return limitCommentName(raw.replace(/\s+/g, " ").trim()).trim();
+}
+
+/**
+ * Remember a comment name. A guest's name has its own key that the host never
+ * reads or writes (`""` records a Skip); the host's name keeps its own.
+ */
+export function saveCommentAuthor(
+  author: string,
+  role: CommentRole = "host",
+): void {
+  const name = capCommentName(author);
+  if (role === "guest") {
+    writeLocal(GUEST_NAME_KEY, name);
+    return;
+  }
+  writeLocal(STORAGE_KEY, name || DEFAULT_AUTHOR);
 }
 
 /** Whether this browser's guest has already named themselves or skipped. */
 export function guestNameChosen(): boolean {
-  return (
-    readLocal(NAME_ASKED_KEY) === "1" ||
-    sessionDisplayName("guest") !== GUEST_SESSION_LABEL
-  );
-}
-
-export function markGuestNameChosen(): void {
-  writeLocal(NAME_ASKED_KEY, "1");
+  return readLocal(GUEST_NAME_KEY) !== null;
 }
 
 /**
- * Name this viewer shows as in the session: the saved comment name, else the
- * role's presence label. A placeholder saved by an earlier default (`viewer`,
- * `Host`, `Guest`) counts as unset, so a host's stored `Host` never names a
- * guest in the same browser.
+ * Name this viewer shows as in the session: the role's saved comment name,
+ * else the role's presence label. The host's saved placeholder (`viewer`,
+ * `Host`, `Guest`) counts as unset.
  */
 export function sessionDisplayName(role: CommentRole): string {
+  if (role === "guest") {
+    return (
+      capCommentName(readLocal(GUEST_NAME_KEY) ?? "") || GUEST_SESSION_LABEL
+    );
+  }
   const saved = (readLocal(STORAGE_KEY) ?? "").trim();
   if (saved && !PLACEHOLDER_NAMES.has(saved)) {
     return saved;
   }
-  return role === "host" ? HOST_SESSION_LABEL : GUEST_SESSION_LABEL;
+  return HOST_SESSION_LABEL;
 }
 
 /**
@@ -72,6 +91,6 @@ export function commitCommentActor(
 ): string {
   const who = resolveCommentActor(explicit, role);
   show?.(who);
-  saveCommentAuthor(who);
+  if (role === "host") saveCommentAuthor(who);
   return who;
 }

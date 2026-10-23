@@ -1,18 +1,19 @@
 import { useState } from "react";
 import type { CommentRole } from "../shareMode";
 import {
-  COMMENT_NAME_MAX,
+  capCommentName,
   GUEST_SESSION_LABEL,
   guestNameChosen,
-  markGuestNameChosen,
   saveCommentAuthor,
   sessionDisplayName,
 } from "../utils/commentAuthor";
 
 /**
- * A guest's comment name: asked once, on the first Post, and remembered.
- * `authorForPost` returns the name to post under, or null while it opens the
- * name step instead; the host never gets a step.
+ * The name a viewer comments and replies under, and a guest's one-time
+ * "who is commenting" step: asked on the first comment Post, remembered in a
+ * key the host never touches. `authorForPost` returns the name to post under,
+ * or null while it opens the name step instead; replies use `name` as it is
+ * (the chosen name, else Guest). The host never gets a step.
  */
 export function useGuestName(role: CommentRole) {
   const isGuest = role === "guest";
@@ -22,19 +23,19 @@ export function useGuestName(role: CommentRole) {
   const [draft, setDraft] = useState("");
 
   const rename = (next: string) => {
-    const capped = next.trim().slice(0, COMMENT_NAME_MAX);
+    const capped = capCommentName(next);
+    if (!capped) return;
     setName(capped);
-    saveCommentAuthor(capped);
+    saveCommentAuthor(capped, role);
   };
 
   const choose = (typed: string): string => {
-    const author =
-      typed.trim().slice(0, COMMENT_NAME_MAX) || GUEST_SESSION_LABEL;
-    setName(author);
+    const capped = capCommentName(typed);
+    setName(capped || GUEST_SESSION_LABEL);
     setChosen(true);
     setAsking(false);
-    markGuestNameChosen();
-    return author;
+    saveCommentAuthor(capped, "guest");
+    return capped || GUEST_SESSION_LABEL;
   };
 
   const authorForPost = (): string | null => {
@@ -48,6 +49,7 @@ export function useGuestName(role: CommentRole) {
 
   return {
     name,
+    setName,
     rename,
     chosen,
     showLine: isGuest && chosen,

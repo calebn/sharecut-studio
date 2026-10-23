@@ -89,3 +89,84 @@ def test_host_sees_the_guest_name_in_the_comment_list(commenter_link, minimal_pr
     _post(client, token, "Riley")
     ws = ProjectWorkspace.open(minimal_project)
     assert [c.author for c in ws.project.comments] == ["Riley"]
+
+
+def test_lone_surrogate_name_never_reaches_the_project(commenter_link, minimal_project):
+    from podcast_mcp.services.session_sync import guest_display_name
+
+    assert guest_display_name("x\ud83d") == "x"
+    client, token = commenter_link
+    raw = b'{"body":"note","author":"x\\ud83d","timeline_start":1.0}'
+    response = client.post(
+        f"/api/review/{token}/comments",
+        content=raw,
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 422, response.text
+    assert ProjectWorkspace.open(minimal_project).project.comments == []
+    assert _post(client, token, "ok")["author"] == "ok"
+
+
+@pytest.mark.parametrize("silent", ["​‍⁠", "﻿", "‮"])
+def test_name_of_only_invisible_characters_is_guest(commenter_link, silent):
+    client, token = commenter_link
+    assert _post(client, token, silent)["author"] == "Guest"
+
+
+def test_name_is_capped_by_code_points_not_utf16_units(commenter_link):
+    client, token = commenter_link
+    assert _post(client, token, "\U0001f600" * 90)["author"] == "\U0001f600" * 40
+
+
+def test_oversized_name_fields_are_refused(commenter_link):
+    client, token = commenter_link
+    cid = _post(client, token, "Sam")["id"]
+    big = "n" * 201
+    assert (
+        client.post(
+            f"/api/review/{token}/comments",
+            json={"body": "x", "author": big, "timeline_start": 1.0},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            f"/api/review/{token}/comments/{cid}/replies",
+            json={"body": "x", "author": big},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            f"/api/review/{token}/comments/{cid}/actions/none/done",
+            json={"done": True, "by": big},
+        ).status_code
+        == 422
+    )
+
+
+def test_action_done_label_is_a_display_name_too(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.services.collaboration.share import open_share_workspace
+    from podcast_mcp.services.document import CommentService
+
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    ver = ReviewService(ws).publish(label="Actions")
+    share = ShareService(ws).create(
+        review_version_id=ver["id"], capabilities=["play", "comment", "action"]
+    )
+    _row, sws = open_share_workspace(share["token"])
+    comment = CommentService(sws).add(
+        body="Fix levels", author="guest", timeline_start=2.0, action_texts=["Normalize"]
+    )
+    cid = comment["id"]
+    aid = comment["action_items"][0]["id"]
+    client = TestClient(create_app())
+    path = f"/api/review/{share['token']}/comments/{cid}/actions/{aid}/done"
+    done = client.post(path, json={"done": True, "by": "  Host "})
+    assert done.status_code == 200, done.text
+    assert done.json()["action_item"]["completed_by"] == "Host (guest)"

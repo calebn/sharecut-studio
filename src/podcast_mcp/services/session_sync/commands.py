@@ -252,7 +252,7 @@ def sanitize_display_name(raw: Any, *, guest: bool = False) -> str | None:
         raw = str(raw)
     chars: list[str] = []
     for ch in raw:
-        if unicodedata.category(ch) in {"Cc", "Cf"}:
+        if unicodedata.category(ch) in {"Cc", "Cf", "Cs"}:
             continue
         chars.append(ch)
     text = _WHITESPACE_RE.sub(" ", "".join(chars)).strip()
@@ -268,7 +268,7 @@ def sanitize_display_name(raw: Any, *, guest: bool = False) -> str | None:
 def guest_display_name(raw: Any) -> str:
     """The label a guest's comment or reply carries: a display name, never a credential.
 
-    Angle brackets, control characters and runs of whitespace are removed, the
+    Angle brackets, control, format (zero-width) and lone-surrogate characters and runs of whitespace are removed, the
     result is capped, a reserved name (Host, Agent, DAW) is suffixed so a guest
     cannot pass as one, and a blank name falls back to ``Guest``.
     """

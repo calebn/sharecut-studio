@@ -250,11 +250,14 @@ class CommentReplyRequest(BaseModel):
     author: str
 
 
+GUEST_NAME_FIELD_MAX = 200
+
+
 class ShareActionDoneRequest(BaseModel):
     """Guest HTTP twin for MCP guest_set_action_done (no project path)."""
 
     done: bool = True
-    by: str = "guest"
+    by: str = Field(default="guest", max_length=GUEST_NAME_FIELD_MAX)
 
 
 class ShareCreateRequest(BaseModel):

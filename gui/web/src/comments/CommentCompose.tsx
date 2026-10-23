@@ -18,6 +18,8 @@ type Props = {
   onAuthorChange?: (value: string) => void;
   authorLabel?: string;
   children?: ReactNode;
+  /** Another control posts instead, so the submit row is not shown. */
+  hideSubmit?: boolean;
 };
 
 /**
@@ -39,6 +41,7 @@ export function CommentCompose({
   onAuthorChange,
   authorLabel = "Your name",
   children,
+  hideSubmit = false,
 }: Props) {
   return (
     <div className={className}>
@@ -61,23 +64,25 @@ export function CommentCompose({
         rows={bodyRows}
       />
       {children}
-      <div className="comment-compose-submit">
-        {anchor}
-        <Button
-          variant="primary"
-          disabledReason={
-            busy
-              ? BUSY_REASON
-              : !body.trim()
-                ? "Write a comment to post."
-                : undefined
-          }
-          aria-busy={busy || undefined}
-          onClick={() => onSubmit()}
-        >
-          {busy ? "Posting…" : submitLabel}
-        </Button>
-      </div>
+      {hideSubmit ? null : (
+        <div className="comment-compose-submit">
+          {anchor}
+          <Button
+            variant="primary"
+            disabledReason={
+              busy
+                ? BUSY_REASON
+                : !body.trim()
+                  ? "Write a comment to post."
+                  : undefined
+            }
+            aria-busy={busy || undefined}
+            onClick={() => onSubmit()}
+          >
+            {busy ? "Posting…" : submitLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
