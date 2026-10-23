@@ -176,8 +176,12 @@ There are three overlay primitives.
    (`feedback/FeedbackToast.tsx`) and speaks through the one shell live
    region (`ui/StatusLiveRegion.tsx`). A panel does not mount its own toast or
    its own `aria-live` region. The Comments panel and the Needs attention
-   banner speak through it too. The toast never covers the comment composer or
-   the guest name step on any shell (`feedback/toastDock.ts`, #2199).
+   banner speak through it too. Floating placement uses the card's horizontal
+   footprint. Visible comment and guest-name fields that intersect it take
+   protection priority when a clear position fits (`feedback/toastDock.ts`,
+   #2199, #2221). If no clear position fits, the existing fallback can cover a
+   control. See [Feedback toast](gui-mobile.md#feedback-toast) for the measured
+   320x300 limit and the Dismiss or resize workaround.
 2. **Undo rides with the result.** Every mutating command passes `undo` to
    `announceStatus`. The toast's Undo is the same History step the Undo button
    runs. A change History does not record (a comment resolve) passes `reverse`
