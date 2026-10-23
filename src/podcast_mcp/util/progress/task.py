@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from types import TracebackType
 
+from podcast_mcp.util.model_missing import failure_text
 from podcast_mcp.util.progress.compliance import (
     ComplianceBucket,
     compliance_var,
@@ -40,7 +41,7 @@ fail_detail_var: ContextVar[FailDetail | None] = ContextVar("progress_fail_detai
 
 def _exception_text(exc: BaseException) -> str | None:
     """The host's rule: a failed task's message carries the exception's own text."""
-    return str(exc).strip() or None
+    return failure_text(exc).strip() or None
 
 
 def current_progress() -> ProgressReporter:

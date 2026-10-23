@@ -70,3 +70,8 @@ class ModelMissing(CodedError, RuntimeError):
             "command": self.command,
             "state": self.state,
         }
+
+
+def failure_text(exc: BaseException) -> str:
+    """The text a job, step or progress frame shows for ``exc``: a model refusal loses its command."""
+    return exc.plain() if isinstance(exc, ModelMissing) else str(exc)

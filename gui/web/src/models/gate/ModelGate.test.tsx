@@ -58,7 +58,8 @@ function mount(fixture: Partial<ModelsFixture> = {}, panel = false) {
 
 function trackFocus() {
   const labels: string[] = [];
-  const real = HTMLElement.prototype.focus;
+  const real = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "focus")
+    ?.value as (this: HTMLElement, options?: FocusOptions) => void;
   const spy = vi
     .spyOn(HTMLElement.prototype, "focus")
     .mockImplementation(function (this: HTMLElement, ...args) {

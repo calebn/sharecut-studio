@@ -34,7 +34,7 @@ from podcast_mcp.services.media import (
 )
 from podcast_mcp.services.pipeline import BootstrapRequest, PipelineService, run_bootstrap
 from podcast_mcp.util.coded_error import CodedError
-from podcast_mcp.util.model_missing import ModelMissing
+from podcast_mcp.util.model_missing import ModelMissing, failure_text
 from podcast_mcp.util.progress import CancelledProgress, bind_progress
 
 logger = logging.getLogger(__name__)
@@ -505,18 +505,14 @@ class JobManager:
                     )
                     job.status = "cancelled" if cancelled else "error"
                     job.finished_at = time.monotonic()
-                    short = (
-                        None
-                        if cancelled
-                        else exc.plain()
-                        if isinstance(exc, ModelMissing)
-                        else short_fail_message(str(exc))
-                    )
+                    short = None if cancelled else short_fail_message(failure_text(exc))
                     job.error = short
                     if not cancelled:
                         job.error_code = exc.code if isinstance(exc, CodedError) else None
                         job.error_model = exc.payload() if isinstance(exc, ModelMissing) else None
-                    job.message = cancelled_copy(job.kind) if cancelled else (short or str(exc))
+                    job.message = (
+                        cancelled_copy(job.kind) if cancelled else (short or failure_text(exc))
+                    )
                     if job.steps and job.steps[-1].status == "running":
                         job.steps[-1].status = "error"
                         job.steps[-1].error = short
