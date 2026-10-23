@@ -4,6 +4,7 @@ import { commandLocks } from "../test/commandLocks";
 const enqueueHostCommand = vi.fn();
 const enqueueCommand = vi.fn();
 const loadHostCommandQueue = vi.fn();
+const loadCommandQueue = vi.fn();
 const removeHostQueuedCommand = vi.fn();
 const settleHostCommandOutcome = vi.fn();
 const settleGuestCommandOutcome = vi.fn();
@@ -17,6 +18,7 @@ vi.mock("../document/applyDocumentUpdate", () => ({
 }));
 vi.mock("./offlineQueue/offlineStore", () => ({
   loadHostCommandQueue,
+  loadCommandQueue,
   enqueueHostCommand,
   removeHostQueuedCommand,
   settleHostCommandOutcome,
@@ -419,6 +421,7 @@ describe("queued command identity and landed history", () => {
           blocksSave: true,
         });
         expect(outcomeOf().reason).not.toContain("/secret/path");
+        expect(settleHostCommandOutcome.mock.calls.at(-1)?.[3]).toBe(true);
       },
     );
 
@@ -437,6 +440,67 @@ describe("queued command identity and landed history", () => {
         kind: "unknown",
         recovery: "inspect-history",
         reason: `${words} Check History before trying again.`,
+      });
+    });
+
+    describe("as a guest", () => {
+      const guestPath = "share:guest-history";
+      const guestOutcome = () => {
+        const [, , outcome] = settleGuestCommandOutcome.mock.calls.at(-1) ?? [];
+        return outcome;
+      };
+      const guestHistory = async () => {
+        const harness = await laggingHistory();
+        harness.useDawStore.setState({ projectPath: guestPath });
+        harness.resetDocumentAuthority(guestPath);
+        harness.documentAuthority.seq = 1;
+        let queued: unknown[] = [];
+        enqueueCommand.mockImplementation(async (_token, command) => {
+          queued = [command];
+          return { persisted: true, hadPredecessor: false };
+        });
+        loadCommandQueue.mockImplementation(async () => queued);
+        return harness;
+      };
+
+      it.each([
+        ["project_unreadable", 500],
+        ["project_not_found", 404],
+      ])(
+        "turns a %s answer into a save-blocking refusal in guest words",
+        async (code, status) => {
+          const { execute } = await guestHistory();
+          vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => fail(status, code, "raw /secret/path text")),
+          );
+          const guestWords =
+            "The project can't be saved right now. Ask the project owner to check it.";
+          await expect(execute("history.undo")).rejects.toThrow(guestWords);
+          expect(guestOutcome()).toMatchObject({
+            kind: "refused",
+            blocksSave: true,
+            reason: guestWords,
+          });
+          expect(settleGuestCommandOutcome.mock.calls.at(-1)?.[3]).toBe(true);
+        },
+      );
+
+      it("keeps the server's words for a full disk and asks to check History", async () => {
+        const { execute } = await guestHistory();
+        const words =
+          "Your change could not be saved on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.";
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async () => fail(507, "project_write_failed", words)),
+        );
+        await expect(execute("history.undo")).rejects.toThrow(
+          `${words} Check History before trying again.`,
+        );
+        expect(guestOutcome()).toMatchObject({
+          kind: "unknown",
+          recovery: "inspect-history",
+        });
       });
     });
 
