@@ -159,15 +159,22 @@ def resample_streams(
 
 _LOCALITY_SOURCE_RATE = 48000
 _LOCALITY_RATES = (8000, 16000)
-_LOCALITY_SAMPLES = 2 * _LOCALITY_SOURCE_RATE
-_LOCALITY_SEED = 1958
 _LOCALITY_CEILING = 8192
+# Multiples of 6 so they are grid points at both rates; 30006 sits one 8 kHz grid past 30000.
+_LOCALITY_RESTART_AT = 12000
+_LOCALITY_CUT_AT = 60000
+_LOCALITY_BLOCK_EDGES = (12000, 30000, 30006, 60000, 84000)
 _LOCALITY_CACHE: dict[tuple[object, ...], tuple[int, int] | None] = {}
 _LOCALITY_LOCK = threading.Lock()
 
 
-def _resample_once(samples: np.ndarray, from_rate: int, rate: int) -> np.ndarray:
-    return resample_streams(iter([samples]), from_rate, [rate])[rate]
+def _resample_array(samples: np.ndarray, rate: int) -> np.ndarray:
+    return resample_streams(iter([samples]), _LOCALITY_SOURCE_RATE, [rate])[rate]
+
+
+def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
+    """Equal float32 bit patterns, so that +0.0 and -0.0 differ."""
+    return got.shape == want.shape and np.array_equal(got.view(np.uint32), want.view(np.uint32))
 
 
 def _ffmpeg_build_id() -> tuple[object, ...]:
@@ -177,34 +184,30 @@ def _ffmpeg_build_id() -> tuple[object, ...]:
 
 
 def _restart_matches(
-    signal: np.ndarray, reference: np.ndarray, grid: int, step: int, warm_up: int
+    signal: np.ndarray, reference: np.ndarray, grid: int, rate: int, warm_up: int
 ) -> bool:
-    """Whether resampling from ``warm_up`` input samples before a grid point gives the continuous run's output there."""
-    start = 6000
-    restarted = _resample_once(signal[start - warm_up :], _LOCALITY_SOURCE_RATE, step)
-    tail = restarted[warm_up // grid :]
-    return bool(np.array_equal(tail, reference[start // grid :][: len(tail)])) and (
-        len(tail) == len(reference) - start // grid
-    )
+    if warm_up > _LOCALITY_RESTART_AT:
+        raise ValueError(f"warm_up {warm_up} reaches before the start of the signal")
+    restarted = _resample_array(signal[_LOCALITY_RESTART_AT - warm_up :], rate)
+    return _same_bits(restarted[warm_up // grid :], reference[_LOCALITY_RESTART_AT // grid :])
 
 
 def _truncation_matches(
-    signal: np.ndarray, reference: np.ndarray, grid: int, step: int, guard: int
+    signal: np.ndarray, reference: np.ndarray, grid: int, rate: int, guard: int
 ) -> bool:
-    """Whether output more than ``guard`` input samples before a cut is the continuous run's output."""
-    end = 60000
-    truncated = _resample_once(signal[:end], _LOCALITY_SOURCE_RATE, step)
-    kept = (end - guard) // grid
-    return bool(np.array_equal(truncated[:kept], reference[:kept]))
+    truncated = _resample_array(signal[:_LOCALITY_CUT_AT], rate)
+    kept = (_LOCALITY_CUT_AT - guard) // grid
+    return _same_bits(truncated[:kept], reference[:kept])
 
 
 def _smallest_passing(grid: int, passes: Callable[[int], bool]) -> int | None:
-    """The smallest multiple of ``grid`` up to the ceiling for which ``passes`` holds, by doubling then bisection."""
+    """The smallest multiple of ``grid`` up to the ceiling for which ``passes`` holds, or ``None``."""
+    top = _LOCALITY_CEILING // grid * grid
     width = 0
     while not passes(width):
-        width = max(grid, width * 2)
-        if width > _LOCALITY_CEILING:
+        if width == top:
             return None
+        width = min(max(grid, width * 2), top)
     low, high = (width // 2 if width > grid else 0), width
     while high - low > grid:
         middle = (low + high) // 2 // grid * grid
@@ -216,29 +219,26 @@ def _smallest_passing(grid: int, passes: Callable[[int], bool]) -> int | None:
 
 
 def _blocks_match(
-    signal: np.ndarray, reference: np.ndarray, grid: int, step: int, warm_up: int, guard: int
+    signal: np.ndarray, reference: np.ndarray, grid: int, rate: int, warm_up: int, guard: int
 ) -> bool:
-    """Whether grid-aligned blocks, each padded by ``warm_up`` and ``guard``, join into the continuous output."""
-    edges = (12000, 30000, 30006, 60000, 84000)
+    edges = _LOCALITY_BLOCK_EDGES
     joined = []
     for begin, end in itertools.pairwise(edges):
-        block = _resample_once(signal[begin - warm_up : end + guard], _LOCALITY_SOURCE_RATE, step)
+        block = _resample_array(signal[begin - warm_up : end + guard], rate)
         joined.append(block[warm_up // grid : warm_up // grid + (end - begin) // grid])
-    return bool(
-        np.array_equal(np.concatenate(joined), reference[edges[0] // grid : edges[-1] // grid])
-    )
+    return _same_bits(np.concatenate(joined), reference[edges[0] // grid : edges[-1] // grid])
 
 
-def resampler_warm_up_and_guard(from_rate: int, rate: int) -> tuple[int, int] | None:
-    """Input samples ``(W, G)`` that make a restarted ffmpeg resampler reproduce a continuous run, or ``None``.
+def resampler_locality(from_rate: int, rate: int) -> tuple[int, int] | None:
+    """Return ``(warm_up, guard)`` in input samples, or ``None`` if the resampler is not local.
 
-    Restarting ``resample_streams`` at a grid-aligned input index ``W`` samples early and
-    dropping the first ``W / grid`` outputs, or cutting the input ``G`` samples late, gives
-    outputs bit-identical to the continuous run. The grid is ``from_rate / rate`` input
-    samples; only 48 kHz sources into 8 and 16 kHz are calibrated, as 44.1 kHz has a 441-sample
-    grid.
-    Measured against the running build, cached per build, and ``None`` when no width up to the
-    ceiling holds or blocks stitched with the widths found differ from the continuous run.
+    Restarting ``resample_streams`` ``warm_up`` samples before a grid point and dropping the
+    outputs before it, or feeding the input up to ``guard`` samples past a cut and keeping only
+    the outputs that end at least ``guard`` samples before it, reproduces the continuous run bit
+    for bit. A grid is ``from_rate // rate`` input samples. Only 48 kHz into 8 and 16 kHz is
+    calibrated. The result is measured on the running ffmpeg build and cached per build. It is
+    ``None`` when no width up to the ceiling (8192 samples, rounded down to a grid) works or
+    when blocks stitched with the widths found differ from the continuous run.
     """
     if from_rate != _LOCALITY_SOURCE_RATE or rate not in _LOCALITY_RATES:
         return None
@@ -250,9 +250,9 @@ def resampler_warm_up_and_guard(from_rate: int, rate: int) -> tuple[int, int] | 
 
 
 def _calibrate_locality(grid: int, rate: int) -> tuple[int, int] | None:
-    rng = np.random.default_rng(_LOCALITY_SEED)
-    signal = (rng.standard_normal(_LOCALITY_SAMPLES) * 0.1).astype(np.float32)
-    reference = _resample_once(signal, _LOCALITY_SOURCE_RATE, rate)
+    rng = np.random.default_rng(1958)
+    signal = (rng.standard_normal(2 * _LOCALITY_SOURCE_RATE) * 0.1).astype(np.float32)
+    reference = _resample_array(signal, rate)
     warm_up = _smallest_passing(
         grid, lambda width: _restart_matches(signal, reference, grid, rate, width)
     )
@@ -264,15 +264,6 @@ def _calibrate_locality(grid: int, rate: int) -> tuple[int, int] | None:
     if not _blocks_match(signal, reference, grid, rate, warm_up, guard):
         return None
     return warm_up, guard
-
-
-def resampler_locality(from_rate: int, rate: int) -> int | None:
-    """Input samples of context that make restarting the ffmpeg resampler exact, or ``None`` when it is not local.
-
-    The larger of the warm-up and the lookahead guard from ``resampler_warm_up_and_guard``.
-    """
-    found = resampler_warm_up_and_guard(from_rate, rate)
-    return None if found is None else max(found)
 
 
 def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:
