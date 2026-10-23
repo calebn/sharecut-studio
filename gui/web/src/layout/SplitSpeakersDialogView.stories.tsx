@@ -58,6 +58,7 @@ const needsModelGate: ModelGate = {
   decline: fn(),
   cancelDownload: fn(),
   openModels: fn(),
+  reset: fn(),
 };
 
 const result: SplitSpeakersResult = {
