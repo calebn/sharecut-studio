@@ -65,6 +65,35 @@ describe("apiFetch error mapping", () => {
     });
   });
 
+  it("carries the model a host model_needed 409 names", async () => {
+    stubFetch(
+      async () =>
+        new Response(
+          JSON.stringify({
+            detail: {
+              detail: "Needs Whisper.",
+              model: {
+                id: "word-aligner",
+                model: "wav2vec",
+                label: "Word aligner",
+                purpose: "Times words",
+                size: "95 MB",
+                size_bytes: 95_000_000,
+                command: "podcast bootstrap",
+                state: "missing",
+              },
+            },
+          }),
+          {
+            status: 409,
+            headers: { "X-Sharecut-Error-Code": "model_needed" },
+          },
+        ),
+    );
+    const error = await failure(apiFetch(HOST_KEY, { host: "/api/x" }));
+    expect(error.model).toMatchObject({ id: "word-aligner", sizeBytes: 95e6 });
+  });
+
   it("reads a nested FastAPI detail message", async () => {
     stubFetch(
       async () =>

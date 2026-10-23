@@ -134,6 +134,46 @@ describe("host document command queue", () => {
     );
   });
 
+  it("rejects with the model a host 409 model_needed names", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              detail: {
+                detail: "Needs the noise model.",
+                model: {
+                  id: "rnnoise",
+                  model: "rnnoise",
+                  label: "RNNoise",
+                  purpose: "Reduces noise",
+                  size: "1 MB",
+                  size_bytes: 1_000_000,
+                  command: "podcast bootstrap",
+                  state: "missing",
+                },
+              },
+            }),
+            {
+              status: 409,
+              headers: { "X-Sharecut-Error-Code": "model_needed" },
+            },
+          ),
+      ),
+    );
+    const { submitDocumentCommand } = await import("./api");
+    const { isModelNeeded } = await import("./utils/apiError");
+    const error = await submitDocumentCommand(
+      "/tmp/episode.project.json",
+      "AddEffect",
+      { clip_id: "c1" },
+      { replaying: true, command_id: "fx", client_id: "host", client_seq: 1 },
+    ).catch((e: unknown) => e);
+    expect(isModelNeeded(error)).toBe(true);
+    expect((error as { model: { id: string } }).model.id).toBe("rnnoise");
+  });
+
   it("retains the captured guest fade pair on refused replay", async () => {
     const payload = {
       clip_id: "c1",
