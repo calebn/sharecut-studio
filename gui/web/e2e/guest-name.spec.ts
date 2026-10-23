@@ -241,3 +241,52 @@ test("a tablet guest who changes the name before the first comment is not asked 
     );
   });
 });
+
+test("the name step's buttons stay uncovered while the comment field is focused with the keyboard up", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {},
+        {
+          viewport: { width: 390, height: 340 },
+          reducedMotion: "reduce",
+          hasTouch: true,
+          isMobile: true,
+        },
+      ],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "commenter");
+        await openGuestShare(guest, token);
+        const dock = guest.getByRole("region", { name: "Add a comment" });
+        const field = dock.getByRole("textbox", {
+          name: "Comment",
+          exact: true,
+        });
+        await field.fill("Keyboard note");
+        await dock.getByRole("button", { name: "Post comment" }).tap();
+        await expect(
+          dock.getByRole("textbox", { name: "Your name" }),
+        ).toBeVisible();
+        await field.focus();
+        await field.fill("Keyboard note, edited");
+        for (const name of ["Post as Guest", "Post comment"]) {
+          const button = dock.getByRole("button", { name });
+          await expect(button).toBeInViewport({ ratio: 1 });
+          const reached = await button.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              r.left + r.width / 2,
+              r.top + r.height / 2,
+            );
+            return hit !== null && el.contains(hit);
+          });
+          expect(reached, `${name} is covered`).toBe(true);
+        }
+      },
+    );
+  });
+});

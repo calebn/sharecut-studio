@@ -230,6 +230,37 @@ describe("CommentsPanel", () => {
     expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe("Alex");
   });
 
+  it("Post as Guest posts this comment as Guest even after Change set a name, and keeps that name", async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    createComment.mockResolvedValue(sampleComment());
+    renderPanel({ guestShare: true });
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Note");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    localStorage.setItem("podcast-mcp-guest-comment-name", "Ann");
+    await user.click(screen.getByRole("button", { name: "Post as Guest" }));
+    expect(createComment).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ author: "Guest" }),
+    );
+    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe("Ann");
+  });
+
+  it("a failed post that followed the name step returns focus to the comment field and shows the error", async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    createComment.mockRejectedValueOnce(new Error("Server said no"));
+    renderPanel({ guestShare: true });
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Try");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    await user.click(screen.getByRole("button", { name: "Post as Guest" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Server said no",
+    );
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue("Try");
+  });
+
   it("Change then a new name saves it and is used on the next post", async () => {
     const user = userEvent.setup();
     renderPanel();

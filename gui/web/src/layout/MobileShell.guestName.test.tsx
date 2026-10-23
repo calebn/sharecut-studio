@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
@@ -326,14 +326,31 @@ describe("phone share link, a guest names themselves", () => {
     ).toBeVisible();
   });
 
-  it("announces the name prompt politely when it appears", async () => {
+  it("mounts the polite prompt empty, then fills it so it is announced", async () => {
     const user = userEvent.setup();
     openGuest();
     await typeComment(user, "Hi");
-    expect(within(dock()).queryByText(/Add your name/)).toBeNull();
+    expect(within(dock()).queryByRole("status")).toBeNull();
+    fireEvent.click(
+      within(dock()).getByRole("button", { name: "Post comment" }),
+    );
+    const region = within(dock()).getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    expect(await within(dock()).findByText(/Add your name/)).toBe(region);
+  });
+
+  it("Post as Guest posts this comment as Guest and keeps a name saved meanwhile", async () => {
+    const user = userEvent.setup();
+    openGuest();
+    await typeComment(user, "Hi");
     await post(user);
-    const note = within(dock()).getByText(/Add your name/);
-    expect(note.closest("[role='status']")).not.toBeNull();
+    localStorage.setItem("podcast-mcp-guest-comment-name", "Ann");
+    await user.click(
+      within(dock()).getByRole("button", { name: "Post as Guest" }),
+    );
+    expect(lastAuthor()).toBe("Guest");
+    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe("Ann");
+    expect(within(dock()).getByText("Guest")).toBeVisible();
   });
 
   it("after a failed post that followed the name step, focus returns to the comment field and the error shows", async () => {
