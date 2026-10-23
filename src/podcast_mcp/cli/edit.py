@@ -1013,13 +1013,15 @@ def edit_suppress_low_audibility_cmd(
     track: str | None = typer.Option(None, "--track"),
     speaker: str | None = typer.Option(None, "--speaker"),
 ) -> None:
-    ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            AnalysisService(ws).suppress_low_audibility(track_id=track, speaker=speaker),
-            indent=2,
-        )
+    from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
+
+    reply = submit_host_document_command(
+        project,
+        "SuppressLowAudibility",
+        {"track_id": track, "speaker": speaker},
+        client_id="cli:host",
     )
+    typer.echo(json.dumps(host_command_result(reply), indent=2))
 
 
 @edit_app.command("gate-overreach")
@@ -1172,21 +1174,37 @@ def edit_suppress_bleed_cmd(
         raise typer.BadParameter("--words-json must be a JSON array")
     if exclude is not None and not isinstance(exclude, list):
         raise typer.BadParameter("--exclude-words-json must be a JSON array")
-    typer.echo(
-        json.dumps(
-            AnalysisService(ws).suppress_bleed(
-                track_id=track,
-                speaker=speaker,
-                word_keys=words,
-                exclude_word_keys=exclude,
-                start_sec=start,
-                end_sec=end,
-                apply=not dry_run,
-                progress=get_progress(),
-            ),
-            indent=2,
-        )
+    from podcast_mcp.services.document_sync import (
+        host_command_result,
+        submit_host_document_command,
+        validate_payload,
     )
+
+    payload = {
+        "track_id": track,
+        "speaker": speaker,
+        "words": words,
+        "exclude_words": exclude,
+        "start_sec": start,
+        "end_sec": end,
+    }
+    if dry_run:
+        checked = validate_payload("SuppressBleed", payload)
+        result = AnalysisService(ws).suppress_bleed(
+            track_id=track,
+            speaker=speaker,
+            word_keys=checked["words"],
+            exclude_word_keys=checked["exclude_words"],
+            start_sec=start,
+            end_sec=end,
+            apply=False,
+            progress=get_progress(),
+        )
+    else:
+        result = host_command_result(
+            submit_host_document_command(project, "SuppressBleed", payload, client_id="cli:host")
+        )
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("apply-bleed-mute")
@@ -1313,13 +1331,19 @@ def edit_bleed_alignment_choice_cmd(
     """Save or reset a source-scoped timing choice, including a preview proposal."""
     if mode not in ("auto", "manual", "declined"):
         raise typer.BadParameter("mode must be auto, manual, or declined", param_hint="--mode")
-    ws = ProjectWorkspace.open(project)
-    result = AnalysisService(ws).set_bleed_alignment_mode(
-        decision,
-        cast(Literal["auto", "manual", "declined"], mode),
-        track_id=track,
-        start_sec=start,
-        end_sec=end,
-        override_placement_lock=override_placement_lock,
+    from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
+
+    reply = submit_host_document_command(
+        project,
+        "SetBleedAlignmentMode",
+        {
+            "decision_id": decision,
+            "mode": mode,
+            "track_id": track,
+            "start_sec": start,
+            "end_sec": end,
+            "override_placement_lock": override_placement_lock,
+        },
+        client_id="cli:host",
     )
-    typer.echo(json.dumps(result, indent=2))
+    typer.echo(json.dumps(host_command_result(reply), indent=2))

@@ -24,6 +24,7 @@ from podcast_mcp.services.document_sync import (
     submit_host_command_result,
     submit_host_document_command,
     submit_paste_segment,
+    validate_payload,
 )
 from podcast_mcp.services.jobs import run_audio_edit
 from podcast_mcp.util.coded_error import CodedValueError
@@ -1162,32 +1163,28 @@ def apply_bleed_suppression_tool(
     dry_run: bool = False,
 ) -> str:
     """Suppress mic-bleed words (dry_run previews without applying)."""
+    payload = {
+        "track_id": track_id,
+        "speaker": speaker,
+        "words": words,
+        "exclude_words": exclude_words,
+        "start_sec": start_sec,
+        "end_sec": end_sec,
+    }
     if not (apply and not dry_run):
+        checked = validate_payload("SuppressBleed", payload)
         ws = ProjectWorkspace.open(project_path)
         return to_json(
             AnalysisService(ws).preview_suppress_bleed(
                 track_id=track_id,
                 speaker=speaker,
-                word_keys=words,
-                exclude_word_keys=exclude_words,
+                word_keys=checked["words"],
+                exclude_word_keys=checked["exclude_words"],
                 start_sec=start_sec,
                 end_sec=end_sec,
             )
         )
-    return to_json(
-        submit_host_command_result(
-            project_path,
-            "SuppressBleed",
-            {
-                "track_id": track_id,
-                "speaker": speaker,
-                "words": words,
-                "exclude_words": exclude_words,
-                "start_sec": start_sec,
-                "end_sec": end_sec,
-            },
-        )
-    )
+    return to_json(submit_host_command_result(project_path, "SuppressBleed", payload))
 
 
 def mute_off_speaker_tool(
