@@ -21,12 +21,6 @@ const FLOOR_SELECTORS = [
  */
 const KEEP_CLEAR_SELECTORS = [".listen-hero-controls"] as const;
 
-/**
- * Fields a toast must never cover, on any shell: the comment composer, the
- * Commenting as line, its Change field and the guest name step. A person types
- * into these right after the toast that reports their post appears, so it
- * moves even when that means covering other content (#2199).
- */
 const PROTECT_SELECTORS = [
   ".comment-compose",
   ".comment-author-line",
@@ -46,10 +40,7 @@ export type ToastDockInput = {
   ceilingPx: number;
   /** Tops of the bottom-docked chrome that is shown (nav, tool rail, sheet). */
   floorTopsPx: readonly number[];
-  /**
-   * Top of the chrome the toast rests above when no free band fits: the mode
-   * nav on a phone, the status bar on a tablet or desktop.
-   */
+  /** Top of the chrome the toast rests above when no free band fits (mode nav on phone, status bar elsewhere). */
   restTopPx: number;
   toastHeightPx: number;
   gapPx: number;
@@ -61,12 +52,7 @@ export type ToastDockInput = {
   pressedPx?: { top: number; bottom: number } | null;
   /** Vertical extents of body controls the toast must clear (Listen's Play row). */
   keepClearPx?: readonly { top: number; bottom: number }[];
-  /**
-   * Vertical extents of fields the toast must never cover (the comment
-   * composer and name step). Unlike `keepClearPx` they win over the ceiling:
-   * on a window too short for a free band the toast covers the content above
-   * them instead.
-   */
+  /** Fields the toast must never cover. Unlike keepClearPx they win over the ceiling. */
   protectPx?: readonly { top: number; bottom: number }[];
 };
 
@@ -76,13 +62,10 @@ export type ToastDockInput = {
  * tool rail, or the mode nav) when the band between that and the top
  * transport fits it, so it covers neither controls nor sheet fields. A
  * full-height sheet leaves no such band; the toast then sits above the rest
- * chrome (mode nav or status bar), over the sheet's scrolling body, which the
- * person can scroll past. If that spot covers the control just pressed or a
+ * chrome, over the sheet's scrolling body, which the person can scroll past. If that spot covers the control just pressed or a
  * control that must stay clear (Listen's Play row on a short phone), the toast
  * moves just above it, or just below it when there is no room above; the first
- * spot that covers none of them wins. A protected field (the comment composer
- * or name step) is cleared even when that leaves no room under the ceiling: the
- * toast then goes above it or below it and covers other content instead.
+ * spot that covers none of them wins.
  */
 export function toastDockBottomPx({
   viewportHeight,
@@ -124,21 +107,25 @@ export function toastDockBottomPx({
     );
   const moved = [...above, ...below].find(clear);
   if (moved !== undefined) return viewportHeight - moved;
-  const clearOfProtected = (bottom: number) =>
-    protectPx.every((extent) => clearOf(extent, bottom));
-  if (protectPx.length === 0 || clearOfProtected(spot)) {
-    return viewportHeight - spot;
+  if (protectPx.length === 0) return viewportHeight - spot;
+  // Protected fields win over the ceiling: go past it, keeping everything clear
+  // if the viewport allows, else at least the protected fields.
+  for (const keep of [avoid, protectPx]) {
+    const clearOfKept = (bottom: number) =>
+      keep.every((extent) => clearOf(extent, bottom));
+    const past = [
+      spot,
+      ...keep.map((extent) => extent.top - gapPx),
+      ...keep.map((extent) => extent.bottom + gapPx + toastHeightPx),
+    ].find(
+      (bottom) =>
+        bottom - toastHeightPx >= 0 &&
+        bottom <= viewportHeight &&
+        clearOfKept(bottom),
+    );
+    if (past !== undefined) return viewportHeight - past;
   }
-  const protectedSpot = [
-    ...protectPx.map((extent) => extent.top - gapPx),
-    ...protectPx.map((extent) => extent.bottom + gapPx + toastHeightPx),
-  ].find(
-    (bottom) =>
-      bottom - toastHeightPx >= 0 &&
-      bottom <= viewportHeight &&
-      clearOfProtected(bottom),
-  );
-  return viewportHeight - (protectedSpot ?? spot);
+  return viewportHeight - spot;
 }
 
 function shownRects(selectors: readonly string[]): DOMRect[] {
@@ -149,17 +136,13 @@ function shownRects(selectors: readonly string[]): DOMRect[] {
   );
 }
 
-/** Where the toast rests: the mode nav's top on a phone, the status bar's elsewhere. A chrome row that is hidden leaves the viewport bottom. */
+/** A hidden chrome row leaves the viewport bottom. */
 function restTop(chrome: HTMLElement): number {
   const rect = chrome.getBoundingClientRect();
   return rect.height > 0 ? rect.top : window.innerHeight;
 }
 
-/**
- * Vertical extents of the matching elements as the person can see them: each
- * one is clipped by every scrolling ancestor, so a composer scrolled out of
- * its panel does not count and a half-visible one counts for the visible part.
- */
+/** Extents clipped by scrolling ancestors, so a field scrolled out of its panel does not count. */
 function visibleExtents(
   selectors: readonly string[],
 ): { top: number; bottom: number }[] {
@@ -187,15 +170,7 @@ function pressedExtent(): DOMRect | null {
   return rect && rect.height > 0 && rect.width > 0 ? rect : null;
 }
 
-/**
- * While a toast shows, keep its region's `--toast-dock-bottom` (rem) on
- * `toastDockBottomPx`, re-measured every frame like an open menu, so a sheet
- * opening, resizing or closing, or a comment field growing under it, moves it.
- * The phone shell docks it above its bottom chrome and clear of the pressed
- * control and Play row; every shell keeps it off the comment composer and name
- * step, resting above the status bar (tablet, desktop) or mode nav (phone)
- * otherwise.
- */
+/** Keeps the region's --toast-dock-bottom (rem) on toastDockBottomPx, re-measured every frame. */
 export function useToastDock(
   regionRef: RefObject<HTMLElement | null>,
   active: boolean,
@@ -220,22 +195,23 @@ export function useToastDock(
       // The same gap the CSS placement uses: var(--space-3), in rem.
       const gapRem =
         Number.parseFloat(rootStyle.getPropertyValue("--space-3")) || 0.5;
-      const bottomPx = toastDockBottomPx({
-        viewportHeight: window.innerHeight,
-        ceilingPx: phone
-          ? Math.max(
+      const phoneOnly = phone
+        ? {
+            ceilingPx: Math.max(
               0,
               ...shownRects(CEILING_SELECTORS).map((rect) => rect.bottom),
-            )
-          : 0,
-        floorTopsPx: phone
-          ? shownRects(FLOOR_SELECTORS).map((rect) => rect.top)
-          : [],
+            ),
+            floorTopsPx: shownRects(FLOOR_SELECTORS).map((rect) => rect.top),
+            pressedPx: pressedExtent(),
+            keepClearPx: shownRects(KEEP_CLEAR_SELECTORS),
+          }
+        : { ceilingPx: 0, floorTopsPx: [], pressedPx: null, keepClearPx: [] };
+      const bottomPx = toastDockBottomPx({
+        viewportHeight: window.innerHeight,
         restTopPx: restTop(rest),
         toastHeightPx: card.getBoundingClientRect().height,
         gapPx: gapRem * rootPx,
-        pressedPx: phone ? pressedExtent() : null,
-        keepClearPx: phone ? shownRects(KEEP_CLEAR_SELECTORS) : [],
+        ...phoneOnly,
         protectPx: visibleExtents(PROTECT_SELECTORS),
       });
       const value = `${bottomPx / rootPx}rem`;
