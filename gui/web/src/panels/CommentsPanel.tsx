@@ -8,8 +8,10 @@ import {
   CommentCompose,
   commentPostedStatus,
   commentTimeLabel,
+  GuestNameStep,
   setCommentResolved,
   useCommentActions,
+  useGuestName,
   usePostComment,
 } from "../comments";
 import { canComment, canReply, canSetAction, commentRole } from "../shareMode";
@@ -56,6 +58,7 @@ export function CommentsPanel({
 
   const [filter, setFilter] = useState<Filter>("open");
   const role = commentRole(projectPath, guestMode, guestShare);
+  const guestName = useGuestName(role);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [body, setBody] = useState("");
   const [actionLine, setActionLine] = useState("");
@@ -110,11 +113,11 @@ export function CommentsPanel({
     return rows;
   }, [comments, filter]);
 
-  const onCreate = async () => {
-    setActionError(null);
+  const createAs = async (who: string) => {
+    setAuthor(who);
     const result = await post({
       body,
-      author,
+      author: who,
       trackIds,
       actionTexts: actionLine
         .split("\n")
@@ -126,6 +129,13 @@ export function CommentsPanel({
     setActionLine("");
     announceStatus(commentPostedStatus(result.comment));
     bodyRef.current?.focus();
+  };
+
+  const onCreate = () => {
+    setActionError(null);
+    if (guestName.chosen && !guestName.asking) return createAs(author);
+    const who = guestName.authorForPost();
+    return who === null ? Promise.resolve() : createAs(who);
   };
 
   const focusCompose = () => bodyRef.current?.focus();
@@ -194,6 +204,15 @@ export function CommentsPanel({
           bodyPlaceholder="Add a comment…"
           bodyRows={2}
         >
+          {guestName.asking ? (
+            <GuestNameStep
+              name={guestName.draft}
+              onNameChange={guestName.setDraft}
+              onConfirm={() => void onCreate()}
+              onSkip={() => void createAs(guestName.choose(""))}
+              onCancel={guestName.cancel}
+            />
+          ) : null}
           {!guestShare && body.trim() !== "" && (
             <>
               <textarea

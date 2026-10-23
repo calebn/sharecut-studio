@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../ui/Button";
+import { COMMENT_NAME_MAX } from "../utils/commentAuthor";
 import { InlineEditInput } from "./InlineEditInput";
 
 type Props = {
@@ -32,6 +33,7 @@ export function CommentAuthorLine({ name, onChange }: Props) {
         <InlineEditInput
           id={fieldId}
           initial={name}
+          maxLength={COMMENT_NAME_MAX}
           onCommit={(text) => {
             const trimmed = text.trim();
             if (trimmed) onChange(trimmed);

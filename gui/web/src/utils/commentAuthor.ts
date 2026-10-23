@@ -2,8 +2,10 @@ import type { CommentRole } from "../shareMode";
 import { readLocal, writeLocal } from "./storage";
 
 const STORAGE_KEY = "podcast-mcp-comment-author";
+const NAME_ASKED_KEY = "podcast-mcp-comment-name-asked";
 const DEFAULT_AUTHOR = "viewer";
 
+export const COMMENT_NAME_MAX = 40;
 export const HOST_SESSION_LABEL = "Host";
 /** A guest's presence label and comment name until they save one. */
 export const GUEST_SESSION_LABEL = "Guest";
@@ -14,7 +16,22 @@ const PLACEHOLDER_NAMES = new Set([
 ]);
 
 export function saveCommentAuthor(author: string): void {
-  writeLocal(STORAGE_KEY, author.trim() || DEFAULT_AUTHOR);
+  writeLocal(
+    STORAGE_KEY,
+    author.trim().slice(0, COMMENT_NAME_MAX) || DEFAULT_AUTHOR,
+  );
+}
+
+/** Whether this browser's guest has already named themselves or skipped. */
+export function guestNameChosen(): boolean {
+  return (
+    readLocal(NAME_ASKED_KEY) === "1" ||
+    sessionDisplayName("guest") !== GUEST_SESSION_LABEL
+  );
+}
+
+export function markGuestNameChosen(): void {
+  writeLocal(NAME_ASKED_KEY, "1");
 }
 
 /**

@@ -62,6 +62,7 @@ from podcast_mcp.services.media import (
     review_guest_audio_path,
     upload_review_version_to_object_store,
 )
+from podcast_mcp.services.session_sync import guest_display_name
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.coded_error import (
     CodedFileNotFoundError,
@@ -1605,7 +1606,7 @@ def share_add_comment(
         ws,
         lambda: CommentService(ws).add(
             body=body,
-            author=author,
+            author=guest_display_name(author),
             timeline_start=timeline_start,
             timeline_end=timeline_end,
             timeline_spans=[RangeInterval.model_validate(r) for r in timeline_spans or []],
@@ -1630,7 +1631,9 @@ def share_add_reply(
         raise CodedPermissionError("share does not allow replies", code="share_capability_required")
     result, file_revisions = run_comment_mutation_with_file_revisions(
         ws,
-        lambda: CommentService(ws).add_reply(comment_id, body=body, author=author),
+        lambda: CommentService(ws).add_reply(
+            comment_id, body=body, author=guest_display_name(author)
+        ),
     )
     notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
     return result

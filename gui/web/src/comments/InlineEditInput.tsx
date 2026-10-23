@@ -10,6 +10,7 @@ type Props = {
   "aria-label"?: string;
   className?: string;
   size?: number;
+  maxLength?: number;
 };
 
 /**
@@ -26,6 +27,7 @@ export function InlineEditInput({
   "aria-label": ariaLabel,
   className,
   size,
+  maxLength,
 }: Props) {
   const [draft, setDraft] = useState(initial);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +53,7 @@ export function InlineEditInput({
       className={className}
       aria-label={ariaLabel}
       size={size}
+      maxLength={maxLength}
       autoComplete="off"
       enterKeyHint="done"
       value={draft}
