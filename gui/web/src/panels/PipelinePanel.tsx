@@ -21,7 +21,13 @@ import type { PipelineWorkingSetRecipe } from "../hooks/usePipelineWorkingSet";
 import { usePipelineWorkingSet } from "../hooks/usePipelineWorkingSet";
 import { useSingleFlight } from "../hooks/useSingleFlight";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
-import { useModels } from "../models";
+import {
+  ModelGateDialog,
+  ModelGateHint,
+  type ModelNeed,
+  useModelGate,
+  useModels,
+} from "../models";
 import { selectAgentPresent } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
 import type {
@@ -237,6 +243,11 @@ function whisperModelCached(
   return row?.cached === true;
 }
 
+function forcedAlignmentRequested(cfg: PipelineConfigResponse): boolean {
+  const alignment = cfg.forced_alignment;
+  return (alignment.requested ?? alignment.enabled) === true;
+}
+
 function transcribeStepEnabled(cfg: PipelineConfigResponse): boolean {
   return cfg.enabled_steps.includes(TRANSCRIBE_STEP);
 }
@@ -287,6 +298,7 @@ export function PipelinePanel() {
   const workingSet = usePipelineWorkingSet(projectPath, true);
   const { cfg } = workingSet;
   const { models } = useModels();
+  const gate = useModelGate();
   const installedModels = models
     ? models
         .filter((m) => m.state.kind === "installed")
@@ -673,32 +685,51 @@ export function PipelinePanel() {
     if (!cfg) {
       return;
     }
+    const needs: ModelNeed[] = [];
     // Re-time words needs Whisper too: its run still transcribes any dialogue track that
     // has no stored transcript yet (only reused transcripts are re-timed from the ASR cache).
     if (transcribeStepEnabled(cfg) || mode !== "run") {
       const modelId = whisperModelId(cfg);
-      if (!whisperModelCached(cfg, modelId)) {
-        setWhisperPending({
-          modelId,
-          reason: mode,
-          overwriteEdited,
-        });
-        return;
-      }
+      needs.push({
+        id: "whisper",
+        variant: modelId,
+        installed: whisperModelCached(cfg, modelId),
+      });
+    }
+    if (mode === "retime" || forcedAlignmentRequested(cfg)) {
+      needs.push({ id: WORD_ALIGNER_COMPONENT });
     }
     setError(null);
-    setStarting(true);
     try {
-      const job = await startPipelineRun(
-        projectPath,
-        pipelineRunOptions(cfg, { fromStep, onlyStep }, mode, overwriteEdited),
-      );
-      setPipelineJob(job);
-      runPointerCommand("view.setTab", { tab: "pipeline" });
+      const result = await gate.run(async ({ afterDownload }) => {
+        // The install-change refetch can supersede this one, which then answers null: ask once more.
+        const current = afterDownload
+          ? ((await refreshConfig()) ?? (await refreshConfig()))
+          : cfg;
+        if (!current) {
+          return null;
+        }
+        setStarting(true);
+        try {
+          return await startPipelineRun(
+            projectPath,
+            pipelineRunOptions(
+              current,
+              { fromStep, onlyStep },
+              mode,
+              overwriteEdited,
+            ),
+          );
+        } finally {
+          setStarting(false);
+        }
+      }, needs);
+      if (result.kind === "ran" && result.value) {
+        setPipelineJob(result.value);
+        runPointerCommand("view.setTab", { tab: "pipeline" });
+      }
     } catch (e) {
       setError(errorMessage(e));
-    } finally {
-      setStarting(false);
     }
   };
 
@@ -719,38 +750,10 @@ export function PipelinePanel() {
   }, [installedModels]);
 
   const onWhisperDownloaded = async (modelId: string) => {
-    const reason = whisperPending?.reason;
-    const overwriteEdited = whisperPending?.overwriteEdited ?? false;
     setWhisperPending(null);
     try {
       await onParamChange(TRANSCRIBE_MODEL_PATH, modelId);
-      const next = await refreshConfig();
-      if (!next) return;
-      if (
-        reason !== undefined &&
-        reason !== "select" &&
-        whisperModelCached(next, modelId)
-      ) {
-        setError(null);
-        setStarting(true);
-        try {
-          const job = await startPipelineRun(
-            projectPath,
-            pipelineRunOptions(
-              next,
-              { fromStep, onlyStep },
-              reason,
-              overwriteEdited,
-            ),
-          );
-          setPipelineJob(job);
-          runPointerCommand("view.setTab", { tab: "pipeline" });
-        } catch (e) {
-          setError(errorMessage(e));
-        } finally {
-          setStarting(false);
-        }
-      }
+      await refreshConfig();
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -842,10 +845,7 @@ export function PipelinePanel() {
                     cached: m.cached,
                   }));
                   const currentId = whisperModelId(cfg);
-                  const displayId =
-                    whisperPending?.reason === "select"
-                      ? whisperPending.modelId
-                      : currentId;
+                  const displayId = whisperPending?.modelId ?? currentId;
                   const defaultId = formatUnknown(
                     getByPath(cfg.defaults, field.path) ?? "large-v3-turbo",
                   );
@@ -863,11 +863,7 @@ export function PipelinePanel() {
                         void onParamChange(field.path, modelId)
                       }
                       onSelectMissing={(modelId, previousId) => {
-                        setWhisperPending({
-                          modelId,
-                          previousId,
-                          reason: "select",
-                        });
+                        setWhisperPending({ modelId, previousId });
                       }}
                     />
                   );
@@ -1012,6 +1008,8 @@ export function PipelinePanel() {
               : "Run pipeline"}
         </Button>
       </div>
+
+      <ModelGateHint gate={gate} actionLabel="Run" />
 
       {agentRecent && (
         <p className="pipeline-ambient" role="status">
@@ -1206,7 +1204,7 @@ export function PipelinePanel() {
 
         {shellBreakpoint === "phone" ? (
           <Dialog
-            open={detailOpen && !whisperPending}
+            open={detailOpen && !whisperPending && !gate.prompt}
             onClose={() => setDetailOpen(false)}
             title="Step parameters"
           >
@@ -1372,6 +1370,7 @@ export function PipelinePanel() {
         </>
       )}
 
+      <ModelGateDialog gate={gate} />
       <WhisperDownloadDialog
         pending={whisperPending}
         models={(cfg?.whisper_models ?? []).map((m) => ({

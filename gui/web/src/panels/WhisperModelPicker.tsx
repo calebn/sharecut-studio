@@ -7,14 +7,10 @@ import { BUSY_REASON } from "../ui/disabledReason";
 /** A pipeline run mode: an ordinary run, forced re-transcription, or a forced-aligner re-time. */
 export type PipelineRunMode = "run" | "retranscribe" | "retime";
 
-export type WhisperDownloadReason = "select" | PipelineRunMode;
-
+/** A size picked in the Whisper list that is not on disk yet; a run asks through the model gate instead. */
 export type WhisperDownloadRequest = {
   modelId: string;
-  reason: WhisperDownloadReason;
   previousId?: string;
-  /** Re-transcribe / Re-time words only: the user confirmed replacing hand-edited transcripts. */
-  overwriteEdited?: boolean;
 };
 
 function optionLabel(model: WhisperModelChoice): string {
@@ -209,7 +205,7 @@ export function WhisperDownloadDialog({
           ? `${pendingModel.label} (${pendingModel.id}) is about ${pendingModel.size}.`
           : `Model ${pending?.modelId ?? ""} is not on disk yet.`}{" "}
         Download it now before transcription, or keep the selection and download
-        later. Run will not start until the weights are present.
+        later. Run will ask before it starts.
       </p>
       {downloading ? (
         <ModelProgress state={downloading} label="Whisper" />
