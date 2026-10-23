@@ -71,18 +71,10 @@ def room(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return ws.path
 
 
-def _wait(job: Job) -> None:
-    for _ in range(100):
-        if job.status in ("ok", "error", "cancelled"):
-            return
-        time.sleep(0.05)
-
-
 def test_the_job_splits_the_track_and_hands_back_the_service_result(room: Path) -> None:
-    job = JobManager().start_split_speakers(
-        room, track_id="room", speaker_count=2, names=["Ana", "Ben"]
-    )
-    _wait(job)
+    manager = JobManager()
+    job = manager.start_split_speakers(room, track_id="room", speaker_count=2, names=["Ana", "Ben"])
+    manager.wait(job, timeout=5)
     snap = job.snapshot()
     assert (snap["kind"], snap["label"], snap["status"]) == (
         "split_speakers",
@@ -104,8 +96,9 @@ def test_the_project_view_marks_the_lanes_of_a_split(room: Path) -> None:
     from podcast_mcp.gui.assembler import build_project_view
 
     assert [t.speaker_split_id for t in build_project_view(room).tracks] == [None]
-    job = JobManager().start_split_speakers(room, track_id="room", speaker_count=2)
-    _wait(job)
+    manager = JobManager()
+    job = manager.start_split_speakers(room, track_id="room", speaker_count=2)
+    manager.wait(job, timeout=5)
     lanes = build_project_view(room).tracks
     split_id = ProjectWorkspace.open(room).project.editorial.speaker_splits[0].id
     assert [(t.id, t.speaker_split_id) for t in lanes] == [
@@ -151,7 +144,7 @@ def test_a_cancel_request_during_attribution_leaves_the_project_alone(
     mgr = JobManager()
     job = mgr.start_split_speakers(room, track_id="room", speaker_count=2)
     mgr.cancel(job.id)
-    _wait(job)
+    mgr.wait(job, timeout=5)
     assert (job.status, job.message) == ("cancelled", "Split speakers cancelled")
     assert [t.id for t in ProjectWorkspace.open(room).project.tracks] == ["room"]
 
@@ -288,7 +281,7 @@ def test_cancel_after_split_commit_keeps_the_job_result_and_history_head(
         manager.cancel(job.id)
     finally:
         release.set()
-    _wait(job)
+    manager.wait(job, timeout=5)
 
     snap = job.snapshot()
     assert snap["status"] == "cancelled"
@@ -334,11 +327,12 @@ def test_the_route_starts_a_split_job(room: Path) -> None:
     assert res.status_code == 200
     job_id = res.json()["job"]["id"]
     assert res.json()["job"]["kind"] == "split_speakers"
-    for _ in range(100):
-        job = client.get("/api/pipeline/status").json().get("job")
-        if job and job["id"] == job_id and job["status"] in ("ok", "error"):
-            break
-        time.sleep(0.05)
+    started = client.app.state.jobs.get_job(job_id)
+    assert started is not None
+    client.app.state.jobs.wait(started, timeout=5)
+    job = client.get("/api/pipeline/status").json().get("job")
+    assert job is not None
+    assert job["id"] == job_id
     assert job["status"] == "ok"
     assert [lane["name"] for lane in job["result"]["lanes"]] == ["Ana", "Ben"]
 
@@ -376,7 +370,7 @@ def test_the_route_hands_the_enrollment_to_the_service_unchanged(
         },
     )
     assert res.status_code == 200
-    _wait(started[0])
+    client.app.state.jobs.wait(started[0], timeout=5)
     job = started[0].snapshot()
     assert job["status"] == "ok"
     assert seen["enrollment"] == {"Ana": [(0.5, 3.5)], "Ben": [(6.0, 9.0)]}
