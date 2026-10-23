@@ -3,20 +3,48 @@ export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
 export const TRANSCRIPT_REFINE_REFUSAL =
   "This is blocked until transcript refinement is done. A host can review the transcript or waive it with a reason.";
 
+export const MODEL_NEEDED_CODE = "model_needed";
+
+/** The model a host 409 asks to download; the install command is never kept. */
+export type ModelNeeded = {
+  id: string;
+  variant: string | null;
+  label: string;
+  purpose: string;
+  size: string;
+  sizeBytes: number | null;
+  state: string;
+};
+
 export class ApiError extends Error {
   readonly code: string | null;
   readonly status: number | null;
+  readonly model: ModelNeeded | null;
 
   constructor(
     message: string,
     code: string | null,
     status: number | null = null,
+    model: ModelNeeded | null = null,
   ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.model = model;
   }
+}
+
+/** A host 409 naming the model to download; a guest 409 carries no model. */
+export function isModelNeeded(
+  error: unknown,
+): error is ApiError & { model: ModelNeeded } {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.code === MODEL_NEEDED_CODE &&
+    error.model !== null
+  );
 }
 
 /** User-facing message for any thrown value, with an optional non-Error fallback. */
@@ -82,18 +110,26 @@ const MAX_MESSAGE_DEPTH = 3;
 /** Parse a failed fetch Response into a short user-facing message. */
 export async function readApiError(res: Response): Promise<string> {
   const text = await res.text().catch(() => "");
+  return parseFailureText(text, res.status).message;
+}
+
+function parseFailureText(
+  text: string,
+  status: number,
+): { message: string; body: unknown } {
   let message: string | null = null;
+  let body: unknown = null;
   try {
-    const body: unknown = JSON.parse(text);
+    body = JSON.parse(text);
     if (body && typeof body === "object") {
       message = nestedApiMessage(body, MAX_MESSAGE_DEPTH);
     }
   } catch {}
   const display = message ?? text.trim();
   if (/host offline/i.test(display)) {
-    return HOST_OFFLINE_MESSAGE;
+    return { message: HOST_OFFLINE_MESSAGE, body };
   }
-  return display || `Request failed (${res.status})`;
+  return { message: display || `Request failed (${status})`, body };
 }
 
 function nestedApiMessage(value: unknown, depth: number): string | null {
@@ -110,11 +146,45 @@ function nestedApiMessage(value: unknown, depth: number): string | null {
   );
 }
 
+function pickModelNeeded(body: unknown): ModelNeeded | null {
+  const top = asRecord(body);
+  const model = asRecord(asRecord(top?.detail)?.model) ?? asRecord(top?.model);
+  if (
+    !model ||
+    typeof model.id !== "string" ||
+    typeof model.label !== "string" ||
+    typeof model.size !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: model.id,
+    variant: typeof model.model === "string" ? model.model : null,
+    label: model.label,
+    purpose: typeof model.purpose === "string" ? model.purpose : "",
+    size: model.size,
+    sizeBytes:
+      typeof model.size_bytes === "number" && Number.isFinite(model.size_bytes)
+        ? model.size_bytes
+        : null,
+    state: typeof model.state === "string" ? model.state : "",
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 /** Preserve a stable server error code and HTTP status alongside its message. */
 export async function readApiFailure(res: Response): Promise<ApiError> {
-  return new ApiError(
-    await readApiError(res),
-    res.headers.get("X-Sharecut-Error-Code"),
-    res.status,
-  );
+  const text = await res.text().catch(() => "");
+  const { message, body } = parseFailureText(text, res.status);
+  const code = res.headers.get("X-Sharecut-Error-Code");
+  const model =
+    res.status === 409 && code === MODEL_NEEDED_CODE
+      ? pickModelNeeded(body)
+      : null;
+  return new ApiError(message, code, res.status, model);
 }

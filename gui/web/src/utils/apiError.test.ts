@@ -3,8 +3,10 @@ import {
   ApiError,
   errorMessage,
   isAbortError,
+  isModelNeeded,
   isPermanentRejection,
   isServerTimeoutError,
+  readApiError,
   readApiFailure,
   refusalReason,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
@@ -87,6 +89,94 @@ describe("readApiFailure", () => {
     const text = JSON.stringify(deep);
     const error = await readApiFailure(new Response(text, { status: 400 }));
     expect(error.message).toBe(text);
+  });
+});
+
+const HOST_MODEL = {
+  id: "whisper",
+  model: "small.en",
+  label: "Whisper small.en",
+  purpose: "Transcribes speech",
+  size: "466 MB",
+  size_bytes: 488_000_000,
+  command: "podcast bootstrap --model whisper",
+  state: "missing",
+};
+
+function modelNeeded(body: unknown, status = 409, code = "model_needed") {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "X-Sharecut-Error-Code": code },
+  });
+}
+
+describe("readApiFailure model_needed", () => {
+  it("keeps the nested host model without its command", async () => {
+    const error = await readApiFailure(
+      modelNeeded({ detail: { detail: "Needs Whisper.", model: HOST_MODEL } }),
+    );
+    expect(error.message).toBe("Needs Whisper.");
+    expect(error.model).toEqual({
+      id: "whisper",
+      variant: "small.en",
+      label: "Whisper small.en",
+      purpose: "Transcribes speech",
+      size: "466 MB",
+      sizeBytes: 488_000_000,
+      state: "missing",
+    });
+    expect(error.model).not.toHaveProperty("command");
+    expect(isModelNeeded(error)).toBe(true);
+  });
+
+  it("reads a top-level model", async () => {
+    const error = await readApiFailure(
+      modelNeeded({ detail: "Needs Whisper.", model: HOST_MODEL }),
+    );
+    expect(error.model?.id).toBe("whisper");
+  });
+
+  it("has no model for a guest body", async () => {
+    const error = await readApiFailure(
+      modelNeeded({ detail: "Ask the host to open ShareCut Studio." }),
+    );
+    expect(error.model).toBeNull();
+    expect(isModelNeeded(error)).toBe(false);
+  });
+
+  it("ignores other statuses and codes", async () => {
+    const body = { detail: { detail: "x", model: HOST_MODEL } };
+    expect((await readApiFailure(modelNeeded(body, 500))).model).toBeNull();
+    expect(
+      (await readApiFailure(modelNeeded(body, 409, "other"))).model,
+    ).toBeNull();
+  });
+
+  it("returns no model for malformed bodies", async () => {
+    const bad = { ...HOST_MODEL, label: undefined };
+    const nan = { ...HOST_MODEL, size_bytes: "big" };
+    expect(
+      (await readApiFailure(modelNeeded({ detail: { model: bad } }))).model,
+    ).toBeNull();
+    expect(
+      (await readApiFailure(modelNeeded({ detail: { model: nan } }))).model
+        ?.sizeBytes,
+    ).toBeNull();
+    const notJson = new Response("<html>", {
+      status: 409,
+      headers: { "X-Sharecut-Error-Code": "model_needed" },
+    });
+    expect((await readApiFailure(notJson)).model).toBeNull();
+  });
+
+  it("leaves readApiError output unchanged", async () => {
+    expect(
+      await readApiError(
+        modelNeeded({
+          detail: { detail: "Needs Whisper.", model: HOST_MODEL },
+        }),
+      ),
+    ).toBe("Needs Whisper.");
   });
 });
 
