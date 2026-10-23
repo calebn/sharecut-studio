@@ -169,7 +169,9 @@ is the fix, enforced in copy review.
   next to it. `Button`, `ToggleButton` and `CommandButton` omit the
   native `disabled` prop: pass `disabledReason="..."` (what is missing
   and what to do), and the control is disabled, titled and described
-  with it. Only `undefined` means enabled; an empty or whitespace-only
+  with it. A reason touch users must see (no hover) also gets a visible
+  note: `useDisabledReasonNote(reason)` returns the `<p>` and the
+  `aria-describedby` to spread on the control. Only `undefined` means enabled; an empty or whitespace-only
   reason uses "This action is unavailable right now." `CommandButton`
   preserves an explicit blank reason and guards pointer activation. These
   generic shared controls still use native disabled buttons with title-based
