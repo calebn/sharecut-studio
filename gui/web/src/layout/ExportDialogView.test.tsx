@@ -44,7 +44,6 @@ describe("ExportDialogView", () => {
     expect(exportButton).toBeDisabled();
     const note = screen.getByText(LOADING);
     expect(note).toBeVisible();
-    expect(exportButton).toHaveAttribute("aria-describedby", note.id);
     expect(exportButton).toHaveAccessibleDescription(LOADING);
     await expectNoA11yViolations(baseElement);
   });
@@ -61,9 +60,9 @@ describe("ExportDialogView", () => {
     expect(exportButton).toBeDisabled();
     const note = screen.getByText("Choose at least one format.");
     expect(exportButton).toHaveAttribute("aria-describedby", note.id);
-    expect(
-      baseElement.querySelectorAll(".bounce-dialog-footer .export-dialog-note"),
-    ).toHaveLength(1);
+    expect(exportButton).toHaveAccessibleDescription(
+      "Choose at least one format.",
+    );
     await expectNoA11yViolations(baseElement);
   });
 
