@@ -19,17 +19,34 @@ import {
   registryRows,
 } from "../test/renderWithModels";
 import type { PipelineConfigResponse } from "../types/pipeline";
+import { ApiError } from "../utils/apiError";
 import { PipelinePanel } from "./PipelinePanel";
 import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
+
+function modelNeeded(id: string, label: string, variant: string | null) {
+  return new ApiError(`Needs ${label}.`, "model_needed", 409, {
+    id,
+    variant,
+    label,
+    purpose: "transcription",
+    size: "~1 MB",
+    sizeBytes: null,
+    state: "missing",
+  });
+}
 
 const confirmReply = vi.fn<(question: Question) => Answer>();
 
 /** The panel reads model downloads from the models controller; this one hands out `downloadModel`. */
-function render(ui: ReactElement) {
+function render(ui: ReactElement, installed: string[] = ["word-aligner"]) {
   return rtlRender(ui, {
     wrapper: modelsWrapper(
       modelsApi({
-        status: modelStatus(registryRows()),
+        status: modelStatus(
+          registryRows().map((r) =>
+            installed.includes(r.id) ? { ...r, state: "installed" } : r,
+          ),
+        ),
         download: downloadModel,
       }),
     ),
@@ -1315,7 +1332,7 @@ describe("PipelinePanel", () => {
     expect(body.config.transcribe.model).toBe("large-v3-turbo");
   });
 
-  it("blocks Run until Whisper weights exist when transcribe is enabled", async () => {
+  it("asks before Run when Whisper weights are missing and transcribe is enabled", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(
       withTranscribeEnabled({
@@ -1342,9 +1359,10 @@ describe("PipelinePanel", () => {
     });
     await user.click(screen.getByRole("button", { name: "Run pipeline" }));
     expect(
-      await screen.findByRole("dialog", { name: /Download Whisper model/i }),
+      await screen.findByRole("dialog", { name: "Download Whisper?" }),
     ).toBeInTheDocument();
     expect(startPipelineRun).not.toHaveBeenCalled();
+    expect(downloadModel).not.toHaveBeenCalled();
   });
 
   it("downloads via bootstrap then persists the selected model", async () => {
@@ -1430,10 +1448,13 @@ describe("PipelinePanel", () => {
       await screen.findByRole("button", { name: "Re-transcribe" }),
     );
     expect(
-      await screen.findByRole("dialog", { name: /Download Whisper model/i }),
+      await screen.findByRole("dialog", { name: "Download Whisper?" }),
     ).toBeInTheDocument();
     expect(startPipelineRun).not.toHaveBeenCalled();
     await user.click(await screen.findByRole("button", { name: "Download" }));
+    expect(downloadModel).toHaveBeenCalledWith(["whisper"], {
+      whisperModel: "large-v3-turbo",
+    });
     await waitFor(() =>
       expect(startPipelineRun).toHaveBeenCalledWith(
         "/tmp/ep.project.json",
@@ -1447,6 +1468,122 @@ describe("PipelinePanel", () => {
     );
     expect(confirmReply).toHaveBeenCalledOnce();
     confirmReply.mockReset();
+  });
+
+  it("asks again after Not now, keeps Run enabled and shows the hint", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(
+      withTranscribeEnabled({
+        config: {
+          ...baseConfig.config,
+          transcribe: { model: "large-v3-turbo" },
+        },
+      }),
+    );
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    const run = await screen.findByRole("button", { name: "Run pipeline" });
+    await waitFor(() => expect(run).toBeEnabled());
+    await user.click(run);
+    await user.click(await screen.findByRole("button", { name: "Not now" }));
+    expect(
+      await screen.findByText(/Whisper is not downloaded. Run will ask again./),
+    ).toBeInTheDocument();
+    expect(run).toBeEnabled();
+    expect(startPipelineRun).not.toHaveBeenCalled();
+    await user.click(run);
+    expect(
+      await screen.findByRole("dialog", { name: "Download Whisper?" }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the same prompt when a stale cache gets a model_needed 409, then resumes the run", async () => {
+    const user = userEvent.setup();
+    startPipelineRun
+      .mockRejectedValueOnce(
+        modelNeeded("whisper", "Whisper", "large-v3-turbo"),
+      )
+      .mockResolvedValue({ id: "job-1" });
+    loadPipelineConfig.mockResolvedValue(
+      withTranscribeEnabled({
+        config: { ...baseConfig.config, transcribe: { model: "small.en" } },
+      }),
+    );
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    const run = await screen.findByRole("button", { name: "Run pipeline" });
+    await waitFor(() => expect(run).toBeEnabled());
+    await user.click(run);
+    await user.click(await screen.findByRole("button", { name: "Download" }));
+    expect(downloadModel).toHaveBeenCalledWith(["whisper"], {
+      whisperModel: "large-v3-turbo",
+    });
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(2));
+    expect(setPipelineJob).toHaveBeenCalledWith({ id: "job-1" });
+  });
+
+  it("prompts for the word aligner when Precise word boundaries is requested without it", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+      [],
+    );
+    const run = await screen.findByRole("button", { name: "Run pipeline" });
+    await waitFor(() => expect(run).toBeEnabled());
+    await user.click(run);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Download Word aligner?",
+    });
+    expect(dialog).toBeInTheDocument();
+    expect(startPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it("prompts for the aligner named by a 409 when the client thought it was installed", async () => {
+    const user = userEvent.setup();
+    startPipelineRun
+      .mockRejectedValueOnce(modelNeeded("word-aligner", "Word aligner", null))
+      .mockResolvedValue({ id: "job-2" });
+    loadPipelineConfig.mockResolvedValue(
+      withTranscribeEnabled({
+        config: { ...baseConfig.config, transcribe: { model: "small.en" } },
+      }),
+    );
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    const run = await screen.findByRole("button", { name: "Run pipeline" });
+    await waitFor(() => expect(run).toBeEnabled());
+    await user.click(run);
+    await screen.findByRole("dialog", { name: "Download Word aligner?" });
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    expect(downloadModel).toHaveBeenCalledWith(["word-aligner"], undefined);
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows other run errors in the banner without a prompt", async () => {
+    const user = userEvent.setup();
+    startPipelineRun.mockRejectedValue(new Error("Disk is full."));
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    const run = await screen.findByRole("button", { name: "Run pipeline" });
+    await waitFor(() => expect(run).toBeEnabled());
+    await user.click(run);
+    expect(await screen.findByText("Disk is full.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("shows alignment leave-gate waiting copy", async () => {

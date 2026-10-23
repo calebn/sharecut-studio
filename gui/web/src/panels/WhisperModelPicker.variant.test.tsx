@@ -56,7 +56,7 @@ function open(onDownloaded = vi.fn()) {
   return render(
     <ModelsProvider>
       <WhisperDownloadDialog
-        pending={{ modelId: "large-v3", reason: "select" }}
+        pending={{ modelId: "large-v3" }}
         models={[LARGE]}
         onDefer={vi.fn()}
         onCancel={vi.fn()}

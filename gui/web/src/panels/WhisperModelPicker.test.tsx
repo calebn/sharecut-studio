@@ -20,7 +20,7 @@ const SMALL = {
 function dialog(onDownloaded = vi.fn()) {
   return (
     <WhisperDownloadDialog
-      pending={{ modelId: "small", reason: "select" }}
+      pending={{ modelId: "small" }}
       models={[SMALL]}
       onDefer={vi.fn()}
       onCancel={vi.fn()}
