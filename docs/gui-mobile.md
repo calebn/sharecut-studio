@@ -311,6 +311,10 @@ native menus keep the toast ordering in
 
 ## Phone: four modes + one sheet
 
+The four mode buttons request `touch-action: manipulation`: native panning and
+pinch zoom without browser double-tap zoom. The rule covers only these buttons;
+the timeline keeps its own pinch-to-time-scale interaction.
+
 ```
 ┌─────────────────────────────┐
 │ Compact transport           │

@@ -15,6 +15,9 @@ At the bottom of the screen you'll see four tabs. Each one is designed for a spe
 | **Text** | Read the transcript. Choose Correct to edit a word or ignore it, or Select to suggest a cut or ignore/restore a range. |
 | **More** | Comments, history, impact, tighten suggestions, pipeline, and Gestures. |
 
+Tap a tab to change modes. Use a pinch outside Timeline to magnify the page;
+inside Timeline, pinch changes the audio time scale.
+
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand. Timeline clip labels lead with the speaker name when one is set, then show a readable duration such as "Avery · 17m 26s"; narrow labels clip visually while their accessible names keep the full identity.
 
 Select a clip to open its inspector sheet. The two fade sliders preview while you move and save together on release, key release, or leaving the control. Escape during a fade preview cancels it and leaves the inspector open. Idle Escape on a fade slider still dismisses the sheet. The opposite edge stays fixed, and the controls clamp to the track cap and clip length. The selected track's **Track actions** menu holds **Smooth all joins**. Pending timing keeps **Snap to silence** as a separate checked option; turn it off to apply the exact times you entered.

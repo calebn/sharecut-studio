@@ -497,6 +497,7 @@ html[data-shell="tablet"] {
 
 .mobile-nav button {
   flex: 1;
+  touch-action: manipulation;
   min-height: var(--touch-min);
   display: flex;
   flex-direction: column;
