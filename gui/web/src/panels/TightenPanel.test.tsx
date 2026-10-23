@@ -653,6 +653,22 @@ describe("TightenPanel", () => {
       ).toBeInTheDocument();
     });
 
+    it("does not start the resumed run once the project changed during the download", async () => {
+      const user = userEvent.setup();
+      vi.mocked(startPipelineRun).mockRejectedValueOnce(needed());
+      const api = renderGated();
+      vi.mocked(api.download).mockImplementation(async () => {
+        useDawStore.setState({ projectPath: "/tmp/other.json" });
+        return { kind: "ok" };
+      });
+      await screen.findByRole("option", { name: "Light" });
+      await user.click(screen.getByRole("button", { name: "Find hits" }));
+      await user.click(await screen.findByRole("button", { name: "Download" }));
+      await waitFor(() => expect(api.download).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 50));
+      expect(startPipelineRun).toHaveBeenCalledTimes(1);
+    });
+
     it("drops the resumed run when the project changed during the download", async () => {
       const user = userEvent.setup();
       vi.mocked(startPipelineRun)
