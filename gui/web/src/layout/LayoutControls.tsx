@@ -3,14 +3,19 @@ import { ariaKeyShortcutsFor, titleWithShortcut } from "../keymap/registry";
 import { useDaw } from "../state/useDaw";
 import { CommandButton, Icon, pillClassName } from "../ui";
 import { layoutModeCopy } from "./layoutModes";
+import { useEffectiveLayout } from "./useEffectiveLayout";
 
 /** One transport control: maximize the timeline, or restore from any layout. */
 export function LayoutToggle() {
   const { layoutMode } = useDaw((s) => ({ layoutMode: s.layoutMode }));
-  const maximized = layoutMode !== "default";
+  const effectiveLayout = useEffectiveLayout();
+  const maximized = effectiveLayout !== "default";
   const commandId = maximized ? "layout.default" : "layout.timeline";
   // The name says what a click does, so no aria-pressed (it would contradict it).
-  const label = COMMANDS[commandId].label;
+  const label =
+    layoutMode === "adaptive" && maximized
+      ? "Show editor panels"
+      : COMMANDS[commandId].label;
   return (
     <CommandButton
       bare

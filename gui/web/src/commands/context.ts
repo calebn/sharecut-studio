@@ -1,4 +1,8 @@
 import {
+  readShortTouchLandscape,
+  resolveLayoutMode,
+} from "../layout/layoutPresentation";
+import {
   canApplyPass12,
   canComment,
   canEditEnvelopes,
@@ -118,7 +122,13 @@ export function buildCommandContext(): CommandContext {
     following: s.followingClientId != null,
     recordPanelOpen: s.chrome.recordPanelOpen,
     // The timeline layout hides the bottom tabs, so the Tighten panel too.
-    tightenPanelOpen: s.activeTab === "tighten" && s.layoutMode !== "timeline",
+    tightenPanelOpen:
+      s.activeTab === "tighten" &&
+      resolveLayoutMode(
+        s.layoutMode,
+        s.shellBreakpoint,
+        readShortTouchLandscape(),
+      ) !== "timeline",
   };
 }
 

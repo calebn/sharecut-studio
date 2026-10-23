@@ -74,6 +74,7 @@ export function estimateTimelineViewportWidth(bp: ShellBreakpoint): number {
 
 /** The one tab a layout shows: null for default (all tabs) and timeline (none). */
 const LAYOUT_TAB: Readonly<Record<LayoutMode, DawTab | null>> = {
+  adaptive: null,
   default: null,
   timeline: null,
   text: "transcript",
@@ -533,7 +534,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     pointerKind: "fine" as PointerKind,
     mobileMode: "listen" as MobileMode,
     moreDestination: "hub" as MoreDestination,
-    layoutMode: (readDrawerCollapsed() ? "timeline" : "default") as LayoutMode,
+    layoutMode: (readDrawerCollapsed() ? "timeline" : "adaptive") as LayoutMode,
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
     drawnLaneHeightPx: null as number | null,

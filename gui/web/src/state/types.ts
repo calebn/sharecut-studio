@@ -105,7 +105,12 @@ export type MobileMode = PresenceMobileMode;
 export type ToolMode = "select" | "blade";
 
 /** Desktop/tablet shell layout — see docs/gui-mobile.md § Desktop — layouts. */
-export type LayoutMode = "default" | "timeline" | "text" | "review";
+export type LayoutMode =
+  | "adaptive"
+  | "default"
+  | "timeline"
+  | "text"
+  | "review";
 
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 

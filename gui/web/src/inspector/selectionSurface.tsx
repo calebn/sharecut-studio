@@ -66,6 +66,7 @@ export function layoutScreen(layout: LayoutMode): SheetScreen {
       return "text";
     case "review":
       return "comments";
+    case "adaptive":
     case "default":
     case "timeline":
       return "timeline";
