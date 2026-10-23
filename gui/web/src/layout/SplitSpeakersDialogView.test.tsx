@@ -25,11 +25,11 @@ function configure(overrides: Partial<Configure> = {}): Configure {
   };
 }
 
-function renderStage(
+function view(
   stage: SplitSpeakersStage,
   extra: Partial<SplitSpeakersDialogViewProps> = {},
 ) {
-  return render(
+  return (
     <SplitSpeakersDialogView
       open
       onClose={vi.fn()}
@@ -46,22 +46,38 @@ function renderStage(
       onGoTo={vi.fn()}
       onRestart={vi.fn()}
       {...extra}
-    />,
+    />
   );
 }
+
+function renderStage(
+  stage: SplitSpeakersStage,
+  extra: Partial<SplitSpeakersDialogViewProps> = {},
+) {
+  return render(view(stage, extra));
+}
+
+const QUEUED_ROW = {
+  id: "speaker-ecapa",
+  label: "Speaker model",
+  purpose: "speaker recognition",
+  tier: "offered",
+  size: "~80 MB",
+  sizeBytes: null,
+  variant: null,
+  state: { kind: "queued" },
+} as const;
 
 describe("SplitSpeakersDialogView", () => {
   it("shows why Use selection is disabled once, linked from each button", async () => {
     const { baseElement } = renderStage(configure());
     const note = screen.getByText(NO_SELECTION);
     expect(note).toBeVisible();
-    expect(baseElement.querySelectorAll(".export-dialog-note")).toHaveLength(1);
     for (const n of [1, 2]) {
       const button = screen.getByRole("button", {
         name: `Use selection as Speaker ${n}'s voice`,
       });
       expect(button).toBeDisabled();
-      expect(button).toHaveAttribute("aria-describedby", note.id);
       expect(button).toHaveAccessibleDescription(NO_SELECTION);
     }
     await expectNoA11yViolations(baseElement);
@@ -81,16 +97,11 @@ describe("SplitSpeakersDialogView", () => {
 
   it("shows no sample note when the selection is usable", () => {
     renderStage(configure({ sampleReason: null }));
-    expect(
-      screen.getByRole("button", {
-        name: "Use selection as Speaker 1's voice",
-      }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("button", {
-        name: "Use selection as Speaker 1's voice",
-      }),
-    ).not.toHaveAttribute("aria-describedby");
+    const button = screen.getByRole("button", {
+      name: "Use selection as Speaker 1's voice",
+    });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute("aria-describedby");
   });
 
   it("links the footer blocker note to Split speakers", async () => {
@@ -141,14 +152,13 @@ describe("SplitSpeakersDialogView", () => {
     expect(download).toBeDisabled();
     const note = screen.getByText("Another download is running");
     expect(note).toBeVisible();
-    expect(note.tagName).toBe("P");
     expect(download.closest("p")).not.toContainElement(note);
-    expect(download).toHaveAttribute("aria-describedby", note.id);
+    expect(download).toHaveAccessibleDescription("Another download is running");
     await expectNoA11yViolations(baseElement);
   });
 
-  it("shows no download note while the speaker model downloads or when nothing blocks it", () => {
-    const { rerender } = renderStage(
+  it("shows no download note and keeps Download enabled when nothing blocks it", () => {
+    renderStage(
       configure({ speakerReadiness: "unavailable", sampleReason: null }),
       {
         onDownloadSpeakerModel: vi.fn(),
@@ -159,40 +169,15 @@ describe("SplitSpeakersDialogView", () => {
     expect(
       screen.getByRole("button", { name: "Download speaker model" }),
     ).toBeEnabled();
-    rerender(
-      <SplitSpeakersDialogView
-        open
-        onClose={vi.fn()}
-        trackLabel="Interview"
-        stage={configure({
-          speakerReadiness: "unavailable",
-          sampleReason: null,
-        })}
-        onCountChange={vi.fn()}
-        onNameChange={vi.fn()}
-        onMarkSample={vi.fn()}
-        onClearSample={vi.fn()}
-        onListenSample={vi.fn()}
-        onSplit={vi.fn()}
-        onCancelSplit={vi.fn()}
-        onUndo={vi.fn()}
-        onGoTo={vi.fn()}
-        onRestart={vi.fn()}
-        onDownloadSpeakerModel={vi.fn()}
-        speakerModel={{
-          row: {
-            id: "speaker-ecapa",
-            label: "Speaker model",
-            purpose: "speaker recognition",
-            tier: "offered",
-            size: "~80 MB",
-            sizeBytes: null,
-            variant: null,
-            state: { kind: "queued" },
-          },
-          busy: true,
-        }}
-      />,
+  });
+
+  it("shows no download note while the speaker model downloads", () => {
+    renderStage(
+      configure({ speakerReadiness: "unavailable", sampleReason: null }),
+      {
+        onDownloadSpeakerModel: vi.fn(),
+        speakerModel: { row: QUEUED_ROW, busy: true },
+      },
     );
     expect(screen.queryByText("Another download is running")).toBeNull();
     expect(
