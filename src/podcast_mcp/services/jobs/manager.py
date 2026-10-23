@@ -33,6 +33,8 @@ from podcast_mcp.services.media import (
     coerce_enrollment,
 )
 from podcast_mcp.services.pipeline import BootstrapRequest, PipelineService, run_bootstrap
+from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import CancelledProgress, bind_progress
 
 logger = logging.getLogger(__name__)
@@ -505,6 +507,9 @@ class JobManager:
                     job.finished_at = time.monotonic()
                     short = None if cancelled else short_fail_message(str(exc))
                     job.error = short
+                    if not cancelled:
+                        job.error_code = exc.code if isinstance(exc, CodedError) else None
+                        job.error_model = exc.payload() if isinstance(exc, ModelMissing) else None
                     job.message = cancelled_copy(job.kind) if cancelled else (short or str(exc))
                     if job.steps and job.steps[-1].status == "running":
                         job.steps[-1].status = "error"
