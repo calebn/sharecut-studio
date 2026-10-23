@@ -141,6 +141,20 @@ describe("ModelsProvider", () => {
     expect(result.current.whisper.variants).toHaveLength(2);
   });
 
+  it("refresh reads status again without posting a download", async () => {
+    const { result } = await mounted();
+    fetchStatus.mockResolvedValue(
+      status([
+        row({ id: "whisper", tier: "required", state: "installed" }),
+        row({ id: "rnnoise", tier: "recommended" }),
+      ]),
+    );
+    await act(() => result.current.refresh());
+    expect(fetchStatus).toHaveBeenCalledTimes(2);
+    expect(result.current.models![0].state.kind).toBe("installed");
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("reports a load error and no models", async () => {
     fetchStatus.mockRejectedValue(new Error("Offline."));
     const { result } = renderHook(() => useModels(), { wrapper });
@@ -496,6 +510,7 @@ describe("useModels outside a provider", () => {
     expect(await result.current.download(["whisper"])).toEqual({
       kind: "cancelled",
     });
+    await result.current.refresh();
     expect(run).not.toHaveBeenCalled();
     expect(fetchStatus).not.toHaveBeenCalled();
   });

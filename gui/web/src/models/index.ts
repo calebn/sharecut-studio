@@ -4,6 +4,21 @@ export {
   modelActivity,
 } from "./activity";
 export { formatBytes } from "./format";
+export {
+  ModelGateBody,
+  ModelGateDialog,
+  ModelGateFooter,
+  ModelGateHint,
+  ModelGatePanel,
+} from "./gate/ModelGate";
+export {
+  type GatePhase,
+  type GatePrompt,
+  type GateResult,
+  type ModelGate,
+  type ModelNeed,
+  useModelGate,
+} from "./gate/useModelGate";
 export { ModelProgress } from "./ModelProgress";
 export { ModelRow, type ModelRowAction } from "./ModelRow";
 export { ModelsDialog } from "./ModelsDialog";
