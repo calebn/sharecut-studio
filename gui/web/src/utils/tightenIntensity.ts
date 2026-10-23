@@ -4,6 +4,7 @@ import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
 } from "../types/pipeline";
+import { jobErrorText } from "./apiError";
 import { getByPath, setByPath } from "./configPath";
 import { capitalize } from "./format";
 
@@ -85,5 +86,5 @@ export function findHitsRunError(
   job: PipelineJobSnapshot | null,
 ): string | null {
   if (!jobId || job?.id !== jobId || job.status !== "error") return null;
-  return job.error || "Find hits failed.";
+  return jobErrorText(job) || "Find hits failed.";
 }

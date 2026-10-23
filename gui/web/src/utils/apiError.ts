@@ -1,3 +1,5 @@
+import type { PipelineJobSnapshot } from "../types/pipeline";
+
 export const PROJECT_WRITE_FAILED_CODE = "project_write_failed";
 export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
 
@@ -204,6 +206,25 @@ function pickModelNeeded(body: unknown): ModelNeeded | null {
 /** The `model` object of a 409 body, as a failed job snapshot carries it. */
 export function modelNeededFromPayload(raw: unknown): ModelNeeded | null {
   return pickModelNeeded({ model: raw });
+}
+
+/** The missing model a failed job snapshot names, or null for any other outcome. */
+export function modelNeededOfJob(
+  job: Pick<PipelineJobSnapshot, "status" | "error_code" | "error_model">,
+): ModelNeeded | null {
+  return job.status === "error" && job.error_code === MODEL_NEEDED_CODE
+    ? modelNeededFromPayload(job.error_model)
+    : null;
+}
+
+export function notDownloadedLine(model: ModelNeeded): string {
+  return `${model.label} is not downloaded.`;
+}
+
+/** What to show for a failed job: a missing model reads plainly, never as the CLI command its raw text carries. */
+export function jobErrorText(job: PipelineJobSnapshot): string | null {
+  const model = modelNeededOfJob(job);
+  return model ? notDownloadedLine(model) : job.error;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
