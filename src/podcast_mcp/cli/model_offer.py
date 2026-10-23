@@ -14,7 +14,7 @@ import typer
 
 from podcast_mcp.cli.context import get_progress, no_input
 from podcast_mcp.cli.setup_cmd import install_and_report
-from podcast_mcp.engines.models.registry import model_spec
+from podcast_mcp.services.pipeline import model_spec
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import CliProgressReporter
 
