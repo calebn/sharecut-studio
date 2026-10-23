@@ -86,6 +86,99 @@ export function runningJob(components: string[], bytes = 420_000_000): Job {
   };
 }
 
+export type FailingJobKind = "export" | "render_preview";
+
+/** A host job that ended in `error` because `modelId` is not downloaded, as `Job.snapshot()` reports it. */
+export function modelFailedJob(
+  kind: FailingJobKind,
+  id: string,
+  projectPath: string,
+  modelId: string,
+): Job {
+  const model = ROWS.find((r) => r.id === modelId)!;
+  const text = `needs ${model.label} (${model.size}); run \`podcast bootstrap --component ${model.id}\``;
+  return {
+    id,
+    project_path: projectPath,
+    from_step: null,
+    only_step: null,
+    kind,
+    label: kind === "export" ? "Export deliverables" : "Render preview",
+    status: "error",
+    current: null,
+    total: null,
+    message: text,
+    error: text,
+    error_code: "model_needed",
+    error_model: {
+      id: model.id,
+      model: model.model,
+      label: model.label,
+      purpose: model.purpose,
+      size: model.size,
+      size_bytes: model.size_bytes,
+      command: `podcast bootstrap --component ${model.id}`,
+      state: "missing",
+    },
+    elapsed_sec: 1,
+    steps: [],
+  };
+}
+
+/**
+ * A job-start POST whose job ends in `model_needed` until `ready()`, then ends `ok`. The status route
+ * answers with the latest job, so `waitForPipelineJob` and the Activity chip both see it end at once.
+ */
+export async function mockModelFailingJob(
+  page: Page,
+  options: {
+    kind: FailingJobKind;
+    post: string;
+    projectPath: string;
+    modelId: string;
+    ready: () => boolean;
+  },
+): Promise<{ posts: () => number }> {
+  let posts = 0;
+  let latest: Job | null = null;
+  await page.route(options.post, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    posts += 1;
+    const id = `${options.kind}-${posts}`;
+    const failed = modelFailedJob(
+      options.kind,
+      id,
+      options.projectPath,
+      options.modelId,
+    );
+    latest = options.ready()
+      ? {
+          ...failed,
+          status: "ok",
+          message: "Done",
+          error: null,
+          error_code: null,
+          error_model: null,
+          result: { paths: [`${options.projectPath}/../export/ep.wav`] },
+        }
+      : failed;
+    await route.fulfill({ json: { job: { ...failed, status: "queued" } } });
+  });
+  await page.route("**/api/pipeline/status**", async (route) => {
+    if (latest === null) {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      json: { running: false, job: latest, jobs: [latest], running_count: 0 },
+    });
+  });
+  return { posts: () => posts };
+}
+
 export type Mock = {
   rows: ModelRow[];
   job: Job | null;
