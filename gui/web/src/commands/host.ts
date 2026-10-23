@@ -28,7 +28,7 @@ import {
 import { canManageProjects, canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { seedStudioJob } from "../state/seedStudioJob";
-import { errorMessage, isModelNeeded } from "../utils/apiError";
+import { errorMessage } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
@@ -123,10 +123,7 @@ export function registerHostCommands(): void {
         const done = await waitForPipelineJob(started.job.id);
         if (done.status === "error") {
           seedStudioJob(done);
-          const failure = jobFailure(done, "Render preview failed");
-          const reason = isModelNeeded(failure)
-            ? `${failure.model.label} is not downloaded.`
-            : failure.message;
+          const reason = jobFailure(done, "Render preview failed").message;
           if (isCurrentProject()) {
             useDawStore
               .getState()

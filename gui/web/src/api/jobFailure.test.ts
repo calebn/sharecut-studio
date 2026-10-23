@@ -40,7 +40,7 @@ describe("jobFailure", () => {
     );
     expect(isModelNeeded(err)).toBe(true);
     if (!isModelNeeded(err)) return;
-    expect(err.message).toBe("needs RNNoise (~2 MB)");
+    expect(err.message).toBe("RNNoise is not downloaded.");
     expect(err.model).toEqual({
       id: "rnnoise",
       variant: "rnnoise",

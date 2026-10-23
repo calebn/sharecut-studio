@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pipelineJobSnapshot } from "../test/fixtures";
 import {
   ApiError,
   errorMessage,
@@ -6,7 +7,9 @@ import {
   isModelNeeded,
   isPermanentRejection,
   isServerTimeoutError,
+  jobErrorText,
   modelNeededFromPayload,
+  modelNeededOfJob,
   projectUnavailableReason,
   readApiError,
   readApiFailure,
@@ -293,5 +296,38 @@ describe("modelNeededFromPayload", () => {
   it("rejects a payload without the fields a prompt needs", () => {
     expect(modelNeededFromPayload(null)).toBeNull();
     expect(modelNeededFromPayload({ id: "whisper" })).toBeNull();
+  });
+});
+
+describe("jobErrorText", () => {
+  const RNNOISE = {
+    id: "rnnoise",
+    model: "rnnoise",
+    label: "Noise reduction (RNNoise)",
+    purpose: "noise reduction",
+    size: "~0.3 MB",
+    size_bytes: 297_646,
+    state: "missing",
+  };
+  const raw =
+    "needs Noise reduction (RNNoise); run `podcast bootstrap --component rnnoise`";
+
+  it("reads a missing model plainly and keeps the command out", () => {
+    const job = pipelineJobSnapshot({
+      status: "error",
+      error: raw,
+      error_code: "model_needed",
+      error_model: RNNOISE,
+    });
+    expect(jobErrorText(job)).toBe(
+      "Noise reduction (RNNoise) is not downloaded.",
+    );
+    expect(modelNeededOfJob(job)?.id).toBe("rnnoise");
+  });
+
+  it("passes every other error through", () => {
+    const job = pipelineJobSnapshot({ status: "error", error: "boom" });
+    expect(jobErrorText(job)).toBe("boom");
+    expect(modelNeededOfJob(job)).toBeNull();
   });
 });

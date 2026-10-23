@@ -6,7 +6,11 @@ import type {
   PipelineJobSnapshot,
   PipelineStatusResponse,
 } from "../types/pipeline";
-import { ApiError, modelNeededFromPayload } from "../utils/apiError";
+import {
+  ApiError,
+  modelNeededOfJob,
+  notDownloadedLine,
+} from "../utils/apiError";
 import { isTerminalJobStatus, jobResultPaths } from "../utils/pipeline";
 import { apiFetch, HOST_KEY } from "./http";
 import { openJobStream } from "./jobStream";
@@ -311,12 +315,9 @@ export function jobFailure(
   done: PipelineJobSnapshot,
   failLabel: string,
 ): Error {
-  const model =
-    done.error_code === "model_needed"
-      ? modelNeededFromPayload(done.error_model)
-      : null;
+  const model = modelNeededOfJob(done);
   return model
-    ? new ApiError(done.error || failLabel, "model_needed", 409, model)
+    ? new ApiError(notDownloadedLine(model), "model_needed", 409, model)
     : new Error(done.error || done.message || failLabel);
 }
 
