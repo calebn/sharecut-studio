@@ -405,13 +405,14 @@ html[data-shell="tablet"] {
 
   /* The name step is a form that must show whole, buttons included, while
      the comment field above it has focus (#2164): it gets more of the shell.
-     A named guest's Commenting as line gets the same only while a field in
-     the dock has focus (keyboard up), so Play stays in view otherwise. */
+     A named guest's Commenting as line gets the same only while a text field
+     in the dock has focus (keyboard up); the relief stays while focus moves
+     from that field to a dock button, so a tap on Change or Post comment does
+     not move out from under the finger. */
   .daw-shell--phone > .mobile-dock:has(.comment-name-step),
   .daw-shell--phone
-    > .mobile-dock:focus-within:has(
-      .comment-author-line,
-      .comment-author-edit
+    > .mobile-dock:has(.comment-author-line, .comment-author-edit):has(
+      [data-field-focus]
     ) {
     max-block-size: 60cqb;
   }
