@@ -792,10 +792,13 @@ async function submitThroughQueue(
       if (staysQueued) return queuedResult(command_id, client_seq);
       throw failure;
     }
-    // A live approval blocked by the transcript-refine gate is answered where the host
+    // A host's live approval blocked by the transcript-refine gate is answered where they
     // tapped it (the Waive form), so it is not a Needs attention item too.
     const answeredInline =
-      failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE && !opts.replaying;
+      failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE &&
+      type === DocumentCommand.ApproveEdits &&
+      !opts.replaying &&
+      !isShareProjectKey(projectPath);
     await settleCommandOutcome(
       projectPath,
       cmd,

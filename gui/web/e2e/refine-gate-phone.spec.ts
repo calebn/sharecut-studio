@@ -44,7 +44,10 @@ for (const [width, height] of [
     await expect(page.locator("body")).not.toContainText(
       /podcast transcript|ApproveEdits|refine-waive|transcript_refine/,
     );
-    await expect(page.getByText("Needs attention")).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: /^Needs attention/ }),
+    ).toHaveCount(0);
+    await expect(waive).toBeInViewport();
 
     const layout = await page.evaluate(() => {
       const box = (selector: string) =>
@@ -75,6 +78,7 @@ for (const [width, height] of [
     expect(layout.recoveryScrolls, "the form has no inner scroller").toBe(
       false,
     );
-    expect(layout.sheetTop).toBeGreaterThan((layout.laneTop ?? 0) + 40);
+    // 13.625rem of transport, ruler and lanes stays above the sheet.
+    expect(layout.sheetTop).toBeGreaterThanOrEqual(200);
   });
 }
