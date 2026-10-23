@@ -37,11 +37,28 @@ for (const viewport of [
         );
       expect(shortcutsVisible).toBe(false);
       const rowHeights = await menu
-        .getByRole("menuitem")
+        .locator(
+          '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]',
+        )
         .evaluateAll((rows) =>
           rows.map((row) => row.getBoundingClientRect().height),
         );
+      expect(rowHeights.length).toBeGreaterThan(0);
       expect(Math.min(...rowHeights)).toBeGreaterThanOrEqual(44);
+      const lastAction = menu.getByRole("menuitem", {
+        name: "Commands and shortcuts",
+      });
+      await lastAction.scrollIntoViewIfNeeded();
+      const menuBounds = await menu.boundingBox();
+      const actionBounds = await lastAction.boundingBox();
+      expect(menuBounds).not.toBeNull();
+      expect(actionBounds).not.toBeNull();
+      if (menuBounds && actionBounds) {
+        expect(actionBounds.y).toBeGreaterThanOrEqual(menuBounds.y);
+        expect(actionBounds.y + actionBounds.height).toBeLessThanOrEqual(
+          menuBounds.y + menuBounds.height + 1,
+        );
+      }
     });
   });
 }
