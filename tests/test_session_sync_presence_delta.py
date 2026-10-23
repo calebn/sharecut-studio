@@ -21,7 +21,7 @@ from podcast_mcp.services.session_sync.presence_delta import (
     row_changes,
 )
 from podcast_mcp.services.session_sync.service import SessionSyncService
-from sync_helpers import receive_host_plane
+from sync_helpers import _hub_delivery_fence, receive_host_plane
 
 
 class _FakeTimer:
@@ -669,7 +669,9 @@ def _drain_types(q) -> list[str]:
     return kinds
 
 
-def test_hub_overflow_collapses_buffered_presence_into_one_resync_marker() -> None:
+def test_hub_overflow_collapses_buffered_presence_into_one_resync_marker(
+    monkeypatch,
+) -> None:
     import asyncio
 
     from podcast_mcp.services.session_sync.hub import SessionHub
@@ -678,26 +680,37 @@ def test_hub_overflow_collapses_buffered_presence_into_one_resync_marker() -> No
     loop = asyncio.new_event_loop()
     key = "k-presence-overflow"
     q = hub.subscribe(key, loop)
-    for i in range(200):
-        hub.publish(key, {"type": "Applied", "server_seq": i + 1})
-        loop.run_until_complete(asyncio.sleep(0))
-    for i in range(56):
-        hub.publish(key, presence_delta_event(f"c{i}", {"last_seen_ns": i}, roster_version=1))
-        loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    hub.publish(key, presence_delta_event("c99", {"last_seen_ns": 99}, roster_version=1))
-    loop.run_until_complete(asyncio.sleep(0))
-    kinds = _drain_types(q)
+    with _hub_delivery_fence(loop, monkeypatch) as delivered:
+        for i in range(200):
+            hub.publish(key, {"type": "Applied", "server_seq": i + 1})
+            delivered()
+        for i in range(56):
+            hub.publish(key, presence_delta_event(f"c{i}", {"last_seen_ns": i}, roster_version=1))
+            delivered()
+        assert q.qsize() == 256
+        hub.publish(key, presence_delta_event("c99", {"last_seen_ns": 99}, roster_version=1))
+        delivered()
+        events = _drain(q)
+    kinds = [event["type"] for event in events]
     assert "PresenceDelta" not in kinds
     assert kinds.count("PresenceResync") == 1
     assert kinds.count("Applied") == 200
     applied_indices = [i for i, k in enumerate(kinds) if k == "Applied"]
     assert applied_indices == sorted(applied_indices)
+    assert events == [
+        *({"type": "Applied", "server_seq": i} for i in range(1, 201)),
+        {"type": "PresenceResync"},
+    ], "retained SessionHub queue differs from the base trace"
+    assert not asyncio.all_tasks(loop)
+    assert hub.listener_count(key) == 1
     hub.unsubscribe(key, q)
+    assert hub.listener_count(key) == 0
     loop.close()
 
 
-def test_hub_overflow_on_a_presence_event_with_no_buffered_presence_enqueues_the_marker() -> None:
+def test_hub_overflow_on_a_presence_event_with_no_buffered_presence_enqueues_the_marker(
+    monkeypatch,
+) -> None:
     import asyncio
 
     from podcast_mcp.services.session_sync.hub import SessionHub
@@ -706,20 +719,31 @@ def test_hub_overflow_on_a_presence_event_with_no_buffered_presence_enqueues_the
     loop = asyncio.new_event_loop()
     key = "k-presence-overflow-none-buffered"
     q = hub.subscribe(key, loop)
-    for i in range(256):
-        hub.publish(key, {"type": "Applied", "server_seq": i + 1})
-        loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 1}, roster_version=1))
-    loop.run_until_complete(asyncio.sleep(0))
-    kinds = _drain_types(q)
+    with _hub_delivery_fence(loop, monkeypatch) as delivered:
+        for i in range(256):
+            hub.publish(key, {"type": "Applied", "server_seq": i + 1})
+            delivered()
+        assert q.qsize() == 256
+        hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 1}, roster_version=1))
+        delivered()
+        events = _drain(q)
+    kinds = [event["type"] for event in events]
     assert kinds.count("PresenceResync") == 1
     assert "PresenceDelta" not in kinds
+    assert events == [
+        *({"type": "Applied", "server_seq": i} for i in range(2, 257)),
+        {"type": "PresenceResync"},
+    ], "retained SessionHub queue differs from the base trace"
+    assert not asyncio.all_tasks(loop)
+    assert hub.listener_count(key) == 1
     hub.unsubscribe(key, q)
+    assert hub.listener_count(key) == 0
     loop.close()
 
 
-def test_hub_overflow_on_a_non_presence_event_keeps_it_and_collapses_presence() -> None:
+def test_hub_overflow_on_a_non_presence_event_keeps_it_and_collapses_presence(
+    monkeypatch,
+) -> None:
     import asyncio
 
     from podcast_mcp.services.session_sync.hub import SessionHub
@@ -728,23 +752,35 @@ def test_hub_overflow_on_a_non_presence_event_keeps_it_and_collapses_presence() 
     loop = asyncio.new_event_loop()
     key = "k-presence-overflow-non-presence"
     q = hub.subscribe(key, loop)
-    for i in range(255):
-        hub.publish(key, presence_delta_event(f"c{i}", {"last_seen_ns": i}, roster_version=1))
-        loop.run_until_complete(asyncio.sleep(0))
-    hub.publish(key, {"type": "Applied", "server_seq": 1})
-    loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    hub.publish(key, {"type": "Applied", "server_seq": 999})
-    loop.run_until_complete(asyncio.sleep(0))
-    kinds = _drain_types(q)
+    with _hub_delivery_fence(loop, monkeypatch) as delivered:
+        for i in range(255):
+            hub.publish(key, presence_delta_event(f"c{i}", {"last_seen_ns": i}, roster_version=1))
+            delivered()
+        hub.publish(key, {"type": "Applied", "server_seq": 1})
+        delivered()
+        assert q.qsize() == 256
+        hub.publish(key, {"type": "Applied", "server_seq": 999})
+        delivered()
+        events = _drain(q)
+    kinds = [event["type"] for event in events]
     assert kinds.count("Applied") == 2
     assert kinds.count("PresenceResync") == 1
     assert "PresenceDelta" not in kinds
+    assert events == [
+        {"type": "Applied", "server_seq": 1},
+        {"type": "Applied", "server_seq": 999},
+        {"type": "PresenceResync"},
+    ], "retained SessionHub queue differs from the base trace"
+    assert not asyncio.all_tasks(loop)
+    assert hub.listener_count(key) == 1
     hub.unsubscribe(key, q)
+    assert hub.listener_count(key) == 0
     loop.close()
 
 
-def test_hub_overflow_a_second_time_while_a_marker_is_buffered_keeps_one_marker() -> None:
+def test_hub_overflow_a_second_time_while_a_marker_is_buffered_keeps_one_marker(
+    monkeypatch,
+) -> None:
     import asyncio
 
     from podcast_mcp.services.session_sync.hub import SessionHub
@@ -753,29 +789,39 @@ def test_hub_overflow_a_second_time_while_a_marker_is_buffered_keeps_one_marker(
     loop = asyncio.new_event_loop()
     key = "k-presence-overflow-twice"
     q = hub.subscribe(key, loop)
-    for i in range(255):
-        hub.publish(key, {"type": "Applied", "server_seq": i + 1})
-        loop.run_until_complete(asyncio.sleep(0))
-    hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 1}, roster_version=1))
-    loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    # Not full yet (256 == capacity, not overflowing): no marker.
-    assert q.qsize() == 256
-    # One more publish overflows: presence collapses into a single marker.
-    hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 2}, roster_version=1))
-    loop.run_until_complete(asyncio.sleep(0))
-    assert _drain_types(q).count("PresenceResync") == 1
-    # Refill to capacity, with the marker already buffered.
-    for i in range(255):
-        hub.publish(key, {"type": "Applied", "server_seq": i + 1})
-        loop.run_until_complete(asyncio.sleep(0))
-    hub.publish(key, presence_resync_event())
-    loop.run_until_complete(asyncio.sleep(0))
-    assert q.qsize() == 256
-    # A second overflow (another presence frame) still leaves exactly one marker.
-    hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 3}, roster_version=1))
-    loop.run_until_complete(asyncio.sleep(0))
-    kinds = _drain_types(q)
+    with _hub_delivery_fence(loop, monkeypatch) as delivered:
+        for i in range(255):
+            hub.publish(key, {"type": "Applied", "server_seq": i + 1})
+            delivered()
+        hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 1}, roster_version=1))
+        delivered()
+        assert q.qsize() == 256
+        assert q.qsize() == 256
+        hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 2}, roster_version=1))
+        delivered()
+        first_events = _drain(q)
+        assert [event["type"] for event in first_events].count("PresenceResync") == 1
+        assert first_events == [
+            *({"type": "Applied", "server_seq": i} for i in range(1, 256)),
+            {"type": "PresenceResync"},
+        ], "first retained SessionHub queue differs from the base trace"
+        for i in range(255):
+            hub.publish(key, {"type": "Applied", "server_seq": i + 1})
+            delivered()
+        hub.publish(key, presence_resync_event())
+        delivered()
+        assert q.qsize() == 256
+        hub.publish(key, presence_delta_event("c1", {"last_seen_ns": 3}, roster_version=1))
+        delivered()
+        events = _drain(q)
+    kinds = [event["type"] for event in events]
     assert kinds.count("PresenceResync") == 1
+    assert events == [
+        *({"type": "Applied", "server_seq": i} for i in range(1, 256)),
+        {"type": "PresenceResync"},
+    ], "second retained SessionHub queue differs from the base trace"
+    assert not asyncio.all_tasks(loop)
+    assert hub.listener_count(key) == 1
     hub.unsubscribe(key, q)
+    assert hub.listener_count(key) == 0
     loop.close()
