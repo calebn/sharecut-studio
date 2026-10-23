@@ -13,7 +13,6 @@ const PRIMARY_LABEL = {
   ready: "Continue",
 } as const;
 
-/** What the prompt says: the purpose, the size, and that it stays on this computer. */
 export function ModelGateBody({ prompt }: { prompt: GatePrompt }) {
   const purpose = prompt.purpose ? `${capitalize(prompt.purpose)}. ` : "";
   const stored = prompt.size
@@ -67,7 +66,6 @@ export function ModelGateFooter({
   );
 }
 
-/** The prompt as its own dialog; a bottom sheet on a phone. */
 export function ModelGateDialog({ gate }: Props) {
   const primaryRef = useRef<HTMLButtonElement>(null);
   const { prompt } = gate;
@@ -98,7 +96,6 @@ export function ModelGatePanel({ gate }: Props) {
   );
 }
 
-/** After "Not now": says what is missing and that the action asks again, with a way to Models. */
 export function ModelGateHint({
   gate,
   actionLabel,

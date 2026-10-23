@@ -9,12 +9,9 @@ export {
   ModelGateDialog,
   ModelGateFooter,
   ModelGateHint,
-  ModelGatePanel,
 } from "./gate/ModelGate";
 export {
-  type GatePhase,
   type GatePrompt,
-  type GateResult,
   type ModelGate,
   type ModelNeed,
   useModelGate,

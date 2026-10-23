@@ -33,7 +33,6 @@ export type GatePrompt = {
   phase: GatePhase;
   /** The row to show: never "installed" before the person has a reason to continue. */
   view: ModelView;
-  /** Why Download is unavailable while another download holds the slot. */
   blockedReason: string | undefined;
 };
 
@@ -111,12 +110,6 @@ function shownState(
     : live.state;
 }
 
-/**
- * Asks before a model-needing action runs. `run` checks the models the caller names, and when the
- * server still answers 409 `model_needed` (the client's state was stale) it refreshes and asks for
- * the model that answer names. A download starts only in `accept`; declining never runs the action.
- * Guests mount no provider, so `run` just runs the action.
- */
 export function useModelGate(): ModelGate {
   const context = useContext(ModelsContext);
   const api = context ?? INERT_MODELS;
