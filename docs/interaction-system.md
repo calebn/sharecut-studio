@@ -73,6 +73,11 @@ Each thing is declared once. A second map from the same key is a bug.
 5. **Selection is visible.** Every selected target shows its state on the
    canvas and names itself in the inspector header or sheet title using the
    Terminology table word.
+6. **Completed review releases its target.** A completed single-edit Approve or
+   Reject clears its captured selection when the reply reports an affected edit,
+   even if document adoption follows later. It also clears when the target is
+   already absent. Queued work and a zero-effect reply with the target still
+   present keep selection. A newer selection or document lifetime is untouched.
 
 Shipped: `state/selectionSlice.ts` is the only writer of `selection`, and
 `state/selection.ts` derives the clip and track sets from it. `selectionSurface.tsx`
@@ -86,6 +91,9 @@ Reordering these sections preserves their component identity and local drafts
 (`#2163`, `layout/selectionSurface.test.tsx`).
 The tracks ticked for a range not yet formed live in `rangeScopeTrackIds`; they
 are draft UI state, not a selection.
+`utils/pendingReviewPass.ts` owns single-review completion for the inspector and
+timeline overlay. `timeline/PendingEditOverlay.test.tsx` covers delayed document
+adoption and reply-head Undo through both entry points.
 
 ## Targets
 

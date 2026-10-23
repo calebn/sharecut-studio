@@ -115,6 +115,7 @@ export type PendingReviewCapture = Readonly<{
   projectPath: string;
   projectEpoch: number;
   scope: DocumentScope;
+  /** A selected capture belongs to a review request containing only this edit. */
   selected: Readonly<{
     selection: Selection;
     edit: Pick<PendingEditView, "id" | "track_id" | "type" | "timebase">;
@@ -211,7 +212,10 @@ export function finishPendingReview(
     !outcome.queued &&
     selected &&
     after.selection === selected.selection &&
-    !after.project?.pending_edits.some((edit) => edit.id === selected.edit.id)
+    (outcome.count > 0 ||
+      !after.project?.pending_edits.some(
+        (edit) => edit.id === selected.edit.id,
+      ))
   )
     after.setSelection(null);
 }
