@@ -151,7 +151,6 @@ describe("toastDockBottomPx keeps body controls clear (#1960)", () => {
 });
 
 describe("toastDockBottomPx keeps the comment field and name step clear (#2199)", () => {
-  /** 844x390 tablet: status bar 362-390, toast 62 tall, 8px gap, composer visible 306-354. */
   const landscape = {
     viewportHeight: 390,
     ceilingPx: 0,
@@ -180,7 +179,6 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
   });
 
   it("clears the composer even when that passes the ceiling", () => {
-    // A 300 px phone: status row to 90, name step 120-250, nav 288. No free band fits.
     const bottom = toastDockBottomPx({
       viewportHeight: 340,
       ceilingPx: 90,
@@ -191,7 +189,6 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
       protectPx: [{ top: 120, bottom: 250 }],
     });
     expect(bottom).toBe(340 - (120 - 8));
-    expect(340 - bottom - 62).toBeGreaterThanOrEqual(0);
   });
 
   it("keeps the resting spot when the field is clear of it", () => {
@@ -201,6 +198,21 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
         protectPx: [{ top: 100, bottom: 200 }],
       }),
     ).toBe(390 - 362 + 8);
+  });
+
+  it("passes the ceiling to clear a Play row as well as the field", () => {
+    expect(
+      toastDockBottomPx({
+        viewportHeight: 400,
+        ceilingPx: 150,
+        floorTopsPx: [],
+        restTopPx: 380,
+        toastHeightPx: 62,
+        gapPx: 8,
+        keepClearPx: [{ top: 300, bottom: 370 }],
+        protectPx: [{ top: 200, bottom: 260 }],
+      }),
+    ).toBe(400 - (200 - 8));
   });
 
   it("keeps the resting spot when no side of the field has room", () => {
@@ -309,49 +321,45 @@ describe("useToastDock", () => {
     unmount();
     expect(bottom * 16).toBe(window.innerHeight - 690 + 8);
   });
+
+  function mountRegion() {
+    const region = document.createElement("div");
+    const card = document.createElement("div");
+    card.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    region.append(card);
+    document.body.append(region);
+    boxes.push(region);
+    const readBottom = () => {
+      const { unmount } = renderHook(() =>
+        useToastDock({ current: region }, true),
+      );
+      const bottom = Number.parseFloat(
+        region.style.getPropertyValue("--toast-dock-bottom"),
+      );
+      unmount();
+      return bottom * 16;
+    };
+    return { readBottom };
+  }
+
   it("moves above a comment field the resting spot would cover on a tablet (#2199)", () => {
     document.documentElement.dataset.shell = "tablet";
     const H = window.innerHeight;
-    const region = document.createElement("div");
-    const card = document.createElement("div");
-    card.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
-    region.append(card);
-    document.body.append(region);
-    boxes.push(region);
+    const { readBottom } = mountRegion();
     box("status-bar", H - 28, H);
     box("comment-compose", H - 84, H - 36);
-    const { unmount } = renderHook(() =>
-      useToastDock({ current: region }, true),
-    );
-    const bottom = Number.parseFloat(
-      region.style.getPropertyValue("--toast-dock-bottom"),
-    );
-    unmount();
-    expect(bottom * 16).toBe(H - (H - 84) + 8);
+    expect(readBottom()).toBe(H - (H - 84) + 8);
   });
-  it("ignores a comment field scrolled out of its panel", () => {
+
+  it("ignores a comment field scrolled out of its panel (#2199)", () => {
     document.documentElement.dataset.shell = "tablet";
     const H = window.innerHeight;
-    const region = document.createElement("div");
-    const card = document.createElement("div");
-    card.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
-    region.append(card);
-    document.body.append(region);
-    boxes.push(region);
+    const { readBottom } = mountRegion();
     box("status-bar", H - 28, H);
     const panel = box("panel", H - 200, H - 100);
     panel.style.overflowY = "auto";
-    const field = box("comment-compose", H - 60, H - 10);
-    panel.append(field);
-    const { unmount } = renderHook(() =>
-      useToastDock({ current: region }, true),
-    );
-    const bottom = Number.parseFloat(
-      region.style.getPropertyValue("--toast-dock-bottom"),
-    );
-    unmount();
-    expect(bottom * 16).toBe(28 + 8);
+    panel.append(box("comment-compose", H - 60, H - 10));
+    expect(readBottom()).toBe(28 + 8);
   });
 });
