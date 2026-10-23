@@ -281,10 +281,16 @@ html[data-shell="phone"]:has(.daw-shell--inspector-column) {
 
 /* The status bar is one fixed-height line (--status-height) that overlays
    anchor to, so its chips size to it instead of the 44px touch floor; the
-   same actions stay one tap away in the tab strip. */
+   same actions stay one tap away in the tab strip. Download after a failed job
+   has no such twin, so it keeps the touch floor and the row grows with it. */
 @media (pointer: coarse) {
   .status-bar .status-chip {
     min-block-size: 0;
+  }
+
+  .status-bar .status-chip.status-chip-action,
+  .mobile-status-chips .status-chip.status-chip-action {
+    min-block-size: var(--touch-min);
   }
 }
 

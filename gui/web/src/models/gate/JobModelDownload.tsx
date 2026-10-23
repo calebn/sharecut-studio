@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { useDawStore } from "../../state/dawStore";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
 import { Button } from "../../ui";
-import { modelNeededFromPayload } from "../../utils/apiError";
+import { modelNeededOfJob } from "../../utils/apiError";
 import { useModels } from "../useModels";
 import { ModelGateDialog } from "./ModelGate";
 import { rowInstalled, useModelGate } from "./useModelGate";
@@ -23,26 +23,38 @@ const TRY_AGAIN: Record<string, string> = {
 export function JobModelDownload({
   job,
   className,
+  variant,
 }: {
   job: PipelineJobSnapshot | null;
   className?: string;
+  variant?: "primary";
 }) {
   const gate = useModelGate();
   const { models } = useModels();
-  const need =
-    job?.status === "error" && job.error_code === "model_needed"
-      ? modelNeededFromPayload(job.error_model)
-      : null;
+  const need = job ? modelNeededOfJob(job) : null;
   const jobId = job?.id;
   const resetGate = gate.reset;
+  const [downloaded, setDownloaded] = useState<string | null>(null);
+  const doneRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     resetGate();
+    setDownloaded(null);
   }, [jobId, resetGate]);
+  useEffect(() => {
+    if (downloaded) doneRef.current?.focus();
+  }, [downloaded]);
 
-  if (!need || !models) {
+  const row = need ? (models?.find((m) => m.id === need.id) ?? null) : null;
+  if (downloaded && !gate.prompt) {
+    return (
+      <span ref={doneRef} tabIndex={-1}>
+        {downloaded} downloaded.
+      </span>
+    );
+  }
+  if (!need || !row) {
     return null;
   }
-  const row = models.find((m) => m.id === need.id) ?? null;
   if (
     rowInstalled(row, { id: need.id, variant: need.variant ?? undefined }) &&
     !gate.prompt
@@ -59,6 +71,7 @@ export function JobModelDownload({
       [{ id: need.id, variant: need.variant ?? undefined, installed: false }],
     );
     if (ran.kind !== "ran") return;
+    setDownloaded(need.label);
     if (
       kind === "render_preview" &&
       useDawStore.getState().projectEpoch === epoch
@@ -75,7 +88,11 @@ export function JobModelDownload({
 
   return (
     <>
-      <Button className={className} onClick={() => void download()}>
+      <Button
+        variant={variant}
+        className={className}
+        onClick={() => void download()}
+      >
         Download {need.label}
       </Button>
       <ModelGateDialog gate={gate} />

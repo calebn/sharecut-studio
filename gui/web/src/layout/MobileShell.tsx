@@ -335,7 +335,10 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           />
         ) : null}
         {!guestShare ? (
-          <JobModelDownload job={chipJob} className="status-chip" />
+          <JobModelDownload
+            job={chipJob}
+            className="status-chip status-chip-action"
+          />
         ) : null}
       </div>
       <div className="mobile-comment-list">

@@ -86,6 +86,30 @@ describe("JobModelDownload", () => {
     }
   });
 
+  it("renders nothing when the models list has no row for the model", () => {
+    const rows = registryRows().filter((r) => r.id !== "rnnoise");
+    const { container } = setup(failed(), rows);
+    expect(container.textContent).toBe("");
+  });
+
+  it("keeps a second Download behind the first one's modal dialog", async () => {
+    const user = userEvent.setup();
+    const api = modelsApi({ status: modelStatus(registryRows()) });
+    render(
+      <div data-daw-app-chrome="">
+        <JobModelDownload job={failed()} />
+        <JobModelDownload job={failed()} />
+      </div>,
+      { wrapper: modelsWrapper(api) },
+    );
+    const name = "Download Noise reduction (RNNoise)";
+    await user.click(screen.getAllByRole("button", { name })[0] as HTMLElement);
+
+    expect(await screen.findAllByRole("dialog")).toHaveLength(1);
+    const chrome = document.querySelector<HTMLElement>("[data-daw-app-chrome]");
+    expect(chrome?.inert).toBe(true);
+  });
+
   it("renders nothing without a models provider", () => {
     const { container } = render(<JobModelDownload job={failed()} />);
     expect(container.textContent).toBe("");
@@ -109,6 +133,10 @@ describe("JobModelDownload", () => {
       ),
     );
     expect(runPointerCommand).not.toHaveBeenCalled();
+    const done = await screen.findByText(
+      "Noise reduction (RNNoise) downloaded.",
+    );
+    expect(document.activeElement).toBe(done);
   });
 
   it("names the next step for each other kind", async () => {

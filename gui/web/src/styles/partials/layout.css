@@ -898,16 +898,20 @@ button.save-dot {
 }
 
 /* On a touch pointer the row grows only while the light is actionable (waiting
-   or failed, the Needs attention banner is up then): the full --touch-min
+   or failed, the Needs attention banner is up then, or a Download button
+   follows a failed job): the full --touch-min
    target plus the bar's 1px top border. The sheets and toasts that anchor to
    the row follow the token. The phone shell keeps its own row. */
 @media (pointer: coarse) {
   html:not([data-shell="phone"]):has(
     .status-bar
-      button.save-dot:is(
-        [data-save-state="waiting"],
-        [data-save-state="failed"],
-        [data-save-state="unknown"]
+      :is(
+        button.save-dot:is(
+          [data-save-state="waiting"],
+          [data-save-state="failed"],
+          [data-save-state="unknown"]
+        ),
+        .status-chip-action
       )
   ) {
     --status-height: calc(var(--touch-min) + 1px);

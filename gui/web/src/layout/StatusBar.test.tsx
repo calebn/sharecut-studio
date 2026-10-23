@@ -5,7 +5,19 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
-import { minimalProject, sampleTrack, sessionRoster } from "../test/fixtures";
+import { partial } from "../test/cssRules";
+import {
+  minimalProject,
+  pipelineJobSnapshot,
+  sampleTrack,
+  sessionRoster,
+} from "../test/fixtures";
+import {
+  modelStatus,
+  modelsApi,
+  modelsWrapper,
+  registryRows,
+} from "../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { StatusBar } from "./StatusBar";
 
@@ -934,5 +946,46 @@ describe("StatusBar cut chip", () => {
       expect(dot.closest("footer.status-bar")).not.toBeNull();
       view.unmount();
     }
+  });
+});
+
+describe("StatusBar Download after a failed job", () => {
+  it("is a touch-sized action, not a status chip that collapses to the bar", () => {
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    useDawStore.setState({
+      activityJob: pipelineJobSnapshot({
+        kind: "render_preview",
+        status: "error",
+        error_code: "model_needed",
+        error_model: {
+          id: "rnnoise",
+          model: "rnnoise",
+          label: "Noise reduction (RNNoise)",
+          purpose: "noise reduction",
+          size: "~0.3 MB",
+          size_bytes: 297_646,
+          state: "missing",
+        },
+      }),
+    });
+    const Models = modelsWrapper(
+      modelsApi({ status: modelStatus(registryRows()) }),
+    );
+    render(
+      <Models>
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <StatusBar />
+        </DawProvider>
+      </Models>,
+    );
+    const button = screen.getByRole("button", {
+      name: "Download Noise reduction (RNNoise)",
+    });
+    expect(button.classList.contains("status-chip-action")).toBe(true);
+    expect(partial("responsive.css")).toMatch(
+      /\.status-chip\.status-chip-action\s*\{\s*min-block-size:\s*var\(--touch-min\)/,
+    );
+    useDawStore.setState({ activityJob: null });
   });
 });

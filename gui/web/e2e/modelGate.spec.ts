@@ -603,6 +603,12 @@ for (const viewport of VIEWPORTS) {
         });
         await expect(chipDownload).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(0);
+        if (
+          await page.evaluate(() => matchMedia("(pointer: coarse)").matches)
+        ) {
+          const box = await chipDownload.boundingBox();
+          expect(box?.height).toBeGreaterThanOrEqual(44);
+        }
         await expectSurfaceAxeClean(page, "body");
         await shot(page, viewport.name, theme, "export-chip");
 
