@@ -126,9 +126,11 @@ RESERVED_DISPLAY_NAMES = frozenset({"host", "agent", "daw"})
 _FNV_OFFSET = 2166136261
 _FNV_PRIME = 16777619
 _WHITESPACE_RE = re.compile(r"\s+")
+_TRAILING_NON_WORD_RE = re.compile(r"[\W_]+$")
 _MAX_DISPLAY_NAME = 40
 GUEST_FALLBACK_NAME = "Guest"
 _GUEST_NAME_MARKUP = str.maketrans("", "", "<>")
+_GUEST_NAME_INPUT_MAX = 200
 
 PresenceSelectionKind = Literal[
     "clip",
@@ -245,6 +247,11 @@ def presence_color_index(client_id: str) -> int:
     return h % PRESENCE_COLOR_COUNT
 
 
+def _reserved_key(text: str) -> str:
+    folded = unicodedata.normalize("NFKC", text).casefold()
+    return _TRAILING_NON_WORD_RE.sub("", folded)
+
+
 def sanitize_display_name(raw: Any, *, guest: bool = False) -> str | None:
     if raw is None:
         return None
@@ -259,7 +266,7 @@ def sanitize_display_name(raw: Any, *, guest: bool = False) -> str | None:
     if not text:
         return None
     text = text[:_MAX_DISPLAY_NAME]
-    if guest and text.casefold() in RESERVED_DISPLAY_NAMES:
+    if guest and _reserved_key(text) in RESERVED_DISPLAY_NAMES:
         suffix = " (guest)"
         text = (text[: _MAX_DISPLAY_NAME - len(suffix)] + suffix)[:_MAX_DISPLAY_NAME]
     return text
@@ -268,12 +275,15 @@ def sanitize_display_name(raw: Any, *, guest: bool = False) -> str | None:
 def guest_display_name(raw: Any) -> str:
     """The label a guest's comment or reply carries: a display name, never a credential.
 
-    Angle brackets, control, format (zero-width) and lone-surrogate characters and runs of whitespace are removed, the
-    result is capped, a reserved name (Host, Agent, DAW) is suffixed so a guest
-    cannot pass as one, and a blank name falls back to ``Guest``.
+    Angle brackets, control, format (zero-width) and lone-surrogate characters
+    and runs of whitespace are removed, the result is capped, a reserved name
+    (Host, Agent, DAW, compared after NFKC folding and without trailing
+    punctuation) is suffixed so a guest cannot pass as one, and a blank name
+    falls back to ``Guest``.
     """
     text = sanitize_display_name(
-        "" if raw is None else str(raw).translate(_GUEST_NAME_MARKUP), guest=True
+        "" if raw is None else str(raw)[:_GUEST_NAME_INPUT_MAX].translate(_GUEST_NAME_MARKUP),
+        guest=True,
     )
     return text or GUEST_FALLBACK_NAME
 

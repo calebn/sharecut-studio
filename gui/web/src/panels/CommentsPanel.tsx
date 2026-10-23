@@ -122,7 +122,10 @@ export function CommentsPanel({
         .map((l) => l.trim())
         .filter(Boolean),
     });
-    if (!result.ok) return;
+    if (!result.ok) {
+      bodyRef.current?.focus();
+      return;
+    }
     setBody("");
     setActionLine("");
     announceStatus(commentPostedStatus(result.comment));
@@ -201,7 +204,7 @@ export function CommentsPanel({
               name={guestName.draft}
               onNameChange={guestName.setDraft}
               onConfirm={() => void onCreate()}
-              onSkip={() => void createAs(guestName.choose(""))}
+              onPostAsGuest={() => void createAs(guestName.choose(""))}
               busy={busy}
               postDisabledReason={
                 body.trim() ? undefined : "Write a comment to post."

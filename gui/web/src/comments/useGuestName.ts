@@ -5,6 +5,7 @@ import {
   GUEST_SESSION_LABEL,
   guestNameChosen,
   saveCommentAuthor,
+  savedGuestName,
   sessionDisplayName,
 } from "../utils/commentAuthor";
 
@@ -26,16 +27,18 @@ export function useGuestName(role: CommentRole) {
     const capped = capCommentName(next);
     if (!capped) return;
     setName(capped);
+    if (isGuest) setChosen(true);
     saveCommentAuthor(capped, role);
   };
 
   const choose = (typed: string): string => {
     const capped = capCommentName(typed);
-    setName(capped || GUEST_SESSION_LABEL);
+    const author = capped || savedGuestName() || GUEST_SESSION_LABEL;
+    setName(author);
     setChosen(true);
     setAsking(false);
-    saveCommentAuthor(capped, "guest");
-    return capped || GUEST_SESSION_LABEL;
+    if (capped || !savedGuestName()) saveCommentAuthor(capped, "guest");
+    return author;
   };
 
   const authorForPost = (): string | null => {
