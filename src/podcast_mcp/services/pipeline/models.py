@@ -6,7 +6,7 @@ catalogs through the ``services.pipeline`` facade instead.
 
 from __future__ import annotations
 
-from podcast_mcp.engines.models.registry import MODELS, models_for
+from podcast_mcp.engines.models.registry import MODELS, ModelSpec, model_spec, models_for
 from podcast_mcp.engines.models.whisper import (
     DEFAULT_WHISPER_MODEL,
     WHISPER_MODEL_IDS,
@@ -20,7 +20,9 @@ __all__ = [
     "DEFAULT_WHISPER_MODEL",
     "MODELS",
     "WHISPER_MODEL_IDS",
+    "ModelSpec",
     "WhisperWeightsMissingError",
+    "model_spec",
     "models_for",
     "persist_whisper_model",
     "resolve_whisper_model",

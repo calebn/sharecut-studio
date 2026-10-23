@@ -11,12 +11,12 @@ import typer
 from podcast_mcp.cli.busy import _debug_enabled
 from podcast_mcp.config.defaults import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
-from podcast_mcp.engines.models.registry import ModelSpec
 from podcast_mcp.services.pipeline import (
     DEFAULT_WHISPER_MODEL,
     MODELS,
     WHISPER_MODEL_IDS,
     InstallFailure,
+    ModelSpec,
     install_model,
     model_status,
     models_for,
