@@ -405,3 +405,12 @@ def test_guest_mcp_malformed_word_item_is_invalid_arguments(
     )
     assert out["error"]["code"] == -32602
     assert "words.0.track_id" in out["error"]["message"]
+
+
+def test_bad_mode_does_not_mask_another_field_error(tmp_path):
+    secret = "s3cret-mode"
+    with pytest.raises(CodedValueError) as excinfo:
+        validate_payload("SetBleedAlignmentMode", {"mode": secret})
+    assert excinfo.value.code == "invalid_payload"
+    assert "decision_id: Field required" in str(excinfo.value)
+    assert secret not in str(excinfo.value)

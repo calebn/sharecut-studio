@@ -1359,7 +1359,11 @@ _CODED_PAYLOAD_TYPES = frozenset(
 
 def _coded_payload_error(command_type: str, exc: ValidationError) -> CodedValueError:
     errors = exc.errors(include_input=False, include_url=False, include_context=False)
-    if command_type == "SetBleedAlignmentMode" and any(err["loc"] == ("mode",) for err in errors):
+    if (
+        command_type == "SetBleedAlignmentMode"
+        and errors
+        and all(err["loc"] == ("mode",) for err in errors)
+    ):
         return CodedValueError(
             "alignment mode must be auto, manual, or declined", code="invalid_mode"
         )

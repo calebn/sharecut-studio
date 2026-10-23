@@ -1167,7 +1167,6 @@ def edit_suppress_bleed_cmd(
         None, "--exclude-words-json", help="JSON array of word keys to skip"
     ),
 ) -> None:
-    ws = ProjectWorkspace.open(project)
     words = json.loads(words_json) if words_json else None
     exclude = json.loads(exclude_words_json) if exclude_words_json else None
     if words is not None and not isinstance(words, list):
@@ -1190,6 +1189,7 @@ def edit_suppress_bleed_cmd(
     }
     if dry_run:
         checked = validate_payload("SuppressBleed", payload)
+        ws = ProjectWorkspace.open(project)
         result = AnalysisService(ws).suppress_bleed(
             track_id=track,
             speaker=speaker,
