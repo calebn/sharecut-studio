@@ -95,3 +95,13 @@ def test_guest_mcp_refusal_uses_the_guest_copy():
     assert refusal is not None
     assert refusal.code == "project_write_failed"
     assert refusal.message.startswith("Your change could not be saved on the host")
+
+
+def test_a_lock_timeout_is_not_a_write_failure(minimal_project, monkeypatch):
+    from podcast_mcp.util.project_state import ProjectBusyError
+
+    busy = ProjectBusyError(str(minimal_project))
+    _fail_with(monkeypatch, busy)
+    with pytest.raises(ProjectBusyError) as caught:
+        submit_host_document_command(minimal_project, "SetTrackMeta", COMMAND["payload"])
+    assert caught.value is busy

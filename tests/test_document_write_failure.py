@@ -27,7 +27,7 @@ def _post(minimal_project, monkeypatch, exc):
     def fail(self, *args, **kwargs):
         raise exc
 
-    monkeypatch.setattr(DocumentSyncService, "submit", fail)
+    monkeypatch.setattr(DocumentSyncService, "_submit", fail)
     with TestClient(create_app(served_project=minimal_project), raise_server_exceptions=False) as c:
         return c.post("/api/document/command", params={"path": str(minimal_project)}, json=BODY)
 
