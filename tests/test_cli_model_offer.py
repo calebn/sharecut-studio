@@ -144,6 +144,14 @@ def test_non_terminal_prints_the_one_line_without_asking_or_downloading(
     )
 
 
+def test_a_run_whose_streams_are_not_terminals_is_never_asked(missing: _Model) -> None:
+    result = runner.invoke(app, ["probe-model"], input="y\n")
+
+    assert result.exit_code == 1
+    assert missing.installs == 0
+    assert "Download" not in result.stderr + result.stdout
+
+
 def test_no_input_on_a_terminal_prints_the_one_line_without_asking_or_downloading(
     missing: _Model, monkeypatch: pytest.MonkeyPatch
 ) -> None:
