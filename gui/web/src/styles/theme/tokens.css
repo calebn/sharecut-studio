@@ -238,3 +238,16 @@
     --font-size-field-min: 1rem;
   }
 }
+
+:root {
+  --color-brand-mark-ink: var(--color-text-primary);
+  --color-brand-mark-accent: var(--color-accent);
+}
+
+/* Chromium leaves SVG fill authored under forced colors, so the cream ink would vanish on a white Canvas. */
+@media (forced-colors: active) {
+  :root {
+    --color-brand-mark-ink: CanvasText;
+    --color-brand-mark-accent: CanvasText;
+  }
+}
