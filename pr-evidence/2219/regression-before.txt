@@ -1,0 +1,46 @@
+
+ RUN  v5.0.5 <checkout>/gui/web
+
+ ❯ |jsdom| src/timeline/PendingEditOverlay.test.tsx (54 tests | 4 failed | 50 skipped) 309ms
+   ❯ single pending review feedback (12)
+     ❯ inspector (6)
+       × Approve clears selection before document adoption and Undo restores the edit 165ms
+       × Reject clears selection before document adoption and Undo restores the edit 53ms
+     ❯ overlay (6)
+       × Approve clears selection before document adoption and Undo restores the edit 49ms
+       × Reject clears selection before document adoption and Undo restores the edit 40ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |jsdom| src/timeline/PendingEditOverlay.test.tsx > single pending review feedback > inspector > Approve clears selection before document adoption and Undo restores the edit
+ FAIL  |jsdom| src/timeline/PendingEditOverlay.test.tsx > single pending review feedback > inspector > Reject clears selection before document adoption and Undo restores the edit
+ FAIL  |jsdom| src/timeline/PendingEditOverlay.test.tsx > single pending review feedback > overlay > Approve clears selection before document adoption and Undo restores the edit
+ FAIL  |jsdom| src/timeline/PendingEditOverlay.test.tsx > single pending review feedback > overlay > Reject clears selection before document adoption and Undo restores the edit
+AssertionError: expected { kind: 'pending', id: 'cut_1', …(1) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "id": "cut_1",
+  "kind": "pending",
+  "trackId": "host",
+}
+
+ ❯ src/timeline/PendingEditOverlay.test.tsx:1622:50
+    1620|         );
+    1621|         expect(useDawStore.getState().project?.pending_edits).toEqual(…
+    1622|         expect(useDawStore.getState().selection).toBeNull();
+       |                                                  ^
+    1623|         act(() => {
+    1624|           applyDocumentResult(reply, activateDocumentScope(path));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 50 skipped (54)
+   Start at  20:43:54
+   Duration  1.59s (transform 43%, environment 22%, tests 20%, import 11%, setup 4%)
+

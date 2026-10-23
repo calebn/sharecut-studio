@@ -1,0 +1,27 @@
+2159-clean-touch-before.log
+REFUSED 0
+PENDING_AFTER []
+AFTER {"sheet":1,"missing":1,"attention":0}
+    Error: expect(locator).toHaveCount(expected) failed
+  1 failed
+
+2159-phone-after.log
+REFUSED 0
+PENDING_AFTER []
+AFTER {"shell":"phone","sheet":0,"missing":0,"attention":0}
+UNDO_RESTORED cut_97074d97
+  1 passed (5.2s)
+
+2159-clean-desktop-before.log
+REFUSED 0
+PENDING_AFTER []
+AFTER {"shell":"desktop","sheet":0,"missing":0,"attention":0}
+UNDO_RESTORED cut_beb6fbc9
+  1 passed (4.9s)
+
+2159-desktop-after.log
+REFUSED 0
+PENDING_AFTER []
+AFTER {"shell":"desktop","sheet":0,"missing":0,"attention":0}
+UNDO_RESTORED cut_f294c1a0
+  1 passed (4.4s)

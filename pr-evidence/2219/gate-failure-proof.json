@@ -1,0 +1,60 @@
+{
+  "expected_head": "9ced2088f242c4daf3c050fbf8ec51aa375ece5f",
+  "receipts": [
+    {
+      "case": "helper-exit-1",
+      "command": [
+        "/workspace/lane2-2159/.venv/bin/python",
+        "-c",
+        "import json,sys; print(json.dumps(json.loads(sys.argv[1]))); sys.exit(int(sys.argv[2]))",
+        "{\"mergeable\": true, \"head_sha\": \"9ced2088f242c4daf3c050fbf8ec51aa375ece5f\", \"blockers\": []}",
+        "1"
+      ],
+      "exit_status": 1,
+      "json": {
+        "mergeable": true,
+        "head_sha": "9ced2088f242c4daf3c050fbf8ec51aa375ece5f",
+        "blockers": []
+      },
+      "stand_in_invocations": 0
+    },
+    {
+      "case": "http-503-null-head",
+      "command": [
+        "/workspace/lane2-2159/.venv/bin/python",
+        "-c",
+        "import json,sys; print(json.dumps(json.loads(sys.argv[1]))); sys.exit(int(sys.argv[2]))",
+        "{\"mergeable\": false, \"head_sha\": null, \"blockers\": [\"GitHub HTTP 503\"]}",
+        "1"
+      ],
+      "exit_status": 1,
+      "json": {
+        "mergeable": false,
+        "head_sha": null,
+        "blockers": [
+          "GitHub HTTP 503"
+        ]
+      },
+      "stand_in_invocations": 0
+    },
+    {
+      "case": "passing-control",
+      "command": [
+        "/workspace/lane2-2159/.venv/bin/python",
+        "-c",
+        "import json,sys; print(json.dumps(json.loads(sys.argv[1]))); sys.exit(int(sys.argv[2]))",
+        "{\"mergeable\": true, \"head_sha\": \"9ced2088f242c4daf3c050fbf8ec51aa375ece5f\", \"blockers\": []}",
+        "0"
+      ],
+      "exit_status": 0,
+      "json": {
+        "mergeable": true,
+        "head_sha": "9ced2088f242c4daf3c050fbf8ec51aa375ece5f",
+        "blockers": []
+      },
+      "stand_in_invocations": 1
+    }
+  ],
+  "stand_in_count": 1,
+  "real_merge_invocations": 0
+}

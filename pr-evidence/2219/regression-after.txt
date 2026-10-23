@@ -1,0 +1,13 @@
+
+> web@0.0.0 test
+> vitest run src/utils/pendingReviewPass.test.ts src/timeline/PendingEditOverlay.test.tsx src/inspector/views/PendingEditInspector.test.tsx src/inspector/views/PendingEditInspector.queue.test.tsx src/services/commandQueue.test.ts src/panels/ImpactPanel.test.tsx
+
+
+ RUN  v5.0.5 <checkout>/gui/web
+
+
+ Test Files  6 passed (6)
+      Tests  161 passed (161)
+   Start at  20:47:10
+   Duration  8.63s (tests 80%, environment 10%, transform 5%, import 4%, setup 2%)
+
