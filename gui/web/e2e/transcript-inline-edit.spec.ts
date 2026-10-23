@@ -98,3 +98,63 @@ test.describe("Transcript inline word edit", () => {
     }
   });
 });
+
+test.describe("Phone word correction", () => {
+  test.use({
+    viewport: { width: 320, height: 568 },
+    hasTouch: true,
+    reducedMotion: "reduce",
+  });
+
+  test("Corrected text and Apply fit in the initial sheet", async ({
+    page,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await page.getByRole("button", { name: "Text", exact: true }).click();
+    const list = page.locator(".transcript-list");
+    const word = list.getByRole("button", { name: "my", exact: true }).first();
+    await word.scrollIntoViewIfNeeded();
+    const point = await word.boundingBox();
+    expect(point).not.toBeNull();
+    const x = point!.x + point!.width / 2;
+    const y = point!.y + point!.height / 2;
+    await page.touchscreen.tap(x, y);
+    await page.touchscreen.tap(x, y);
+
+    const sheet = page.getByRole("dialog", { name: "Inspector", exact: true });
+    await expect(sheet).toBeVisible();
+    const field = sheet.getByRole("textbox", {
+      name: "Corrected text",
+      exact: true,
+    });
+    const apply = sheet.getByRole("button", { name: "Apply", exact: true });
+    const bounds = await sheet.boundingBox();
+    expect(bounds).not.toBeNull();
+    for (const control of [field, apply]) {
+      const box = await control.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.y).toBeGreaterThanOrEqual(bounds!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(
+        bounds!.y + bounds!.height,
+      );
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+    }
+    await expectPageAxeClean(page, ".bottom-sheet");
+
+    let committed = false;
+    try {
+      await field.fill("My");
+      await apply.click();
+      committed = true;
+      await expect(
+        list.getByRole("button", { name: "My", exact: true }).first(),
+      ).toBeVisible();
+      await postHistoryMove(page, "e2e-phone-correct", "UndoHistory");
+      committed = false;
+      await expect(word).toBeVisible();
+    } finally {
+      if (committed)
+        await postHistoryMove(page, "e2e-phone-correct", "UndoHistory");
+    }
+  });
+});
