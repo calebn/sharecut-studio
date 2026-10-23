@@ -9,7 +9,7 @@ type Props = {
 };
 
 /**
- * "Commenting as <name> · Change": the name is read-only until Change opens an
+ * "Commenting as <name>" with a Change button: the name is read-only until Change opens an
  * inline field (`InlineEditInput`). Focus goes back to Change only after
  * Enter / Escape; a blur keeps focus where it landed.
  */
