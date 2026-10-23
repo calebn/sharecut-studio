@@ -204,7 +204,7 @@ export function CommentsPanel({
               name={guestName.draft}
               onNameChange={guestName.setDraft}
               onConfirm={() => void onCreate()}
-              onPostAsGuest={() => void createAs(guestName.choose(""))}
+              onPostAsGuest={() => void createAs(guestName.postAsGuest())}
               busy={busy}
               postDisabledReason={
                 body.trim() ? undefined : "Write a comment to post."

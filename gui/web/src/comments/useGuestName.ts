@@ -41,6 +41,16 @@ export function useGuestName(role: CommentRole) {
     return author;
   };
 
+  /** Post as Guest: this comment is Guest's even if a name was saved since
+   *  the step opened (another tab); a saved name is never overwritten. */
+  const postAsGuest = (): string => {
+    setName(GUEST_SESSION_LABEL);
+    setChosen(true);
+    setAsking(false);
+    if (!savedGuestName()) saveCommentAuthor("", "guest");
+    return GUEST_SESSION_LABEL;
+  };
+
   const authorForPost = (): string | null => {
     if (asking) return choose(draft);
     if (!chosen) {
@@ -60,6 +70,7 @@ export function useGuestName(role: CommentRole) {
     draft,
     setDraft,
     choose,
+    postAsGuest,
     authorForPost,
   };
 }
