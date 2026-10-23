@@ -55,3 +55,14 @@ export const Unreadable: Story = {
     attention: { kind: "passive" },
   },
 };
+
+export const ProjectUnavailable: Story = {
+  args: {
+    state: {
+      kind: "failed",
+      cause: "project-unavailable",
+      reason: "The project file is missing, so nothing can be saved.",
+    },
+    attention: { kind: "button", activate: fn() },
+  },
+};

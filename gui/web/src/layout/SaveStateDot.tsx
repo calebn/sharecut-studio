@@ -60,7 +60,7 @@ export function SaveStateDot() {
     <SaveStateDotView
       state={state}
       attention={
-        state.kind === "failed"
+        state.kind === "failed" && state.cause === "unreadable"
           ? { kind: "passive" }
           : {
               kind: "button",

@@ -71,6 +71,35 @@ describe("saveStateOf", () => {
     },
   );
 
+  it("is a failed save when the project file is missing or damaged", () => {
+    const blocking: SaveStateInput["conflicts"][number] = {
+      command: {
+        command_id: "blocked",
+        client_id: "client",
+        client_seq: 1,
+        type: "SetTrackMeta",
+        payload: {},
+        created_at: 0,
+      },
+      kind: "refused",
+      reason: "The project file is missing, so nothing can be saved.",
+      recovery: "edit-and-resubmit",
+      blocksSave: true,
+    };
+    const state = saveStateOf({ ...quiet, conflicts: [blocking] });
+    expect(state).toEqual({
+      kind: "failed",
+      cause: "project-unavailable",
+      reason: blocking.reason,
+    });
+    expect(saveStateText(state as SaveState)).toBe(
+      "Not saved · The project file is missing, so nothing can be saved.",
+    );
+    expect(
+      saveStateOf({ ...quiet, conflicts: [{ ...blocking, dismissed: true }] }),
+    ).toEqual({ kind: "saved" });
+  });
+
   it("still reports an unknown Undo outcome", () => {
     expect(
       saveStateOf({

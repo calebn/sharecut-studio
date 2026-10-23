@@ -13,6 +13,7 @@ from fastapi.exception_handlers import http_exception_handler
 from filelock import Timeout
 from starlette.responses import Response
 
+from podcast_mcp.models.episode import ProjectUnreadableError
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.services.session_sync import (
@@ -149,6 +150,14 @@ async def project_busy_exception_handler(request: Request, exc: Exception) -> Re
     message = str(exc) if isinstance(exc, TranscriptContextBusyError) else busy_message(exc)
     return await http_exception_handler(
         request, coded_http_error(503, message, code=PROJECT_BUSY_CODE, headers=NO_STORE)
+    )
+
+
+async def project_unreadable_exception_handler(request: Request, exc: Exception) -> Response:
+    """A damaged project file becomes 500 ``project_unreadable`` with words that name no path."""
+    assert isinstance(exc, ProjectUnreadableError)
+    return await http_exception_handler(
+        request, coded_http_error(500, str(exc), code=exc.code, headers=NO_STORE)
     )
 
 
