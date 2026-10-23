@@ -25,9 +25,9 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
       "the model gate acceptance asks for contrast-enabled axe on the prompt at three viewports in both themes (#2046)",
   },
   "guest-name.spec.ts": {
-    loops: 1,
+    loops: 2,
     reason:
-      "the name step must fit and read in both themes at each of four phone sizes, light and dark screenshots included (#2164)",
+      "the name step must fit and read in both themes at each of four phone sizes, and the named dock in a short landscape window must read in both, screenshots and axe included (#2164)",
   },
   "models.spec.ts": {
     loops: 2,

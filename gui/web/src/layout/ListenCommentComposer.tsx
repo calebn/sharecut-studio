@@ -12,6 +12,10 @@ import { commentRole } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { InlineError } from "../ui";
 
+function isTextField(el: EventTarget): boolean {
+  return el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement;
+}
+
 /**
  * The phone Listen view's comment field, docked above the mode bar: type,
  * then Post comment, at the playhead or the time on the chip. Posting closes
@@ -29,6 +33,8 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   const [body, setBody] = useState("");
   const { busy, error, post } = usePostComment();
   const dockRef = useRef<HTMLElement>(null);
+  const [fieldFocus, setFieldFocus] = useState(false);
+  const fromField = useRef(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   useLayoutEffect(() => {
@@ -60,6 +66,23 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
       ref={dockRef}
       className="listen-comment-dock"
       aria-label="Add a comment"
+      data-field-focus={fieldFocus || undefined}
+      onFocus={(e) => {
+        if (isTextField(e.target)) {
+          fromField.current = false;
+          setFieldFocus(true);
+        } else {
+          setFieldFocus(fromField.current && fieldFocus);
+          fromField.current = false;
+        }
+      }}
+      onBlur={(e) => {
+        const next = e.relatedTarget;
+        const staysInDock =
+          next instanceof Node && dockRef.current?.contains(next);
+        if (staysInDock && isTextField(e.target)) fromField.current = true;
+        else if (!staysInDock) setFieldFocus(false);
+      }}
     >
       <InlineError message={error} />
       {guest.showLine ? (

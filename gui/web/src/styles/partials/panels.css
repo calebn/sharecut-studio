@@ -113,6 +113,21 @@ html[data-shell="phone"] .impact-pending-select {
 
 .comment-author-line strong {
   color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.comment-author-line .comment-author-change {
+  white-space: nowrap;
+}
+
+.comment-author-edit {
+  min-width: 0;
+}
+
+.comment-author-edit input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .comments-toolbar > button,

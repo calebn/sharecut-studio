@@ -433,6 +433,7 @@ async function withNamedGuest(
   size: { width: number; height: number },
   name: string,
   run: (guest: Page, dock: Locator, field: Locator) => Promise<void>,
+  colorScheme: "light" | "dark" = "light",
 ) {
   await withShareableProject(async (projectPath) => {
     await withBrowserPages(
@@ -441,6 +442,7 @@ async function withNamedGuest(
         {},
         {
           viewport: size,
+          colorScheme,
           reducedMotion: "reduce",
           hasTouch: true,
           isMobile: true,
@@ -540,4 +542,84 @@ for (const size of DOCK_SIZES) {
       await expectNoHorizontalScroll(guest, size.width);
     });
   });
+}
+
+for (const size of [{ width: 390, height: 844 }, ...DOCK_SIZES]) {
+  for (const focused of [false, true]) {
+    // 390x340 and 320x300 stand in for a window with the keyboard up, which
+    // only exists while a field is focused.
+    if (!focused && size.height < 360) continue;
+    test(`a named guest's dock keeps Post comment and the tab bar whole and uncovered, ${focused ? "field focused" : "not focused"}, at ${size.width}x${size.height}`, async ({
+      browser,
+    }) => {
+      await withNamedGuest(
+        browser,
+        size,
+        "Riley",
+        async (guest, dock, field) => {
+          if (focused) {
+            await field.focus();
+            await field.fill("Typing");
+          }
+          const nav = guest.getByRole("navigation", { name: "Primary" });
+          await expect(nav).toBeInViewport({ ratio: 1 });
+          for (const control of [
+            dock.getByRole("button", { name: "Post comment" }),
+            dock.getByRole("button", { name: "Change your comment name" }),
+          ]) {
+            if (focused && (await control.innerText()) === "Change") continue;
+            await expect(control).toBeInViewport({ ratio: 1 });
+            const reached = await control.evaluate((el) => {
+              const r = el.getBoundingClientRect();
+              const hit = document.elementFromPoint(
+                r.left + r.width / 2,
+                r.top + r.height / 2,
+              );
+              return hit !== null && el.contains(hit);
+            });
+            expect(reached, "covered").toBe(true);
+          }
+          await expectNoHorizontalScroll(guest, size.width);
+          await guest.screenshot({
+            path: test
+              .info()
+              .outputPath(
+                `named-${focused ? "focused" : "unfocused"}-${size.width}x${size.height}.png`,
+              ),
+          });
+        },
+      );
+    });
+  }
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const size of [
+    { width: 667, height: 375 },
+    { width: 568, height: 320 },
+  ]) {
+    test(`a named guest in a short landscape window, not focused: ${size.width}x${size.height} ${theme}`, async ({
+      browser,
+    }) => {
+      await withNamedGuest(
+        browser,
+        size,
+        "Riley Okafor",
+        async (guest, dock) => {
+          await expect(
+            dock.getByRole("button", { name: "Change your comment name" }),
+          ).toBeInViewport({ ratio: 1 });
+          await expectPageAxeClean(guest);
+          await guest.screenshot({
+            path: test
+              .info()
+              .outputPath(
+                `named-landscape-${size.width}x${size.height}-${theme}.png`,
+              ),
+          });
+        },
+        theme,
+      );
+    });
+  }
 }
