@@ -1,0 +1,12 @@
+{
+  "api-insert.js": "2e3570fe6c187777cfe19a885bb56d5a84b16401986a3a87e87c06ba356eb57b",
+  "bridge-adapter.js": "b90cd46ba9d30903b1c0ec985841dad5fc77fceaa6c706c1c7a095bc5613e311",
+  "gate.js": "5219e219ca07fd9183e957dac6f27e0b41844e6f3bd86b600425871e393c0077",
+  "handoff.md": "5d9055fdeba1257730bfa9172900cd8dba01847da637986b6b03ea799c5a1b46",
+  "observer-insert.js": "d2010f5f43643f2652adf5a147d812fe93fabb6a1ec12504e4feb4b4ad6c8cfa",
+  "original-gate.fixture.js": "9ef86e0a336278a55df6bde8a8b45c40babfe6970e2b44ce8b81e47b74da49d9",
+  "test_ack.py": "d7af9c08f702a2676cacac9a8b22811d39e1e13d1716851f6e6df21e5be07032",
+  "test_gate.cjs": "756eaa68cc63ce27dd9f1941459436990c9d1c98462f97b0d7a4af5fc83d8271",
+  "validate_ack.py": "780bacc0576085aaee5596cbb7ccdd12e743dfd7d6696a51533a0c47529a2557",
+  "verification.md": "6275b06ab07fe9bfdf22c29999ca91b180dedb82800fdafe1f48b70e6fb093bf"
+}
