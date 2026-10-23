@@ -28,6 +28,8 @@ export interface PipelineJobSnapshot {
   total: number | null;
   message: string | null;
   error: string | null;
+  error_code?: string | null;
+  error_model?: Record<string, unknown> | null;
   elapsed_sec: number;
   last_progress_at?: number | null;
   unattended?: boolean;

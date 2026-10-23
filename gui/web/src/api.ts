@@ -110,6 +110,7 @@ export {
   followExportJob,
   followJobToOk,
   JobCancelledError,
+  jobFailure,
   loadPipelineConfig,
   loadPipelineStatus,
   loadPipelineSteps,

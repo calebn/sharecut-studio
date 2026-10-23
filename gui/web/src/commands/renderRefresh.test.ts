@@ -5,10 +5,12 @@ import type { DocumentSnapshot } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject } from "../test/fixtures";
+import type { PipelineJobSnapshot } from "../types/pipeline";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
-vi.mock("../api", () => ({
+vi.mock("../api", async (orig) => ({
+  jobFailure: (await orig<typeof import("../api")>()).jobFailure,
   startRenderPreview: vi.fn(),
   waitForPipelineJob: vi.fn(),
 }));
@@ -78,5 +80,48 @@ describe("render.refreshMix project ownership", () => {
     expect((await oldRun).status).toBe("disabled");
     expect(useDawStore.getState().project).toBe(projectB);
     expect(useDawStore.getState().renderPreviewBusy).toBe(false);
+  });
+
+  it("names the missing model, opens no dialog and seeds the failed job", async () => {
+    const failedJob = {
+      id: "r1",
+      project_path: "/tmp/project-a.json",
+      from_step: null,
+      only_step: null,
+      kind: "render_preview",
+      status: "error",
+      current: null,
+      total: null,
+      message: "needs RNNoise",
+      error: "needs RNNoise",
+      error_code: "model_needed",
+      error_model: {
+        id: "rnnoise",
+        model: "rnnoise",
+        label: "RNNoise",
+        purpose: "noise reduction",
+        size: "~2 MB",
+        size_bytes: 2_000_000,
+        state: "missing",
+      },
+      elapsed_sec: 1,
+      steps: [],
+    } as PipelineJobSnapshot;
+    vi.mocked(api.startRenderPreview).mockResolvedValue({
+      mode: "job",
+      job: { ...failedJob, status: "running", error: null },
+    });
+    vi.mocked(api.waitForPipelineJob).mockResolvedValue(failedJob);
+
+    const res = await execute("render.refreshMix", {}, { skipWhen: true });
+
+    expect(res).toEqual({
+      status: "disabled",
+      reason: "RNNoise is not downloaded.",
+    });
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    expect(useDawStore.getState().activityJob?.error_model).toEqual(
+      failedJob.error_model,
+    );
   });
 });

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { ApiError } from "../utils/apiError";
 import { useDawStore } from "./dawStore";
 import { runAnnouncedJob } from "./runAnnouncedJob";
 
@@ -79,6 +80,26 @@ describe("runAnnouncedJob", () => {
         resultCopy: (p) => `${p.length} done`,
       }),
     ).rejects.toThrow("boom");
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+  });
+
+  it("rethrows the model error unchanged so a gate can ask", async () => {
+    const needed = new ApiError("needs RNNoise", "model_needed", 409, {
+      id: "rnnoise",
+      variant: null,
+      label: "RNNoise",
+      purpose: "",
+      size: "~2 MB",
+      sizeBytes: null,
+      state: "missing",
+    });
+    followMock.mockRejectedValue(needed);
+    await expect(
+      runAnnouncedJob(async () => snap, {
+        failLabel: "F",
+        resultCopy: (p) => `${p.length} done`,
+      }),
+    ).rejects.toBe(needed);
     expect(useDawStore.getState().pendingJobResults).toEqual({});
   });
 
