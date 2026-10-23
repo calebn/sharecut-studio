@@ -52,6 +52,9 @@ for (const theme of ["light", "dark"] as const) {
           await guest
             .getByRole("button", { name: "Post comment", exact: true })
             .click();
+          await guest
+            .getByRole("button", { name: "Skip", exact: true })
+            .click();
           const comment = guest
             .locator(".comments-list > li")
             .filter({ hasText: body });
@@ -116,6 +119,7 @@ for (const theme of ["light", "dark"] as const) {
           await field.tap();
           await field.fill(body);
           await post.tap();
+          await dock.getByRole("button", { name: "Skip" }).tap();
           await expect(field).toHaveValue("");
           await expect(
             guest.locator(".mobile-comment-row").filter({ hasText: body }),
