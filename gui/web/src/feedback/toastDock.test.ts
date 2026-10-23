@@ -246,4 +246,25 @@ describe("usePhoneToastDock", () => {
     unmount();
     expect(bottom * 16).toBe(window.innerHeight - 690 + 8);
   });
+  it("moves above a comment field the resting spot would cover on a tablet (#2199)", () => {
+    document.documentElement.dataset.shell = "tablet";
+    const H = window.innerHeight;
+    const region = document.createElement("div");
+    const card = document.createElement("div");
+    card.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    region.append(card);
+    document.body.append(region);
+    boxes.push(region);
+    box("status-bar", H - 28, H);
+    box("comment-compose", H - 84, H - 36);
+    const { unmount } = renderHook(() =>
+      usePhoneToastDock({ current: region }, true),
+    );
+    const bottom = Number.parseFloat(
+      region.style.getPropertyValue("--toast-dock-bottom"),
+    );
+    unmount();
+    expect(bottom * 16).toBe(H - (H - 84) + 8);
+  });
 });

@@ -1,0 +1,137 @@
+import { expect, type Page, test } from "@playwright/test";
+import { withShareableProject } from "./shareableProject";
+import {
+  createReviewShare,
+  openGuestShare,
+  openHostShare,
+} from "./shareNavigation";
+import { withBrowserPages } from "./twoBrowserPages";
+
+const PHONES = [
+  { name: "portrait", width: 390, height: 844 },
+  { name: "landscape", width: 844, height: 390 },
+  { name: "small", width: 360, height: 640 },
+  { name: "keyboard-open", width: 390, height: 340 },
+] as const;
+
+const COMPOSER =
+  ".comment-compose, .comment-author-line, .comment-author-edit, .comment-name-step";
+
+async function settle(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+
+type Box = { left: number; top: number; right: number; bottom: number };
+
+async function overlaps(page: Page): Promise<string[]> {
+  return page.evaluate((selector) => {
+    const toast = document.querySelector(".ui-toast-region--app .ui-toast");
+    if (!toast) return ["no toast"];
+    const t = toast.getBoundingClientRect();
+    const hits: string[] = [];
+    for (const el of document.querySelectorAll(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      const w = Math.min(t.right, r.right) - Math.max(t.left, r.left);
+      const h = Math.min(t.bottom, r.bottom) - Math.max(t.top, r.top);
+      if (w > 1 && h > 1) {
+        const box: Box = {
+          left: r.left,
+          top: r.top,
+          right: r.right,
+          bottom: r.bottom,
+        };
+        hits.push(`${el.className} ${JSON.stringify(box)}`);
+      }
+    }
+    return hits;
+  }, COMPOSER);
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const phone of PHONES) {
+    test(`the posted toast stays off the comment field and name step: ${phone.name} ${phone.width}x${phone.height} ${theme}`, async ({
+      browser,
+    }) => {
+      await withShareableProject(async (projectPath) => {
+        await withBrowserPages(
+          browser,
+          [
+            {},
+            {
+              viewport: { width: phone.width, height: phone.height },
+              colorScheme: theme,
+              reducedMotion: "reduce",
+              hasTouch: true,
+              isMobile: true,
+            },
+          ],
+          async ([host, guest]) => {
+            await openHostShare(host, projectPath);
+            const token = await createReviewShare(
+              host,
+              projectPath,
+              "commenter",
+            );
+            await openGuestShare(guest, token);
+
+            const landscape = phone.name === "landscape";
+            const dock = landscape
+              ? guest.locator(".comments-panel")
+              : guest.getByRole("region", { name: "Add a comment" });
+            const field = dock.getByRole("textbox", {
+              name: "Comment",
+              exact: true,
+            });
+            const toast = guest.locator(".ui-toast-region--app .ui-toast");
+            const shot = (label: string) =>
+              guest.screenshot({
+                path: test
+                  .info()
+                  .outputPath(
+                    `toast-${label}-${phone.name}-${phone.width}x${phone.height}-${theme}.png`,
+                  ),
+              });
+
+            await field.tap();
+            await field.fill("Loved the intro");
+            await dock.getByRole("button", { name: "Post comment" }).tap();
+            await dock
+              .getByRole("textbox", { name: "Your name" })
+              .fill("Riley");
+            await dock.getByRole("button", { name: "Post comment" }).tap();
+
+            await expect(toast).toContainText("Comment posted at");
+            await expect(toast).toBeInViewport({ ratio: 1 });
+            await settle(guest);
+            await shot("posted");
+            expect(await overlaps(guest)).toEqual([]);
+
+            await field.tap();
+            await expect(field).toBeFocused();
+            await expect(toast).toBeVisible();
+            await settle(guest);
+            await shot("posted-focused");
+            expect(await overlaps(guest)).toEqual([]);
+
+            await dock
+              .getByRole("button", { name: "Change your comment name" })
+              .tap();
+            await expect(
+              dock.getByRole("textbox", { name: "Your name" }),
+            ).toBeVisible();
+            await expect(toast).toBeVisible();
+            await settle(guest);
+            await shot("changing-name");
+            expect(await overlaps(guest)).toEqual([]);
+          },
+        );
+      });
+    });
+  }
+}
