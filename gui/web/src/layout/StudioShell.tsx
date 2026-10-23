@@ -51,6 +51,7 @@ import { MobileShell } from "./MobileShell";
 import { StatusBar } from "./StatusBar";
 import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
 import { TransportBar } from "./TransportBar";
+import { useEffectiveLayout } from "./useEffectiveLayout";
 import { useSelectionSheet } from "./useSelectionSheet";
 
 function StudioShellAdapter({
@@ -94,6 +95,7 @@ function StudioShellAdapter({
   }));
 
   const shell = useViewportClass();
+  const effectiveLayout = useEffectiveLayout();
   useViewportPan();
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const loadingSession = project == null;
@@ -123,12 +125,12 @@ function StudioShellAdapter({
     }
     const root = document.documentElement;
     root.dataset.shell = shell;
-    if (layoutMode === "default") {
+    if (effectiveLayout === "default") {
       delete root.dataset.layout;
     } else {
-      root.dataset.layout = layoutMode;
+      root.dataset.layout = effectiveLayout;
     }
-  }, [shell, layoutMode, setShellBreakpoint]);
+  }, [shell, effectiveLayout, setShellBreakpoint]);
 
   const lastShell = useRef(shell);
   useEffect(() => {
@@ -137,7 +139,7 @@ function StudioShellAdapter({
     // tablet or desktop left collapsed.
     const switched = lastShell.current !== shell;
     lastShell.current = shell;
-    if (shell !== "phone" && !switched) {
+    if (shell !== "phone" && !switched && layoutMode !== "adaptive") {
       writeDrawerCollapsed(layoutMode === "timeline");
     }
   }, [shell, layoutMode]);
@@ -250,7 +252,7 @@ function StudioShellAdapter({
     <StudioShellView
       feedbackHostRef={feedbackHostRef}
       appearance={{ guestShare, following: Boolean(followingClientId) }}
-      layout={layoutMode}
+      layout={effectiveLayout}
       chrome={{
         notices: {
           banners: (

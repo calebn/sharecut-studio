@@ -3,6 +3,23 @@ import { minimalProject } from "../test/fixtures";
 import { useDawStore } from "./dawStore";
 
 describe("layoutMode store", () => {
+  it.each(["transcript", "history"] as const)(
+    "an explicit request for %s leaves adaptive layout and reveals the panel",
+    (tab) => {
+      useDawStore.setState({ layoutMode: "adaptive", activeTab: "transcript" });
+      useDawStore.getState().setActiveTab(tab);
+      expect(useDawStore.getState().layoutMode).toBe("default");
+      expect(useDawStore.getState().activeTab).toBe(tab);
+    },
+  );
+
+  it("resets adaptive intent on phone entry and does not restore it", () => {
+    useDawStore.setState({ layoutMode: "adaptive", shellBreakpoint: "tablet" });
+    useDawStore.getState().setShellBreakpoint("phone");
+    useDawStore.getState().setShellBreakpoint("tablet");
+    expect(useDawStore.getState().layoutMode).toBe("default");
+  });
+
   it("sets the tab and focus for each layout", () => {
     const st = () => useDawStore.getState();
     st().hydrate("/tmp/p.json", minimalProject());

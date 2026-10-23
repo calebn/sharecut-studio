@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { stubMatchMedia } from "../test/matchMedia";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 
 function renderControls(collapsed = false) {
@@ -19,6 +20,26 @@ function renderControls(collapsed = false) {
 }
 
 describe("layout controls", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    [true, "Show editor panels", "default"],
+    [false, "Maximize timeline", "timeline"],
+  ] as const)(
+    "adaptive short landscape %s names and runs its effective action",
+    async (short, label, expected) => {
+      stubMatchMedia(short);
+      useDawStore.setState({
+        layoutMode: "adaptive",
+        shellBreakpoint: "tablet",
+      });
+      renderControls();
+      expect(screen.getAllByRole("button")).toHaveLength(1);
+      await userEvent.click(screen.getByRole("button", { name: label }));
+      expect(useDawStore.getState().layoutMode).toBe(expected);
+    },
+  );
+
   beforeEach(() => {
     clearRegisteredCommands();
     registerDawCommands();

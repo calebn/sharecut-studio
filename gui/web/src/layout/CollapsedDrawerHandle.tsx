@@ -72,7 +72,7 @@ export function CollapsedDrawerHandleView({
         onPointerUp={end}
         onPointerCancel={end}
       >
-        <span className="bottom-tabs-splitter-grip" aria-hidden />
+        <span className="drawer-reopen-label">Show editor panels</span>
       </button>
     </div>
   );

@@ -347,6 +347,38 @@ describe("StudioShellView", () => {
     );
   });
 
+  it("yields the collapsed panel handle while an Inspector is open", () => {
+    const props = presentation();
+    const sheet = {
+      placement: "column" as const,
+      open: true,
+      expanded: false,
+      content: <p>Fields</p>,
+      onClose: vi.fn(),
+      onExpandedChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <StudioShellView
+        {...props}
+        layout="timeline"
+        inspector={{ kind: "tablet", tools: null, sheet }}
+      />,
+    );
+    expect(screen.queryByText("Reopen handle")).toBeNull();
+    rerender(
+      <StudioShellView
+        {...props}
+        layout="timeline"
+        inspector={{
+          kind: "tablet",
+          tools: null,
+          sheet: { ...sheet, open: false },
+        }}
+      />,
+    );
+    expect(screen.getByText("Reopen handle")).toBeVisible();
+  });
+
   it("leaves the shell alone for a sheet", () => {
     const props = presentation();
     const { container } = render(

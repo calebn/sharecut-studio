@@ -241,6 +241,24 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 The phone and tablet selection sheets render one body from `SELECTION_SURFACES` (`inspector/selectionSurface.tsx`) through `useSelectionSheet`; on tablet, an agent session range stays in the open selection sheet, including compact peek. See [gui-mobile.md](gui-mobile.md#one-selection-surface-table). `ShellBreakpoint` is defined once, in `state/types.ts`.
 
+A fresh desktop or tablet session without a saved collapsed-panel preference
+starts in the adaptive layout. On the tablet shell, a coarse primary pointer
+in landscape at most 35rem tall hides the editor panels and gives their row
+to the timeline. Above that height, the panels return. The labeled **Show
+editor panels** handle restores them with one tap, and the transport offers
+the same action while they are hidden. In a spacious adaptive layout the
+transport offers **Maximize timeline** instead. The View menu marks the
+layout currently shown.
+
+An explicit layout or panel command, including reopening the active panel,
+ends adaptive behavior for the session. Automatic changes do not write
+`sharecut.tabsCollapsed`. That preference remains binary. A saved collapsed
+value starts maximized, and reopening removes the value. A reload without
+the value returns to adaptive behavior. Entering the phone shell resets the
+layout to default as before, including after returning to tablet. Selection
+Inspectors keep their column, compact-sheet, and lane-band placement. The
+panel handle yields while an Inspector is open.
+
 `useSelectionSheet` also decides where that body sits (`SelectionSheet.placement`): a bottom sheet, or, on a coarse pointer at most 40rem tall and at least 40rem wide (a phone held sideways), a column on the inline end of the shell in place of the sheet (#1696, `useInspectorColumn`; `BottomSheet` `placement="column"`, class `daw-shell--inspector-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
 Every button inside `.modifier-footer-actions`, including nested menu triggers

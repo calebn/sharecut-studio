@@ -74,6 +74,7 @@ import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
 import { transportMenuTitle } from "./transportMenuTitle";
 import { transportPlayHandlers } from "./transportPlay";
+import { useEffectiveLayout } from "./useEffectiveLayout";
 import { useHistoryControls } from "./useHistoryControls";
 import { useZoomControls } from "./useZoomControls";
 import { WaveformViewSections } from "./WaveformViewSections";
@@ -105,6 +106,7 @@ export function TransportBar({
   showLayout = false,
   menuOnly = false,
 }: Props) {
+  const layoutMode = useEffectiveLayout();
   const {
     project,
     isPlaying,
@@ -114,7 +116,6 @@ export function TransportBar({
     sessionRegion,
     lastAgentQuery,
     commentMode,
-    layoutMode,
     toolMode,
     projectPath,
     guestMode,
@@ -133,7 +134,6 @@ export function TransportBar({
     sessionRegion: s.sessionRegion,
     lastAgentQuery: s.lastAgentQuery,
     commentMode: s.commentMode,
-    layoutMode: s.layoutMode,
     toolMode: s.toolMode,
     projectPath: s.projectPath,
     guestMode: s.guestMode,

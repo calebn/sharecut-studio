@@ -487,14 +487,22 @@ html[data-shell="phone"] .guest-attention-dismiss {
   user-select: none;
 }
 
+.drawer-reopen-label {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-small);
+}
+
 .drawer-reopen-handle:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: calc(-1 * var(--focus-ring-offset));
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .drawer-reopen-handle:hover .bottom-tabs-splitter-grip {
-    background: var(--color-accent);
+  .drawer-reopen-handle:hover .drawer-reopen-label {
+    color: var(--color-accent);
   }
 }
 
