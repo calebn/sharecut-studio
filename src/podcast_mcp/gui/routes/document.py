@@ -15,6 +15,7 @@ from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
     document_conflict_error,
+    project_write_failure,
     require_authz,
     resolve_project,
 )
@@ -27,6 +28,7 @@ from podcast_mcp.services.document_sync import (
     command_context_for_role,
     document_command_from_body,
 )
+from podcast_mcp.util.coded_error import CodedPermissionError
 from podcast_mcp.util.project_state import ProjectBusyError
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
@@ -119,11 +121,17 @@ def post_document_command(
     except sqlite3.OperationalError as exc:
         if is_sqlite_busy(exc):
             raise ProjectBusyError(str(project_path)) from exc
+        if (failure := project_write_failure(exc)) is not None:
+            raise failure from exc
         raise
     except ValueError as exc:
         raise bad_request_error(exc) from exc
-    except PermissionError as exc:
+    except CodedPermissionError as exc:
         raise coded_exception_error(403, exc, code="document_command_not_permitted") from exc
+    except OSError as exc:
+        if (failure := project_write_failure(exc)) is not None:
+            raise failure from exc
+        raise
 
 
 class RangeAudioInput(BaseModel):

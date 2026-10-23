@@ -229,6 +229,38 @@ describe.each([
       ],
     ];
 
+  it("keeps the server's plain words when a write failure is the unknown outcome", async () => {
+    const words =
+      "The disk is full, so this edit was not saved. Free some space, then try again.";
+    post.mockResolvedValue({
+      ok: false,
+      status: 507,
+      failure: new ApiError(words, "project_write_failed", 507),
+    });
+    await run(false);
+    const [, , outcome] = settle.mock.calls[0] ?? [];
+    expect(outcome).toMatchObject({
+      kind: "unknown",
+      reason: words,
+      recovery: "retry-same-command",
+    });
+  });
+
+  it("keeps the generic retry text for a 5xx without a write-failure code", async () => {
+    post.mockResolvedValue({
+      ok: false,
+      status: 500,
+      failure: new ApiError("Internal Server Error", null, 500),
+    });
+    await run(false);
+    const [, , outcome] = settle.mock.calls[0] ?? [];
+    expect(outcome).toMatchObject({
+      kind: "unknown",
+      reason:
+        "The server may have applied this edit. Retrying will reuse the same command.",
+    });
+  });
+
   it("answers a live ApproveEdits refine-gate refusal inline on the host only", async () => {
     post.mockResolvedValue(refineGate);
     const { thrown } = await run(false, "ApproveEdits", true);

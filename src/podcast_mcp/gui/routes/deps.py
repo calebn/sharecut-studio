@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import errno
+import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -43,6 +45,52 @@ def coded_http_error(
         detail=detail,
         headers={**(headers or {}), ERROR_CODE_HEADER: code},
     )
+
+
+PROJECT_WRITE_FAILED_CODE = "project_write_failed"
+
+_DISK_FULL_ERRNOS = {errno.ENOSPC, errno.EDQUOT}
+_NOT_WRITABLE_ERRNOS = {errno.EACCES, errno.EPERM, errno.EROFS}
+_SQLITE_READONLY, _SQLITE_IOERR, _SQLITE_FULL = 8, 10, 13
+
+_DISK_FULL_TEXT = "The disk is full, so this edit was not saved. Free some space, then try again."
+_NOT_WRITABLE_TEXT = (
+    "Studio is not allowed to write to the project folder, so this edit was not saved. "
+    "Check that the folder is not read-only, then try again."
+)
+_DISK_ERROR_TEXT = (
+    "The disk reported an error, so this edit was not saved. Check the drive, then try again."
+)
+
+
+def project_write_failure(exc: BaseException) -> HTTPException | None:
+    """Plain-words 5xx for a command that could not write the project (disk full, read-only,
+    permission denied, I/O error), or ``None`` for any other error.
+
+    A coded refusal (``CodedError``) is a policy answer, never a write failure. The text names
+    the cause and the fix and never the file path.
+    """
+    if isinstance(exc, CodedError):
+        return None
+    if isinstance(exc, sqlite3.OperationalError):
+        code = getattr(exc, "sqlite_errorcode", None)
+        base = (code & 0xFF) if code is not None else None
+        full = base == _SQLITE_FULL
+        not_writable = base == _SQLITE_READONLY
+        disk_error = base == _SQLITE_IOERR
+    elif isinstance(exc, OSError):
+        full = exc.errno in _DISK_FULL_ERRNOS
+        not_writable = exc.errno in _NOT_WRITABLE_ERRNOS
+        disk_error = exc.errno == errno.EIO
+    else:
+        return None
+    if full:
+        return coded_http_error(507, _DISK_FULL_TEXT, code=PROJECT_WRITE_FAILED_CODE)
+    if not_writable:
+        return coded_http_error(500, _NOT_WRITABLE_TEXT, code=PROJECT_WRITE_FAILED_CODE)
+    if disk_error:
+        return coded_http_error(500, _DISK_ERROR_TEXT, code=PROJECT_WRITE_FAILED_CODE)
+    return None
 
 
 def document_conflict_error(exc: DocumentConflictError) -> HTTPException:

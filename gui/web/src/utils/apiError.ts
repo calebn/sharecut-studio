@@ -1,3 +1,4 @@
+export const PROJECT_WRITE_FAILED_CODE = "project_write_failed";
 export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
 
 export const TRANSCRIPT_REFINE_REFUSAL =
@@ -33,6 +34,14 @@ export function refusalReason(failure: ApiError): string {
   return failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE
     ? TRANSCRIPT_REFINE_REFUSAL
     : failure.message;
+}
+
+/**
+ * The server's plain words when a command could not write the project (disk full, folder not
+ * writable): that edit was not saved, so no "may have been applied" guess is made.
+ */
+export function writeFailureReason(failure: ApiError): string | null {
+  return failure.code === PROJECT_WRITE_FAILED_CODE ? failure.message : null;
 }
 
 /** An abort from an AbortSignal: a DOMException or any Error named "AbortError". */
