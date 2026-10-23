@@ -1,5 +1,3 @@
-"""Packet probe resource, uncertainty, and revision contracts."""
-
 from __future__ import annotations
 
 import io
