@@ -11,6 +11,7 @@ import typer
 from podcast_mcp.cli.busy import _debug_enabled
 from podcast_mcp.config.defaults import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
+from podcast_mcp.engines.models.registry import ModelSpec
 from podcast_mcp.services.pipeline import (
     DEFAULT_WHISPER_MODEL,
     MODELS,
@@ -176,6 +177,36 @@ def _cause_stays_in_the_log() -> Iterator[None]:
         package.removeHandler(quiet)
 
 
+def install_and_report(spec: ModelSpec, *, whisper_model: str, upgrade: bool = False) -> bool:
+    """Install one model and print its ``[get]`` / ``[ok]`` / ``[fail]`` lines; False on failure."""
+    variant = whisper_model if spec.id == "whisper" else None
+    if not sys.stderr.isatty() and (
+        upgrade or model_status(spec.id, variant)["state"] != "installed"
+    ):
+        typer.echo(f"[get] {spec.id} ({spec.size})")
+    with _cause_stays_in_the_log():
+        try:
+            result = install_model(spec, whisper_model=whisper_model, force=upgrade)
+        except InstallFailure as failure:
+            typer.echo(f"[fail] {spec.id}: {failure.plain}", err=True)
+            return False
+        except Exception:
+            logger.exception("bootstrap of %s failed", spec.id)
+            typer.echo(f"[fail] {spec.id}: {unexpected_text(spec.label)}", err=True)
+            return False
+    verb = "[skip]" if result.get("skipped") else "[ok]"
+    detail = str(result.get("path") or result.get("reason", ""))
+    if model := result.get("model"):
+        detail = f"{detail} ({model})"
+    typer.echo(f"{verb} {spec.id}: {detail}")
+    if result.get("persist_error"):
+        typer.echo(
+            f"[warn] could not persist Whisper preference: {result['persist_error']}",
+            err=True,
+        )
+    return True
+
+
 @setup_app.command("bootstrap")
 def bootstrap(
     component: str | None = typer.Option(
@@ -226,33 +257,7 @@ def bootstrap(
             raise typer.Exit(2) from exc
     ok = True
     for spec in wanted:
-        variant = whisper_model if spec.id == "whisper" else None
-        if not sys.stderr.isatty() and (
-            upgrade or model_status(spec.id, variant)["state"] != "installed"
-        ):
-            typer.echo(f"[get] {spec.id} ({spec.size})")
-        with _cause_stays_in_the_log():
-            try:
-                result = install_model(spec, whisper_model=whisper_model, force=upgrade)
-            except InstallFailure as failure:
-                typer.echo(f"[fail] {spec.id}: {failure.plain}", err=True)
-                ok = False
-                continue
-            except Exception:
-                logger.exception("bootstrap of %s failed", spec.id)
-                typer.echo(f"[fail] {spec.id}: {unexpected_text(spec.label)}", err=True)
-                ok = False
-                continue
-        verb = "[skip]" if result.get("skipped") else "[ok]"
-        detail = str(result.get("path") or result.get("reason", ""))
-        if model := result.get("model"):
-            detail = f"{detail} ({model})"
-        typer.echo(f"{verb} {spec.id}: {detail}")
-        if result.get("persist_error"):
-            typer.echo(
-                f"[warn] could not persist Whisper preference: {result['persist_error']}",
-                err=True,
-            )
+        ok = install_and_report(spec, whisper_model=whisper_model, upgrade=upgrade) and ok
 
     if not ok:
         raise typer.Exit(1)

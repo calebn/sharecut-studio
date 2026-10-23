@@ -8,7 +8,8 @@ import json
 import sys
 import threading
 import time
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from typing import Any, TextIO
 
 from podcast_mcp.util.progress.protocol import ProgressEvent, ProgressReporter
@@ -632,6 +633,18 @@ class CliProgressReporter(ElapsedProgressMixin):
             line += f" {state.current}/{state.total}"
         sys.stderr.write(line + "\n")
         sys.stderr.flush()
+
+    @contextmanager
+    def paused(self) -> Iterator[None]:
+        """Hide the live bars while the terminal is used for a prompt, then redraw them."""
+        if self._progress is None:
+            yield
+            return
+        self._progress.stop()
+        try:
+            yield
+        finally:
+            self._progress.start()
 
     def close(self) -> None:
         super().close()
