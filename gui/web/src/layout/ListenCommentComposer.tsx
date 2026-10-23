@@ -17,7 +17,7 @@ import { InlineError } from "../ui";
  * then Post comment, at the playhead or the time on the chip. Posting closes
  * the keyboard on purpose: the guest goes back to listening, and the keyboard
  * would cover half the view. A guest's first Post asks for a name once
- * (Skip stays Guest); afterwards a "Commenting as" line changes it.
+ * (Post as Guest stays Guest); afterwards a "Commenting as" line changes it.
  */
 export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   const { projectPath, guestMode, announceStatus } = useDaw((s) => ({
@@ -81,7 +81,7 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
             name={guest.draft}
             onNameChange={guest.setDraft}
             onConfirm={onPost}
-            onPostAsGuest={() => void send(guest.choose(""))}
+            onPostAsGuest={() => void send(guest.postAsGuest())}
             busy={busy}
             postDisabledReason={
               body.trim() ? undefined : "Write a comment to post."

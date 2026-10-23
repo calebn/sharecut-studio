@@ -433,7 +433,7 @@ The document-command gate (`authorize_document_command` plus
 role, whatever the surface; the Studio reads it from `rangeEditMode` and `canRetimePendingEdit` in
 `gui/web/src/shareMode.ts`, plus `canReviewPendingEdit` for Approve / Reject,
 only to choose affordances. Every pending edit a guest's document command creates
-comment and reply names are display labels only (`guest_display_name`: trimmed, no control characters or angle brackets, 40 characters, Host, Agent and DAW suffixed ` (guest)`, blank is Guest) and never feed a capability check; the action-item `by` label gets the same treatment, the three fields are capped at 200 characters on the wire, and lone surrogates and zero-width-only names are dropped. Reserved names are compared after NFKC folding and without trailing punctuation (fullwidth Ｈｏｓｔ and `Host.` are suffixed). A lookalike of Host with letters from another script (for example Cyrillic) is not caught, and a ZWJ emoji sequence in a name falls apart into its parts because zero-width format characters are stripped: names are display labels, no authorisation reads them, and without accounts a real participant's name cannot be reserved. A suggestion records `EditDecision.author`, `share:` plus the share's opaque registry `id`
+records `EditDecision.author`, `share:` plus the share's opaque registry `id`
 (`share_capabilities.share_author`), on the browser route and the guest MCP alike.
 `create_share` mints that id at random and the registry stores it beside the
 token, so nothing in the author is derived from the token and a copied project
@@ -450,6 +450,8 @@ The Studio shows Retime on a suggestion only when the two match
 nowhere else. The id is random and grants nothing: every guest route and the guest
 MCP look a share up by its token, never by `id`, so another guest who sees an
 author learns only which suggestions came from the same share.
+
+Guest comment and reply names are display labels only (`guest_display_name`: trimmed, no control characters or angle brackets, 40 characters, Host, Agent and DAW suffixed ` (guest)`, blank is Guest) and never feed a capability check; the action-item `by` label gets the same treatment, the three fields are capped at 200 characters on the wire, and lone surrogates and zero-width-only names are dropped. Reserved names are compared after NFKC folding and without trailing punctuation (fullwidth Ｈｏｓｔ and `Host.` are suffixed). A lookalike of Host with letters from another script (for example Cyrillic) is not caught, and a ZWJ emoji sequence in a name falls apart into its parts because zero-width format characters are stripped: names are display labels, no authorisation reads them, and without accounts a real participant's name cannot be reserved.
 
 ### Superseded decision: Every guest proposes exact range edits
 

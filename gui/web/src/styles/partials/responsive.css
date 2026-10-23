@@ -402,6 +402,12 @@ html[data-shell="tablet"] {
     max-block-size: 35cqb;
     overflow-y: auto;
   }
+
+  /* The name step is a form that must show whole, buttons included, while
+     the comment field above it has focus (#2164): it gets more of the shell. */
+  .daw-shell--phone > .mobile-dock:has(.comment-name-step) {
+    max-block-size: 60cqb;
+  }
 }
 
 /* Listen's comment field: the bottom zone, right above the mode bar. */

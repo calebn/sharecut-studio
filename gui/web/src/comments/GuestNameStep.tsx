@@ -1,7 +1,9 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../ui/Button";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { limitCommentName } from "../utils/commentAuthor";
+
+const PROMPT = "Add your name to post your comment, or choose Post as Guest.";
 
 type Props = {
   name: string;
@@ -26,8 +28,16 @@ export function GuestNameStep({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [prompt, setPrompt] = useState("");
+
   useLayoutEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  // A live region announces a change, not a region that mounts already filled.
+  useEffect(() => {
+    const timer = setTimeout(() => setPrompt(PROMPT), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -39,7 +49,7 @@ export function GuestNameStep({
       }}
     >
       <p className="sr-only" role="status">
-        Add your name to post your comment, or choose Post as Guest.
+        {prompt}
       </p>
       <label>
         Your name
