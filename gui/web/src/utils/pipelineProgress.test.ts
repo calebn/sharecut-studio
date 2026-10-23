@@ -64,6 +64,31 @@ describe("pipelineProgress", () => {
     expect(pipelineStatusLabel("cancelled")).toBe("cancelled");
   });
 
+  it("labels a failed model job plainly, never with the command its raw text carries", () => {
+    const raw =
+      "needs Noise reduction (RNNoise) (~0.3 MB); run `podcast bootstrap --component rnnoise`";
+    const failed = job({
+      status: "error",
+      message: raw,
+      error: raw,
+      error_code: "model_needed",
+      error_model: {
+        id: "rnnoise",
+        model: "rnnoise",
+        label: "Noise reduction (RNNoise)",
+        purpose: "noise reduction",
+        size: "~0.3 MB",
+        size_bytes: 297646,
+        state: "missing",
+      },
+    });
+    for (const headlineMax of [undefined, 200]) {
+      const label = pipelineChromeLabel(failed, { headlineMax });
+      expect(label).toContain("Noise reduction (RNNoise) is not downloaded.");
+      expect(label).not.toMatch(/bootstrap|needs Noise/);
+    }
+  });
+
   it("builds chrome labels with headline and optional units", () => {
     expect(
       pipelineChromeLabel(

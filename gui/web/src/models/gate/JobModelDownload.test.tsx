@@ -219,6 +219,22 @@ describe("JobModelDownload", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe("");
   });
 
+  it("says nothing when the models list changed under the button and no download ran", async () => {
+    const user = userEvent.setup();
+    const { api } = setup(failed({ kind: "render_preview" }));
+    Object.assign(api, { models: [] });
+    await user.click(
+      screen.getByRole("button", {
+        name: "Download Noise reduction (RNNoise)",
+      }),
+    );
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.download).not.toHaveBeenCalled();
+    expect(runPointerCommand).not.toHaveBeenCalled();
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+  });
+
   it("asks for the Whisper size the job needed", async () => {
     const user = userEvent.setup();
     const { api } = setup(

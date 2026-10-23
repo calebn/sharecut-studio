@@ -218,7 +218,9 @@ export function modelNeededOfJob(
 }
 
 export function notDownloadedLine(model: ModelNeeded): string {
-  return `${model.label} is not downloaded.`;
+  return model.state === "update_needed"
+    ? `${model.label} needs an update.`
+    : `${model.label} is not downloaded.`;
 }
 
 /** What to show for a failed job: a missing model reads plainly, never as the CLI command its raw text carries. */

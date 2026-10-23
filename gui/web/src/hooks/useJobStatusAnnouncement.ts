@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { modelNeededOfJob, notDownloadedLine } from "../utils/apiError";
 import { joinSentences } from "../utils/format";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { pipelineStateSentence } from "../utils/pipelineProgress";
@@ -40,7 +41,11 @@ export function useJobStatusAnnouncement(): void {
   const chipJob = activityJob ?? pipelineJob;
   const jobId = chipJob?.id;
   const jobStatus = chipJob?.status;
-  const jobMessage = chipJob?.message || chipJob?.label;
+  const chipModel = chipJob ? modelNeededOfJob(chipJob) : null;
+  const modelFailed = chipModel !== null;
+  const jobMessage = chipModel
+    ? notDownloadedLine(chipModel)
+    : chipJob?.message || chipJob?.label;
   const jobKind = chipJob?.kind;
   const chipTerminal = jobStatus != null && isTerminalJobStatus(jobStatus);
 
@@ -61,7 +66,7 @@ export function useJobStatusAnnouncement(): void {
     }
     const detail =
       jobStatus === "error"
-        ? jobMessage && plainError(jobMessage)
+        ? jobMessage && (modelFailed ? jobMessage : plainError(jobMessage))
         : jobStatus === "cancelled"
           ? ""
           : jobMessage;
@@ -81,6 +86,7 @@ export function useJobStatusAnnouncement(): void {
     jobKind,
     jobStatus,
     jobMessage,
+    modelFailed,
   ]);
 
   useEffect(() => {

@@ -45,6 +45,7 @@ import {
   errorMessage,
   jobErrorText,
   modelNeededOfJob,
+  notDownloadedLine,
 } from "../utils/apiError";
 import { getByPath, setByPath } from "../utils/configPath";
 import {
@@ -828,6 +829,7 @@ export function PipelinePanel() {
     analyzeJob ??
     (isPipelineKindJob(pipelineJob) && !foreignSlotBusy ? pipelineJob : null);
   const pct = pipelineProgressPercent(job);
+  const failedModel = job ? modelNeededOfJob(job) : null;
   const units = pipelineUnitsLabel(job, pipelineUnitNoun(job?.kind));
   const indeterminatePulse = showIndeterminatePulse(job);
 
@@ -1325,8 +1327,8 @@ export function PipelinePanel() {
               {job.message ? (
                 <span className="pipeline-headline">
                   {job.status === "error"
-                    ? modelNeededOfJob(job)
-                      ? jobErrorText(job)
+                    ? failedModel
+                      ? notDownloadedLine(failedModel)
                       : plainError(job.message)
                     : job.message}
                 </span>
@@ -1399,7 +1401,9 @@ export function PipelinePanel() {
                     </td>
                     <td>{formatTimeShort(s.elapsed_sec)}</td>
                     <td className="pipeline-step-summary">
-                      {s.error ?? s.summary ?? ""}
+                      {s.error != null && failedModel
+                        ? notDownloadedLine(failedModel)
+                        : (s.error ?? s.summary ?? "")}
                     </td>
                   </tr>
                 ))}

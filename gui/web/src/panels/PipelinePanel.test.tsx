@@ -1808,7 +1808,15 @@ describe("PipelinePanel", () => {
         state: "missing",
       },
       elapsed_sec: 2,
-      steps: [],
+      steps: [
+        {
+          name: "denoise",
+          status: "error",
+          elapsed_sec: 1,
+          error:
+            "needs Noise reduction (RNNoise) (~0.3 MB); run `podcast bootstrap --component rnnoise`",
+        },
+      ],
     };
     render(
       <main>
