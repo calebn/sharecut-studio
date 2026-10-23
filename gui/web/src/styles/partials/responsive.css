@@ -404,8 +404,14 @@ html[data-shell="tablet"] {
   }
 
   /* The name step is a form that must show whole, buttons included, while
-     the comment field above it has focus (#2164): it gets more of the shell. */
-  .daw-shell--phone > .mobile-dock:has(.comment-name-step) {
+     the comment field above it has focus, and so does the named dock with its
+     Commenting as line (#2164): they get more of the shell. */
+  .daw-shell--phone
+  > .mobile-dock:has(
+    .comment-name-step,
+    .comment-author-line,
+    .comment-author-edit
+  ) {
     max-block-size: 60cqb;
   }
 }
