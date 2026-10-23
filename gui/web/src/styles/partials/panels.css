@@ -1561,6 +1561,11 @@ button.history-row {
   font-weight: 500;
 }
 
+.pipeline-steps td:first-child,
+.pipeline-step-summary {
+  overflow-wrap: anywhere;
+}
+
 .pipeline-step-summary {
   color: var(--color-text-secondary);
   max-width: 28rem;

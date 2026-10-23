@@ -532,6 +532,12 @@ Timeline comments from `review.comments[]` (session clock). Hideable pins/range 
 
 ## Pipeline tab (orchestration)
 
+Run results keep their step, status, time, and summary columns inside the panel
+at phone widths. Long step identifiers and unbroken summary or error text wrap
+without truncation. A step error takes precedence over its summary. Analyze
+does not show this results table.
+Headers, statuses, and elapsed times stay on one line.
+
 The determinate Pipeline progress bar preserves its height inside short scrolling
 panels. Its fill keeps the existing width transition only when motion is allowed;
 reduced motion has no width transition. Profiling and its visibility regression

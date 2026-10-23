@@ -64,7 +64,6 @@ for (const { cell, theme, reducedMotion } of withAppearance([
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await setTheme(page, theme);
     if (cell.width < 768) {
       await page
         .getByRole("navigation", { name: "Primary" })
@@ -82,6 +81,8 @@ for (const { cell, theme, reducedMotion } of withAppearance([
     }
     const table = page.locator(".pipeline-steps");
     await expect(table).toBeVisible();
+    await setTheme(page, theme);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await expect(table.locator("thead")).toHaveText("StepStatusTimeSummary");
     const rows = table.locator("tbody tr");
     await expect(rows).toHaveCount(job.steps.length);
@@ -105,25 +106,31 @@ for (const { cell, theme, reducedMotion } of withAppearance([
         tableRight: tableBounds.right,
         panelLeft: panelBounds.left,
         panelRight: panelBounds.right,
-        cells: Array.from(element.querySelectorAll("th, td"), (cell) => {
-          const bounds = cell.getBoundingClientRect();
-          const range = document.createRange();
-          range.selectNodeContents(cell);
-          return {
-            text: cell.textContent,
-            clientWidth: cell.clientWidth,
-            scrollWidth: cell.scrollWidth,
-            clientHeight: cell.clientHeight,
-            scrollHeight: cell.scrollHeight,
-            textFits: Array.from(range.getClientRects()).every(
-              (rect) =>
-                rect.left >= bounds.left - 1 &&
-                rect.right <= bounds.right + 1 &&
-                rect.top >= bounds.top - 1 &&
-                rect.bottom <= bounds.bottom + 1,
-            ),
-          };
-        }),
+        cells: Array.from(
+          element.querySelectorAll<HTMLTableCellElement>("th, td"),
+          (cell) => {
+            const bounds = cell.getBoundingClientRect();
+            const range = document.createRange();
+            range.selectNodeContents(cell);
+            return {
+              text: cell.textContent,
+              column: cell.cellIndex,
+              header: cell.tagName === "TH",
+              textLines: range.getClientRects().length,
+              clientWidth: cell.clientWidth,
+              scrollWidth: cell.scrollWidth,
+              clientHeight: cell.clientHeight,
+              scrollHeight: cell.scrollHeight,
+              textFits: Array.from(range.getClientRects()).every(
+                (rect) =>
+                  rect.left >= bounds.left - 1 &&
+                  rect.right <= bounds.right + 1 &&
+                  rect.top >= bounds.top - 1 &&
+                  rect.bottom <= bounds.bottom + 1,
+              ),
+            };
+          },
+        ),
       };
     });
     await testInfo.attach("results-geometry", {
@@ -144,6 +151,9 @@ for (const { cell, theme, reducedMotion } of withAppearance([
     expect(geometry.tableLeft).toBeGreaterThanOrEqual(geometry.panelLeft - 1);
     expect(geometry.tableRight).toBeLessThanOrEqual(geometry.panelRight + 1);
     for (const cell of geometry.cells) {
+      if (cell.header || cell.column === 1 || cell.column === 2) {
+        expect(cell.textLines, cell.text ?? "").toBe(1);
+      }
       expect(cell.textFits, cell.text ?? "").toBe(true);
       expect(cell.scrollWidth, cell.text ?? "").toBeLessThanOrEqual(
         cell.clientWidth + 1,
