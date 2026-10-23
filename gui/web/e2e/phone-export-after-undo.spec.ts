@@ -14,6 +14,7 @@ const CANCEL_REASON = /still starting/i;
 async function cutThroughRailThenUndo(
   page: Page,
   pathParam: string,
+  beforeUndo: () => Promise<void>,
 ): Promise<void> {
   const clipCount = async () => {
     const res = await page.request.get(
@@ -34,7 +35,10 @@ async function cutThroughRailThenUndo(
   await page
     .getByRole("button", { name: "Select reference clip at 00:00.000, 1m 0s" })
     .click();
-  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+  await page
+    .getByRole("dialog", { name: "reference clip" })
+    .getByRole("button", { name: "Close" })
+    .click();
   await rail.getByRole("button", { name: "Blade tool" }).click();
   await rail.getByRole("button", { name: "Blade cut", exact: true }).click();
   await page
@@ -42,6 +46,7 @@ async function cutThroughRailThenUndo(
     .getByRole("button", { name: "Cut", exact: true })
     .click();
   await expect.poll(clipCount).toBeGreaterThan(before);
+  await beforeUndo();
   await rail.getByRole("button", { name: "Undo" }).click();
   await expect.poll(clipCount).toBe(before);
 }
@@ -58,8 +63,6 @@ for (const viewport of PHONE_VIEWPORTS) {
       await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       await expect(page.locator(".daw-shell--phone")).toBeVisible();
       await openPhoneTimeline(page);
-      await cutThroughRailThenUndo(page, encodeURIComponent(projectPath));
-
       let rebuildStarted!: () => void;
       const rebuildLive = new Promise<void>((resolve) => {
         rebuildStarted = resolve;
@@ -68,11 +71,26 @@ for (const viewport of PHONE_VIEWPORTS) {
       const exportGate = new Promise<void>((resolve) => {
         releaseExport = resolve;
       });
+      let armed = false;
       await page.route("**/api/pipeline/render-preview", async (route) => {
-        const response = await route.fetch();
-        await route.fulfill({ response });
-        rebuildStarted();
+        if (!armed) {
+          await route.fallback();
+          return;
+        }
+        try {
+          const response = await route.fetch();
+          await route.fulfill({ response });
+        } finally {
+          rebuildStarted();
+        }
       });
+      await cutThroughRailThenUndo(
+        page,
+        encodeURIComponent(projectPath),
+        async () => {
+          armed = true;
+        },
+      );
       const exportStatuses: number[] = [];
       await page.route("**/api/export/deliverables", async (route) => {
         await rebuildLive;
@@ -100,12 +118,16 @@ for (const viewport of PHONE_VIEWPORTS) {
         await expect(cancel).toHaveAttribute("title", CANCEL_REASON);
         const panel = dialog.locator(".command-palette-panel");
         await expectFitsViewport(page, panel);
-        const box = await panel.boundingBox();
-        expect(box).toBeTruthy();
-        expect(box?.x).toBeGreaterThanOrEqual(-2);
-        expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
-          viewport.width + 2,
-        );
+        await expect
+          .poll(async () => {
+            const box = await panel.boundingBox();
+            return (
+              box !== null &&
+              box.x >= -2 &&
+              box.x + box.width <= viewport.width + 2
+            );
+          })
+          .toBe(true);
       } finally {
         releaseExport();
       }
