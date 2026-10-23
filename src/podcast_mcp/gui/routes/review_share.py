@@ -45,7 +45,11 @@ from podcast_mcp.gui.routes.waveform import (
     binary_response,
     no_store_error,
 )
-from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
+from podcast_mcp.gui.schemas import (
+    GUEST_NAME_FIELD_MAX,
+    DocumentCommandRequest,
+    ShareActionDoneRequest,
+)
 from podcast_mcp.services.collaboration import (
     CAP_VIEW,
     SHARE_KIND_REVIEW,
@@ -121,7 +125,7 @@ _GUEST_CLIENT_SUFFIX_RE = re.compile(r"[^A-Za-z0-9_-]")
 class ShareCommentRequest(BaseModel):
     timeline_spans: list[dict[str, float]] | None = Field(default=None, max_length=1000)
     body: str = Field(max_length=COMMENT_BODY_MAX)
-    author: str
+    author: str = Field(max_length=GUEST_NAME_FIELD_MAX)
     timeline_start: float
     timeline_end: float | None = None
     edit_decision_id: str | None = None
@@ -130,7 +134,7 @@ class ShareCommentRequest(BaseModel):
 
 class ShareReplyRequest(BaseModel):
     body: str = Field(max_length=COMMENT_BODY_MAX)
-    author: str
+    author: str = Field(max_length=GUEST_NAME_FIELD_MAX)
 
 
 def _check_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str, Any]:

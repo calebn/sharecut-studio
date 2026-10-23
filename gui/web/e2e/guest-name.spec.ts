@@ -89,9 +89,7 @@ for (const theme of ["light", "dark"] as const) {
             await expect(name).toBeVisible();
             await expect(name).toBeInViewport({ ratio: 1 });
             await expect(skip).toBeInViewport({ ratio: 1 });
-            if (phone.name !== "landscape") {
-              await expect(post).toBeInViewport({ ratio: 1 });
-            }
+            await expect(post).toBeInViewport({ ratio: 1 });
             await expect(field).toHaveValue("Loved the intro");
             await expect(host.locator(".comments-list > li")).toHaveCount(0);
             await expectTouchTarget(skip);

@@ -69,6 +69,7 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
         anchor={<CommentAnchorChip />}
         bodyPlaceholder="Add a comment…"
         bodyRows={1}
+        hideSubmit={guest.asking}
       >
         {guest.asking ? (
           <GuestNameStep
@@ -76,6 +77,10 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
             onNameChange={guest.setDraft}
             onConfirm={onPost}
             onSkip={() => void send(guest.choose(""))}
+            busy={busy}
+            postDisabledReason={
+              body.trim() ? undefined : "Write a comment to post."
+            }
           />
         ) : null}
       </CommentCompose>

@@ -184,6 +184,31 @@ describe("CommentsPanel", () => {
     expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
   });
 
+  it("a guest's reply uses the chosen name, else Guest, with no extra prompt", async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    addCommentReply.mockResolvedValue({});
+    useDawStore
+      .getState()
+      .hydrate(
+        "share:tok",
+        minimalProject({ comments: [sampleComment({ id: "c1" })] }),
+      );
+    useDawStore.setState({
+      guestMode: "comment",
+      shareCapabilities: ["view", "comment"],
+    });
+    renderPanel({ guestShare: true });
+    await user.type(screen.getByPlaceholderText("Reply…"), "thanks");
+    await user.click(screen.getByRole("button", { name: "Reply" }));
+    expect(addCommentReply).toHaveBeenCalledWith("share:tok", "c1", {
+      body: "thanks",
+      author: "Guest",
+    });
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBeNull();
+  });
+
   it("Change then a new name saves it and is used on the next post", async () => {
     const user = userEvent.setup();
     renderPanel();

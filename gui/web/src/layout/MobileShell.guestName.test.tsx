@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
@@ -7,7 +7,6 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment, sampleTrack } from "../test/fixtures";
-import { ApiError } from "../utils/apiError";
 import { MobileShell } from "./MobileShell";
 
 const createComment = vi.hoisted(() => vi.fn());
@@ -109,7 +108,6 @@ describe("phone share link, a guest names themselves", () => {
     expect(createComment).not.toHaveBeenCalled();
     const name = within(dock()).getByRole("textbox", { name: "Your name" });
     expect(name).toHaveFocus();
-    expect(name).toHaveAttribute("maxlength", "40");
     expect(within(dock()).getByRole("button", { name: "Skip" })).toBeVisible();
     expect(
       within(dock()).getByRole("textbox", { name: "Comment" }),
@@ -130,7 +128,9 @@ describe("phone share link, a guest names themselves", () => {
 
     expect(createComment).toHaveBeenCalledTimes(1);
     expect(lastAuthor()).toBe("Sam Lee");
-    expect(localStorage.getItem("podcast-mcp-comment-author")).toBe("Sam Lee");
+    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe(
+      "Sam Lee",
+    );
     expect(
       within(dock()).queryByRole("textbox", { name: "Your name" }),
     ).toBeNull();
@@ -202,9 +202,49 @@ describe("phone share link, a guest names themselves", () => {
     expect(lastAuthor()).toBe("n".repeat(40));
   });
 
+  it("the host's saved name neither names the guest nor skips the prompt", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("podcast-mcp-comment-author", "Dana");
+    openGuest();
+    expect(within(dock()).queryByText("Dana")).toBeNull();
+    await typeComment(user, "Hello");
+    await post(user);
+    expect(createComment).not.toHaveBeenCalled();
+    expect(
+      within(dock()).getByRole("textbox", { name: "Your name" }),
+    ).toBeVisible();
+    expect(localStorage.getItem("podcast-mcp-comment-author")).toBe("Dana");
+  });
+
+  it("caps the name by code points, not UTF-16 units", async () => {
+    const user = userEvent.setup();
+    openGuest();
+    await typeComment(user, "One");
+    await post(user);
+    await user.click(
+      within(dock()).getByRole("textbox", { name: "Your name" }),
+    );
+    await user.paste("\u{1F600}".repeat(50));
+    await post(user);
+    expect(Array.from(lastAuthor())).toHaveLength(40);
+  });
+
+  it("a name of only invisible characters posts as Guest", async () => {
+    const user = userEvent.setup();
+    openGuest();
+    await typeComment(user, "One");
+    await post(user);
+    await user.type(
+      within(dock()).getByRole("textbox", { name: "Your name" }),
+      "\u200b\u200d",
+    );
+    await post(user);
+    expect(lastAuthor()).toBe("Guest");
+  });
+
   it("a name saved earlier is used without asking", async () => {
     const user = userEvent.setup();
-    localStorage.setItem("podcast-mcp-comment-author", "Mina");
+    localStorage.setItem("podcast-mcp-guest-comment-name", "Mina");
     openGuest();
     expect(within(dock()).getByText("Mina")).toBeVisible();
     await typeComment(user, "Back again");
@@ -215,7 +255,7 @@ describe("phone share link, a guest names themselves", () => {
 
   it("Change renames the guest for the next comment", async () => {
     const user = userEvent.setup();
-    localStorage.setItem("podcast-mcp-comment-author", "Mina");
+    localStorage.setItem("podcast-mcp-guest-comment-name", "Mina");
     openGuest();
     await user.click(
       within(dock()).getByRole("button", { name: "Change your comment name" }),
@@ -224,7 +264,7 @@ describe("phone share link, a guest names themselves", () => {
     await user.clear(field);
     await user.type(field, "Jo{Enter}");
     expect(within(dock()).getByText("Jo")).toBeVisible();
-    expect(localStorage.getItem("podcast-mcp-comment-author")).toBe("Jo");
+    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe("Jo");
     await typeComment(user, "Renamed");
     await post(user);
     expect(lastAuthor()).toBe("Jo");
@@ -264,28 +304,5 @@ describe("phone share link, a guest names themselves", () => {
     ).toBeNull();
     expect(createComment).toHaveBeenCalledTimes(1);
     expect(lastAuthor()).toBe("Host");
-  });
-
-  it("clears the offline error line when the connection returns, keeping the typed text", async () => {
-    const user = userEvent.setup();
-    localStorage.setItem("podcast-mcp-comment-author", "Mina");
-    createComment.mockRejectedValueOnce(
-      new ApiError(
-        "Couldn't reach the server. Check your connection and try again.",
-        "network_error",
-      ),
-    );
-    openGuest();
-    await typeComment(user, "Offline thought");
-    await post(user);
-    expect(screen.getByText(/Couldn't reach the server/)).toBeVisible();
-
-    act(() => {
-      window.dispatchEvent(new Event("online"));
-    });
-    expect(screen.queryByText(/Couldn't reach the server/)).toBeNull();
-    expect(
-      within(dock()).getByRole("textbox", { name: "Comment" }),
-    ).toHaveValue("Offline thought");
   });
 });

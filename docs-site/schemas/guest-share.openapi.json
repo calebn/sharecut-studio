@@ -7572,6 +7572,7 @@
         "properties": {
           "by": {
             "default": "guest",
+            "maxLength": 200,
             "title": "By",
             "type": "string"
           },
@@ -7587,6 +7588,7 @@
       "ShareCommentRequest": {
         "properties": {
           "author": {
+            "maxLength": 200,
             "title": "Author",
             "type": "string"
           },
@@ -7665,6 +7667,7 @@
       "ShareReplyRequest": {
         "properties": {
           "author": {
+            "maxLength": 200,
             "title": "Author",
             "type": "string"
           },

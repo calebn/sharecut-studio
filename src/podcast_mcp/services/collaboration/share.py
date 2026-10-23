@@ -1661,7 +1661,7 @@ def share_set_action_done(
             comment_id,
             action_id,
             done=done,
-            by=by,
+            by=guest_display_name(by),
         ),
     )
     notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)

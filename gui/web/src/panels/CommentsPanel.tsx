@@ -19,11 +19,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import { EmptyState, InlineError, SegmentedControl, ToggleButton } from "../ui";
-import {
-  commitCommentActor,
-  saveCommentAuthor,
-  sessionDisplayName,
-} from "../utils/commentAuthor";
+import { commitCommentActor } from "../utils/commentAuthor";
 
 type Filter = "open" | "resolved" | "actions" | "all";
 
@@ -59,7 +55,6 @@ export function CommentsPanel({
   const [filter, setFilter] = useState<Filter>("open");
   const role = commentRole(projectPath, guestMode, guestShare);
   const guestName = useGuestName(role);
-  const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [body, setBody] = useState("");
   const [actionLine, setActionLine] = useState("");
   const [trackIds, setTrackIds] = useState<string[]>([]);
@@ -73,7 +68,11 @@ export function CommentsPanel({
     resolve,
     reply,
     toggleAction,
-  } = useCommentActions({ role, author, setAuthor });
+  } = useCommentActions({
+    role,
+    author: guestName.name,
+    setAuthor: guestName.setName,
+  });
 
   const busy = createBusy || actionBusy;
   const error = createError ?? actionError;
@@ -84,7 +83,7 @@ export function CommentsPanel({
   const onResolve = async (c: TimelineComment, resolved: boolean) => {
     const ok = await resolve(c, resolved);
     if (!ok || !resolved) return;
-    const by = commitCommentActor(author, role, setAuthor);
+    const by = commitCommentActor(guestName.name, role, guestName.setName);
     announceStatus(`Resolved comment at ${commentTimeLabel(c)}`, {
       returnFocus: () => panelRef.current,
       reverse: {
@@ -114,7 +113,6 @@ export function CommentsPanel({
   }, [comments, filter]);
 
   const createAs = async (who: string) => {
-    setAuthor(who);
     const result = await post({
       body,
       author: who,
@@ -133,7 +131,6 @@ export function CommentsPanel({
 
   const onCreate = () => {
     setActionError(null);
-    if (guestName.chosen && !guestName.asking) return createAs(author);
     const who = guestName.authorForPost();
     return who === null ? Promise.resolve() : createAs(who);
   };
@@ -157,13 +154,7 @@ export function CommentsPanel({
   return (
     <div className="comments-panel" ref={panelRef} tabIndex={-1}>
       <div className="comments-toolbar">
-        <CommentAuthorLine
-          name={author}
-          onChange={(next) => {
-            setAuthor(next);
-            saveCommentAuthor(next);
-          }}
-        />
+        <CommentAuthorLine name={guestName.name} onChange={guestName.rename} />
         <SegmentedControl className="comments-filters" label="Filter">
           {(
             [
@@ -203,6 +194,7 @@ export function CommentsPanel({
           anchor={<CommentAnchorChip />}
           bodyPlaceholder="Add a comment…"
           bodyRows={2}
+          hideSubmit={guestName.asking}
         >
           {guestName.asking ? (
             <GuestNameStep
@@ -210,6 +202,10 @@ export function CommentsPanel({
               onNameChange={guestName.setDraft}
               onConfirm={() => void onCreate()}
               onSkip={() => void createAs(guestName.choose(""))}
+              busy={busy}
+              postDisabledReason={
+                body.trim() ? undefined : "Write a comment to post."
+              }
             />
           ) : null}
           {!guestShare && body.trim() !== "" && (
