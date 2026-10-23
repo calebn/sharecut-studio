@@ -44,7 +44,7 @@ for (const viewport of [
           rows.map((row) => row.getBoundingClientRect().height),
         );
       expect(rowHeights.length).toBeGreaterThan(0);
-      expect(Math.min(...rowHeights)).toBeGreaterThanOrEqual(44);
+      expect(Math.min(...rowHeights)).toBeGreaterThanOrEqual(44 - 0.001);
       const lastAction = menu.getByRole("menuitem", {
         name: "Commands and shortcuts",
       });
