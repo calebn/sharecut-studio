@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.engines.ffmpeg import ENCODE_CANCELLED, FFmpegEngine
-from podcast_mcp.export.names import sanitize_export_stem
-from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_render import render_atomic_all
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import raise_if_cancel_requested
@@ -98,34 +96,17 @@ def write_audio_formats(
     ``reap_partials`` deletes temps a crashed earlier run left; pass it only while
     holding the lock that serializes writers of these files.
     """
-    meta = metadata or {}
     dests = [out_stem.with_suffix(f".{spec.ext}") for spec in specs]
 
     def render(temps: list[Path]) -> None:
-        encodes: list[tuple[ExportFormatSpec, Path]] = []
-        for spec, tmp in zip(specs, temps, strict=True):
-            if spec.ext == "wav" and spec.codec is None:
-                raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
-                shutil.copy(source_wav, tmp)
-            else:
-                encodes.append((spec, tmp))
-
-        def encode_one(job: tuple[ExportFormatSpec, Path]) -> None:
-            spec, tmp = job
-            eng.export_audio(
-                source_wav,
-                tmp,
-                codec=spec.codec,
-                format=spec.format,
-                bitrate_kbps=spec.bitrate_kbps,
-                sample_rate=spec.sample_rate,
-                channels=spec.channels,
-                metadata=meta,
-                extra_args=list(spec.extra_args) or None,
-                cancel_check=cancel_check,
-            )
-
-        run_parallel(encodes, encode_one, max_workers=max_workers)
+        render_audio_formats(
+            eng,
+            source_wav,
+            list(zip(specs, temps, strict=True)),
+            metadata=metadata,
+            max_workers=max_workers,
+            cancel_check=cancel_check,
+        )
 
     return render_atomic_all(
         dests,
@@ -135,35 +116,37 @@ def write_audio_formats(
     )
 
 
-def export_episode_audio(
-    project: EpisodeProject,
+def render_audio_formats(
     eng: FFmpegEngine,
     source_wav: Path,
-    export_cfg: dict[str, Any],
+    outputs: list[tuple[ExportFormatSpec, Path]],
     *,
     metadata: dict[str, str] | None = None,
     max_workers: int | None = None,
     cancel_check: Callable[[], bool] | None = None,
-) -> list[Path]:
-    """Write episode audio deliverables under export/ from a mastered WAV.
+) -> None:
+    """Copy or encode into caller-owned paths without publishing them."""
+    encodes: list[tuple[ExportFormatSpec, Path]] = []
+    for spec, output in outputs:
+        if spec.ext == "wav" and spec.codec is None:
+            raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
+            shutil.copy(source_wav, output)
+        else:
+            encodes.append((spec, output))
 
-    All or nothing (see ``write_audio_formats``). Callers hold ``render_lock``.
-    """
-    meta = metadata or {
-        "title": project.name,
-        "album": project.name,
-    }
-    specs: list[ExportFormatSpec] = []
-    if export_wav_enabled(export_cfg):
-        specs.append(ExportFormatSpec(ext="wav"))
-    specs.extend(resolve_export_formats(export_cfg))
-    return write_audio_formats(
-        eng,
-        source_wav,
-        project.export_dir() / sanitize_export_stem(project.name),
-        specs,
-        metadata=meta,
-        max_workers=max_workers,
-        cancel_check=cancel_check,
-        reap_partials=True,
-    )
+    def encode_one(job: tuple[ExportFormatSpec, Path]) -> None:
+        spec, output = job
+        eng.export_audio(
+            source_wav,
+            output,
+            codec=spec.codec,
+            format=spec.format,
+            bitrate_kbps=spec.bitrate_kbps,
+            sample_rate=spec.sample_rate,
+            channels=spec.channels,
+            metadata=metadata or {},
+            extra_args=list(spec.extra_args) or None,
+            cancel_check=cancel_check,
+        )
+
+    run_parallel(encodes, encode_one, max_workers=max_workers)

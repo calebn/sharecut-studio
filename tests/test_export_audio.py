@@ -10,14 +10,13 @@ import pytest
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.export.audio import (
     ExportFormatSpec,
-    export_episode_audio,
     export_wav_enabled,
     resolve_export_formats,
-    sanitize_export_stem,
     specs_from_extensions,
     write_audio_formats,
 )
-from podcast_mcp.export.names import MAX_EXPORT_STEM_BYTES
+from podcast_mcp.export.episode import export_episode_deliverables
+from podcast_mcp.export.names import MAX_EXPORT_STEM_BYTES, sanitize_export_stem
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.progress import CancelledProgress
 
@@ -119,7 +118,7 @@ def test_export_episode_audio_writes_wav_and_encoded(tmp_path: Path):
     mastered.write_bytes(b"RIFF")
     eng = MagicMock()
     eng.export_audio.side_effect = _writes_output
-    paths = export_episode_audio(project, eng, mastered, MP3)
+    paths = export_episode_deliverables(project, eng, mastered, {"export": MP3})
     assert paths == [tmp_path / "export" / "ep.wav", tmp_path / "export" / "ep.mp3"]
     assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"RIFF"}
 
@@ -137,7 +136,7 @@ def test_a_failed_encode_keeps_the_previous_export(tmp_path: Path):
     eng.export_audio.side_effect = fail
 
     with pytest.raises(subprocess.CalledProcessError):
-        export_episode_audio(project, eng, mastered, MP3)
+        export_episode_deliverables(project, eng, mastered, {"export": MP3})
 
     assert _export_listing(project) == PREVIOUS_EXPORT
 
@@ -150,7 +149,7 @@ def test_export_reaps_temps_a_crashed_export_left(tmp_path: Path):
     eng = MagicMock()
     eng.export_audio.side_effect = _writes_output
 
-    export_episode_audio(project, eng, mastered, MP3)
+    export_episode_deliverables(project, eng, mastered, {"export": MP3})
 
     assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"NEW-WAV"}
 
@@ -175,7 +174,9 @@ def test_a_cancel_mid_encode_stops_ffmpeg_and_keeps_the_previous_export(
         )
 
     with pytest.raises(CancelledProgress, match="Encoding cancelled"):
-        export_episode_audio(project, FFmpegEngine(), long_master, MP3, cancel_check=encode_started)
+        export_episode_deliverables(
+            project, FFmpegEngine(), long_master, {"export": MP3}, cancel_check=encode_started
+        )
 
     assert _export_listing(project) == PREVIOUS_EXPORT
 
@@ -235,7 +236,7 @@ def test_export_episode_audio_sanitizes_slash_in_name(tmp_path: Path):
     mastered.write_bytes(b"RIFF")
     eng = MagicMock()
     export_cfg = {"wav": True, "formats": []}
-    paths = export_episode_audio(project, eng, mastered, export_cfg)
+    paths = export_episode_deliverables(project, eng, mastered, {"export": export_cfg})
     # single file directly under export/, no nested directories
     assert (tmp_path / "export" / "My_Episode_Part_1_2.wav").is_file()
     assert not (tmp_path / "export" / "My Episode: Part 1").exists()
@@ -254,7 +255,9 @@ def test_export_episode_audio_keeps_dot_and_reserved_names_under_export(
     mastered = project.artifacts_dir() / "mastered.wav"
     mastered.write_bytes(b"RIFF")
 
-    paths = export_episode_audio(project, MagicMock(), mastered, {"wav": True, "formats": []})
+    paths = export_episode_deliverables(
+        project, MagicMock(), mastered, {"export": {"wav": True, "formats": []}}
+    )
 
     assert paths == [tmp_path / "export" / filename]
     assert paths[0].is_file()

@@ -125,6 +125,9 @@ describe("ExportDialog", () => {
     expect(dialog.textContent).toContain(
       "Mastered to −16.0 LUFS, peaks under −1.5 dBTP.",
     );
+    expect(dialog.textContent).toContain(
+      "Includes current SRT captions and a Markdown transcript when available.",
+    );
     expect(startExportJob).not.toHaveBeenCalled();
     await expectNoA11yViolations(baseElement);
   });
