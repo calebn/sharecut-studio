@@ -294,13 +294,13 @@ checking a premix or export.
 
 ## Mastering plan + mastering QC
 
-Full loudness measurement selects the first audio stream and returns no measurement
-when FFmpeg fails or the input has no audio. This applies to pass-1 planning,
-limiter retry measurements, and post-master QC, including progress callbacks.
-Metadata Summary tag keys cannot supply a measurement on a failed run. Successful
-single-audio measurements retain their values. Master rendering still uses its
-existing stream selection, so a multi-audio input can measure one stream and render
-another. Use a single-audio premix for mastering.
+Full loudness measurement excludes video and returns no measurement when its FFmpeg
+process fails or the input has no audio. This applies to pass-1 planning, limiter
+retry measurements, and post-master QC, including progress callbacks. Metadata
+Summary tag keys cannot supply a measurement on a failed run. Successful audio
+measurements retain their values and automatic audio stream selection. Selecting
+the first audio stream consistently across measurement and mastering render remains
+a separate follow-up that needs listening proof if rendered audio changes.
 
 `FFmpegEngine.master_loudness` measures the premix once, picks a plan from that
 measurement, and renders the plan:

@@ -188,16 +188,6 @@ def test_astats_and_loudness_read_first_stream(pair: tuple[Path, Path]) -> None:
     assert loudness == engine.measure_loudness(oracle)
 
 
-@pytest.mark.parametrize("progress", [False, True])
-def test_full_loudness_reads_first_stream(pair: tuple[Path, Path], progress: bool) -> None:
-    source, oracle = pair
-    engine = FFmpegEngine()
-    kwargs = {"on_progress": lambda *_: None, "total_sec": 1.0} if progress else {}
-    expected = engine.measure_loudness_full(oracle, **kwargs)
-    assert expected is not None
-    assert engine.measure_loudness_full(source, **kwargs) == expected
-
-
 def test_single_stream_decodes_match_a_default_pick(
     single: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
