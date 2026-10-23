@@ -4,9 +4,17 @@ import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { offlineConflict } from "../test/fixtures";
+import { DocumentCommand } from "../types/documentCommands.generated";
+import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
-afterEach(() => vi.useRealTimers());
+const waive = vi.hoisted(() => vi.fn());
+vi.mock("../api", () => ({ waiveTranscriptRefine: waive }));
+
+afterEach(() => {
+  vi.useRealTimers();
+  waive.mockReset();
+});
 
 function expandDetails() {
   fireEvent.click(
@@ -438,5 +446,213 @@ describe("GuestAttentionBannerView", () => {
     expect(
       screen.queryByRole("button", { name: "Send now" }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("a refine-gate refusal", () => {
+    const gated = () =>
+      offlineConflict({
+        reason: TRANSCRIPT_REFINE_REFUSAL,
+        command: { type: DocumentCommand.ApproveEdits },
+      });
+
+    it("lets the host waive from the banner and says to approve again", async () => {
+      waive.mockResolvedValue({});
+      render(
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={[gated()]}
+          onDismissAll={vi.fn()}
+          refineWaiverProject="/p"
+        />,
+      );
+      expandDetails();
+      expect(screen.getByText(/^Approve:/)).toBeVisible();
+      expect(
+        screen.queryByText("Edit the change and submit it again."),
+      ).not.toBeInTheDocument();
+      await userEvent.type(
+        screen.getByLabelText("Waiver reason"),
+        "episode is a rerun",
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Waive with reason" }),
+      );
+      expect(waive).toHaveBeenCalledWith("/p", "episode is a rerun");
+      const status = await screen.findByRole("status");
+      expect(status).toHaveTextContent(
+        "Waiver recorded. Retry approval to apply pending edits.",
+      );
+      expect(status).toHaveFocus();
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("names Approve only for an approve command", () => {
+      render(
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={[
+            offlineConflict({
+              reason: TRANSCRIPT_REFINE_REFUSAL,
+              command: {
+                command_id: "tighten-1",
+                type: DocumentCommand.RemoveTrack,
+              },
+            }),
+          ]}
+          onDismissAll={vi.fn()}
+          refineWaiverProject="/p"
+        />,
+      );
+      expandDetails();
+      expect(screen.getByText(DocumentCommand.RemoveTrack)).toBeVisible();
+      expect(screen.queryByText(/^Approve$/)).not.toBeInTheDocument();
+    });
+
+    it("clears every gated entry with one waiver", async () => {
+      waive.mockResolvedValue({});
+      render(
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={[
+            offlineConflict({
+              reason: TRANSCRIPT_REFINE_REFUSAL,
+              command: { command_id: "a-1" },
+            }),
+            offlineConflict({
+              reason: TRANSCRIPT_REFINE_REFUSAL,
+              command: { command_id: "a-2" },
+            }),
+          ]}
+          onDismissAll={vi.fn()}
+          refineWaiverProject="/p"
+        />,
+      );
+      expandDetails();
+      await userEvent.type(
+        screen.getAllByLabelText("Waiver reason")[0],
+        "rerun",
+      );
+      await userEvent.click(
+        screen.getAllByRole("button", { name: "Waive with reason" })[0],
+      );
+      expect(await screen.findAllByRole("status")).toHaveLength(2);
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no waiver on an entry that was not refused", () => {
+      render(
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={[
+            offlineConflict({
+              kind: "unknown",
+              recovery: "inspect-history",
+              reason: TRANSCRIPT_REFINE_REFUSAL,
+            }),
+          ]}
+          onDismissAll={vi.fn()}
+          refineWaiverProject="/p"
+        />,
+      );
+      expandDetails();
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers the form again for a refusal that arrives after a waiver", async () => {
+      waive.mockResolvedValue({});
+      const entry = (id: string) =>
+        offlineConflict({
+          reason: TRANSCRIPT_REFINE_REFUSAL,
+          command: { command_id: id },
+        });
+      const view = (ids: string[]) => (
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={ids.map(entry)}
+          onDismissAll={vi.fn()}
+          refineWaiverProject="/p"
+        />
+      );
+      const { rerender } = render(view(["first"]));
+      expandDetails();
+      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Waive with reason" }),
+      );
+      await screen.findByRole("status");
+      rerender(view(["first", "second"]));
+      expect(
+        screen.getAllByRole("button", { name: "Waive with reason" }),
+      ).toHaveLength(1);
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+    });
+
+    it("forgets a waiver once its entry leaves the list", async () => {
+      waive.mockResolvedValue({});
+      const gatedEntry = () =>
+        offlineConflict({
+          reason: TRANSCRIPT_REFINE_REFUSAL,
+          command: { command_id: "same-id" },
+        });
+      const view = (entries: ReturnType<typeof gatedEntry>[]) => (
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={entries}
+          onDismissAll={vi.fn()}
+          refineWaiverProject="/p"
+        />
+      );
+      const { rerender } = render(view([gatedEntry()]));
+      expandDetails();
+      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Waive with reason" }),
+      );
+      await screen.findByRole("status");
+      rerender(view([]));
+      rerender(view([gatedEntry()]));
+      expandDetails();
+      expect(
+        await screen.findByRole("button", { name: "Waive with reason" }),
+      ).toBeVisible();
+    });
+
+    it("offers a guest no waiver", () => {
+      render(
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={[gated()]}
+          onDismissAll={vi.fn()}
+        />,
+      );
+      expandDetails();
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Edit the change and submit it again."),
+      ).toBeVisible();
+    });
+
+    it("keeps other refusals on the edit-and-resubmit line", () => {
+      render(
+        <GuestAttentionBannerView
+          pending={0}
+          conflicts={[offlineConflict()]}
+          onDismissAll={vi.fn()}
+          refineWaiverProject="/p"
+        />,
+      );
+      expandDetails();
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

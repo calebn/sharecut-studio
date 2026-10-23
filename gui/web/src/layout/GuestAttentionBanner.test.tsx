@@ -8,6 +8,7 @@ import {
 } from "../services/offlineQueue/offlineAttention";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, offlineConflict } from "../test/fixtures";
+import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 
 const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
@@ -203,6 +204,28 @@ describe("GuestAttentionBanner", () => {
       true,
     );
   });
+
+  it.each([
+    ["host", "/tmp/2182-host.json", true],
+    ["guest", "share:tok-2182", false],
+  ])(
+    "offers the refine waiver to a %s only when it is the host",
+    async (_who, path, offered) => {
+      offlineStore.loadHostConflicts.mockResolvedValue([
+        offlineConflict({ reason: TRANSCRIPT_REFINE_REFUSAL }),
+      ]);
+      offlineStore.loadConflicts.mockResolvedValue([
+        offlineConflict({ reason: TRANSCRIPT_REFINE_REFUSAL }),
+      ]);
+      useDawStore.getState().hydrate(path, minimalProject());
+      render(<GuestAttentionBanner />);
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      openDetails();
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }) !== null,
+      ).toBe(offered);
+    },
+  );
 
   it("picks up a new count after the 2s poll", async () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
