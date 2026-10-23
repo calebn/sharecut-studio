@@ -61,7 +61,7 @@
     "tests/test_review_share.py": 3,
     "tests/test_services_extended.py": 0,
     "tests/test_session_sync.py": 2,
-    "tests/test_session_sync_presence_delta.py": 17,
+    "tests/test_session_sync_presence_delta.py": 3,
     "tests/test_track_mix.py": 0,
     "tests/test_tunnel_client.py": 0,
     "tests/test_tunnel_run.py": 0,
