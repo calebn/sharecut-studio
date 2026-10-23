@@ -85,7 +85,7 @@ for (const theme of ["light", "dark"] as const) {
             await post.tap();
 
             const name = dock.getByRole("textbox", { name: "Your name" });
-            const skip = dock.getByRole("button", { name: "Skip" });
+            const skip = dock.getByRole("button", { name: "Post as Guest" });
             await expect(name).toBeVisible();
             await expect(name).toBeInViewport({ ratio: 1 });
             await expect(skip).toBeInViewport({ ratio: 1 });
@@ -176,7 +176,7 @@ test("a phone guest can skip the name and change it later", async ({
         });
         await field.fill("Anonymous note");
         await dock.getByRole("button", { name: "Post comment" }).tap();
-        await dock.getByRole("button", { name: "Skip" }).tap();
+        await dock.getByRole("button", { name: "Post as Guest" }).tap();
         await expect(field).toHaveValue("");
         await expect(dock.getByText("Guest", { exact: true })).toBeVisible();
 
@@ -193,6 +193,50 @@ test("a phone guest can skip the name and change it later", async ({
         const rows = await hostComments(host, 2);
         expect(rows.join("\n")).toContain("Alex");
         expect(rows.join("\n")).toContain("Guest");
+      },
+    );
+  });
+});
+
+test("a tablet guest who changes the name before the first comment is not asked again", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {},
+        {
+          viewport: { width: 844, height: 390 },
+          reducedMotion: "reduce",
+          hasTouch: true,
+          isMobile: true,
+        },
+      ],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "commenter");
+        await openGuestShare(guest, token);
+        const panel = guest.locator(".comments-panel");
+        await panel
+          .getByRole("button", { name: "Change your comment name" })
+          .tap();
+        const rename = panel.getByRole("textbox", { name: "Your name" });
+        await rename.fill("Alex");
+        await rename.press("Enter");
+        await panel
+          .getByRole("textbox", { name: "Comment", exact: true })
+          .fill("Named first");
+        await panel.getByRole("button", { name: "Post comment" }).tap();
+        await expect(
+          panel.getByRole("textbox", { name: "Comment", exact: true }),
+        ).toHaveValue("");
+        await expect(
+          panel.getByRole("button", { name: "Post as Guest" }),
+        ).toHaveCount(0);
+        const rows = await hostComments(host, 1);
+        expect(rows[0]).toContain("Alex");
+        expect(rows[0]).not.toContain("Guest");
       },
     );
   });

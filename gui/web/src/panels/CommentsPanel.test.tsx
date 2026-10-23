@@ -209,6 +209,28 @@ describe("CommentsPanel", () => {
     expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBeNull();
   });
 
+  it("a guest who taps Change before the first Post is not asked again and keeps that name", async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    createComment.mockResolvedValue(sampleComment());
+    renderPanel({ guestShare: true });
+    await user.click(
+      screen.getByRole("button", { name: "Change your comment name" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Your name" }),
+      "Alex{Enter}",
+    );
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Note");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+    expect(createComment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ author: "Alex" }),
+    );
+    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe("Alex");
+  });
+
   it("Change then a new name saves it and is used on the next post", async () => {
     const user = userEvent.setup();
     renderPanel();
