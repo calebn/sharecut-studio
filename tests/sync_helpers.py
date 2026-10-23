@@ -1,15 +1,12 @@
-"""Shared helpers for the sync test modules (#695): foreign-process journal writes and
-hub queue draining.
-
-Each write helper opens a *fresh* ``SyncStore`` (its own sqlite connection) on an existing
-project's journal and appends one row, then closes it, mimicking a write from another
-process: the in-process hub never learns about it directly.
-"""
-
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import Context
 from uuid import uuid4
+
+import pytest
 
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.document_sync.service import (
@@ -22,6 +19,46 @@ from podcast_mcp.services.document_sync.service import (
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.session_sync.service import sync_db_path
 from podcast_mcp.services.session_sync.snapshot import apply_command, empty_snapshot
+
+
+@contextmanager
+def _hub_delivery_fence(
+    loop: asyncio.AbstractEventLoop, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Callable[[], None]]:
+    scheduled: list[asyncio.Future[None]] = []
+    call_soon_threadsafe = loop.call_soon_threadsafe
+
+    def schedule(
+        callback: Callable[..., object], *args: object, context: Context | None = None
+    ) -> asyncio.Handle:
+        completed = loop.create_future()
+
+        def deliver() -> None:
+            try:
+                callback(*args)
+            except BaseException as error:
+                completed.set_exception(error)
+            else:
+                completed.set_result(None)
+
+        handle = call_soon_threadsafe(deliver, context=context)
+        scheduled.append(completed)
+        return handle
+
+    def delivered() -> None:
+        batch = tuple(scheduled)
+        scheduled.clear()
+        assert batch, "no hub delivery was scheduled"
+        marker = loop.create_future()
+        loop.call_soon(marker.set_result, None)
+        loop.run_until_complete(marker)
+        for completed in batch:
+            assert completed.done(), "scheduled hub delivery did not complete"
+            completed.result()
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(loop, "call_soon_threadsafe", schedule)
+        yield delivered
 
 
 def _foreign_session_write(

@@ -10,10 +10,8 @@ import subprocess
 import sys
 import time
 import weakref
-from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing, contextmanager
-from contextvars import Context
+from contextlib import closing
 from threading import Event, get_ident
 from typing import Literal
 
@@ -43,47 +41,7 @@ from podcast_mcp.services.session_sync.viewer import (
     publish_agent_play,
     publish_viewer_snapshot,
 )
-from sync_helpers import _foreign_session_write, receive_host_plane
-
-
-@contextmanager
-def _hub_delivery_fence(
-    loop: asyncio.AbstractEventLoop, monkeypatch: pytest.MonkeyPatch
-) -> Iterator[Callable[[], None]]:
-    scheduled: list[asyncio.Future[None]] = []
-    call_soon_threadsafe = loop.call_soon_threadsafe
-
-    def schedule(
-        callback: Callable[..., object], *args: object, context: Context | None = None
-    ) -> asyncio.Handle:
-        completed = loop.create_future()
-
-        def deliver() -> None:
-            try:
-                callback(*args)
-            except BaseException as error:
-                completed.set_exception(error)
-            else:
-                completed.set_result(None)
-
-        handle = call_soon_threadsafe(deliver, context=context)
-        scheduled.append(completed)
-        return handle
-
-    def delivered() -> None:
-        batch = tuple(scheduled)
-        scheduled.clear()
-        assert batch, "no hub delivery was scheduled"
-        marker = loop.create_future()
-        loop.call_soon(marker.set_result, None)
-        loop.run_until_complete(marker)
-        for completed in batch:
-            assert completed.done(), "scheduled hub delivery did not complete"
-            completed.result()
-
-    with monkeypatch.context() as scoped:
-        scoped.setattr(loop, "call_soon_threadsafe", schedule)
-        yield delivered
+from sync_helpers import _foreign_session_write, _hub_delivery_fence, receive_host_plane
 
 
 def test_play_os_vs_audition_commands(minimal_project) -> None:
