@@ -188,6 +188,22 @@ def test_astats_and_loudness_read_first_stream(pair: tuple[Path, Path]) -> None:
     assert loudness == engine.measure_loudness(oracle)
 
 
+def test_full_loudness_keeps_ffmpeg_default_audio_stream(tmp_path: Path) -> None:
+    source = media.multistream(tmp_path, "st.mkv")
+    first = media.first_stream_only(source, tmp_path)
+    selected = tmp_path / "selected.mkv"
+    selected.write_bytes(_ffmpeg_bytes(source, "-map", "0:a:1", "-c", "copy", "-f", "matroska"))
+    engine = FFmpegEngine()
+    expected = engine.measure_loudness_full(selected)
+    first_stats = engine.measure_loudness_full(first)
+    assert expected is not None and first_stats is not None
+    assert expected["integrated_lufs"] != first_stats["integrated_lufs"]
+    assert engine.measure_loudness_full(source) == expected
+    assert (
+        engine.measure_loudness_full(source, on_progress=lambda *_: None, total_sec=2) == expected
+    )
+
+
 def test_single_stream_decodes_match_a_default_pick(
     single: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
