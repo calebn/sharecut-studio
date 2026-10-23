@@ -91,7 +91,9 @@ Speaker labels in the transcript open a name editor for hosts and shares with th
 The host-only `POST /api/transcript/refine/waive` endpoint accepts `{path,
 reason}` and records the waiver through `TranscriptRefineService` with source
 `user`. The GUI exposes it only when an approval receives the transcript-refine
-gate error. Share guests cannot use this recovery path; waiving never approves
+gate error. A replayed (queued) approval refused by the gate shows the same
+Waiver reason field and **Waive with reason** button in its **Needs attention**
+banner entry. Share guests cannot use this recovery path; waiving never approves
 the pending edit automatically.
 The document-command gate responds with HTTP 409 and
 `X-Sharecut-Error-Code: transcript_refine_required`; the GUI uses that stable
@@ -99,7 +101,7 @@ code to show recovery guidance without exposing the CLI-oriented server hint.
 The waiver route is host-origin protected and serializes its project save with
 document commands.
 
-An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `DOCUMENT_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector, the Impact panel and the Tighten Apply / Skip commands show a **Still sending** status instead of treating it as done (it clears once the project's command queue is empty), and a refusal of the later replay appears in the **Needs attention** banner.
+An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `DOCUMENT_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector, the Impact panel and the Tighten Apply / Skip commands show a **Still sending** status instead of treating it as done (it clears once the project's command queue is empty), and a refusal of the later replay appears in the **Needs attention** banner, where a transcript-refine refusal offers the host **Waive with reason**.
 
 ## Busy project (503)
 

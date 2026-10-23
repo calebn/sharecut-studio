@@ -1,7 +1,13 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TranscriptRefineRecovery } from "../inspector/TranscriptRefineRecovery";
 import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import { Button } from "../ui/Button";
+import {
+  TRANSCRIPT_REFINE_REFUSAL,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../utils/apiError";
 import { overflowLabel } from "../utils/format";
 import {
   ATTENTION_DETAILS_LABEL,
@@ -33,6 +39,44 @@ export interface GuestAttentionBannerViewProps {
   onRetry?: () => void;
   /** Open the existing History surface for a command that may have applied. */
   onInspectHistory?: () => void;
+  /** The host's project, set so a refine-gate refusal can be waived from here. */
+  refineWaiverProject?: string;
+}
+
+const REFINE_WAIVED_MESSAGE =
+  "Waiver recorded. Retry approval to apply pending edits.";
+
+function RefineGateWaiver({
+  projectPath,
+  reason,
+  waived,
+  onWaived,
+}: {
+  projectPath: string;
+  reason: string;
+  waived: boolean;
+  onWaived: () => void;
+}) {
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  const wasWaived = useRef(waived);
+  useLayoutEffect(() => {
+    if (waived && !wasWaived.current) statusRef.current?.focus();
+    wasWaived.current = waived;
+  }, [waived]);
+  if (waived)
+    return (
+      <p ref={statusRef} role="status" tabIndex={-1}>
+        {REFINE_WAIVED_MESSAGE}
+      </p>
+    );
+  return (
+    <TranscriptRefineRecovery
+      projectPath={projectPath}
+      error={reason}
+      errorCode={TRANSCRIPT_REFINE_REQUIRED_CODE}
+      onRecovered={onWaived}
+    />
+  );
 }
 
 /** Props-only guest-attention rendering for live state and static catalog cases. */
@@ -46,6 +90,7 @@ export function GuestAttentionBannerView({
   onSendNow,
   onRetry,
   onInspectHistory,
+  refineWaiverProject,
   unreadable = false,
   dismissFailed = false,
   checking = false,
@@ -55,6 +100,9 @@ export function GuestAttentionBannerView({
   const bannerRef = useRef<HTMLDivElement>(null);
   const [portalHost] = useState(() => document.createElement("div"));
   const visible = unreadable || conflicts.length > 0 || pending > 0;
+  const [refineWaivedIds, setRefineWaivedIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   const focusedRef = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -92,6 +140,10 @@ export function GuestAttentionBannerView({
     place();
     return () => cancelAnimationFrame(frame);
   }, [visible, host, portalHost]);
+  const listedIds = new Set(conflicts.map((c) => c.command.command_id));
+  const keptWaivedIds = [...refineWaivedIds].filter((id) => listedIds.has(id));
+  if (keptWaivedIds.length !== refineWaivedIds.size)
+    setRefineWaivedIds(new Set(keptWaivedIds));
   const dismissUnavailable = unreadable || checking || dismissFailed;
   const dismissReason = unreadable
     ? "Saved edits could not be read. Dismissal is unavailable."
@@ -194,24 +246,55 @@ export function GuestAttentionBannerView({
                 {dismissFailed && (
                   <li>Dismissal failed. Your saved outcomes have been kept.</li>
                 )}
-                {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => (
-                  <li key={c.command.command_id}>
-                    <code>{c.command.type}</code>: {c.reason}{" "}
-                    {c.kind === "refused" ? (
-                      <span>Edit the change and submit it again.</span>
-                    ) : c.recovery === "inspect-history" ? (
-                      <span>
-                        {guest
-                          ? "Ask the project owner to inspect History before trying this action again."
-                          : "Inspect History before trying this action again."}
-                      </span>
-                    ) : (
-                      <span>
-                        The app will retry this same command automatically.
-                      </span>
-                    )}
-                  </li>
-                ))}
+                {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => {
+                  const waivable =
+                    c.kind === "refused" &&
+                    refineWaiverProject !== undefined &&
+                    c.reason === TRANSCRIPT_REFINE_REFUSAL;
+                  return (
+                    <li key={c.command.command_id}>
+                      {waivable &&
+                      c.command.type === DocumentCommand.ApproveEdits ? (
+                        "Approve"
+                      ) : (
+                        <code>{c.command.type}</code>
+                      )}
+                      : {c.reason}{" "}
+                      {waivable ? (
+                        <RefineGateWaiver
+                          projectPath={refineWaiverProject}
+                          reason={c.reason}
+                          waived={refineWaivedIds.has(c.command.command_id)}
+                          onWaived={() =>
+                            setRefineWaivedIds(
+                              new Set(
+                                conflicts
+                                  .filter(
+                                    (other) =>
+                                      other.reason ===
+                                      TRANSCRIPT_REFINE_REFUSAL,
+                                  )
+                                  .map((other) => other.command.command_id),
+                              ),
+                            )
+                          }
+                        />
+                      ) : c.kind === "refused" ? (
+                        <span>Edit the change and submit it again.</span>
+                      ) : c.recovery === "inspect-history" ? (
+                        <span>
+                          {guest
+                            ? "Ask the project owner to inspect History before trying this action again."
+                            : "Inspect History before trying this action again."}
+                        </span>
+                      ) : (
+                        <span>
+                          The app will retry this same command automatically.
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
                 {onInspectHistory &&
                   conflicts.some(
                     (conflict) =>

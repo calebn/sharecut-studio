@@ -64,6 +64,7 @@ export function GuestAttentionBanner({
             }
       }
       onRetry={() => refreshOfflineAttention(projectPath)}
+      refineWaiverProject={guest ? undefined : projectPath}
       onInspectHistory={
         guest
           ? undefined

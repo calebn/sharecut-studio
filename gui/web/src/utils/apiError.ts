@@ -1,6 +1,6 @@
 export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
 
-const TRANSCRIPT_REFINE_REFUSAL =
+export const TRANSCRIPT_REFINE_REFUSAL =
   "This is blocked until transcript refinement is done. A host can review the transcript or waive it with a reason.";
 
 export class ApiError extends Error {
