@@ -10,6 +10,8 @@
 
 ### Fixes
 
+* Full mastering loudness measurements now read the first audio stream and return no measurement after a failed FFmpeg run or when the file has no audio, including with progress callbacks. Forged Summary tag keys on video-only files no longer read as -16 LUFS (#2154). Successful single-audio measurements are unchanged. Master rendering keeps its existing stream selection; use a single-audio premix.
+
 * Audio health stats (`measure_astats`) and `check_loudness` now read the first audio stream, the one the render plays, on media with several audio streams (#2131). Single-stream files measure the same as before.
 * `check_loudness`, `measure_astats` and the speech-gated loudness blocks no longer read a file's metadata tags as measurements (#2143); mastering's loudness measurement ignores tag text on our own renders. A tagged file with no audio stream used to pass `check_loudness`; `check_loudness` and `measure_astats` now give `null` for it or for a failed FFmpeg run, and tags that are not valid UTF-8 no longer crash them. Untagged files measure the same as before.
 * `load_profile` no longer falls back to a stale speaker profile (stem hash mismatch).

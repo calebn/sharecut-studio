@@ -581,8 +581,27 @@ def test_measure_loudness_full_reports_progress(tmp_path: Path):
         "integrated_threshold_lufs": None,
     }
     assert run_with_progress.call_args.kwargs["total_sec"] == 3.0
-    assert run_with_progress.call_args.kwargs["check"] is False
-    assert run_with_progress.call_args.kwargs["on_progress"] is cb
+    assert run_with_progress.call_args.kwargs["check"] is True
+    run_with_progress.call_args.kwargs["on_progress"](1.0, 3.0)
+    cb.assert_called_once_with(1.0, 3.0)
+
+
+@pytest.mark.parametrize(
+    "error", [subprocess.CalledProcessError(7, ["callback"]), RuntimeError("cancel")]
+)
+def test_measure_loudness_full_preserves_callback_errors(tmp_path: Path, error: Exception):
+    eng = FFmpegEngine()
+
+    def callback(*_args):
+        raise error
+
+    def progress_run(*_args, on_progress, **_kwargs):
+        on_progress(1.0, 2.0)
+
+    with patch.object(eng, "_run_with_progress", side_effect=progress_run):
+        with pytest.raises(type(error)) as caught:
+            eng.measure_loudness_full(tmp_path / "x.wav", on_progress=callback, total_sec=2)
+    assert caught.value is error
 
 
 def test_measure_loudness_full_uses_given_total_without_probing(tmp_path: Path):

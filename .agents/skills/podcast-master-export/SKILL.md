@@ -12,6 +12,9 @@ description: >-
 
 - **-16 LUFS** integrated, **-1.5 dBTP** true peak (podcast / Apple-friendly)
 - Configured in `.agents/defaults/pipeline.yaml` under `master`
+- Use a single-audio premix. Full loudness measurement reads its first audio stream
+  and returns no measurement after an FFmpeg failure or when there is no audio.
+  Master rendering retains its existing stream selection on multi-audio inputs.
 - Mastering measures the premix with one `ebur128` pass (I, TP, LRA, gate threshold) and
   picks a plan from it:
   - **`loudnorm`** when the gain to the target keeps the true peak under the ceiling:

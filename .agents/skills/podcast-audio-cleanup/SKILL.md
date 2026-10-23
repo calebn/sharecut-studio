@@ -26,6 +26,10 @@ description: >-
 - `check_loudness_tool` — measure LUFS on export/premix; for tracked project audio, its
   `balance` map also reports per-dialogue-track measurement freshness
 
+Full mastering loudness measurements select the first audio stream and return no
+measurement when FFmpeg fails or the input has no audio. Use a single-audio premix
+for mastering because the render retains its existing stream selection.
+
 **Analyze before/after (heuristics-first)**
 - `analyze_cleanup_tool` — full report: gate risk, low-audibility words, bleed flags, fade recommendations, reconciliation staleness, and per-track `health` (astats + hum, see below)
 - `audio_diagnostics_tool(project_path, track_id=…, start_sec=…, end_sec=…)` — spectrogram PNG + waveform PNG + `astats` health + mains-hum flag for one track or window. This is the tool to reach for when you need to actually **see** a track (hum, sibilance, room tone, clipping) rather than just read RMS numbers. Full guide: [docs/audio-engineering.md](../../../docs/audio-engineering.md).
