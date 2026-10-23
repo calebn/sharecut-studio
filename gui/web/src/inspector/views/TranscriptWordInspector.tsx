@@ -38,6 +38,7 @@ import {
   DefItem,
   DefinitionList,
   FieldRow,
+  InlineError,
   InspectorSeekFooter,
 } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
@@ -63,12 +64,14 @@ export function TranscriptWordInspector({
   sourceId = null,
   wordIndex,
   embedded = false,
+  presentation = "standard",
 }: {
   trackId: string;
   sourceId?: string | null;
   wordIndex: number;
   /** Docked inside TranscriptPanel (text focus) — not the side rail. */
   embedded?: boolean;
+  presentation?: "standard" | "correct-sheet";
 }) {
   const { project, projectPath } = useDaw((s) => ({
     project: s.project,
@@ -96,6 +99,7 @@ export function TranscriptWordInspector({
   );
   const wordSpanText = spanTextFromIndex(wordTexts, wordIndex, wordIndex);
   const { busy, error, setError, run } = useProjectMutation();
+  const [errorAction, setErrorAction] = useState<DetachedWordAction>("fix");
   const mountedRef = useMountedRef();
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -225,6 +229,7 @@ export function TranscriptWordInspector({
     fn: () => Promise<HistoryEntryId | null>,
     done: string,
   ): Promise<{ failed: boolean; failure: unknown }> => {
+    setErrorAction(action);
     const before = {
       text: word?.text ?? "",
       suppressed,
@@ -258,6 +263,7 @@ export function TranscriptWordInspector({
   };
 
   const applyText = async () => {
+    setErrorAction("fix");
     touchedRef.current = true;
     const endIndex = Number.parseInt(endIndexStr, 10);
     const problem = wordCorrectionError(text, wordIndex, endIndex);
@@ -413,12 +419,69 @@ export function TranscriptWordInspector({
     endIndexNum >= wordIndex &&
     expectedText == null;
 
+  const correctionFirst = presentation === "correct-sheet";
+  const correctionFields = editable ? (
+    <>
+      <DefItem label="Text">
+        <FieldRow>
+          <input
+            type="text"
+            value={text}
+            disabled={busy}
+            aria-label="Corrected text"
+            onChange={(e) => {
+              touchedRef.current = true;
+              setText(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void applyText();
+              }
+            }}
+          />
+        </FieldRow>
+      </DefItem>
+      <DefItem label="End index">
+        <FieldRow>
+          <input
+            type="number"
+            min={wordIndex}
+            value={endIndexStr}
+            disabled={busy}
+            aria-label="End word index"
+            aria-describedby={editable && spanUnverified ? hintId : undefined}
+            onChange={(e) => changeEndIndex(e.target.value)}
+            title="Same as start for a single-word correct; higher for phrase"
+          />
+          <Button
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={() => void applyText()}
+          >
+            Apply
+          </Button>
+        </FieldRow>
+      </DefItem>
+    </>
+  ) : null;
+
   return (
     <ModifierInspector
       ref={headingRef}
       badge="Word"
       title={word.text}
-      subtitle={`${trackId} · index ${wordIndex}`}
+      subtitle={correctionFirst ? undefined : `${trackId} · index ${wordIndex}`}
+      className={
+        correctionFirst ? "modifier-inspector--correct-sheet" : undefined
+      }
+      lead={
+        correctionFirst ? (
+          <>
+            <DefinitionList>{correctionFields}</DefinitionList>
+            <InlineError message={errorAction === "fix" ? error : null} />
+          </>
+        ) : undefined
+      }
       embedded={embedded}
       primaryActions={
         editable
@@ -444,7 +507,7 @@ export function TranscriptWordInspector({
             ]
           : undefined
       }
-      error={error}
+      error={correctionFirst && errorAction === "fix" ? null : error}
       footer={
         <InspectorSeekFooter
           seekSec={seekSec}
@@ -455,6 +518,9 @@ export function TranscriptWordInspector({
         />
       }
     >
+      {correctionFirst ? (
+        <p className="modifier-subtitle">{`${trackId} · index ${wordIndex}`}</p>
+      ) : null}
       <DefinitionList>
         <DefItem label="Confidence">
           {word.confidence != null
@@ -467,52 +533,7 @@ export function TranscriptWordInspector({
           {locked ? " (locked)" : ""}
         </DefItem>
         <DefItem label="Ignored">{ignored ? "yes" : "no"}</DefItem>
-        {editable ? (
-          <>
-            <DefItem label="Text">
-              <FieldRow>
-                <input
-                  type="text"
-                  value={text}
-                  disabled={busy}
-                  aria-label="Corrected text"
-                  onChange={(e) => {
-                    touchedRef.current = true;
-                    setText(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void applyText();
-                    }
-                  }}
-                />
-              </FieldRow>
-            </DefItem>
-            <DefItem label="End index">
-              <FieldRow>
-                <input
-                  type="number"
-                  min={wordIndex}
-                  value={endIndexStr}
-                  disabled={busy}
-                  aria-label="End word index"
-                  aria-describedby={
-                    editable && spanUnverified ? hintId : undefined
-                  }
-                  onChange={(e) => changeEndIndex(e.target.value)}
-                  title="Same as start for a single-word correct; higher for phrase"
-                />
-                <Button
-                  disabledReason={busy ? BUSY_REASON : undefined}
-                  onClick={() => void applyText()}
-                >
-                  Apply
-                </Button>
-              </FieldRow>
-            </DefItem>
-          </>
-        ) : null}
+        {correctionFirst ? null : correctionFields}
       </DefinitionList>
       {editable && (
         <TranscriptWordbar

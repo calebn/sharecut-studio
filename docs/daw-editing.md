@@ -212,6 +212,15 @@ Shipped:
 
 Word actions retain the exact source identity `(track_id, source_id, word_index)` through selection, presence, correction, ignore/restore and source-scoped timing. Two takes on the same lane may both have word zero at source time zero; actions on one take affect only that transcript. See [GUI integration](gui-integration.md) for the API identity and combined-projection lifecycle.
 
+On a phone or tablet, a one-word **Correct** sheet leads with **Corrected text**,
+**End index**, and **Apply**. The initial 320×568 phone sheet fits both the text
+field and Apply without scrolling. Suppress, Ignore, the full track and word
+index, metadata, timing, and Play remain below the form. Range actions keep
+their Correct-mode refusal reasons below the word inspector. **Select** keeps
+range actions first. Correction errors appear beside the form; other word-action
+errors stay with the inspector's secondary controls. The rail and docked editor
+keep their existing presentation.
+
 In **Select** mode, Shift-click extends from the original word on the same track, including backward selections. Shift-click on another track selects only that word and starts a new range there. A mouse drag stays on its starting track, ignores words on other tracks, and resumes extending when the pointer returns.
 
 - **Keyboard word actions:** in Navigate mode, Enter on a focused timed word seeks

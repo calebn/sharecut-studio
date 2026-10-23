@@ -775,6 +775,34 @@ describe("TranscriptWordInspector", () => {
     expect(correctTranscriptWord).not.toHaveBeenCalled();
   });
 
+  it("keeps a failed secondary word action after its controls in the correction sheet", async () => {
+    vi.mocked(setTranscriptWordSuppressed).mockRejectedValueOnce(
+      new Error("Could not suppress this word"),
+    );
+    render(
+      <TranscriptWordInspector
+        trackId="host"
+        wordIndex={0}
+        presentation="correct-sheet"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Apply$/ }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Text cannot be empty");
+    const suppress = screen.getByRole("button", { name: "Suppress" });
+    fireEvent.click(suppress);
+    await act(async () => {});
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Could not suppress this word");
+    expect(
+      suppress.compareDocumentPosition(alert) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
   it("sends a failure that settles after the selection moved to the late-failure banner, not the next word (#634)", async () => {
     let reject!: (e: Error) => void;
     vi.mocked(setTranscriptWordSuppressed).mockImplementationOnce(

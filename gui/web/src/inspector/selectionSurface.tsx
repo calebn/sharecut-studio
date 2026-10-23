@@ -6,7 +6,7 @@ import type { LayoutMode, MobileMode, MoreDestination } from "../state/types";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeActions } from "../timeline/RangeActions";
 import type { ProjectView, Selection } from "../types/project";
-import { OneWordEditor } from "./OneWordEditor";
+import { TranscriptRangeBody } from "./OneWordEditor";
 import {
   type PeekTarget,
   peekChapter,
@@ -131,10 +131,7 @@ export const SELECTION_SURFACES: {
     related: relatedCopyWord,
     more: noMore,
     body: (sel, { placement }) => (
-      <>
-        {placement === "sheet" ? <RangeActions sheet /> : null}
-        <OneWordEditor selection={sel} />
-      </>
+      <TranscriptRangeBody selection={sel} placement={placement} />
     ),
   },
   clip: {
