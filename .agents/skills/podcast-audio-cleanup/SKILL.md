@@ -26,9 +26,9 @@ description: >-
 - `check_loudness_tool` — measure LUFS on export/premix; for tracked project audio, its
   `balance` map also reports per-dialogue-track measurement freshness
 
-Full mastering loudness measurements select the first audio stream and return no
-measurement when FFmpeg fails or the input has no audio. Use a single-audio premix
-for mastering because the render retains its existing stream selection.
+Full mastering loudness measurements return no measurement when their FFmpeg
+process fails or the input has no audio. Successful audio measurements retain
+their values and automatic audio stream selection.
 
 **Analyze before/after (heuristics-first)**
 - `analyze_cleanup_tool` — full report: gate risk, low-audibility words, bleed flags, fade recommendations, reconciliation staleness, and per-track `health` (astats + hum, see below)
