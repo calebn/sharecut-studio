@@ -159,6 +159,8 @@ class Job:
     cancel_requested: bool = False
     download: dict[str, Any] | None = None
     failure: dict[str, Any] | None = None
+    error_code: str | None = None
+    error_model: dict[str, Any] | None = None
     failed_components: list[str] = field(default_factory=list)
     steps: list[StepTiming] = field(default_factory=list)
     result_step: str | None = None
@@ -234,6 +236,8 @@ class Job:
                 "total": self.total,
                 "message": self.message,
                 "error": self.error,
+                "error_code": self.error_code,
+                "error_model": dict(self.error_model) if self.error_model else None,
                 "result": dict(self.result) if self.result else None,
                 "last_progress_at": self.last_progress_at,
                 "elapsed_sec": round(elapsed, 2),
