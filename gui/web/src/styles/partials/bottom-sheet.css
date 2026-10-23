@@ -105,10 +105,10 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   height: auto;
 }
 
-/* A refused Approve adds its message and recovery form to the strip. Cap it at the half
-   sheet's lane clearance (not its 50% limit) so the transport, ruler, marker lane and one lane stay in view; the sheet
-   body scrolls (#2158). */
-.bottom-sheet--compact.bottom-sheet--peek {
+/* A refused Approve adds its form to the strip. Cap that strip at the half sheet's lane
+   clearance (not its 50% limit) so the transport, ruler, marker lane and one lane stay in
+   view; the sheet body scrolls (#2158). Other peek strips keep their content height. */
+.bottom-sheet--compact.bottom-sheet--peek:has(.transcript-refine-recovery) {
   max-block-size: max(100% - 13.625rem, min(100%, 9rem));
 }
 
