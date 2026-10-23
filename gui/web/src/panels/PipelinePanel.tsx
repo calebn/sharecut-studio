@@ -249,10 +249,6 @@ function forcedAlignmentRequested(cfg: PipelineConfigResponse): boolean {
   return (alignment.requested ?? alignment.enabled) === true;
 }
 
-function transcribeStepEnabled(cfg: PipelineConfigResponse): boolean {
-  return cfg.enabled_steps.includes(TRANSCRIBE_STEP);
-}
-
 function pipelineRunOptions(
   cfg: PipelineConfigResponse,
   selection: { fromStep: string; onlyStep: string },
@@ -275,6 +271,26 @@ function pipelineRunOptions(
     retimeWords: mode === "retime",
     overwriteEdited: fromTranscribe && overwriteEdited,
   };
+}
+
+/** Whether this run reaches transcription: the same From / Only / enabled-steps rule the server applies. */
+function runSelectsTranscribe(
+  cfg: PipelineConfigResponse,
+  selection: { fromStep: string; onlyStep: string },
+  mode: PipelineRunMode,
+): boolean {
+  const options = pipelineRunOptions(cfg, selection, mode, false);
+  const enabled = options.enabledSteps ?? [];
+  if (options.onlyStep) {
+    return (
+      options.onlyStep === TRANSCRIBE_STEP && enabled.includes(TRANSCRIBE_STEP)
+    );
+  }
+  return (
+    enabled.includes(TRANSCRIBE_STEP) &&
+    cfg.step_names.indexOf(TRANSCRIBE_STEP) >=
+      Math.max(0, cfg.step_names.indexOf(options.fromStep ?? ""))
+  );
 }
 
 const PIPELINE_LOADING_REASON = "Wait for the pipeline settings to load.";
@@ -696,7 +712,8 @@ export function PipelinePanel() {
     const needs: ModelNeed[] = [];
     // Re-time words needs Whisper too: its run still transcribes any dialogue track that
     // has no stored transcript yet (only reused transcripts are re-timed from the ASR cache).
-    if (transcribeStepEnabled(cfg) || mode !== "run") {
+    const transcribes = runSelectsTranscribe(cfg, { fromStep, onlyStep }, mode);
+    if (transcribes) {
       const modelId = whisperModelId(cfg);
       needs.push({
         id: "whisper",
@@ -704,7 +721,7 @@ export function PipelinePanel() {
         installed: whisperModelCached(cfg, modelId),
       });
     }
-    if (mode === "retime" || forcedAlignmentRequested(cfg)) {
+    if (transcribes && (mode === "retime" || forcedAlignmentRequested(cfg))) {
       needs.push({ id: WORD_ALIGNER_COMPONENT });
     }
     setError(null);

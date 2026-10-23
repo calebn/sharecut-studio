@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,8 +10,9 @@ import {
   modelsApi,
   registryRows,
 } from "../../test/renderWithModels";
+import type { DownloadOutcome } from "../types";
 import { ModelsContext } from "../useModels";
-import { ModelGateDialog, ModelGatePanel } from "./ModelGate";
+import { ModelGateDialog, ModelGateHint, ModelGatePanel } from "./ModelGate";
 import { useModelGate } from "./useModelGate";
 
 const JOB = {
@@ -40,6 +41,7 @@ function Trigger({ panel = false }: { panel?: boolean }) {
         Open
       </button>
       {panel ? <ModelGatePanel gate={gate} /> : <ModelGateDialog gate={gate} />}
+      <ModelGateHint gate={gate} actionLabel="Open" />
     </>
   );
 }
@@ -136,5 +138,67 @@ describe("ModelGate", () => {
         /stored on this computer/,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("announces the decline hint as a status", async () => {
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Not now" }),
+    );
+
+    const hint = await screen.findByText(/will ask again/);
+    expect(hint).toHaveAttribute("role", "status");
+    expect(hint).toHaveTextContent("Word aligner is not downloaded.");
+  });
+
+  it("moves focus to Cancel download, then back to Retry when the download fails", async () => {
+    let finish: (outcome: DownloadOutcome) => void = () => undefined;
+    const download = vi.fn(
+      () =>
+        new Promise<DownloadOutcome>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    mount({ download });
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    const accept = await screen.findByRole("button", { name: "Download" });
+    await waitFor(() => expect(accept).toHaveFocus());
+    await userEvent.click(accept);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Cancel download" }),
+      ).toHaveFocus(),
+    );
+
+    act(() => finish({ kind: "failed", failed: ["word-aligner"] }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus(),
+    );
+  });
+
+  it("gives an embedded panel the same focus moves", async () => {
+    let finish: (outcome: DownloadOutcome) => void = () => undefined;
+    const download = vi.fn(
+      () =>
+        new Promise<DownloadOutcome>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    mount({ download }, true);
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Download" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Cancel download" }),
+      ).toHaveFocus(),
+    );
+
+    act(() => finish({ kind: "cancelled" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Download" })).toHaveFocus(),
+    );
   });
 });

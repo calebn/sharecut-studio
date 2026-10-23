@@ -1,4 +1,4 @@
-import { type RefObject, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { Button, Dialog } from "../../ui";
 import { capitalize } from "../format";
 import { ModelRow } from "../ModelRow";
@@ -36,23 +36,38 @@ export function ModelGateFooter({
   primaryRef,
 }: Props & { primaryRef?: RefObject<HTMLButtonElement | null> }) {
   const { prompt } = gate;
+  const ownPrimary = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const primary = primaryRef ?? ownPrimary;
+  const phase = prompt?.phase;
+  const previous = useRef(phase);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = phase;
+    if (phase === "downloading" && before !== "downloading") {
+      cancelRef.current?.focus();
+    } else if (before === "downloading" && phase !== undefined) {
+      primary.current?.focus();
+    }
+  }, [phase, primary]);
   if (!prompt) {
     return null;
   }
-  const { phase } = prompt;
   return (
     <div className="model-gate-actions">
       {phase === "downloading" ? (
-        <Button onClick={gate.cancelDownload}>Cancel download</Button>
+        <Button ref={cancelRef} onClick={gate.cancelDownload}>
+          Cancel download
+        </Button>
       ) : (
         <>
           <Button
-            ref={primaryRef}
+            ref={primary}
             variant="primary"
             disabledReason={phase === "ask" ? prompt.blockedReason : undefined}
             onClick={gate.accept}
           >
-            {PRIMARY_LABEL[phase]}
+            {PRIMARY_LABEL[prompt.phase]}
           </Button>
           <Button onClick={gate.decline}>Not now</Button>
           {phase === "ask" ? (

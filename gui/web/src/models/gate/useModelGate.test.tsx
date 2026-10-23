@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -452,5 +452,64 @@ describe("useModelGate", () => {
     await waitFor(() =>
       expect(settled).toMatchObject({ kind: "declined", id: "word-aligner" }),
     );
+  });
+
+  it("clears the decline hint once the declined model installs", async () => {
+    const view = mount(ok(), [{ id: "word-aligner" }], fixture());
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Not now" }),
+    );
+    expect(await screen.findByText(/will ask again/)).toBeInTheDocument();
+
+    view.swap(fixture(["word-aligner"]));
+    await waitFor(() =>
+      expect(screen.queryByText(/will ask again/)).toBeNull(),
+    );
+  });
+
+  it("does not run the action when the gate was reset during the download", async () => {
+    let finish: (outcome: DownloadOutcome) => void = () => undefined;
+    const download = vi.fn(
+      () =>
+        new Promise<DownloadOutcome>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const action = ok();
+    function Resettable() {
+      const gate = useModelGate();
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => void gate.run(action, [{ id: "word-aligner" }])}
+          >
+            Go
+          </button>
+          <button type="button" onClick={gate.reset}>
+            Reset
+          </button>
+          <ModelGateDialog gate={gate} />
+        </>
+      );
+    }
+    render(
+      <ModelsContext.Provider
+        value={modelsApi({ status: modelStatus(rows()), download })}
+      >
+        <Resettable />
+      </ModelsContext.Provider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Download" }),
+    );
+    await screen.findByRole("button", { name: "Cancel download" });
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await act(async () => finish({ kind: "ok" }));
+    expect(action).not.toHaveBeenCalled();
   });
 });
