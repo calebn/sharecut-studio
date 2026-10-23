@@ -1,0 +1,131 @@
+{
+  "issue": 2166,
+  "pull_request": 2189,
+  "baseline": "5e9f3894f9d76ce385074ab8a1a8c6e30d1bf3d1",
+  "head": "3f4435da6cbd6f000678e93662b3d58a8227427b",
+  "integrated_base": "d2fca8c9b07efebf474324db63b20c1e537f539c",
+  "surface": "Actual local ShareCut Studio, official Playwright Chromium",
+  "fixture": "tests/fixtures/lab_tighten/caleb_um_pause",
+  "sequence": "Fresh 25-second pipeline bundle, GUI Find 4 filler hits, Apply 4, GUI Export; rerun GUI Export at fixed head on same saved edited project",
+  "baseline_reported_files": [
+    "lab-2166.wav",
+    "lab-2166.mp3"
+  ],
+  "head_reported_files": [
+    "lab-2166.wav",
+    "lab-2166.mp3",
+    "lab-2166.md",
+    "lab-2166.srt"
+  ],
+  "edited_timeline_duration": 22.96351875,
+  "audio": {
+    "wav": {
+      "sha256_baseline": "50fb638e4d7ba670adaee7ced0237c1b1c68dbb6f534d9a02acdb208bd722144",
+      "sha256_head": "50fb638e4d7ba670adaee7ced0237c1b1c68dbb6f534d9a02acdb208bd722144",
+      "baseline_probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "pcm_s16le",
+            "sample_rate": "48000",
+            "channels": 2,
+            "bit_rate": "1536000"
+          }
+        ],
+        "format": {
+          "duration": "22.963125",
+          "tags": {
+            "encoder": "Lavf63.1.102"
+          }
+        }
+      },
+      "head_probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "pcm_s16le",
+            "sample_rate": "48000",
+            "channels": 2,
+            "bit_rate": "1536000"
+          }
+        ],
+        "format": {
+          "duration": "22.963125",
+          "tags": {
+            "encoder": "Lavf63.1.102"
+          }
+        }
+      }
+    },
+    "mp3": {
+      "sha256_baseline": "088e513c4aa77c29298b6fdf75683b1be82fe9429fe6837727af159f2b901261",
+      "sha256_head": "088e513c4aa77c29298b6fdf75683b1be82fe9429fe6837727af159f2b901261",
+      "baseline_probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "mp3",
+            "sample_rate": "48000",
+            "channels": 2,
+            "bit_rate": "128000"
+          }
+        ],
+        "format": {
+          "duration": "22.963125",
+          "tags": {
+            "album": "lab-2166",
+            "title": "lab-2166",
+            "encoder": "Lavf63.1.102"
+          }
+        }
+      },
+      "head_probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "mp3",
+            "sample_rate": "48000",
+            "channels": 2,
+            "bit_rate": "128000"
+          }
+        ],
+        "format": {
+          "duration": "22.963125",
+          "tags": {
+            "album": "lab-2166",
+            "title": "lab-2166",
+            "encoder": "Lavf63.1.102"
+          }
+        }
+      }
+    }
+  },
+  "raw_sha256_unchanged": {
+    "audra.flac": "16690528ba572bfe787bfa9890d0044fa0a3ace11feb6a7e345e7d85025aa0d1",
+    "caleb.flac": "80b5a968b86d16ee2cc71f0a74fd18ab8acfe4d090cbf27b2ef1cb3e2b3347af",
+    "lana.flac": "1fdd8ddb5ba682af488bceec6baab174a633f57fc0e5dac7fc99e95fd75c1bb3"
+  },
+  "current_srt_exact": true,
+  "current_markdown_exact": true,
+  "removed_filler_absent": true,
+  "job_status": "ok",
+  "limits": [
+    "Exact baseline/head audio bytes and metadata parity; no new listening approval claimed.",
+    "Initial baseline pipeline reconciliation QC was stale; no overall QC pass claimed.",
+    "Final file replacements are sequential, without cross-file crash atomicity."
+  ],
+  "screenshots": {
+    "3f4435-export-final.png": {
+      "sha256": "ae18d09f82f67e06ae53f8c2424540365aee3619c5430c33b71318a2ccc23b5e",
+      "bytes": 133782
+    },
+    "main-export-final.png": {
+      "sha256": "eb0c0faa8e3193989cf3718594bbdb56ed124296fb0672eaf5401d12f2c18bf6",
+      "bytes": 127865
+    }
+  }
+}
