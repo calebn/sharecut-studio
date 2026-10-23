@@ -271,27 +271,26 @@ function ExportDialogFooter({
 }: ExportDialogViewProps & {
   downloadRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const cancelNote = useDisabledReasonNote(
-    stage.kind === "running" ? stage.cancelReason : null,
-  );
+  const footerReason =
+    stage.kind === "configure"
+      ? (stage.blocker ??
+        (stage.settings == null && stage.settingsError == null
+          ? "Wait for the export settings to load."
+          : null))
+      : stage.kind === "running"
+        ? stage.cancelReason
+        : null;
+  const footerNote = useDisabledReasonNote(footerReason);
   return (
     <div className="bounce-dialog-footer">
-      {stage.kind === "configure" && stage.blocker ? (
-        <p className="export-dialog-note">{stage.blocker}</p>
-      ) : null}
-      {cancelNote.note}
+      {footerNote.note}
       <div className="bounce-dialog-actions">
         {stage.kind === "configure" ? (
           <Button
             variant="primary"
             type="button"
-            disabledReason={
-              stage.blocker != null
-                ? stage.blocker
-                : stage.settings == null && stage.settingsError == null
-                  ? "Wait for the export settings to load."
-                  : undefined
-            }
+            disabledReason={footerReason ?? undefined}
+            {...footerNote.describedBy}
             onClick={onExport}
           >
             Export
@@ -301,7 +300,7 @@ function ExportDialogFooter({
           <Button
             type="button"
             disabledReason={stage.cancelReason ?? undefined}
-            {...cancelNote.describedBy}
+            {...footerNote.describedBy}
             onClick={onCancelExport}
           >
             {stage.cancelling ? "Cancelling…" : "Cancel export"}

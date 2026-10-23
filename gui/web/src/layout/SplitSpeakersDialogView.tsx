@@ -164,6 +164,13 @@ export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
   );
 }
 
+function shownSpeakerCount(raw: string): number {
+  const count = Number(raw);
+  return Number.isInteger(count)
+    ? Math.min(Math.max(count, MIN_SPLIT_SPEAKERS), MAX_SPLIT_SPEAKERS)
+    : MIN_SPLIT_SPEAKERS;
+}
+
 function SplitSpeakersForm({
   stage,
   trackLabel,
@@ -184,13 +191,27 @@ function SplitSpeakersForm({
     speakerModel?.row ?? null,
     speakerModel?.busy ?? false,
   );
+  const configure = stage.kind === "configure" ? stage : null;
+  const shown = configure ? shownSpeakerCount(configure.count) : 0;
+  const sampleNote = useDisabledReasonNote(
+    configure &&
+      configure.countError == null &&
+      Array.from({ length: shown }, (_, i) => configure.samples[i]).some(
+        (sample) => sample == null,
+      )
+      ? configure.sampleReason
+      : null,
+  );
+  const downloadNote = useDisabledReasonNote(
+    configure?.speakerReadiness === "unavailable" &&
+      onDownloadSpeakerModel &&
+      !speakerDownload.working
+      ? speakerDownload.blockedReason
+      : null,
+  );
   if (stage.kind !== "configure") {
     return null;
   }
-  const count = Number(stage.count);
-  const shown = Number.isInteger(count)
-    ? Math.min(Math.max(count, MIN_SPLIT_SPEAKERS), MAX_SPLIT_SPEAKERS)
-    : MIN_SPLIT_SPEAKERS;
   return (
     <>
       {stage.speakerReadiness === "unavailable" ? (
@@ -214,6 +235,7 @@ function SplitSpeakersForm({
                     : speakerDownload.blockedReason
                 }
                 aria-busy={speakerDownload.working || undefined}
+                {...downloadNote.describedBy}
                 onClick={onDownloadSpeakerModel}
               >
                 {speakerDownload.working
@@ -231,6 +253,7 @@ function SplitSpeakersForm({
           ) : null}
         </p>
       ) : null}
+      {downloadNote.note}
       {stage.speakerReadiness === "checking" ? (
         <p className="export-dialog-note" role="status">
           Checking speaker recognition on this computer…
@@ -279,6 +302,7 @@ function SplitSpeakersForm({
             If tracks come out wrong, select a few seconds of one person talking
             on the timeline, then choose Use selection under that speaker.
           </p>
+          {sampleNote.note}
           <div className="split-speakers-name-grid">
             {Array.from({ length: shown }, (_, i) => {
               const sample = stage.samples[i] ?? null;
@@ -323,6 +347,7 @@ function SplitSpeakersForm({
                         type="button"
                         aria-label={`Use selection as ${label}'s voice`}
                         disabledReason={stage.sampleReason ?? undefined}
+                        {...sampleNote.describedBy}
                         onClick={() => onMarkSample(i)}
                       >
                         Use selection
@@ -477,24 +502,25 @@ function SplitSpeakersFooter({
 }: SplitSpeakersDialogViewProps & {
   downloadRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const cancelNote = useDisabledReasonNote(
-    stage.kind === "running" ? stage.cancelReason : null,
-  );
+  const footerReason =
+    stage.kind === "configure"
+      ? stage.countError == null && stage.speakerReadiness === "available"
+        ? stage.blocker
+        : null
+      : stage.kind === "running"
+        ? stage.cancelReason
+        : null;
+  const footerNote = useDisabledReasonNote(footerReason);
   return (
     <div className="bounce-dialog-footer">
-      {stage.kind === "configure" &&
-      stage.blocker &&
-      !stage.countError &&
-      stage.speakerReadiness === "available" ? (
-        <p className="export-dialog-note">{stage.blocker}</p>
-      ) : null}
-      {cancelNote.note}
+      {footerNote.note}
       <div className="bounce-dialog-actions split-speakers-actions">
         {stage.kind === "configure" ? (
           <Button
             variant="primary"
             type="button"
             disabledReason={stage.blocker ?? undefined}
+            {...footerNote.describedBy}
             onClick={onSplit}
           >
             Split speakers
@@ -504,7 +530,7 @@ function SplitSpeakersFooter({
           <Button
             type="button"
             disabledReason={stage.cancelReason ?? undefined}
-            {...cancelNote.describedBy}
+            {...footerNote.describedBy}
             onClick={onCancelSplit}
           >
             {stage.cancelling ? "Cancelling…" : "Cancel split"}
