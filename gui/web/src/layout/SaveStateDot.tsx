@@ -70,7 +70,7 @@ export function SaveStateDot() {
           : {
               kind: "button",
               activate: () => {
-                if (projectPath && latest?.dismissed && showsDismissedOutcome) {
+                if (projectPath && latest && showsDismissedOutcome) {
                   selectRecoveryOutcome(projectPath, latest);
                 }
                 focusAttention();
