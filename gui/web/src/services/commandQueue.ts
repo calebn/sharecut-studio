@@ -185,7 +185,6 @@ async function clearBlockingOutcomes(projectPath: string): Promise<void> {
 const HISTORY_UNKNOWN_REASON =
   "Undo or Redo may have been applied. Check History before trying again.";
 
-/** Settle a history command the server answered with a failure, and return what to throw. */
 async function settleHistoryFailure(
   projectPath: string,
   cmd: QueuedCommand,
@@ -235,12 +234,7 @@ export async function reconcileCommandBeforeReplay(
   let outcome: OfflineConflict | null = null;
   if (isHistoryCommand(command.type)) {
     outcome =
-      volatile ??
-      commandOutcome(
-        command,
-        "unknown",
-        "Undo or Redo may have been applied. Check History before trying again.",
-      );
+      volatile ?? commandOutcome(command, "unknown", HISTORY_UNKNOWN_REASON);
   } else if (volatile?.kind === "refused") {
     outcome = volatile;
   }
@@ -517,16 +511,10 @@ async function submitLiveHistoryIntent(
         await settleCommandOutcome(
           projectPath,
           cmd,
-          commandOutcome(
-            cmd,
-            "unknown",
-            "Undo or Redo may have been applied. Check History before trying again.",
-          ),
+          commandOutcome(cmd, "unknown", HISTORY_UNKNOWN_REASON),
           true,
         );
-        throw new Error(
-          "Undo or Redo may have been applied. Check History before trying again.",
-        );
+        throw new Error(HISTORY_UNKNOWN_REASON);
       }
       if (!reply.ok) {
         throw await settleHistoryFailure(projectPath, cmd, reply);
@@ -578,16 +566,10 @@ async function submitLiveHistoryIntent(
       await settleCommandOutcome(
         projectPath,
         cmd,
-        commandOutcome(
-          cmd,
-          "unknown",
-          "Undo or Redo may have been applied. Check History before trying again.",
-        ),
+        commandOutcome(cmd, "unknown", HISTORY_UNKNOWN_REASON),
         true,
       );
-      throw new Error(
-        "Undo or Redo may have been applied. Check History before trying again.",
-      );
+      throw new Error(HISTORY_UNKNOWN_REASON);
     }
     if (!reply.ok) {
       throw await settleHistoryFailure(projectPath, cmd, reply);
