@@ -22,11 +22,11 @@ import numpy as np
 
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.util.dsp import (
-    autocorr_peak,
     bool_runs,
     bridge_short_dips,
     frame_rms_db,
     valley_basins,
+    voicing_pitch_probes,
     voicing_probes,
 )
 
@@ -89,23 +89,6 @@ def audible_runs(
     return [(t0 + i * hop / sr, t0 + ((j - 1) * hop + frame) / sr) for i, j in bool_runs(active)]
 
 
-def _quiet_speech_f0_hz(samples: np.ndarray, sample_rate: int, *, interior: bool) -> list[float]:
-    frame = max(1, round(sample_rate * PROBE_SEC))
-    hop = max(1, round(sample_rate * HOP_SEC))
-    f0_hz: list[float] = []
-    for offset in range(0, samples.size - frame + 1, hop):
-        peak = autocorr_peak(
-            samples[offset : offset + frame],
-            sample_rate,
-            fmin=_F0_MIN_HZ,
-            fmax=_F0_MAX_HZ,
-            interior=interior,
-        )
-        if peak is not None and peak[1] >= _QUIET_VOICED_PEAK:
-            f0_hz.append(peak[0])
-    return f0_hz
-
-
 def carries_quiet_speech_pitch(
     samples: np.ndarray, sample_rate: int, *, interior: bool = True
 ) -> bool | None:
@@ -114,7 +97,7 @@ def carries_quiet_speech_pitch(
     Room hum can flicker weak autocorrelation peaks with scattered f0; voiced remarks keep a
     tight f0 band. ``None`` when the span is too short to score three probes.
     """
-    probes = voicing_probes(
+    f0_all, probes = voicing_pitch_probes(
         samples,
         sample_rate,
         probe_sec=PROBE_SEC,
@@ -123,7 +106,8 @@ def carries_quiet_speech_pitch(
         fmax=_F0_MAX_HZ,
         interior=interior,
     )
-    f0_hz = _quiet_speech_f0_hz(samples, sample_rate, interior=interior)
+    full_probes = samples.size >= max(1, round(sample_rate * PROBE_SEC))
+    f0_hz = f0_all[probes >= _QUIET_VOICED_PEAK] if full_probes else f0_all[:0]
     if len(f0_hz) < _MIN_VOICED_FRAMES:
         return False if probes.size >= _MIN_VOICED_FRAMES else None
     median = float(np.median(f0_hz))
