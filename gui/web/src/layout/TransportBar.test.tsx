@@ -227,6 +227,14 @@ describe("TransportBar collapsed", () => {
         name: /Export deliverables/,
       }),
     ).not.toHaveAttribute("aria-disabled", "true");
+    const menu = within(screen.getByRole("menu"));
+    expect(menu.queryByRole("group", { name: "Zoom" })).toBeNull();
+    expect(menu.queryByRole("group", { name: "Selection" })).toBeNull();
+    expect(menu.queryByRole("menuitem", { name: /Remove track/ })).toBeNull();
+    expect(menu.queryByRole("menuitem", { name: /Move track/ })).toBeNull();
+    expect(
+      screen.getByRole("menu").querySelectorAll(".ui-menu-shortcut"),
+    ).toHaveLength(0);
     await expectNoA11yViolations(container);
   });
 
