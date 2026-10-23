@@ -76,8 +76,8 @@ async function post(user: ReturnType<typeof userEvent.setup>) {
 }
 
 function lastAuthor(): string {
-  const call = createComment.mock.calls.at(-1);
-  return (call?.[1] as { author: string }).author;
+  const [, input] = createComment.mock.calls.at(-1) ?? [];
+  return (input as { author: string }).author;
 }
 
 describe("phone share link, a guest names themselves", () => {
