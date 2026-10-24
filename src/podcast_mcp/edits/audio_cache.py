@@ -26,6 +26,7 @@ from podcast_mcp.util.dsp import (
     BandShape,
     frame_band_filtered_db,
 )
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import track_audio_path
 
 log = logging.getLogger(__name__)
@@ -217,15 +218,28 @@ def build_track_audio_caches(
     so a fixture/test with a nonexistent media path degrades gracefully instead
     of raising during cache construction.
     """
-    caches: dict[str, TrackAudioCache] = {}
+    paths: dict[str, Path] = {}
     for tid in track_ids:
-        if tid in caches:
+        if tid in paths:
             continue
         try:
-            path = track_audio_path(project, tid)
-            cache = scoped_by_file("track_audio_cache", path, None, partial(decode_track, path))
+            paths[tid] = track_audio_path(project, tid)
         except Exception as exc:
             log.debug("audio cache skipped for track %s: %s", tid, exc)
+    distinct = list(dict.fromkeys(paths.values()))
+    decoded = dict(zip(distinct, run_parallel(distinct, _try_recording_cache), strict=True))
+    caches: dict[str, TrackAudioCache] = {}
+    for tid, path in paths.items():
+        cache = decoded[path]
+        if isinstance(cache, Exception):
+            log.debug("audio cache skipped for track %s: %s", tid, cache)
             continue
         caches[tid] = cache
     return caches
+
+
+def _try_recording_cache(path: Path) -> TrackAudioCache | Exception:
+    try:
+        return recording_audio_cache(path)
+    except Exception as exc:
+        return exc
