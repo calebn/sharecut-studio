@@ -247,6 +247,18 @@ describe("toastDockBottomPx on a window too short for the fields (#2221)", () =>
     ).toBe(300 - 56);
   });
 
+  it("picks the spot that covers least when it is neither the resting spot nor the first listed", () => {
+    expect(
+      toastDockBottomPx({
+        ...short,
+        protectPx: [
+          { top: 0, bottom: 100 },
+          { top: 120, bottom: 250 },
+        ],
+      }),
+    ).toBe(300 - 164);
+  });
+
   it("never trades the field for the mode nav when nothing clears it", () => {
     const bottom = toastDockBottomPx({
       ...short,
@@ -359,7 +371,7 @@ describe("useToastDock", () => {
     expect(bottom * 16).toBe(window.innerHeight - 690 + 8);
   });
 
-  function mountRegion() {
+  function mountRegion(cardLeft = 64, cardRight = 326) {
     const region = document.createElement("div");
     const card = document.createElement("div");
     card.getBoundingClientRect = () =>
@@ -367,9 +379,9 @@ describe("useToastDock", () => {
         top: 0,
         bottom: 62,
         height: 62,
-        left: 64,
-        right: 326,
-        width: 262,
+        left: cardLeft,
+        right: cardRight,
+        width: cardRight - cardLeft,
       }) as DOMRect;
     region.append(card);
     document.body.append(region);
@@ -420,6 +432,15 @@ describe("useToastDock", () => {
     document.documentElement.dataset.shell = "tablet";
     const H = window.innerHeight;
     const { readBottom } = mountRegion();
+    box("status-bar", H - 28, H);
+    box("comment-compose", H - 84, H - 36, 300, 390);
+    expect(readBottom()).toBe(H - (H - 84) + 8);
+  });
+
+  it("still protects a composer when the card has no width yet (#2221)", () => {
+    document.documentElement.dataset.shell = "tablet";
+    const H = window.innerHeight;
+    const { readBottom } = mountRegion(0, 0);
     box("status-bar", H - 28, H);
     box("comment-compose", H - 84, H - 36, 300, 390);
     expect(readBottom()).toBe(H - (H - 84) + 8);

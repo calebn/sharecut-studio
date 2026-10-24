@@ -572,10 +572,17 @@ every field (the fields and the 62 px card do not fit between the top edge and t
 nav or status bar), the card goes flush with the top edge if that clears them, else to
 the spot above the mode nav or status bar that covers the least of them; that overlap
 lasts until the toast expires or is dismissed. Passive chrome is not
-protected: on a short phone the card can sit over the player card or the header **Menu**,
-and Play-row clearance is a best effort (it can give way to a field). Proven in Chromium
-with a hit-test oracle at 844x390, 390x340 and 320x300 in
-`e2e/comment-toast-clearance.spec.ts`; the real iOS software keyboard is unproven.
+protected: on a short phone the card can sit over the player card. The header **Menu**
+is a tap target, not passive chrome, and at a very short viewport the toast can still
+cover it (a stated limit): taps on it are absorbed until the toast expires. The flush-top
+fallback can also cover the transport and status row on a very short phone, because the
+code checks the rest chrome below the card, not the ceiling above it. Play-row clearance
+is a best effort (it can give way to a field). The x filter reads the card's live width
+each frame and has no hysteresis (a known limit), so a field edge inside the range the
+card's width moves through can flip the dock between frames. The hit-test oracle (an
+`elementFromPoint` check) runs at 844x390, 390x340 and 320x300 in
+`e2e/comment-toast-clearance.spec.ts`, and those cells guard the fields and the Play row
+only; the no-spot fallback is covered by unit tests (`feedback/toastDock.test.ts`). The real iOS software keyboard is unproven.
 
 Compact half and full detents keep the same outer height when feedback appears.
 The shared body scroller exposes feedback without taking more timeline room.

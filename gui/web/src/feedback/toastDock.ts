@@ -248,7 +248,9 @@ export function useToastDock(
         gapPx: gapRem * rootPx,
         ...phoneOnly,
         protectPx: visibleExtents(PROTECT_SELECTORS).filter(
-          (field) => field.left < toast.right && field.right > toast.left,
+          (field) =>
+            toast.width <= 0 ||
+            (field.left < toast.right && field.right > toast.left),
         ),
       });
       const value = `${bottomPx / rootPx}rem`;
