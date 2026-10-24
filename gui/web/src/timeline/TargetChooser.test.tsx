@@ -52,6 +52,7 @@ beforeEach(() => {
   router = {
     dispose: vi.fn(),
     defers: vi.fn(() => false),
+    claimsClick: vi.fn(() => false),
     longPress: vi.fn(),
     choose: vi.fn(),
     nextPage: vi.fn(),

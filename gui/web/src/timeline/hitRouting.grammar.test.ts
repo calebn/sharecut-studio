@@ -341,6 +341,55 @@ describe("tap on a surface near an edit mark", () => {
     },
   );
 
+  const nativeClick = (el: Element, x: number, y: number) =>
+    el.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+      }),
+    );
+
+  it("claims the browser's own click on the surface after a tap sent to a mark, once", () => {
+    const el = lane();
+    mark();
+    tap(el, 228, 104);
+    vi.runAllTimers();
+    const claims: boolean[] = [];
+    el.addEventListener("click", (e) => claims.push(router.claimsClick(e)));
+    nativeClick(el, 228, 104);
+    nativeClick(el, 228, 104);
+
+    expect(claims).toEqual([true, false]);
+    expect(marks("join").at(-1)).toBe("join:click@228,104");
+  });
+
+  it("does not claim a click after a tap that stayed on its own target", () => {
+    const el = lane();
+    const claims: boolean[] = [];
+    el.addEventListener("click", (e) => claims.push(router.claimsClick(e)));
+    tap(el, 600, 104);
+    vi.runAllTimers();
+    nativeClick(el, 600, 104);
+
+    expect(claims).toEqual([false, false]);
+  });
+
+  it("does not claim the replayed click or the next press's click", () => {
+    const el = lane();
+    const target = mark();
+    const claims: boolean[] = [];
+    target.addEventListener("click", (e) => claims.push(router.claimsClick(e)));
+    tap(el, 228, 104);
+    vi.runAllTimers();
+    tap(el, 600, 104);
+    nativeClick(el, 600, 104);
+
+    expect(claims).toEqual([false]);
+    expect(router.claimsClick(new MouseEvent("click"))).toBe(false);
+  });
+
   it("goes to the mark down to 44 px under its top", () => {
     const el = lane();
     mark();

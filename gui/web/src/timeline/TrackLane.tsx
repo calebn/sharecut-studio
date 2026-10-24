@@ -48,6 +48,7 @@ import {
   type PlacedChip,
   planLaneMarks,
 } from "./editMarkers";
+import { useHitRouter } from "./hitRouterContext";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { JoinEditor } from "./JoinEditor";
 import { laneColor } from "./laneColors";
@@ -157,6 +158,7 @@ export function TrackLaneView({
   prosody = null,
 }: TrackLaneProps) {
   const seekRef = useRef<HTMLDivElement>(null);
+  const router = useHitRouter();
   const {
     tracks,
     auditionMode,
@@ -348,7 +350,10 @@ export function TrackLaneView({
         className="lane-seek"
         role="presentation"
         {...HIT_SURFACE_PROPS}
-        onClick={(e) => onSeek(e.clientX, e.currentTarget)}
+        onClick={(e) => {
+          if (router?.claimsClick(e.nativeEvent)) return;
+          onSeek(e.clientX, e.currentTarget);
+        }}
       />
       <div
         className={`lane-inner${settling ? " is-settling" : ""}`}
