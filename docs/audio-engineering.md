@@ -50,8 +50,7 @@ What to look for:
 
 ## Objective health stats (`measure_astats`)
 
-Parses FFmpeg's `astats` filter on the file's first audio stream (`-map 0:a:0`), the one the render plays (#2131) (`Overall` values, falling back to the per-channel
-values for fields FFmpeg only prints once, e.g. `Crest factor`):
+Parses FFmpeg's `astats` filter on the file's first audio stream (`-map 0:a:0`), the one the render plays (#2131). Each field uses the last exact label across channel and `Overall` output. This retains fields FFmpeg prints only in a channel section, such as `Crest factor`.
 
 - `dc_offset` — should be near 0; a persistent nonzero offset points at interface/driver
   issues and eats into available headroom.
@@ -64,7 +63,8 @@ values for fields FFmpeg only prints once, e.g. `Crest factor`):
   hitting digital max. `clipping_indicated` therefore ignores `flat_factor` when the
   peak is under `CLIPPING_MIN_PEAK_DB` (-20 dBFS): a gated Zoom track peaking at
   -68.7 dBFS reported `flat_factor` 6.0 and is not clipped (#775). `peak_count` is how
-  many times the file hit *its own* peak, not 0 dBFS.
+  many times the file hit *its own* peak, not 0 dBFS. It reads the exact
+  `Peak count` field, never `Abs Peak count` (#2154).
 - `noise_floor_db` / `dynamic_range_db` — how much room is between noise and peaks.
   Analyze reads the health row's `voice_db` (the processed stem's voice level, below)
   too, and warns about an elevated noise floor when `noise_floor_db` sits within

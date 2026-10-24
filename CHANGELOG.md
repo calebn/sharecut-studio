@@ -10,6 +10,8 @@
 
 ### Fixes
 
+* Audio health `peak_count` now reads the exact `Peak count` field instead of `Abs Peak count` (#2154). Counts can change on untagged files. Other health measurements and the clipping policy are unchanged.
+
 * Full mastering loudness measurements now return no measurement after a failed FFmpeg run or when the file has no audio, including with progress callbacks. Forged Summary tag keys on video-only files no longer read as -16 LUFS (#2154). Successful audio measurements and their automatic stream selection are unchanged.
 
 * Audio health stats (`measure_astats`) and `check_loudness` now read the first audio stream, the one the render plays, on media with several audio streams (#2131). Single-stream files measure the same as before.
