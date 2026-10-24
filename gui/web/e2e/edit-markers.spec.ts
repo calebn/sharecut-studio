@@ -259,6 +259,68 @@ test.describe("coarse pointer", () => {
     await expect(joinDialog(page)).toBeVisible();
   });
 
+  test("a touch 13 px beside a glyph lands on the glyph, not the lane", async ({
+    page,
+  }) => {
+    await open(page);
+    const glyph = page.locator(`${lane} .edit-mark`).last();
+    const box = await glyphAt(page, 1);
+    const y = box.y + box.height / 2;
+    for (const offset of [8, 13, 15, 17]) {
+      for (const x of [box.x - offset, box.x + box.width + offset]) {
+        const onGlyph = await page.evaluate(
+          ([px, py]) =>
+            document.elementFromPoint(px, py)?.closest(".edit-mark") != null,
+          [x, y],
+        );
+        expect(onGlyph, `${offset} px at x=${x}`).toBe(true);
+        await page.touchscreen.tap(x, y);
+        await expect(glyph).toHaveAttribute("aria-expanded", "true");
+        await page.keyboard.press("Escape");
+        await expect(joinDialog(page)).toHaveCount(0);
+      }
+    }
+  });
+
+  test("each of three glyphs 30 px apart opens its own join at its centre and at the edge toward its neighbour", async ({
+    page,
+  }) => {
+    await open(page);
+    await page.locator(`${lane} .edit-chip`).tap();
+    const marks = page.locator(`${lane} .edit-mark`);
+    await expect(marks).toHaveCount(5);
+    const found = await boxes(page, `${lane} .edit-mark`);
+    for (const index of [0, 1, 2]) {
+      for (const dx of [0, 7]) {
+        const box = found[index];
+        await page.touchscreen.tap(
+          box.x + box.width / 2 + (index === 2 ? -dx : dx),
+          box.y + box.height / 2,
+        );
+        await expect(marks.nth(index)).toHaveAttribute("aria-expanded", "true");
+        await expect(marks.nth((index + 1) % 3)).toHaveAttribute(
+          "aria-expanded",
+          "false",
+        );
+        await page.keyboard.press("Escape");
+        await expect(joinDialog(page)).toHaveCount(0);
+      }
+    }
+  });
+
+  test("a touch past the glyph hit area lands on the lane", async ({
+    page,
+  }) => {
+    await open(page);
+    const box = await glyphAt(page, 1);
+    const hit = await page.evaluate(
+      ([px, py]) =>
+        document.elementFromPoint(px, py)?.closest(".edit-mark") != null,
+      [box.x + box.width + 20, box.y + box.height / 2],
+    );
+    expect(hit).toBe(false);
+  });
+
   test("a touch 30 px beside a glyph seeks", async ({ page }) => {
     await open(page);
     const box = await glyphAt(page, 0);
@@ -330,7 +392,7 @@ test.describe("coarse pointer", () => {
     await open(page);
     await page.getByRole("button", { name: "Blade tool", exact: true }).click();
     const box = await glyphAt(page, 0);
-    await page.touchscreen.tap(box.x + box.width + 20, box.y + box.height / 2);
+    await page.touchscreen.tap(box.x + box.width + 13, box.y + box.height / 2);
     await expect(joinDialog(page)).toHaveCount(0);
     await expect(page.locator(`${lane} .edit-mark`).first()).toHaveAttribute(
       "aria-expanded",
