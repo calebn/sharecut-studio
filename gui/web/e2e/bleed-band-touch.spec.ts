@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
-import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { TOUCH_HIT_RADIUS_PX } from "../src/timeline/hitCandidates";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
@@ -13,13 +12,12 @@ import { switchE2eProject } from "./shareableProject";
 import { type Point, touch, watchCommands } from "./touchTimeline";
 
 const CLIENT_ID = "e2e-bleed-band-touch";
-const HOLD_MS = LONG_PRESS_MS + 150;
 const JOIN_S = 10;
 const BAND = { fade_out_ms: 5, fade_in_ms: 5 };
 
 const VIEWPORTS = [
   { name: "phone portrait", width: 390, height: 844, phone: true },
-  { name: "phone landscape", width: 844, height: 390, phone: false },
+  { name: "landscape 844x390", width: 844, height: 390, phone: false },
 ] as const;
 
 test.use({ hasTouch: true, isMobile: true });
@@ -60,11 +58,11 @@ test.afterEach(async ({ page }) => {
 
 const picks = (page: Page) =>
   page.locator('[data-hit-kind="bleed-attenuation"]');
-const chooser = (page: Page) =>
-  page.locator(".target-chooser:not(.is-closing)");
-const createMenu = (page: Page) => page.locator(".create-menu");
-const pin = (page: Page) =>
-  page.locator('.comment-marker.pin[aria-label="Comment by Ada"]');
+const chooserItems = (page: Page) => page.getByRole("menuitemradio");
+const createMenu = (page: Page) => page.getByRole("menu");
+const pin = (page: Page) => page.locator('[data-hit-kind="comment"]');
+const handle = (page: Page, kind: string) =>
+  page.locator(`[data-hit-kind="${kind}"][data-hit-id="bleed-right"]`);
 
 function centre(box: { x: number; y: number; width: number; height: number }) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -78,21 +76,32 @@ async function boxOf(
   return box;
 }
 
-function distance(
-  box: { x: number; y: number; width: number; height: number },
-  at: Point,
-): number {
+type Box = { x: number; y: number; width: number; height: number };
+
+function distance(box: Box, at: Point): number {
   return Math.hypot(
     at.x - Math.min(Math.max(at.x, box.x), box.x + box.width),
     at.y - Math.min(Math.max(at.y, box.y), box.y + box.height),
   );
 }
 
+function rectDistance(a: Box, b: Box): number {
+  return Math.hypot(
+    Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width), 0),
+    Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height), 0),
+  );
+}
+
 async function openBands(
   page: Page,
   viewport: (typeof VIEWPORTS)[number],
+  inspect = true,
 ): Promise<void> {
-  await page.goto("/");
+  await page.setViewportSize({
+    width: viewport.width,
+    height: viewport.height,
+  });
+  await rememberInspectorDetent(page, "half");
   await postDocumentCommand(
     page,
     CLIENT_ID,
@@ -100,15 +109,10 @@ async function openBands(
     { body: "Ada at the join", author: "Ada", timeline_start: JOIN_S },
     projectPath,
   );
-  await rememberInspectorDetent(page, "half");
-  await page.setViewportSize({
-    width: viewport.width,
-    height: viewport.height,
-  });
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
   if (viewport.phone) await openPhoneTimeline(page);
   await page.locator('[data-clip-id="bleed-right"]').first().click();
+  if (!inspect) return;
   await page
     .getByRole("button", { name: "Inspect automatic audio reduction" })
     .click();
@@ -181,33 +185,29 @@ for (const viewport of VIEWPORTS) {
     const joinBox = await boxOf(joinBand);
     const endBox = await boxOf(endBand);
     expect(joinBox.x).toBeLessThan(endBox.x);
-    const lowest = (box: typeof joinBox): Point => ({
-      x: box.x + 3,
-      y: box.y + box.height - 2,
-    });
 
-    const trimOut = page.locator(
-      '[data-hit-kind="trim-out"][data-hit-id="bleed-right"]',
-    );
+    const trimOutBox = await boxOf(handle(page, "trim-out"));
     const atEnd: Point = {
       x: endBox.x + endBox.width - 3,
       y: endBox.y + endBox.height / 2,
     };
-    const trimOutBox = await boxOf(trimOut);
     expect(distance(trimOutBox, atEnd)).toBeLessThanOrEqual(
       TOUCH_HIT_RADIUS_PX,
     );
-    await expect(trimOut).toHaveCSS("pointer-events", "none");
+    await expect(handle(page, "trim-out")).toHaveCSS("pointer-events", "none");
     expect(await liveHandlesInReach(page, atEnd)).toEqual([]);
     await touch(cdp, "touchStart", [atEnd]);
-    await page.waitForTimeout(HOLD_MS);
-    await expect(chooser(page)).toHaveCount(0);
+    await expect.poll(() => pressedBands(page)).toEqual([false, true]);
+    await expect(chooserItems(page)).toHaveCount(0);
     await expect(createMenu(page)).toHaveCount(0);
     await touch(cdp, "touchEnd");
-    await expect.poll(() => pressedBands(page)).toEqual([false, true]);
+    await expect(chooserItems(page)).toHaveCount(0);
     await refreshBands(page);
 
-    const atJoin = lowest(joinBox);
+    const atJoin: Point = {
+      x: joinBox.x + 3,
+      y: joinBox.y + joinBox.height - 2,
+    };
     expect(await liveHandlesInReach(page, atJoin)).toEqual([]);
     await touch(cdp, "touchStart", [atJoin]);
     await expect
@@ -220,40 +220,86 @@ for (const viewport of VIEWPORTS) {
     await settle(() => band.boundingBox());
     await touch(cdp, "touchStart", [centre(await boxOf(band))]);
     await touch(cdp, "touchEnd");
-    await expect(chooser(page)).toHaveCount(0);
+    await expect(chooserItems(page)).toHaveCount(0);
     await expect.poll(() => pressedBands(page)).toEqual([true, false]);
 
     expect(commands.map((c) => c.type)).toEqual([]);
     expect(fs.readFileSync(projectPath, "utf8")).toBe(before);
   });
 
-  test(`${viewport.name}: no finger point reaches both a band and a comment pin`, async ({
+  test(`${viewport.name}: the controls behind those negative checks can fail`, async ({
+    page,
+  }) => {
+    await openBands(page, viewport, false);
+    const trimOut = handle(page, "trim-out");
+    await expect(trimOut).toHaveCSS("pointer-events", "auto");
+    expect(
+      await liveHandlesInReach(page, centre(await boxOf(trimOut))),
+    ).toContain("trim-out");
+    await page
+      .getByRole("button", { name: "Inspect automatic audio reduction" })
+      .click();
+    await expect(picks(page)).toHaveCount(2);
+    await expect(trimOut).toHaveCSS("pointer-events", "none");
+
+    const fadeOut = handle(page, "fade-out");
+    await expect(fadeOut).toHaveCSS("pointer-events", "auto");
+    expect(
+      await liveHandlesInReach(page, centre(await boxOf(fadeOut))),
+    ).toContain("fade-out");
+    const fadeBox = await boxOf(fadeOut);
+    for (const band of [picks(page).nth(0), picks(page).nth(1)]) {
+      expect(rectDistance(fadeBox, await boxOf(band))).toBeGreaterThan(
+        TOUCH_HIT_RADIUS_PX,
+      );
+    }
+
+    const commands = watchCommands(page);
+    const before = fs.readFileSync(projectPath, "utf8");
+    await page.evaluate(
+      async ({ path, clientId }) => {
+        await fetch(`/api/document/command?path=${encodeURIComponent(path)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "AddComment",
+            payload: { body: "Control", author: "Bo", timeline_start: 20 },
+            client_id: clientId,
+            role: "viewer",
+          }),
+        });
+      },
+      { path: projectPath, clientId: CLIENT_ID },
+    );
+    await expect
+      .poll(() => commands.map((c) => c.type))
+      .toEqual(["AddComment"]);
+    await expect
+      .poll(() => fs.readFileSync(projectPath, "utf8"))
+      .not.toBe(before);
+  });
+
+  test(`${viewport.name}: the band selector sits farther from a comment pin than the touch reach, and each opens its own chooser`, async ({
     page,
   }) => {
     const cdp = await page.context().newCDPSession(page);
     await openBands(page, viewport);
     const pinBox = await boxOf(pin(page));
     for (const band of [picks(page).nth(0), picks(page).nth(1)]) {
-      const bandBox = await boxOf(band);
-      const gap = Math.max(
-        bandBox.y - (pinBox.y + pinBox.height),
-        pinBox.y - (bandBox.y + bandBox.height),
+      expect(rectDistance(pinBox, await boxOf(band))).toBeGreaterThan(
+        TOUCH_HIT_RADIUS_PX,
       );
-      expect(gap).toBeGreaterThan(TOUCH_HIT_RADIUS_PX);
     }
 
     const bandBox = await boxOf(picks(page).nth(0));
     const overBand = { x: bandBox.x + 3, y: bandBox.y + 1 };
     await touch(cdp, "touchStart", [overBand]);
-    await page.waitForTimeout(HOLD_MS);
-    await expect.poll(() => chooserLabels(page)).toHaveLength(2);
-    expect(await chooserLabels(page)).toEqual([
-      "Roll at 00:10.000",
-      "Automatic audio reduction at 00:10.000",
-    ]);
+    await expect
+      .poll(() => chooserLabels(page))
+      .toEqual(["Roll at 00:10.000", "Automatic audio reduction at 00:10.000"]);
     await touch(cdp, "touchEnd");
     await page.keyboard.press("Escape");
-    await expect(chooser(page)).toHaveCount(0);
+    await expect(chooserItems(page)).toHaveCount(0);
 
     await touch(cdp, "touchStart", [centre(pinBox)]);
     await expect
@@ -266,7 +312,7 @@ for (const viewport of VIEWPORTS) {
     await settle(() => comment.boundingBox());
     await touch(cdp, "touchStart", [centre(await boxOf(comment))]);
     await touch(cdp, "touchEnd");
-    await expect(chooser(page)).toHaveCount(0);
-    await expect(pin(page)).toHaveClass(/selected/);
+    await expect(chooserItems(page)).toHaveCount(0);
+    await expect(pin(page)).toHaveAttribute("data-hit-selected", "true");
   });
 }
