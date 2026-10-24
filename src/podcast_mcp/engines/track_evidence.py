@@ -36,11 +36,12 @@ from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.audio_eval import common_rate, evaluate_resampled, single_layout
 from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE, LevelProfile, track_profile
-from podcast_mcp.engines.ungated_audio import resample_streams
+from podcast_mcp.engines.resample_splice import Resampled, SplicedResample
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import scoped, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
+from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.project_state import (
     FileRevision,
     file_revision,
@@ -91,11 +92,17 @@ Evidence = dict[int, np.ndarray]
 @dataclass
 class _Entry:
     samples: Evidence
+    digests: tuple[bytes, ...] | None = None
     _profiles: dict[int, LevelProfile] = field(default_factory=dict)
 
     @property
     def nbytes(self) -> int:
         return sum(array.nbytes for array in self.samples.values())
+
+    @property
+    def base(self) -> Resampled | None:
+        """What a later evaluation of a changed tree can reuse, if this entry kept the digests."""
+        return None if self.digests is None else Resampled(self.samples, self.digests)
 
     def cache(self, rate: int) -> TrackRmsCache:
         if rate not in self._profiles:
@@ -186,7 +193,9 @@ def rms_readers(
         elif plan[0] in evaluated:
             entry = evaluated[plan[0]]
         else:
-            entry = store.get_or_build(plan[0], lambda: _evaluate(plan[1], plan[0].curve))
+            entry = store.get_or_build(
+                plan[0], lambda base: _evaluate(plan[1], plan[0].curve, base)
+            )
         if isinstance(entry, Exception):
             raise entry
         if isinstance(entry, Declined):
@@ -202,7 +211,7 @@ def rms_readers(
 
 def _build_or_error(store: _Store, key: EvidenceKey, tree: Audio) -> _Entry | Declined | Exception:
     try:
-        return store.get_or_build(key, lambda: _evaluate(tree, key.curve))
+        return store.get_or_build(key, lambda base: _evaluate(tree, key.curve, base))
     except Exception as exc:
         return exc
 
@@ -233,8 +242,12 @@ def _plan(
     return EvidenceKey(tree, curve, revisions), tree
 
 
-def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
+def _evaluate(tree: Audio, curve: str, base: Resampled | None = None) -> _Entry | Declined:
     """Evaluate ``tree`` in one pass and return its samples at both evidence rates, or the reason the evaluator cannot take it.
+
+    ``base`` is an earlier run, on a tree of the same sources, whose output the new one may
+    reuse where their inputs agree (:mod:`~podcast_mcp.engines.resample_splice`). The result
+    is the same bits either way. A failed ffmpeg run that used a base is repeated without it.
 
     The evaluator works in chunks at the sources' own rate and converts once per rate, as
     decoding the render's wav does. Slices start between samples, so slicing a decode at the
@@ -245,18 +258,24 @@ def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
     rate = common_rate(tree)
     if rate is None:
         return Declined.MIXED_RATE
-    with decoded_sources(rate) as reader:
-        samples = evaluate_resampled(
-            tree,
-            crossfade_curve=curve,
-            reader=reader,
-            sample_rate=rate,
-            target_rates=_RATES,
-            resample=resample_streams,
-        )
+    splice = SplicedResample(base)
+    try:
+        with decoded_sources(rate) as reader:
+            samples = evaluate_resampled(
+                tree,
+                crossfade_curve=curve,
+                reader=reader,
+                sample_rate=rate,
+                target_rates=_RATES,
+                resample=splice,
+            )
+    except (CalledProcessError, OSError):
+        if base is None:
+            raise
+        return _evaluate(tree, curve)
     if samples is None or not all(array.size for array in samples.values()):
         return Declined.EVALUATOR
-    return samples
+    return _Entry(samples, splice.digests)
 
 
 def _entry(
@@ -267,7 +286,7 @@ def _entry(
     if isinstance(planned, Declined):
         return planned
     key, tree = planned
-    return _store().get_or_build(key, lambda: _evaluate(tree, key.curve))
+    return _store().get_or_build(key, lambda base: _evaluate(tree, key.curve, base))
 
 
 class _Store:
@@ -279,10 +298,16 @@ class _Store:
         self._bytes = 0
         self._lock = threading.Lock()
         self._building: dict[EvidenceKey, threading.Lock] = {}
+        self._latest: dict[tuple[str, tuple[FileRevision, ...]], EvidenceKey] = {}
 
     def get_or_build(
-        self, key: EvidenceKey, build: Callable[[], Evidence | Declined]
+        self, key: EvidenceKey, build: Callable[[Resampled | None], _Entry | Declined]
     ) -> _Entry | Declined:
+        """Return the entry for ``key``, building a miss from the newest live entry over the same sources and curve.
+
+        The newest entry only offers its digests, and a build uses it only where its input
+        matches, so a stale choice costs the saving and never the result.
+        """
         with self._lock:
             known = self._find(key)
             builder = (
@@ -290,7 +315,7 @@ class _Store:
             )
         if known is not None:
             if isinstance(known, _Entry) and settings.flag(VERIFY_ENV):
-                _verify(known, build())
+                _verify(known, build(None))
             return known
         assert builder is not None
         with builder:
@@ -299,16 +324,17 @@ class _Store:
                     known = self._find(key)
                 if known is not None:
                     return known
-                built = build()
+                with self._lock:
+                    newest = self._entries.get(self._latest.get((key.curve, key.revisions), key))
+                built = build(None if newest is None else newest.base)
                 if isinstance(built, Declined):
                     with self._lock:
                         self._declined[key] = built
                     return built
-                for array in built.values():
+                for array in built.samples.values():
                     array.flags.writeable = False
-                entry = _Entry(built)
-                self._put(key, entry)
-                return entry
+                self._put(key, built)
+                return built
             finally:
                 with self._lock:
                     self._building.pop(key, None)
@@ -329,6 +355,7 @@ class _Store:
             if entry.nbytes > EVIDENCE_CACHE_BYTES:
                 return
             self._entries[key] = entry
+            self._latest[key.curve, key.revisions] = key
             self._bytes += entry.nbytes
             while self._bytes > EVIDENCE_CACHE_BYTES:
                 _, oldest = self._entries.popitem(last=False)
@@ -340,13 +367,14 @@ def _store() -> _Store:
         return scoped(_STORE_KEY, _Store)
 
 
-def _verify(stored: _Entry, rebuilt: Evidence | Declined) -> None:
+def _verify(stored: _Entry, rebuilt: _Entry | Declined) -> None:
     """Raise AssertionError unless a rebuild of the key equals the stored evidence.
 
     The store calls this when ``PODCAST_EVIDENCE_VERIFY=1``.
     """
     if isinstance(rebuilt, Declined) or any(
-        not np.array_equal(stored.samples[rate], array) for rate, array in rebuilt.items()
+        not np.array_equal(stored.samples[rate].view(np.uint32), array.view(np.uint32))
+        for rate, array in rebuilt.samples.items()
     ):
         raise AssertionError("stored evidence differs from a rebuild of its key")
 

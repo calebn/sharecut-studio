@@ -330,9 +330,9 @@ def _count_evaluations(monkeypatch: pytest.MonkeyPatch) -> list[Audio]:
     calls: list[Audio] = []
     real = track_evidence._evaluate
 
-    def counting(tree, curve):  # type: ignore[no-untyped-def]
+    def counting(tree, curve, base=None):  # type: ignore[no-untyped-def]
         calls.append(tree)
-        return real(tree, curve)
+        return real(tree, curve, base)
 
     monkeypatch.setattr(track_evidence, "_evaluate", counting)
     return calls
@@ -607,7 +607,8 @@ def test_a_decline_is_remembered_and_leaves_no_build_lock(
         store = track_evidence._store()
         for _ in range(3):
             got = store.get_or_build(
-                planned[0], lambda: track_evidence._evaluate(planned[1], planned[0].curve)
+                planned[0],
+                lambda base: track_evidence._evaluate(planned[1], planned[0].curve, base),
             )
             assert got is Declined.MIXED_RATE
         assert store._building == {}
@@ -618,7 +619,7 @@ def test_a_failed_build_leaves_no_build_lock(tmp_path: Path) -> None:
     project = _project(tmp_path, "fade joins")
     key = _key(project)
 
-    def fail():  # type: ignore[no-untyped-def]
+    def fail(base):  # type: ignore[no-untyped-def]
         raise OSError("decode failed")
 
     with batch_scope():

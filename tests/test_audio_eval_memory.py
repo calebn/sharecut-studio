@@ -51,7 +51,7 @@ WORKER = textwrap.dedent(
     for name, seconds in json.loads(sys.argv[2]).items():
         evidence = _evaluate(tree(Path(sys.argv[1]) / name, seconds, 1), "tri")
         assert not isinstance(evidence, Declined), evidence
-        sizes[name] = evidence[8000].size
+        sizes[name] = evidence.samples[8000].size
         del evidence
     print(json.dumps({"growth_mb": peak_mb() - baseline, "samples": sizes}))
     """
