@@ -142,7 +142,12 @@ export function toastDockBottomPx({
         ),
       0,
     );
-  const [least = spot] = spotsAround(avoid)
+  const [least = spot] = [
+    ...spotsAround(avoid),
+    restTopPx,
+    ...avoid.map((extent) => extent.top),
+    ...avoid.map((extent) => extent.bottom + toastHeightPx),
+  ]
     .filter((bottom) => onScreen(bottom) && bottom <= restTopPx)
     .sort(
       (a, b) =>

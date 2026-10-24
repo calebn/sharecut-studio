@@ -256,7 +256,97 @@ describe("toastDockBottomPx on a window too short for the fields (#2221)", () =>
           { top: 120, bottom: 250 },
         ],
       }),
-    ).toBe(300 - 164);
+    ).toBe(300 - 156);
+  });
+
+  it("sits flush on the mode nav when that covers less than any gapped spot (#2221)", () => {
+    const tall = {
+      viewportHeight: 600,
+      ceilingPx: 40,
+      floorTopsPx: [],
+      restTopPx: 540,
+      toastHeightPx: 80,
+      gapPx: 8,
+    };
+    expect(
+      toastDockBottomPx({
+        ...tall,
+        protectPx: [
+          { top: 10, bottom: 300 },
+          { top: 308, bottom: 520 },
+        ],
+      }),
+    ).toBe(600 - 540);
+  });
+
+  it("goes flush when the spot below a field overshoots the resting edge by less than the gap (#2221)", () => {
+    expect(
+      toastDockBottomPx({
+        viewportHeight: 600,
+        ceilingPx: 40,
+        floorTopsPx: [],
+        restTopPx: 377,
+        toastHeightPx: 80,
+        gapPx: 8,
+        protectPx: [
+          { top: 21, bottom: 292 },
+          { top: 377, bottom: 538 },
+        ],
+      }),
+    ).toBe(600 - 372);
+  });
+
+  it("covers no more than the best spot on screen above the rest chrome, across 300 seeded layouts (#2221)", () => {
+    let seed = 2221;
+    const pick = (low: number, high: number) => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return low + Math.floor((seed / 2 ** 32) * (high - low + 1));
+    };
+    const covered = (
+      extents: { top: number; bottom: number }[],
+      bottom: number,
+      height: number,
+    ) =>
+      extents.reduce(
+        (sum, extent) =>
+          sum +
+          Math.max(
+            0,
+            Math.min(extent.bottom, bottom) -
+              Math.max(extent.top, bottom - height),
+          ),
+        0,
+      );
+    for (let run = 0; run < 300; run++) {
+      const viewportHeight = pick(150, 400);
+      const toastHeightPx = pick(20, 80);
+      const gapPx = pick(0, 12);
+      const restTopPx = pick(toastHeightPx + gapPx, viewportHeight);
+      const protectPx = Array.from({ length: pick(1, 3) }, () => {
+        const top = pick(0, viewportHeight - 20);
+        return { top, bottom: top + pick(20, 160) };
+      });
+      const bottom =
+        viewportHeight -
+        toastDockBottomPx({
+          viewportHeight,
+          ceilingPx: pick(0, 60),
+          floorTopsPx: [],
+          restTopPx,
+          toastHeightPx,
+          gapPx,
+          protectPx,
+        });
+      let best = Number.POSITIVE_INFINITY;
+      for (let edge = toastHeightPx; edge <= restTopPx; edge++) {
+        best = Math.min(best, covered(protectPx, edge, toastHeightPx));
+      }
+      expect(bottom - toastHeightPx).toBeGreaterThanOrEqual(0);
+      expect(bottom).toBeLessThanOrEqual(viewportHeight);
+      expect(covered(protectPx, bottom, toastHeightPx)).toBeLessThanOrEqual(
+        best,
+      );
+    }
   });
 
   it("never trades the field for the mode nav when nothing clears it", () => {
