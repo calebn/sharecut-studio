@@ -62,10 +62,9 @@ segments, chapters), `TranscriptService` (transcription, export and word
 edits), `AnalysisService` (effects, loudness, bleed, audibility, reconcile and
 cut-boundary previews). They share `WorkspaceService` and `CutMutatingService`
 from `service_base.py`; `tests/test_module_size_budget.py` holds the budgets.
-The document-sync context also owns `apply_external_document_edit`, which compares
-canonical committed project state under project ownership and publishes a changed
-external CLI apply after releasing that ownership. It keeps audio planning outside
-the SQLite journal transaction. See [CLI edit journal ownership](session-sync.md#cli-edit-journal-ownership).
+Document sync owns `apply_external_document_edit`: it compares committed project
+state under project ownership, then publishes changed CLI applies outside the
+SQLite journal transaction. See [CLI edit journal ownership](session-sync.md#cli-edit-journal-ownership).
 All twelve service contexts expose explicit typed names through lazy package
 facades using `util/lazy_exports.py`. Importing a facade does not load its
 implementation modules or optional integrations.
