@@ -305,6 +305,28 @@ describe("clip bleed occurrence session", () => {
     expect(session.getSnapshot()?.read.state).toBe("error");
     expect(session.currentTarget()).toBeNull();
   });
+  it("retires a loading read when its implicit occurrence materializes mid-read", async () => {
+    const implicit = { ...occurrence, clipId: "clip_host_full" };
+    const lane = sampleTrack({
+      has_source_audio: true,
+      duration_sec: 10,
+      range_media_seal: "same-media",
+    });
+    replaceProject({ ...project([]), tracks: [lane] });
+    const { session, reads } = harness(implicit);
+    const pending = session.open(implicit);
+    const materialized = clip({
+      id: implicit.clipId,
+      source_id: null,
+      source_duration_sec: null,
+      recording_key: null,
+    });
+    const next = { ...project([materialized]), tracks: [lane] };
+    replaceProject({ ...next, history: { ...next.history, head_id: head } });
+    reads[0].response.resolve(inspection(implicit.clipId));
+    await pending;
+    expect(session.getSnapshot()).toBeNull();
+  });
   it("retires a deleted occurrence and its pending action", async () => {
     const { session, selected } = harness();
     const captured = await selected();

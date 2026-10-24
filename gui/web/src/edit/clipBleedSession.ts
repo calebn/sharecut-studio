@@ -13,7 +13,7 @@ import {
   ownCommandHead,
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
-import type { HistoryEntryId, ProjectView } from "../types/project";
+import type { HistoryEntryId } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { bleedAttenuationRegionKey } from "./bleedAttenuation";
 import { rangeClips } from "./rangeSelection";
@@ -60,7 +60,6 @@ export type ClipBleedSnapshot = Readonly<{
 type Context = {
   scope: DocumentScope;
   projectEpoch: number;
-  project: ProjectView;
   authorityBasis: string;
   occurrenceBasis: string;
   occurrenceKind: "implicit" | "explicit";
@@ -106,7 +105,6 @@ function contextFor(occurrence: ClipBleedOccurrence): Context | null {
   return {
     scope,
     projectEpoch: state.projectEpoch,
-    project,
     authorityBasis: JSON.stringify([
       documentAuthority.seq,
       documentAuthority.token,
@@ -183,11 +181,7 @@ function sameActionLifetime(action: PendingAction, current: Context): boolean {
 }
 
 function sameInspection(a: Context, b: Context): boolean {
-  return (
-    sameLifetime(a, b) &&
-    a.project === b.project &&
-    a.authorityBasis === b.authorityBasis
-  );
+  return sameLifetime(a, b) && a.authorityBasis === b.authorityBasis;
 }
 
 function currentHead(scope: DocumentScope): HistoryEntryId | null {
