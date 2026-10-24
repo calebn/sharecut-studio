@@ -185,8 +185,8 @@ async function mockSpeakerDoctor(page: Page): Promise<void> {
   await page.route("**/api/speaker/doctor", (route) =>
     route.fulfill({
       json: {
-        available_backends: ["speechbrain-ecapa"],
-        recommended: "speechbrain-ecapa",
+        available_backends: ["ecapa-onnx"],
+        recommended: "ecapa-onnx",
       },
     }),
   );

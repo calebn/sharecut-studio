@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
@@ -24,18 +23,12 @@ from podcast_mcp.util.model_missing import ModelMissing
 
 @pytest.fixture
 def no_real_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """No torch/speechbrain, no resemblyzer, no mock opt-in, and a speaker model override
-    that does not load, so a download is not what is missing."""
+    """No mock opt-in, and a speaker model override that does not load, so a download is
+    not what is missing."""
     junk = tmp_path / "junk.onnx"
     junk.write_bytes(b"not a model")
     monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(junk))
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
-    monkeypatch.setitem(sys.modules, "torch", None)
-
-    def missing() -> object:
-        raise ImportError("no resemblyzer", name="resemblyzer")
-
-    monkeypatch.setattr(speaker_id, "_import_voice_encoder", missing)
 
 
 def test_auto_without_a_real_backend_is_unavailable(no_real_backend: None) -> None:
@@ -54,12 +47,6 @@ def no_model_no_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.setattr(speaker_ecapa, "models_dir", lambda: tmp_path / "models")
-    monkeypatch.setitem(sys.modules, "torch", None)
-
-    def missing() -> object:
-        raise ImportError("no resemblyzer", name="resemblyzer")
-
-    monkeypatch.setattr(speaker_id, "_import_voice_encoder", missing)
 
 
 @pytest.mark.parametrize("name", [None, "auto", "ecapa-onnx"])

@@ -217,8 +217,8 @@ describe("SplitSpeakersDialog", () => {
     vi.mocked(getSpeakerDoctor)
       .mockReset()
       .mockResolvedValue({
-        available_backends: ["speechbrain-ecapa"],
-        recommended: "speechbrain-ecapa",
+        available_backends: ["ecapa-onnx"],
+        recommended: "ecapa-onnx",
       });
     vi.mocked(followJobToOk).mockReset();
     vi.mocked(cancelPipelineRun).mockReset().mockResolvedValue(started);
@@ -258,7 +258,7 @@ describe("SplitSpeakersDialog", () => {
     await expectNoA11yViolations(baseElement);
   });
 
-  it("blocks splitting and links to setup when speaker recognition is unavailable", async () => {
+  it("blocks splitting and offers the speaker model download when speaker recognition is unavailable", async () => {
     vi.mocked(getSpeakerDoctor).mockResolvedValue({
       available_backends: ["mock"],
       recommended: "mock",
@@ -271,12 +271,10 @@ describe("SplitSpeakersDialog", () => {
         "Speaker recognition isn't available on this computer.",
       ),
     ).toBeTruthy();
-    const setup = screen.getByRole("link", {
-      name: "Read the speaker setup instructions",
-    });
-    expect(setup.getAttribute("href")).toBe(
-      "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#optional-downloads-and-extras",
-    );
+    expect(
+      screen.getByRole("button", { name: "Download speaker model" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /speaker setup/ })).toBeNull();
     expect(
       screen.getByRole("button", { name: "Split speakers" }),
     ).toBeDisabled();
@@ -789,15 +787,13 @@ describe("SplitSpeakersDialog", () => {
   it("names a refusal from the server and offers Try again", async () => {
     const user = userEvent.setup();
     vi.mocked(startSplitSpeakersJob).mockRejectedValue(
-      new Error(
-        "speaker split needs a speaker embedding: install the [speaker] extra",
-      ),
+      new Error("speaker split needs the speaker model: download it first"),
     );
     render(<SplitSpeakersDialog />);
     await splitTwo(user);
 
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "Split failed: speaker split needs a speaker embedding: install the [speaker] extra",
+      "Split failed: speaker split needs the speaker model: download it first",
     );
     expect(useDawStore.getState().activityJob).toBeNull();
     await user.click(screen.getByRole("button", { name: "Try again" }));

@@ -8,12 +8,11 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.engines.models import speaker_ecapa
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
-    ResemblyzerBackend,
     SpeakerBackendUnavailable,
     SpeakerProfile,
-    SpeechBrainBackend,
     WindowScore,
     _bleed_windows,
     _cosine_similarity,
@@ -305,52 +304,17 @@ def test_run_speaker_attribution_apply_path(tmp_path, sample_wav):
     assert word.suppressed is True
 
 
-def test_resolve_speaker_backend_without_real_backends_is_unavailable(monkeypatch):
+def test_resolve_speaker_backend_without_the_model_is_unavailable(monkeypatch, tmp_path):
     monkeypatch.delenv("PODCAST_SPEAKER_BACKEND", raising=False)
-    with (
-        patch(
-            "podcast_mcp.engines.speaker_id.SpeechBrainBackend",
-            side_effect=ImportError("no speechbrain"),
-        ),
-        patch(
-            "podcast_mcp.engines.speaker_id.ResemblyzerBackend",
-            side_effect=ImportError("no resemblyzer"),
-        ),
-        pytest.raises(SpeakerBackendUnavailable),
-    ):
+    monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
+    monkeypatch.setattr(speaker_ecapa, "models_dir", lambda: tmp_path)
+    with pytest.raises(SpeakerBackendUnavailable):
         resolve_speaker_backend("auto")
 
 
-def test_resolve_speaker_backend_unavailable_raises():
-    with (
-        patch(
-            "podcast_mcp.engines.speaker_id.SpeechBrainBackend",
-            side_effect=ImportError("no speechbrain"),
-        ),
-        patch(
-            "podcast_mcp.engines.speaker_id.ResemblyzerBackend",
-            side_effect=ImportError("no resemblyzer"),
-        ),
-        pytest.raises(ImportError, match="speaker backend unavailable"),
-    ):
-        resolve_speaker_backend("resemblyzer")
-
-
-def test_resemblyzer_backend_resamples(monkeypatch):
-    backend = ResemblyzerBackend()
-    captured: dict[str, object] = {}
-
-    class FakeEncoder:
-        def embed_utterance(self, samples):
-            captured["size"] = samples.size
-            captured["rate"] = samples.dtype
-            return np.ones(256, dtype=np.float64)
-
-    monkeypatch.setattr(backend, "_encoder", FakeEncoder())
-    samples = np.linspace(-1.0, 1.0, 48000, dtype=np.float32)
-    emb = backend.embed(samples, 48000)
-    assert emb.dtype == np.float32
-    assert captured["size"] == 16000
+def test_resolve_speaker_backend_unknown_name_raises():
+    with pytest.raises(ImportError, match="speaker backend unavailable"):
+        resolve_speaker_backend("nope")
 
 
 def test_mock_backend_empty_samples_and_cosine_zero():
@@ -718,129 +682,12 @@ def test_resolve_speaker_backend_prefer_mock():
     assert backend.name() == "mock"
 
 
-def test_speechbrain_backend_lazy_load(monkeypatch):
-    import sys
-
-    created: list[str] = []
-
-    class FakeEncoderClassifier:
-        @classmethod
-        def from_hparams(cls, **_kwargs):
-            created.append("loaded")
-            return cls()
-
-    fake_sb = type(
-        "speechbrain",
-        (),
-        {
-            "inference": type(
-                "inference",
-                (),
-                {"speaker": type("speaker", (), {"EncoderClassifier": FakeEncoderClassifier})()},
-            )()
-        },
-    )()
-    monkeypatch.setitem(sys.modules, "speechbrain", fake_sb)
-    monkeypatch.setitem(
-        sys.modules,
-        "speechbrain.inference",
-        fake_sb.inference,
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "speechbrain.inference.speaker",
-        fake_sb.inference.speaker,
-    )
-    backend = SpeechBrainBackend()
-    assert backend._load() is backend._classifier
-    assert created == ["loaded"]
-
-
-def test_speechbrain_backend_embed(monkeypatch):
-    import sys
-
-    backend = SpeechBrainBackend()
-    captured: dict[str, object] = {}
-
-    class FakeTensor:
-        def __init__(self, data, dtype=None):
-            self._data = np.asarray(data, dtype=np.float32)
-
-        def unsqueeze(self, dim):
-            return FakeTensor(self._data[np.newaxis, :])
-
-        @property
-        def shape(self):
-            return self._data.shape
-
-        def sum(self):
-            return FakeTensor(np.array([float(self._data.sum())]))
-
-        def squeeze(self):
-            return FakeTensor(self._data.reshape(-1))
-
-        def detach(self):
-            return self
-
-        def cpu(self):
-            return self
-
-        def numpy(self):
-            return self._data
-
-    class FakeClassifier:
-        def encode_batch(self, tensor):
-            captured["shape"] = tuple(tensor.shape)
-            return tensor.sum()
-
-    class FakeTorch:
-        float32 = np.float32
-
-        @staticmethod
-        def tensor(data, dtype=None):
-            return FakeTensor(data, dtype=dtype)
-
-    monkeypatch.setattr(backend, "_classifier", FakeClassifier())
-    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
-    emb = backend.embed(np.ones(16000, dtype=np.float32), 16000)
-    assert emb.dtype == np.float32
-    assert captured["shape"] == (1, 16000)
-
-
-def test_resemblyzer_backend_lazy_load_keeps_stdout_clean(monkeypatch, capsys):
-    """`podcast speaker` prints JSON, and the speaker MCP tools speak over stdio."""
-    backend = ResemblyzerBackend()
-    created: list[str] = []
-
-    class FakeVoiceEncoder:
-        def __init__(self, verbose=True):
-            if verbose:
-                print("Loaded the voice encoder model on cpu in 0.01 seconds.")
-            created.append("loaded")
-
-        def embed_utterance(self, samples):
-            return np.ones(8, dtype=np.float32)
-
-    monkeypatch.setitem(
-        __import__("sys").modules,
-        "resemblyzer",
-        type("m", (), {"VoiceEncoder": FakeVoiceEncoder})(),
-    )
-    backend._encoder = None
-    emb = backend.embed(np.ones(16000, dtype=np.float32), 16000)
-    assert created == ["loaded"]
-    assert emb.shape == (8,)
-    assert capsys.readouterr().out == ""
-
-
 def test_speaker_doctor_handles_import_errors():
     with patch(
         "podcast_mcp.engines.speaker_id.resolve_speaker_backend",
         side_effect=[
             ImportError("no onnx"),
             MockSpeakerBackend(),
-            ImportError("no sb"),
-            ImportError("no rz"),
         ],
     ):
         doc = speaker_doctor()
@@ -860,161 +707,3 @@ def test_window_score_to_dict():
     data = score.to_dict()
     assert data["best_track_id"] == "host"
     assert data["margin"] == 0.9
-
-
-def _fake_resemblyzer(tmp_path: Path) -> Path:
-    (tmp_path / "webrtcvad.py").write_text(
-        "raise ModuleNotFoundError(\"No module named 'pkg_resources'\", name='pkg_resources')\n",
-        encoding="utf-8",
-    )
-    package = tmp_path / "resemblyzer"
-    package.mkdir()
-    (package / "__init__.py").write_text(
-        "import webrtcvad\n\n\nclass VoiceEncoder:\n    pass\n", encoding="utf-8"
-    )
-    return tmp_path
-
-
-def _isolate_import_state(monkeypatch, root: Path) -> None:
-    import sys
-
-    for name in ("resemblyzer", "webrtcvad", "pkg_resources"):
-        monkeypatch.delitem(sys.modules, name, raising=False)
-    monkeypatch.syspath_prepend(str(root))
-
-
-def test_resemblyzer_loads_without_webrtcvad_importable(monkeypatch, tmp_path):
-    """webrtcvad 2.0.10 imports pkg_resources, which setuptools 82 removed (#1284)."""
-    import sys
-
-    _isolate_import_state(monkeypatch, _fake_resemblyzer(tmp_path))
-    from podcast_mcp.engines.speaker_id import _import_voice_encoder
-
-    assert _import_voice_encoder().__name__ == "VoiceEncoder"
-    assert "webrtcvad" not in sys.modules
-
-
-def test_resemblyzer_keeps_the_real_webrtcvad_when_it_imports(monkeypatch, tmp_path):
-    import sys
-
-    root = _fake_resemblyzer(tmp_path)
-    (root / "webrtcvad.py").write_text("class Vad:\n    pass\n", encoding="utf-8")
-    (root / "resemblyzer" / "__init__.py").write_text(
-        "import webrtcvad\n\n\nclass VoiceEncoder:\n    vad = webrtcvad\n", encoding="utf-8"
-    )
-    _isolate_import_state(monkeypatch, root)
-    from podcast_mcp.engines.speaker_id import _import_voice_encoder
-
-    try:
-        encoder = _import_voice_encoder()
-        assert hasattr(encoder.vad, "Vad")
-        assert sys.modules["webrtcvad"] is encoder.vad
-    finally:
-        for name in ("resemblyzer", "webrtcvad"):
-            sys.modules.pop(name, None)
-
-
-def test_webrtcvad_placeholder_raises_a_readable_import_error(monkeypatch, tmp_path):
-    import sys
-
-    root = _fake_resemblyzer(tmp_path)
-    (root / "resemblyzer" / "__init__.py").write_text(
-        "import webrtcvad\n\n\nclass VoiceEncoder:\n    vad = webrtcvad\n", encoding="utf-8"
-    )
-    _isolate_import_state(monkeypatch, root)
-    from podcast_mcp.engines.speaker_id import _import_voice_encoder
-
-    try:
-        placeholder = _import_voice_encoder().vad
-        with pytest.raises(ImportError, match="silence trimming"):
-            _ = placeholder.Vad
-        assert not hasattr(placeholder, "__path__")
-    finally:
-        sys.modules.pop("resemblyzer", None)
-
-
-def test_resolve_speaker_backend_resemblyzer_without_webrtcvad_importable(monkeypatch, tmp_path):
-    _isolate_import_state(monkeypatch, _fake_resemblyzer(tmp_path))
-    assert resolve_speaker_backend("resemblyzer").name() == "resemblyzer"
-
-
-def test_voice_encoder_import_keeps_an_already_loaded_webrtcvad(monkeypatch, tmp_path):
-    import sys
-    import types
-
-    root = _fake_resemblyzer(tmp_path)
-    _isolate_import_state(monkeypatch, root)
-    loaded = types.ModuleType("webrtcvad")
-    monkeypatch.setitem(sys.modules, "webrtcvad", loaded)
-    from podcast_mcp.engines.speaker_id import _import_voice_encoder
-
-    (root / "resemblyzer" / "__init__.py").write_text(
-        "raise ModuleNotFoundError(\"No module named 'pkg_resources'\", name='pkg_resources')\n",
-        encoding="utf-8",
-    )
-    with pytest.raises(ImportError, match="pkg_resources"):
-        _import_voice_encoder()
-    assert sys.modules["webrtcvad"] is loaded
-
-
-def test_voice_encoder_import_reports_resemblyzer_missing(monkeypatch, tmp_path):
-    import sys
-
-    _isolate_import_state(monkeypatch, tmp_path)
-    monkeypatch.setitem(sys.modules, "resemblyzer", None)
-    from podcast_mcp.engines.speaker_id import _import_voice_encoder
-
-    with pytest.raises(ImportError) as caught:
-        _import_voice_encoder()
-    assert caught.value.name == "resemblyzer"
-    assert "webrtcvad" not in sys.modules
-
-
-def test_voice_encoder_import_does_not_retry_with_placeholder_for_other_modules(
-    monkeypatch, tmp_path
-):
-    """A failing dependency other than webrtcvad/pkg_resources is raised once, not retried.
-
-    The fake resemblyzer logs whether webrtcvad is already in sys.modules on each run.
-    A retry with the placeholder would log a second run with True.
-    """
-    import sys
-
-    root = tmp_path / "root"
-    root.mkdir()
-    log = tmp_path / "runs.log"
-    package = root / "resemblyzer"
-    package.mkdir()
-    (package / "__init__.py").write_text(
-        "import sys\n"
-        f"with open({str(log)!r}, 'a', encoding='utf-8') as fh:\n"
-        "    fh.write(f\"{'webrtcvad' in sys.modules}\\n\")\n"
-        "raise ModuleNotFoundError(\"No module named 'numba'\", name='numba')\n",
-        encoding="utf-8",
-    )
-    _isolate_import_state(monkeypatch, root)
-    from podcast_mcp.engines.speaker_id import _import_voice_encoder
-
-    with pytest.raises(ImportError) as caught:
-        _import_voice_encoder()
-    assert caught.value.name == "numba"
-    assert log.read_text(encoding="utf-8").split() == ["False"]
-    assert "webrtcvad" not in sys.modules
-
-
-def test_voice_encoder_import_propagates_non_import_errors_unchanged(monkeypatch, tmp_path):
-    """Only ImportError is tolerated; a RuntimeError from webrtcvad propagates as raised."""
-    import sys
-
-    root = _fake_resemblyzer(tmp_path)
-    (root / "webrtcvad.py").write_text(
-        "raise RuntimeError('webrtcvad exploded during import')\n", encoding="utf-8"
-    )
-    _isolate_import_state(monkeypatch, root)
-    from podcast_mcp.engines.speaker_id import _import_voice_encoder
-
-    with pytest.raises(RuntimeError) as caught:
-        _import_voice_encoder()
-    assert type(caught.value) is RuntimeError
-    assert str(caught.value) == "webrtcvad exploded during import"
-    assert "webrtcvad" not in sys.modules
