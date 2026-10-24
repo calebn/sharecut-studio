@@ -118,26 +118,8 @@ async function openBands(
   await page
     .getByRole("button", { name: "Inspect automatic audio reduction" })
     .click();
-  await readBands(page);
-  await expect(pin(page)).toBeVisible();
-}
-
-async function readBands(page: Page): Promise<void> {
-  const refresh = page.getByRole("button", { name: "Refresh regions" });
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let read = "loading";
-    await expect
-      .poll(async () => {
-        if ((await picks(page).count()) === 2) read = "bands";
-        else if (await refresh.isEnabled()) read = "stale";
-        else read = "loading";
-        return read;
-      })
-      .not.toBe("loading");
-    if (read === "bands") break;
-    await refresh.click();
-  }
   await expect(picks(page)).toHaveCount(2);
+  await expect(pin(page)).toBeVisible();
 }
 
 async function refreshBands(page: Page): Promise<void> {
