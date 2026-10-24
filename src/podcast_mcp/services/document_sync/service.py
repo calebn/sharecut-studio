@@ -26,7 +26,7 @@ from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project.history import StaleHistoryError
 from podcast_mcp.project.store import commit_landed
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
+from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryListResult, HistoryService
 from podcast_mcp.services.document_sync.commands import (
     PROGRAMMATIC_COMMAND,
     ClientRole,
@@ -152,14 +152,13 @@ def _file_wire(revision: FileRevision | None) -> dict[str, int] | None:
     return {"mtime_ns": mtime_ns, "size": size}
 
 
-def _history_wire(hist: dict[str, Any]) -> dict[str, Any]:
-    """History tab payload: undo flags + groups only (no flat entries/params)."""
+def _history_wire(hist: HistoryListResult) -> dict[str, Any]:
     return {
-        "cursor": hist["cursor"],
-        "head_id": hist["head_id"],
-        "can_undo": hist["can_undo"],
-        "can_redo": hist["can_redo"],
-        "groups": hist["groups"],
+        "cursor": hist.cursor,
+        "head_id": hist.head_id,
+        "can_undo": hist.can_undo,
+        "can_redo": hist.can_redo,
+        "groups": [group.model_dump() for group in hist.groups],
     }
 
 

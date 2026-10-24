@@ -227,9 +227,10 @@ def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
 
 
 def _batch_sounds(path: str) -> dict[str, dict]:
-    entries = HistoryService(ProjectWorkspace.open(path)).list_entries()["entries"]
-    batch = [e for e in entries if e["operation"] == "apply_suggested_actions"][-1]
-    return {row["id"]: row for row in batch["params"]["sounds"]}
+    entries = HistoryService(ProjectWorkspace.open(path)).list_entries().entries
+    batch = [e for e in entries if e.operation == "apply_suggested_actions"][-1]
+    assert batch.params is not None
+    return {row["id"]: row for row in batch.params["sounds"]}
 
 
 def test_the_batch_entry_remembers_each_sound_so_a_client_can_list_it(

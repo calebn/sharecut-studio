@@ -20,6 +20,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
     EditService,
+    HistoryListResult,
     HistoryService,
     TimelineService,
 )
@@ -138,7 +139,7 @@ def build_project_view(
     source: Path | ProjectWorkspace,
     *,
     projection: ViewProjection | str = ViewProjection.FULL,
-    history: dict[str, Any] | None = None,
+    history: HistoryListResult | None = None,
 ) -> ProjectView:
     """Assemble a DAW ProjectView.
 
@@ -190,14 +191,15 @@ def build_project_view(
     duration = float(clips.get("timeline_duration_sec") or project.timeline.duration_sec or 0.0)
 
     if include_words:
-        history_payload = history if history is not None else history_svc.list_entries()
+        listed = history if history is not None else history_svc.list_entries()
+        history_payload = listed.model_dump()
     else:
         hist_status = history_svc.status()
         history_payload = {
-            "cursor": hist_status["cursor"],
-            "head_id": hist_status["head_id"],
-            "can_undo": hist_status["can_undo"],
-            "can_redo": hist_status["can_redo"],
+            "cursor": hist_status.cursor,
+            "head_id": hist_status.head_id,
+            "can_undo": hist_status.can_undo,
+            "can_redo": hist_status.can_redo,
             "entries": [],
             "groups": [],
         }
@@ -236,7 +238,7 @@ def dump_project_projection(
     source: Path | ProjectWorkspace,
     *,
     projection: ViewProjection | str = ViewProjection.SHELL,
-    history: dict[str, Any] | None = None,
+    history: HistoryListResult | None = None,
     audience: Literal["host", "guest"] = "host",
 ) -> dict[str, Any]:
     """Dict payload for HTTP/WS. ``SHELL``/``FULL`` are complete views; others are patches.
@@ -293,7 +295,7 @@ def dump_project_projection(
                 )
             base = {
                 "transcript": transcript,
-                "history": hist,
+                "history": hist.model_dump(),
                 "meta": {
                     "hydration": _hydration(transcript_words=True, history_groups=True),
                 },

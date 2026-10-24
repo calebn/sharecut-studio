@@ -377,7 +377,7 @@ def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(
     assert [
         (c.source_start, c.source_end, c.timeline_start) for c in clips_for_track(p, "host")
     ] == [(0.0, 2.0, 0.0), (3.0, 10.0, 3.0)]
-    HistoryService(ws).undo(expected_head_id=HistoryService(ws).status()["head_id"])
+    HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
     assert snapshot_from_project(p).model_dump(mode="json") == original
     assert [
         (c.source_start, c.source_end, c.timeline_start) for c in clips_for_track(p, "host")

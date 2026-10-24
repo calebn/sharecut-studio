@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         score_golden_ear,
     )
     from podcast_mcp.services.document.history import HISTORY_RERENDER_ERRORS, HistoryService
+    from podcast_mcp.services.document.history_results import HistoryListResult
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.transcript import TranscriptService
@@ -47,6 +48,7 @@ __all__ = [
     "CommentService",
     "EditService",
     "EpisodeService",
+    "HistoryListResult",
     "HistoryService",
     "PlayRequest",
     "PlayService",
@@ -83,6 +85,7 @@ _MODULE_BY_NAME = {
     "score_golden_ear": "golden_ear",
     "HISTORY_RERENDER_ERRORS": "history",
     "HistoryService": "history",
+    "HistoryListResult": "history_results",
     "PlayRequest": "play",
     "PlayService": "play",
     "TransportPath": "play",

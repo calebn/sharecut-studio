@@ -423,7 +423,7 @@ def test_document_update_pending_restore_refusal_and_guarded_undo(
 
     before = ws2.project.model_dump(mode="json")
     disk = Path(minimal_project).read_bytes()
-    head = HistoryService(ws2).status()["head_id"]
+    head = HistoryService(ws2).status().head_id
     with pytest.raises(ValueError) as refused:
         svc.submit(
             DocumentCommand(
@@ -458,7 +458,7 @@ def test_document_update_pending_restore_refusal_and_guarded_undo(
         ("c1", 0, 10, 0)
     ]
     assert [(e.id, e.start, e.end) for e in ws3.project.edit_decisions] == [("d1", 2.1, 3.9)]
-    assert HistoryService(ws3).status()["can_redo"] is True
+    assert HistoryService(ws3).status().can_redo is True
 
 
 def test_document_set_clip_fade_join_and_recommendations(minimal_project):
@@ -548,7 +548,7 @@ def test_document_set_clip_fade_join_and_recommendations(minimal_project):
     assert "project" not in rec_snap
     assert "clips" in rec_snap["patch"]
     assert "applied_fade_updates" in applied["command"]["payload"]["result"]
-    assert HistoryService(ProjectWorkspace.open(minimal_project)).status()["can_undo"]
+    assert HistoryService(ProjectWorkspace.open(minimal_project)).status().can_undo
 
 
 def test_document_set_effect_bypass(minimal_project):
@@ -595,7 +595,7 @@ def test_document_set_effect_bypass(minimal_project):
     assert len(effects) == 2
     assert effects[0].bypass is False
     assert effects[1].bypass is True
-    assert HistoryService(ws2).status()["can_undo"]
+    assert HistoryService(ws2).status().can_undo
 
 
 def _seed_host_words(project_path, texts):
@@ -1172,7 +1172,7 @@ def test_document_correct_and_suppress_transcript(minimal_project):
     w0 = ws2.project.transcripts[0].words[0]
     assert w0.text == "the"
     assert w0.confidence == 1.0
-    assert HistoryService(ws2).status()["can_undo"]
+    assert HistoryService(ws2).status().can_undo
 
     phrase = svc.submit(
         DocumentCommand(
@@ -1221,7 +1221,7 @@ def test_document_correct_and_suppress_transcript(minimal_project):
     assert unsuppressed["ok"]
     ws5 = ProjectWorkspace.open(minimal_project)
     assert ws5.project.transcripts[0].words[0].suppressed is False
-    assert HistoryService(ws5).status()["can_undo"]
+    assert HistoryService(ws5).status().can_undo
 
 
 def test_document_set_transcript_word_automatic(minimal_project):
@@ -1444,7 +1444,7 @@ def test_document_set_transcript_words_ignored(minimal_project):
 
     ws2 = ProjectWorkspace.open(minimal_project)
     assert all(w.ignored for w in ws2.project.transcripts[0].words)
-    assert HistoryService(ws2).status()["can_undo"]
+    assert HistoryService(ws2).status().can_undo
 
     restored = svc.submit(
         DocumentCommand(
@@ -1594,7 +1594,7 @@ def test_document_markers_envelope_and_suggest(envelope_project):
     pending = [d for d in ws4.project.edit_decisions if not d.applied]
     assert len(pending) >= 1
     assert pending[-1].review_required is True
-    assert HistoryService(ws4).status()["can_undo"]
+    assert HistoryService(ws4).status().can_undo
 
     svc.submit(
         DocumentCommand(
@@ -2897,7 +2897,7 @@ def test_a_history_move_saved_before_its_render_failed_is_not_repeated_by_a_retr
     result = retry.submit(cmd)
     assert result["idempotent"] is True
     status_after = HistoryService(ProjectWorkspace.open(minimal_project)).status()
-    assert status_after["cursor"] == status_before["cursor"]
+    assert status_after.cursor == status_before.cursor
     assert len(_journal(retry)) == 2
 
 
@@ -2921,13 +2921,11 @@ def test_an_unknown_commit_outcome_rereads_a_landed_saved_command(minimal_projec
     ):
         svc.submit(cmd)
 
-    cursor_before = HistoryService(ProjectWorkspace.open(minimal_project)).status()["cursor"]
+    cursor_before = HistoryService(ProjectWorkspace.open(minimal_project)).status().cursor
     # Same service: its workspace must still carry the saved record.
     result = svc.submit(cmd)
     assert result["idempotent"] is True
-    assert (
-        HistoryService(ProjectWorkspace.open(minimal_project)).status()["cursor"] == cursor_before
-    )
+    assert HistoryService(ProjectWorkspace.open(minimal_project)).status().cursor == cursor_before
     assert len(_journal(svc)) == 2
 
 

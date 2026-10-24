@@ -84,4 +84,4 @@ def test_raw_fade_after_undo_refuses_without_persisted_changes(minimal_project):
     saved = load_project(minimal_project).clips[0]
     assert (saved.fade_in_ms, saved.fade_out_ms) == (0, 1)
     assert len(journal()) == len(rows) + 1
-    assert HistoryService(ProjectWorkspace.open(minimal_project)).status()["can_redo"] is False
+    assert HistoryService(ProjectWorkspace.open(minimal_project)).status().can_redo is False

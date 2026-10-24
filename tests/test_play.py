@@ -533,19 +533,19 @@ def test_play_history_ab_copies_then_concats(minimal_project, sample_wav, tmp_wo
     hist = HistoryService(ws)
     # Ensure at least two snapshots to A/B between.
     ws.record_snapshot("probe/ab-a", force=True)
-    before = hist.status()["cursor"]
+    before = hist.status().cursor
     # Nudge project label so a second snapshot is distinct.
     ws.project.name = "episode-b"
     ws.save()
     ws.record_snapshot("probe/ab-b", force=True)
-    after = hist.status()["cursor"]
+    after = hist.status().cursor
     assert after != before
 
     play_calls: list[int] = []
     real_play = PlayService.play
 
     def tracking_play(self, req, **kwargs):  # type: ignore[no-untyped-def]
-        play_calls.append(hist.status()["cursor"])
+        play_calls.append(hist.status().cursor)
         return real_play(self, req, **kwargs)
 
     with patch.object(PlayService, "play", tracking_play):
@@ -559,7 +559,7 @@ def test_play_history_ab_copies_then_concats(minimal_project, sample_wav, tmp_wo
     assert result.tier == "ab_concat"
     assert result.wav_path.is_file()
     assert play_calls[:2] == [before, after]
-    assert hist.status()["cursor"] == after
+    assert hist.status().cursor == after
 
 
 def test_play_ab_wavs_missing_files(minimal_project, sample_wav, tmp_workspace) -> None:
@@ -688,11 +688,11 @@ def test_play_ab_cli_dry_run(minimal_project, sample_wav, tmp_workspace) -> None
     ws.record_snapshot("ab-cli-a", force=True)
     from podcast_mcp.services.document import HistoryService
 
-    before = HistoryService(ws).status()["cursor"]
+    before = HistoryService(ws).status().cursor
     ws.project.name = "renamed"
     ws.save()
     ws.record_snapshot("ab-cli-b", force=True)
-    after = HistoryService(ws).status()["cursor"]
+    after = HistoryService(ws).status().cursor
 
     result = runner.invoke(
         app,

@@ -148,7 +148,7 @@ def _assert_parked_recovered(ws, original, tmp_path):
 def test_local_remove_restore_refuses_before_mutation_with_history_undo_guidance(tmp_path):
     ws, original = _approved_parked(tmp_path)
     before = _state(ws)
-    head = HistoryService(ws).status()["head_id"]
+    head = HistoryService(ws).status().head_id
 
     with pytest.raises(ValueError) as refused:
         EditService(ws).revert_applied(ws.project.editorial.edit_log[0].id)
@@ -156,14 +156,14 @@ def test_local_remove_restore_refuses_before_mutation_with_history_undo_guidance
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == RESTORE_MESSAGE
     _assert_unchanged(ws, before)
-    assert HistoryService(ws).status()["head_id"] == head
+    assert HistoryService(ws).status().head_id == head
     HistoryService(ws).undo(expected_head_id=head)
     _assert_parked_recovered(ws, original, tmp_path)
 
 
 def test_guarded_history_undo_recovers_original_parked_snapshot(tmp_path):
     ws, original = _approved_parked(tmp_path)
-    result = HistoryService(ws).undo(expected_head_id=HistoryService(ws).status()["head_id"])
+    result = HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
     assert result["can_redo"] is True
     _assert_parked_recovered(ws, original, tmp_path)
 
@@ -178,7 +178,7 @@ def _post(client, ws, kind, payload, seq):
 def test_document_http_restore_refusal_and_explicit_guarded_undo(tmp_path):
     ws, original = _approved_parked(tmp_path)
     before = _state(ws)
-    head = HistoryService(ws).status()["head_id"]
+    head = HistoryService(ws).status().head_id
     with TestClient(create_app()) as client:
         refused = _post(
             client, ws, "RestoreAppliedEdit", {"id": ws.project.editorial.edit_log[0].id}, 1
@@ -207,7 +207,7 @@ def _mcp_refusal(result):
 async def test_owner_mcp_restore_refusal_and_explicit_guarded_undo(tmp_path):
     ws, original = _approved_parked(tmp_path)
     before = _state(ws)
-    head = HistoryService(ws).status()["head_id"]
+    head = HistoryService(ws).status().head_id
     async with Client(mcp_server.mcp) as client:
         result = await client.call_tool(
             "revert_applied_edit_tool",
@@ -246,7 +246,7 @@ async def test_exact_range_restore_uses_same_coded_refusal(tmp_path, delivery):
     record = ws.project.editorial.edit_log[0]
     assert "exact_range" in record.params
     before = _state(ws)
-    head = HistoryService(ws).status()["head_id"]
+    head = HistoryService(ws).status().head_id
     if delivery == "service":
         with pytest.raises(ValueError) as refused:
             service.revert_applied(record.id)
@@ -368,7 +368,7 @@ def test_guarded_history_undo_restores_all_peer_occurrences(tmp_path, peer_shape
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == RESTORE_MESSAGE
     _assert_unchanged(ws, before)
-    HistoryService(ws).undo(expected_head_id=HistoryService(ws).status()["head_id"])
+    HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
     assert _editable(ws.project) == original
     saved = load_project(ws.path)
     assert _editable(saved) == original
@@ -395,11 +395,11 @@ def test_guarded_history_undo_restores_all_peer_occurrences(tmp_path, peer_shape
 
 def test_later_action_requires_undo_of_actual_current_head_first(tmp_path):
     ws, original = _approved_parked(tmp_path)
-    cut_head = HistoryService(ws).status()["head_id"]
-    cut_before_id = HistoryService(ws).list_entries()["groups"][-1]["before_id"]
+    cut_head = HistoryService(ws).status().head_id
+    cut_before_id = HistoryService(ws).list_entries().groups[-1].before_id
     EditService(ws).cut_time_range("host", 4, 5, reason="nl:range", use_inaudible_opt=False)
     current = _state(ws)
-    current_head = HistoryService(ws).status()["head_id"]
+    current_head = HistoryService(ws).status().head_id
     assert current_head != cut_head
     with pytest.raises(ValueError) as refused:
         EditService(ws).revert_applied(ws.project.editorial.edit_log[0].id)
@@ -418,10 +418,10 @@ def test_later_action_requires_undo_of_actual_current_head_first(tmp_path):
         (2, 6, 1),
     ]
     for _ in range(2):
-        if HistoryService(ws).status()["head_id"] == cut_before_id:
+        if HistoryService(ws).status().head_id == cut_before_id:
             break
-        HistoryService(ws).undo(expected_head_id=HistoryService(ws).status()["head_id"])
-    assert HistoryService(ws).status()["head_id"] == cut_before_id
+        HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
+    assert HistoryService(ws).status().head_id == cut_before_id
     _assert_parked_recovered(ws, original, tmp_path)
 
 
