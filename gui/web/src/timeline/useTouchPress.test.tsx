@@ -4,6 +4,11 @@ import { LONG_PRESS_MS } from "../hooks/gestureConstants";
 import type { HitRouter } from "./hitRouting";
 import { useTouchPress } from "./useTouchPress";
 
+vi.mock("./hitRouting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./hitRouting")>()),
+  isReplayed: (event: Event) => (event as MouseEvent).detail === 7,
+}));
+
 let router: HitRouter;
 const owner = vi.fn();
 
@@ -56,6 +61,16 @@ describe("useTouchPress", () => {
 
     expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual([]);
     expect(router.longPress).not.toHaveBeenCalled();
+  });
+
+  it("lets the router's replayed click reach its target while the press is open", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerUp(target, touch);
+    fireEvent.click(target, { detail: 7 });
+
+    expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual(["click"]);
   });
 
   it("reports nothing when the browser takes the touch to scroll", () => {

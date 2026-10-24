@@ -23,7 +23,7 @@ import {
   useRef,
 } from "react";
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
-import type { HitRouter } from "./hitRouting";
+import { type HitRouter, isReplayed } from "./hitRouting";
 
 export interface TouchPressProps {
   onPointerDownCapture: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -56,7 +56,7 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
     onClickCapture(event) {
       // The press ends on the browser's click, which no target should see;
       // any other click (a replayed tap, a mouse click) is its target's.
-      if (!pressing.current) return;
+      if (!pressing.current || isReplayed(event.nativeEvent)) return;
       pressProps.onClick?.(event);
       longPressProps.onClick?.(event);
     },
